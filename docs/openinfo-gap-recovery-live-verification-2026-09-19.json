@@ -1,0 +1,519 @@
+{
+  "release": "ef85651",
+  "source_policy": "openinfo",
+  "result": {
+    "processor": "bank-pdf-draft-v3-statement-columns-v6:32395db03d36865b",
+    "sources_staged": 360,
+    "unique_pdfs": 240,
+    "new_source_downloads": 26,
+    "selected": [
+      {
+        "source_id": "815836abea73b36982d57a7db3f3f8a648116c3215c369202828f2b1a8150a16",
+        "ticker": "IPKY",
+        "sha": "1266209f9836e3843e96dced41662057b7a15a7cfea3eeae70ea14ff0da5ba4b",
+        "scope": "separate",
+        "period": "2018-06-30",
+        "payload_digest": "789d8728105057ea6ad90a180809965549bff964526774f6b9f27c757d262e7d",
+        "field_count": 9,
+        "reviewed_pages": [
+          1,
+          2,
+          4,
+          5
+        ],
+        "candidate_id": "7f502a10a1c73c72e1b61f97b44d50f097b8edc0b938a21b93de0cb98898b19d",
+        "review_id": "5b654fb1cc95f9a66487df2fe6b2e8c36ca94c95d2e307dad0c10ca69db240db"
+      },
+      {
+        "source_id": "5cecd31c9e0b02eadb10ad6293bc91ad2c2029820e8d53988e1e2b56418c5f29",
+        "ticker": "SQBN",
+        "sha": "b2cf0bd8bd3de637de8a8626a40dd4331f1455c9b2972cb9a0eb0977321a064b",
+        "scope": "consolidated",
+        "period": "2023-06-30",
+        "payload_digest": "68d957768feada5a9a253cf4c86331b89b66ef56f63d3b607ab293321a078f04",
+        "field_count": 5,
+        "reviewed_pages": [
+          3,
+          5
+        ],
+        "candidate_id": "6f2d369ebe0d62134c9d8b2ff07a86389c78efdea23420578c5b50c79ebc42f3",
+        "review_id": "cd9d71d64fbb99ad0a9e1fa125b27ed56da26196b6fd198b53dacb01688b2982"
+      }
+    ],
+    "publications": [
+      {
+        "ticker": "IPKY",
+        "published": 1,
+        "snapshots": [
+          "8038461b1eaafbb3917ba764613ff9d3254d1c6ae44c7fba6314938f803d37ea"
+        ]
+      },
+      {
+        "ticker": "SQBN",
+        "published": 1,
+        "snapshots": [
+          "6f31f77f4f7eb76e5e345605543d39390d98e3e6ef8afa851e322102f8af5eaa"
+        ]
+      }
+    ],
+    "old_heads_unchanged": 185,
+    "new_head_count": 187,
+    "backup": {
+      "path": "/app/data/financial_backups/20260919T054320Z-52326df5",
+      "verified": true,
+      "artifacts": 255,
+      "published_periods": 187
+    },
+    "status": {
+      "sources": 379,
+      "jobs": {
+        "SUCCEEDED": 648,
+        "SUPERSEDED": 1277,
+        "NEEDS_REVIEW": 450
+      },
+      "published_periods": 187,
+      "source_policy": "openinfo",
+      "retained_external_sources": 19,
+      "discovery_pending": 0,
+      "discovery_errors": [],
+      "unreviewed_sources": 209,
+      "pending_jobs": 0,
+      "stale_publications": 0,
+      "approved_unpublished": 224,
+      "overdue_sources": 0,
+      "last_checked_at": 1789796594.4493542,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "live_verification": {
+    "unchanged_heads": 185,
+    "external_pending_jobs": 0,
+    "source_policy": "openinfo",
+    "verified_at": "2026-09-19T05:44:12.901518+00:00",
+    "periods": 187,
+    "figures": 1674,
+    "scope_periods": {
+      "AGBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "ALKB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "ALKB:separate": [
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "BRBNP:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015"
+      ],
+      "DRBK:consolidated": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "DRBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "GRBK:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "GRBK:separate": [
+        "2023",
+        "2022"
+      ],
+      "HMKBP:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:consolidated": [
+        "2025",
+        "2024",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPKY:separate": [
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016"
+      ],
+      "IPKY:separate:quarterly": [
+        "2018Q2"
+      ],
+      "IPTB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "IPTB:separate": [
+        "2016",
+        "2015"
+      ],
+      "MCBA:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2017",
+        "2016",
+        "2015",
+        "2014",
+        "2013"
+      ],
+      "MCBA:separate": [
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017"
+      ],
+      "OCBK:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "SQBN:consolidated:quarterly": [
+        "2024Q2",
+        "2023Q2",
+        "2020Q2",
+        "2019Q2"
+      ],
+      "TNBN:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TNGB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020"
+      ],
+      "TRSB:consolidated": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017",
+        "2016",
+        "2015",
+        "2014"
+      ],
+      "TRSB:consolidated:quarterly": [
+        "2019Q2",
+        "2018Q2"
+      ],
+      "UNVB:separate": [
+        "2025",
+        "2024",
+        "2023",
+        "2022",
+        "2021",
+        "2020",
+        "2019",
+        "2018",
+        "2017"
+      ]
+    },
+    "checks": [
+      "all previous and added public values",
+      "every figure source hash, value and scope",
+      "all calculated figure components",
+      "newest separate default retained"
+    ],
+    "davr_default_scope": "separate"
+  },
+  "artifact_verification": [
+    {
+      "ticker": "IPKY",
+      "sha256": "1266209f9836e3843e96dced41662057b7a15a7cfea3eeae70ea14ff0da5ba4b",
+      "bytes": 1434776,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    },
+    {
+      "ticker": "SQBN",
+      "sha256": "b2cf0bd8bd3de637de8a8626a40dd4331f1455c9b2972cb9a0eb0977321a064b",
+      "bytes": 1535044,
+      "verified": true,
+      "check_origin": "production host through public HTTPS endpoint"
+    }
+  ],
+  "monitor": {
+    "ok": true,
+    "incidents": {},
+    "coverage": {
+      "sources": 379,
+      "jobs": {
+        "SUCCEEDED": 648,
+        "SUPERSEDED": 1277,
+        "NEEDS_REVIEW": 450
+      },
+      "published_periods": 187,
+      "source_policy": "openinfo",
+      "retained_external_sources": 19,
+      "discovery_pending": 0,
+      "discovery_errors": [],
+      "unreviewed_sources": 209,
+      "pending_jobs": 0,
+      "stale_publications": 0,
+      "approved_unpublished": 224,
+      "overdue_sources": 0,
+      "last_checked_at": 1789796594.4493542,
+      "status": "PARTIAL",
+      "failures": []
+    }
+  },
+  "staging_timer_active": true,
+  "focused_tests_passed": 220,
+  "additional_partial_period": {
+    "ticker": "SQBN",
+    "scope": "consolidated",
+    "period": "2023Q2",
+    "published_fields": [
+      "interest_income",
+      "interest_expense",
+      "operating_income",
+      "operating_expenses",
+      "net_income"
+    ],
+    "missing_fields": [
+      "cash",
+      "total_assets",
+      "total_liabilities",
+      "total_equity"
+    ],
+    "reason": "The 2024 interim report supplies comparative income for June 2023 but its comparative balance is December 2023."
+  },
+  "discovery_checks": {
+    "DRBK": {
+      "org_id": 26,
+      "records": 42
+    },
+    "GRBK": {
+      "org_id": 11,
+      "records": 42
+    },
+    "IPKY": {
+      "org_id": 28,
+      "records": 55
+    },
+    "MCBA": {
+      "org_id": 20,
+      "records": 50
+    }
+  },
+  "limitations": [
+    "Only two new candidates received source-page review for publication.",
+    "Staging is not approval: 209 sources still have unreviewed candidates, and 224 approved candidates remain unpublished. Existing heads were retained.",
+    "The checked OpenInfo evidence did not resolve the pre-existing annual scope gaps or Davr 2014 income.",
+    "No claim of complete coverage of every historical or interim OpenInfo filing."
+  ],
+  "browser_verification": [
+    {
+      "ticker": "IPKY",
+      "scope": "separate",
+      "period": "Q2 2018",
+      "passport": true,
+      "missing_balance_explicit": false
+    },
+    {
+      "ticker": "SQBN",
+      "scope": "consolidated",
+      "period": "Q2 2023",
+      "passport": true,
+      "missing_balance_explicit": true
+    }
+  ],
+  "browser_verification_note": "Live production data and source passports; fonts blocked to avoid external font-loading delays; SQBN final check used Chromium HTTP/1 transport after HTTP/2 navigation timeouts.",
+  "baseline_coverage_gaps": {
+    "published_periods": 185,
+    "partial_periods": [
+      {
+        "ticker": "DRBK",
+        "scope": "separate",
+        "period_end": "2014-12-31",
+        "published_fields": [
+          "cash",
+          "total_assets",
+          "total_equity",
+          "total_liabilities"
+        ],
+        "missing_fields": [
+          "gross_profit",
+          "interest_expense",
+          "interest_income",
+          "net_income",
+          "operating_expenses",
+          "operating_income",
+          "revenue"
+        ]
+      }
+    ],
+    "intervening_annual_gaps_across_scopes": [],
+    "intervening_view_gaps": [
+      {
+        "ticker": "DRBK",
+        "scope": "separate",
+        "years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021
+        ],
+        "available_in_other_scope": true
+      },
+      {
+        "ticker": "GRBK",
+        "scope": "consolidated",
+        "years": [
+          2022
+        ],
+        "available_in_other_scope": true
+      },
+      {
+        "ticker": "IPKY",
+        "scope": "consolidated",
+        "years": [
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023
+        ],
+        "available_in_other_scope": true
+      },
+      {
+        "ticker": "MCBA",
+        "scope": "consolidated",
+        "years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022
+        ],
+        "available_in_other_scope": true
+      }
+    ],
+    "limitation": "Within published ranges only; does not establish completeness of all OpenInfo filings, earlier years, scopes or interim periods."
+  }
+}

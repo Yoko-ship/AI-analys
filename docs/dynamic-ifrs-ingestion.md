@@ -344,3 +344,53 @@ OpenInfo sources are due for their first/next fetch. Those operational counts
 are not evidence that every available filing has already been processed.
 The pre-deployment backup verified 242 originals and 185 published periods.
 See [the source-policy and coverage audit](openinfo-only-live-verification-2026-09-19.json).
+
+### OpenInfo queue recovery and interim statements (2026-09-19)
+
+Release `ef85651` uses `statement-columns-v6`. Parser upgrades now retire
+obsolete queued extraction versions together, retaining one current job per
+latest document. Completed work and its review state are not reopened, and
+obsolete versions no longer consume the worker's four-job processing budget.
+
+Shared parsing rules resolve individually wrapped date cells, distinguish an
+explicit full-year comparative column from a half-year primary column, and
+recognize a narrow spelling variant in profit-before-tax labels. When a terse
+income header omits its duration, an unambiguous dated IFRS front-matter
+statement can supply it. Conflicting durations remain unresolved, and a June
+income comparative never acquires the December comparative balance. The
+supporting context page remains in the candidate's evidence. No issuer-specific
+branches, financial amounts, or review-ledger entries were added.
+
+All 360 registered OpenInfo sources (240 distinct PDFs) were staged with the
+current parser, including 26 previously unfetched URLs. Retained native/OCR
+page evidence was reprocessed; 16 selected PDFs received bounded OCR passes.
+Old publications were preserved. Two additional candidates received source-page
+review and publication:
+
+- IPKY separate 2018Q2: all nine figures, including a transparent operating
+  income calculation from printed pretax profit and signed operating expenses.
+- SQBN consolidated 2023Q2: five income figures from the comparative column of
+  its 2024 interim report. The four June 2023 balance figures remain unavailable;
+  the report's December balance is not substituted.
+
+Verification checked all 187 live periods and 1,674 figures, every source hash,
+scope and calculation component, and preservation of all 185 previous heads.
+Both public PDF downloads matched their SHA256 hashes. An ownership issue from
+the administrative import was corrected before the successful download checks;
+production imports should run with `docker exec --user appuser` so archived
+originals remain readable by the web process. The verified post-import backup
+contains 255 originals and 187 published periods. All 220 focused tests passed.
+Live browser checks passed for both added periods and their source passports,
+including the explicit missing-balance display for SQBN 2023Q2.
+
+The staging queue is empty and no sources are overdue. Monitoring has no
+incidents, failures, discovery errors or stale publications, and the timer is
+active. Staging is not review: 209 sources retain unreviewed candidates and
+224 approved candidates remain unpublished. No automatic revisions were applied.
+
+The checked OpenInfo evidence did not resolve Davr's five 2014 income figures
+or the annual scope gaps listed above. Current OpenInfo listings for DRBK,
+GRBK, IPKY and MCBA were checked again; they did not expose additional source
+URLs or annual parent filings beyond the registered set. This is not a claim
+that every historical or interim OpenInfo period is complete.
+See [the recovery and remaining-gaps audit](openinfo-gap-recovery-live-verification-2026-09-19.json).
