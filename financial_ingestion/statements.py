@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v5'
+VERSION = 'statement-columns-v6'
 
 
 def compact(value):
@@ -210,6 +210,30 @@ def units(text):
 def columns(header):
     """Use statement column headers, never the largest year on a cover/opinion."""
     lines = header.splitlines()
+    # A wrapped column may print its year one row below the neighboring
+    # complete date. Resolve the date cells as a group before choosing a
+    # year row; otherwise the final lone year can hide the primary column.
+    for index in range(len(lines) - 1, -1, -1):
+        line = lines[index]
+        if re.search(r'\bfrom\b|\bс\s*\d', line, re.I):
+            continue
+        dates = list(re.finditer(r'(31|30|1)\s*(' + '|'.join(START_MONTHS) + r')\b', line, re.I))
+        if not 2 <= len(dates) <= 3:
+            continue
+        years = []
+        for n, date in enumerate(dates):
+            cell = line[date.end():dates[n+1].start() if n+1 < len(dates) else len(line)]
+            matches = re.findall(r'20\d{2}', cell)
+            years.append(int(matches[0]) if len(matches) == 1 else None)
+        missing = sum(year is None for year in years)
+        wrapped = re.findall(r'20\d{2}', '\n'.join(lines[index+1:index+3])) if missing else []
+        if len(wrapped) != missing:
+            continue
+        extra = iter(wrapped)
+        years = [year if year is not None else int(next(extra)) for year in years]
+        ends = [f'{year}-{START_MONTHS[date[2].lower()]:02d}-{int(date[1]):02d}' for year,date in zip(years,dates)]
+        if len(set(ends)) == len(ends):
+            return list(zip(years, ends))
     options = []
     for i,line in enumerate(lines):
         # A “from DATE to DATE” duration repeats a year in one column. Only
@@ -313,10 +337,28 @@ def _calculated(parts, label, field):
             'components':parts,'field':field}
 
 
+def report_flow_contexts(pages):
+    """Explicit dated duration in front matter can date terse income headers."""
+    contexts = []
+    for number, text in sorted(pages.items()):
+        if sum(row_label(line) is not None for line in statement_lines(text)) >= 3:
+            break  # Never borrow a duration from notes or another statement.
+        dates = {(int(m['year']), f"{m['year']}-{MONTHS[m['month'].lower()]:02d}-{int(m['day']):02d}")
+                 for m in DATE.finditer(text)}
+        if not is_ifrs(text) or len(dates) != 1:
+            continue
+        year, end = next(iter(dates))
+        start = flow_start(text, year, end)
+        if start:
+            contexts.append((year, end, start, number, text))
+    return contexts
+
+
 def proposals(pages, evidence):
     """Extract all supported columns and keep incompatible scopes separate."""
     joined='\n'.join(pages.values())
     standard='MSFO' if is_ifrs(joined) else None
+    flow_contexts = report_flow_contexts(pages)
     groups={}
     # Some statement pages omit a unit already printed on an adjacent
     # statement. Only a single consistent statement-header unit may carry.
@@ -391,6 +433,15 @@ def proposals(pages, evidence):
             if kind == 'income':
                 g['classification']['period_start'] = flow_start(text, year, end,
                     column_index=column_index, column_count=len(cols))
+                if g['classification']['period_start'] is None:
+                    matching = [item for item in flow_contexts
+                                if item[0] == document_year and item[1][5:] == end[5:]]
+                    starts = {f'{int(item[2][:4]) + year - item[0]}{item[2][4:]}' for item in matching}
+                    if len(starts) == 1:
+                        g['classification']['period_start'] = next(iter(starts))
+                        for _, _, _, page, context in matching:
+                            g['classification']['period_evidence'].append(f'PDF page {page}: {context.strip()}')
+                            g.setdefault('period_context_pages', set()).add(page)
             g['classification']['document_year']=max(g['classification']['document_year'],document_year)
             g['classification']['period_evidence'].append(f'PDF page {number}: {header.strip()}')
             g['classification']['unit_evidence'].append(f'PDF page {number}: {unit_header.strip()}')
@@ -489,7 +540,7 @@ def proposals(pages, evidence):
         # Issuer attribution is deliberately not inferred from a download URL.
         # A reviewer verifies the document heading against the catalog entity.
         meta['issuer_evidence']='\n'.join(next(iter(pages.values()),'').splitlines()).strip()[:2000] or None
-        g['page_evidence']={str(n):pages[n][:20000] for n in set(g['statement_pages'])}
+        g['page_evidence']={str(n):pages[n][:20000] for n in set(g['statement_pages']) | g.pop('period_context_pages', set())}
         g['extraction']={**evidence,'parser':VERSION,'issues':sorted(set(issues)),
                          'requires_review':True,'issuer_identity_verified':False}
         result.append(g)

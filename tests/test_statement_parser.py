@@ -329,6 +329,12 @@ def test_stacked_interim_balance_columns_keep_december_comparative():
     assert statements.columns(header) == [(2024,'2024-06-30'),(2023,'2023-12-31')]
 
 
+def test_one_wrapped_date_column_does_not_hide_the_other():
+    header = ('Consolidated statement of financial position\n'
+              'Notes    30 June 2024    31 December\n(unaudited)    2023')
+    assert statements.columns(header) == [(2024, '2024-06-30'), (2023, '2023-12-31')]
+
+
 def test_interim_title_cannot_supply_a_missing_comparative_balance_date():
     header = 'Consolidated statement of financial position\nAs at 30 June 2024\n2024    2023'
     assert statements.columns(header) == []
@@ -385,3 +391,20 @@ def test_pretax_spelling_variant_retains_arithmetic_check(pages):
     assert all(validation.validate(p, page_count=8)['valid'] for p in (primary, comparative))
     primary['income_reconciliation']['pretax']['raw_value'] = '220010'
     assert 'INCOME_MISMATCH' in validation.validate(primary, page_count=8)['errors']
+
+
+def test_explicit_front_matter_duration_dates_income_but_not_december_comparative(pages):
+    pages[1] = 'IFRS interim financial statements as at 30 June 2024 and for the six months then ended'
+    pages[7] = pages[7].replace('31 December 2024       31 December 2023',
+        '30 June    31 December\n2024    2023')
+    pages[8] = pages[8].replace('Year ended 31 December 2024       31 December 2023',
+        '30 June 2024    30 June 2023').replace('Profit for the year', 'Net profit for the period')
+    parsed = {p['classification']['period_end']: p for p in parse(pages)}
+    assert parsed['2024-06-30']['classification']['period_start'] == '2024-01-01'
+    assert parsed['2023-06-30']['classification']['period_start'] == '2023-01-01'
+    assert set(parsed['2023-06-30']['figures']).isdisjoint(statements.BALANCE)
+    assert set(parsed['2023-12-31']['figures']) == statements.BALANCE
+    assert '1' in parsed['2023-06-30']['page_evidence']
+    pages[2] = 'IFRS interim financial statements as at 30 June 2024 and for the three months then ended'
+    assert all(p['classification']['period_start'] is None
+               for p in parse(pages) if p['classification']['period_end'].endswith('06-30'))
