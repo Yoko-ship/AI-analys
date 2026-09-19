@@ -125,7 +125,7 @@ def enqueue(c, source_id, stage, processor, *, version_id=None, generation="init
     return key
 
 
-def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT")):
+def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), processor=None):
     clock = time.time()
     with transaction() as c:
         # A killed worker cannot own a job indefinitely, or publish after its
@@ -142,10 +142,27 @@ def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT")):
                 c.execute("UPDATE ingest_jobs SET state='SUPERSEDED',error=?,updated_at=? WHERE id=?",
                           (reason, now(), pending['id']))
                 event(c, pending['id'], 'job.superseded', reason=reason)
+        if processor is not None:
+            # Parser upgrades must not spend the bounded worker budget merely
+            # walking old versions. Keep one current job per latest document;
+            # enqueue's dedupe key preserves completed work and review state.
+            obsolete = c.execute(
+                "SELECT j.*,s.latest_version FROM ingest_jobs j JOIN ingest_sources s ON s.id=j.source_id "
+                "WHERE j.stage='EXTRACT' AND j.processor<>? AND j.state IN ('QUEUED','RETRY')",
+                (processor,)).fetchall()
+            for pending in obsolete:
+                replacement = None
+                if pending['latest_version']:
+                    replacement = enqueue(c, pending['source_id'], 'EXTRACT', processor,
+                                          version_id=pending['latest_version'])
+                reason = 'Extraction implementation/review ledger changed'
+                c.execute("UPDATE ingest_jobs SET state='SUPERSEDED',error=?,updated_at=? WHERE id=?",
+                          (reason, now(), pending['id']))
+                event(c, pending['id'], 'job.superseded', reason=reason, replacement=replacement)
         marks = ",".join("?" for _ in stages)
         row = c.execute(f"SELECT * FROM ingest_jobs WHERE state IN ('QUEUED','RETRY') "
                         f"AND available_at<=? AND stage IN ({marks}) ORDER BY available_at,id LIMIT 1",
-                        (clock, *stages)).fetchone()
+                        (time.time(), *stages)).fetchone()
         if not row:
             return None
         token = uuid4().hex

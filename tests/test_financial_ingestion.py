@@ -319,6 +319,27 @@ def test_changed_processor_never_labels_new_extraction_with_old_version(setup):
     assert store.status("23")["jobs"]["SUPERSEDED"] == 1
 
 
+def test_parser_upgrades_do_not_consume_worker_budget_or_reopen_completed_work(setup):
+    stage(setup)
+    with store.transaction() as c:
+        source = c.execute('SELECT * FROM ingest_sources').fetchone()
+        for number in range(12):
+            store.enqueue(c, source['id'], 'EXTRACT', f'obsolete-{number}',
+                          version_id=source['latest_version'])
+    # All replacements deduplicate against the already completed current job.
+    assert worker.run(max_jobs=1)['processed'] == 0
+    assert store.status('23')['jobs']['SUPERSEDED'] == 12
+    assert len(candidates()) == 1
+    setup[0]['period_evidence'] += ' New review version.'
+    result = worker.run(max_jobs=1)
+    assert result['processed'] == 0  # Discovery explicitly schedules upgrades.
+    documents.discover(ticker='BRBN', processor='obsolete-next')
+    result = worker.run(max_jobs=1)
+    assert result['processed'] == 1 and result['outcomes'][0]['ok']
+    assert len(candidates()) == 2
+    assert any(c['processor'] == extract.processor_version() for c in candidates())
+
+
 def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
     stage(setup)
     monkeypatch.setattr(documents.Path, "read_bytes", lambda _: b"corrupted")

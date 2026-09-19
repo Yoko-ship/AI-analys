@@ -13,7 +13,7 @@ def run(*, max_jobs=4, ocr=False, fetch=None):
     outcomes = []
     processor = extract.processor_version()
     for _ in range(max_jobs):
-        job = store.claim()
+        job = store.claim(processor=processor)
         if not job:
             break
         try:
