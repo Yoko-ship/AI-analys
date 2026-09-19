@@ -355,3 +355,33 @@ def test_unqualified_net_interest_after_credit_losses_cannot_derive_gross_expens
     pages[8] = pages[8].replace('Interest expense                 (100,000)    (90,000)',
         'Provision for credit losses    (50,000)    (10,000)\nNet interest income    350,000    300,000')
     assert 'interest_expense' not in parse(pages)[0]['figures']
+
+
+def test_mixed_half_year_and_annual_columns_keep_individual_durations(pages):
+    pages[7] = pages[7].replace('31 December 2024       31 December 2023',
+        '30 June    31 December\n2024    2023')
+    pages[8] = pages[8].replace('Year ended 31 December 2024       31 December 2023',
+        'For the six months ended 30 June 2024\nЗа шесть\nмесяцев,  За год,\n30 June    31 December\n2024    2023')
+    primary, comparative = parse(pages)
+    assert primary['classification']['period_start'] == '2024-01-01'
+    assert primary['classification']['period_end'] == '2024-06-30'
+    assert comparative['classification']['period_start'] == '2023-01-01'
+    assert comparative['classification']['period_end'] == '2023-12-31'
+    assert all(validation.validate(p, page_count=8)['valid'] for p in (primary, comparative))
+
+
+def test_december_does_not_imply_annual_income_without_column_label():
+    header = 'For the six months ended\n30 June    31 December\n2024    2023'
+    assert statements.flow_start(header, 2023, '2023-12-31',
+        column_index=1, column_count=2) == '2023-07-01'
+
+
+def test_pretax_spelling_variant_retains_arithmetic_check(pages):
+    pages[8] = pages[8].replace('Profit before tax', 'Прибыль до налогооблажения')
+    pages[8] = pages[8].replace('Profit for the year',
+        'Income tax expense  (30,000)  (30,000)\nProfit for the year')
+    primary, comparative = parse(pages)
+    assert primary['figures']['operating_income']['raw_value'] == '420000'
+    assert all(validation.validate(p, page_count=8)['valid'] for p in (primary, comparative))
+    primary['income_reconciliation']['pretax']['raw_value'] = '220010'
+    assert 'INCOME_MISMATCH' in validation.validate(primary, page_count=8)['errors']

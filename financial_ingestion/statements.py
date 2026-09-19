@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v4'
+VERSION = 'statement-columns-v5'
 
 
 def compact(value):
@@ -28,7 +28,7 @@ LABELS = {
     'operating_income': r'(?:totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
     'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
-    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообложения|дорасходовпоналогунаприбыль))',
+    '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
     '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
     '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
@@ -275,13 +275,24 @@ def columns(header):
     return result
 
 
-def flow_start(text, year, end):
+def flow_start(text, year, end, *, column_index=None, column_count=None):
     """Retain non-calendar and standalone-quarter evidence instead of relabeling it."""
     start = re.search(r'(?:\bfrom\b|\bс\b)\s*(\d{1,2})\s*(' + '|'.join(START_MONTHS) + r')\s*(20\d{2})', text, re.I)
     if start:
         # A single explicit inaugural start date cannot establish the start
         # of a comparative column from another year.
         return f'{year}-{START_MONTHS[start[2].lower()]:02d}-{int(start[1]):02d}' if int(start[3]) == year else None
+    if column_index is not None:
+        # A half-year report may explicitly compare its income with a full
+        # annual column. Only a label in that physical column can override
+        # the report-wide duration; December alone is not annual evidence.
+        for line in text.splitlines():
+            if row_label(line):
+                break
+            cells_ = re.split(r'\s{2,}', line.strip())
+            if len(cells_) == column_count and re.fullmatch(
+                    r'(?:fortheyear(?:ended)?|загод),?', compact(cells_[column_index])):
+                return f'{year}-01-01' if end.endswith('-12-31') else None
     key = compact(text)
     months = next((n for pattern,n in [(r'threemonths|тр[её]хмесяч|тримесяца',3),
                                        (r'sixmonths|шестимесяч|шестьмесяцев|полугод',6),
@@ -368,7 +379,7 @@ def proposals(pages, evidence):
         scope='consolidated' if re.search(r'consolidated|консолидирован',header,re.I) else 'separate'
         document_year=max(year for year,end in cols)
         restated=bool(re.search(r'restated|пересчитан|пересмотрен|скорректирован',header,re.I))
-        for year,end in cols:
+        for column_index,(year,end) in enumerate(cols):
             key=(scope,end,scale)
             if key not in groups:
                 groups[key]={'classification':{'standard':standard,'scope':scope,'currency':'UZS' if scale else None,
@@ -378,7 +389,8 @@ def proposals(pages, evidence):
                     'figures':{},'parts':defaultdict(list),'conflicts':set(),'statement_pages':[]}
             g=groups[key]
             if kind == 'income':
-                g['classification']['period_start'] = flow_start(text, year, end)
+                g['classification']['period_start'] = flow_start(text, year, end,
+                    column_index=column_index, column_count=len(cols))
             g['classification']['document_year']=max(g['classification']['document_year'],document_year)
             g['classification']['period_evidence'].append(f'PDF page {number}: {header.strip()}')
             g['classification']['unit_evidence'].append(f'PDF page {number}: {unit_header.strip()}')
