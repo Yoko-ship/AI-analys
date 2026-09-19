@@ -7,7 +7,7 @@ import tempfile
 import time
 from urllib.parse import urlparse, urljoin
 
-from . import store
+from . import source_policy, store
 
 FETCH_VERSION = "bounded-openinfo-v1"
 
@@ -58,6 +58,7 @@ def read_artifact(sha):
 
 
 def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_days=7):
+    source_policy.require(url)
     source_id = store.digest([str(org_id), url])
     old = c.execute("SELECT * FROM ingest_sources WHERE id=?", (source_id,)).fetchone()
     c.execute("INSERT INTO ingest_sources (id,org_id,ticker,url,category,metadata_json,first_seen,last_seen) "
@@ -93,12 +94,16 @@ def discover(*, ticker=None, processor):
     ids = set()
     with store.transaction() as c:
         for row in rows:
+            if not source_policy.allows(row['pdf_url']):
+                continue
             ids.add(register(c, org_id=row["org_id"], ticker=row["ticker"], url=row["pdf_url"],
                              category=row["report_form"], metadata=dict(row), processor=processor))
         # Only explicitly reviewed issuer-site documents extend OpenInfo's
         # catalog. This is not a crawler or an unrestricted URL import path.
         from .extract import review_entries
         for entry in review_entries():
+            if not source_policy.allows(entry['pdf_url']):
+                continue
             if entry.get("source_kind") != "issuer_website" or (ticker and entry["ticker"] != ticker.upper()):
                 continue
             company = c.execute("SELECT org_id FROM catalog_companies WHERE ticker=?", (entry["ticker"],)).fetchone()
@@ -113,6 +118,8 @@ def discover(*, ticker=None, processor):
         # Registered issuer originals participate in refresh/reprocessing just
         # like catalog documents, without entries in a checked-in value ledger.
         for source in c.execute("SELECT * FROM ingest_sources WHERE category='IssuerIFRS'").fetchall():
+            if not source_policy.allows(source['url']):
+                continue
             metadata = json.loads(source["metadata_json"])
             if not metadata.get("registered_by") or (ticker and source["ticker"] != ticker.upper()):
                 continue
@@ -129,6 +136,7 @@ def register_issuer_source(*, ticker, url, source_page, actor, reason, processor
     Operator attribution records who verified the issuer's source page. The
     file still follows FETCH → EXTRACT → review and cannot publish itself.
     """
+    source_policy.require(url)
     import ipaddress
     import socket
     import reports_catalog as rc
@@ -186,6 +194,7 @@ def fetch_job(job, processor, fetch=None):
     finally:
         c.close()
     metadata = json.loads(source["metadata_json"])
+    source_policy.require(source['url'])
     payload = (fetch(source["url"]) if fetch else download_pdf(source["url"],
                issuer_origin=(metadata.get("linked_document_origin") or metadata.get("source_page_url"))
                if source["category"] == "IssuerIFRS" else None))

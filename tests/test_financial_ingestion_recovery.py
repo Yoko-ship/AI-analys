@@ -76,7 +76,8 @@ def test_reviewed_correction_requires_exact_previous_source_and_values(setup, mo
     assert not result["preserved_previous_values"]
 
 
-def test_reviewed_issuer_website_discovery_is_bound_to_catalog_issuer(setup):
+def test_reviewed_issuer_website_discovery_is_bound_to_catalog_issuer(setup, monkeypatch):
+    monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     setup[0].update(source_kind="issuer_website", source_page_url="https://mkbank.uz/reports/",
                     pdf_url="https://mkbank.uz/upload/reviewed.pdf", document_year=2024)
     documents.discover(ticker="BRBN", processor=extract.processor_version())

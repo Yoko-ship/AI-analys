@@ -2,7 +2,7 @@
 from decimal import Decimal
 import json
 
-from . import documents, store, validation
+from . import documents, source_policy, store, validation
 
 
 def period_key(meta):
@@ -121,6 +121,7 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
             if old and old["snapshot_id"] == snapshot_id:
                 published.append(snapshot_id)
                 continue
+            source_policy.require(row['url'])
             source_meta = json.loads(row["metadata_json"])
             full = {**payload, "normalized_uzs": checks["normalized_uzs"], "warnings": checks["warnings"],
                     "source": {"file_hash": row["sha"], "pdf_url": row["url"], "category": row["category"],

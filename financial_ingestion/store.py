@@ -11,6 +11,7 @@ import time
 from uuid import uuid4
 
 import dbx
+from . import source_policy
 
 
 def encoded(value):
@@ -132,6 +133,15 @@ def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT")):
         c.execute("UPDATE ingest_jobs SET state=CASE WHEN attempts>=? THEN 'FAILED' ELSE 'RETRY' END, "
                   "lease_token=NULL,lease_until=NULL,error='Worker lease expired',updated_at=? "
                   "WHERE state='RUNNING' AND lease_until<?", (max_attempts, now(), clock))
+        # Old issuer-site jobs may predate the current source policy. Retire
+        # queued work without deleting originals, reviews or snapshot heads.
+        for pending in c.execute("SELECT j.id,s.url FROM ingest_jobs j JOIN ingest_sources s ON s.id=j.source_id "
+                                 "WHERE j.state IN ('QUEUED','RETRY','FAILED')").fetchall():
+            if not source_policy.allows(pending['url']):
+                reason = 'Source excluded from future updates by OpenInfo-only policy'
+                c.execute("UPDATE ingest_jobs SET state='SUPERSEDED',error=?,updated_at=? WHERE id=?",
+                          (reason, now(), pending['id']))
+                event(c, pending['id'], 'job.superseded', reason=reason)
         marks = ",".join("?" for _ in stages)
         row = c.execute(f"SELECT * FROM ingest_jobs WHERE state IN ('QUEUED','RETRY') "
                         f"AND available_at<=? AND stage IN ({marks}) ORDER BY available_at,id LIMIT 1",
@@ -194,13 +204,15 @@ def status(org_id=None):
                                 "JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.id=v.source_id "
                                 + where + (" AND " if where else " WHERE ") + "s.latest_version=v.id "
                                 "AND NOT EXISTS (SELECT 1 FROM ingest_snapshots p WHERE p.candidate_id=x.id)", args).fetchone()[0]
-        overdue = sum(not r["checked_at"] or r["checked_at"] < time.time() - 8 * 86400 for r in sources)
+        active_sources = [r for r in sources if source_policy.allows(r['url'])]
+        overdue = sum(not r["checked_at"] or r["checked_at"] < time.time() - 8 * 86400 for r in active_sources)
         disclosures = c.execute("SELECT d.* FROM ingest_disclosures d WHERE EXISTS (SELECT 1 FROM catalog_companies c "
                                 "WHERE c.org_id=d.org_id AND c.ticker=d.ticker)" +
                                 (" AND d.org_id=?" if org_id is not None else " AND d.api_path LIKE '/reports/bank/annual/%'"), args).fetchall()
         discovery_errors = [{"disclosure": r["id"], "reason": r["error"]} for r in disclosures if r["error"]]
         discovery_pending = sum(r["retry_at"] <= time.time() for r in disclosures)
         return {"sources": len(sources), "jobs": counts, "published_periods": heads,
+                "source_policy": source_policy.name(), "retained_external_sources": len(sources)-len(active_sources),
                 "discovery_pending": discovery_pending, "discovery_errors": discovery_errors,
                 "unreviewed_sources": len(reviews), "pending_jobs": pending, "stale_publications": stale,
                 "approved_unpublished": unpublished, "overdue_sources": overdue,

@@ -38,7 +38,7 @@ issuer original is absent from that catalog, register its verified source page
 and PDF as data, without adding a hostname/path rule or financial values to code:
 
 ```sh
-python -m financial_ingestion.worker register-source --ticker TICKER \
+FINANCIAL_SOURCE_POLICY=reviewed_issuers python -m financial_ingestion.worker register-source --ticker TICKER \
   --url https://issuer.example/reports/annual.pdf \
   --source-page https://issuer.example/investors \
   --actor REVIEWER --reason 'Verified official issuer source and identity'
@@ -48,6 +48,8 @@ The page and PDF must share a public HTTPS origin. Registration is attributed;
 downloads remain size-bounded and reject redirects. Registered sources participate
 in refresh and parser-version reprocessing. Registration does not approve figures.
 This is source registration, not an automatic crawler of every issuer website.
+This compatibility command is disabled under the production OpenInfo-only
+policy described below. Do not use it for future production updates.
 
 ## Separate and consolidated views
 
@@ -302,3 +304,22 @@ monitoring reports no incidents, stale publications or overdue sources, and
 the staging timer is active. Workers continue to require attributed review
 before publication; new report formats can still require parser maintenance.
 See [the gap-recovery audit](remaining-ifrs-gaps-live-verification-2026-09-18.json).
+
+### OpenInfo-only future updates (2026-09-19)
+
+The default `FINANCIAL_SOURCE_POLICY=openinfo` restricts new financial document
+work to HTTPS documents under `openinfo.uz/media/`. Discovery skips issuer-site
+records, registration and downloads reject external URLs, and the worker retires
+previously queued external fetch/extraction jobs as `SUPERSEDED`. Publication
+also rejects new or replacement snapshots from external sources. Attribution,
+evidence validation and explicit review remain required for OpenInfo documents.
+
+Existing issuer-site publications, values, passports and archived PDFs remain
+readable. An idempotent publication of an unchanged existing snapshot is allowed.
+External sources are retained in the audit history and excluded from refresh
+overdue counts. The `reviewed_issuers` compatibility setting exists for historical
+workflow tests; production uses `openinfo` for all future updates.
+
+This policy changes sourcing, not data coverage: Davr separate 2014 still has
+four balance figures and five unavailable income figures. It does not certify
+complete coverage of every bank, period or accounting scope.

@@ -23,7 +23,7 @@ import reports_catalog as rc
 ])
 def test_download_rejects_unapproved_source_before_network(monkeypatch, url):
     monkeypatch.setattr(ifrs.requests, "get", lambda *a, **kw: pytest.fail("Unexpected network request"))
-    with pytest.raises(ValueError, match="IFRS source must"):
+    with pytest.raises(ValueError, match="OpenInfo-only"):
         ifrs.download_pdf(url)
 
 
@@ -33,6 +33,7 @@ def test_download_rejects_unapproved_source_before_network(monkeypatch, url):
     "https://new-issuer.example/financial-history/annual.pdf",
 ])
 def test_download_reviewed_issuer_source_and_limits(monkeypatch, url):
+    monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     from financial_ingestion import extract
     from urllib.parse import urlsplit
     monkeypatch.setattr(extract, "review_entries", lambda: [{"pdf_url": url,

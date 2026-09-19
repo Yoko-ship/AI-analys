@@ -101,6 +101,8 @@ def validate_review(entry: dict, payload: bytes) -> dict[str, float]:
 
 
 def download_pdf(url: str, *, issuer_origin: str | None = None) -> bytes:
+    from financial_ingestion import source_policy
+    source_policy.require(url)
     parsed = urlparse(url)
     from financial_ingestion.extract import review_entries
     entry = next((e for e in review_entries() if e["pdf_url"] == url), None)

@@ -430,6 +430,7 @@ def test_scope_api_scales_once_and_binds_passport_to_requested_view(setup):
 
 
 def test_registered_issuer_original_needs_no_ledger_entry_and_is_refreshed(setup,monkeypatch):
+    monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     import socket
     monkeypatch.setattr(extract,'review_entries',lambda:[])
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('93.184.216.34',443))])
@@ -453,6 +454,7 @@ def test_registered_issuer_original_needs_no_ledger_entry_and_is_refreshed(setup
 
 
 def test_issuer_registration_rejects_private_sources(setup,monkeypatch):
+    monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     import socket
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**kw:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('127.0.0.1',443))])
     args=dict(ticker='BRBN',url='https://issuer.example/report.pdf',source_page='https://issuer.example/investors',actor='reviewer',reason='Verify',processor=extract.processor_version())
@@ -461,6 +463,7 @@ def test_issuer_registration_rejects_private_sources(setup,monkeypatch):
 
 
 def test_linked_asset_origin_requires_exact_public_source_link(setup,monkeypatch):
+    monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     import socket
     import requests
     from contextlib import nullcontext
