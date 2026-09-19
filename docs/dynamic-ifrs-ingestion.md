@@ -323,3 +323,24 @@ workflow tests; production uses `openinfo` for all future updates.
 This policy changes sourcing, not data coverage: Davr separate 2014 still has
 four balance figures and five unavailable income figures. It does not certify
 complete coverage of every bank, period or accounting scope.
+
+A fresh inventory of the 185 published heads found no missing intervening
+annual years within each issuer's published range when both scopes are counted.
+The individual views retain these intervening gaps: DRBK separate 2017–2021,
+GRBK consolidated 2022, IPKY consolidated 2017–2023, and MCBA consolidated
+2018–2022. Each of those years exists in the other scope; the scopes must not
+be substituted for each other. This inventory does not prove that OpenInfo
+has no additional filings, earlier years, or interim periods to ingest.
+
+Validation: 214 focused tests passed. The broader v3 pipeline suite has three
+existing SQL compatibility failures (`INSERT OR IGNORE` rejected by `dbx`),
+reproduced on the unchanged `ca1bab4` baseline.
+
+Production verification retained all 185 snapshot heads and checked all 1,660
+live API values and their passports, including source hashes, scopes and
+calculation components. No external-source jobs remain pending. The staging
+timer is active; 670 jobs remain queued, 186 sources await review and 26
+OpenInfo sources are due for their first/next fetch. Those operational counts
+are not evidence that every available filing has already been processed.
+The pre-deployment backup verified 242 originals and 185 published periods.
+See [the source-policy and coverage audit](openinfo-only-live-verification-2026-09-19.json).
