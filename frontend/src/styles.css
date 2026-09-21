@@ -12135,7 +12135,7 @@ body[data-theme="light"] .catalog-main { border: 0; background: transparent; }
 .catalog-report-pagination button:disabled { opacity: 0.35; cursor: default; }
 .catalog-report-pagination button:not(:disabled):hover { border-color: var(--catalog-accent); color: var(--catalog-accent); }
 
-.catalog-selected-report { padding: 15px 16px; }
+.catalog-selected-report { padding: 15px 16px; scroll-margin-top: 84px; }
 .catalog-selected-summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .catalog-selected-summary > div:first-child { display: flex; flex-direction: column; gap: 3px; }
 .catalog-selected-summary span,

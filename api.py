@@ -4225,11 +4225,17 @@ async def api_news_reaction(news_id: int, max_tickers: int = 3) -> dict[str, Any
 
 
 @app.get("/api/news/ticker/{ticker}")
-async def api_news_ticker(ticker: str, limit: int = 30, days: int = 90) -> dict[str, Any]:
+async def api_news_ticker(
+    ticker: str,
+    limit: int = 30,
+    days: int = 90,
+    exclude_news_id: int | None = None,
+) -> dict[str, Any]:
     """Per-issuer news + coverage-weighted background tone (the §3.4 info dimension)."""
     loop = asyncio.get_running_loop()
     items = await loop.run_in_executor(
-        None, partial(news_store.get_news_for_ticker, ticker, limit=limit, days=days))
+        None, partial(news_store.get_news_for_ticker, ticker, limit=limit, days=days,
+                      exclude_news_id=exclude_news_id))
     sentiment = await loop.run_in_executor(
         None, partial(news_store.get_news_sentiment, ticker, days=days))
     return _json_safe({"ok": True, "ticker": ticker.upper(), "count": len(items),

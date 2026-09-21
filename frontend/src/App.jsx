@@ -1954,14 +1954,14 @@ function NewsIssuerContext({ tickers, currentId, language, securitiesMap, onOpen
     setByTicker({});
     if (!keys.length) return undefined;
     Promise.all(keys.map((t) =>
-      fetch(`/api/news/ticker/${encodeURIComponent(t)}?limit=6&days=90`)
+      fetch(`/api/news/ticker/${encodeURIComponent(t)}?limit=6&days=90&exclude_news_id=${encodeURIComponent(currentId)}`)
         .then((r) => r.json())
         .then((d) => [t, d && d.ok ? d : null])
         .catch(() => [t, null])))
       .then((pairs) => { if (alive) setByTicker(Object.fromEntries(pairs)); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyList]);
+  }, [keyList, currentId]);
 
   if (!keys.length) return null;
   return (
@@ -19987,6 +19987,23 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
     finally { setResultLoading(false); }
   };
 
+  const handleSelectReport = (report) => {
+    setForm(report.form);
+    setYear(String(report.year));
+    setQuarter(Number(report.quarter || 0));
+    setResult(null);
+    // The report table now follows the analysis controls. After choosing a row near the
+    // bottom of the page, return the reader to the controls that changed above it.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("catalog-selected-report")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  };
+
   // Derived availability helpers
   const allReportRows = catalogReportRows(index);
   const reportYears = [...new Set(allReportRows.map((r) => r.year))].sort((a, b) => b - a);
@@ -20279,86 +20296,8 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                 </div>
               </section>
 
-              <section className="catalog-report-section">
-                <div className="catalog-report-head">
-                  <div>
-                    <h3>{catalogTerminalText(lang, "reports")}</h3>
-                    <span>{visibleReportRows.length} {clg(lang, "reports")} · {catalogTerminalText(lang, "newest")}</span>
-                  </div>
-                </div>
-
-                {visibleReportRows.length ? (
-                  <>
-                    <div className="catalog-report-table-wrap">
-                      <table className="catalog-report-table">
-                      <thead>
-                        <tr>
-                          <th>{catalogTerminalText(lang, "period")}</th>
-                          <th>{catalogTerminalText(lang, "type")}</th>
-                          <th>{catalogTerminalText(lang, "status")}</th>
-                          <th>{catalogTerminalText(lang, "published")}</th>
-                          <th>{catalogTerminalText(lang, "source")}</th>
-                          <th>{catalogTerminalText(lang, "file")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedReportRows.map((report) => {
-                          const reportKey = catalogReportKey(report);
-                          const selected = reportKey === `${form}:${year}:${quarter || 0}`;
-                          const safePdf = report.pdf_url && !report.pdf_url.includes("/reports/to_pdf");
-                          return (
-                            <tr key={reportKey} className={selected ? "is-selected" : ""}>
-                              <td>
-                                <button
-                                  className="catalog-report-select"
-                                  type="button"
-                                  aria-pressed={selected}
-                                  onClick={() => {
-                                    setForm(report.form);
-                                    setYear(String(report.year));
-                                    setQuarter(Number(report.quarter || 0));
-                                    setResult(null);
-                                  }}
-                                >
-                                  <strong>{report.year} · {report.quarter ? `Q${report.quarter}` : periodsObj.annual}</strong>
-                                  <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
-                                </button>
-                              </td>
-                              <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`}>{formsObj[report.form] || report.form}</span></td>
-                              <td><span className="catalog-report-status"><i />{catalogTerminalText(lang, "available")}</span></td>
-                              <td>{formatCatalogDate(report.published_at, lang)}</td>
-                              <td><a className="catalog-source-link" href="https://openinfo.uz" target="_blank" rel="noreferrer">openinfo.uz</a></td>
-                              <td>
-                                <div className="catalog-file-actions">
-                                  {report.excel_url && <a href={report.excel_url} target="_blank" rel="noreferrer">XLSX</a>}
-                                  {safePdf && <a href={report.pdf_url} target="_blank" rel="noreferrer">PDF</a>}
-                                  {!report.excel_url && !safePdf && <span>—</span>}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      </table>
-                    </div>
-                    {reportPageCount > 1 && (
-                      <div className="catalog-report-pagination">
-                        <span>{safeReportPage * reportsPerPage + 1}–{Math.min((safeReportPage + 1) * reportsPerPage, visibleReportRows.length)} / {visibleReportRows.length}</span>
-                        <div>
-                          <button type="button" onClick={() => setReportPage((page) => Math.max(0, page - 1))} disabled={safeReportPage === 0} aria-label="Previous">←</button>
-                          <span>{safeReportPage + 1} / {reportPageCount}</span>
-                          <button type="button" onClick={() => setReportPage((page) => Math.min(reportPageCount - 1, page + 1))} disabled={safeReportPage >= reportPageCount - 1} aria-label="Next">→</button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="catalog-report-empty">{catalogTerminalText(lang, "noFilteredReports")}</div>
-                )}
-              </section>
-
               {year && isCurrentAvail && currentReport && (
-                <section className="catalog-selected-report">
+                <section className="catalog-selected-report" id="catalog-selected-report">
                   <div className="catalog-selected-summary">
                     <div>
                       <span>{catalogTerminalText(lang, "selected")}</span>
@@ -20438,6 +20377,79 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                   {renderResult()}
                 </article>
               )}
+
+              <section className="catalog-report-section">
+                <div className="catalog-report-head">
+                  <div>
+                    <h3>{catalogTerminalText(lang, "reports")}</h3>
+                    <span>{visibleReportRows.length} {clg(lang, "reports")} · {catalogTerminalText(lang, "newest")}</span>
+                  </div>
+                </div>
+
+                {visibleReportRows.length ? (
+                  <>
+                    <div className="catalog-report-table-wrap">
+                      <table className="catalog-report-table">
+                      <thead>
+                        <tr>
+                          <th>{catalogTerminalText(lang, "period")}</th>
+                          <th>{catalogTerminalText(lang, "type")}</th>
+                          <th>{catalogTerminalText(lang, "status")}</th>
+                          <th>{catalogTerminalText(lang, "published")}</th>
+                          <th>{catalogTerminalText(lang, "source")}</th>
+                          <th>{catalogTerminalText(lang, "file")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedReportRows.map((report) => {
+                          const reportKey = catalogReportKey(report);
+                          const selected = reportKey === `${form}:${year}:${quarter || 0}`;
+                          const safePdf = report.pdf_url && !report.pdf_url.includes("/reports/to_pdf");
+                          return (
+                            <tr key={reportKey} className={selected ? "is-selected" : ""}>
+                              <td>
+                                <button
+                                  className="catalog-report-select"
+                                  type="button"
+                                  aria-pressed={selected}
+                                  onClick={() => handleSelectReport(report)}
+                                >
+                                  <strong>{report.year} · {report.quarter ? `Q${report.quarter}` : periodsObj.annual}</strong>
+                                  <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
+                                </button>
+                              </td>
+                              <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`}>{formsObj[report.form] || report.form}</span></td>
+                              <td><span className="catalog-report-status"><i />{catalogTerminalText(lang, "available")}</span></td>
+                              <td>{formatCatalogDate(report.published_at, lang)}</td>
+                              <td><a className="catalog-source-link" href="https://openinfo.uz" target="_blank" rel="noreferrer">openinfo.uz</a></td>
+                              <td>
+                                <div className="catalog-file-actions">
+                                  {report.excel_url && <a href={report.excel_url} target="_blank" rel="noreferrer">XLSX</a>}
+                                  {safePdf && <a href={report.pdf_url} target="_blank" rel="noreferrer">PDF</a>}
+                                  {!report.excel_url && !safePdf && <span>—</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      </table>
+                    </div>
+                    {reportPageCount > 1 && (
+                      <div className="catalog-report-pagination">
+                        <span>{safeReportPage * reportsPerPage + 1}–{Math.min((safeReportPage + 1) * reportsPerPage, visibleReportRows.length)} / {visibleReportRows.length}</span>
+                        <div>
+                          <button type="button" onClick={() => setReportPage((page) => Math.max(0, page - 1))} disabled={safeReportPage === 0} aria-label="Previous">←</button>
+                          <span>{safeReportPage + 1} / {reportPageCount}</span>
+                          <button type="button" onClick={() => setReportPage((page) => Math.min(reportPageCount - 1, page + 1))} disabled={safeReportPage >= reportPageCount - 1} aria-label="Next">→</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="catalog-report-empty">{catalogTerminalText(lang, "noFilteredReports")}</div>
+                )}
+              </section>
             </>
           )}
         </main>

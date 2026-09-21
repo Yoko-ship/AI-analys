@@ -802,6 +802,26 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     return out
 
 
+def _dedupe_around_story(
+    items: list[dict[str, Any]],
+    anchor: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Return unique neighbouring stories, also comparing them with the open story.
+
+    The feed already calls :func:`_dedupe_stories`, but the two short lists on an article
+    page historically did not. Consequently one rating action syndicated by three
+    publishers could occupy all three "other news" slots. Putting the open article first
+    makes it the identity anchor: every retelling is removed while the candidates retain
+    their original (usually newest-first) order. Disclosure rows keep the exemption in
+    ``_dedupe_stories`` because repeated filings are separate statutory facts.
+    """
+    if not anchor:
+        return _dedupe_stories(items, _DEDUP_SIMILARITY)
+    anchor_id = anchor.get("id")
+    unique = _dedupe_stories([anchor, *items], _DEDUP_SIMILARITY)
+    return [item for item in unique if item.get("id") != anchor_id]
+
+
 # --------------------------------------------------------------------------- #
 # international / local balance
 # --------------------------------------------------------------------------- #
@@ -1188,11 +1208,15 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
     except (TypeError, ValueError):
         return []
     cap = max(1, min(limit, 20))
+    # A syndicated event can consume several SQL rows. Read past the visible window so
+    # de-duplication can still fill it with genuinely different stories.
+    fetch_cap = min(100, max(cap * 4, cap + 1))
     window = f"-{int(days)} days"
     conn = rc.get_catalog_conn()
     base = conn.execute(
         """
-        SELECT p.type, (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
+        SELECT n.id, n.source_id, n.title, n.summary_ru, n.published_at, p.type,
+               (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
                          WHERE e.news_id = n.id) AS tickers_csv
         FROM news n JOIN news_nlp p ON p.news_id = n.id WHERE n.id = ?
         """,
@@ -1222,25 +1246,44 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
             f"{select} WHERE n.id IN (SELECT x.news_id FROM news_entities x"
             f"                         WHERE x.ticker IN ({placeholders}))"
             f" AND n.id <> ? AND p.relevant = 1 {recent}",
-            (*tickers, news_id, window, cap),
+            (*tickers, news_id, window, fetch_cap),
         ).fetchall()
         for r in rows:
             picked[r["id"]] = _row_to_item(r)
 
-    if len(picked) < cap and base["type"]:
+    # Always add a same-class reserve after the issuer-first rows. Raw row count is not a
+    # useful stopping signal here: the first 24 rows can all be copies of one syndicated
+    # event and collapse to a single story below.
+    if base["type"]:
         rows = conn.execute(
             f"{select} WHERE p.type = ? AND n.id <> ? AND p.relevant = 1 {recent}",
-            (base["type"], news_id, window, cap * 2),
+            (base["type"], news_id, window, fetch_cap),
         ).fetchall()
         for r in rows:
-            if len(picked) >= cap:
+            if len(picked) >= fetch_cap * 2:
                 break
             picked.setdefault(r["id"], _row_to_item(r))
     conn.close()
-    return drop_hidden(list(picked.values()))[:cap]
+    anchor = {
+        "id": base["id"],
+        "source_id": base["source_id"],
+        "title": base["title"],
+        "summary_ru": base["summary_ru"],
+        "published_at": base["published_at"],
+    }
+    visible = drop_hidden(list(picked.values()))
+    return _dedupe_around_story(visible, anchor)[:cap]
 
 
-def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list[dict[str, Any]]:
+def get_news_for_ticker(
+    ticker: str,
+    *,
+    limit: int = 30,
+    days: int = 90,
+    exclude_news_id: int | None = None,
+) -> list[dict[str, Any]]:
+    cap = max(1, min(limit, 100))
+    fetch_cap = min(100, max(cap * 4, cap + 1))
     conn = rc.get_catalog_conn()
     rows = conn.execute(
         """
@@ -1252,10 +1295,12 @@ def get_news_for_ticker(ticker: str, *, limit: int = 30, days: int = 90) -> list
           AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))
         ORDER BY COALESCE(n.published_at, n.collected_at) DESC LIMIT ?
         """,
-        (ticker.strip().upper(), f"-{int(days)} days", max(1, min(limit, 100))),
+        (ticker.strip().upper(), f"-{int(days)} days", fetch_cap),
     ).fetchall()
     conn.close()
-    return drop_hidden([_row_to_item(r) for r in rows])
+    items = drop_hidden([_row_to_item(r) for r in rows])
+    anchor = get_news_item(exclude_news_id) if exclude_news_id is not None else None
+    return _dedupe_around_story(items, anchor)[:cap]
 
 
 def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:

@@ -117,3 +117,48 @@ def test_a_stored_item_still_reads_back(captured, tmp_path):
     # Only with rows present does the related-by-issuer query run at all, so its
     # translation is checked here rather than in the empty-database pass above.
     _assert_translates_clean(captured)
+
+
+def test_issuer_news_collapses_syndicated_copies_of_the_open_story(captured):
+    """One event from three sources must not occupy all three issuer-news slots."""
+    current = dict(
+        ITEM,
+        url="https://ratings.test/ipak-yuli-upgrade",
+        source="Fitch Ratings",
+        source_id="fitch",
+        title="Fitch повысило долгосрочный рейтинг Ipak Yuli Bank до B+",
+        summary_ru=("Fitch повысило долгосрочный рейтинг банка Ипак Йули до уровня B+ "
+                    "и сохранило стабильный прогноз."),
+    )
+    copy_one = dict(
+        current,
+        url="https://daily.test/ipak-yuli-upgrade",
+        source="UzDaily.uz",
+        source_id="uzdaily",
+        title="Fitch повысило рейтинг Ipak Yuli до уровня B+",
+    )
+    copy_two = dict(
+        current,
+        url="https://ratings.test/ipak-yuli-upgrade-copy",
+        title="Fitch повысило долгосрочный рейтинг Ипак Йули до уровня B+",
+    )
+    distinct = dict(
+        ITEM,
+        url="https://example.test/ipak-yuli-other",
+        title="Банк Ипак Йули запустил новую услугу для клиентов",
+        summary_ru="Банк Ипак Йули запустил новую цифровую услугу для розничных клиентов.",
+    )
+    assert news_store.upsert_news([current, copy_one, copy_two, distinct]) == 4
+
+    conn = rc.get_catalog_conn()
+    current_id = conn.execute(
+        "SELECT id FROM news WHERE url = ?", (current["url"],)).fetchone()["id"]
+    conn.close()
+
+    items = news_store.get_news_for_ticker(
+        "AGBA", limit=3, days=90, exclude_news_id=current_id)
+    related = news_store.get_related_news(current_id, limit=3, days=90)
+
+    assert [item["title"] for item in items] == [distinct["title"]]
+    assert [item["title"] for item in related] == [distinct["title"]]
+    _assert_translates_clean(captured)
