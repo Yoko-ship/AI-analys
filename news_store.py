@@ -400,12 +400,13 @@ def set_translations(translations: dict[str, dict[str, str]]) -> int:
 
 def rows_without_detail(*, limit: int = 20, days: int = 30,
                         source_ids: list[str] | None = None,
+                        include_existing: bool = False,
                         oldest_first: bool = False) -> list[dict[str, Any]]:
-    """Feed-visible items with no long read yet — the detail pass's work list.
+    """Feed-visible items for the detail pass's work list.
 
-    Relevant rows only. ``source_ids`` narrows it to the sources that HAVE an article page
-    (the caller reads that from the registry — the rating agencies serve a shell and openinfo
-    has no page at all).
+    Relevant rows only. ``source_ids`` narrows it to selected sources. ``include_existing``
+    is reserved for an explicit source refresh after its extractor improves; normal daily
+    runs still select empty detail columns only.
 
     ``oldest_first`` exists because newest-first ALONE starves the backlog. The pass has a
     per-run cap; while the cap is below the day's inflow, a newest-first work list picks
@@ -417,8 +418,10 @@ def rows_without_detail(*, limit: int = 20, days: int = 30,
     conn = rc.get_catalog_conn()
     q = ["SELECT n.url, n.title, n.source_id, n.snippet, n.summary_ru",
          "FROM news n JOIN news_nlp p ON p.news_id = n.id",
-         "WHERE p.relevant = 1 AND COALESCE(n.detail_ru, '') = ''",
-         "AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))"]
+         "WHERE p.relevant = 1"]
+    if not include_existing:
+        q.append("AND COALESCE(n.detail_ru, '') = ''")
+    q.append("AND (n.published_at IS NULL OR n.published_at >= datetime('now', ?))")
     params: list[Any] = [f"-{int(days)} days"]
     if source_ids:
         q.append(f"AND n.source_id IN ({','.join('?' * len(source_ids))})")
@@ -431,13 +434,13 @@ def rows_without_detail(*, limit: int = 20, days: int = 30,
     return [dict(r) for r in rows]
 
 
-def set_details(details: dict[str, dict[str, str]]) -> int:
+def set_details(details: dict[str, dict[str, str]], *, replace: bool = False) -> int:
     """Write the long read on stored rows; return rows changed.
 
     Partial, like :func:`set_translations` and for the same reason: ``upsert_news`` rewrites
     ``news_nlp`` too, so a detail-only record would reset the classification and drop the item
-    out of the feed. Only fills an empty column, so a re-run is free and cannot overwrite a
-    better text with a worse one.
+    out of the feed. Normal calls only fill empty columns. ``replace`` is reserved for an
+    explicit one-source migration after its extractor improves.
     """
     if not details:
         return 0
@@ -451,11 +454,9 @@ def set_details(details: dict[str, dict[str, str]]) -> int:
                 text = (langs.get(code) or "").strip()
                 if not text:
                     continue
-                cur = conn.execute(
-                    f"UPDATE news SET detail_{code} = ? "
-                    f"WHERE url = ? AND COALESCE(detail_{code}, '') = ''",
-                    (text, url),
-                )
+                where = "WHERE url = ?" if replace else \
+                    f"WHERE url = ? AND COALESCE(detail_{code}, '') = ''"
+                cur = conn.execute(f"UPDATE news SET detail_{code} = ? {where}", (text, url))
                 changed += cur.rowcount
     conn.close()
     return changed

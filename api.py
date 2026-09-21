@@ -755,6 +755,7 @@ class AdminNewsDetailsRequest(BaseModel):
     detail pass from the article page. Never the source's own text.
     """
     details: dict[str, dict[str, str]] = Field(default_factory=dict)
+    replace: bool = False
 
 
 class AdminNewsKnownRequest(BaseModel):
@@ -4353,14 +4354,17 @@ async def api_admin_news_details(
 
     Its own route rather than /api/admin/news for the same reason as the image, snippet and
     translation routes: a full upsert from a partial record would rewrite the classification.
-    Only empty columns are filled, so this can never overwrite a better text.
+    Normal runs fill only empty columns. ``replace`` is the explicit admin-only migration
+    path used when one source's extraction quality materially improves.
     """
     details = payload.details or {}
     if len(details) > 500:
         raise HTTPException(status_code=422, detail="too many details (max 500 per call)")
     loop = asyncio.get_running_loop()
     try:
-        n = await loop.run_in_executor(None, partial(news_store.set_details, details))
+        n = await loop.run_in_executor(
+            None, partial(news_store.set_details, details, replace=payload.replace)
+        )
     except Exception as exc:
         logger.exception("admin news detail update failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

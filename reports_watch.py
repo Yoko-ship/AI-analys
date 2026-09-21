@@ -301,7 +301,7 @@ def _cli(argv: list[str]) -> int:
     ap.add_argument("--all", action="store_true",
                     help="ignore what prod serves and print every candidate's figures")
     ap.add_argument("--base", default=os.getenv("FINANCIALS_PUSH_URL",
-                                                "https://ai-analys-production.up.railway.app"))
+                                                "https://uzstock.uz"))
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")

@@ -1,7 +1,7 @@
-"""News collector — the off-Railway orchestrator (collector-push model).
+"""News collector — the collector-push orchestrator.
 
-Runs on a host that can reach the sources (openinfo blocks Railway's IP, so news
-collection follows the same collector-push pattern as ``collector_financials.py``):
+Runs on a host that can reach the sources and pushes the resulting news to uzstock.uz,
+following the same collector-push pattern as ``collector_financials.py``:
 
     load news_sources.json (enabled sources)
       → fetch each (RSS today; openinfo/html/telegram adapters below)
@@ -69,7 +69,7 @@ logger = logging.getLogger(__name__)
 SOURCES_FILE = Path(__file__).resolve().parent / "news_sources.json"
 DEFAULT_PUSH_URL = os.getenv(
     "NEWS_PUSH_URL",
-    os.getenv("FINANCIALS_PUSH_URL", "https://ai-analys-production.up.railway.app"),
+    os.getenv("FINANCIALS_PUSH_URL", "https://uzstock.uz"),
 ).rstrip("/")
 DEFAULT_UA = "Mozilla/5.0 (compatible; UZSE-Analytics-NewsBot/1.0)"
 
@@ -457,6 +457,80 @@ _ARTICLE_STRIP = ("script", "style", "noscript", "nav", "header", "footer", "asi
 _ARTICLE_ROOTS = ("article", "main", "[itemprop='articleBody']", ".article-content",
                   ".article__content", ".entry-content", ".post-content", ".news-content",
                   ".content__text", "#content")
+_FITCH_API_URL = "https://api.fitchratings.com"
+_FITCH_RESEARCH_QUERY = """query UZStockResearchItem($slug: String!) {
+  getResearchItem(slug: $slug) {
+    abstract
+    paragraphs { fieldID header subHeader showHeader content }
+  }
+}"""
+
+
+def _fitch_article_text(session: requests.Session, page_url: str, timeout: int = 20) -> str:
+    """Return Fitch's public research prose from the API used by its own page.
+
+    Fitch's HTML response is a client-rendered shell, so ordinary HTML extraction sees no
+    article. Its public GraphQL ``getResearchItem`` response carries the same public
+    paragraphs rendered on the page. Premium Navigator PDFs are deliberately out of scope:
+    when there are no public paragraphs, only the public abstract is returned.
+    """
+    parts = [part for part in urlsplit(page_url).path.split("/") if part]
+    try:
+        research_index = parts.index("research")
+    except ValueError:
+        return ""
+    slug = "/".join(parts[research_index + 1:])
+    if not slug:
+        return ""
+    try:
+        response = session.post(
+            _FITCH_API_URL,
+            json={"query": _FITCH_RESEARCH_QUERY, "variables": {"slug": slug}},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Origin": "https://www.fitchratings.com",
+                "Referer": page_url,
+            },
+            timeout=timeout,
+        )
+        if response.status_code != 200:
+            return ""
+        item = (response.json().get("data") or {}).get("getResearchItem")
+    except (requests.RequestException, ValueError, AttributeError) as exc:
+        logger.debug("Fitch article API fetch failed for %s: %s", page_url, exc)
+        return ""
+    if not isinstance(item, dict):
+        return ""
+
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.error("beautifulsoup4 is not installed — run: pip install beautifulsoup4")
+        return ""
+
+    blocks: list[str] = []
+    seen: set[str] = set()
+    for paragraph in item.get("paragraphs") or []:
+        if not isinstance(paragraph, dict):
+            continue
+        content = _clean_text(BeautifulSoup(
+            str(paragraph.get("content") or ""), "html.parser"
+        ).get_text(" ", strip=True))
+        key = re.sub(r"\s+", " ", content).strip().casefold()
+        if len(content) < 40 or key in seen:
+            continue
+        seen.add(key)
+        header = _clean_text(str(paragraph.get("header") or ""))
+        if paragraph.get("showHeader") and header and not content.casefold().startswith(header.casefold()):
+            blocks.append(f"{header}\n{content}")
+        else:
+            blocks.append(content)
+    if blocks:
+        return "\n\n".join(blocks)
+
+    abstract = _clean_text(str(item.get("abstract") or ""))
+    return abstract if len(abstract) >= 80 else ""
 
 
 def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -> str:
@@ -472,6 +546,10 @@ def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -
     short ones. A wrong guess yields navigation noise, which ``write_detail`` is instructed to
     answer with empty strings rather than an invented article.
     """
+    parsed = urlsplit(page_url)
+    if (parsed.hostname or "").lower() in {"fitchratings.com", "www.fitchratings.com"}:
+        return _fitch_article_text(session, page_url, timeout=timeout)
+
     try:
         from bs4 import BeautifulSoup  # lazy: only this pass needs it
     except ImportError:
@@ -498,7 +576,13 @@ def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -
     # 80 chars keeps datelines, share prompts, photo credits and menu items out while
     # keeping every real paragraph: the shortest genuine one measured across our sources
     # (uza.uz, trend.az, kursiv, spot) was 118.
-    body = [p for p in paragraphs if len(p) >= 80]
+    body, seen = [], set()
+    for paragraph in paragraphs:
+        key = re.sub(r"\s+", " ", paragraph).strip().casefold()
+        if len(paragraph) < 80 or key in seen:
+            continue
+        seen.add(key)
+        body.append(paragraph)
     return "\n\n".join(body)
 
 
@@ -1746,7 +1830,7 @@ def backfill_translations(*, limit: int = 60, days: int = 90, push: bool = True,
     }
 
 
-def push_details(details: dict[str, dict[str, str]]) -> int:
+def push_details(details: dict[str, dict[str, str]], *, replace: bool = False) -> int:
     """Push detail-only updates (url → {ru, en, uz}) and return the rows prod changed.
 
     Its own endpoint rather than /api/admin/news, for the same reason as the images and the
@@ -1758,7 +1842,7 @@ def push_details(details: dict[str, dict[str, str]]) -> int:
         return 0
     try:
         resp = requests.post(DEFAULT_PUSH_URL + "/api/admin/news/details",
-                             json={"details": details},
+                             json={"details": details, "replace": replace},
                              headers={"X-Admin-Secret": secret}, timeout=180)
         resp.raise_for_status()
     except requests.RequestException as exc:
@@ -1767,7 +1851,8 @@ def push_details(details: dict[str, dict[str, str]]) -> int:
     return int((resp.json() or {}).get("updated") or 0)
 
 
-def _prod_items_without_detail(days: int) -> list[dict[str, Any]]:
+def _prod_detail_candidates(days: int, *, source_id: str | None = None,
+                            include_existing: bool = False) -> list[dict[str, Any]]:
     """Long-read candidates read from prod's feed — the cards a reader can actually open."""
     try:
         resp = requests.get(f"{DEFAULT_PUSH_URL}/api/news/feed",
@@ -1786,11 +1871,15 @@ def _prod_items_without_detail(days: int) -> list[dict[str, Any]]:
              "source_id": it.get("source_id"), "snippet": it.get("snippet"),
              "summary_ru": it.get("summary_ru"), "tickers": it.get("tickers"),
              "published_at": it.get("published_at")}
-            for it in items if it.get("url") and not it.get("has_detail")]
+            for it in items
+            if it.get("url")
+            and (not source_id or it.get("source_id") == source_id)
+            and (include_existing or not it.get("has_detail"))]
 
 
 def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = True,
-                     dry_run: bool = False, usage: Any = None) -> dict[str, Any]:
+                     dry_run: bool = False, usage: Any = None,
+                     source_id: str | None = None, replace: bool = False) -> dict[str, Any]:
     """Write the story-page long read for feed items that have none yet.
 
     The pass that makes an opened story worth opening: a feed teaser is one sentence, the
@@ -1802,23 +1891,35 @@ def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = T
     Ordered by the prod feed first, so the day's cap is spent on cards that are actually on
     the page — but a share of every run is reserved for the OLDEST items still without one.
     Newest-first alone never converges while the cap is under the day's inflow: the shortfall
-    lands on the same items every time and three weeks of stories stay bare. Only empty
-    columns are filled, so a re-run after a failed push costs nothing.
+    lands on the same items every time and three weeks of stories stay bare. Normal runs fill
+    only empty columns. ``replace`` is an explicit one-source migration after an extractor
+    improves; it is never enabled by the daily pass.
     """
     limit = _DETAIL_CAP if limit is None else limit
-    remote = _prod_items_without_detail(days) if push else []
+    if replace and not source_id:
+        raise ValueError("replacing details requires an explicit source_id")
+    remote = _prod_detail_candidates(
+        days, source_id=source_id, include_existing=replace
+    ) if push else []
     candidates: dict[str, dict[str, Any]] = {it["url"]: it for it in remote if it.get("url")}
     registry = _source_registry()
+    if source_id and source_id not in registry:
+        raise ValueError(f"unknown news source: {source_id}")
     local_only = 0
-    for r in news_store.rows_without_detail(limit=max(limit * 2, 20), days=days):
+    source_ids = [source_id] if source_id else None
+    for r in news_store.rows_without_detail(
+        limit=max(limit * 2, 20), days=days, source_ids=source_ids,
+        include_existing=replace,
+    ):
         if r["url"] not in candidates:
             candidates[r["url"]] = r
             local_only += 1
     # The tail slice is taken from the store rather than from the prod feed: the feed is
     # ranked and capped at 200, so its own oldest is not the corpus's oldest.
-    tail_n = int(max(0.0, min(_DETAIL_TAIL_SHARE, 1.0)) * limit)
-    tail = [r for r in news_store.rows_without_detail(limit=max(tail_n, 1), days=days,
-                                                      oldest_first=True)][:tail_n]
+    tail_n = 0 if replace else int(max(0.0, min(_DETAIL_TAIL_SHARE, 1.0)) * limit)
+    tail = [r for r in news_store.rows_without_detail(
+        limit=max(tail_n, 1), days=days, source_ids=source_ids, oldest_first=True
+    )][:tail_n]
     head = [c for c in candidates.values()
             if c["url"] not in {t["url"] for t in tail}][:max(1, limit - len(tail))]
     items = head + tail
@@ -1850,8 +1951,8 @@ def backfill_details(*, limit: int | None = None, days: int = 30, push: bool = T
                 "updated_local": 0, "updated_prod": 0, "dry_run": True}
     return {
         "candidates": len(items), "written": len(details),
-        "updated_local": news_store.set_details(details),
-        "updated_prod": push_details(details) if (push and details) else 0,
+        "updated_local": news_store.set_details(details, replace=replace),
+        "updated_prod": push_details(details, replace=replace) if (push and details) else 0,
     }
 
 
@@ -2209,6 +2310,8 @@ def main() -> None:
     ap.add_argument("--backfill-details", action="store_true",
                     help="write the story-page long read for feed items without one "
                          "(one page fetch + one LLM call per item, capped by --limit)")
+    ap.add_argument("--refresh-details", metavar="SOURCE_ID",
+                    help="rewrite recent long reads for one source after its extractor improves")
     ap.add_argument("--upgrade-images", action="store_true",
                     help="replace stored feed thumbnails with the full-size originals "
                          "behind them (no LLM calls)")
@@ -2243,6 +2346,10 @@ def main() -> None:
         result = backfill_images(limit=args.limit, push=not args.no_push)
     elif args.upgrade_images:
         result = upgrade_stored_images(push=not args.no_push)
+    elif args.refresh_details:
+        result = backfill_details(limit=args.limit, push=not args.no_push,
+                                  dry_run=args.dry_run, source_id=args.refresh_details,
+                                  replace=True)
     elif args.backfill_details:
         result = backfill_details(limit=args.limit, push=not args.no_push,
                                   dry_run=args.dry_run)
@@ -2273,6 +2380,7 @@ def main() -> None:
         ("purge_failed", args.purge_failed),
         ("backfill_images", args.backfill_images),
         ("upgrade_images", args.upgrade_images),
+        ("refresh_details", bool(args.refresh_details)),
         ("backfill_details", args.backfill_details),
         ("backfill_translations", args.backfill_translations),
         ("backfill_facts", args.backfill_facts),

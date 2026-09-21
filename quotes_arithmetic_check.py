@@ -35,7 +35,7 @@ import requests
 from openinfo_collector import fetch_price_history
 from uzse_quotes import fetch_quote
 
-APP = os.environ.get("APP_URL", "https://ai-analys-production.up.railway.app").rstrip("/")
+APP = os.environ.get("APP_URL", "https://uzstock.uz").rstrip("/")
 LIMIT = int(os.environ.get("LIMIT", "0"))
 # A three-month window has fewer than two sessions for the thinnest
 # securities, which made 18 of them UNVERIFIABLE rather than wrong.

@@ -647,6 +647,16 @@ than inventing an article.
 
 Reply with ONLY a JSON object: {"detail_ru": "...", "detail_en": "...", "detail_uz": "..."}"""
 
+_FITCH_DETAIL_NOTE = """
+
+For a Fitch rating action with substantial source material, write 5-8 compact paragraphs and
+preserve the decision, outlook, key rating drivers, the most decision-relevant quantitative
+metrics, capital and liquidity evidence, and both downgrade and upgrade sensitivities. Do not
+turn a possibility described under rating sensitivities into a forecast. For a public Navigator
+abstract, two source sentences are sufficient; write only 1-2 paragraphs supported by that
+abstract. The premium report is not part of the supplied article, so never imply that you read
+it."""
+
 # Paragraph breaks are the point of this field, so the model's "\n\n" must survive; a JSON
 # string carries them literally.
 _DETAIL_MAX_CHARS = int(os.getenv("NEWS_DETAIL_MAX_CHARS", "9000"))
@@ -769,8 +779,10 @@ def write_detail(item: dict[str, Any], article_text: str, *,
     user = (f"HEADLINE: {(item.get('title') or '').strip()}\n"
             f"SOURCE: {(item.get('source') or item.get('source_id') or '').strip()}\n\n"
             f"ARTICLE:\n{text[:_DETAIL_MAX_CHARS]}")
+    system = _DETAIL_SYSTEM + (_FITCH_DETAIL_NOTE if item.get("source_id") == "fitch" else "")
+    max_tokens = 2400 if item.get("source_id") == "fitch" else 1600
     try:
-        raw = client.complete_json(_DETAIL_SYSTEM, user, usage=usage, max_tokens=1600,
+        raw = client.complete_json(system, user, usage=usage, max_tokens=max_tokens,
                                    response_schema=_DETAIL_SCHEMA)
     except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
         logger.warning("detail write failed for %s: %s", item.get("url"), exc)

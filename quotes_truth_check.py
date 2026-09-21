@@ -37,7 +37,7 @@ import requests
 
 from uzse_quotes import _session, fetch_issue_detail, fetch_quote, settled_quote
 
-APP = os.environ.get("APP_URL", "https://ai-analys-production.up.railway.app").rstrip("/")
+APP = os.environ.get("APP_URL", "https://uzstock.uz").rstrip("/")
 LIMIT = int(os.environ.get("LIMIT", "0"))
 PACE = float(os.environ.get("PACE", "0.35"))
 OUT = os.environ.get("OUT", "quotes_disagreements.json")

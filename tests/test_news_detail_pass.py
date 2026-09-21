@@ -49,12 +49,28 @@ _ARTICLE = """
 </body></html>
 """
 
+_FITCH_ITEM = {
+    "abstract": "A public abstract used only when no public paragraphs are available.",
+    "paragraphs": [
+        {"fieldID": 1001, "header": "Lead", "showHeader": False,
+         "content": "<p>Fitch upgraded Ipak Yuli's Long-Term IDRs to B+ from B. The Outlooks are Stable.</p>"},
+        {"fieldID": 1691, "header": "Key Rating Driver", "showHeader": False,
+         "content": "<p><b>Moderate Impaired Loans:</b> Impaired loans decreased to 2.9% from 3.7%, with allowances covering 80%.</p>"},
+        {"fieldID": 1578, "header": "Factors that Could Lead to a Downgrade", "showHeader": True,
+         "content": "<p>A sustained core capital ratio below 12%, funding instability or liquidity drainage could lead to a downgrade.</p>"},
+    ],
+}
+
 
 class _Resp:
-    def __init__(self, body: str, status: int = 200):
+    def __init__(self, body: str = "", status: int = 200, payload=None):
         self.content = body.encode("utf-8")
         self.status_code = status
         self.encoding = "utf-8"
+        self._payload = payload
+
+    def json(self):
+        return self._payload if self._payload is not None else json.loads(self.content)
 
 
 @pytest.fixture()
@@ -88,6 +104,36 @@ class TestExtraction:
         served(_ARTICLE, status=403)
         assert nc._article_text(nc.requests.Session(), "https://x.uz/a") == ""
 
+    def test_fitch_reads_public_api_paragraphs(self, monkeypatch):
+        calls = []
+
+        def _post(self, url, **kwargs):
+            calls.append((url, kwargs))
+            return _Resp(payload={"data": {"getResearchItem": _FITCH_ITEM}})
+
+        monkeypatch.setattr(nc.requests.Session, "post", _post)
+        monkeypatch.setattr(nc.requests.Session, "get",
+                            lambda *a, **k: pytest.fail("do not fetch Fitch's empty HTML shell"))
+        text = nc._article_text(
+            nc.requests.Session(),
+            "https://www.fitchratings.com/research/banks/ipak-yuli-15-09-2026",
+        )
+
+        assert calls[0][0] == nc._FITCH_API_URL
+        assert calls[0][1]["json"]["variables"]["slug"] == "banks/ipak-yuli-15-09-2026"
+        assert "Impaired loans decreased to 2.9%" in text
+        assert "Factors that Could Lead to a Downgrade\n" in text
+
+    def test_fitch_navigator_uses_only_public_abstract(self, monkeypatch):
+        abstract = "This Ratings Navigator is a visual overview of the key quantitative and qualitative factors Fitch analyses to arrive at the bank's credit rating."
+        monkeypatch.setattr(nc.requests.Session, "post", lambda *a, **k: _Resp(
+            payload={"data": {"getResearchItem": {"abstract": abstract, "paragraphs": []}}}
+        ))
+        assert nc._article_text(
+            nc.requests.Session(),
+            "https://www.fitchratings.com/research/banks/ipak-yuli-ratings-navigator",
+        ) == abstract
+
 
 class TestWhatIsNeverAsked:
     def test_a_source_with_no_article_page_is_never_fetched(self, monkeypatch):
@@ -120,9 +166,10 @@ class TestWhatIsNeverAsked:
 
         assert called == ["https://napp.uz/ru/n/1"]
 
-    def test_the_agencies_say_so_explicitly_in_the_registry(self):
+    def test_body_availability_is_explicit_in_the_registry(self):
         """Measured, not inferred — so the flag survives a change to `content`."""
-        for sid in ("fitch", "moodys", "spglobal"):
+        assert _source("fitch").get("article_body") is True
+        for sid in ("moodys", "spglobal"):
             assert _source(sid).get("article_body") is False, sid
         assert _source("napp").get("article_body") is None
 
@@ -170,6 +217,22 @@ class TestTheModelContract:
 
         assert news_classifier.write_detail({"title": "x"}, "s" * 300, client=_Client()) == \
             {"ru": "", "en": "", "uz": ""}
+
+    def test_fitch_gets_the_richer_fact_preserving_contract(self):
+        sent = {}
+
+        class _Client:
+            def complete_json(self, system, user, **kwargs):
+                sent["system"], sent["max_tokens"] = system, kwargs["max_tokens"]
+                return {"detail_ru": "p", "detail_en": "p", "detail_uz": "p"}
+
+        news_classifier.write_detail(
+            {"title": "Fitch Upgrades Ipak Yuli", "source_id": "fitch"},
+            "Detailed rating action. " * 20,
+            client=_Client(),
+        )
+        assert "downgrade and upgrade sensitivities" in sent["system"]
+        assert sent["max_tokens"] == 2400
 
 
 class TestTheFeedDoesNotCarryIt:
@@ -306,6 +369,29 @@ class TestTheBacklogDrains:
 
         news_store.rows_without_detail()
         assert "DESC LIMIT" in seen["sql"]
+
+    def test_source_refresh_includes_existing_details(self, monkeypatch):
+        seen = {}
+
+        class _Conn:
+            def execute(self, sql, params):
+                seen["sql"], seen["params"] = sql, params
+                return self
+
+            def fetchall(self):
+                return []
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(news_store.rc, "get_catalog_conn", lambda: _Conn())
+        news_store.rows_without_detail(source_ids=["fitch"], include_existing=True)
+        assert "COALESCE(n.detail_ru" not in seen["sql"]
+        assert "fitch" in seen["params"]
+
+    def test_refresh_requires_an_explicit_source(self):
+        with pytest.raises(ValueError, match="source_id"):
+            nc.backfill_details(limit=1, push=False, replace=True)
 
     def test_one_budget_covers_both_routes(self, monkeypatch):
         """A cap of N must not mean N fetched articles PLUS N written filings."""
