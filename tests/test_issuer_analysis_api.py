@@ -219,6 +219,47 @@ def test_bank_ai_report_summary_uses_bank_metrics_and_keeps_period(client):
     assert "недостаточно" not in body["headline"].lower()
 
 
+def test_commodity_exchange_summary_matches_available_full_report(monkeypatch):
+    issuer = {"id": "717", "ticker": "URTS", "name": "O'zRTXB", "sector": "finance"}
+    metrics = {
+        "revenue": 264_737_847,
+        "net_income": 221_484_280,
+        "total_assets": 7_382_902_408,
+        "total_equity": 535_305_257,
+        "total_liabilities": 6_847_597_151,
+        "revenue_growth_pct": 11.4,
+        "net_income_growth_pct": 18.6,
+    }
+    snapshot = {
+        "period": "2026Q2",
+        "organization_type": "commodity_exchange",
+        "observations": [
+            {"metric": metric, "normalized": value}
+            for metric, value in metrics.items()
+        ],
+        "quality": {
+            "verification_status": "blocked",
+            "data_quality": [{
+                "code": "SECTOR_TEMPLATE_MISSING",
+                "severity": "blocking",
+            }],
+        },
+        "source_snapshot_hash": "urts-snapshot",
+    }
+    monkeypatch.setattr(subject, "_resolve_issuer", lambda _issuer_id: issuer)
+    monkeypatch.setattr(subject, "_financial_snapshot", lambda *_args: snapshot)
+
+    body = subject.issuer_ai_report(
+        "URTS", "nsbu", None, "separate", "ru", True,
+    )
+
+    assert body["status"] == "available"
+    assert body["content_status"] == "complete"
+    assert body["deferred_full_report"] is True
+    assert body["availability"]["last_successful_period"] == "2026Q2"
+    assert "недостаточно" not in body["headline"].lower()
+
+
 def test_mixed_sector_metric_is_blocked_before_ranking(client):
     response = client.post("/api/v1/comparisons", json={
         "object_type": "issuer",

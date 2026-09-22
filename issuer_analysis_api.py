@@ -1277,7 +1277,15 @@ def issuer_ai_report(
         if item["normalized"] is not None
     }
     organization_type = snapshot.get("organization_type")
-    if organization_type in {"bank", "microfinance_bank", "microfinance"}:
+    if organization_type == "commodity_exchange":
+        # URTS is intentionally routed to the commodity-exchange template by
+        # the full report.  Its catalog snapshot carries the generic
+        # SECTOR_TEMPLATE_MISSING marker until that override is applied, and it
+        # does not expose the industrial ROE/margin set.  Judge the teaser by
+        # the core statement totals that the exchange report actually uses.
+        required = {"revenue", "net_income", "total_assets", "total_equity", "total_liabilities"}
+        available = required.issubset(normalized)
+    elif organization_type in {"bank", "microfinance_bank", "microfinance"}:
         # Bank statements do not define the industrial margin and liquidity
         # fields used below for ordinary companies.  Requiring those fields made
         # every healthy bank summary fail before its bank-specific report was
@@ -1287,10 +1295,31 @@ def issuer_ai_report(
     else:
         required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
         available = len(required & set(normalized)) >= 4
+    quality = snapshot.get("quality", {})
+    quality_blockers = [
+        item for item in quality.get("data_quality", [])
+        if item.get("severity") == "blocking"
+    ]
+    blocking_quality = [
+        item for item in quality_blockers
+        if not (
+            organization_type == "commodity_exchange"
+            and item.get("code") == "SECTOR_TEMPLATE_MISSING"
+        )
+    ]
+    commodity_override_only = (
+        organization_type == "commodity_exchange"
+        and bool(quality_blockers)
+        and not blocking_quality
+    )
     available = (
         bool(snapshot.get("period"))
         and available
-        and snapshot.get("quality", {}).get("verification_status") != "blocked"
+        and not blocking_quality
+        and (
+            quality.get("verification_status") != "blocked"
+            or commodity_override_only
+        )
     )
     headline, headline_tone = _ai_report_headline(issuer, normalized, available, lang)
     return {
