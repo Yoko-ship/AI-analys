@@ -11007,9 +11007,9 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
 // An outlier is calculated data, not a loss and not missing data. Show the
 // number, but mark it so a near-zero denominator cannot masquerade as a useful
 // valuation multiple or participate silently in comparisons.
-const outlierLabel = (lang) => (lang === "ru" ? "аномально" : lang === "uz" ? "g‘ayrioddiy" : "outlier");
+const outlierLabel = (lang) => (lang === "ru" ? "вне диапазона" : lang === "uz" ? "diapazondan tashqari" : "outside range");
 const outlierTitle = (metric, digits, suffix, lang) => [
-  `${lang === "ru" ? "Аномальное значение" : lang === "uz" ? "G‘ayrioddiy qiymat" : "Outlier value"}: ` +
+  `${lang === "ru" ? "Значение вне диапазона сопоставимости" : lang === "uz" ? "Taqqoslash oralig‘idan tashqaridagi qiymat" : "Value outside the comparison range"}: ` +
     `${formatRatio(metric.value, digits, lang)}${suffix}`,
   metric.allowed
     ? `${lang === "ru" ? "Диапазон сопоставимости" : lang === "uz" ? "Taqqoslash oralig‘i" : "Comparison range"}: ` +
