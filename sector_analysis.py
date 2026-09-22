@@ -1169,6 +1169,81 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         )
     text = "\n\n".join(paragraphs)
 
+    # The company-page narrative follows the information architecture of
+    # IELTS Writing Task 1: introduce the dataset, state the main pattern, and
+    # then support it with two grouped detail paragraphs.  The underlying
+    # verified facts, sector tables and calculation trace stay unchanged.
+    task1_sections = []
+    if publishable:
+        scope_text = {
+            "ru": {"separate": "отдельной отчётности", "consolidated": "консолидированной отчётности"},
+            "uz": {"separate": "alohida hisobot", "consolidated": "konsolidatsiyalangan hisobot"},
+            "en": {"separate": "separate reporting", "consolidated": "consolidated reporting"},
+        }.get(lang, {}).get(snapshot.get("scope"), snapshot.get("scope") or "—")
+        comparable_period = snapshot.get("previous_comparable_period")
+        issuer_name = issuer.get("name") or issuer["ticker"]
+        if comparable_period:
+            comparison_text = tr(
+                lang,
+                f"Результаты сопоставляются с {comparable_period}, а балансовые показатели — с началом года.",
+                f"Natijalar {comparable_period} bilan, balans ko‘rsatkichlari esa yil boshi bilan taqqoslanadi.",
+                f"Performance is compared with {comparable_period}, while balance-sheet figures are compared with the start of the year.",
+            )
+        else:
+            comparison_text = tr(
+                lang,
+                "Сопоставимый период для результатов не раскрыт; балансовые изменения показаны только при наличии начальных значений.",
+                "Natijalar uchun taqqoslanadigan davr oshkor qilinmagan; balansdagi o‘zgarishlar faqat boshlang‘ich qiymatlar mavjud bo‘lsa ko‘rsatiladi.",
+                "No comparable performance period is disclosed; balance-sheet movements are shown only where opening values are available.",
+            )
+        introduction = tr(
+            lang,
+            f"Анализ описывает финансовые результаты и положение {issuer_name} ({issuer['ticker']}) по {standard.upper()} за {period_text} на уровне {scope_text}. {comparison_text} Все суммы приведены в {money_unit} и взяты только из проверяемой отчётности.",
+            f"Tahlil {issuer_name} ({issuer['ticker']}) kompaniyasining {period_text} davridagi {standard.upper()} standarti bo‘yicha moliyaviy natijalari va holatini {scope_text} doirasida tavsiflaydi. {comparison_text} Barcha summalar {money_unit}da berilgan va faqat tekshiriladigan hisobotdan olingan.",
+            f"This analysis describes the financial performance and position of {issuer_name} ({issuer['ticker']}) under {standard.upper()} for {period_text} on a {scope_text} basis. {comparison_text} All amounts are in {money_unit} and come only from traceable filings.",
+        )
+
+        if complete_content and len(paragraphs) >= 6:
+            overview = f"{headline} {paragraphs[5]}"
+            performance_detail = " ".join(paragraphs[3:5])
+            position_detail = " ".join(paragraphs[1:3])
+        else:
+            overview = f"{headline} " + tr(
+                lang,
+                "Общая картина ограничена раскрытыми показателями; пропуски не заменены нулями или предположениями.",
+                "Umumiy manzara oshkor qilingan ko‘rsatkichlar bilan cheklangan; bo‘sh qiymatlar nol yoki taxmin bilan almashtirilmagan.",
+                "The overall picture is limited to disclosed metrics; missing values were not replaced with zero or estimates.",
+            )
+            performance_facts = [fact_sentence(key) for key in ("revenue", "operating_income", "profit_before_tax", "net_income")]
+            position_facts = [fact_sentence(key) for key in ("total_assets", "cash", "total_liabilities", "total_equity")]
+            performance_detail = "; ".join(item for item in performance_facts if item) or tr(
+                lang,
+                "Подтверждённых данных о доходах и прибыли недостаточно для содержательного сравнения.",
+                "Daromad va foydani mazmunli taqqoslash uchun tasdiqlangan ma’lumot yetarli emas.",
+                "There is insufficient verified income and profit data for a meaningful comparison.",
+            )
+            position_detail = "; ".join(item for item in position_facts if item) or tr(
+                lang,
+                "Подтверждённых данных об активах, обязательствах и капитале недостаточно для содержательного сравнения.",
+                "Aktivlar, majburiyatlar va kapitalni mazmunli taqqoslash uchun tasdiqlangan ma’lumot yetarli emas.",
+                "There is insufficient verified asset, liability and equity data for a meaningful comparison.",
+            )
+
+        task1_titles = {
+            "ru": ("Введение", "Общий обзор", "Детали I — финансовые результаты", "Детали II — финансовое положение"),
+            "uz": ("Kirish", "Umumiy ko‘rinish", "I tafsilot — moliyaviy natijalar", "II tafsilot — moliyaviy holat"),
+            "en": ("Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"),
+        }.get(lang, ("Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"))
+        task1_sections = [
+            {"id": section_id, "number": f"{index:02d}", "title": title, "text": section_text}
+            for index, (section_id, title, section_text) in enumerate((
+                ("introduction", task1_titles[0], introduction),
+                ("overview", task1_titles[1], overview),
+                ("details_performance", task1_titles[2], performance_detail),
+                ("details_position", task1_titles[3], position_detail),
+            ), 1)
+        ]
+
     section_titles = {
         "ru": [
             ("methodology", "Общие сведения и методология"),
@@ -1302,6 +1377,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "headline": headline, "short_summary": card_text, "card_text": card_text,
               "card_word_count": len(card_text.split()) if card_text else 0,
               "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "no_signal": "neutral"}[verdict_status],
+              "narrative_structure": "ielts-task-1-v1", "task1_sections": task1_sections,
               "paragraphs": paragraphs, "text": text, "paragraph_count": len(paragraphs), "word_count": len(text.split()),
               "abstract": headline if publishable else None,
               "sections": report_sections,

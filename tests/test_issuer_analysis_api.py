@@ -171,6 +171,17 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert 1 <= body["card_word_count"] <= 22
     assert body["card_text"] == body["short_summary"]
     assert body["abstract"] == body["headline"]
+    assert body["narrative_structure"] == "ielts-task-1-v1"
+    assert [section["id"] for section in body["task1_sections"]] == [
+        "introduction", "overview", "details_performance", "details_position",
+    ]
+    expected_titles = {
+        "ru": ["Введение", "Общий обзор", "Детали I — финансовые результаты", "Детали II — финансовое положение"],
+        "uz": ["Kirish", "Umumiy ko‘rinish", "I tafsilot — moliyaviy natijalar", "II tafsilot — moliyaviy holat"],
+        "en": ["Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"],
+    }
+    assert [section["title"] for section in body["task1_sections"]] == expected_titles[lang]
+    assert all(section["number"] and section["text"] for section in body["task1_sections"])
     assert [section["id"] for section in body["sections"]] == [
         "methodology", "financial_results", "balance_sheet", "risks", "conclusion",
     ]

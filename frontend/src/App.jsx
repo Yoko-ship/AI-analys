@@ -11731,6 +11731,11 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
       return items;
     }, []);
   }, [report]);
+  const narrativeSections = report?.task1_sections?.length
+    ? report.task1_sections
+    : report?.sections?.length
+      ? report.sections
+      : (report?.paragraphs || []).map((text, index) => ({ id: `section-${index}`, text }));
 
   React.useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -11789,8 +11794,8 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
           </section>
         )}
         <div id={bodyId} className="company-insight-report-copy">
-          {report.abstract && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{companyInsightTeaser(report, lang)}</p></aside>}
-          {(report.sections?.length ? report.sections : (report.paragraphs || []).map((text, index) => ({ id: `section-${index}`, text }))).map((section, index) => (
+          {report.abstract && !report.task1_sections?.length && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{companyInsightTeaser(report, lang)}</p></aside>}
+          {narrativeSections.map((section, index) => (
             <section className="company-insight-report-section" key={section.id || index}>
               {section.title && <header><span>{section.number || String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></header>}
               <p>{section.text}</p>
