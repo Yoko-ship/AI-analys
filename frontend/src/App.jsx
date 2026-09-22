@@ -11004,15 +11004,17 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
   };
 }
 
-// Terminal practice (Bloomberg, MSN): a multiple outside its plausible band
-// prints «n/m» — not meaningful — instead of the raw figure. A P/E of 2 816×
-// is arithmetic, not a valuation: it only says the denominator is near zero.
-// The figure itself is not hidden — it moves into the tooltip.
-const nmLabel = (lang) => (lang === "ru" ? "н/зн" : "n/m");
-const nmTitle = (metric, digits, suffix, lang) => [
-  `${lang === "ru" ? "не показателен" : lang === "uz" ? "ko'rsatkichli emas" : "not meaningful"}: ` +
-    `${formatRatio(metric.value, digits, lang)}${suffix}` +
-    (metric.allowed ? ` ∉ [${metric.allowed.join("; ")}]` : ""),
+// An outlier is calculated data, not a loss and not missing data. Show the
+// number, but mark it so a near-zero denominator cannot masquerade as a useful
+// valuation multiple or participate silently in comparisons.
+const outlierLabel = (lang) => (lang === "ru" ? "аномально" : lang === "uz" ? "g‘ayrioddiy" : "outlier");
+const outlierTitle = (metric, digits, suffix, lang) => [
+  `${lang === "ru" ? "Аномальное значение" : lang === "uz" ? "G‘ayrioddiy qiymat" : "Outlier value"}: ` +
+    `${formatRatio(metric.value, digits, lang)}${suffix}`,
+  metric.allowed
+    ? `${lang === "ru" ? "Диапазон сопоставимости" : lang === "uz" ? "Taqqoslash oralig‘i" : "Comparison range"}: ` +
+      `[${metric.allowed.join("; ")}]`
+    : null,
   metric.base_period,
   metric.note,
 ].filter(Boolean).join(" · ");
@@ -11258,7 +11260,12 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
     if (metric.computed != null && metric.status === "loss_making") {
       node = <span className="cell-status" title={lossTitle(metric, digits, suffix, lang)}>{lossLabel(lang)}</span>;
     } else if (metric.value != null && metric.status === "out_of_range") {
-      node = <span className="cell-status" title={nmTitle(metric, digits, suffix, lang)}>{nmLabel(lang)}</span>;
+      node = (
+        <span title={outlierTitle(metric, digits, suffix, lang)}>
+          {formatRatio(metric.value, digits, lang)}{suffix}
+          <span className="company-metric-warning"> · {outlierLabel(lang)}</span>
+        </span>
+      );
     } else if (metric.value != null) {
       node = <>{formatRatio(metric.value, digits, lang)}{suffix}</>;
     } else {
@@ -17641,7 +17648,7 @@ function MarketView({
     };
   };
   // An out-of-range multiple sorts (and exports) as absent: a P/E column
-  // ordered by value must not crown a 2 816× that the cell itself calls «н/зн».
+  // ordered by value must not crown a 2 816× that the cell marks as anomalous.
   const peOf = (r) => {
     const m = valuationOf(r).pe;
     return m?.status === "out_of_range" ? null : m?.value ?? null;
@@ -17666,10 +17673,15 @@ function MarketView({
   // validation; a range status means the figure exists and is not believable.
   const statusText = (status) => multipleStatusText(status, lang);
   const multipleCell = (row, metric, digits, suffix = "×") => {
-    // Out of range the raw figure is noise, not a multiple — the cell says
-    // «н/зн» and the tooltip keeps the number (superseding V15's value+flag).
+    // Keep an outlier visible for audit, but label it so it is never mistaken
+    // for an ordinary comparable multiple.
     if (metric?.value != null && metric.status === "out_of_range") {
-      return <td className="num"><span className="cell-status" title={nmTitle(metric, digits, suffix, lang)}>{nmLabel(lang)}</span></td>;
+      return (
+        <td className="num" title={outlierTitle(metric, digits, suffix, lang)}>
+          <strong>{formatRatio(metric.value, digits, lang)}{suffix}</strong>
+          <span className="fin-cell-period metric-warning metric-warning--out_of_range">{outlierLabel(lang)}</span>
+        </td>
+      );
     }
     if (metric?.value != null) {
       const flags = [];
