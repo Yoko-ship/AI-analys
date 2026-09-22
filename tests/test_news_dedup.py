@@ -101,6 +101,24 @@ class TestTheSameStoryToldTwiceMerges:
 
 
 class TestTwoRealStoriesNeverMerge:
+    def test_same_agency_action_for_different_issuers_stays_separate(self) -> None:
+        """The rating-event shortcut is issuer-scoped, not a blanket agency/action match."""
+        first = {
+            **_item(1, "fitch", "Fitch Upgrades Ipak Yuli to B Outlook Stable",
+                    "Fitch повысило долгосрочный рейтинг Ipak Yuli и сохранило стабильный "
+                    "прогноз для банка.", "2026-09-15T10:00:00"),
+            "source": "Fitch Ratings", "summary_en": "", "summary_uz": "",
+            "tickers": ["IPKY"],
+        }
+        second = {
+            **_item(2, "fitch", "Fitch Upgrades Asaka Bank to BB Outlook Stable",
+                    "Агентство повысило оценку Asaka Bank после улучшения капитализации "
+                    "и качества активов.", "2026-09-15T12:00:00"),
+            "source": "Fitch Ratings", "summary_en": "", "summary_uz": "",
+            "tickers": ["ASBA"],
+        }
+        assert _ids(_dedupe([first, second])) == [1, 2]
+
     def test_distinct_filings_with_identical_titles_both_stay(self) -> None:
         """The same issuer files «Сделка с аффилированным лицом» week after week —
         identical wording, distinct statutory facts. Disclosures are exempt."""

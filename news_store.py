@@ -139,6 +139,33 @@ _DEDUP_MIN_SUMMARY_WORDS = 5
 # «$64,3 млрд» both say 64. Fragments after the decimal separator are NOT tokens — \d+
 # alone would read «64,34» as a 64 and a 34, and the 34 could match anything.
 _NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
+# Rating actions are syndicated especially often, and the republished headline may be in a
+# different language from the agency original.  Word-overlap cannot connect «Fitch повысило
+# рейтинг» with “Fitch Upgrades …”, so keep one small event vocabulary for this factual,
+# tightly-scoped case.  A match still requires the same agency, action, tagged issuer and
+# publication window below; words such as “improved” alone deliberately do not count.
+_RATING_AGENCIES = {
+    "fitch": ("fitch",),
+    "moodys": ("moody", "moodys"),
+    "spglobal": ("spglobal", "standard poor", "s&p"),
+}
+_RATING_ACTIONS = {
+    "upgrade": (
+        "upgrade", "upgrades", "upgraded",
+        "повысил", "повысила", "повысило", "повысили", "повышен", "повышена",
+        "oshirdi", "oshirildi",
+    ),
+    "downgrade": (
+        "downgrade", "downgrades", "downgraded",
+        "понизил", "понизила", "понизило", "понизили", "понижен", "понижена",
+        "pasaytirdi", "pasaytirildi",
+    ),
+    "affirm": (
+        "affirm", "affirms", "affirmed",
+        "подтвердил", "подтвердила", "подтвердило", "подтвердили", "подтвержден",
+        "tasdiqladi", "tasdiqlandi",
+    ),
+}
 # Short/function words carry no topical signal, so they must not inflate the overlap.
 _STOPWORDS = {
     "в", "на", "и", "с", "по", "за", "из", "к", "у", "о", "об", "от", "до", "для", "не",
@@ -732,6 +759,28 @@ def _number_tokens(it: dict[str, Any]) -> set[str]:
     return {m.group(0).split(",")[0].split(".")[0] for m in _NUMBER_RE.finditer(text)}
 
 
+def _rating_event_signature(it: dict[str, Any]) -> tuple[str, str, frozenset[str]] | None:
+    """A language-independent identity for one issuer-specific rating action.
+
+    This is intentionally narrower than general semantic de-duplication.  Rating stories
+    have a named agency and a small, objective action vocabulary; requiring a shared tagged
+    ticker prevents two same-day Fitch actions concerning different issuers from merging.
+    """
+    text = " ".join(str(it.get(field) or "") for field in (
+        "source_id", "source", "title", "summary_ru", "summary_en", "summary_uz"
+    )).lower().replace("’", "'").replace("ʻ", "'").replace("ʼ", "'")
+    agency = next((key for key, markers in _RATING_AGENCIES.items()
+                   if any(marker in text for marker in markers)), None)
+    action = next((key for key, markers in _RATING_ACTIONS.items()
+                   if any(re.search(rf"(?<!\w){re.escape(marker)}(?!\w)", text)
+                          for marker in markers)), None)
+    tickers = frozenset(str(ticker).strip().upper()
+                        for ticker in (it.get("tickers") or []) if str(ticker).strip())
+    if not agency or not action or not tickers:
+        return None
+    return agency, action, tickers
+
+
 def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
     """Collapse the same story reported by several outlets, keeping the best-ranked copy.
 
@@ -767,7 +816,10 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     if threshold <= 0 or len(items) < 2:
         return items
     disclosures = disclosure_source_ids()
-    kept: list[tuple[set[str], set[str], set[str], datetime | None]] = []
+    kept: list[tuple[
+        set[str], set[str], set[str], datetime | None,
+        tuple[str, str, frozenset[str]] | None,
+    ]] = []
     out: list[dict[str, Any]] = []
     dropped = 0
     for it in items:
@@ -780,8 +832,9 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
             s_words = set()
         numbers = _number_tokens(it)
         when = _parse_dt(it.get("published_at"))
+        rating_event = _rating_event_signature(it)
         duplicate = False
-        for prev_t, prev_s, prev_nums, prev_when in kept:
+        for prev_t, prev_s, prev_nums, prev_when, prev_rating_event in kept:
             if when and prev_when:
                 gap_h = abs((when - prev_when).total_seconds()) / 3600.0
                 if gap_h > _DEDUP_WINDOW_H:
@@ -789,14 +842,19 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
             score = _jaccard(t_words, prev_t) if t_words and prev_t else 0.0
             if s_words and prev_s:
                 score = max(score, _jaccard(s_words, prev_s))
-            if score >= threshold or (
+            same_rating_event = bool(
+                rating_event and prev_rating_event
+                and rating_event[:2] == prev_rating_event[:2]
+                and rating_event[2] & prev_rating_event[2]
+            )
+            if same_rating_event or score >= threshold or (
                     0 < _DEDUP_BAND <= score and numbers & prev_nums):
                 duplicate = True
                 break
         if duplicate:
             dropped += 1
         else:
-            kept.append((t_words, s_words, numbers, when))
+            kept.append((t_words, s_words, numbers, when, rating_event))
             out.append(it)
     if dropped:
         logger.info("news feed: merged %d duplicate cross-source story/stories", dropped)
@@ -1288,7 +1346,10 @@ def get_news_for_ticker(
     conn = rc.get_catalog_conn()
     rows = conn.execute(
         """
-        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.relevant
+        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
+               p.relevant,
+               (SELECT GROUP_CONCAT(x.ticker) FROM news_entities x
+                 WHERE x.news_id = n.id) AS tickers_csv
         FROM news n
         JOIN news_entities e ON e.news_id = n.id
         JOIN news_nlp p       ON p.news_id = n.id

@@ -14,7 +14,7 @@ news_store is covered the moment a test calls the function that issues it.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -119,16 +119,19 @@ def test_a_stored_item_still_reads_back(captured, tmp_path):
     _assert_translates_clean(captured)
 
 
-def test_issuer_news_collapses_syndicated_copies_of_the_open_story(captured):
-    """One event from three sources must not occupy all three issuer-news slots."""
+def test_issuer_news_collapses_one_multilingual_rating_event(captured):
+    """One multilingual rating event must not occupy all three issuer-news slots."""
+    now = datetime.now(timezone.utc)
     current = dict(
         ITEM,
-        url="https://ratings.test/ipak-yuli-upgrade",
+        url="https://ratings.test/ipak-yuli-navigator",
         source="Fitch Ratings",
         source_id="fitch",
-        title="Fitch повысило долгосрочный рейтинг Ipak Yuli Bank до B+",
-        summary_ru=("Fitch повысило долгосрочный рейтинг банка Ипак Йули до уровня B+ "
-                    "и сохранило стабильный прогноз."),
+        title="Joint Stock Innovation Commercial Bank Ipak Yuli Ratings Navigator",
+        summary_ru=("Fitch Ratings опубликовало Ratings Navigator для банка Ипак Йули. "
+                    "Материал может повлиять на восприятие кредитного профиля банка."),
+        published_at=now.strftime("%Y-%m-%d %H:%M:%S"),
+        tickers=["IPKY"],
     )
     copy_one = dict(
         current,
@@ -136,19 +139,35 @@ def test_issuer_news_collapses_syndicated_copies_of_the_open_story(captured):
         source="UzDaily.uz",
         source_id="uzdaily",
         title="Fitch повысило рейтинг Ipak Yuli до уровня B+",
+        summary_ru=("Fitch Ratings повысило долгосрочный рейтинг Ipak Yuli с B до B+, "
+                    "отметив улучшение операционной среды и устойчивые показатели банка."),
+        summary_en=("Fitch Ratings upgraded Ipak Yuli's long-term rating from B to B+, "
+                    "citing an improved operating environment and resilient performance."),
+        published_at=(now - timedelta(hours=36)).strftime("%Y-%m-%d %H:%M:%S"),
     )
     copy_two = dict(
         current,
-        url="https://ratings.test/ipak-yuli-upgrade-copy",
-        title="Fitch повысило долгосрочный рейтинг Ипак Йули до уровня B+",
+        url="https://ratings.test/en/ipak-yuli-upgrade",
+        title="Fitch Upgrades Ipak Yuli to B Outlook Stable",
+        summary_ru=("Fitch повысило долгосрочный рейтинг Ipak Yuli до уровня B, сохранив "
+                    "прогноз Стабильный. Это улучшает восприятие кредитоспособности банка."),
+        summary_en=("Fitch upgraded Ipak Yuli's long-term rating to B and maintained a "
+                    "Stable Outlook. This improves investors' perception of the bank."),
+        published_at=(now - timedelta(hours=60)).strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    copy_three = dict(
+        copy_two,
+        url="https://ratings.test/ru/ipak-yuli-upgrade",
     )
     distinct = dict(
         ITEM,
         url="https://example.test/ipak-yuli-other",
         title="Банк Ипак Йули запустил новую услугу для клиентов",
         summary_ru="Банк Ипак Йули запустил новую цифровую услугу для розничных клиентов.",
+        published_at=(now - timedelta(hours=70)).strftime("%Y-%m-%d %H:%M:%S"),
+        tickers=["IPKY"],
     )
-    assert news_store.upsert_news([current, copy_one, copy_two, distinct]) == 4
+    assert news_store.upsert_news([current, copy_one, copy_two, copy_three, distinct]) == 5
 
     conn = rc.get_catalog_conn()
     current_id = conn.execute(
@@ -156,9 +175,10 @@ def test_issuer_news_collapses_syndicated_copies_of_the_open_story(captured):
     conn.close()
 
     items = news_store.get_news_for_ticker(
-        "AGBA", limit=3, days=90, exclude_news_id=current_id)
+        "IPKY", limit=3, days=90, exclude_news_id=current_id)
     related = news_store.get_related_news(current_id, limit=3, days=90)
 
-    assert [item["title"] for item in items] == [distinct["title"]]
-    assert [item["title"] for item in related] == [distinct["title"]]
+    expected = [copy_one["title"], distinct["title"]]
+    assert [item["title"] for item in items] == expected
+    assert [item["title"] for item in related] == expected
     _assert_translates_clean(captured)
