@@ -76,6 +76,18 @@ class TestCrossPeriodOverwrite:
 
     UZMK_ORG = rc.ORG_OVERRIDES["UZMK"]
 
+    def test_insurer_revenue_uses_openinfo_net_revenue(self, conn, monkeypatch) -> None:
+        """Insurance P/S must receive line 060, not gross written premiums."""
+        ticker, org = "INSURE", "insurance-org"
+        monkeypatch.setitem(rc.COMPANY_SECTORS, ticker, "finance")
+        _company(conn, ticker, org)
+        _fact(conn, org, "net_revenue", "2026Q1", 400_000.0)
+        out = {ticker: _row(2026, 1, revenue=900_000.0, org_type="insurance")}
+
+        rc._enrich_financials_from_facts(conn, out)
+
+        assert out[ticker]["revenue"] == 400_000.0
+
     def test_the_uzmk_regression(self, conn) -> None:
         _company(conn, "UZMK", self.UZMK_ORG)
         _fact(conn, self.UZMK_ORG, "net_revenue", "2024", 5_500_000.0)

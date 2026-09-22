@@ -10941,7 +10941,7 @@ const MULTIPLE_STATUS_TEXT = {
   // figure the issuer's reporting form does not define (P/S for a bank).
   stale_period: ["нет свежего отчёта", "yangi hisobot yo'q", "no recent report"],
   negative_equity: ["отрицательный капитал", "salbiy kapital", "negative equity"],
-  not_applicable: ["н/п", "t/e", "n/a"],
+  not_applicable: ["не применяется", "qo‘llanmaydi", "not applicable"],
   loading: ["загрузка", "yuklanmoqda", "loading"],
   unavailable: ["недоступно", "mavjud emas", "unavailable"],
 };
@@ -11027,6 +11027,12 @@ const outlierTitle = (metric, digits, suffix, lang) => [
 function RangeHelpIcon({ title }) {
   return <span className="range-help-icon" role="img" tabIndex={0} title={title} aria-label={title}>?</span>;
 }
+
+const notApplicableTitle = (lang) => (lang === "ru"
+  ? "P/S не применяется к банкам: в отчётности OpenInfo нет сопоставимой строки выручки от продаж. Для оценки используйте P/B, ROE и Капитал/Активы."
+  : lang === "uz"
+    ? "P/S banklarga qo‘llanmaydi: OpenInfo hisobotida sotuv tushumining taqqoslanadigan qatori yo‘q. Baholash uchun P/B, ROE va Kapital/Aktivlardan foydalaning."
+    : "P/S does not apply to banks because OpenInfo bank filings have no comparable sales-revenue line. Use P/B, ROE and Equity/Assets instead.");
 
 // A loss is not missing data and it is more useful than the generic n/m label.
 // Keep the arithmetical negative P/E available for audit in the tooltip, but do
@@ -11285,7 +11291,9 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
       const words = issuerCapGap?.label || multipleStatusText(metric.status, lang);
       if (!words) return;
       const why = issuerCapGap?.title || (metric.reasons || []).join("; ") || metric.note || "";
-      node = <span className="cell-status" title={why || undefined}>{words}</span>;
+      node = metric.status === "not_applicable"
+        ? <span className="cell-status">{words} <RangeHelpIcon title={notApplicableTitle(lang)} /></span>
+        : <span className="cell-status" title={why || undefined}>{words}</span>;
     }
     rows.push(
       <div className="company-metric-row" key={label}>
@@ -17735,6 +17743,13 @@ function MarketView({
         <td className="num" title={`${reasons}${period}`}>
           <strong>{formatRatio(metric.computed, digits, lang)}{suffix}</strong>
           <span className={`fin-cell-period metric-warning metric-warning--${metric.status}`}>{label}</span>
+        </td>
+      );
+    }
+    if (metric?.status === "not_applicable") {
+      return (
+        <td className="num">
+          <span className="cell-status">{label} <RangeHelpIcon title={notApplicableTitle(lang)} /></span>
         </td>
       );
     }

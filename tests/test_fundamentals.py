@@ -494,10 +494,12 @@ class TestMultiples:
                                 "annual": None, "prior": None})
         assert got["pe"]["status"] != fundamentals.STATUS_STALE
 
-    def test_ps_is_not_a_bank_or_insurer_figure(self):
-        got = self._issuer(fin={"org_type": "insurance"})
-        assert got["ps"]["value"] is None
-        assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
+    def test_insurer_ps_uses_openinfo_net_insurance_revenue(self):
+        """Insurance form line 060 is a real sales denominator, unlike a bank."""
+        got = self._issuer(fin={"org_type": "insurance", "revenue": 400.0})
+        assert got["ps"]["value"] == pytest.approx(1000.0 / 400.0)
+        assert got["ps"]["status"] == fundamentals.STATUS_OK
+        assert "строка 060" in got["ps"]["note"]
 
     def test_a_bank_margin_divides_by_total_income(self):
         """Лист 05: для банков знаменатель — процентные + беспроцентные доходы."""
@@ -508,6 +510,7 @@ class TestMultiples:
         assert got["net_margin"]["denominator"] == "total_income"
         # ...and a bank shows no P/S at all.
         assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
+        assert "P/B, ROE" in got["ps"]["note"]
 
     def test_a_broken_balance_identity_withholds_the_balance_side(self):
         """V2: капитал + обязательства = активы, допуск 0,1 %."""

@@ -812,12 +812,14 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     sector = next((str(c.get("sector") or "").lower()
                    for c in classes if c.get("sector")), None)
     is_bank = org_type in _BANK_FORMS
-    # P/S has no meaning where «выручка» is not a form line: banks and insurers
-    # (лист 07). Until the form type has been collected, the finance sector is
-    # the conservative stand-in — a P/S briefly missing is a smaller lie than a
-    # bank shown with one.
-    is_financial = (is_bank or org_type == "insurance"
-                    or (org_type is None and sector == "finance"))
+    # OpenInfo's insurance form explicitly publishes line 060, «Чистая выручка
+    # от оказания страховых услуг», so an insurer has a valid sales denominator
+    # for P/S. A bank form has no comparable sales line (interest and
+    # non-interest income are separate), therefore P/S remains undefined there.
+    # Until the form type has been collected, the finance sector is the
+    # conservative stand-in — a P/S briefly missing is a smaller lie than a bank
+    # shown with one.
+    ps_not_applicable = is_bank or (org_type is None and sector == "finance")
 
     ni = flows["values"].get("net_income")
     revenue = flows["values"].get("revenue")
@@ -889,10 +891,10 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
         pb = _flag_range(cap_value / equity, pb_lo, pb_hi,
                          base_period=bal_period, balance_source=bal_source)
 
-    # --- P/S: the multiple that works at a loss; not for the financial forms -
-    if is_financial:
+    # --- P/S: the multiple that works at a loss; banks have no sales line ----
+    if ps_not_applicable:
         ps = _metric(None, STATUS_NOT_APPLICABLE,
-                     note="для банков и страховых вместо P/S — Капитал/Активы")
+                     note="для банков P/S не применяется; используйте P/B, ROE и Капитал/Активы")
     elif cap_value is None:
         ps = _metric(None, "no_market_cap")
     elif revenue is None or revenue <= 0:
@@ -900,7 +902,10 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
                      note=None if revenue is None else "выручка TTM не положительна")
     else:
         ps = _flag_range(cap_value / revenue, ps_lo, ps_hi,
-                         base_period=base_period, estimate=estimate)
+                         base_period=base_period, estimate=estimate,
+                         note=("знаменатель — чистая выручка от страховых услуг "
+                               "OpenInfo (строка 060)"
+                               if org_type == "insurance" else None))
 
     # --- ROE / ROA: TTM profit over the period-average base ------------------
     def _return_on(average: float | None) -> dict[str, Any]:
