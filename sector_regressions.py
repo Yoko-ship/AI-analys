@@ -66,7 +66,7 @@ def _run(fingerprint):
     bank_text = bank.get("text") or ""
     check("bank_detailed_narrative", bank.get("paragraph_count") == 6 and "Совокупные раскрытые доходы банка" in bank_text)
     check("bank_html_structure", [item.get("id") for item in bank.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
-    check("bank_funding_cost", "на каждый 1 сум процентного дохода" in bank_text)
+    check("bank_interest_expense_share", "доля расходов в доходах, а не стоимость фондирования" in bank_text and "Стоимость фондирования =" not in bank_text)
     check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
     company = core.make_report(
         {

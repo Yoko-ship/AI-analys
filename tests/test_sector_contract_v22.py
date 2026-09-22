@@ -533,6 +533,14 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert steel["verdict"]["status"] == "mixed"
     assert next(r for r in steel["ratios"] if r["metric"] == "quick_ratio")["value"] == pytest.approx(1.01913778)
     assert steel["capital_analysis"]["reconciliation_status"] == "passed"
+    assert steel["key_changes"][1]["code"] == "profit_bridge"
+    assert any(change["code"] == "asset_concentration" and "62.06%" in change["text"] for change in steel["key_changes"])
+    assert "Незавершённые вложения" in core.make_report(
+        snapshot(current_values={}, previous_values={}, opening_values={},
+                 organization_type="non_financial", source=filings["UZMK"]["source"]),
+        {**filings["UZMK"]["issuer"], "oked_code": "24100"}, "ru", TODAY,
+        filings["UZMK"]["workbook"],
+    )["task1_sections"][1]["text"]
     assert results["UZAS"]["balance_check"]["status"] == "passed"
     insurance = {f["metric"]: f["value"] for f in results["UZAS"]["verified_facts"]}
     assert insurance["total_liabilities"] == pytest.approx(184886318.3)
@@ -541,7 +549,21 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert bank["interest_income"] == 2994355667
     assert bank["interest_expenses"] == 1520167682
     assert bank["net_income"] == 969962031
+    assert bank["loan_portfolio"] == 29002998524
+    assert bank["loan_portfolio"] != 11878424650
+    assert bank["customer_funds"] == 5558724579 + 11262417567
+    assert bank["loan_reserves"] == 479621382
+    assert bank["net_revenue_before_operating_expenses"] == 2296912825
     assert bank["total_assets"] == bank["total_liabilities"] + bank["total_equity"]
+    bank_text = results["HMKB"]["text"]
+    assert "LDR =" in bank_text and "Cost-to-Income" in bank_text and "ROA" in bank_text and "ROE" in bank_text
+    assert "Funding cost =" not in bank_text
+    assert "not by itself evidence of excessive external-funding dependence" in bank_text
+    insurance_text = results["UZAS"]["text"]
+    assert "reserve retention" in insurance_text
+    assert "Without disclosed claims" in insurance_text
+    assert "general profile" not in insurance_text
+    assert 3 <= len(results["UZAS"]["key_changes"]) <= 5
 
 
 def test_bank_mapper_preserves_reconciled_catalog_totals():
@@ -565,6 +587,9 @@ def test_bank_mapper_preserves_reconciled_catalog_totals():
     assert data["current_values"]["total_assets"] == 1000
     assert data["current_values"]["total_equity"] == 200
     assert data["current_values"]["total_liabilities"] == 800
+    assert data["opening_values"]["total_assets"] == 900
+    assert data["opening_values"]["total_equity"] == 180
+    assert data["opening_values"]["total_liabilities"] == 720
     assert core.balance_gate(data["current_values"])["status"] == "passed"
 
 

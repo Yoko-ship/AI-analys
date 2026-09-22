@@ -338,9 +338,16 @@ SPECIAL_LABELS = {
     "noninterest_income": (r"^итого (?:непроцентных|беспроцентных) доходов$",),
     "noninterest_expenses": (r"^итого (?:непроцентных|беспроцентных) расходов$",),
     "operating_expenses": (r"итого операционных расходов",),
-    "loan_portfolio": (r"^(?:кредиты и лизинг|кредиты клиентам|займы клиентам)",),
+    "net_revenue_before_operating_expenses": (r"^чистый доход до операционных расходов$",),
+    # Match the asset line exactly.  A prefix match also captured the bank's
+    # liability line "Кредиты и лизинговые операции к оплате" and understated
+    # the loan book by more than half for HMKB.
+    "loan_portfolio": (r"^(?:кредиты и лизинговые операции(?:,\s*чистые)?|кредиты клиентам|займы клиентам)$",),
     "customer_funds": (r"^(?:средства клиентов|депозиты клиентов)",),
-    "loan_reserves": (r"^резервы (?:на покрытие|по кредитам|по займам)",),
+    "demand_deposits": (r"^депозиты до востребования$",),
+    "savings_deposits": (r"^сберегательные депозиты$",),
+    "term_deposits": (r"^срочные депозиты$",),
+    "loan_reserves": (r"^(?:минус:\s*)?резерв(?:ы)? (?:возможных убытков по кредитам и лизингу|на покрытие|по кредитам|по займам)",),
     "insurance_premiums": (r"^начисленные страховые премии",),
     "insurance_claims": (r"^страховые выплаты",),
     "central_bank_balances": (r"^к получению из цбру$",),
@@ -388,11 +395,13 @@ def map_special_lines(snapshot, workbook, org):
                 # totals and incorrectly block an otherwise complete report.
                 # Keep the reconciled values and use the workbook mapper for
                 # the bank-specific detail lines around them.
+                preserve_current = False
                 if matched in {"total_assets", "total_equity", "total_liabilities"}:
                     existing = engine.decimal(snapshot["current_values"].get(matched))
                     if existing is not None and existing > 0:
-                        continue
-                snapshot["current_values"][matched] = engine.number(current)
+                        preserve_current = True
+                if not preserve_current:
+                    snapshot["current_values"][matched] = engine.number(current)
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
                     snapshot[target][matched] = engine.number(prior)
@@ -400,6 +409,20 @@ def map_special_lines(snapshot, workbook, org):
                     "source_line_id": f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}",
                     "raw_current": str(current) if engine.decimal(current) is not None else None,
                 }
+
+    # The statutory bank form exposes customer deposits as three adjacent
+    # verified lines rather than one total.  Aggregate only when every
+    # component is present; a missing line must never be treated as zero.
+    deposit_keys = ("demand_deposits", "savings_deposits", "term_deposits")
+    for target in ("current_values", "opening_values"):
+        deposit_total = engine.total(*(snapshot[target].get(key) for key in deposit_keys))
+        if deposit_total is not None:
+            snapshot[target]["customer_funds"] = engine.number(deposit_total)
+    if snapshot["current_values"].get("customer_funds") is not None:
+        snapshot.setdefault("field_sources", {})["customer_funds"] = {
+            "source_line_id": "balance:demand_deposits+savings_deposits+term_deposits",
+            "raw_current": str(snapshot["current_values"]["customer_funds"]),
+        }
 
 
 def map_insurance_lines(snapshot, workbook):
