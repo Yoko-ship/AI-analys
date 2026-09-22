@@ -1309,8 +1309,12 @@ def _listing_to_stock(lst: dict[str, Any]) -> dict[str, Any]:
         "trade_count": None,
         "security_type_text": None,
         "shares_outstanding": lst.get("shares_outstanding"),
+        "shares_source": "openinfo_listing",
         "nominal": corporate_actions.current_par(lst.get("ticker"), lst.get("nominal")),
         "market_cap": lst.get("market_cap"),
+        "market_cap_source": "openinfo_listing",
+        "market_cap_source_url": "https://openinfo.uz/",
+        "market_cap_as_of": lst.get("updated_at"),
         "inactive": True,
     }
 
@@ -1566,10 +1570,11 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     securities the mirror does not carry — the gap it exists to surface.
     """
 
+    loop = asyncio.get_running_loop()
+    mirror_available = True
     try:
         # Executor-wrapped: a sync HTTP call here stalled the whole event loop
         # (single worker) for up to 20s on the hottest endpoint.
-        loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, partial(
             requests.get,
             f"{UZSE_STOCK_API_BASE}/stocks",
@@ -1579,10 +1584,13 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         response.raise_for_status()
         payload = response.json()
     except requests.RequestException as exc:
-        logger.exception("UZSE stock API request failed")
-        raise HTTPException(status_code=502, detail="Could not load stock prices") from exc
+        logger.warning("UZSE stock API unavailable; using stored listings and quotes: %s", exc)
+        mirror_available = False
+        payload = {}
     except ValueError as exc:
-        raise HTTPException(status_code=502, detail="Stock price API returned invalid JSON") from exc
+        logger.warning("UZSE stock API returned invalid JSON; using stored listings and quotes: %s", exc)
+        mirror_available = False
+        payload = {}
 
     stocks = payload.get("stocks") if isinstance(payload, dict) else []
     stocks_list = stocks if isinstance(stocks, list) else []
@@ -1665,11 +1673,15 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         shares = lst.get("shares_outstanding")
         if row.get("shares_outstanding") is None and shares is not None:
             row["shares_outstanding"] = shares
+            row["shares_source"] = "openinfo_listing"
         price = row.get("last_price") or row.get("close_price")
         if shares and price:
             row["market_cap"] = shares * price
         elif lst.get("market_cap"):
             row["market_cap"] = lst.get("market_cap")
+            row["market_cap_source"] = "openinfo_listing"
+            row["market_cap_source_url"] = "https://openinfo.uz/"
+            row["market_cap_as_of"] = lst.get("updated_at")
 
     want_bonds = security_type == "bond"
     for tk, lst in listings.items():
@@ -1767,7 +1779,8 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
 
     return _json_safe({
         "ok": True,
-        "source": "uzse-stock-production",
+        "source": ("uzse-stock-production" if mirror_available
+                   else "stored-openinfo-listings+uzse-quotes"),
         "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
         # The mirror stamps naive UTC; say so, or the browser reads it as local.
         "updated_at": _as_utc_iso(payload.get("updated_at")) if isinstance(payload, dict) else None,
@@ -2170,6 +2183,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     """Issuer-level multiples for every listed share class (ТЗ §8)."""
     securities, financials, ratios = (inputs["securities"], inputs["financials"],
                                       inputs["ratios"])
+    listings = inputs.get("listings") or {}
     board_by_ticker = {str(r.get("ticker") or "").upper(): r for r in inputs["board"]}
 
     # Share classes are grouped by issuer using the catalog, enriched with the
@@ -2181,7 +2195,22 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     # produced fictitious caps and the P/E, P/B chain downstream of them. Such
     # a class contributes NO capitalisation: the issuer's cap either comes from
     # classes that actually traded or is honestly incomplete.
-    def _market_input(row: dict[str, Any], shares: Any) -> dict[str, Any]:
+    def _market_input(ticker: str, row: dict[str, Any], shares: Any) -> dict[str, Any]:
+        listing = listings.get(ticker) or {}
+        if listing.get("market_cap"):
+            shares = listing.get("shares_outstanding") or shares
+            row = {
+                **listing,
+                **row,
+                "ticker": ticker,
+                "shares_outstanding": (listing.get("shares_outstanding")
+                                       or row.get("shares_outstanding")),
+                "shares_source": "openinfo_listing",
+                "market_cap": listing["market_cap"],
+                "market_cap_source": "openinfo_listing",
+                "market_cap_source_url": "https://openinfo.uz/",
+                "market_cap_as_of": listing.get("updated_at"),
+            }
         if not row:
             return public_contract.market_class_input({}, shares_outstanding=shares)
         return public_contract.market_class_input(row, shares_outstanding=shares)
@@ -2190,7 +2219,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     for ticker, meta in (securities or {}).items():
         row = board_by_ticker.get(str(ticker).upper()) or {}
         shares = row.get("shares_outstanding") or meta.get("shares_outstanding")
-        market_input = _market_input(row, shares)
+        market_input = _market_input(str(ticker).upper(), row, shares)
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
             "market_cap": market_input["market_cap"],
@@ -2209,7 +2238,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     for ticker, row in board_by_ticker.items():
         if not ticker or ticker in known:
             continue
-        market_input = _market_input(row, row.get("shares_outstanding"))
+        market_input = _market_input(ticker, row, row.get("shares_outstanding"))
         catalog_rows.append({
             "ticker": ticker,
             "name": row.get("name"),

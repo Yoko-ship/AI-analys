@@ -204,6 +204,26 @@ class TestTheBoardIsCompleted:
         assert rows["UQEQ"]["close_price"] == pytest.approx(25600.0)
         assert rows["UQEQ"]["url"].endswith("STK?isu_cd=UZ7042540003")
 
+    def test_an_unavailable_mirror_falls_back_to_stored_rows(self, monkeypatch) -> None:
+        def unavailable(*args, **kwargs):
+            raise api.requests.ConnectionError("mirror unavailable")
+
+        monkeypatch.setattr(api.requests, "get", unavailable)
+        monkeypatch.setattr(api, "get_all_quotes", lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(api, "get_all_listings", lambda: {})
+        monkeypatch.setattr(api, "get_securities_map", lambda: {})
+        monkeypatch.setattr(api, "sync_securities", lambda *args, **kwargs: 0)
+        monkeypatch.setattr(api, "record_volume", lambda *args, **kwargs: 0)
+        monkeypatch.setattr(api, "_load_logos", lambda: {})
+
+        with TestClient(api.app) as client:
+            response = client.get("/api/market/stocks?type=stock")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["source"] == "stored-openinfo-listings+uzse-quotes"
+        assert [row["ticker"] for row in body["stocks"]] == ["UQEQ"]
+
     def test_kafolats_preferred_share_is_not_dormant(self, monkeypatch) -> None:
         """KFSKP was suppressed as a dormant registry line; it traded 39 times
         on 31.07 and closed +17.27%, third on the exchange's gainers board."""

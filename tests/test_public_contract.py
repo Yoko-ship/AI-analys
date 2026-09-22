@@ -66,6 +66,39 @@ def test_missing_share_count_is_incomplete_not_zero():
     assert got["market_cap"] is None
 
 
+def test_openinfo_reported_cap_is_usable_without_a_trade_quote():
+    got = contract.market_class_input({
+        "ticker": "ACME",
+        "last_price": None,
+        "last_trade_date": None,
+        "shares_outstanding": 100.0,
+        "market_cap": 1_250.0,
+        "market_cap_source": "openinfo_listing",
+        "market_cap_source_url": "https://openinfo.uz/",
+        "market_cap_as_of": "2026-09-01 05:00:00",
+    }, reference_date=TODAY)
+
+    assert got["calculation_status"] == contract.CALCULATED
+    assert got["market_cap"] == 1_250.0
+    assert got["market_cap_method"] == "source_reported"
+    assert got["market_cap_source"] == "openinfo_listing"
+
+
+def test_openinfo_reported_cap_replaces_a_stale_price_reconstruction():
+    got = contract.market_class_input({
+        "ticker": "ACMEP",
+        "last_price": 10.0,
+        "last_trade_date": "2025-02-26",
+        "shares_outstanding": 25.0,
+        "market_cap": 275.0,
+        "market_cap_source": "openinfo_listing",
+    }, reference_date=TODAY)
+
+    assert got["calculation_status"] == contract.CALCULATED
+    assert got["market_cap"] == 275.0
+    assert got["price_age_days"] > got["max_price_age_days"]
+
+
 def test_multiplier_contract_discloses_formula_inputs_and_stable_snapshot():
     classes = [_class()]
     fin, ratio = _statement(), _ratio()
@@ -100,6 +133,44 @@ def test_cache_input_version_changes_when_a_same_day_statement_is_corrected():
     }
     corrected = {**base, "financials": {"ACME": _statement(net_income=201.0)}}
     assert contract.market_inputs_version(base) != contract.market_inputs_version(corrected)
+
+
+def test_cache_input_version_changes_when_openinfo_cap_changes():
+    base = {"listings": {"ACME": {"market_cap": 1_000.0, "updated_at": "2026-09-01"}}}
+    corrected = {"listings": {"ACME": {"market_cap": 1_250.0, "updated_at": "2026-09-02"}}}
+    assert contract.market_inputs_version(base) != contract.market_inputs_version(corrected)
+
+
+def test_api_uses_openinfo_cap_for_all_issuer_classes(monkeypatch):
+    import api
+
+    monkeypatch.setattr(api, "_apply_audit_blocks", lambda rows: 0)
+    payload = api._multiples_payload({
+        "securities": {
+            "ACME": {"name": "Acme AJ", "type": "stock"},
+            "ACMEP": {"name": "Acme AJ", "type": "stock", "is_preferred": True},
+        },
+        "board": [
+            {"ticker": "ACME", "last_price": 10.0, "last_trade_date": "2026-08-31"},
+            {"ticker": "ACMEP", "last_price": 5.0, "last_trade_date": "2025-02-26"},
+        ],
+        "listings": {
+            "ACME": {"shares_outstanding": 100.0, "market_cap": 1_000.0,
+                     "updated_at": "2026-09-01 05:00:00"},
+            "ACMEP": {"shares_outstanding": 5.0, "market_cap": 25.0,
+                      "updated_at": "2026-09-01 05:00:00"},
+        },
+        "financials": {"ACME": _statement()},
+        "ratios": {"ACME": _ratio()},
+        "trade_date": "2026-08-31", "stats": {},
+    })
+
+    ordinary = next(row for row in payload["items"] if row["ticker"] == "ACME")
+    assert ordinary["market_cap_issuer"]["value"] == 1_025.0
+    assert ordinary["market_cap_issuer"]["calculation_status"] == contract.CALCULATED
+    assert ordinary["pe"]["value"] == 5.125
+    assert {item["market_cap_method"]
+            for item in ordinary["market_cap_issuer"]["class_inputs"]} == {"source_reported"}
 
 
 def test_stale_class_price_overrides_cap_dependent_public_status():

@@ -254,9 +254,9 @@ export const TERMS = {
 
   // ── Мультипликаторы ───────────────────────────────────────────────────────
   mktCap: {
-    ru: { term: "Капитализация", def: "Рыночная цена одной бумаги, умноженная на число выпущенных бумаг этого класса. Число акций берётся с uzse.uz. У эмитента с обычными и привилегированными акциями каждый класс считается отдельно." },
-    en: { term: "Market capitalisation", def: "The market price of one security times the number issued in that class. Share counts come from uzse.uz. Where an issuer has both ordinary and preferred stock, each class is counted separately." },
-    uz: { term: "Kapitalizatsiya", def: "Bitta qog‘ozning bozor narxi shu sinfda chiqarilgan qog‘ozlar soniga ko‘paytirilgani. Aksiyalar soni uzse.uz’dan olinadi. Oddiy va imtiyozli aksiyalari bor emitentda har bir sinf alohida hisoblanadi." },
+    ru: { term: "Капитализация", def: "Для каждого класса акций используется капитализация, опубликованная OpenInfo; когда её нет — рыночная цена одной акции, умноженная на число выпущенных акций. У эмитента с обычными и привилегированными акциями значения классов суммируются." },
+    en: { term: "Market capitalisation", def: "For each share class, the capitalisation published by OpenInfo is used; when it is unavailable, market price is multiplied by issued shares. Ordinary and preferred class values are summed for the issuer." },
+    uz: { term: "Kapitalizatsiya", def: "Har bir aksiya sinfi uchun OpenInfo e’lon qilgan kapitalizatsiya olinadi; u bo‘lmasa, bozor narxi chiqarilgan aksiyalar soniga ko‘paytiriladi. Emitentning oddiy va imtiyozli sinflari qiymatlari qo‘shiladi." },
   },
   pe: {
     ru: { term: "P/E (Price to Earnings)", def: "Капитализация, делённая на чистую прибыль за последние 12 месяцев: за сколько лет прибыли окупается текущая цена. Если после годового отчёта вышел квартальный или полугодовой, база — скользящий год: годовая прибыль + прибыль отчётных месяцев текущего года − прибыль тех же месяцев прошлого года. Подпись вида «2025A + 6М2026 − 6М2025» — эта формула и есть: в базе всегда ровно 12 месяцев, а не 18. Если сопоставимого прошлогоднего периода в отчётности нет, берётся последний полный год; период подписан на самой ячейке." },
@@ -388,4 +388,3 @@ export function termFor(id, lang) {
   if (!entry) return null;
   return entry[lang] || entry.ru;
 }
-

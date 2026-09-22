@@ -22,7 +22,7 @@ import fundamentals
 from formulas import thresholds
 
 
-CONTRACT_VERSION = "financial-public-v2"
+CONTRACT_VERSION = "financial-public-v3"
 NEW_REPORT_HOURS = 168
 
 CALCULATED = "CALCULATED"
@@ -150,9 +150,10 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
                        reference_date: date | None = None) -> dict[str, Any]:
     """Validate one class's quote/share inputs and calculate its usable cap.
 
-    A registry/reference price with no trade date is deliberately rejected.  A
-    stale quote is distinct from a missing quote, and a missing share count makes
-    the issuer cap incomplete even when the source happens to publish a cap.
+    A registry/reference price with no trade date is deliberately rejected unless
+    OpenInfo supplies the class capitalisation directly. In that case the source
+    value is a complete numerator on its own and does not need to be reconstructed
+    from a quote and share count.
     """
     ref = reference_date or date.today()
     limit = int(thresholds()["catalog"].get("inactive_after_days", 90))
@@ -161,9 +162,16 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     shares = _number(shares_outstanding if shares_outstanding is not None
                      else row.get("shares_outstanding"))
     reported_cap = _number(row.get("market_cap"))
+    cap_source = str(row.get("market_cap_source") or "").strip() or None
+    source_reported_cap = bool(
+        reported_cap is not None and reported_cap > 0
+        and cap_source == "openinfo_listing"
+    )
 
     age = (ref - traded).days if traded else None
-    if row.get("last_trade_date") and traded is None:
+    if source_reported_cap:
+        status, reason = CALCULATED, None
+    elif row.get("last_trade_date") and traded is None:
         status, reason = DATA_CONFLICT, "unreadable last trade date"
     elif traded and traded > ref:
         status, reason = DATA_CONFLICT, "last trade date is in the future"
@@ -195,6 +203,11 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
         "shares_as_of": row.get("shares_as_of"),
         "shares_source": row.get("shares_source"),
         "reported_market_cap": reported_cap,
+        "market_cap_source": cap_source,
+        "market_cap_source_url": row.get("market_cap_source_url"),
+        "market_cap_as_of": row.get("market_cap_as_of"),
+        "market_cap_method": ("source_reported" if source_reported_cap
+                              else "price_times_shares"),
         "market_cap": cap,
         "calculation_status": status,
         "limitation_reason": reason,
@@ -273,6 +286,14 @@ def market_inputs_version(inputs: dict[str, Any]) -> str:
         "trade_date": inputs.get("trade_date"),
         "board": board,
         "securities": securities,
+        "listings": {
+            str(ticker): {key: row.get(key) for key in (
+                "isin", "shares_outstanding", "last_price", "last_trade_date",
+                "market_cap", "updated_at",
+            )}
+            for ticker, row in sorted((inputs.get("listings") or {}).items(),
+                                      key=lambda item: str(item[0]))
+        },
         "financials": inputs.get("financials") or {},
         "ratios": inputs.get("ratios") or {},
     }
@@ -362,7 +383,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
     result["market_cap_issuer"] = {
         **(result.get("market_cap_issuer") or {}),
         "calculation_status": cap_status,
-        "formula": "sum(class_price * class_shares_outstanding)",
+        "formula": "sum(class_market_cap)",
         "market_date": market_date,
         "basis": "issuer",
         "class_inputs": class_inputs,
