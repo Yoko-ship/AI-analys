@@ -11017,6 +11017,20 @@ const nmTitle = (metric, digits, suffix, lang) => [
   metric.note,
 ].filter(Boolean).join(" · ");
 
+// A loss is not missing data and it is more useful than the generic n/m label.
+// Keep the arithmetical negative P/E available for audit in the tooltip, but do
+// not present it as a valuation multiple that can be ranked against positive P/E.
+const lossLabel = (lang) => (lang === "ru" ? "Убыток" : lang === "uz" ? "Zarar" : "Loss");
+const lossTitle = (metric, digits, suffix, lang) => [
+  lang === "ru"
+    ? `P/E не применим: чистый убыток. Расчётное значение: ${formatRatio(metric.computed, digits, lang)}${suffix}`
+    : lang === "uz"
+      ? `P/E qo'llanmaydi: sof zarar. Hisoblangan qiymat: ${formatRatio(metric.computed, digits, lang)}${suffix}`
+      : `P/E is not applicable: net loss. Calculated value: ${formatRatio(metric.computed, digits, lang)}${suffix}`,
+  metric.base_period,
+  metric.note,
+].filter(Boolean).join(" · ");
+
 // A row's price line, drawn from stored settled closes (/api/quotes/series).
 // Deliberately axis-less and label-less: at this size the only readable claim is
 // the SHAPE, and a series of fewer than two sessions has no shape to show.
@@ -11241,7 +11255,9 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   const putMultiple = (label, metric, digits = 2, suffix = "×", caption) => {
     if (!metric) return;
     let node;
-    if (metric.value != null && metric.status === "out_of_range") {
+    if (metric.computed != null && metric.status === "loss_making") {
+      node = <span className="cell-status" title={lossTitle(metric, digits, suffix, lang)}>{lossLabel(lang)}</span>;
+    } else if (metric.value != null && metric.status === "out_of_range") {
       node = <span className="cell-status" title={nmTitle(metric, digits, suffix, lang)}>{nmLabel(lang)}</span>;
     } else if (metric.value != null) {
       node = <>{formatRatio(metric.value, digits, lang)}{suffix}</>;
@@ -17680,7 +17696,14 @@ function MarketView({
     );
     const label = issuerCapGap?.label || statusText(metric?.status);
     if (!label) return <td className="num">{noSecLabel(row)}</td>;
-    if (metric?.computed != null && ["unverified", "loss_making"].includes(metric.status)) {
+    if (metric?.computed != null && metric.status === "loss_making") {
+      return (
+        <td className="num">
+          <span className="cell-status" title={lossTitle(metric, digits, suffix, lang)}>{lossLabel(lang)}</span>
+        </td>
+      );
+    }
+    if (metric?.computed != null && metric.status === "unverified") {
       const period = metric?.base_period ? ` · ${metric.base_period}` : "";
       const reasons = (metric?.reasons || []).join("; ") || metric?.note || label;
       return (
