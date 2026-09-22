@@ -844,7 +844,7 @@ jobs:
               "/etc/systemd/system/uzstock-collector.service": worker(
                   "uzstock-collector", "UZStock full financial data collector",
                   "python collector_financials.py", timeout="90min",
-                  extra_env=("BANK_HISTORY_BATCH=0",)),
+                  data_volume=True, extra_env=("BANK_HISTORY_BATCH=0",)),
               "/etc/systemd/system/uzstock-collector.timer": timer(
                   "Run UZStock full data collector on weekdays", "Mon..Fri *-*-* 03:00:00"),
               # Historical documents AND their provenance must survive the

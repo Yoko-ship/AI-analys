@@ -209,7 +209,9 @@ def test_vps_history_worker_persists_catalog_and_does_not_duplicate_stateless_ru
     assert "-v uzstock_data:/app/data" in history
     assert "--bank-history-due-only --bank-history-limit 3" in history
     assert "--cpus 0.50" in history
-    assert "BANK_HISTORY_BATCH=0" in units["/etc/systemd/system/uzstock-collector.service"]
+    collector = units["/etc/systemd/system/uzstock-collector.service"]
+    assert "BANK_HISTORY_BATCH=0" in collector
+    assert "-v uzstock_data:/app/data" in collector
     assert "OnCalendar=*-*-* 02:00:00" in units["/etc/systemd/system/uzstock-bank-history.timer"]
     assert workflow.count("uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer") == 2
 
