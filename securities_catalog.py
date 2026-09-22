@@ -38,6 +38,8 @@ _TICKER_SECTORS: dict[str, str] = {
     "ALKB": "finance", "ALKBP": "finance",
     "GRBK": "finance",
     "DRBK": "finance",
+    "ORFI": "finance", "ORFIP": "finance",
+    "INFB": "finance",
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
     "BRBN": "finance", "BRBNP": "finance",

@@ -812,6 +812,12 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     sector = next((str(c.get("sector") or "").lower()
                    for c in classes if c.get("sector")), None)
     is_bank = org_type in _BANK_FORMS
+    issuer_names = " ".join(str(c.get("name") or "").lower() for c in classes)
+    is_investment_fund = sector == "funds" or any(
+        marker in issuer_names for marker in (
+            "investitsiya jamg", "investment fund", "инвестиционн", "инвестицийн сан",
+        )
+    )
     # OpenInfo's insurance form explicitly publishes line 060, «Чистая выручка
     # от оказания страховых услуг», so an insurer has a valid sales denominator
     # for P/S. A bank form has no comparable sales line (interest and
@@ -819,7 +825,8 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     # Until the form type has been collected, the finance sector is the
     # conservative stand-in — a P/S briefly missing is a smaller lie than a bank
     # shown with one.
-    ps_not_applicable = is_bank or (org_type is None and sector == "finance")
+    ps_not_applicable = (is_bank or is_investment_fund
+                         or (org_type is None and sector == "finance"))
 
     ni = flows["values"].get("net_income")
     revenue = flows["values"].get("revenue")
@@ -893,8 +900,12 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
 
     # --- P/S: the multiple that works at a loss; banks have no sales line ----
     if ps_not_applicable:
-        ps = _metric(None, STATUS_NOT_APPLICABLE,
-                     note="для банков P/S не применяется; используйте P/B, ROE и Капитал/Активы")
+        if is_investment_fund:
+            ps_note = ("для инвестиционного фонда P/S не применяется: OpenInfo "
+                       "публикует нулевую выручку; используйте P/B и стоимость чистых активов")
+        else:
+            ps_note = "для банков P/S не применяется; используйте P/B, ROE и Капитал/Активы"
+        ps = _metric(None, STATUS_NOT_APPLICABLE, note=ps_note)
     elif cap_value is None:
         ps = _metric(None, "no_market_cap")
     elif revenue is None or revenue <= 0:

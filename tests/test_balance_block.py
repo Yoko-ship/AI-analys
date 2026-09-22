@@ -151,6 +151,23 @@ class TestItSurvivesStorageAndThePush:
         assert rc._decode_balance_period("not json") is None
         assert rc._decode_balance_period("{}") is None
 
+    def test_same_period_top_level_totals_restore_a_missing_balance_block(self, tmp_path, monkeypatch):
+        """DRBK already had official assets/equity; the read path dropped them."""
+        monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
+        rc.bulk_upsert_financials([{
+            "ticker": "DRBK", "year": 2026, "quarter": 2,
+            "revenue": 1_852.0, "net_income": 368.0,
+            "total_assets": 13_194.0, "total_equity": 2_394.0,
+            "balance": None,
+        }])
+
+        served = rc.get_all_financials()["DRBK"]
+
+        assert served["balance"] == {
+            "equity_start": None, "equity_end": 2_394.0,
+            "assets_start": None, "assets_end": 13_194.0,
+        }
+
     def test_an_all_empty_block_is_not_stored(self):
         assert rc._encode_balance_period({"equity_start": None, "equity_end": None,
                                           "assets_start": None, "assets_end": None}) is None

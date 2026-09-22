@@ -512,6 +512,19 @@ class TestMultiples:
         assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
         assert "P/B, ROE" in got["ps"]["note"]
 
+    def test_an_investment_fund_with_zero_revenue_has_no_ps(self):
+        classes = [cls("UZNF", cap=1000.0, shares=100.0)]
+        classes[0]["name"] = "O'zbekiston Respublikasi Milliy Investitsiya jamg'armasi"
+
+        got = fundamentals.issuer_multiples(
+            classes,
+            stmt(revenue=0.0, net_income=100.0),
+            ratio(roe=None),
+        )
+
+        assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
+        assert "инвестиционного фонда" in got["ps"]["note"]
+
     def test_a_broken_balance_identity_withholds_the_balance_side(self):
         """V2: капитал + обязательства = активы, допуск 0,1 %."""
         got = self._issuer(fin={"total_liabilities": 400.0,

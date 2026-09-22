@@ -17,6 +17,9 @@ COMPANY_CATALOG = {
     '"Aloqabank" ATB (привилегированные)': "ALKBP",
     '"Garant Bank" AJ': "GRBK",
     '"Davr-bank" Xususiy aksiyadorlik tijorat banki': "DRBK",
+    '"Orient finans bank" Xususiy aksiyadorlik tijorat banki': "ORFI",
+    '"Orient finans bank" Xususiy aksiyadorlik tijorat banki (привилегированные)': "ORFIP",
+    '"Invest Finance Bank" Aksiyadorlik jamiyati': "INFB",
     '"Mikrokreditbank" ATB': "MCBA",
     '"Mikrokreditbank" ATB (привилегированные)': "MCBAP",
     '"Universal Bank" CHAKB': "UNVB",
@@ -112,6 +115,8 @@ COMPANY_SECTORS: dict[str, str] = {
     "ALKB": "finance", "ALKBP": "finance",
     "GRBK": "finance",
     "DRBK": "finance",
+    "ORFI": "finance", "ORFIP": "finance",
+    "INFB": "finance",
     "MCBA": "finance", "MCBAP": "finance",
     "UNVB": "finance",
     "BRBN": "finance", "BRBNP": "finance",
@@ -170,4 +175,5 @@ COMPANY_SECTORS: dict[str, str] = {
     "FRAZP": "manufacturing",  # Farg'onaazot — nitrogen fertilizers / chemicals
     "UTHK": "manufacturing",  # O'z-Tong Hong Kompani — UZ-Korea textile JV
     "OCBK": "finance",  # Octobank — commercial bank (ex Ravnaq-bank)
+    "UZNF": "funds",  # O'zbekiston Respublikasi Milliy Investitsiya jamg'armasi
 }

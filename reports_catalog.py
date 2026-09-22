@@ -3248,6 +3248,26 @@ def _decode_balance_period(raw: Any) -> dict[str, Any] | None:
     return out if any(v is not None for v in out.values()) else None
 
 
+def _cached_balance(balance_period: Any, total_assets: Any,
+                    total_equity: Any) -> dict[str, Any] | None:
+    """Return the latest period's balance, including legacy top-level totals.
+
+    Older collector rows (and OpenInfo's indicator-backed bank rows) stored the
+    closing assets/equity in dedicated columns before ``balance_period`` was
+    introduced.  Ignoring those same-period official values made P/B, BVPS,
+    ROE and ROA appear missing even though the database already held them.
+    Opening values stay unknown; we never copy a closing value into the start.
+    """
+    balance = dict(_decode_balance_period(balance_period) or {})
+    if _financials_num(balance.get("assets_end")) is None:
+        balance["assets_end"] = _financials_num(total_assets)
+    if _financials_num(balance.get("equity_end")) is None:
+        balance["equity_end"] = _financials_num(total_equity)
+    for key in _BALANCE_BASE_KEYS:
+        balance.setdefault(key, None)
+    return balance if any(value is not None for value in balance.values()) else None
+
+
 def _encode_balance_period(value: Any) -> str | None:
     """Serialize the filed-balance block; None when it says nothing."""
     if not isinstance(value, dict):
@@ -3406,6 +3426,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
         SELECT f.ticker, f.year, f.quarter, f.revenue, f.gross_profit, f.cash,
                f.total_liabilities, f.net_income, f.operating_income, f.operating_expenses,
                f.noninterest_income, f.org_type, f.balance_period,
+               f.total_assets, f.total_equity,
                f.field_periods, f.prior_period, f.report_id, f.updated_at
         FROM catalog_financials f
         JOIN (
@@ -3443,7 +3464,8 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "org_type": r["org_type"],
             # The filed balance for THIS period: equity/assets at start and end,
             # the denominators P/B and averaged ROE/ROA are built from.
-            "balance": _decode_balance_period(r["balance_period"]),
+            "balance": _cached_balance(r["balance_period"], r["total_assets"],
+                                       r["total_equity"]),
             # {field: period} for any value that does NOT belong to (year, quarter)
             # — a bank's revenue is only published as an annual indicator, so the
             # cell must say which period it describes rather than borrow the row's.
@@ -3551,7 +3573,8 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
             "operating_expenses": r["operating_expenses"],
             "noninterest_income": r["noninterest_income"],
             "org_type": r["org_type"],
-            "balance": _decode_balance_period(r["balance_period"]),
+            "balance": _cached_balance(r["balance_period"], r["total_assets"],
+                                       r["total_equity"]),
             "field_periods": _decode_field_periods(r["field_periods"]),
             "total_assets": r["total_assets"], "total_equity": r["total_equity"],
         }

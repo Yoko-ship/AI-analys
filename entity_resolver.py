@@ -70,6 +70,14 @@ ORG_OVERRIDES: dict[str, str] = {
     # attaches Asia Insurance's AISK security to this org, so neither ticker nor
     # ISIN discovery can resolve it safely without explicit pins.
     "DRBK": "26",
+    # Orient Finans Bank (org 16, INN 207086151): OpenInfo explicitly lists both
+    # exchange tickers in exchange_ticket_name, but the current UZSE discovery
+    # feed does not resolve either security to the issuer.
+    "ORFI": "16", "ORFIP": "16",
+    # Invest Finance Bank (org 25, INN 206942764): OpenInfo's organization card
+    # does not publish an exchange ticker, so name/ticker discovery cannot form
+    # the otherwise unambiguous issuer link.
+    "INFB": "25",
 }
 
 # Explicit ticker -> ISIN pins for securities that openinfo's info_rfb and stock
@@ -80,6 +88,9 @@ ORG_OVERRIDES: dict[str, str] = {
 ISIN_OVERRIDES: dict[str, str] = {
     "OCBK": "UZ7048610008",   # Octobank ordinary; uzse quote page is live
     "DRBK": "UZ7050240009",   # Davr Bank ordinary; relisted 2026-08-28
+    "ORFI": "UZ7055870008",   # Orient Finans Bank ordinary
+    "ORFIP": "UZ7055871006",  # Orient Finans Bank preferred
+    "INFB": "UZ7055560005",   # Invest Finance Bank ordinary
 }
 
 # Tickers with no correct openinfo entity — the only match is a *different* company,
