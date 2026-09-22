@@ -12,7 +12,7 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.7"
+VERSION = "sector-analysis-2.8"
 CALCULATION_VERSION = "nsbu-core-2.1"
 MAPPING_VERSION = "nsbu-lines-2.1"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
@@ -696,6 +696,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 text += f" ({format_number(fact['change_pct'])}%)"
         return text
 
+    # Structured prose blocks are rendered as separate analytical paragraphs
+    # with a short bold lead.  The plain paragraph strings remain in the API
+    # for backwards compatibility and exports.
+    narrative_blocks = {"performance": [], "position": []}
+
     def vertical_narrative(asset_keys, heading, bank_funding=False):
         """Explain the balance mix as a comparison, not a list of percentages.
 
@@ -923,6 +928,16 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (balance_conclusion or tr(lang, "Итог ограничен раскрытыми показателями выше.", "Xulosa yuqorida oshkor qilingan ko‘rsatkichlar bilan cheklangan.", "The conclusion is limited to the disclosed metrics above."))
         if total_expenses is None:
             balance_text += " " + tr(lang, "Полная сумма расходов не рассчитана, поскольку не все необходимые строки раскрыты.", "Barcha zarur satrlar oshkor qilinmagani uchun jami xarajatlar hisoblanmadi.", "Total expenses were not calculated because not all required lines were disclosed.")
+        narrative_blocks["performance"] = [
+            {"lead": tr(lang, "Доходная база", "Daromad bazasi", "Income base"), "text": income_text},
+            {"lead": tr(lang, "Расходы и стоимость ресурсов", "Xarajatlar va resurslar qiymati", "Expenses and resource cost"), "text": expense_text},
+            {"lead": tr(lang, "Прибыль и налоги", "Foyda va soliqlar", "Profit and tax"), "text": profit_text},
+            {"lead": tr(lang, "Ключевые банковские коэффициенты", "Asosiy bank koeffitsiyentlari", "Key banking ratios"), "text": ratio_text},
+        ]
+        narrative_blocks["position"] = [
+            {"lead": tr(lang, "Динамика активов и фондирования", "Aktivlar va moliyalashtirish dinamikasi", "Asset and funding movement"), "text": horizontal_text},
+            {"lead": tr(lang, "Структура активов и капитала", "Aktivlar va kapital tarkibi", "Asset and capital structure"), "text": vertical_text},
+        ]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, balance_text]
 
     def insurance_analysis_paragraphs():
@@ -995,6 +1010,14 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         if premiums is not None and net_reserves is not None:
             limitations.insert(0, tr(lang, "Премии и резервы уже позволяют оценить масштаб страхового бизнеса и передачу риска перестраховщикам.", "Mukofotlar va zaxiralar sug‘urta biznesi ko‘lami hamda riskning qayta sug‘urtalovchilarga o‘tkazilishini baholash imkonini beradi.", "Premiums and reserves are sufficient to assess business scale and risk transfer to reinsurers."))
         summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + " ".join(limitations)
+        narrative_blocks["performance"] = [
+            {"lead": tr(lang, "Премии, выплаты и прибыльность", "Mukofotlar, to‘lovlar va rentabellik", "Premiums, claims and profitability"), "text": results_text},
+            {"lead": tr(lang, "Ключевые страховые коэффициенты", "Asosiy sug‘urta koeffitsiyentlari", "Key insurance ratios"), "text": ratio_text},
+        ]
+        narrative_blocks["position"] = [
+            {"lead": tr(lang, "Баланс и страховые резервы", "Balans va sug‘urta zaxiralari", "Balance sheet and insurance reserves"), "text": horizontal_text},
+            {"lead": tr(lang, "Перестрахование и удержание риска", "Qayta sug‘urtalash va riskni ushlab qolish", "Reinsurance and risk retention"), "text": vertical_text},
+        ]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
 
     def general_analysis_paragraphs():
@@ -1163,6 +1186,16 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         if profile:
             summary_parts.append(tr(lang, *profile["risk"]))
         summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (" ".join(summary_parts) or tr(lang, "Оценка ограничена раскрытыми показателями; ключевые изменения приведены выше.", "Baho oshkor qilingan ko‘rsatkichlar bilan cheklangan; asosiy o‘zgarishlar yuqorida keltirilgan.", "The assessment is limited to disclosed metrics; the key movements are shown above."))
+        narrative_blocks["performance"] = [
+            {"lead": tr(lang, "Выручка и прямые затраты", "Tushum va bevosita xarajatlar", "Revenue and direct costs"), "text": income_text},
+            {"lead": tr(lang, "Операционный и финансовый результат", "Operatsion va moliyaviy natija", "Operating and finance result"), "text": expense_text},
+            {"lead": tr(lang, "Чистая прибыль и налог", "Sof foyda va soliq", "Net profit and tax"), "text": profit_text},
+            {"lead": tr(lang, "Маржинальность и финансовая нагрузка", "Marjinallik va moliyaviy yuk", "Margins and financial load"), "text": ratio_text},
+        ]
+        narrative_blocks["position"] = [
+            {"lead": tr(lang, "Динамика активов и обязательств", "Aktivlar va majburiyatlar dinamikasi", "Asset and liability movement"), "text": horizontal_text},
+            {"lead": tr(lang, "Концентрация активов и капитал", "Aktivlar jamlanishi va kapital", "Asset concentration and capital"), "text": vertical_text},
+        ]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
 
     headline_facts = [fact_sentence("net_income"), fact_sentence("operating_income")]
@@ -1415,11 +1448,59 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             f"Tahlil {issuer_name} ({issuer['ticker']}) kompaniyasining {period_text} davridagi {standard.upper()} standarti bo‘yicha moliyaviy natijalari va holatini {scope_text} doirasida tavsiflaydi. {comparison_text} Barcha summalar {money_unit}da berilgan va faqat tekshiriladigan hisobotdan olingan.",
             f"This analysis describes the financial performance and position of {issuer_name} ({issuer['ticker']}) under {standard.upper()} for {period_text} on a {scope_text} basis. {comparison_text} All amounts are in {money_unit} and come only from traceable filings.",
         )
+        introduction_blocks = [{"text": introduction}]
+        overview_blocks = []
+        performance_blocks = []
+        position_blocks = []
 
         if complete_content and len(paragraphs) >= 6:
             overview = " ".join(item["text"] for item in key_changes[:5]) or f"{headline} {paragraphs[5]}"
             performance_detail = " ".join(paragraphs[3:5])
             position_detail = " ".join(paragraphs[1:3])
+            lead_catalog = {
+                "ru": {
+                    "loan_book": "Кредитный портфель", "deposit_funding": "Депозитная база",
+                    "net_interest_income": "Процентный бизнес", "cost_to_income": "Операционная эффективность",
+                    "bottom_line": "Чистая прибыль", "premium_scale": "Страховые премии",
+                    "reserve_retention": "Перестрахование и резервы", "profit_divergence": "Прибыльность",
+                    "insurance_balance": "Баланс", "core_business": "Основная деятельность",
+                    "profit_bridge": "Почему изменилась чистая прибыль", "asset_concentration": "Структура активов",
+                    "capital_balance": "Капитал и обязательства",
+                },
+                "uz": {
+                    "loan_book": "Kredit portfeli", "deposit_funding": "Depozit bazasi",
+                    "net_interest_income": "Foizli biznes", "cost_to_income": "Operatsion samaradorlik",
+                    "bottom_line": "Sof foyda", "premium_scale": "Sug‘urta mukofotlari",
+                    "reserve_retention": "Qayta sug‘urtalash va zaxiralar", "profit_divergence": "Rentabellik",
+                    "insurance_balance": "Balans", "core_business": "Asosiy faoliyat",
+                    "profit_bridge": "Sof foyda nima uchun o‘zgardi", "asset_concentration": "Aktivlar tarkibi",
+                    "capital_balance": "Kapital va majburiyatlar",
+                },
+                "en": {
+                    "loan_book": "Loan portfolio", "deposit_funding": "Deposit base",
+                    "net_interest_income": "Interest business", "cost_to_income": "Operating efficiency",
+                    "bottom_line": "Net profit", "premium_scale": "Insurance premiums",
+                    "reserve_retention": "Reinsurance and reserves", "profit_divergence": "Profitability",
+                    "insurance_balance": "Balance sheet", "core_business": "Core operations",
+                    "profit_bridge": "Why net profit changed", "asset_concentration": "Asset structure",
+                    "capital_balance": "Capital and liabilities",
+                },
+            }
+            fallback_leads = {
+                "business": tr(lang, "Что изменилось в бизнесе", "Biznesda nima o‘zgardi", "What changed in the business"),
+                "profitability": tr(lang, "Прибыльность", "Rentabellik", "Profitability"),
+                "profit_driver": tr(lang, "Драйвер прибыли", "Foyda drayveri", "Profit driver"),
+                "balance": tr(lang, "Баланс", "Balans", "Balance sheet"),
+                "attention": tr(lang, "Что требует внимания", "Nimaga e’tibor kerak", "What needs attention"),
+            }
+            leads = lead_catalog.get(lang, lead_catalog["ru"])
+            overview_blocks = [
+                {"lead": leads.get(item["code"], fallback_leads.get(item["category"])), "text": item["text"],
+                 "evidence_fact_ids": item["evidence_fact_ids"]}
+                for item in key_changes[:5]
+            ] or [{"text": overview}]
+            performance_blocks = narrative_blocks["performance"] or [{"text": performance_detail}]
+            position_blocks = narrative_blocks["position"] or [{"text": position_detail}]
         else:
             overview = f"{headline} " + tr(
                 lang,
@@ -1441,6 +1522,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 "Aktivlar, majburiyatlar va kapitalni mazmunli taqqoslash uchun tasdiqlangan ma’lumot yetarli emas.",
                 "There is insufficient verified asset, liability and equity data for a meaningful comparison.",
             )
+            overview_blocks = [{"text": overview}]
+            performance_blocks = [{"text": performance_detail}]
+            position_blocks = [{"text": position_detail}]
 
         task1_titles = {
             "ru": ("Введение", "Общий обзор", "Детали I — финансовые результаты", "Детали II — финансовое положение"),
@@ -1448,12 +1532,12 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             "en": ("Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"),
         }.get(lang, ("Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"))
         task1_sections = [
-            {"id": section_id, "number": f"{index:02d}", "title": title, "text": section_text}
-            for index, (section_id, title, section_text) in enumerate((
-                ("introduction", task1_titles[0], introduction),
-                ("overview", task1_titles[1], overview),
-                ("details_performance", task1_titles[2], performance_detail),
-                ("details_position", task1_titles[3], position_detail),
+            {"id": section_id, "number": f"{index:02d}", "title": title, "text": section_text, "blocks": blocks_value}
+            for index, (section_id, title, section_text, blocks_value) in enumerate((
+                ("introduction", task1_titles[0], introduction, introduction_blocks),
+                ("overview", task1_titles[1], overview, overview_blocks),
+                ("details_performance", task1_titles[2], performance_detail, performance_blocks),
+                ("details_position", task1_titles[3], position_detail, position_blocks),
             ), 1)
         ]
 

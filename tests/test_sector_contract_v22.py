@@ -564,6 +564,12 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert "Without disclosed claims" in insurance_text
     assert "general profile" not in insurance_text
     assert 3 <= len(results["UZAS"]["key_changes"]) <= 5
+    for ticker in ("UZMK", "HMKB", "UZAS"):
+        task_sections = {section["id"]: section for section in results[ticker]["task1_sections"]}
+        assert 3 <= len(task_sections["overview"]["blocks"]) <= 5
+        assert all(block.get("lead") and block.get("text") for block in task_sections["overview"]["blocks"])
+        assert len(task_sections["details_performance"]["blocks"]) >= 2
+        assert len(task_sections["details_position"]["blocks"]) == 2
 
 
 def test_bank_mapper_preserves_reconciled_catalog_totals():

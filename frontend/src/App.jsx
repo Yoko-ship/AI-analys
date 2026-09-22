@@ -11798,7 +11798,12 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
           {narrativeSections.map((section, index) => (
             <section className="company-insight-report-section" key={section.id || index}>
               {section.title && <header><span>{section.number || String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></header>}
-              <p>{section.text}</p>
+              {section.blocks?.length ? section.blocks.map((block, blockIndex) => (
+                <p key={`${section.id || index}-block-${blockIndex}`}>
+                  {block.lead && <><strong>{block.lead.replace(/[.!?]+$/, "")}.</strong>{" "}</>}
+                  {block.text}
+                </p>
+              )) : <p>{section.text}</p>}
             </section>
           ))}
         </div>
