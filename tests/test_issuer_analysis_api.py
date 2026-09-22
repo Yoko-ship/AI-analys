@@ -219,6 +219,18 @@ def test_bank_ai_report_summary_uses_bank_metrics_and_keeps_period(client):
     assert "недостаточно" not in body["headline"].lower()
 
 
+def test_insurance_ai_report_summary_uses_insurance_core_totals(client):
+    body = client.get(
+        "/api/v1/issuers/INS/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true"
+    ).json()
+
+    assert body["status"] == "available"
+    assert body["content_status"] == "complete"
+    assert body["deferred_full_report"] is True
+    assert body["period"] == "2026Q2"
+    assert "недостаточно" not in body["headline"].lower()
+
+
 def test_commodity_exchange_summary_matches_available_full_report(monkeypatch):
     issuer = {"id": "717", "ticker": "URTS", "name": "O'zRTXB", "sector": "finance"}
     metrics = {

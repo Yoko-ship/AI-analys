@@ -1277,12 +1277,12 @@ def issuer_ai_report(
         if item["normalized"] is not None
     }
     organization_type = snapshot.get("organization_type")
-    if organization_type == "commodity_exchange":
-        # URTS is intentionally routed to the commodity-exchange template by
-        # the full report.  Its catalog snapshot carries the generic
-        # SECTOR_TEMPLATE_MISSING marker until that override is applied, and it
-        # does not expose the industrial ROE/margin set.  Judge the teaser by
-        # the core statement totals that the exchange report actually uses.
+    if organization_type in {"commodity_exchange", "insurance"}:
+        # Commodity exchanges and insurers have dedicated full-report
+        # templates and do not expose the generic industrial ROE/margin set.
+        # Judge their teasers by the core statement totals those templates
+        # actually use.  URTS also carries the generic SECTOR_TEMPLATE_MISSING
+        # marker until its commodity-exchange override is applied below.
         required = {"revenue", "net_income", "total_assets", "total_equity", "total_liabilities"}
         available = required.issubset(normalized)
     elif organization_type in {"bank", "microfinance_bank", "microfinance"}:
