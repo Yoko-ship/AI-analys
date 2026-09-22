@@ -23,6 +23,7 @@ import corporate_actions
 from delisted import DELISTED_TICKERS
 from entity_resolver import ISIN_OVERRIDES, ORG_OVERRIDES
 from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
+from securities_catalog import get_securities_map
 
 log = logging.getLogger("listings")
 
@@ -285,6 +286,81 @@ def _fmt_date(v: Any) -> str | None:
     return s or None
 
 
+def _known_equities() -> dict[str, dict[str, Any]]:
+    """Every equity the application already knows, keyed by ticker.
+
+    OpenInfo's issuer card is not a complete security universe: quiet but still
+    listed shares often have ``status_rfb=false`` and an empty ``isin_codes``.
+    The securities catalog retains their exchange ISIN and lets the collector
+    ask OpenInfo/UZSE for the current share count and last execution directly.
+    """
+    try:
+        securities = get_securities_map()
+    except Exception:  # noqa: BLE001 — the OpenInfo walk can still continue
+        log.exception("could not read the securities catalog for listing fallback")
+        return {}
+    return {
+        str(ticker or "").strip().upper(): row
+        for ticker, row in (securities or {}).items()
+        if str((row or {}).get("type") or "stock").lower() == "stock"
+        and str((row or {}).get("isin") or "").strip().upper().startswith("UZ7")
+    }
+
+
+def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
+                      *, name: str | None = None) -> dict[str, Any] | None:
+    """Rebuild one listing row from its known ISIN and source records.
+
+    Prices come from OpenInfo's conclusions archive; issued shares and the
+    exchange control value come from UZSE's security detail. This is the same
+    source pair used for regular ``info_rfb`` rows, but it also works when the
+    issuer card omits the security altogether.
+    """
+    ticker = str(ticker or "").strip().upper()
+    isin = str(security.get("isin") or "").strip().upper()
+    if not ticker or not isin:
+        return None
+    uz = _uzse_equity(session, isin) or {}
+    shares = uz.get("shares") or _uzse_share_count(session, isin)
+    last = _last_conclusion(session, isin)
+    last_close = _num(last.get("close")) if last else None
+    uz_price = _num(uz.get("price"))
+    if uz_price:
+        if last_close and 0.9 <= (last_close / uz_price) <= 1.1:
+            last_price = last_close
+        else:
+            last = None
+            last_price = uz_price
+    else:
+        last_price = last_close
+    if last:
+        last_trade_date = last.get("date")
+    elif uz.get("date"):
+        parts = str(uz["date"]).split(".")
+        last_trade_date = (f"{parts[2]}-{parts[1]}-{parts[0]}"
+                           if len(parts) == 3 else uz["date"])
+    else:
+        last_trade_date = None
+    return {
+        "ticker": ticker,
+        "isin": isin,
+        "name": name or security.get("name") or ticker,
+        "share_type": (security.get("share_type")
+                       or ("preferred" if security.get("is_preferred") else "ordinary")),
+        "listing_date": None,
+        "shares_outstanding": shares,
+        "nominal": uz.get("nominal"),
+        "reference_price": None,
+        "last_price": last_price,
+        "last_trade_date": last_trade_date,
+        "open_price": _num(last.get("open")) if last else None,
+        "high_price": _num(last.get("high")) if last else None,
+        "low_price": _num(last.get("low")) if last else None,
+        "volume": _num(last.get("trading_volume")) if last else None,
+        "market_cap": (shares * last_price) if (shares and last_price) else None,
+    }
+
+
 def _org_ids() -> dict[str, str]:
     """ticker → org_id from the local catalog (already resolved by sync_all)."""
     conn = rc.get_catalog_conn()
@@ -325,6 +401,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
     """One row per RFB-registered security across all catalogued issuers."""
     session = _make_session()
     org_ids = _org_ids()
+    known_equities = _known_equities()
     org_detail_cache: dict[str, dict] = {}
     seen_tickers: set[str] = set()
     rows: list[dict[str, Any]] = []
@@ -361,6 +438,13 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             tk = str(ic.get("ticker") or "").strip().upper()
             isin = str(ic.get("isu_cd") or "").strip().upper()
             if not tk or not isin or tk in seen_tickers:
+                continue
+            # Some issuer cards put a bond first under the ordinary share's
+            # ticker (Aloqabank: UZ60447611B9 is labelled ALKB). Do not let that
+            # collision consume the ticker and hide the real UZ7… share later in
+            # the same list.
+            known_isin = str((known_equities.get(tk) or {}).get("isin") or "").upper()
+            if known_isin and known_isin != isin and not isin.startswith("UZ7"):
                 continue
             if tk in DELISTED_TICKERS:
                 # Deleted from the site — skip before the per-security UZSE calls
@@ -444,22 +528,33 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # join has shares to multiply by the live price (e.g. BIOK, DORI).
             # The pinned ISINs come first: the screener proxy answers 73 rows
             # and misses issuers (OCBK) whose uzse quote page is alive and well.
-            uz_isin = ISIN_OVERRIDES.get(ticker) or _uzse_screener_isins(session).get(ticker)
-            uz_shares = _uzse_share_count(session, uz_isin) if uz_isin else None
-            last = _last_conclusion(session, uz_isin) if uz_isin else None
-            last_price = _num(last.get("close")) if last else None
-            rows.append({
-                "ticker": ticker, "isin": uz_isin, "name": name,
-                "share_type": "ordinary", "listing_date": None,
-                "shares_outstanding": uz_shares, "reference_price": None,
-                "nominal": (_uzse_equity(session, uz_isin) or {}).get("nominal") if uz_isin else None,
-                "last_price": last_price, "last_trade_date": (last or {}).get("date"),
-                "open_price": _num(last.get("open")) if last else None,
-                "high_price": _num(last.get("high")) if last else None,
-                "low_price": _num(last.get("low")) if last else None,
-                "volume": _num(last.get("trading_volume")) if last else None,
-                "market_cap": (uz_shares * last_price) if (uz_shares and last_price) else None,
+            security = known_equities.get(ticker) or {}
+            uz_isin = (ISIN_OVERRIDES.get(ticker)
+                       or str(security.get("isin") or "").strip().upper()
+                       or _uzse_screener_isins(session).get(ticker))
+            fallback = _known_equity_row(
+                session, ticker, {**security, "isin": uz_isin}, name=name,
+            ) if uz_isin else None
+            rows.append(fallback or {
+                "ticker": ticker, "isin": None, "name": name,
+                "share_type": (security.get("share_type") or "ordinary"),
+                "listing_date": None, "shares_outstanding": None,
+                "reference_price": None, "nominal": None, "last_price": None,
+                "last_trade_date": None, "open_price": None, "high_price": None,
+                "low_price": None, "volume": None, "market_cap": None,
             })
+
+    # The org walk starts from catalog_companies. Securities can reach the board
+    # before that catalog resolves their OpenInfo org (ORFI/ORFIP are the current
+    # examples), so finish against the exchange-backed securities catalog rather
+    # than silently omitting their source capitalization.
+    for ticker, security in known_equities.items():
+        if ticker in seen_tickers or ticker in DELISTED_TICKERS:
+            continue
+        fallback = _known_equity_row(session, ticker, security)
+        if fallback:
+            rows.append(fallback)
+            seen_tickers.add(ticker)
 
     log.info("collected %d listing rows from %d orgs", len(rows), len(org_detail_cache))
     return rows

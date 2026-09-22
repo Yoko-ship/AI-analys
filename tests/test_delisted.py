@@ -228,6 +228,7 @@ class TestCollector:
 
         monkeypatch.setattr(lc, "_make_session", lambda: _Session())
         monkeypatch.setattr(lc, "_org_ids", lambda: {"SQBN": "1"})
+        monkeypatch.setattr(lc, "_known_equities", dict)
         monkeypatch.setattr(lc, "_uzse_equity", lambda *a, **k: None)
         monkeypatch.setattr(lc, "_uzse_bond_nominal", lambda *a, **k: None)
         monkeypatch.setattr(lc, "_last_conclusion", lambda *a, **k: None)

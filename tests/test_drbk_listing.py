@@ -52,6 +52,9 @@ def test_drbk_identity_and_company_metadata_are_complete() -> None:
 def test_pinned_drbk_listing_replaces_openinfo_foreign_security(monkeypatch) -> None:
     monkeypatch.setattr(lc, "_make_session", _Session)
     monkeypatch.setattr(lc, "_org_ids", lambda: {"DRBK": "26"})
+    monkeypatch.setattr(lc, "_known_equities", lambda: {
+        "DRBK": {"ticker": "DRBK", "isin": "UZ7050240009", "type": "stock"},
+    })
     monkeypatch.setattr(lc, "_last_conclusion", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(lc, "_uzse_equity", lambda _session, isin: {
         "shares": 100_000_000,
