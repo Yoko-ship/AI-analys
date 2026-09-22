@@ -12,7 +12,7 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.8"
+VERSION = "sector-analysis-2.9"
 CALCULATION_VERSION = "nsbu-core-2.1"
 MAPPING_VERSION = "nsbu-lines-2.1"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
@@ -701,7 +701,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     # for backwards compatibility and exports.
     narrative_blocks = {"performance": [], "position": []}
 
-    def vertical_narrative(asset_keys, heading, bank_funding=False):
+    def vertical_narrative(asset_keys, heading, bank_funding=False, exchange_funding=False):
         """Explain the balance mix as a comparison, not a list of percentages.
 
         This follows the useful part of a Task-1 style commentary: lead with the
@@ -766,6 +766,13 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             "loan_portfolio": tr(lang, "Доминирование кредитного портфеля подтверждает кредитную специализацию банка и концентрацию активов на кредитном риске.", "Kredit portfelining ustunligi bankning kreditlashga ixtisoslashganini va aktivlar kredit riskida jamlanganini ko‘rsatadi.", "The dominant loan portfolio confirms the bank’s lending focus and concentration of assets in credit risk."),
         }
         meaning = implications.get(dominant["key"], tr(lang, "Такое соотношение показывает, где сосредоточена основная часть ресурсов компании.", "Bu nisbat kompaniya resurslarining asosiy qismi qayerda jamlanganini ko‘rsatadi.", "This mix shows where most of the company’s resources are concentrated."))
+        if exchange_funding and dominant["key"] in {"cash", "client_cash", "own_cash"}:
+            meaning = tr(
+                lang,
+                "Высокая денежная доля характерна для расчётной инфраструктуры биржи, но её нельзя считать свободной ликвидностью без раздельного раскрытия собственных и клиентских средств.",
+                "Pul ulushining yuqoriligi birjaning hisob-kitob infratuzilmasiga xos, ammo o‘z va mijoz mablag‘lari alohida oshkor qilinmasa, uni erkin likvidlik deb hisoblab bo‘lmaydi.",
+                "A high cash share is consistent with an exchange settlement model, but it cannot be treated as freely available liquidity without a split between own and client funds.",
+            )
         equity_share = ratio((by_code.get("total_equity") or {}).get("value"), assets_now, True)
         liability_share = ratio((by_code.get("total_liabilities") or {}).get("value"), assets_now, True)
         funding = ""
@@ -776,6 +783,13 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                     f"Капитал составляет {format_number(equity_share)}% активов, обязательства — {format_number(liability_share)}%. Для банка высокая доля обязательств является частью операционной модели, включая депозиты и заимствования, и сама по себе не означает чрезмерную зависимость от внешнего финансирования.",
                     f"Kapital aktivlarning {format_number(equity_share)}%ini, majburiyatlar esa {format_number(liability_share)}%ini tashkil etadi. Bankda majburiyatlarning yuqori ulushi depozitlar va qarzlarni o‘z ichiga olgan operatsion modelning bir qismi bo‘lib, o‘z-o‘zidan tashqi moliyalashtirishga ortiqcha qaramlikni anglatmaydi.",
                     f"Equity represents {format_number(equity_share)}% of assets and liabilities {format_number(liability_share)}%. For a bank, a high liability share is inherent to the operating model, including deposits and borrowings, and is not by itself evidence of excessive external-funding dependence.",
+                )
+            elif exchange_funding:
+                funding = tr(
+                    lang,
+                    f"Капитал составляет {format_number(equity_share)}% активов, обязательства — {format_number(liability_share)}%. Для биржи обязательства могут включать клиентские расчёты и обеспечительные средства, поэтому эту долю нельзя автоматически трактовать как корпоративный долг.",
+                    f"Kapital aktivlarning {format_number(equity_share)}%ini, majburiyatlar esa {format_number(liability_share)}%ini tashkil etadi. Birjada majburiyatlar mijozlar hisob-kitoblari va ta’minot mablag‘larini o‘z ichiga olishi mumkin, shuning uchun bu ulushni avtomatik ravishda korporativ qarz deb talqin qilib bo‘lmaydi.",
+                    f"Equity represents {format_number(equity_share)}% of assets and liabilities {format_number(liability_share)}%. For an exchange, liabilities may include client settlements and collateral, so the ratio cannot automatically be interpreted as corporate debt.",
                 )
             else:
                 funding = tr(
@@ -1020,6 +1034,91 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         ]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
 
+    def fund_analysis_paragraphs():
+        """Describe an audited investment fund through portfolio economics."""
+        value = lambda key: decimal((by_code.get(key) or {}).get("value"))
+        pct = lambda numerator, denominator: ratio(numerator, denominator, True)
+        pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
+        portfolio = value("portfolio_fair_value")
+        assets = value("total_assets")
+        equity = value("total_equity")
+        liabilities = value("total_liabilities")
+        top5 = value("top5_holdings")
+        largest = value("largest_holding")
+        level3 = value("level3_investments")
+        unrealized = value("unrealized_fair_value_gain")
+        dividends = value("dividend_income")
+        expenses = value("management_expenses")
+        tax = value("tax")
+        net_income = value("net_income")
+
+        portfolio_share = pct(portfolio, assets)
+        top5_share = pct(top5, portfolio)
+        largest_share = pct(largest, portfolio)
+        level3_share = pct(level3, portfolio)
+        equity_share = pct(equity, assets)
+        unrealized_to_profit = pct(unrealized, net_income)
+        intro = f"{headline} " + tr(
+            lang,
+            f"Фонд оценивается по структуре и концентрации инвестиционного портфеля, качеству оценки и источникам прибыли; корпоративные показатели выручки и оборотного капитала к нему не применяются. Портфель составляет {pct_text(portfolio_share) or '—'} активов.",
+            f"Fond investitsiya portfeli tarkibi va jamlanishi, baholash sifati hamda foyda manbalari bo‘yicha baholanadi; korporativ tushum va aylanma kapital ko‘rsatkichlari unga qo‘llanmaydi. Portfel aktivlarning {pct_text(portfolio_share) or '—'}ini tashkil etadi.",
+            f"The fund is assessed through portfolio structure and concentration, valuation quality and profit sources; corporate revenue and working-capital measures do not apply. The portfolio represents {pct_text(portfolio_share) or '—'} of assets.",
+        )
+
+        position_facts = [fact_sentence(key, comparison=False) for key in ("total_assets", "portfolio_fair_value", "cash", "dividends_receivable", "accounts_payable", "total_equity", "total_liabilities")]
+        horizontal_text = tr(lang, "Активы, портфель и капитал. ", "Aktivlar, portfel va kapital. ", "Assets, portfolio and capital. ") + "; ".join(item for item in position_facts if item) + "."
+        concentration_parts = []
+        if portfolio_share is not None:
+            concentration_parts.append(tr(lang, f"инвестиционный портфель составляет {pct_text(portfolio_share)} активов", f"investitsiya portfeli aktivlarning {pct_text(portfolio_share)}ini tashkil etadi", f"the investment portfolio equals {pct_text(portfolio_share)} of assets"))
+        if top5_share is not None:
+            concentration_parts.append(tr(lang, f"пять крупнейших позиций — {pct_text(top5_share)} портфеля", f"beshta eng yirik pozitsiya portfelning {pct_text(top5_share)}ini tashkil etadi", f"the five largest holdings represent {pct_text(top5_share)} of the portfolio"))
+        if largest_share is not None:
+            concentration_parts.append(tr(lang, f"крупнейшая позиция — {pct_text(largest_share)} портфеля", f"eng yirik pozitsiya portfelning {pct_text(largest_share)}ini tashkil etadi", f"the largest holding represents {pct_text(largest_share)} of the portfolio"))
+        if level3_share is not None:
+            concentration_parts.append(tr(lang, f"инструменты Level 3 — {pct_text(level3_share)} портфеля", f"Level 3 vositalari portfelning {pct_text(level3_share)}ini tashkil etadi", f"Level 3 instruments represent {pct_text(level3_share)} of the portfolio"))
+        if equity_share is not None:
+            concentration_parts.append(tr(lang, f"капитал покрывает {pct_text(equity_share)} активов", f"kapital aktivlarning {pct_text(equity_share)}ini qoplaydi", f"equity covers {pct_text(equity_share)} of assets"))
+        vertical_text = tr(lang, "Структура и концентрация портфеля. ", "Portfel tarkibi va jamlanishi. ", "Portfolio structure and concentration. ") + "; ".join(concentration_parts) + ". " + tr(
+            lang,
+            "Высокая доля Level 3 означает зависимость стоимости портфеля от моделей и непубличных исходных данных, а не автоматически низкое качество активов.",
+            "Level 3 ulushining yuqoriligi portfel qiymati modellarga va ochiq bo‘lmagan ma’lumotlarga bog‘liqligini anglatadi, lekin aktivlar sifati avtomatik ravishda past degani emas.",
+            "A high Level 3 share means portfolio value depends on models and unobservable inputs; it does not automatically imply poor asset quality.",
+        )
+
+        valuation_parts = [fact_sentence(key, comparison=False) for key in ("unrealized_fair_value_gain", "dividend_income")]
+        valuation_text = tr(lang, "Источники инвестиционного результата. ", "Investitsiya natijasi manbalari. ", "Sources of investment return. ") + "; ".join(item for item in valuation_parts if item) + "."
+        if unrealized_to_profit is not None:
+            valuation_text += " " + tr(lang, f"Нереализованная переоценка равна {pct_text(unrealized_to_profit)} чистой прибыли, поэтому устойчивость результата зависит от будущего подтверждения оценочной стоимости.", f"Realizatsiya qilinmagan qayta baholash sof foydaning {pct_text(unrealized_to_profit)}iga teng, shuning uchun natija barqarorligi baholash qiymatining kelajakda tasdiqlanishiga bog‘liq.", f"Unrealized revaluation equals {pct_text(unrealized_to_profit)} of net profit, so result sustainability depends on future confirmation of the valuation.")
+        cost_parts = [fact_sentence(key, comparison=False) for key in ("management_expenses", "tax", "net_income")]
+        profit_text = tr(lang, "Расходы и итоговая прибыль. ", "Xarajatlar va yakuniy foyda. ", "Expenses and final profit. ") + "; ".join(item for item in cost_parts if item) + "."
+        ratio_parts = []
+        for title, result in (
+            (tr(lang, "Портфель / активы", "Portfel / aktivlar", "Portfolio / assets"), portfolio_share),
+            (tr(lang, "Топ-5 / портфель", "Top-5 / portfel", "Top five / portfolio"), top5_share),
+            (tr(lang, "Крупнейшая позиция / портфель", "Eng yirik pozitsiya / portfel", "Largest holding / portfolio"), largest_share),
+            (tr(lang, "Level 3 / портфель", "Level 3 / portfel", "Level 3 / portfolio"), level3_share),
+            (tr(lang, "Капитал / активы", "Kapital / aktivlar", "Equity / assets"), equity_share),
+        ):
+            if result is not None:
+                ratio_parts.append(f"{title} = {pct_text(result)}")
+        ratio_text = tr(lang, "Ключевые показатели фонда. ", "Fondning asosiy ko‘rsatkichlari. ", "Key fund metrics. ") + "; ".join(ratio_parts) + "."
+        summary_text = tr(
+            lang,
+            "Сводная оценка. Главные вопросы — концентрация портфеля, доля нереализованной переоценки и надёжность Level 3-оценок. Без сопоставимого прошлого периода нельзя делать вывод о тренде доходности.",
+            "Yakuniy baho. Asosiy masalalar — portfel jamlanishi, realizatsiya qilinmagan qayta baholash ulushi va Level 3 baholarining ishonchliligi. Taqqoslanadigan oldingi davrsiz daromadlilik trendi haqida xulosa qilib bo‘lmaydi.",
+            "Summary assessment. The central questions are portfolio concentration, the unrealized-revaluation share and reliability of Level 3 valuations. A return trend cannot be established without a comparable prior period.",
+        )
+        narrative_blocks["performance"] = [
+            {"lead": tr(lang, "Переоценка портфеля", "Portfelni qayta baholash", "Portfolio revaluation"), "text": valuation_text},
+            {"lead": tr(lang, "Расходы и чистая прибыль", "Xarajatlar va sof foyda", "Expenses and net profit"), "text": profit_text},
+            {"lead": tr(lang, "Ключевые показатели фонда", "Fondning asosiy ko‘rsatkichlari", "Key fund metrics"), "text": ratio_text},
+        ]
+        narrative_blocks["position"] = [
+            {"lead": tr(lang, "Активы, портфель и капитал", "Aktivlar, portfel va kapital", "Assets, portfolio and capital"), "text": horizontal_text},
+            {"lead": tr(lang, "Концентрация и качество оценки", "Jamlanish va baholash sifati", "Concentration and valuation quality"), "text": vertical_text},
+        ]
+        return [intro, horizontal_text, vertical_text, f"{valuation_text} {profit_text}", ratio_text, summary_text]
+
     def general_analysis_paragraphs():
         """Detailed non-bank narrative using only traceable statement totals."""
         value = lambda key: decimal((by_code.get(key) or {}).get("value"))
@@ -1027,7 +1126,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         money = lambda key: f"{display_money(value(key))} {money_unit}" if value(key) is not None else None
         pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
         profile = SECTOR_PROFILES.get(template)
-        sector_name = tr(lang, *profile["name"]) if profile else tr(lang, "универсальный профиль", "umumiy profil", "general profile")
+        sector_name = tr(lang, *profile["name"]) if profile else tr(lang, "товарная биржа", "tovar birjasi", "commodity exchange") if template == "commodity_exchange" else tr(lang, "универсальный профиль", "umumiy profil", "general profile")
         oked_code = resolution.get("input_oked")
 
         revenue = value("revenue") or value("insurance_premiums") or value("operating_income")
@@ -1136,7 +1235,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             profit_parts.append(tr(lang, f"налог — {display_money(tax_amount)} {money_unit}, эффективная ставка — {pct_text(effective_tax) or 'не рассчитывается'} ({tax_basis})", f"soliq — {display_money(tax_amount)} {money_unit}, samarali stavka — {pct_text(effective_tax) or 'hisoblanmaydi'} ({tax_basis})", f"tax — {display_money(tax_amount)} {money_unit}, effective rate — {pct_text(effective_tax) or 'not calculable'} ({tax_basis})"))
         profit_text = tr(lang, "Итоговая прибыль и налог. ", "Yakuniy foyda va soliq. ", "Final profit and tax. ") + ("; ".join(profit_parts) if profit_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + "."
 
-        profile_assets = profile["assets"] if profile else ("cash", "receivables", "inventories", "fixed_assets")
+        profile_assets = profile["assets"] if profile else ("own_cash", "client_cash", "cash", "short_term_investments", "receivables") if template == "commodity_exchange" else ("cash", "receivables", "inventories", "fixed_assets")
         asset_parts = [fact_sentence(key) for key in ("total_assets",) + tuple(profile_assets)]
         asset_parts = [item for item in asset_parts if item]
         asset_text = tr(lang, "Активы и оборотный капитал. ", "Aktivlar va aylanma kapital. ", "Assets and working capital. ") + ("; ".join(asset_parts[:5]) if asset_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + ". " + tr(lang, "Рост доходов следует оценивать вместе с движением денег, дебиторской задолженности и запасов.", "Daromad o‘sishini pul, debitorlik va zaxiralar harakati bilan birga baholash kerak.", "Income growth should be assessed alongside cash, receivables and inventory movements.")
@@ -1153,6 +1252,7 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         vertical_text = vertical_narrative(
             tuple(key for key in vertical_keys if key not in {"total_liabilities", "total_equity", "current_liabilities"}),
             tr(lang, f"Для профиля «{sector_name}» важно оценить не перечень долей сам по себе, а концентрацию ресурсов и её изменение за период. ", f"«{sector_name}» profili uchun ulushlar ro‘yxatining o‘zi emas, balki resurslar jamlanishi va uning davr ichidagi o‘zgarishi muhim. ", f"For the {sector_name} profile, the key question is not the list of percentages itself but where resources are concentrated and how that changed. "),
+            exchange_funding=template == "commodity_exchange",
         )
         results_text = " ".join((income_text, expense_text, profit_text))
         ratio_parts = []
@@ -1185,6 +1285,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             summary_parts.append(tr(lang, "Снижение денег при росте обязательств усиливает риск ликвидности.", "Majburiyatlar o‘sib, pul kamayishi likvidlik xavfini kuchaytiradi.", "Falling cash alongside rising liabilities increases liquidity risk."))
         if profile:
             summary_parts.append(tr(lang, *profile["risk"]))
+        elif template == "commodity_exchange":
+            summary_parts.append(tr(lang, "Для биржи ключевой вопрос — разделение собственных ресурсов и клиентских расчётов; без него высокая доля денег и обязательств не показывает ни ликвидность, ни долговую нагрузку компании сама по себе.", "Birja uchun asosiy masala — o‘z mablag‘lari va mijozlar hisob-kitoblarini ajratish; bunday ajratishsiz pul va majburiyatlarning yuqori ulushi kompaniyaning likvidligi yoki qarz yukini o‘z-o‘zidan ko‘rsatmaydi.", "For an exchange, the key issue is separating own resources from client settlements; without that split, high cash and liability shares do not by themselves establish corporate liquidity or leverage."))
         summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (" ".join(summary_parts) or tr(lang, "Оценка ограничена раскрытыми показателями; ключевые изменения приведены выше.", "Baho oshkor qilingan ko‘rsatkichlar bilan cheklangan; asosiy o‘zgarishlar yuqorida keltirilgan.", "The assessment is limited to disclosed metrics; the key movements are shown above."))
         narrative_blocks["performance"] = [
             {"lead": tr(lang, "Выручка и прямые затраты", "Tushum va bevosita xarajatlar", "Revenue and direct costs"), "text": income_text},
@@ -1313,6 +1415,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         paragraphs = bank_analysis_paragraphs()
     elif complete_content and template == "insurance":
         paragraphs = insurance_analysis_paragraphs()
+    elif complete_content and template == "investment_fund_ifrs_annual":
+        paragraphs = fund_analysis_paragraphs()
     elif complete_content:
         paragraphs = general_analysis_paragraphs()
     elif publishable:
@@ -1354,7 +1458,20 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
 
     fact_change = lambda key: (by_code.get(key) or {}).get("change_pct")
     fact_value = lambda key: decimal((by_code.get(key) or {}).get("value"))
-    if publishable and template in {"bank", "microfinance_bank", "microfinance"}:
+    if publishable and template == "investment_fund_ifrs_annual":
+        portfolio_share = ratio(fact_value("portfolio_fair_value"), fact_value("total_assets"), True)
+        if portfolio_share is not None:
+            add_key_change("fund_portfolio", "business", tr(lang, f"Инвестиционный портфель составляет {format_number(portfolio_share)}% активов фонда.", f"Investitsiya portfeli fond aktivlarining {format_number(portfolio_share)}%ini tashkil etadi.", f"The investment portfolio represents {format_number(portfolio_share)}% of fund assets."), ("portfolio_fair_value", "total_assets"))
+        unrealized_share = ratio(fact_value("unrealized_fair_value_gain"), fact_value("net_income"), True)
+        if unrealized_share is not None:
+            add_key_change("fund_profit_quality", "profit_driver", tr(lang, f"Нереализованная переоценка равна {format_number(unrealized_share)}% чистой прибыли: итог существенно зависит от оценочного эффекта.", f"Realizatsiya qilinmagan qayta baholash sof foydaning {format_number(unrealized_share)}%iga teng: yakun baholash ta’siriga sezilarli darajada bog‘liq.", f"Unrealized revaluation equals {format_number(unrealized_share)}% of net profit, making the result materially dependent on valuation effects."), ("unrealized_fair_value_gain", "net_income"))
+        top5_share = ratio(fact_value("top5_holdings"), fact_value("portfolio_fair_value"), True)
+        if top5_share is not None:
+            add_key_change("fund_concentration", "balance", tr(lang, f"Пять крупнейших позиций формируют {format_number(top5_share)}% портфеля.", f"Beshta eng yirik pozitsiya portfelning {format_number(top5_share)}%ini shakllantiradi.", f"The five largest holdings account for {format_number(top5_share)}% of the portfolio."), ("top5_holdings", "portfolio_fair_value"))
+        level3_share = ratio(fact_value("level3_investments"), fact_value("portfolio_fair_value"), True)
+        if level3_share is not None:
+            add_key_change("fund_level3", "attention", tr(lang, f"Инструменты Level 3 составляют {format_number(level3_share)}% портфеля, поэтому качество моделей оценки требует особого внимания.", f"Level 3 vositalari portfelning {format_number(level3_share)}%ini tashkil etadi, shu sababli baholash modellari sifati alohida e’tibor talab qiladi.", f"Level 3 instruments represent {format_number(level3_share)}% of the portfolio, making valuation-model quality a key area of attention."), ("level3_investments", "portfolio_fair_value"))
+    elif publishable and template in {"bank", "microfinance_bank", "microfinance"}:
         loan_change = fact_change("loan_portfolio")
         if loan_change is not None:
             loan_direction = tr(lang, "вырос", "oshdi", "grew") if loan_change >= 0 else tr(lang, "снизился", "kamaydi", "fell")
@@ -1386,6 +1503,22 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             add_key_change("profit_divergence", "profit_driver", tr(lang, f"Операционный результат {op_direction} на {format_number(abs(op_change))}%, а чистая прибыль {profit_direction} на {format_number(abs(profit_change))}%: итоговая прибыль не повторяет динамику основной деятельности.", f"Operatsion natija {format_number(abs(op_change))}% ga {op_direction}, sof foyda esa {format_number(abs(profit_change))}% ga {profit_direction}: yakuniy foyda asosiy faoliyat dinamikasini takrorlamadi.", f"The operating result {op_direction} {format_number(abs(op_change))}% while net profit {profit_direction} {format_number(abs(profit_change))}%; the bottom line did not track core operations."), ("operating_income", "net_income"))
         if fact_change("total_assets") is not None and fact_change("total_equity") is not None:
             add_key_change("insurance_balance", "balance", tr(lang, f"Активы изменились на {format_number(fact_change('total_assets'))}%, капитал — на {format_number(fact_change('total_equity'))}%.", f"Aktivlar {format_number(fact_change('total_assets'))}%, kapital {format_number(fact_change('total_equity'))}% ga o‘zgardi.", f"Assets changed {format_number(fact_change('total_assets'))}% and equity {format_number(fact_change('total_equity'))}%."), ("total_assets", "total_equity"))
+    elif publishable and template == "commodity_exchange":
+        revenue_change, op_change = fact_change("revenue"), fact_change("operating_income")
+        if revenue_change is not None and op_change is not None:
+            revenue_direction = tr(lang, "выросла", "oshdi", "grew") if revenue_change >= 0 else tr(lang, "снизилась", "kamaydi", "fell")
+            op_direction = tr(lang, "выросла", "oshdi", "grew") if op_change >= 0 else tr(lang, "снизилась", "kamaydi", "fell")
+            add_key_change("exchange_business", "business", tr(lang, f"Выручка {revenue_direction} на {format_number(abs(revenue_change))}%, операционная прибыль {op_direction} на {format_number(abs(op_change))}%.", f"Tushum {format_number(abs(revenue_change))}% ga {revenue_direction}, operatsion foyda {format_number(abs(op_change))}% ga {op_direction}.", f"Revenue {revenue_direction} {format_number(abs(revenue_change))}% and operating profit {op_direction} {format_number(abs(op_change))}%."), ("revenue", "operating_income"))
+        if fact_change("net_income") is not None:
+            profit_change = fact_change("net_income")
+            profit_direction = tr(lang, "выросла", "oshdi", "grew") if profit_change >= 0 else tr(lang, "снизилась", "kamaydi", "fell")
+            add_key_change("exchange_profit", "profitability", tr(lang, f"Чистая прибыль {profit_direction} на {format_number(abs(profit_change))}% до {display_money(fact_value('net_income'))} {money_unit}.", f"Sof foyda {format_number(abs(profit_change))}% ga {profit_direction} va {display_money(fact_value('net_income'))} {money_unit}ga yetdi.", f"Net profit {profit_direction} {format_number(abs(profit_change))}% to {display_money(fact_value('net_income'))} {money_unit}."), ("net_income",))
+        cash_share = ratio(fact_value("cash"), fact_value("total_assets"), True)
+        if cash_share is not None:
+            add_key_change("exchange_cash", "balance", tr(lang, f"Деньги составляют {format_number(cash_share)}% активов; без разделения собственных и клиентских средств эта доля не является показателем свободной ликвидности биржи.", f"Pul aktivlarning {format_number(cash_share)}%ini tashkil etadi; o‘z va mijoz mablag‘lari ajratilmasa, bu ulush birjaning erkin likvidligini ko‘rsatmaydi.", f"Cash equals {format_number(cash_share)}% of assets; without separating own and client funds, this is not a measure of the exchange's freely available liquidity."), ("cash", "total_assets"))
+        settlement_share = ratio(fact_value("current_liabilities"), fact_value("total_assets"), True)
+        if settlement_share is not None:
+            add_key_change("exchange_settlements", "attention", tr(lang, f"Текущие обязательства равны {format_number(settlement_share)}% активов, но могут включать клиентские расчёты и не трактуются автоматически как корпоративный долг.", f"Joriy majburiyatlar aktivlarning {format_number(settlement_share)}%iga teng, ammo mijozlar hisob-kitoblarini o‘z ichiga olishi mumkin va avtomatik ravishda korporativ qarz deb talqin qilinmaydi.", f"Current liabilities equal {format_number(settlement_share)}% of assets but may include client settlements and are not automatically treated as corporate debt."), ("current_liabilities", "total_assets"))
     elif publishable:
         if fact_change("revenue") is not None and fact_change("operating_income") is not None:
             revenue_change, op_change = fact_change("revenue"), fact_change("operating_income")
@@ -1465,7 +1598,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                     "reserve_retention": "Перестрахование и резервы", "profit_divergence": "Прибыльность",
                     "insurance_balance": "Баланс", "core_business": "Основная деятельность",
                     "profit_bridge": "Почему изменилась чистая прибыль", "asset_concentration": "Структура активов",
-                    "capital_balance": "Капитал и обязательства",
+                    "capital_balance": "Капитал и обязательства", "fund_portfolio": "Инвестиционный портфель",
+                    "fund_profit_quality": "Качество прибыли", "fund_concentration": "Концентрация портфеля",
+                    "fund_level3": "Качество оценки", "exchange_business": "Биржевой бизнес",
+                    "exchange_profit": "Чистая прибыль", "exchange_cash": "Денежная позиция",
+                    "exchange_settlements": "Клиентские расчёты",
                 },
                 "uz": {
                     "loan_book": "Kredit portfeli", "deposit_funding": "Depozit bazasi",
@@ -1474,7 +1611,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                     "reserve_retention": "Qayta sug‘urtalash va zaxiralar", "profit_divergence": "Rentabellik",
                     "insurance_balance": "Balans", "core_business": "Asosiy faoliyat",
                     "profit_bridge": "Sof foyda nima uchun o‘zgardi", "asset_concentration": "Aktivlar tarkibi",
-                    "capital_balance": "Kapital va majburiyatlar",
+                    "capital_balance": "Kapital va majburiyatlar", "fund_portfolio": "Investitsiya portfeli",
+                    "fund_profit_quality": "Foyda sifati", "fund_concentration": "Portfel jamlanishi",
+                    "fund_level3": "Baholash sifati", "exchange_business": "Birja biznesi",
+                    "exchange_profit": "Sof foyda", "exchange_cash": "Pul pozitsiyasi",
+                    "exchange_settlements": "Mijozlar hisob-kitoblari",
                 },
                 "en": {
                     "loan_book": "Loan portfolio", "deposit_funding": "Deposit base",
@@ -1483,7 +1624,11 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                     "reserve_retention": "Reinsurance and reserves", "profit_divergence": "Profitability",
                     "insurance_balance": "Balance sheet", "core_business": "Core operations",
                     "profit_bridge": "Why net profit changed", "asset_concentration": "Asset structure",
-                    "capital_balance": "Capital and liabilities",
+                    "capital_balance": "Capital and liabilities", "fund_portfolio": "Investment portfolio",
+                    "fund_profit_quality": "Earnings quality", "fund_concentration": "Portfolio concentration",
+                    "fund_level3": "Valuation quality", "exchange_business": "Exchange business",
+                    "exchange_profit": "Net profit", "exchange_cash": "Cash position",
+                    "exchange_settlements": "Client settlements",
                 },
             }
             fallback_leads = {

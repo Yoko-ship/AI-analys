@@ -254,6 +254,19 @@ def test_fund_audited_nav_lineage_and_share_reconciliation():
     }, 6.75)
     assert report["nav"]["per_exchange_share_uzs"] == pytest.approx(5.908, abs=.001)
     assert report["valuation"]["price_to_nav"] == pytest.approx(1.1425, abs=.001)
+
+
+def test_fund_task1_uses_portfolio_not_corporate_editorial_logic():
+    issuer = {"id": "UZNF", "ticker": "UZNF", "name": "National Fund"}
+    data = fund_analysis.audited_snapshot(issuer)
+    report = core.make_report(data, issuer, today=TODAY)
+    sections = {section["id"]: section for section in report["task1_sections"]}
+    assert [block["lead"] for block in sections["overview"]["blocks"]] == [
+        "Инвестиционный портфель", "Качество прибыли", "Концентрация портфеля", "Качество оценки",
+    ]
+    assert "99.45% активов" in sections["overview"]["blocks"][0]["text"]
+    assert "Деньги»" not in sections["overview"]["text"]
+    assert "универсальный профиль" not in report["text"]
     assert report["financial_as_of"] == "2025-12-31"
 
 
