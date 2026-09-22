@@ -10917,8 +10917,8 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 // gone; re-rendering them is a component away.
 
 // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
-// issuer, not missing data; «проверяется» means the statement behind it failed
-// validation; a range status means the figure exists and is not believable.
+// issuer, not missing data; a range status means the figure exists and is not
+// suitable for direct comparison.
 // ТЗ v1.3 §12.6: the auditor is visible without its rule codes — a withheld
 // metric is a dash whose tooltip says why; the reader does not need to know
 // which rule fired, only which numbers they can trust.
@@ -10930,7 +10930,6 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 const MULTIPLE_STATUS_TEXT = {
   audit_blocked: ["снято аудитом", "audit olib tashladi", "withheld by audit"],
   loss_making: ["убыток", "zarar", "loss"],
-  unverified: ["проверяется", "tekshirilmoqda", "under review"],
   out_of_range: ["вне диапазона", "diapazondan tashqari", "out of range"],
   shares_inconsistent: ["сверка акций", "aksiyalar sverkasi", "share count"],
   incomplete: ["нет всех классов", "barcha sinflar yo'q", "classes missing"],
@@ -11274,6 +11273,10 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
     let node;
     if (metric.computed != null && metric.status === "loss_making") {
       node = <span className="cell-status" title={lossTitle(metric, digits, suffix, lang)}>{lossLabel(lang)}</span>;
+    } else if (metric.computed != null && metric.status === "unverified") {
+      // Statement consistency findings remain available to the internal audit,
+      // while the storefront publishes the calculated value.
+      node = <>{formatRatio(metric.computed, digits, lang)}{suffix}</>;
     } else if (metric.value != null && metric.status === "out_of_range") {
       const help = outlierTitle(metric, digits, suffix, lang);
       node = (
@@ -17687,8 +17690,8 @@ function MarketView({
   };
 
   // ТЗ §8: a multiple the server withheld says WHY. «убыток» is a fact about the
-  // issuer, not missing data; «проверяется» means the statement behind it failed
-  // validation; a range status means the figure exists and is not believable.
+  // issuer, not missing data; a range status means the figure exists and is not
+  // suitable for direct comparison.
   const statusText = (status) => multipleStatusText(status, lang);
   const multipleCell = (row, metric, digits, suffix = "×") => {
     // Keep an outlier visible for audit, but label it so it is never mistaken
@@ -17724,11 +17727,6 @@ function MarketView({
         </td>
       );
     }
-    const issuerCapGap = incompleteIssuerCapAvailability(
-      metric, multiplesOf(row)?.market_cap_issuer, row?.ticker, lang,
-    );
-    const label = issuerCapGap?.label || statusText(metric?.status);
-    if (!label) return <td className="num">{noSecLabel(row)}</td>;
     if (metric?.computed != null && metric.status === "loss_making") {
       return (
         <td className="num">
@@ -17737,15 +17735,19 @@ function MarketView({
       );
     }
     if (metric?.computed != null && metric.status === "unverified") {
-      const period = metric?.base_period ? ` · ${metric.base_period}` : "";
-      const reasons = (metric?.reasons || []).join("; ") || metric?.note || label;
+      const period = metric?.base_period || null;
       return (
-        <td className="num" title={`${reasons}${period}`}>
+        <td className="num" title={period || undefined}>
           <strong>{formatRatio(metric.computed, digits, lang)}{suffix}</strong>
-          <span className={`fin-cell-period metric-warning metric-warning--${metric.status}`}>{label}</span>
+          {period && <span className="fin-cell-period">{period}</span>}
         </td>
       );
     }
+    const issuerCapGap = incompleteIssuerCapAvailability(
+      metric, multiplesOf(row)?.market_cap_issuer, row?.ticker, lang,
+    );
+    const label = issuerCapGap?.label || statusText(metric?.status);
+    if (!label) return <td className="num">{noSecLabel(row)}</td>;
     if (metric?.status === "not_applicable") {
       return (
         <td className="num">
@@ -20544,7 +20546,7 @@ const LANDING_TX = {
     s3Sub: "Страница эмитента собирает всё, что о нём раскрыто официально, — и показывает это так, чтобы выводы напрашивались сами.",
     points: [
       ["Финансы из первоисточника", "Выручка, прибыль, активы и капитал по годам — разобраны из годовых и квартальных отчётов на openinfo.uz."],
-      ["Мультипликаторы честно", "P/E, P/B, ROE, дивидендная доходность. Непрошедшая проверку цифра помечается «проверяется» — а не выдумывается."],
+      ["Мультипликаторы честно", "P/E, P/B, P/S, ROE и дивидендная доходность рассчитываются по опубликованным данным."],
       ["Дивиденды и события", "История выплат, даты закрытия реестра и корпоративные события — на той же странице, рядом с графиком цены."],
     ],
     barsTitle: "Выручка по годам",
@@ -20578,7 +20580,7 @@ const LANDING_TX = {
     s3Sub: "Emitent sahifasi u haqda rasman oshkor qilingan hamma narsani yig'adi — va xulosa o'z-o'zidan kelib chiqadigan qilib ko'rsatadi.",
     points: [
       ["Moliyaviy ma'lumotlar — birinchi manbadan", "Tushum, foyda, aktivlar va kapital yillar bo'yicha — openinfo.uz dagi yillik va choraklik hisobotlardan olingan."],
-      ["Multiplikatorlar halol", "P/E, P/B, ROE, dividend daromadliligi. Tekshiruvdan o'tmagan raqam «tekshirilmoqda» deb belgilanadi — o'ylab topilmaydi."],
+      ["Multiplikatorlar halol", "P/E, P/B, P/S, ROE va dividend daromadliligi e'lon qilingan ma'lumotlar asosida hisoblanadi."],
       ["Dividendlar va voqealar", "To'lovlar tarixi, reyestr yopilish sanalari va korporativ voqealar — o'sha sahifada, narx grafigi yonida."],
     ],
     barsTitle: "Yillar bo'yicha tushum",
@@ -20612,7 +20614,7 @@ const LANDING_TX = {
     s3Sub: "The issuer page gathers everything officially disclosed about a company — and lays it out so the conclusions suggest themselves.",
     points: [
       ["Financials from the source", "Revenue, profit, assets and equity by year — parsed from the annual and quarterly filings on openinfo.uz."],
-      ["Honest multiples", "P/E, P/B, ROE, dividend yield. A figure that fails verification is marked “under review” — never invented."],
+      ["Honest multiples", "P/E, P/B, P/S, ROE and dividend yield are calculated from published data."],
       ["Dividends and events", "Payout history, record dates and corporate events — on the same page, next to the price chart."],
     ],
     barsTitle: "Revenue by year",
