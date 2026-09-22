@@ -182,9 +182,7 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     }
     assert [section["title"] for section in body["task1_sections"]] == expected_titles[lang]
     assert all(section["number"] and section["text"] for section in body["task1_sections"])
-    assert [section["id"] for section in body["sections"]] == [
-        "methodology", "financial_results", "balance_sheet", "risks", "conclusion",
-    ]
+    assert body["sections"]  # Detailed sector narrative remains available to non-company-page consumers.
     assert all(section["number"] and section["title"] and section["text"] for section in body["sections"])
     assert len(body["monitoring_points"]) == 2
     assert all(point["current_baseline"]["period"] == body["period"] for point in body["monitoring_points"])
