@@ -359,7 +359,17 @@ def balance_snapshot(fin: dict[str, Any] | None,
     ratio = ratio or {}
     equity = _num(ratio.get("total_equity"))
     assets = _num(ratio.get("total_assets"))
-    period = ratio.get("period")
+    # Ratios are selected independently per field.  A single top-level period
+    # is merely the newest period among all indicators and can therefore label
+    # an old equity value as current (UZNGP: 2020 equity under a 2024 label).
+    # Balance-side freshness must use the actual periods of assets/equity and,
+    # when they differ, the older input that limits the snapshot.
+    field_periods = ratio.get("periods") if isinstance(ratio.get("periods"), dict) else {}
+    equity_period = field_periods.get("total_equity") or ratio.get("period")
+    assets_period = field_periods.get("total_assets") or ratio.get("period")
+    period_candidates = [p for p in (equity_period, assets_period) if parse_period(p)]
+    period = (min(period_candidates, key=lambda p: parse_period(p))
+              if period_candidates else ratio.get("period"))
     parsed = parse_period(period)
     stale = False
     if parsed:
@@ -369,6 +379,8 @@ def balance_snapshot(fin: dict[str, Any] | None,
     return {"equity": equity, "assets": assets,
             "equity_avg": equity, "assets_avg": assets,
             "period": str(period) if period else None,
+            "equity_period": str(equity_period) if equity_period else None,
+            "assets_period": str(assets_period) if assets_period else None,
             "source": "indicators", "stale": stale}
 
 
@@ -982,7 +994,9 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     else:
         equity_assets = _metric(None, STATUS_NO_FINANCIALS)
 
-    bvps = bvps_issuer(classes, equity)
+    bvps = (_metric(None, STATUS_STALE, base_period=bal_period,
+                    note="баланс старше 2 лет")
+            if bal_stale else bvps_issuer(classes, equity))
 
     # A capitalisation that disagrees with price × shares poisons every
     # cap-based figure and no other (ТЗ §8).

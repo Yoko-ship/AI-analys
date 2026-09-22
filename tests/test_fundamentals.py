@@ -17,6 +17,8 @@ The defects pinned here, all reproduced against the live caches first:
 """
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 import fundamentals
@@ -524,6 +526,26 @@ class TestMultiples:
 
         assert got["ps"]["status"] == fundamentals.STATUS_NOT_APPLICABLE
         assert "инвестиционного фонда" in got["ps"]["note"]
+
+    def test_old_equity_cannot_borrow_a_newer_indicator_period(self):
+        """UZNGP's 2020 capital was incorrectly labelled as a 2024 balance."""
+        got = fundamentals.issuer_multiples(
+            [cls("UZNGP", cap=1000.0, shares=100.0)],
+            stmt(year=2024, quarter=0, revenue=None, net_income=None),
+            ratio(
+                total_equity=5000.0,
+                total_assets=0.0,
+                period="2024",
+                periods={"total_equity": "2020", "total_assets": "2024"},
+                roe=7.32,
+                roa=5.26,
+            ),
+            today=date(2026, 9, 22),
+        )
+
+        assert got["balance_period"] == "2020"
+        for metric in ("pb", "bvps", "roe", "roa", "equity_assets"):
+            assert got[metric]["status"] == fundamentals.STATUS_STALE
 
     def test_a_broken_balance_identity_withholds_the_balance_side(self):
         """V2: капитал + обязательства = активы, допуск 0,1 %."""
