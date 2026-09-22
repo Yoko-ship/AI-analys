@@ -11009,6 +11009,11 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
 // valuation multiple or participate silently in comparisons.
 const outlierLabel = (lang) => (lang === "ru" ? "вне диапазона" : lang === "uz" ? "diapazondan tashqari" : "outside range");
 const outlierTitle = (metric, digits, suffix, lang) => [
+  lang === "ru"
+    ? "Коэффициент рассчитан, но находится вне обычного диапазона. Это может быть связано с очень маленькой базой расчёта или особенностями структуры капитала; не используйте его для прямого сравнения компаний."
+    : lang === "uz"
+      ? "Ko‘rsatkich hisoblangan, ammo odatiy diapazondan tashqarida. Bunga juda kichik hisoblash bazasi yoki kapital tuzilmasining o‘ziga xosligi sabab bo‘lishi mumkin; uni kompaniyalarni bevosita taqqoslash uchun ishlatmang."
+      : "The ratio is calculated but falls outside the usual range. This can result from a very small calculation base or an unusual capital structure; do not use it for direct company comparisons.",
   `${lang === "ru" ? "Значение вне диапазона сопоставимости" : lang === "uz" ? "Taqqoslash oralig‘idan tashqaridagi qiymat" : "Value outside the comparison range"}: ` +
     `${formatRatio(metric.value, digits, lang)}${suffix}`,
   metric.allowed
@@ -11018,6 +11023,10 @@ const outlierTitle = (metric, digits, suffix, lang) => [
   metric.base_period,
   metric.note,
 ].filter(Boolean).join(" · ");
+
+function RangeHelpIcon({ title }) {
+  return <span className="range-help-icon" role="img" tabIndex={0} title={title} aria-label={title}>?</span>;
+}
 
 // A loss is not missing data and it is more useful than the generic n/m label.
 // Keep the arithmetical negative P/E available for audit in the tooltip, but do
@@ -11260,10 +11269,11 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
     if (metric.computed != null && metric.status === "loss_making") {
       node = <span className="cell-status" title={lossTitle(metric, digits, suffix, lang)}>{lossLabel(lang)}</span>;
     } else if (metric.value != null && metric.status === "out_of_range") {
+      const help = outlierTitle(metric, digits, suffix, lang);
       node = (
-        <span title={outlierTitle(metric, digits, suffix, lang)}>
+        <span>
           {formatRatio(metric.value, digits, lang)}{suffix}
-          <span className="company-metric-warning"> · {outlierLabel(lang)}</span>
+          <span className="company-metric-warning"> · {outlierLabel(lang)} <RangeHelpIcon title={help} /></span>
         </span>
       );
     } else if (metric.value != null) {
@@ -17676,10 +17686,13 @@ function MarketView({
     // Keep an outlier visible for audit, but label it so it is never mistaken
     // for an ordinary comparable multiple.
     if (metric?.value != null && metric.status === "out_of_range") {
+      const help = outlierTitle(metric, digits, suffix, lang);
       return (
-        <td className="num" title={outlierTitle(metric, digits, suffix, lang)}>
+        <td className="num">
           <strong>{formatRatio(metric.value, digits, lang)}{suffix}</strong>
-          <span className="fin-cell-period metric-warning metric-warning--out_of_range">{outlierLabel(lang)}</span>
+          <span className="fin-cell-period metric-warning metric-warning--out_of_range">
+            {outlierLabel(lang)} <RangeHelpIcon title={help} />
+          </span>
         </td>
       );
     }

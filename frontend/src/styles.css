@@ -8110,6 +8110,25 @@ body[data-theme="dark"] .analysis-form-modern select:focus {
 }
 .market-table td.num .fin-cell-period.metric-warning { color: var(--warn, #f59e0b); font-weight: 700; }
 .market-table td.num .fin-cell-period.metric-warning--loss_making { color: var(--danger, #ef4444); }
+.range-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-inline-start: 3px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -1px;
+  cursor: help;
+  opacity: 0.72;
+}
+.range-help-icon:hover,
+.range-help-icon:focus-visible { opacity: 1; outline: 1px solid currentColor; outline-offset: 2px; }
 
 .market-table th.market-th-sortable {
   cursor: pointer;
