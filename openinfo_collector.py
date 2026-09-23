@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -145,14 +146,35 @@ def _excel_cache_file() -> Path:
     return path
 
 
-def _load_excel_cache() -> dict[str, Any]:
+# The parsed cache file, keyed by the file's identity on disk. The file is
+# ~14 MB of JSON; parsing it on every report read cost ~0.8 s per company page.
+_EXCEL_CACHE_MEMO: tuple[tuple[str, int, int], dict[str, Any]] | None = None
+
+
+def _shared_excel_cache() -> dict[str, Any]:
+    """The parsed cache, re-read only when the file changes. Never mutate it."""
+    global _EXCEL_CACHE_MEMO
     path = _excel_cache_file()
-    if not path.exists():
-        return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        stat = path.stat()
+    except FileNotFoundError:
+        return {}
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    if _EXCEL_CACHE_MEMO is not None and _EXCEL_CACHE_MEMO[0] == key:
+        return _EXCEL_CACHE_MEMO[1]
+    try:
+        cache = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+    if not isinstance(cache, dict):
+        return {}
+    _EXCEL_CACHE_MEMO = (key, cache)
+    return cache
+
+
+def _load_excel_cache() -> dict[str, Any]:
+    """A private top-level copy for a writer to modify and save."""
+    return dict(_shared_excel_cache())
 
 
 def _save_excel_cache(cache: dict[str, Any]) -> None:
@@ -185,15 +207,16 @@ def _get_excel_cache(url: str) -> dict[str, Any] | None:
     if not url or EXCEL_CACHE_TTL_SECONDS <= 0:
         return None
     with _EXCEL_CACHE_LOCK:
-        cache = _load_excel_cache()
-        item = cache.get(url)
+        item = _shared_excel_cache().get(url)
     if not item:
         return None
     if time.time() - float(item.get("cached_at") or 0) > EXCEL_CACHE_TTL_SECONDS:
         return None
     payload = item.get("payload")
     if isinstance(payload, dict):
-        payload = dict(payload)
+        # A deep copy: callers used to receive a freshly parsed object and may
+        # change it; the shared parse must stay as it is on disk.
+        payload = copy.deepcopy(payload)
         payload["from_cache"] = True
         return payload
     return None

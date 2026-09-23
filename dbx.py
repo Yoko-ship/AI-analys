@@ -25,6 +25,7 @@ wire.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import queue
@@ -129,7 +130,8 @@ _FUNCTION_MAP: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def _split_literals(sql: str) -> list[tuple[str, bool]]:
+@functools.lru_cache(maxsize=4096)
+def _split_literals(sql: str) -> tuple[tuple[str, bool], ...]:
     """Break a statement into (fragment, inert) parts.
 
     Inert means "not code": a string literal or a comment. Both must survive
@@ -189,7 +191,8 @@ def _split_literals(sql: str) -> list[tuple[str, bool]]:
         i += 1
     if buf:
         parts.append(("".join(buf), quote is not None))
-    return parts
+    # Immutable: the result is memoized and shared by every caller.
+    return tuple(parts)
 
 
 def escape_percent(sql: str, target: str) -> str:

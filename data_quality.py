@@ -41,6 +41,18 @@ def _now() -> str:
 
 
 def _ensure_schema(conn: Any) -> None:
+    """Create the data-quality tables once per pooled connection.
+
+    Called on every read (approved_corrections_for runs once per financial
+    row), so replaying the DDL each time made one company report issue
+    thousands of CREATE statements.
+    """
+    import dbx
+
+    dbx.ensure_schema(conn, "data_quality", _init_schema)
+
+
+def _init_schema(conn: Any) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS data_quality_issues (
             id TEXT PRIMARY KEY,
