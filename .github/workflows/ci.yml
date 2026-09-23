@@ -36,6 +36,30 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Secret scan. The repository is public: a committed key is exposed the moment
+  # it is pushed, so every change is scanned and a finding blocks deployment.
+  # Known false positives are listed in .gitleaksignore.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan the working tree and the pushed commits for secrets
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          BEFORE: ${{ github.event.before }}
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks dir --redact --no-banner .
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$BEFORE" 2>/dev/null; then
+            ./gitleaks git --redact --no-banner --log-opts="$BEFORE..HEAD" .
+          fi
+
+  # ---------------------------------------------------------------------------
   # Backend. The previous version of this job compiled 11 of ~30 modules and ran
   # zero tests, so the numeric transforms in reports_catalog / analysis_service —
   # exactly where the 1000x parse bug, the sign bugs and the period mislabel lived
@@ -158,7 +182,7 @@ jobs:
 
   deploy-production:
     name: Deploy production
-    needs: [backend, frontend, docker]
+    needs: [secret-scan, backend, frontend, docker]
     # Production is updated only from the deployment branch, and only after the
     # full test/build suite above has passed.
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/API'
@@ -585,7 +609,7 @@ jobs:
             --restart unless-stopped \
             --network uzstock-internal \
             --env-file /root/uzstock/app/.env \
-            -p 127.0.0.1:8000:8000 \
+            -p 127.0.0.1:8001:8000 \
             -v uzstock_data:/app/data \
             uzstock-web:latest \
             sh -c 'exec uvicorn api:app --host 0.0.0.0 --port 8000'
@@ -602,12 +626,12 @@ jobs:
           # The home page is static and can answer while the API event loop is
           # stalled. Verify the actual API before declaring a deploy healthy.
           for attempt in $(seq 1 15); do
-            if curl --max-time 5 -fsS http://127.0.0.1:8000/health >/dev/null; then
+            if curl --max-time 5 -fsS http://127.0.0.1:8001/health >/dev/null; then
               break
             fi
             sleep 2
           done
-          if ! curl --max-time 5 -fsS http://127.0.0.1:8000/health >/dev/null; then
+          if ! curl --max-time 5 -fsS http://127.0.0.1:8001/health >/dev/null; then
             echo "UZStock API readiness check failed." >&2
             docker logs --tail 160 uzstock-web >&2
             exit 1

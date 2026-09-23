@@ -7,8 +7,6 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.log
-.env
-.env.local
 data/
 report.html
 analysis_cache.db
@@ -25,3 +23,36 @@ playwright-report/
 audit/sector-v2.2/pytest-run-*/
 audit/admin-control-qa/
 frontend/__admin_qa.html
+
+# --- Secrets and private configuration ---------------------------------------
+# Real values live only in .env on each machine; .env.example holds placeholders.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+auth.json
+codex-home/
+.codex/
+credentials*.json
+service-account*.json
+*.htpasswd
+.netdata-password
+.railway-config-pull-*
+
+# --- Private data, dumps and backups -----------------------------------------
+*.dump
+*.bak
+*.sql.gz
+backups/
+financial_backups/
+financial_artifacts/
+admin_documents/
+
+# --- Local tooling ------------------------------------------------------------
+.claude/settings.local.json
+.DS_Store

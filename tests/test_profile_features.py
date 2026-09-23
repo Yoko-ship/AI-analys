@@ -28,7 +28,7 @@ def _authorize(monkeypatch) -> TestClient:
 def test_totp_matches_rfc_6238_sha1_vector() -> None:
     # RFC 6238's ASCII secret "12345678901234567890" in base32. The RFC
     # publishes 94287082 at t=59; this product intentionally uses six digits.
-    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"  # gitleaks:allow (public RFC test vector)
     at = datetime.fromtimestamp(59, tz=timezone.utc)
     assert _totp_code(secret, at) == "287082"
     assert _verify_totp(secret, "287082", at)
