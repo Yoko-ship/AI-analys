@@ -272,7 +272,8 @@ def add_document(*, issuer_id: str, source_url: str | None, original: bytes | No
 def _assessment(conn: sqlite3.Connection, document_id: str, quality: str, reasons: list[str]) -> None:
     if quality not in QUALITY:
         raise V3Error("invalid quality")
-    conn.execute("INSERT OR IGNORE INTO v3_document_assessments VALUES (?,?,?,?,?)", (_uid("assessment"), document_id, quality, _json(reasons), _now()))
+    conn.execute("INSERT INTO v3_document_assessments VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING",
+                 (_uid("assessment"), document_id, quality, _json(reasons), _now()))
 
 
 def record_facts(document_id: str, rows: Iterable[dict[str, Any]], *, actor: str = "pipeline") -> list[dict[str, Any]]:

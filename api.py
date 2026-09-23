@@ -1688,6 +1688,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
             row["market_cap_as_of"] = lst.get("updated_at")
 
     want_bonds = security_type == "bond"
+    uncatalogued: list[dict[str, Any]] = []
     for tk, lst in listings.items():
         if tk in feed_tickers:
             continue
@@ -1712,6 +1713,17 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
             row["url"] = _exchange_url(row.get("isin"), is_bond)
         merged.append(row)
         added_inactive += 1
+        if not sec:
+            uncatalogued.append(row)
+
+    # A registry line the catalog has never seen (DRBK, listed 28.08 with no
+    # trade since) reached the board but not the securities table, so its
+    # company page, search entry and logo waited for a live feed that no longer
+    # exists. Catalogue it from the registry, typed by the bond register first
+    # so a bond the registry mixes in is never stored as a share.
+    if uncatalogued:
+        _retype_registered_bonds(uncatalogued)
+        loop.run_in_executor(None, partial(sync_securities, list(uncatalogued), _load_logos()))
 
     # Lay the exchange's own session quotes over the board. This is what makes a
     # row say what the exchange says: the close it published, and the previous
@@ -2326,7 +2338,11 @@ def _apply_audit_blocks(rows: list[dict[str, Any]]) -> int:
         for metric in metrics:
             current = row.get(metric)
             if isinstance(current, dict) and current.get("value") is not None:
+                # The calculated value is withheld; the figure a reader sees stays,
+                # flagged «проверить», like every other value under review.
                 row[metric] = {**current, "value": None, "status": "audit_blocked",
+                               "display_value": current.get("display_value", current["value"]),
+                               "display_warning": True,
                                "calculation_status": public_contract.DATA_CONFLICT,
                                "note": "значение снято аудитором данных",
                                "limitation_reason": "значение снято аудитором данных",
@@ -6221,6 +6237,25 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
             loop.run_in_executor(None, company_imports.approved_metadata_map),
         )
         sec = smap.get(ticker)
+        if sec:
+            # The catalog row carries identity (name, sector, logo); the listing
+            # registry carries what the company page shows beside it. Fill only
+            # what the catalog lacks, so a curated value is never overwritten.
+            listings = await loop.run_in_executor(None, get_all_listings)
+            listing = (listings or {}).get(ticker) or {}
+            if listing:
+                sec = dict(sec)
+                extra = {
+                    "company_name": listing.get("name"),
+                    "security_name": listing.get("name"),
+                    "listing_date": listing.get("listing_date"),
+                    "shares_outstanding": listing.get("shares_outstanding"),
+                    "nominal": listing.get("nominal"),
+                    "market_cap": listing.get("market_cap"),
+                }
+                for key, value in extra.items():
+                    if sec.get(key) is None and value is not None:
+                        sec[key] = value
         if not sec:
             # The securities map is filled from the live trading feed only, so
             # listed-but-inactive securities (present in the RFB registry) used

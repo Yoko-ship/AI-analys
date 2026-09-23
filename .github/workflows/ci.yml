@@ -609,6 +609,7 @@ jobs:
             --restart unless-stopped \
             --network uzstock-internal \
             --env-file /root/uzstock/app/.env \
+            -e ADMIN_CONTROL_WORKER=0 \
             -p 127.0.0.1:8001:8000 \
             -v uzstock_data:/app/data \
             uzstock-web:latest \

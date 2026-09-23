@@ -4892,8 +4892,7 @@ def backfill_report_links(limit: int | None = None, *, seed: bool = True) -> dic
     conn = get_catalog_conn()
     try:
         rows = conn.execute(
-            "SELECT ticker, form, year, quarter, revenue, gross_profit, cash, "
-            "       total_liabilities, net_income, operating_income "
+            "SELECT ticker, form, year, quarter, " + ", ".join(_FINANCIAL_KEYS) + " "
             "FROM catalog_financials WHERE report_id IS NULL"
         ).fetchall()
     finally:
