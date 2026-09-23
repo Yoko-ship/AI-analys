@@ -108,10 +108,10 @@ Evidence: `docs/*-2026-09-19.json`, `docs/audits/valuation-all-companies-2026-09
   and the full collector (03:00 UTC).
 - GitHub Support has not yet purged cached views of the pre-rewrite commits
   referenced by closed PRs #1 and #3 (the credentials in them are revoked).
-- The front proxy overrides cache headers for JS/CSS/images with a daily expiry
-  (00:30 GMT), so returning visitors re-download them every day although the
-  app sends one-year immutable headers. Fix in the proxy host settings:
-  disable "Cache Assets" for uzstock.uz.
+- The front proxy (the hosting provider's gateway, 10.100.0.201) overrides cache
+  headers for JS/CSS/images with a daily expiry (00:30 GMT). Impact is small:
+  after expiry browsers revalidate and get 304 with no body (ETag passes
+  through). Optional: ask the provider to disable "Cache Assets" for uzstock.uz.
 - Company logos were shrunk from 4.6 MB to 1.2 MB (2026-09-23).
 - Background loops (catalog sync, news calendar, sector worker) share the single
   web process.
