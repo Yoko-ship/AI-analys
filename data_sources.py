@@ -15,6 +15,8 @@ import logging
 from datetime import date
 from typing import Any, Protocol, runtime_checkable
 
+import requests
+
 import reports_catalog as rc
 from entity_resolver import resolve_all
 from openinfo_collector import _json_get, _make_session
@@ -306,7 +308,13 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
     Runs on a network that can reach openinfo (the collector host / proxy).
     """
     session = session or _make_session()
-    recs = resolve_all(session=session)
+    try:
+        recs = resolve_all(session=session)
+    except requests.RequestException as exc:
+        # The live securities feed only adds issuers to the catalog set below;
+        # without it the catalog alone decides which issuers are collected.
+        logger.warning("live securities feed unavailable; using catalog issuers only: %s", exc)
+        recs = []
     orgs = {r["org_id"] for r in recs if r.get("org_id")}
     # The live-feed resolver misses report-only or awkwardly-named issuers
     # (Octobank 27, Kapitalbank 29, Tenge Bank 815 all resolved to nothing),
@@ -326,6 +334,8 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
         orgs |= catalog_orgs
     except Exception:  # noqa: BLE001 — catalog union is best-effort
         logger.exception("failed to union catalog orgs into fact collection")
+    if not orgs:
+        raise RuntimeError("no issuers to collect: live feed and catalog are both empty")
     orgs = sorted(orgs)
     # Drop any premature current-year annual placeholders left by an earlier run
     # BEFORE the collectors run: this frees issuers whose sole fact was the

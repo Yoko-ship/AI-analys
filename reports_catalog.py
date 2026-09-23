@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlencode
 
+import requests
+
 from company_catalog import COMPANY_CATALOG, COMPANY_SECTORS
 from delisted import DELISTED_ISINS, DELISTED_TICKERS
 from entity_resolver import ORG_OVERRIDES, UNRELIABLE_FINANCIALS
@@ -1691,6 +1693,9 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
                 disc = discover_and_upsert_securities()
                 discovered_recs = disc.get("records") or []
                 logger.info("Discovery: %s", {k: disc[k] for k in ("discovered", "resolved", "distinct_orgs")})
+            except requests.RequestException as exc:
+                # The live securities feed is optional; the catalog is the fallback.
+                logger.warning("Security discovery unavailable (%s); using COMPANY_CATALOG", exc)
             except Exception:
                 logger.exception("Security discovery failed; falling back to COMPANY_CATALOG")
             if discovered_recs:
