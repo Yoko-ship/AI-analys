@@ -10,7 +10,9 @@ The site runs on the **uzstock.uz VPS**, not Railway.
 - SSH: key-only. Host, port and user are `DEPLOY_SSH_HOST`, `DEPLOY_SSH_PORT`
   and `DEPLOY_SSH_USER` in the local, git-ignored `.env` — never in tracked files.
 - Application checkout: `/root/uzstock/app`, branch `API`
-- Web container: `uzstock-web`, published on `127.0.0.1:8001` behind Nginx
+- Web container: `uzstock-web`, published on `127.0.0.1:8001` behind the VPS
+  Nginx, which itself sits behind an external OpenResty (Nginx Proxy Manager)
+  front proxy that terminates public TLS with its own certificate
 - Persistent data: Docker volume `uzstock_data` mounted at `/app/data`
 - Scheduled workers: systemd timers `uzstock-*` running the same image
 
@@ -106,7 +108,11 @@ Evidence: `docs/*-2026-09-19.json`, `docs/audits/valuation-all-companies-2026-09
   and the full collector (03:00 UTC).
 - GitHub Support has not yet purged cached views of the pre-rewrite commits
   referenced by closed PRs #1 and #3 (the credentials in them are revoked).
-- Images are still built on the VPS during deploys (1–2 minutes of CPU).
+- The front proxy overrides cache headers for JS/CSS/images with a daily expiry
+  (00:30 GMT), so returning visitors re-download them every day although the
+  app sends one-year immutable headers. Fix in the proxy host settings:
+  disable "Cache Assets" for uzstock.uz.
+- Company logos were shrunk from 4.6 MB to 1.2 MB (2026-09-23).
 - Background loops (catalog sync, news calendar, sector worker) share the single
   web process.
 - Human-review valid IFRS candidates before publication; a completed bulk run or
