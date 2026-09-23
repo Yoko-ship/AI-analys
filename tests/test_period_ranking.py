@@ -394,8 +394,11 @@ class TestUnitScale:
         assert set(rc.FIN_MONEY_FIELDS) == {
             "revenue", "gross_profit", "cash",
             "total_liabilities", "net_income", "operating_income",
+            "operating_expenses",
             "total_assets", "total_equity",
             "noninterest_income",
+            # Bank IFRS interest lines, filed in the same thousands.
+            "interest_income", "interest_expense",
             # The balance's current section — sums in the same thousands, read so
             # the liquidity, quick and turnover coefficients can be computed for
             # the issuers whose indicator feed publishes none of them.

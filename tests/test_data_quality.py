@@ -103,6 +103,7 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
     assert proposal["evidence"] == {
         "source_url": "https://example.test/report.pdf",
         "source_reference": "NSBU report; опубликован 2024-11-01",
+        "source_ticker": "TSTQ",
         "available": True,
     }
     assert proposal["reason"].startswith("Автоматическая подсказка")
@@ -166,6 +167,7 @@ def test_admin_official_refresh_reparses_one_company_and_records_outcome(monkeyp
     conn = rc.get_catalog_conn()
     try:
         row = conn.execute("SELECT status, latest_period, requested_by FROM data_quality_refreshes").fetchone()
-        assert tuple(row) == ("complete", "2026Q2", "admin@example.test")
+        assert (row["status"], row["latest_period"], row["requested_by"]) == (
+            "complete", "2026Q2", "admin@example.test")
     finally:
         conn.close()

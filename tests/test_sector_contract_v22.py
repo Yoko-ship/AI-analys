@@ -251,7 +251,7 @@ def test_fund_audited_nav_lineage_and_share_reconciliation():
         "exchange_shares": "5054262531127", "exchange_nominal_uzs": "5",
         "source_url": "https://example.org/verified-action", "verification_status": "verified",
         "effective_date": "2026-01-01",
-    }, 6.75)
+    }, 6.75, as_of=TODAY)  # freshness against the fixed test day, not the wall clock
     assert report["nav"]["per_exchange_share_uzs"] == pytest.approx(5.908, abs=.001)
     assert report["valuation"]["price_to_nav"] == pytest.approx(1.1425, abs=.001)
 
