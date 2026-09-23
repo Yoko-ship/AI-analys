@@ -1003,7 +1003,17 @@ html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
 }
 
 .market-layout .market-movers-col.vol .market-movers-chg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
   color: var(--muted);
+}
+
+.market-layout .market-movers-cum {
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.75;
 }
 
 /* Market map: editorial controls around a denser, expressive treemap. */
