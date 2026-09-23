@@ -20,6 +20,16 @@ from fastapi.testclient import TestClient
 import api
 
 
+@pytest.fixture(autouse=True)
+def _configured_mirror(monkeypatch):
+    """These tests describe how a live mirror feed is merged, so configure one.
+
+    Production runs without a mirror (the former one is gone); that path is
+    covered by test_no_configured_mirror_builds_the_board_without_a_request.
+    """
+    monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "https://uzse-mirror.test")
+
+
 def _quote(**over) -> dict:
     """UQEQ as the exchange published it on 31.07.2026."""
     base = {
@@ -478,3 +488,18 @@ class TestEveryRowIsNamed:
             isin="UZ6058977AB6", ticker="ACMT1B2", name=None, market="BND")}, kind="bond")
 
         assert [r["name"] for r in body["stocks"]] == ["«AGAT CREDIT» AJ MMT"]
+
+
+def test_no_configured_mirror_builds_the_board_without_a_request(monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "")
+
+    def _no_network(*a, **kw):
+        raise AssertionError("no request may be made without a configured mirror")
+
+    monkeypatch.setattr(api.requests, "get", _no_network)
+    board = asyncio.run(api._build_board("stock"))
+    assert board["ok"] is True
+    assert board["source"] == "stored-openinfo-listings+uzse-quotes"
+    assert board["source_url"] is None

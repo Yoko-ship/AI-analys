@@ -653,10 +653,13 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# The public hostname is fronted by an OpenResty proxy. It currently returns
-          # 504 for gzip-compressed upstream bundles, so compression must be
-          # enabled at that edge rather than at this origin server.
-          gzip off;
+          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# Nginx is the public edge for uzstock.uz: compress text responses here.
+          gzip on;
+          gzip_vary on;
+          gzip_proxied any;
+          gzip_comp_level 5;
+          gzip_min_length 1024;
+          gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml;
 
           # The Netdata container is bound to localhost only. This proxy is the
           # sole externally reachable route and requires HTTP Basic auth.

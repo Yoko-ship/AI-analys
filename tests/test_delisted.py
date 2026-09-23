@@ -342,6 +342,7 @@ class TestInactiveFlag:
         """
         import api
 
+        monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "https://uzse-mirror.test")
         rows = {
             None: [{"ticker": "FRAZP", "last_trade_date": None,
                     "close_date": "23.07.2026", "volume": None},

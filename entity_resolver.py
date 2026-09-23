@@ -30,9 +30,7 @@ from openinfo_collector import _json_get, _make_session, resolve_company
 
 logger = logging.getLogger(__name__)
 
-UZSE_STOCK_API_BASE = os.getenv(
-    "UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app"
-).rstrip("/")
+UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "").strip().rstrip("/")
 
 # Explicit ticker -> org_id overrides for issuers where openinfo autofill picks the
 # wrong duplicate org. e.g. the UZSE name "O'zmetkombinat AJ" fuzzy-matches
@@ -281,6 +279,9 @@ def fetch_uzse_securities(session: requests.Session | None = None) -> list[dict[
     (stock/bond). This is what the market view is built from, so it is the correct
     universe to guarantee data for.
     """
+    if not UZSE_STOCK_API_BASE:
+        # Same failure type as an unreachable mirror, without the network call.
+        raise requests.ConnectionError("UZSE stock mirror is not configured")
     client = session or requests
     resp = client.get(f"{UZSE_STOCK_API_BASE}/stocks", timeout=30)
     resp.raise_for_status()

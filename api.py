@@ -216,7 +216,9 @@ LOGO_DIR = Path(__file__).with_name("logos")
 if LOGO_DIR.exists():
     app.mount("/logos", StaticFiles(directory=LOGO_DIR), name="logos")
 
-UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
+# Optional live mirror of the exchange board. The former Railway mirror is gone,
+# so it is off unless configured; stored listings and exchange quotes are used.
+UZSE_STOCK_API_BASE = os.getenv("UZSE_STOCK_API_BASE", "").strip().rstrip("/")
 
 # Tickers suppressed from the market board. Display-only: the underlying
 # financials/catalog data is left intact and each /company/<ticker> page stays
@@ -1571,18 +1573,20 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     """
 
     loop = asyncio.get_running_loop()
-    mirror_available = True
+    mirror_available = bool(UZSE_STOCK_API_BASE)
+    payload: Any = {}
     try:
-        # Executor-wrapped: a sync HTTP call here stalled the whole event loop
-        # (single worker) for up to 20s on the hottest endpoint.
-        response = await loop.run_in_executor(None, partial(
-            requests.get,
-            f"{UZSE_STOCK_API_BASE}/stocks",
-            params={"type": security_type} if security_type else None,
-            timeout=20,
-        ))
-        response.raise_for_status()
-        payload = response.json()
+        if mirror_available:
+            # Executor-wrapped: a sync HTTP call here stalled the whole event loop
+            # (single worker) for up to 20s on the hottest endpoint.
+            response = await loop.run_in_executor(None, partial(
+                requests.get,
+                f"{UZSE_STOCK_API_BASE}/stocks",
+                params={"type": security_type} if security_type else None,
+                timeout=20,
+            ))
+            response.raise_for_status()
+            payload = response.json()
     except requests.RequestException as exc:
         logger.warning("UZSE stock API unavailable; using stored listings and quotes: %s", exc)
         mirror_available = False
@@ -1781,7 +1785,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         "ok": True,
         "source": ("uzse-stock-production" if mirror_available
                    else "stored-openinfo-listings+uzse-quotes"),
-        "source_url": f"{UZSE_STOCK_API_BASE}/stocks",
+        "source_url": f"{UZSE_STOCK_API_BASE}/stocks" if mirror_available else None,
         # The mirror stamps naive UTC; say so, or the browser reads it as local.
         "updated_at": _as_utc_iso(payload.get("updated_at")) if isinstance(payload, dict) else None,
         "count": len(merged),
@@ -1905,6 +1909,8 @@ async def api_market_trades() -> dict[str, Any]:
             "total_trade_count": sum((s.get("trade_count") or 0) for s in session),
         })
 
+    if not UZSE_STOCK_API_BASE:
+        raise HTTPException(status_code=502, detail="Could not load trade data")
     try:
         response = await loop.run_in_executor(
             None, partial(requests.get, f"{UZSE_STOCK_API_BASE}/trades", timeout=20))
@@ -3883,6 +3889,8 @@ def _live_last_trade_dates() -> dict[str, str]:
     accepted only when the session also reports turnover.
     """
     out: dict[str, str] = {}
+    if not UZSE_STOCK_API_BASE:
+        return out
     for security_type in (None, "bond"):
         try:
             resp = requests.get(
@@ -7820,9 +7828,11 @@ async def _resolve_isin(ticker: str) -> str | None:
             return isin
     except Exception:  # noqa: BLE001
         pass
+    if not UZSE_STOCK_API_BASE:
+        return None
     try:
-        uzse_base = os.getenv("UZSE_STOCK_API_BASE", "https://uzse-stock-production.up.railway.app").rstrip("/")
-        resp = await loop.run_in_executor(None, lambda: _req.get(f"{uzse_base}/stocks", timeout=15))
+        resp = await loop.run_in_executor(
+            None, lambda: _req.get(f"{UZSE_STOCK_API_BASE}/stocks", timeout=15))
         stocks = resp.json().get("stocks", []) if resp.ok else []
         return next((s["isin"] for s in stocks if s.get("ticker", "").upper() == ticker), None)
     except Exception:  # noqa: BLE001
