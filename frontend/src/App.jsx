@@ -4626,8 +4626,12 @@ function buildMarketStats(rows, { windowed = false } = {}) {
   // session keeps no turnover at all (applyTradeStats refuses to paste another
   // week's figure onto it), and that absence must not sort as a zero that
   // claims the security traded for nothing.
+  //
+  // Customer, 23.09.2026: «Топ ликвидности по нарастающей» — the five largest
+  // turnovers are still the ones chosen, but listed smallest first, rising to
+  // the leader at the bottom.
   const topVolume = todays.filter((r) => Number.isFinite(r.stockVolume) && r.stockVolume > 0)
-    .sort((a, b) => b.stockVolume - a.stockVolume).slice(0, 5);
+    .sort((a, b) => b.stockVolume - a.stockVolume).slice(0, 5).reverse();
   const totalVolume = todays.reduce((s, r) => s + (Number.isFinite(r.stockVolume) ? r.stockVolume : 0), 0);
   const totalTrades = todays.reduce((s, r) => s + (Number.isFinite(r.stockTradeCount) ? r.stockTradeCount : 0), 0);
   const totalMarketCap = rows.reduce((s, r) => s + (Number.isFinite(r.marketCap) && r.marketCap > 0 ? r.marketCap : 0), 0);
