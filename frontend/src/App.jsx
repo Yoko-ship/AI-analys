@@ -18050,7 +18050,30 @@ function MarketView({
   // Nothing to re-derive: `byClass` already IS the period's rows, so the three
   // panels come out of the same buildMarketStats the cards use and can never
   // describe a different set of securities from the table under them.
-  const periodMovers = moverStats;
+  //
+  // Customer, 23.09.2026: «Топ ликвидности по нарастающей». On the session the
+  // panel ranked one morning's turnover — a single block trade put a name at the
+  // top for a day — so under «Сессия» it now ranks the turnover accumulated
+  // since 1 January (the same stored YTD sums the «С начала года» window uses).
+  // A chosen window is already a running total over that window and keeps it.
+  // NEGO keeps the session: there is no windowed record of negotiated deals.
+  const liquidityYtd = !windowed && segment !== "nego";
+  const periodMovers = liquidityYtd
+    ? {
+        ...moverStats,
+        topVolume: byClass
+          .filter((r) => !isDormant(r) && (!cardSector || rowSector(r) === cardSector))
+          .map((r) => {
+            const st = statsOver(r.ticker, "ytd");
+            return { ...r, periodVolume: orNull(st?.value), periodSessions: orNull(st?.sessions),
+                     periodFrom: st?.from || null };
+          })
+          .filter((r) => r.periodVolume > 0)
+          .sort((a, b) => b.periodVolume - a.periodVolume)
+          .slice(0, 5),
+      }
+    : moverStats;
+  const liquidityPeriod = liquidityYtd ? "ytd" : changePeriod;
 
   // §3.8: export the table the user is looking at as OUR report, client-side.
   //
@@ -18693,11 +18716,11 @@ function MarketView({
             // many sessions it added up and from which one: «5,6 млрд» over six
             // months means one thing across 80 sessions and quite another across
             // three, and the panel is read without the control in view.
-            { key: "vol", title: `${mt(lang, "topLiquidity")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
+            { key: "vol", title: `${mt(lang, "topLiquidity")}${liquidityPeriod === "1d" ? "" : ` · ${changePeriodLabel(liquidityPeriod, lang, "short")}`}`,
               rows: periodMovers.topVolume,
-              value: (r) => formatCompactVolume(changePeriod === "1d" ? r.stockVolume : r.periodVolume, lang),
+              value: (r) => formatCompactVolume(liquidityPeriod === "1d" ? r.stockVolume : r.periodVolume, lang),
               hint: (r) => {
-                if (changePeriod === "1d" || !r.periodSessions) return undefined;
+                if (liquidityPeriod === "1d" || !r.periodSessions) return undefined;
                 const from = String(r.periodFrom || "");
                 const pretty = from.length === 8 ? `${from.slice(6)}.${from.slice(4, 6)}.${from.slice(0, 4)}` : from;
                 const sessions = `${formatRatio(r.periodSessions, 0, lang)} ${sessionCountLabel(r.periodSessions, lang)}`;
