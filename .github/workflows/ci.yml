@@ -575,7 +575,7 @@ jobs:
           # currently running one before replacing it; timers are re-enabled
           # below and do not double-run a Railway-era command.
           for timer in \
-            uzstock-financial-backup.timer uzstock-financial-monitor.timer \
+            uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
@@ -583,7 +583,7 @@ jobs:
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
-            uzstock-financial-backup.service uzstock-financial-monitor.service \
+            uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
             uzstock-intraday.service uzstock-collector.service \
             uzstock-quotes-1300.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-reports-watch.service \
@@ -900,6 +900,20 @@ jobs:
                   + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-backup\n",
               "/etc/systemd/system/uzstock-financial-backup.timer": timer(
                   "Back up financial evidence daily", "*-*-* 01:00:00"),
+              # Accounts, sessions and analytics live in PostgreSQL, which the
+              # financial backup above does not cover. Runs on the host from the
+              # deployed checkout; see scripts/backup_postgres.sh.
+              "/etc/systemd/system/uzstock-postgres-backup.service": """[Unit]
+          Description=Verified nightly PostgreSQL backup (accounts, sessions, analytics)
+          After=snap.docker.dockerd.service
+
+          [Service]
+          Type=oneshot
+          TimeoutStartSec=30min
+          ExecStart=/bin/sh /root/uzstock/app/scripts/backup_postgres.sh
+          """,
+              "/etc/systemd/system/uzstock-postgres-backup.timer": timer(
+                  "Back up PostgreSQL daily", "*-*-* 00:40:00"),
               "/etc/systemd/system/uzstock-financial-monitor.service": worker(
                   "uzstock-financial-monitor", "Financial pipeline incidents and freshness checks",
                   "python -m financial_ingestion.worker monitor", data_volume=True,
@@ -955,7 +969,7 @@ jobs:
           PY
           systemctl daemon-reload
           for timer in \
-            uzstock-financial-backup.timer uzstock-financial-monitor.timer \
+            uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-intraday.timer uzstock-collector.timer \
             uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \

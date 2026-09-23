@@ -97,8 +97,11 @@ Evidence: `docs/*-2026-09-19.json`, `docs/audits/valuation-all-companies-2026-09
 
 ## Remaining work and known limitations
 
-- **Backups are not offsite**, and the PostgreSQL database (accounts, sessions,
-  analytics) has no scheduled dump. Needs a destination decision.
+- **Backups are not offsite.** PostgreSQL (accounts, sessions, analytics) is
+  dumped nightly at 00:40 UTC by `scripts/backup_postgres.sh` (verified with
+  `pg_restore --list`, 14 kept, `/root/uzstock/backups/postgres`), and the
+  financial evidence at 01:00 UTC — but both live on the VPS disk. Offsite copy
+  needs a destination decision.
 - Confirm the first nightly runs after the fixes: financial ingestion (21:00 UTC)
   and the full collector (03:00 UTC).
 - GitHub Support has not yet purged cached views of the pre-rewrite commits
