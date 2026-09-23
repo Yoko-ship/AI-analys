@@ -66,7 +66,8 @@ are stored on the API as well as the mounted catalog. A separate worker must
 mount the same data volume; pushing figures alone does not publish the documents.
 Use `--bank-history-limit 1` for a bounded initial run. Before deploying or running
 this command, inspect the active application directory and service manager on
-the production VPS (DEPLOY_SSH_* in the local .env), and take a backup of the active databases.
+the production VPS (connection details: `DEPLOY_SSH_*` in the local `.env`), and
+take a backup of the active databases.
 Do not start an additional repair while `uzstock-bank-history.service` is running.
 The repair upserts financial periods; it does not delete history. Its default
 public destination is `https://uzstock.uz`; the VPS loop requires the internal

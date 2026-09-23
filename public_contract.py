@@ -191,6 +191,19 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     if status != CALCULATED:
         cap = None
 
+    # Use the same 90-day activity boundary as the instrument catalog. An
+    # inactive preferred class must not block valuation of the traded ordinary
+    # class. Missing data alone is not evidence of inactivity. A class whose
+    # capitalisation OpenInfo reports directly does not block anything, so it
+    # stays in the issuer cap.
+    preferred = (row.get("is_preferred") is True
+                 or row.get("share_type") == "preferred")
+    inactive_preferred = preferred and not source_reported_cap and (
+        (age is not None and age > limit)
+        or (not row.get("last_trade_date") and row.get("inactive") is True
+            and not _number(row.get("trade_count")) and not _number(row.get("volume")))
+    )
+
     return {
         "ticker": str(row.get("ticker") or "").upper(),
         "price": price,
@@ -212,6 +225,8 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
         "calculation_status": status,
         "limitation_reason": reason,
         "usable_for_issuer_cap": status == CALCULATED,
+        "included_in_issuer_cap": not inactive_preferred,
+        "exclusion_reason": "inactive_preferred" if inactive_preferred else None,
     }
 
 
@@ -219,13 +234,13 @@ def _market_cap_status(classes: Sequence[dict[str, Any]],
                        multiples: dict[str, Any]) -> str:
     statuses = {
         str((item.get("market_input") or {}).get("calculation_status") or "")
-        for item in classes
+        for item in fundamentals.capitalisation_classes(classes)
     }
     if STALE_PRICE in statuses:
         return STALE_PRICE
     if DATA_CONFLICT in statuses:
         return DATA_CONFLICT
-    if statuses - {CALCULATED} or not classes:
+    if statuses - {CALCULATED} or not statuses:
         return INCOMPLETE_MARKET_CAP
     if (multiples.get("market_cap_issuer") or {}).get("value") is None:
         return INCOMPLETE_MARKET_CAP
@@ -271,12 +286,14 @@ def market_inputs_version(inputs: dict[str, Any]) -> str:
         key: row.get(key) for key in (
             "ticker", "isin", "last_price", "last_trade_date", "market_cap",
             "shares_outstanding", "shares_as_of", "currency",
+            "is_preferred", "share_type", "inactive", "trade_count", "volume",
         )
     } for row in (inputs.get("board") or [])), key=lambda row: str(row.get("ticker") or ""))
     securities = {
         str(ticker): {key: row.get(key) for key in (
             "issuer_id", "org_id", "isin", "type", "is_preferred",
             "shares_outstanding",
+            "share_type",
         )}
         for ticker, row in sorted((inputs.get("securities") or {}).items(),
                                   key=lambda item: str(item[0]))
@@ -309,6 +326,11 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
     balance = fundamentals.balance_snapshot(fin, ratio)
     cap_status = _market_cap_status(classes, result)
     class_inputs = [copy.deepcopy(item.get("market_input") or {}) for item in classes]
+    excluded = [item.get("ticker") for item in class_inputs
+                if item.get("included_in_issuer_cap") is False]
+    cap_basis = "active_share_classes" if excluded else "issuer"
+    cap_note = ("Без неактивных привилегированных акций: " + ", ".join(excluded)
+                if excluded else None)
     financial_period = result.get("base_period") or fundamentals.period_label(fin)
     financial_standard = (fin or {}).get("standard") or (fin or {}).get("form") or "NSBU"
     financial_scope = ((fin or {}).get("consolidation_scope")
@@ -365,11 +387,14 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
             "financial_standard": financial_standard,
             "financial_scope": financial_scope,
             "market_date": market_date,
-            "basis": "issuer",
+            "basis": cap_basis if name in _CAP_METRICS else "issuer",
             "formula": _METRIC_FORMULAS[name],
             "inputs": {key: inputs.get(key) for key in keys},
             "calculation_snapshot": snapshot_id,
         })
+        if name in _CAP_METRICS and cap_note:
+            metric["note"] = "; ".join(filter(None, [metric.get("note"), cap_note]))
+            metric["excluded_classes"] = excluded
         display_value = _display_value(name, metric, inputs, status)
         metric["display_value"] = display_value
         metric["display_warning"] = bool(
@@ -383,9 +408,10 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
     result["market_cap_issuer"] = {
         **(result.get("market_cap_issuer") or {}),
         "calculation_status": cap_status,
-        "formula": "sum(class_market_cap)",
+        "formula": ("sum(included_class_market_cap)"
+                    if excluded else "sum(class_market_cap)"),
         "market_date": market_date,
-        "basis": "issuer",
+        "basis": cap_basis,
         "class_inputs": class_inputs,
         "calculation_snapshot": snapshot_id,
     }

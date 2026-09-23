@@ -318,6 +318,11 @@ def extract_job(job, *, ocr=False):
             (row['org_id'], row['sha'], job['processor'], job['version_id'])).fetchall()
     finally:
         c.close()
+    if ocr:
+        # A native-only draft from a duplicate URL must not prevent a requested
+        # scan recovery pass. Approved evidence remains eligible for reuse.
+        cached = [candidate for candidate in cached if candidate['approved_review'] or
+                  'ocr_survey_pages' in json.loads(candidate['payload_json']).get('extraction', {})]
     content = documents.read_artifact(row["sha"])
     entries = [e for e in review_entries() if str(e["org_id"]) == row["org_id"]
                and e["sha256"] == row["sha"]]

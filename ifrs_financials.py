@@ -118,6 +118,9 @@ def download_pdf(url: str, *, issuer_origin: str | None = None) -> bytes:
         raise ValueError("IFRS source must be an OpenInfo media document or an explicitly reviewed issuer document")
     max_bytes = 100 * 1024 * 1024 if reviewed or official else MAX_BYTES
     # No redirects to private/internal destinations, no unbounded downloads.
+    if openinfo:
+        from openinfo_http import _pace
+        _pace()
     with requests.get(url, stream=True, timeout=(15, 90), allow_redirects=False) as response:
         response.raise_for_status()
         if response.status_code != 200:

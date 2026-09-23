@@ -979,6 +979,37 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
     return [], None
 
 
+def _remember_ifrs_sources(*, ticker: str, org_id: Any, records: list[dict]) -> int:
+    """Retain every filing URL before the catalog projects filings into periods.
+
+    A separate statement, group statement and revision can share the catalog's
+    year key. The ingestion registry instead identifies documents by issuer and
+    URL, so none of those originals should disappear in a catalog upsert.
+    """
+    from financial_ingestion import documents, extract, source_policy, store
+
+    documents_to_register = []
+    for record in records:
+        if (str(record.get("organization")) != str(org_id)
+                or record.get("report_type") not in {"MSFO", "Audition"}):
+            continue
+        document = _build_report_document(record)
+        url = document.get("pdf_url")
+        if url and source_policy.allows(url):
+            documents_to_register.append(document)
+    if not documents_to_register:
+        return 0
+    processor = extract.processor_version()
+    source_ids = set()
+    with store.transaction() as c:
+        for document in documents_to_register:
+            source_ids.add(documents.register(
+                c, org_id=org_id, ticker=ticker, url=document["pdf_url"],
+                category=document["report_form"], metadata=document, processor=processor,
+            ))
+    return len(source_ids)
+
+
 def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None,
                       pdf_id: Any = None) -> tuple[str | None, str | None]:
     """Build (pdf_url, excel_url) for an NSBU accounting-report from its ids.
@@ -1201,6 +1232,10 @@ def sync_company(
         remember_listing(ticker=ticker, org_id=org_id, records=main_results)
     except Exception as exc:
         errors.append(f"annual attachment discovery: {exc}")
+    try:
+        _remember_ifrs_sources(ticker=ticker, org_id=org_id, records=main_results)
+    except Exception as exc:
+        errors.append(f"IFRS source discovery: {exc}")
 
     # ---- NSBU annual -------------------------------------------------------
     try:
@@ -1251,7 +1286,9 @@ def sync_company(
             if (str(org_id), rid) in _ANNUAL_RECORD_EXCLUSIONS:
                 continue
             pub = (pdf_ids.get(rid) or {}).get("pub_date")
-            yr = _effective_annual_year(labeled, pub)
+            from nsbu_periods import resolve_annual_year
+            reviewed_year = resolve_annual_year(org_id, rid, labeled)
+            yr = reviewed_year if reviewed_year is not None else _effective_annual_year(labeled, pub)
             if _is_premature_annual_year(yr):
                 # openinfo lists a placeholder "annual" for the in-progress fiscal
                 # year (e.g. FY2026 mid-2026) whose export is a duplicate of, or an
@@ -5539,12 +5576,15 @@ def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
 
 def harvest_historical_quarters(ticker: str, *, limit: int = 40,
                                 session: Any | None = None,
-                                pace: float = 0.2) -> dict[str, Any]:
+                                pace: float = 0.2,
+                                publish: bool = True) -> dict[str, Any]:
     """Catalogue and parse the quarterly filings older than the source's window.
 
     Fetch unknown filings and known records that have no workbook link. Merely
     knowing an accounting id is not evidence that the document was collected.
     A second run after a successful repair costs one feed read and no workbooks.
+    With publish=False, only discover catalog sources; the caller validates
+    parsed values before updating financial caches or provenance.
 
     Returns ``{"ticker", "rows", "added", "skipped", "errors"}``; ``rows`` are
     admin-push shaped, so a collector can hand them to /api/admin/financials the
@@ -5642,8 +5682,9 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
                 )
         finally:
             conn.close()
-        report_id = _register_parse(t, "NSBU", year, quarter, parsed, values)
-        upsert_financials_cache(t, "NSBU", year, quarter, values, report_id)
+        if publish:
+            report_id = _register_parse(t, "NSBU", year, quarter, parsed, values)
+            upsert_financials_cache(t, "NSBU", year, quarter, values, report_id)
         rows.append({"ticker": t, "year": year, "quarter": quarter,
                      **{k: values.get(k) for k in FIN_MONEY_FIELDS}})
         if pace:
@@ -5901,6 +5942,7 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
                               "net profit before taxes and other adjustments"],
     "operating_expenses_bank": ["итого операционных расходов",
                                 "total operating expenses"],
+    "operating_expenses_jsc": ["расходы периода", "period expenses"],
 }
 
 
@@ -6022,6 +6064,33 @@ def _strict_balance_row_value(row: dict) -> float | None:
     return number(nums[-1]) if len(nums) in (2, 3) else None
 
 
+def _commercial_period_expenses(row: dict) -> float | None:
+    """Read form 2 line 040's current income minus expense, including zero.
+
+    Its four amount columns are prior income/expense then current income/expense.
+    The strict balance reader's closing column is the prior expense here.
+    Preserve source positions so an empty cell cannot shift period selection.
+    """
+    from sector_analysis import number
+
+    original = row.get("source_cells")
+    if original:
+        code_index = next((i for i, value in enumerate(original) if number(value) == 40), None)
+        if code_index is None or len(original) < code_index + 5:
+            return None
+        income = number(original[code_index + 3])
+        expense = number(original[code_index + 4])
+        if income is None and expense is None:
+            return None
+        return (income or 0.0) - (expense or 0.0)
+    nums = row.get("numeric_values") or []
+    # Legacy snapshots omit source_cells. Accept only a complete form 2 pair
+    # layout; shorter numeric lists cannot identify the current period safely.
+    if len(nums) == 5 and number(nums[0]) == 40:
+        return _row_value(nums, strict_period=True)
+    return None
+
+
 def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> float | None:
     patterns = _LABEL_PATTERNS.get(key, [])
     excludes = _LABEL_EXCLUSIONS.get(key, ())
@@ -6030,7 +6099,10 @@ def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> 
         if any(p in label for p in patterns):
             if any(x in label for x in excludes):
                 continue
-            v = _strict_balance_row_value(row) if strict_period else _row_value(row.get("numeric_values") or [])
+            if key == "operating_expenses_jsc":
+                v = _commercial_period_expenses(row)
+            else:
+                v = _strict_balance_row_value(row) if strict_period else _row_value(row.get("numeric_values") or [])
             if v is not None:
                 return v
     return None
@@ -6200,7 +6272,12 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     net_income = _extract_metric(income_rows or all_rows, "net_income")
     gross_profit = _extract_metric(income_rows or all_rows, "gross_profit")
     operating_income = _extract_metric(income_rows or all_rows, "operating_income")
-    operating_expenses = _extract_metric(income_rows or all_rows, "operating_expenses_bank")
+    # Commercial form 2 line 040 is an income/expense pair, so the shared row
+    # parser retains its expense sign. A reported current zero must not borrow
+    # last year's expense and break the cumulative-quarter subtraction.
+    operating_expenses = _extract_metric(income_rows or all_rows, "operating_expenses_jsc", strict_period=True)
+    if operating_expenses is None:
+        operating_expenses = _extract_metric(income_rows or all_rows, "operating_expenses_bank")
     if gross_profit is None:
         gross_profit = _extract_metric(income_rows or all_rows, "gross_profit_bank")
     if operating_income is None:

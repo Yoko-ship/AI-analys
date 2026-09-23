@@ -2189,6 +2189,8 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     # Share classes are grouped by issuer using the catalog, enriched with the
     # board's capitalisation and share count for each class.
     #
+    # Registry nominal prices are never quotes. Confirmed inactive preferred
+    # classes are explicitly excluded from cap, but retained for issued shares.
     # V9 (ТЗ мультипликаторов): a class that has never traded carries a price
     # taken from the registry's nominal/reference, and a capitalisation built
     # on a nominal is fiction — UZIN at 1 000, UZNG at 500, TGBK at 5 000 all
@@ -2219,7 +2221,11 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     for ticker, meta in (securities or {}).items():
         row = board_by_ticker.get(str(ticker).upper()) or {}
         shares = row.get("shares_outstanding") or meta.get("shares_outstanding")
-        market_input = _market_input(str(ticker).upper(), row, shares)
+        market_input = _market_input(str(ticker).upper(), {
+            **row, "ticker": str(ticker).upper(),
+            "is_preferred": meta.get("is_preferred") or row.get("is_preferred"),
+            "share_type": meta.get("share_type") or row.get("share_type"),
+        }, shares)
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
             "market_cap": market_input["market_cap"],

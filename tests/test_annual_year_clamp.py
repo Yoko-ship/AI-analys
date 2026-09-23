@@ -10,6 +10,33 @@ invariant period_year_quarter already applies on the unified-feed path.
 import reports_catalog as rc
 
 
+def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path, monkeypatch):
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setattr(rc, '_maybe_seed_financials', lambda *args: None)
+    monkeypatch.setattr(rc, '_make_session', lambda: object())
+    monkeypatch.setattr(rc, '_fetch_main_results', lambda *args: ([], 'jsc'))
+    monkeypatch.setattr(rc, '_unified_pdf_id_map', lambda *args: {
+        '3109': {'pdf_id': 13652, 'pub_date': '2020-09-30T17:17:00'},
+        '3110': {'pdf_id': 13653, 'pub_date': '2020-10-02T10:50:10'},
+    })
+    def fetch(session, path, params=None):
+        if (params or {}).get('report_type') == 'annual':
+            return [{'id': 3109, 'reporting_year': 2018}, {'id': 3110, 'reporting_year': 2019}]
+        return []
+    monkeypatch.setattr(rc, '_json_get', fetch)
+    result = rc.sync_company('TEST', 'Test issuer', force=True, org_id='374')
+    assert not result['errors']
+    c = rc.get_catalog_conn()
+    try:
+        rows = c.execute("SELECT year,excel_url,excel_url_form1,openinfo_report_id FROM catalog_reports WHERE ticker='TEST' ORDER BY year").fetchall()
+        assert [(r['year'], r['openinfo_report_id']) for r in rows] == [(2017, '3109'), (2018, '3110')]
+        for row in rows:
+            assert 'report_id=' + row['openinfo_report_id'] in row['excel_url']
+            assert row['excel_url'] == row['excel_url_form1']
+    finally:
+        c.close()
+
+
 class TestEffectiveAnnualYear:
     def test_an_upload_season_label_clamps_to_the_prior_fiscal_year(self):
         # TRSB's FY2022 annual: labeled 2023, published 2023-05-23.

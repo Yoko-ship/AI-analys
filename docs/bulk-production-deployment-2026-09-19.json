@@ -1,0 +1,43 @@
+{
+  "host": "uzstock.uz production VPS (DEPLOY_SSH_HOST)",
+  "application_directory": "/root/uzstock/app",
+  "release_directory": "/root/uzstock/releases/bulk-20260919",
+  "worker_image": "sha256:aeda65b4f13f6d6a0dc4dd1aabe280557054cb6276b5d61a2371761a40889d4e",
+  "rollback_image": "uzstock-web:pre-bulk-20260919",
+  "backup": {
+    "path": "/app/data/financial_backups/20260919T062214Z-5f89cc46",
+    "verified": true,
+    "originals": 255,
+    "published_periods": 187
+  },
+  "service": "uzstock-financial-ingestion.service",
+  "timer": "uzstock-financial-ingestion.timer",
+  "timer_enabled": true,
+  "first_sweep_force_sync": true,
+  "resources": {
+    "cpus": 1,
+    "memory_gib": 3,
+    "workers": 2,
+    "ocr": true,
+    "pids_limit": 256,
+    "timeout_hours": 24
+  },
+  "volume": "uzstock_data:/app/data",
+  "report": "/app/data/bulk-financial-report.json",
+  "first_sweep_state": "RUNNING_CATALOG_SYNC",
+  "sources_before": 379,
+  "sources_observed": 506,
+  "new_source_urls_queued_observed": 127,
+  "published_heads_preserved": 187,
+  "health": {
+    "status": "ok"
+  },
+  "web_container_restarted": false,
+  "tests_passed": 220,
+  "note": "Deployment verified while the initial sweep was still running; counts are a progress observation, not completed coverage.",
+  "recorded_at": "2026-09-19T06:26:39.205647+00:00",
+  "schedule_at_initial_deployment_utc": "*:05,20,35,50",
+  "schedule": "*-*-* 02:00:00 Asia/Tashkent",
+  "nightly_nsbu_history": true,
+  "nsbu_followup": "docs/nsbu-production-repair-2026-09-19.json"
+}

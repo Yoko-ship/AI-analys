@@ -399,8 +399,9 @@ def test_vps_pdf_worker_is_persistent_bounded_and_shadow_only():
     namespace = {}
     exec(compile(textwrap.dedent(workflow[start:end]), "VPS workers", "exec"), namespace)
     service = namespace["units"]["/etc/systemd/system/uzstock-financial-ingestion.service"]
-    for required in ("-v uzstock_data:/app/data", "--memory 768m", "--cpus 0.50", "--pids-limit 128",
-                     "cycle --max-jobs 4 --ocr", "ExecStopPost=", "TimeoutStartSec=30min"):
+    for required in ("-v uzstock_data:/app/data", "--memory 3g", "--cpus 1.0", "--pids-limit 256",
+                     "financial_ingestion.bulk --workers 2 --ocr", "ExecStopPost=", "TimeoutStartSec=24h",
+                     "--report /app/data/bulk-financial-report.json", "OMP_THREAD_LIMIT=1"):
         assert required in service
     assert "worker publish" not in service
     assert workflow.count("uzstock-financial-ingestion.timer uzstock-news-collector.timer") == 2

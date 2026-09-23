@@ -1,0 +1,35 @@
+{
+  "recorded_at": "2026-09-19T09:51:18.954905+00:00",
+  "host": "uzstock.uz production VPS (DEPLOY_SSH_HOST)",
+  "application_directory": "/root/uzstock/app",
+  "release_directory": "/root/uzstock/releases/nsbu-20260919",
+  "web_and_next_worker_image": "sha256:960f2746e16afcf0e28cec85437f18ac434266240363da61d14fe77058d44b60",
+  "rollback_web_container": "uzstock-web-before-nsbu-20260919",
+  "backup": "/app/data/financial_backups/20260919T093752Z-6201f8a1",
+  "backup_verified": true,
+  "published_ifrs_heads_preserved": 187,
+  "aliases": [
+    "UZIR",
+    "UZIRP"
+  ],
+  "periods_reparsed": 41,
+  "historical_quarter_links_added": 21,
+  "parse_errors": [],
+  "repeat_processed": 0,
+  "repeat_skipped": 41,
+  "production_report": "/app/data/uzir-nsbu-repair-20260919.json",
+  "schedule": "*-*-* 02:00:00 Asia/Tashkent",
+  "tests_passed": 211,
+  "public_api_assertions": {
+    "2018Q3_revenue_uzs": 184261122000,
+    "2018Q4_revenue_uzs": 12014544000,
+    "2018Q3_net_profit_uzs": 26950873000,
+    "2018Q4_net_profit_uzs": -40958964000,
+    "2025Q4_operating_expenses_uzs": -124873603000
+  },
+  "annual_2018_source_report": 3110,
+  "annual_2018_passport_status": "SOURCED",
+  "browser_verified": "https://uzstock.uz/company/UZIR",
+  "remaining_gaps": "2017 Q3 cumulative income conflicts with FY2017; no Q2 filing in unified history. Q3/Q4 flows remain unavailable.",
+  "initial_ifrs_sweep": "Existing run continues; the next nightly run includes NSBU history."
+}

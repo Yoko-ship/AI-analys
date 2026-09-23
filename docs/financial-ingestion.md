@@ -63,8 +63,12 @@ market-wide calculation ledger or migrate NSBU storage.
 
 Run commands inside a container sharing the persistent volume. Never run a
 production migration against a disposable collector database. The checked-in CI
-workflow installs `uzstock-financial-ingestion.service` and `.timer`, at minutes
-05/20/35/50 UTC, with `cycle --max-jobs 4 --ocr`. The worker stages only.
+workflow installs `uzstock-financial-ingestion.service` and `.timer`, nightly at
+02:00 Asia/Tashkent, with `financial_ingestion.bulk --workers 2 --ocr`. It refreshes
+all issuer listings and drains available work, with a 24-hour service timeout,
+1 CPU, 3 GiB memory and 256-process limit. Systemd does not start another copy
+while this oneshot service is running. The worker stages only. See
+[bulk collection](bulk-financial-collection.md) for its persistent gap report.
 
 ```sh
 docker exec uzstock-web python -m financial_ingestion.worker discover --ticker BRBN

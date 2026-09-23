@@ -631,15 +631,30 @@ def _rejoin_preferred_classes(groups: dict[str, list[dict[str, Any]]]) -> None:
             del groups[key]
 
 
-def market_cap_issuer(classes: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """Capitalisation summed over every share class of one issuer (ТЗ §8).
+def capitalisation_classes(classes: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Classes included by the public market-activity policy.
 
-    Null when any class's capitalisation is unknown: a partial sum divided into
-    a whole issuer's profit is a wrong P/E, not an approximate one.
+    Exclusion is explicit: an absent quote or metadata flag never silently
+    removes a class. Book value continues to use all issued shares.
     """
+    return [cls for cls in classes
+            if (cls.get("market_input") or {}).get("included_in_issuer_cap") is not False]
+
+
+def market_cap_issuer(classes: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Capitalisation of the included classes; null if any input is unknown.
+
+    Confirmed inactive preferred classes are excluded by the market boundary,
+    with the narrower basis disclosed by the public contract.
+    """
+    included = capitalisation_classes(classes)
+    excluded = [str(cls.get("ticker") or "?") for cls in classes if cls not in included]
+    scope = {"excluded_classes": excluded} if excluded else {}
+    if not included:
+        return _metric(None, "incomplete", note="нет торгуемых классов акций", **scope)
     total = 0.0
     missing: list[str] = []
-    for cls in classes:
+    for cls in included:
         cap = _num(cls.get("market_cap"))
         if cap is None or cap <= 0:
             missing.append(str(cls.get("ticker") or "?"))
@@ -647,8 +662,8 @@ def market_cap_issuer(classes: Sequence[dict[str, Any]]) -> dict[str, Any]:
             total += cap
     if missing:
         return _metric(None, "incomplete", missing_classes=missing,
-                       note="капитализация известна не по всем классам")
-    return _metric(total, STATUS_OK, classes=[str(c.get("ticker")) for c in classes])
+                       note="капитализация известна не по всем классам", **scope)
+    return _metric(total, STATUS_OK, classes=[str(c.get("ticker")) for c in included], **scope)
 
 
 def bvps_issuer(classes: Sequence[dict[str, Any]], equity: float | None) -> dict[str, Any]:

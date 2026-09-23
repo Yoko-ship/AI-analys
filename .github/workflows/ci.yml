@@ -815,7 +815,7 @@ jobs:
           from pathlib import Path
 
           def worker(name: str, description: str, command: str, *, timeout: str = "30min",
-                     data_volume: bool = False, extra_env: tuple[str, ...] = (), resources: str = "") -> str:
+                     data_volume: bool = False, extra_env: tuple[str, ...] = (), resources: str = "", cpus: str = "0.50") -> str:
               volume = " -v uzstock_data:/app/data" if data_volume else ""
               env = "".join(f" -e {value}" for value in extra_env)
               return f"""[Unit]
@@ -830,7 +830,7 @@ jobs:
           # A collector can parse a large exchange response immediately after a
           # deploy. Keep half a CPU free for the public web container so an
           # initial collection cannot stall /health, heatmap or finance routes.
-          ExecStart=/snap/bin/docker run --rm --cpus 0.50 {resources} --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
+          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, calendar: str) -> str:
@@ -880,13 +880,15 @@ jobs:
               "/etc/systemd/system/uzstock-bank-history.timer": timer(
                   "Repair bank financial history daily", "*-*-* 02:00:00"),
               "/etc/systemd/system/uzstock-financial-ingestion.service": worker(
-                  "uzstock-financial-ingestion", "UZStock bank PDF staging (never automatic publication)",
-                  "python -m financial_ingestion.worker cycle --max-jobs 4 --ocr",
-                  data_volume=True, resources="--memory 768m --memory-swap 768m --pids-limit 128",
-                  extra_env=("APP_DATA_DIR=/app/data", "FINANCIAL_ARTIFACT_DIR=/app/data/financial_artifacts"))
+                  "uzstock-financial-ingestion", "UZStock NSBU history and IFRS document staging",
+                  "python -m financial_ingestion.bulk --workers 2 --ocr --nsbu-history --report /app/data/bulk-financial-report.json",
+                  timeout="24h", cpus="1.0", data_volume=True,
+                  resources="--memory 3g --memory-swap 3g --pids-limit 256",
+                  extra_env=("APP_DATA_DIR=/app/data", "FINANCIAL_ARTIFACT_DIR=/app/data/financial_artifacts",
+                             "OMP_THREAD_LIMIT=1", "OPENBLAS_NUM_THREADS=1"))
                   + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-ingestion\n",
               "/etc/systemd/system/uzstock-financial-ingestion.timer": timer(
-                  "Stage bank PDFs every fifteen minutes", "*-*-* *:05,20,35,50:00"),
+                  "Collect financial history nightly at 02:00 Tashkent", "*-*-* 02:00:00 Asia/Tashkent"),
               "/etc/systemd/system/uzstock-financial-backup.service": worker(
                   "uzstock-financial-backup", "Verified financial database and original-document backup",
                   "python -m financial_ingestion.worker backup", data_volume=True,

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "annual_periods": [
+    {
+      "org_id": "374",
+      "record_id": "3109",
+      "labeled_year": 2018,
+      "fiscal_year": 2017,
+      "reviewed_by": "codex source review",
+      "reviewed_at": "2026-09-19",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3109/",
+          "description": "The annual source record carries a 2018 reporting label but its accompanying audit conclusion identifies the 2017 financial year."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудит.заклю.по_итогам_2017года.pdf",
+          "description": "Page 1 of the attached audit conclusion explicitly states the year ended 31 December 2017; visually verified against the downloaded document.",
+          "page": 1,
+          "sha256": "02d0eed3334607658c5dfa4afbfd521cf6fdfa6bb3809b58801bf1ccf7c850cc"
+        }
+      ]
+    },
+    {
+      "org_id": "374",
+      "record_id": "3110",
+      "labeled_year": 2019,
+      "fiscal_year": 2018,
+      "reviewed_by": "codex source review",
+      "reviewed_at": "2026-09-19",
+      "evidence": [
+        {
+          "url": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/3110/",
+          "description": "The annual source record carries a 2019 reporting label but its accompanying audit conclusion identifies the 2018 financial year."
+        },
+        {
+          "url": "https://openinfo.uz/media/audit_conclusion/Аудиторс.заклю.по_итогам_2018г.pdf",
+          "description": "Page 1 of the attached audit conclusion explicitly states the year ended 31 December 2018; visually verified against the downloaded document.",
+          "page": 1,
+          "sha256": "170461f44be005223292f60f9b999b4f59fccf75c03b8fee613ca07072e24701"
+        }
+      ]
+    }
+  ]
+}

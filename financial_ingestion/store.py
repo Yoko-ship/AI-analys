@@ -125,7 +125,9 @@ def enqueue(c, source_id, stage, processor, *, version_id=None, generation="init
     return key
 
 
-def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), processor=None):
+def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), processor=None, org_ids=None):
+    if not stages or (org_ids is not None and not org_ids):
+        return None
     clock = time.time()
     with transaction() as c:
         # A killed worker cannot own a job indefinitely, or publish after its
@@ -160,9 +162,14 @@ def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), pro
                           (reason, now(), pending['id']))
                 event(c, pending['id'], 'job.superseded', reason=reason, replacement=replacement)
         marks = ",".join("?" for _ in stages)
+        scope = ""
+        scope_args = ()
+        if org_ids is not None:
+            scope_args = tuple(str(org) for org in org_ids)
+            scope = " AND source_id IN (SELECT id FROM ingest_sources WHERE org_id IN (" + ",".join("?" for _ in scope_args) + "))"
         row = c.execute(f"SELECT * FROM ingest_jobs WHERE state IN ('QUEUED','RETRY') "
-                        f"AND available_at<=? AND stage IN ({marks}) ORDER BY available_at,id LIMIT 1",
-                        (time.time(), *stages)).fetchone()
+                        f"AND available_at<=? AND stage IN ({marks})" + scope + " ORDER BY available_at,id LIMIT 1",
+                        (time.time(), *stages, *scope_args)).fetchone()
         if not row:
             return None
         token = uuid4().hex

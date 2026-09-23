@@ -9,11 +9,11 @@ from . import documents, extract, publication, store
 log = logging.getLogger(__name__)
 
 
-def run(*, max_jobs=4, ocr=False, fetch=None):
+def run(*, max_jobs=4, ocr=False, fetch=None, stages=("FETCH", "EXTRACT"), org_ids=None, include_coverage=True):
     outcomes = []
     processor = extract.processor_version()
     for _ in range(max_jobs):
-        job = store.claim(processor=processor)
+        job = store.claim(processor=processor, stages=stages, org_ids=org_ids)
         if not job:
             break
         try:
@@ -39,7 +39,10 @@ def run(*, max_jobs=4, ocr=False, fetch=None):
             outcomes.append({"job": job["id"], "ok": False, "reason": str(exc)[:1000]})
     with store.transaction() as c:
         store.event(c, "financial-ingestion", "worker.completed", processed=len(outcomes), errors=sum(not o["ok"] for o in outcomes))
-    return {"processed": len(outcomes), "outcomes": outcomes, "coverage": store.status()}
+    result = {"processed": len(outcomes), "outcomes": outcomes}
+    if include_coverage:
+        result["coverage"] = store.status()
+    return result
 
 
 def main():

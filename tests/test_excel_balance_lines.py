@@ -14,6 +14,15 @@ import pytest
 import reports_catalog as rc
 
 
+def test_commercial_period_expenses_use_filed_signed_current_column():
+    def values(current):
+        data = {'sheets': [{'table_rows': [{'label': 'Расходы периода, всего (стр.050+060+070+080)',
+                                          'numeric_values': [40, 0, 900, 0, current]}]}]}
+        return rc.compute_financial_ratios(data, None)['source_values']
+    assert values(300)['operating_expenses'] == -300
+    assert values(0)['operating_expenses'] == 0
+
+
 def _sheet(rows: list[tuple[str, list]]) -> dict:
     return {"sheets": [{"table_rows": [{"label": label, "numeric_values": nums}
                                        for label, nums in rows]}]}
@@ -169,3 +178,37 @@ def test_english_legacy_bank_income_statement_maps_all_profit_tiers() -> None:
     assert values["gross_profit"] == 106_034_769.0
     assert values["operating_income"] == 37_427_706.0
     assert values["operating_expenses"] == 68_366_162.0
+
+
+@pytest.mark.parametrize("include_source_cells", [True, False])
+def test_commercial_expenses_use_current_pair_with_the_structured_source_sign(include_source_cells):
+    cells = [40.0, 0.0, 129_286_873.0, 0.0, 161_900_000.0]
+    row = {"label": "Расходы периода, всего (стр.050+060+070+080)", "numeric_values": cells}
+    if include_source_cells:
+        row["source_cells"] = [row["label"], *cells]
+    parsed = {"sheets": [{"table_rows": [row]}]}
+    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == -161_900_000.0
+
+
+@pytest.mark.parametrize(("income", "expense", "expected"), [
+    (0, 0, 0.0),
+    (None, 25, -25.0),
+    (4, 25, -21.0),
+    (None, None, None),
+])
+def test_current_expense_pair_preserves_zeros_and_empty_cell_positions(income, expense, expected):
+    label = "Расходы периода, всего"
+    row = {"label": label, "source_cells": [label, 40, 0, 999, income, expense],
+           "numeric_values": [40, 0, 999, *[v for v in (income, expense) if v is not None]]}
+    parsed = {"sheets": [{"table_rows": [row]}]}
+    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == expected
+
+
+def test_legacy_current_zero_expenses_do_not_borrow_the_prior_year():
+    parsed = _sheet([("Расходы периода, всего", [40, 0, 999, 0, 0])])
+    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == 0
+
+
+def test_incomplete_legacy_expense_columns_remain_missing():
+    parsed = _sheet([("Расходы периода, всего", [40, 0, 999])])
+    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] is None

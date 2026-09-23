@@ -1,0 +1,42 @@
+{
+  "recorded_at": "2026-09-19T10:42:47.414297+00:00",
+  "host": "uzstock.uz production VPS (DEPLOY_SSH_HOST)",
+  "application_directory": "/root/uzstock/app",
+  "release_directory": "/root/uzstock/releases/preferred-20260919",
+  "web_image": "sha256:5083194efd237ff0131a517988a3d2f644497d4735fb41c180a9c76027888b70",
+  "rollback_container": "uzstock-web-before-preferred-20260919",
+  "backup_service": "uzstock-financial-backup.service",
+  "backup_result": "success",
+  "files": [
+    "api.py",
+    "fundamentals.py",
+    "public_contract.py"
+  ],
+  "tests_passed": 126,
+  "health": "ok",
+  "contract_version": "financial-public-v3",
+  "public_api_assertions": {
+    "GRBK": {
+      "pe": 196.795930254946,
+      "pb": 14.708787984597528,
+      "market_cap": 8539873000000.0,
+      "excluded_classes": [
+        "GRBKP"
+      ]
+    },
+    "PLST": {
+      "pe": 30.335523647644962,
+      "pb": 10.390762454149995,
+      "market_cap": 136620945102.0,
+      "excluded_classes": [
+        "PLSTP"
+      ]
+    }
+  },
+  "browser_verified": "https://uzstock.uz/market",
+  "browser_assertions": {
+    "GRBK": "P/E 196,8×; P/B 14,71×",
+    "PLST": "P/E 30,34×; P/B 10,39×",
+    "incomplete_capitalisation_label_absent": true
+  }
+}

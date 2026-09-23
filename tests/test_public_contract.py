@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import fundamentals
 import public_contract as contract
+import pytest
 
 
 TODAY = date(2026, 9, 1)
@@ -28,11 +29,12 @@ def _ratio():
 
 
 def _class(ticker="ACME", *, traded="2026-08-31", price=10.0,
-           shares=100.0, cap=1_000.0):
+           shares=100.0, cap=1_000.0, **metadata):
     raw = {
         "ticker": ticker, "last_trade_date": traded, "last_price": price,
         "shares_outstanding": shares, "market_cap": cap,
         "source_url": "https://uzse.example/quote",
+        **metadata,
     }
     market_input = contract.market_class_input(
         raw, shares_outstanding=shares, reference_date=TODAY)
@@ -97,6 +99,107 @@ def test_openinfo_reported_cap_replaces_a_stale_price_reconstruction():
     assert got["calculation_status"] == contract.CALCULATED
     assert got["market_cap"] == 275.0
     assert got["price_age_days"] > got["max_price_age_days"]
+
+
+@pytest.mark.parametrize("metadata", [
+    {"traded": "2026-01-08", "is_preferred": True},
+    {"traded": "2026-01-08", "price": None, "is_preferred": True},
+    {"traded": None, "inactive": True, "share_type": "preferred"},
+])
+def test_inactive_preferred_does_not_block_traded_ordinary_multiples(metadata):
+    classes = [_class(), _class("ACMEP", **metadata)]
+    fin, ratio = _statement(), _ratio()
+    fin["total_liabilities"] = 1_000.0
+    base = fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY)
+    got = contract.multiplier_contract(base, classes, fin, ratio)
+
+    cap = got["market_cap_issuer"]
+    assert cap["value"] == 1_000.0
+    assert cap["calculation_status"] == contract.CALCULATED
+    assert cap["basis"] == "active_share_classes"
+    assert cap["excluded_classes"] == ["ACMEP"]
+    excluded = cap["class_inputs"][1]
+    assert excluded["included_in_issuer_cap"] is False
+    assert excluded["usable_for_issuer_cap"] is False
+    assert excluded["market_cap"] is None
+    assert excluded["exclusion_reason"] == "inactive_preferred"
+    for name, value in (("pe", 5.0), ("pb", 1.0), ("ps", 1.0)):
+        assert got[name]["value"] == value
+        assert got[name]["calculation_status"] == contract.CALCULATED
+        assert got[name]["basis"] == "active_share_classes"
+        assert "ACMEP" in got[name]["note"]
+    # Excluding a market quote does not cancel the issuer's outstanding shares.
+    assert got["bvps"]["value"] == 5.0
+    assert got["bvps"]["inputs"]["total_issuer_shares_outstanding"] == 200.0
+
+
+@pytest.mark.parametrize("metadata", [
+    {"traded": "2026-05-01"},  # Ordinary ticker ending in P.
+    {"traded": None, "is_preferred": True},  # Unknown activity.
+    {"traded": "bad-date", "is_preferred": True, "inactive": True},
+    {"traded": None, "is_preferred": True, "inactive": True, "trade_count": 2},
+    {"shares": None, "is_preferred": True},  # Active but missing shares.
+])
+def test_unavailable_inputs_are_not_silently_excluded(metadata):
+    classes = [_class(), _class("ACMEP", **metadata)]
+    assert classes[1]["market_input"]["included_in_issuer_cap"] is True
+    fin, ratio = _statement(), _ratio()
+    got = contract.multiplier_contract(
+        fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY),
+        classes, fin, ratio)
+    assert got["pe"]["value"] is None
+    assert got["market_cap_issuer"]["missing_classes"] == ["ACMEP"]
+
+
+def test_preferred_rejoins_capitalisation_when_trading_resumes():
+    # The registry's inactive flag must not override a current execution.
+    classes = [_class(), _class("ACMEP", is_preferred=True, inactive=True)]
+    fin, ratio = _statement(), _ratio()
+    got = contract.multiplier_contract(
+        fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY),
+        classes, fin, ratio)
+    assert got["market_cap_issuer"]["value"] == 2_000.0
+    assert got["pe"]["value"] == 10.0
+    assert got["pe"]["basis"] == "issuer"
+
+
+def test_only_inactive_preferred_never_produces_zero_cap_or_multiples():
+    classes = [_class("ACMEP", traded="2026-01-08", is_preferred=True)]
+    fin, ratio = _statement(), _ratio()
+    got = contract.multiplier_contract(
+        fundamentals.issuer_multiples(classes, fin, ratio, today=TODAY),
+        classes, fin, ratio)
+    assert got["market_cap_issuer"]["value"] is None
+    assert got["pe"]["value"] is None
+    assert got["pe"]["calculation_status"] == contract.INCOMPLETE_MARKET_CAP
+
+
+@pytest.mark.parametrize("preferred_quote", [
+    {"last_trade_date": (date.today() - timedelta(days=254)).isoformat()},
+    {"last_trade_date": None, "inactive": True},
+])
+def test_api_uses_catalog_share_class_to_exclude_inactive_preferred(monkeypatch, preferred_quote):
+    import api
+
+    monkeypatch.setattr(api, "_apply_audit_blocks", lambda rows: 0)
+    payload = api._multiples_payload({
+        "securities": {
+            "PLST": {"name": "Portlatishsanoat", "type": "stock"},
+            "PLSTP": {"name": "Portlatishsanoat", "type": "stock", "is_preferred": True},
+        },
+        "board": [
+            {"ticker": "PLST", "last_price": 10.0, "shares_outstanding": 100.0,
+             "last_trade_date": date.today().isoformat()},
+            {"ticker": "PLSTP", "last_price": 22.0, "shares_outstanding": 10.0,
+             **preferred_quote},
+        ],
+        "financials": {"PLST": _statement()}, "ratios": {"PLST": _ratio()},
+        "trade_date": date.today().isoformat(), "listings": {}, "stats": {},
+    })
+    ordinary = next(row for row in payload["items"] if row["ticker"] == "PLST")
+    assert ordinary["pe"]["value"] == 5.0
+    assert ordinary["market_cap_issuer"]["excluded_classes"] == ["PLSTP"]
+    assert ordinary["issuer_classes"] == ["PLST", "PLSTP"]
 
 
 def test_multiplier_contract_discloses_formula_inputs_and_stable_snapshot():
@@ -171,6 +274,12 @@ def test_api_uses_openinfo_cap_for_all_issuer_classes(monkeypatch):
     assert ordinary["pe"]["value"] == 5.125
     assert {item["market_cap_method"]
             for item in ordinary["market_cap_issuer"]["class_inputs"]} == {"source_reported"}
+
+
+def test_cache_input_version_changes_when_preferred_activity_is_confirmed():
+    base = {"board": [{"ticker": "ACMEP", "share_type": "preferred", "inactive": None}]}
+    confirmed = {"board": [{**base["board"][0], "inactive": True}]}
+    assert contract.market_inputs_version(base) != contract.market_inputs_version(confirmed)
 
 
 def test_stale_class_price_overrides_cap_dependent_public_status():
