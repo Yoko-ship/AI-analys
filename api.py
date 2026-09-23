@@ -65,6 +65,7 @@ from reports_catalog import (
     get_all_financials,
     get_all_listings,
     get_all_ratios,
+    get_all_ratios_cached,
     bulk_upsert_financials,
     bulk_replace_financials,
     get_all_trade_stats,
@@ -2101,7 +2102,7 @@ async def _market_inputs(ticker: str | None = None) -> dict[str, Any]:
     securities, financials, ratios, listings, stats = await asyncio.gather(
         loop.run_in_executor(None, get_securities_map),
         loop.run_in_executor(None, get_all_financials),
-        loop.run_in_executor(None, get_all_ratios),
+        loop.run_in_executor(None, get_all_ratios_cached),
         loop.run_in_executor(None, get_all_listings),
         loop.run_in_executor(None, get_all_trade_stats),
     )

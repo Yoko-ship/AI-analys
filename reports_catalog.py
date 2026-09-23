@@ -1361,6 +1361,7 @@ def sync_company(
                 f"AND quarter=0 AND year IN ({marks})",
                 (ticker, *stale_years))
             logger.info("%s: pruned mislabel-only annual years %s", ticker, stale_years)
+            invalidate_ratios_cache()
 
     # ---- NSBU quarterly ----------------------------------------------------
     try:
@@ -2246,6 +2247,7 @@ def upsert_ratio_cache(ticker: str, form: str, year: int, quarter: int, metrics:
              metrics.get("debt_ratio"), metrics.get("debt_to_equity")),
         )
     conn.close()
+    invalidate_ratios_cache()
 
 
 _FINANCIAL_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
@@ -6491,6 +6493,12 @@ def _ratios_cached() -> dict[str, dict[str, Any]]:
     with _ratios_cache_lock:
         _ratios_cache = (now, fresh)
     return fresh
+
+
+def get_all_ratios_cached() -> dict[str, dict[str, Any]]:
+    """`get_all_ratios` through the short memo that every fact-store and
+    catalog_ratios write invalidates. Callers must not mutate the result."""
+    return _ratios_cached()
 
 
 def invalidate_ratios_cache() -> None:

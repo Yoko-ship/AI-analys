@@ -4,148 +4,109 @@ Last updated: 2026-09-23
 
 ## Production target
 
-We are working on the existing **uzstock.uz production server**, not Railway.
+The site runs on the **uzstock.uz VPS**, not Railway.
 
 - Public site: `https://uzstock.uz`
-- SSH host, port and user: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_PORT` and
-  `DEPLOY_SSH_USER` in the local, git-ignored `.env` (never in tracked files)
-- Last recorded active application directory: `/root/uzstock/app`
-- Last recorded web container: `uzstock-web`
-- Persistent application data: `uzstock_data:/app/data`
+- SSH: key-only. Host, port and user are `DEPLOY_SSH_HOST`, `DEPLOY_SSH_PORT`
+  and `DEPLOY_SSH_USER` in the local, git-ignored `.env` — never in tracked files.
+- Application checkout: `/root/uzstock/app`, branch `API`
+- Web container: `uzstock-web`, published on `127.0.0.1:8001` behind Nginx
+- Persistent data: Docker volume `uzstock_data` mounted at `/app/data`
+- Scheduled workers: systemd timers `uzstock-*` running the same image
 
-Before every production deployment, inspect the live host to confirm the active
-application directory, container layout, and service manager. Back up and verify
-the live databases and original financial documents before changing production.
-Do not use Railway deployment, monitoring, or recovery tools for this project.
-Any Railway material still present in older repository documentation is legacy
-information and is not the current deployment procedure.
+Railway material still present in older documentation (`railway*.json`,
+`admin_railway.py`, parts of `DEPLOY.md`) is legacy and not the deployment path.
 
-## What we have completed so far
+## How changes reach production
+
+1. Push to `API`. The repository is public, so GitHub Actions minutes are free.
+2. CI runs the secret scan, backend tests, frontend lint/unit/build/e2e smoke and
+   the Docker image check. **Any failure blocks the deploy.**
+3. The `Deploy production` job updates the VPS checkout, builds the image,
+   replaces `uzstock-web` (about 7 s of API downtime), rewrites the systemd units
+   and the Nginx snippet, and verifies `/` and `/health`.
+
+`main` is not the deployment branch and is intentionally left untouched.
+
+## Completed
+
+### 2026-09-23 — security, reliability and speed
+
+- **Secrets:** leaked credentials were revoked and purged from every branch by a
+  history rewrite; `.gitignore` covers env files, keys, dumps and backups; every
+  push is scanned by gitleaks in CI and by GitHub secret scanning with push
+  protection. Dependabot alerts and security updates are enabled.
+- **Server access:** SSH password login disabled; stale temporary keys removed.
+- **Restored the September 19 fixes**, which later feature-branch deploys had
+  dropped: bulk financial collection, NSBU history and period mapping, and
+  inactive-preferred capitalization. OpenInfo-reported class capitalization stays
+  authoritative; the inactive-preferred exclusion applies only where no such cap
+  exists.
+- **Nightly jobs:** the financial-ingestion job failed because its module was
+  missing from the image; the full collector exited 1 because its facts step
+  depended on the retired market mirror. Both fixed.
+- **Retired mirror:** the Railway market mirror no longer exists; it is off unless
+  `UZSE_STOCK_API_BASE` is set, and stored listings plus exchange quotes are used.
+  Registry-only listings (e.g. DRBK) are now catalogued.
+- **Defects found by the test suite:** v3 pipeline writes, provenance backfill,
+  audit-blocked display flag; three stale or date-dependent tests corrected.
+  The suite is green (1,873 tests).
+- **Performance** (measured on the live site):
+
+  | | Before | After |
+  |---|---|---|
+  | First visit transfer (gzip at Nginx) | ~1.4 MB | ~385 KB |
+  | Market board | 0.74 s | 0.05–0.08 s |
+  | Company AI summary | 1.1 s | 0.2–0.4 s |
+  | Full AI report | 2.5 s | 0.5–0.6 s |
+  | Docker daemon CPU (Netdata polled it every second) | ~78% | ~1% |
+
+  Report latency came from per-call schema replay in `data_quality`, repeated SQL
+  tokenising in `dbx`, and re-parsing the 14 MB OpenInfo Excel cache on every read.
 
 ### Financial history and IFRS ingestion
 
-- Built a durable bank IFRS ingestion pipeline with source discovery, immutable
-  original PDFs, SHA-256 source identity, extraction jobs, validation, human
-  review, explicit publication, rollback, monitoring, and verified backups.
-- Added dynamic parsing for annual and interim statements, including difficult
-  scanned/OCR layouts, appendix statements, wrapped date headers, comparative
-  columns, and mixed annual/interim income columns.
-- Made future IFRS ingestion OpenInfo-only while preserving already published
-  legacy history. Publication remains an explicit reviewed operation; downloading
-  or parsing a document never publishes it automatically.
-- Recovered and published reviewed historical IFRS periods. The September 19
-  production record shows 187 published period heads preserved during the bulk
-  worker deployment.
-- Added public provenance and ingestion status so partial, stale, unreviewed,
-  unpublished, and missing data are not presented as complete coverage.
-- Prevented obsolete parser jobs from consuming the active work budget and added
-  stronger handling for replacement source files and OCR recovery passes.
+- Durable bank IFRS ingestion pipeline: source discovery, immutable original PDFs,
+  SHA-256 identity, extraction jobs, validation, human review, explicit
+  publication, rollback, monitoring and verified backups.
+- Dynamic parsing of annual and interim statements, including scanned/OCR layouts,
+  appendix statements, wrapped date headers and mixed annual/interim columns.
+- Future IFRS ingestion is OpenInfo-only; downloading or parsing never publishes.
+- 187 reviewed historical IFRS period heads are published.
+- Resumable all-issuer bulk command with a persistent coverage/gap report — see
+  `docs/bulk-financial-collection.md`. Nightly at 02:00 Asia/Tashkent, two
+  workers, OCR, 1 CPU, 3 GiB, 24-hour limit.
 
 ### NSBU history
 
-- Added historical annual and quarterly NSBU discovery and parsing from OpenInfo
-  workbooks, with source-aware checkpoints and safe repeat runs.
-- Repaired UZIR/UZIRP production history on September 19: 41 periods were
-  reparsed, 21 historical quarter links were added, and a repeat run skipped all
-  41 completed periods.
-- Corrected reviewed annual-year mappings for mislabeled OpenInfo records without
-  changing the source financial figures.
-- Kept known gaps explicit. For example, UZIR 2017 still has a Q3/FY conflict and
-  no Q2 filing in the unified history, so unsupported Q3/Q4 flows remain absent.
+- Historical annual and quarterly NSBU discovery from OpenInfo workbooks with
+  source-aware checkpoints and safe repeat runs.
+- UZIR/UZIRP repaired on 2026-09-19 (41 periods reparsed, 21 quarter links added).
+- Reviewed annual-year corrections in `reviewed_nsbu_periods.json`.
+- Known gaps stay explicit (e.g. UZIR 2017 Q3/FY conflict, no Q2 filing).
 
-### Market valuation and public financial contract
+### Market valuation and public contract
 
-- Corrected issuer capitalization so confirmed inactive preferred shares do not
-  block or distort P/E and P/B for an actively traded ordinary share. The excluded
-  class and narrower capitalization basis are disclosed in the API.
-- Verified the production result across all 100 share listings representing 68
-  companies. The September 19 audit found no remaining inactive-preferred-share
-  blockers, no arithmetic differences against the published inputs, and no
-  mismatch between the market page and its API.
-- Retained honest non-calculated states for missing/stale prices, losses,
-  unverified financials, conflicts, and configured out-of-range values.
+- Inactive preferred classes no longer block P/E and P/B of a traded ordinary
+  class; the narrower basis is disclosed.
+- Honest non-calculated states for missing/stale prices, losses, unverified
+  financials, conflicts and out-of-range values.
 
-### News and report presentation
-
-- Improved issuer-news deduplication and prioritization of report analysis.
-- Added database-dialect coverage for news deduplication behavior.
-- Updated the frontend report experience in the latest committed work.
-
-### Production work already verified
-
-The recorded September 19 VPS work included:
-
-- verified financial backups before changes;
-- deployment of the bulk financial worker and nightly schedule;
-- the UZIR NSBU repair;
-- the inactive-preferred capitalization fix;
-- API health checks and browser verification on `uzstock.uz`;
-- preservation of the existing published IFRS heads and persistent data volume.
-
-Supporting evidence is in:
-
-- `docs/bulk-production-deployment-2026-09-19.json`
-- `docs/nsbu-production-repair-2026-09-19.json`
-- `docs/preferred-production-deployment-2026-09-19.json`
-- `docs/audits/valuation-all-companies-2026-09-19.md`
-- `docs/bank-ifrs-review-2026-09-18.md`
-
-## What we are currently working on
-
-The current local working tree contains an uncommitted integration batch. Some
-parts correspond to targeted changes already recorded as deployed on September
-19, but the batch as a whole must not be treated as a new production release.
-
-Current work includes:
-
-- finishing the resumable all-issuer bulk command that refreshes the catalog,
-  collects NSBU history, discovers every permitted IFRS/audit PDF, downloads and
-  parses queued documents, and writes a persistent coverage/gap report;
-- moving the financial ingestion service to a bounded nightly 02:00 Asia/Tashkent
-  run with two workers, OCR, NSBU history, a 24-hour timeout, 1 CPU, 3 GiB RAM,
-  and the shared production data volume;
-- completing source-scoped queue processing so concurrent workers handle only the
-  selected issuers and stages;
-- improving NSBU period resolution, annual-year clamping, workbook balance-line
-  extraction, commercial-company operating-expense parsing, and source linkage;
-- preserving all IFRS source URLs when several filings or revisions map to the
-  same catalog year;
-- refining multilingual duplicate detection for syndicated credit-rating news;
-- consolidating the preferred-share capitalization contract and its regression
-  coverage;
-- expanding tests for bulk reporting, bulk collection, NSBU history, IFRS source
-  listing, public-contract behavior, annual-year handling, and news deduplication.
-
-The detailed operator guide for this work is `docs/bulk-financial-collection.md`.
+Evidence: `docs/*-2026-09-19.json`, `docs/audits/valuation-all-companies-2026-09-19.md`,
+`docs/bank-ifrs-review-2026-09-18.md`.
 
 ## Remaining work and known limitations
 
-- Review and commit the current integration batch, then run its focused and broad
-  test suites before considering another deployment.
-- Re-inspect the live VPS immediately before deployment; do not assume the recorded
-  September 19 paths and service state are unchanged.
-- Verify a fresh database/original-document backup and a rollback image before
-  replacing the web image or systemd worker definition.
-- Resume durable collection for pending/retry jobs and inspect terminal failures;
-  failed jobs require an explicit retry.
-- Human-review valid IFRS candidates before publication. A completed bulk run or
+- **Backups are not offsite**, and the PostgreSQL database (accounts, sessions,
+  analytics) has no scheduled dump. Needs a destination decision.
+- Confirm the first nightly runs after the fixes: financial ingestion (21:00 UTC)
+  and the full collector (03:00 UTC).
+- GitHub Support has not yet purged cached views of the pre-rewrite commits
+  referenced by closed PRs #1 and #3 (the credentials in them are revoked).
+- Images are still built on the VPS during deploys (1–2 minutes of CPU).
+- Background loops (catalog sync, news calendar, sector worker) share the single
+  web process.
+- Human-review valid IFRS candidates before publication; a completed bulk run or
   passing arithmetic is not authorization to publish.
-- Continue closing genuine source gaps. A zero-exit bulk run means selected work
-  was processed, not that every issuer and historical period exists.
-- Several issuers still lack a usable recent ordinary-share price, and some ratios
-  correctly remain unavailable, unverified, loss-making, or out of range.
-- Local verified backups protect against processing errors but are not offsite
-  disaster recovery.
-
-## Safe next production sequence
-
-1. Connect to the VPS (`DEPLOY_SSH_*` in `.env`) and inspect the active directory,
-   running containers, systemd units/timers, data mounts, disk space, and health.
-2. Run the relevant tests locally and review the exact release diff.
-3. Create and verify backups of the live catalog/database and every referenced
-   original document; retain the current image as the rollback target.
-4. Deploy only to the `uzstock.uz` VPS using its confirmed application layout.
-5. Verify API health, financial-ingestion status, timer state, logs, and affected
-   browser pages. Record the deployed image, backup, assertions, and rollback
-   target in a new dated production evidence file.
-
+- Continue closing genuine source gaps; several issuers lack a recent
+  ordinary-share price, and some ratios correctly remain unavailable.
