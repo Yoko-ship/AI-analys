@@ -3678,6 +3678,23 @@ const AUTH_PAGE_TEXTS = {
     signedInSubtitle: "Вы уже вошли и можете продолжить работу в личном пространстве.",
     openProfile: "Открыть профиль",
     privacy: "Данные авторизации защищены и используются только для доступа к вашему аккаунту.",
+    verifyTitle: "Подтвердите email",
+    verifySubtitle: "Мы отправили 6-значный код на {email}. Введите его, чтобы завершить вход.",
+    codeLabel: "Код из письма",
+    verifySubmit: "Подтвердить",
+    resend: "Отправить код ещё раз",
+    resendIn: "Отправить снова через {seconds} с",
+    resent: "Новый код отправлен. Проверьте также папку «Спам».",
+    back: "Назад ко входу",
+    verifiedSignIn: "Email подтверждён. Войдите, указав код из приложения-аутентификатора.",
+    forgotLink: "Забыли пароль?",
+    forgotTitle: "Восстановление пароля",
+    forgotSubtitle: "Укажите email аккаунта — мы отправим код для сброса пароля.",
+    forgotSubmit: "Отправить код",
+    resetSubtitle: "Если аккаунт с адресом {email} существует, мы отправили на него код.",
+    newPassword: "Новый пароль",
+    resetSubmit: "Сменить пароль",
+    resetDone: "Пароль изменён. Войдите с новым паролем.",
   },
   en: {
     title: "Sign in to UZ Stock Analyzer",
@@ -3695,6 +3712,23 @@ const AUTH_PAGE_TEXTS = {
     signedInSubtitle: "You are already signed in and can continue to your workspace.",
     openProfile: "Open profile",
     privacy: "Authentication data is protected and used only to access your account.",
+    verifyTitle: "Confirm your email",
+    verifySubtitle: "We sent a 6-digit code to {email}. Enter it to finish signing in.",
+    codeLabel: "Code from the email",
+    verifySubmit: "Confirm",
+    resend: "Send the code again",
+    resendIn: "Send again in {seconds}s",
+    resent: "A new code is on its way. Check your spam folder too.",
+    back: "Back to sign in",
+    verifiedSignIn: "Email confirmed. Sign in with your authenticator code.",
+    forgotLink: "Forgot password?",
+    forgotTitle: "Reset your password",
+    forgotSubtitle: "Enter your account email and we will send a reset code.",
+    forgotSubmit: "Send code",
+    resetSubtitle: "If an account exists for {email}, we have sent it a code.",
+    newPassword: "New password",
+    resetSubmit: "Change password",
+    resetDone: "Password changed. Sign in with your new password.",
   },
   uz: {
     title: "UZ Stock Analyzer'ga kirish",
@@ -3712,6 +3746,23 @@ const AUTH_PAGE_TEXTS = {
     signedInSubtitle: "Siz tizimga kirgansiz va shaxsiy ish maydoniga o'tishingiz mumkin.",
     openProfile: "Profilni ochish",
     privacy: "Kirish ma'lumotlari himoyalangan va faqat akkauntingizga kirish uchun ishlatiladi.",
+    verifyTitle: "Emailni tasdiqlang",
+    verifySubtitle: "{email} manziliga 6 xonali kod yubordik. Kirishni yakunlash uchun uni kiriting.",
+    codeLabel: "Xatdagi kod",
+    verifySubmit: "Tasdiqlash",
+    resend: "Kodni qayta yuborish",
+    resendIn: "{seconds} soniyadan keyin qayta yuborish",
+    resent: "Yangi kod yuborildi. «Spam» jildini ham tekshiring.",
+    back: "Kirishga qaytish",
+    verifiedSignIn: "Email tasdiqlandi. Autentifikator kodi bilan kiring.",
+    forgotLink: "Parolni unutdingizmi?",
+    forgotTitle: "Parolni tiklash",
+    forgotSubtitle: "Akkaunt emailini kiriting — parolni tiklash kodini yuboramiz.",
+    forgotSubmit: "Kod yuborish",
+    resetSubtitle: "Agar {email} manzili bilan akkaunt mavjud bo'lsa, unga kod yubordik.",
+    newPassword: "Yangi parol",
+    resetSubmit: "Parolni o'zgartirish",
+    resetDone: "Parol o'zgartirildi. Yangi parol bilan kiring.",
   },
 };
 
@@ -21392,6 +21443,29 @@ function App() {
   const [authTab, setAuthTab] = useState("login");
   const [loginForm, setLoginForm] = useState({ email: "", password: "", otp: "" });
   const [authOtpRequired, setAuthOtpRequired] = useState(false);
+  // Emailed-code screens: {kind: "verify", email, password, full_name} after a
+  // register/login that still has to prove the inbox, or {kind: "forgot",
+  // step: "email" | "code", email} for a password reset. null = normal forms.
+  const [authFlow, setAuthFlow] = useState(null);
+  const [authCode, setAuthCode] = useState("");
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resendAt, setResendAt] = useState(0);
+  const [resendTick, setResendTick] = useState(0);
+  const [emailCodesEnabled, setEmailCodesEnabled] = useState(false);
+  useEffect(() => {
+    if (activeView !== "auth") return undefined;
+    let alive = true;
+    fetch("/api/auth/options")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (alive && data) setEmailCodesEnabled(Boolean(data.email_codes)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeView]);
+  useEffect(() => {
+    if (!authFlow || resendAt <= Date.now()) return undefined;
+    const timer = window.setTimeout(() => setResendTick((n) => n + 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [authFlow, resendAt, resendTick]);
   const [registerForm, setRegisterForm] = useState({ full_name: "", email: "", password: "" });
   const [authMessage, setAuthMessage] = useState("");
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(AUTH_REMEMBER_KEY) !== "0");
@@ -21899,10 +21973,14 @@ function App() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({ ...loginForm, language }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Request failed");
+      if (data.verification_required) {
+        startEmailVerification(data, loginForm.password, "");
+        return;
+      }
       setAuthSuccess(data);
       setAuthMessage(t(language, "auth.messages.loginOk"));
       await loadProfile();
@@ -21920,16 +21998,120 @@ function App() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registerForm),
+        body: JSON.stringify({ ...registerForm, language }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Request failed");
+      if (data.verification_required) {
+        startEmailVerification(data, registerForm.password, registerForm.full_name);
+        return;
+      }
       setAuthSuccess(data);
       setAuthMessage(t(language, "auth.messages.registerOk"));
       await loadProfile();
     } catch (error) {
       setAuthMessage(error.message);
       addToast(error.message, "error");
+    }
+  };
+
+  const postAuthJson = async (path, body) => {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Request failed");
+    return data;
+  };
+
+  const authFlowFailed = (error) => {
+    setAuthMessage(error.message);
+    addToast(error.message, "error");
+  };
+
+  const startEmailVerification = (data, password, fullName) => {
+    setAuthFlow({ kind: "verify", email: data.email, password, full_name: fullName });
+    setAuthCode("");
+    setResendAt(Date.now() + (data.retry_after || 60) * 1000);
+    setAuthMessage("");
+  };
+
+  const leaveAuthFlow = (message = "") => {
+    setAuthFlow(null);
+    setAuthCode("");
+    setResetNewPassword("");
+    setAuthTab("login");
+    setAuthMessage(message);
+  };
+
+  // A two-factor account is never signed in by an emailed code alone: after
+  // the code it goes back to the login form, which then asks for the OTP.
+  const finishCodeSignIn = async (data, signInMessage) => {
+    if (data.token) {
+      leaveAuthFlow();
+      setAuthSuccess(data);
+      await loadProfile();
+      return;
+    }
+    leaveAuthFlow(signInMessage);
+    setAuthOtpRequired(true);
+  };
+
+  const handleVerifyEmail = async (event) => {
+    event.preventDefault();
+    setAuthMessage("...");
+    try {
+      const data = await postAuthJson("/api/auth/email/verify", {
+        email: authFlow.email,
+        code: authCode,
+        password: authFlow.password || undefined,
+        full_name: authFlow.full_name || undefined,
+      });
+      await finishCodeSignIn(data, authCopy.verifiedSignIn);
+    } catch (error) {
+      authFlowFailed(error);
+    }
+  };
+
+  const handleResendCode = async () => {
+    try {
+      const path = authFlow.kind === "forgot" ? "/api/auth/password/forgot" : "/api/auth/email/resend";
+      await postAuthJson(path, { email: authFlow.email, language });
+      setResendAt(Date.now() + 60 * 1000);
+      setAuthMessage(authCopy.resent);
+    } catch (error) {
+      authFlowFailed(error);
+    }
+  };
+
+  const handleForgotRequest = async (event) => {
+    event.preventDefault();
+    setAuthMessage("...");
+    try {
+      await postAuthJson("/api/auth/password/forgot", { email: authFlow.email, language });
+      setAuthFlow({ kind: "forgot", step: "code", email: authFlow.email.trim().toLowerCase() });
+      setAuthCode("");
+      setResendAt(Date.now() + 60 * 1000);
+      setAuthMessage("");
+    } catch (error) {
+      authFlowFailed(error);
+    }
+  };
+
+  const handlePasswordReset = async (event) => {
+    event.preventDefault();
+    setAuthMessage("...");
+    try {
+      const data = await postAuthJson("/api/auth/password/reset", {
+        email: authFlow.email,
+        code: authCode,
+        new_password: resetNewPassword,
+      });
+      await finishCodeSignIn(data, authCopy.resetDone);
+    } catch (error) {
+      authFlowFailed(error);
     }
   };
 
@@ -22991,6 +23173,87 @@ function App() {
                       {t(language, "auth.logout")}
                     </button>
                   </div>
+                ) : authFlow ? (
+                  <div className="auth-code-flow">
+                    <div className="auth-hub-heading">
+                      <h1 id="auth-page-title">{authFlow.kind === "verify" ? authCopy.verifyTitle : authCopy.forgotTitle}</h1>
+                      <p>
+                        {authFlow.kind === "verify"
+                          ? authCopy.verifySubtitle.replace("{email}", authFlow.email)
+                          : authFlow.step === "code"
+                            ? authCopy.resetSubtitle.replace("{email}", authFlow.email)
+                            : authCopy.forgotSubtitle}
+                      </p>
+                    </div>
+
+                    {authFlow.kind === "forgot" && authFlow.step === "email" ? (
+                      <form className="auth-hub-form" onSubmit={handleForgotRequest}>
+                        <label className="auth-field">
+                          <span>{t(language, "auth.login.email")}</span>
+                          <input
+                            type="email"
+                            autoComplete="email"
+                            value={authFlow.email}
+                            onChange={(event) => setAuthFlow({ ...authFlow, email: event.target.value })}
+                            placeholder="name@example.com"
+                            required
+                          />
+                        </label>
+                        <button className="auth-primary-button" type="submit">
+                          {authCopy.forgotSubmit}
+                          <span aria-hidden="true">→</span>
+                        </button>
+                      </form>
+                    ) : (
+                      <form className="auth-hub-form" onSubmit={authFlow.kind === "verify" ? handleVerifyEmail : handlePasswordReset}>
+                        <label className="auth-field">
+                          <span>{authCopy.codeLabel}</span>
+                          <input
+                            className="auth-code-input"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            value={authCode}
+                            onChange={(event) => setAuthCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                            placeholder="000000"
+                            autoFocus
+                            required
+                          />
+                        </label>
+                        {authFlow.kind === "forgot" ? (
+                          <label className="auth-field">
+                            <span>{authCopy.newPassword}</span>
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              minLength={8}
+                              value={resetNewPassword}
+                              onChange={(event) => setResetNewPassword(event.target.value)}
+                              placeholder="••••••••"
+                              required
+                            />
+                          </label>
+                        ) : null}
+                        <button className="auth-primary-button" type="submit" disabled={authCode.length !== 6}>
+                          {authFlow.kind === "verify" ? authCopy.verifySubmit : authCopy.resetSubmit}
+                          <span aria-hidden="true">→</span>
+                        </button>
+                        {(() => {
+                          const wait = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000));
+                          return (
+                            <button className="auth-link-button" type="button" disabled={wait > 0} onClick={handleResendCode}>
+                              {wait > 0 ? authCopy.resendIn.replace("{seconds}", wait) : authCopy.resend}
+                            </button>
+                          );
+                        })()}
+                      </form>
+                    )}
+
+                    <button className="auth-secondary-button auth-code-back" type="button" onClick={() => leaveAuthFlow()}>
+                      {authCopy.back}
+                    </button>
+                    <div className="auth-message" role="status" aria-live="polite">{authMessage}</div>
+                  </div>
                 ) : (
                   <>
                     <div className="auth-hub-heading">
@@ -23054,10 +23317,18 @@ function App() {
                             />
                           </label>
                         ) : null}
-                        <label className="auth-remember">
-                          <input type="checkbox" checked={rememberLogin} onChange={(event) => setRememberLogin(event.target.checked)} />
-                          <span>{authCopy.remember}</span>
-                        </label>
+                        <div className="auth-row">
+                          <label className="auth-remember">
+                            <input type="checkbox" checked={rememberLogin} onChange={(event) => setRememberLogin(event.target.checked)} />
+                            <span>{authCopy.remember}</span>
+                          </label>
+                          {emailCodesEnabled ? (
+                            <button className="auth-link-button" type="button"
+                              onClick={() => { setAuthFlow({ kind: "forgot", step: "email", email: loginForm.email }); setAuthMessage(""); }}>
+                              {authCopy.forgotLink}
+                            </button>
+                          ) : null}
+                        </div>
                         <button className="auth-primary-button" type="submit">
                           {t(language, "auth.login.submit")}
                           <span aria-hidden="true">→</span>

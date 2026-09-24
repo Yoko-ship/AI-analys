@@ -124,6 +124,8 @@ FEATURE_FLAGS: dict[str, bool] = {
 }
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store, is_admin_email
+import email_delivery
+from web_auth import EmailCodeThrottled, EmailNotVerified, _normalize_email
 
 logger = logging.getLogger(__name__)
 
@@ -515,12 +517,34 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320)
     password: str = Field(..., min_length=8, max_length=128)
     full_name: str = Field("", max_length=120)
+    language: str = Field("ru", max_length=8)
 
 
 class LoginRequest(BaseModel):
     email: str = Field(..., min_length=5, max_length=320)
     password: str = Field(..., min_length=1, max_length=128)
     otp: str | None = Field(default=None, max_length=12)
+    language: str = Field("ru", max_length=8)
+
+
+class EmailVerifyRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=320)
+    code: str = Field(..., min_length=6, max_length=12)
+    # The browser that proves the inbox chooses the password (see
+    # WebAuthStore.verify_email_code); omitted, the current one is kept.
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    full_name: str | None = Field(default=None, max_length=120)
+
+
+class EmailAddressRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=320)
+    language: str = Field("ru", max_length=8)
+
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=320)
+    code: str = Field(..., min_length=6, max_length=12)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -783,6 +807,20 @@ def _auth_payload(user: WebUser, token: str) -> dict[str, Any]:
     }
 
 
+def _admin_role(user: WebUser, resolve=None) -> str | None:
+    """The account's administrative role, granted only to a proven inbox.
+
+    Roles are assigned by email address (ADMIN_EMAILS / ADMIN_ROLES), so once
+    email verification is on, an address nobody has proven carries no role —
+    registering an allowlisted address must not be a way into the admin panel.
+    """
+    if email_delivery.verification_enabled() and not user.email_verified:
+        return None
+    if resolve is None:
+        from admin_control.service import role_for as resolve
+    return resolve(user.email)
+
+
 def _require_user(authorization: str | None = Header(default=None)) -> WebUser:
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header is required")
@@ -846,8 +884,7 @@ def _admin_gate(x_admin_secret: str | None = Header(default=None),
         return
 
     user = _require_user(authorization)          # raises 401 when not signed in
-    from admin_control.service import role_for
-    if role_for(user.email) != "administrator":
+    if _admin_role(user) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
 
 
@@ -860,8 +897,7 @@ def _admin_panel_gate(request: Request,
     able to enumerate users or delete an account.
     """
     user = _require_user(authorization)
-    from admin_control.service import role_for
-    if role_for(user.email) != "administrator":
+    if _admin_role(user) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
     request.state.admin_user = user
     return user
@@ -884,13 +920,12 @@ import v3_api  # noqa: E402
 
 
 def _control_gate(request: Request, authorization: str | None = Header(default=None)):
-    from admin_control.service import role_for
     from admin_control.store import ControlError
     try:
         user = _require_user(authorization)
     except HTTPException as exc:
         raise ControlError("AUTHENTICATION_REQUIRED", "Sign in with an administrative account.", exc.status_code) from None
-    role = role_for(user.email)
+    role = _admin_role(user)
     if not role:
         raise ControlError("PERMISSION_DENIED", "Your account does not have administrative access.", 403)
     request.state.control_actor = {"id": user.id, "email": user.email.lower(), "role": role}
@@ -902,7 +937,7 @@ app.include_router(v3_api.router, dependencies=[Depends(_control_gate)])
 
 def _sector_analysis_gate(request: Request, authorization: str | None = Header(default=None)):
     user = _require_user(authorization)
-    role = sector_admin_api.role_for(user.email)
+    role = _admin_role(user, sector_admin_api.role_for)
     if not role:
         raise HTTPException(status_code=403, detail="Your account does not have administrative access.")
     request.state.control_actor = {"id": user.id, "email": user.email.lower(), "role": role}
@@ -1209,6 +1244,9 @@ def _exchange_google_code(code: str, request: Request) -> dict[str, Any]:
     return {
         "provider_user_id": str(profile.get("id") or profile.get("sub") or ""),
         "email": profile.get("email"),
+        # Google can return an address it has not verified (non-Gmail sign-ups);
+        # only a verified one may join an existing account by email.
+        "email_verified": profile.get("verified_email") is True or profile.get("email_verified") is True,
         "full_name": profile.get("name") or "",
     }
 
@@ -4643,8 +4681,7 @@ def _require_admin_user(current_user: WebUser = Depends(_require_user)) -> WebUs
     (machine X-Admin-Secret), this authorises a logged-in user via their Bearer token —
     so the frontend admin panel can call it without the shared secret ever reaching
     the browser."""
-    from admin_control.service import role_for
-    if role_for(current_user.email) != "administrator":
+    if _admin_role(current_user) != "administrator":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
@@ -6314,13 +6351,53 @@ async def api_oauth_exchange(payload: OAuthExchangeRequest, request: Request) ->
     return {"ok": True, "provider": provider, "token": token}
 
 
+def _mail_language(language: str | None) -> str:
+    value = (language or "").strip().lower()[:2]
+    return value if value in {"ru", "uz", "en"} else "ru"
+
+
+async def _send_code(email: str, purpose: str, code: str, language: str | None) -> None:
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, partial(
+            email_delivery.send_code, email, purpose, code, _mail_language(language)))
+    except email_delivery.EmailDeliveryError as exc:
+        raise HTTPException(status_code=503, detail="Could not send the email — try again later") from exc
+
+
+def _verification_pending(email: str, retry_after: int | None = None) -> dict[str, Any]:
+    """Credentials accepted, no session yet: the client shows the code screen."""
+    body: dict[str, Any] = {"ok": True, "verification_required": True,
+                            "email": _normalize_email(email)}
+    if retry_after:
+        body["retry_after"] = retry_after
+    return body
+
+
 @app.post("/api/auth/register")
 async def api_register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "register")
+    loop = asyncio.get_running_loop()
+    if email_delivery.verification_enabled():
+        # With mail configured, an account is created unusable and a code is
+        # sent; the session is issued only by /api/auth/email/verify.
+        try:
+            code = await loop.run_in_executor(None, partial(
+                web_auth_store.start_registration, payload.email, payload.password, payload.full_name))
+        except EmailCodeThrottled as exc:
+            return _verification_pending(payload.email, exc.retry_after)
+        except ValueError as exc:
+            message = str(exc)
+            status = 409 if "already registered" in message.lower() else 400
+            raise HTTPException(status_code=status, detail=message) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        await _send_code(_normalize_email(payload.email), "verify", code, payload.language)
+        return _verification_pending(payload.email)
+
     try:
         # Executor-wrapped: PBKDF2 (~100ms CPU) + a sync Postgres roundtrip
         # would otherwise run on the event loop.
-        user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
+        user, token = await loop.run_in_executor(None, partial(
             web_auth_store.register_user,
             payload.email,
             payload.password,
@@ -6341,8 +6418,9 @@ async def api_register(payload: RegisterRequest, request: Request) -> dict[str, 
 @app.post("/api/auth/login")
 async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "login")
+    loop = asyncio.get_running_loop()
     try:
-        user, token = await asyncio.get_running_loop().run_in_executor(
+        user, token = await loop.run_in_executor(
             None, partial(
                 web_auth_store.login_user,
                 payload.email,
@@ -6350,12 +6428,112 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
                 payload.otp,
                 request.headers.get("user-agent"),
                 _client_ip(request),
+                require_verified_email=email_delivery.verification_enabled(),
             ))
+    except EmailNotVerified as exc:
+        # The password was right, so this is the owner (or someone who knows
+        # it): send a code to the inbox rather than refusing outright.
+        try:
+            code = await loop.run_in_executor(None, partial(
+                web_auth_store.issue_email_code, exc.email, "verify"))
+        except EmailCodeThrottled as throttled:
+            return _verification_pending(exc.email, throttled.retry_after)
+        if code:
+            await _send_code(exc.email, "verify", code, payload.language)
+        return _verification_pending(exc.email)
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    return _auth_payload(user, token)
+
+
+@app.get("/api/auth/options")
+async def api_auth_options() -> dict[str, Any]:
+    """What the sign-in page may offer: code screens and password reset need mail."""
+    return {"ok": True, "email_codes": email_delivery.verification_enabled()}
+
+
+@app.post("/api/auth/email/verify")
+async def api_email_verify(payload: EmailVerifyRequest, request: Request) -> dict[str, Any]:
+    _enforce_auth_rate_limit(request, "email-verify")
+    try:
+        user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.verify_email_code,
+            payload.email,
+            payload.code,
+            password=payload.password,
+            full_name=payload.full_name,
+            user_agent=request.headers.get("user-agent"),
+            ip_address=_client_ip(request),
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not token:
+        # Two-factor accounts still owe their authenticator code.
+        return {"ok": True, "verified": True, "sign_in_required": True}
+    return _auth_payload(user, token)
+
+
+@app.post("/api/auth/email/resend")
+async def api_email_resend(payload: EmailAddressRequest, request: Request) -> dict[str, Any]:
+    """Same answer whether or not the address exists, is verified, or is throttled."""
+    _enforce_auth_rate_limit(request, "email-resend")
+    if not email_delivery.verification_enabled():
+        return {"ok": True}
+    email = _normalize_email(payload.email)
+    try:
+        code = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.issue_email_code, email, "verify"))
+    except EmailCodeThrottled:
+        return {"ok": True}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if code:
+        await _send_code(email, "verify", code, payload.language)
+    return {"ok": True}
+
+
+@app.post("/api/auth/password/forgot")
+async def api_password_forgot(payload: EmailAddressRequest, request: Request) -> dict[str, Any]:
+    """Email a reset code; the answer never reveals whether the account exists."""
+    _enforce_auth_rate_limit(request, "password-forgot")
+    if not email_delivery.verification_enabled():
+        raise HTTPException(status_code=503, detail="Password reset by email is not available")
+    email = _normalize_email(payload.email)
+    try:
+        code = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.issue_email_code, email, "reset"))
+    except EmailCodeThrottled:
+        return {"ok": True}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if code:
+        await _send_code(email, "reset", code, payload.language)
+    return {"ok": True}
+
+
+@app.post("/api/auth/password/reset")
+async def api_password_reset(payload: PasswordResetRequest, request: Request) -> dict[str, Any]:
+    _enforce_auth_rate_limit(request, "password-reset")
+    try:
+        user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
+            web_auth_store.reset_password_with_code,
+            payload.email,
+            payload.code,
+            payload.new_password,
+            user_agent=request.headers.get("user-agent"),
+            ip_address=_client_ip(request),
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not token:
+        return {"ok": True, "password_reset": True, "sign_in_required": True}
     return _auth_payload(user, token)
 
 
@@ -6964,6 +7142,7 @@ async def api_oauth_google_callback(
             profile["provider_user_id"],
             profile.get("email"),
             profile.get("full_name") or "",
+            email_verified=bool(profile.get("email_verified")),
         ))
     except HTTPException:
         raise
@@ -8167,8 +8346,7 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
         # administrator to use the same bell for operational feedback even if
         # their account's consumer subscription has expired.
         has_pro_access = bool(getattr(current_user, "has_pro_access", False))
-        from admin_control.service import role_for
-        is_human_admin = role_for(current_user.email) == "administrator"
+        is_human_admin = _admin_role(current_user) == "administrator"
         favorites = await loop.run_in_executor(
             None, partial(web_auth_store.list_favorites, current_user.id)) if has_pro_access else []
         preferences = await loop.run_in_executor(

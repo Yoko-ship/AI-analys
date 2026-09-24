@@ -114,6 +114,75 @@ def _verify_totp(secret: str | None, code: str | None, at: datetime | None = Non
     )
 
 
+# ── emailed one-time codes (address verification, password reset) ────────────
+# One live code per (user, purpose); a new send replaces the old one.  Guessing
+# is bounded by attempts per code × sends per hour: 5 × 5 = 25 tries an hour
+# against a million-code space, and the per-IP limit on the routes sits on top.
+EMAIL_CODE_TTL_MINUTES = 15
+EMAIL_CODE_MAX_ATTEMPTS = 5
+EMAIL_CODE_RESEND_SECONDS = 60
+EMAIL_CODE_MAX_SENDS_PER_HOUR = 5
+EMAIL_CODE_PURPOSES = ("verify", "reset")
+
+
+class EmailNotVerified(Exception):
+    """Correct credentials, but the address has not been proven yet."""
+
+    def __init__(self, email: str):
+        super().__init__("Email address is not verified")
+        self.email = email
+
+
+class EmailCodeThrottled(Exception):
+    """A code was sent too recently (or too often this hour)."""
+
+    def __init__(self, retry_after: int):
+        super().__init__(f"Try again in {retry_after} seconds")
+        self.retry_after = int(retry_after)
+
+
+def new_email_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def email_code_hash(salt: str, code: str) -> str:
+    return hashlib.sha256(f"{salt}:{code}".encode("utf-8")).hexdigest()
+
+
+def _clean_code(code: str | None) -> str:
+    return "".join(ch for ch in str(code or "") if ch.isdigit())
+
+
+def check_email_code(row: dict | None, code: str | None, now: datetime) -> str:
+    """``ok`` | ``invalid`` | ``expired`` | ``locked`` for a stored code row."""
+    if not row:
+        return "invalid"
+    if int(row["attempts"] or 0) >= EMAIL_CODE_MAX_ATTEMPTS:
+        return "locked"
+    if row["expires_at"] <= now:
+        return "expired"
+    candidate = _clean_code(code)
+    if len(candidate) != 6:
+        return "invalid"
+    if not hmac.compare_digest(email_code_hash(row["salt"], candidate), row["code_hash"]):
+        return "invalid"
+    return "ok"
+
+
+def email_code_send_wait(row: dict | None, now: datetime) -> int:
+    """Seconds until another code may be sent for this row (0 = send now)."""
+    if not row:
+        return 0
+    waits = [0]
+    since_sent = (now - row["sent_at"]).total_seconds()
+    if since_sent < EMAIL_CODE_RESEND_SECONDS:
+        waits.append(EMAIL_CODE_RESEND_SECONDS - since_sent)
+    window_age = (now - row["window_started_at"]).total_seconds()
+    if window_age < 3600 and int(row["send_count"] or 0) >= EMAIL_CODE_MAX_SENDS_PER_HOUR:
+        waits.append(3600 - window_age)
+    return int(-(-max(waits) // 1))  # ceil
+
+
 @dataclass
 class WebUser:
     id: int
@@ -419,6 +488,23 @@ class WebAuthStore:
                 ON web_support_requests(status, created_at DESC)
                 """
             )
+            # Only the salted hash of a code is stored.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS web_email_codes (
+                    user_id                BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                    purpose                TEXT NOT NULL,
+                    salt                   TEXT NOT NULL,
+                    code_hash              TEXT NOT NULL,
+                    attempts               INTEGER NOT NULL DEFAULT 0,
+                    expires_at             TIMESTAMPTZ NOT NULL,
+                    sent_at                TIMESTAMPTZ NOT NULL,
+                    send_count             INTEGER NOT NULL DEFAULT 1,
+                    window_started_at      TIMESTAMPTZ NOT NULL,
+                    PRIMARY KEY (user_id, purpose)
+                )
+                """
+            )
 
     def _row_to_user(self, row) -> WebUser:
         return WebUser(
@@ -542,7 +628,14 @@ class WebAuthStore:
         provider_user_id: str,
         email: str | None = None,
         full_name: str = "",
+        email_verified: bool = False,
     ) -> tuple[WebUser, str]:
+        """Sign in through an identity provider.
+
+        ``email_verified`` is the provider's own claim that it proved the inbox.
+        Only a proven address may join an existing account by email — otherwise
+        anyone could attach their Google login to someone else's account.
+        """
         provider = (provider or "").strip().lower()
         provider_user_id = (provider_user_id or "").strip()
         if not provider or not provider_user_id:
@@ -568,7 +661,7 @@ class WebAuthStore:
             ).fetchone()
             if existing:
                 token = self._issue_session(conn, existing["id"])
-                verified_by_provider = bool(email and provider in {"google"})
+                verified_by_provider = bool(email and email_verified)
                 conn.execute(
                     "UPDATE web_users SET last_login_at = %s, email_verified = email_verified OR %s WHERE id = %s",
                     (now, verified_by_provider, existing["id"]),
@@ -583,8 +676,24 @@ class WebAuthStore:
                 (normalized_email,),
             ).fetchone()
 
+            verified_by_provider = bool(email and email_verified)
             if row:
                 user_id = row["id"]
+                if not verified_by_provider:
+                    raise ValueError("This email is already registered — sign in with your password")
+                if not row.get("email_verified"):
+                    # Nobody ever proved this inbox, so whoever set the password
+                    # may be a stranger who registered the address first.  The
+                    # provider just proved ownership: evict their credentials.
+                    conn.execute(
+                        "UPDATE web_users SET password_hash = %s, password_changed_at = %s WHERE id = %s",
+                        (_password_hash(secrets.token_urlsafe(32)), now, user_id),
+                    )
+                    conn.execute(
+                        "UPDATE web_sessions SET revoked_at = %s WHERE user_id = %s AND revoked_at IS NULL",
+                        (now, user_id),
+                    )
+                    conn.execute("DELETE FROM web_email_codes WHERE user_id = %s", (user_id,))
                 if full_name and not (row["full_name"] or "").strip():
                     conn.execute(
                         "UPDATE web_users SET full_name = %s WHERE id = %s",
@@ -596,7 +705,7 @@ class WebAuthStore:
                 row = created
 
             self._link_oauth_account(conn, user_id, provider, provider_user_id, email)
-            if email and provider in {"google"}:
+            if verified_by_provider:
                 conn.execute("UPDATE web_users SET email_verified = TRUE WHERE id = %s", (user_id,))
             token = self._issue_session(conn, user_id)
             conn.execute(
@@ -612,7 +721,7 @@ class WebAuthStore:
             "created_at": row["created_at"] if row else now,
             "last_login_at": now,
             "is_active": True,
-            "email_verified": bool(email and provider in {"google"}) or bool(row.get("email_verified") if row else False),
+            "email_verified": verified_by_provider or bool(row.get("email_verified") if row else False),
             "tier": row.get("tier") if row else "free",
             "subscription_until": row.get("subscription_until") if row else None,
         }
@@ -721,6 +830,8 @@ class WebAuthStore:
         otp: str | None = None,
         user_agent: str | None = None,
         ip_address: str | None = None,
+        *,
+        require_verified_email: bool = False,
     ) -> tuple[WebUser, str]:
         normalized = _normalize_email(email)
         if not normalized:
@@ -742,6 +853,8 @@ class WebAuthStore:
                 raise ValueError("Invalid email or password")
             if not _password_verify(password, row["password_hash"]):
                 raise ValueError("Invalid email or password")
+            if require_verified_email and not row.get("email_verified"):
+                raise EmailNotVerified(row["email"])
             if row.get("two_factor_enabled"):
                 if not otp:
                     raise ValueError("Two-factor code required")
@@ -767,6 +880,204 @@ class WebAuthStore:
             "subscription_until": row.get("subscription_until"),
         }
         return self._row_to_user(public_row), token
+
+    # ── emailed codes ──────────────────────────────────────────────────────
+    _CODE_USER_COLUMNS = (
+        "id, email, full_name, avatar_data_url, created_at, last_login_at, is_active, "
+        "email_verified, tier, subscription_until, two_factor_enabled"
+    )
+
+    def _store_email_code(self, conn, user_id: int, purpose: str) -> str:
+        """Replace this user's code for ``purpose`` and return the new plain code."""
+        now = _utcnow()
+        row = conn.execute(
+            "SELECT * FROM web_email_codes WHERE user_id = %s AND purpose = %s FOR UPDATE",
+            (user_id, purpose),
+        ).fetchone()
+        wait = email_code_send_wait(row, now)
+        if wait:
+            raise EmailCodeThrottled(wait)
+        if row and (now - row["window_started_at"]).total_seconds() < 3600:
+            send_count, window_started_at = int(row["send_count"] or 0) + 1, row["window_started_at"]
+        else:
+            send_count, window_started_at = 1, now
+        code, salt = new_email_code(), secrets.token_hex(16)
+        conn.execute(
+            """
+            INSERT INTO web_email_codes
+                (user_id, purpose, salt, code_hash, attempts, expires_at, sent_at, send_count, window_started_at)
+            VALUES (%s, %s, %s, %s, 0, %s, %s, %s, %s)
+            ON CONFLICT (user_id, purpose) DO UPDATE SET
+                salt = EXCLUDED.salt, code_hash = EXCLUDED.code_hash, attempts = 0,
+                expires_at = EXCLUDED.expires_at, sent_at = EXCLUDED.sent_at,
+                send_count = EXCLUDED.send_count, window_started_at = EXCLUDED.window_started_at
+            """,
+            (user_id, purpose, salt, email_code_hash(salt, code),
+             now + timedelta(minutes=EMAIL_CODE_TTL_MINUTES), now, send_count, window_started_at),
+        )
+        return code
+
+    def _consume_email_code(self, email: str, purpose: str, code: str):
+        """Check a code; on success return the user row with the code deleted.
+
+        A wrong guess is committed on its own — raising inside the same
+        transaction would roll the attempt counter back and make it useless.
+        """
+        normalized = _normalize_email(email)
+        with self._conn() as conn:
+            row = conn.execute(
+                f"""
+                SELECT c.*, u.{', u.'.join(self._CODE_USER_COLUMNS.split(', '))}
+                FROM web_email_codes c JOIN web_users u ON u.id = c.user_id
+                WHERE u.email = %s AND c.purpose = %s AND u.is_active
+                FOR UPDATE OF c
+                """,
+                (normalized, purpose),
+            ).fetchone()
+            verdict = check_email_code(row, code, _utcnow())
+            if verdict == "invalid" and row:
+                conn.execute(
+                    "UPDATE web_email_codes SET attempts = attempts + 1 WHERE user_id = %s AND purpose = %s",
+                    (row["user_id"], purpose),
+                )
+            if verdict == "ok":
+                conn.execute(
+                    "DELETE FROM web_email_codes WHERE user_id = %s AND purpose = %s",
+                    (row["user_id"], purpose),
+                )
+                return row
+        if verdict == "locked":
+            raise ValueError("Too many wrong codes — request a new one")
+        if verdict == "expired":
+            raise ValueError("The code has expired — request a new one")
+        raise ValueError("Invalid or expired code")
+
+    def start_registration(self, email: str, password: str, full_name: str = "") -> str:
+        """Create (or re-claim) an unverified account and return its first code.
+
+        No session is issued: the account is unusable until the code proves the
+        inbox.  An address that nobody has proven can be registered again — the
+        earlier registrant may be a stranger squatting it — and nothing on the
+        existing row changes until someone verifies (see ``verify_email_code``).
+        """
+        normalized = _normalize_email(email)
+        if not normalized:
+            raise ValueError("Email is required")
+        if len(password or "") < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT id, email_verified FROM web_users WHERE email = %s",
+                (normalized,),
+            ).fetchone()
+            if row and row["email_verified"]:
+                raise ValueError("Email already registered")
+            if row:
+                user_id = row["id"]
+            else:
+                user_id = self._create_user(
+                    conn, normalized, (full_name or "").strip(), _password_hash(password))["id"]
+            return self._store_email_code(conn, user_id, "verify")
+
+    def issue_email_code(self, email: str, purpose: str) -> str | None:
+        """A fresh code for an eligible account, or None when there is nothing to send.
+
+        ``verify`` is only for accounts not yet proven; ``reset`` for any active
+        account.  Callers must answer identically either way so the response
+        never reveals whether an address is registered.
+        """
+        if purpose not in EMAIL_CODE_PURPOSES:
+            raise ValueError(f"Unknown code purpose: {purpose}")
+        normalized = _normalize_email(email)
+        if not normalized:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT id, is_active, email_verified FROM web_users WHERE email = %s",
+                (normalized,),
+            ).fetchone()
+            if not row or not row["is_active"]:
+                return None
+            if purpose == "verify" and row["email_verified"]:
+                return None
+            return self._store_email_code(conn, row["id"], purpose)
+
+    def _finish_code_sign_in(self, conn, row, user_agent, ip_address) -> tuple[WebUser, str | None]:
+        """Mark proven, and sign in unless two-factor still has to be satisfied."""
+        now = _utcnow()
+        conn.execute(
+            "UPDATE web_users SET email_verified = TRUE, last_login_at = %s WHERE id = %s",
+            (now, row["id"]),
+        )
+        token = None
+        if not row.get("two_factor_enabled"):
+            token = self._issue_session(conn, row["id"], user_agent, ip_address)
+        user = dict(row)
+        user["email_verified"] = True
+        user["last_login_at"] = now
+        return self._row_to_user(user), token
+
+    def verify_email_code(
+        self,
+        email: str,
+        code: str,
+        password: str | None = None,
+        full_name: str | None = None,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[WebUser, str | None]:
+        """Prove the inbox and sign in.  Returns ``(user, token)``; the token is
+        None for a two-factor account, which must then sign in normally.
+
+        The browser that holds the code is the inbox owner, so the password (and
+        name) it submits become the account's — whatever an earlier, unproven
+        registrant chose is discarded, together with any session they hold.
+        """
+        if password is not None and len(password) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        row = self._consume_email_code(email, "verify", code)
+        now = _utcnow()
+        with self._conn() as conn:
+            if password is not None:
+                conn.execute(
+                    "UPDATE web_users SET password_hash = %s, password_changed_at = %s WHERE id = %s",
+                    (_password_hash(password), now, row["id"]),
+                )
+            name = (full_name or "").strip()
+            if name:
+                conn.execute("UPDATE web_users SET full_name = %s WHERE id = %s", (name[:120], row["id"]))
+                row = {**row, "full_name": name[:120]}
+            if not row.get("email_verified"):
+                conn.execute(
+                    "UPDATE web_sessions SET revoked_at = %s WHERE user_id = %s AND revoked_at IS NULL",
+                    (now, row["id"]),
+                )
+            return self._finish_code_sign_in(conn, row, user_agent, ip_address)
+
+    def reset_password_with_code(
+        self,
+        email: str,
+        code: str,
+        new_password: str,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+    ) -> tuple[WebUser, str | None]:
+        """Set a new password from an emailed code; every old session ends."""
+        if len(new_password or "") < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        row = self._consume_email_code(email, "reset", code)
+        now = _utcnow()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE web_users SET password_hash = %s, password_changed_at = %s WHERE id = %s",
+                (_password_hash(new_password), now, row["id"]),
+            )
+            conn.execute(
+                "UPDATE web_sessions SET revoked_at = %s WHERE user_id = %s AND revoked_at IS NULL",
+                (now, row["id"]),
+            )
+            conn.execute("DELETE FROM web_email_codes WHERE user_id = %s", (row["id"],))
+            return self._finish_code_sign_in(conn, row, user_agent, ip_address)
 
     def update_profile(
         self,
