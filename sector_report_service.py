@@ -350,7 +350,19 @@ SPECIAL_LABELS = {
     "loan_reserves": (r"^(?:минус:\s*)?резерв(?:ы)? (?:возможных убытков по кредитам и лизингу|на покрытие|по кредитам|по займам)",),
     "insurance_premiums": (r"^начисленные страховые премии",),
     "insurance_claims": (r"^страховые выплаты",),
+    "cash": (r"^кассовая наличность",),
     "central_bank_balances": (r"^к получению из цбру$",),
+    "due_from_banks": (r"^к получению из других банков$",),
+    # Bank Form 2 lines the sector formulation library relies on: interest
+    # income before and after the credit-loss estimate, the estimate itself,
+    # and the fee and FX pairs that make up non-interest income.
+    "net_interest_income_before_provisions": (r"^чистые процентные доходы до оценки возможных убытков",),
+    "credit_loss_provisions": (r"^(?:минус:\s*)?оценка возможных убытков по кредитам и лизингу$",),
+    "net_interest_income_after_provisions": (r"^чистые процентные доходы после оценки возможных убытков",),
+    "fee_income": (r"^доходы от комиссий и платы за услуги$",),
+    "fee_expenses": (r"^комиссионные расходы и расходы за услуги$",),
+    "fx_income": (r"^прибыль в иностранной валюте$",),
+    "fx_expenses": (r"^убытки в иностранной валюте$",),
     "total_assets": (r"^итого активов$",),
     "total_liabilities": (r"^итого обязательств$",),
     "total_equity": (r"^итого собственного капитала$",),
@@ -426,7 +438,11 @@ def map_special_lines(snapshot, workbook, org):
 
 
 def map_insurance_lines(snapshot, workbook):
-    income_map = {"c060": "revenue", "c070": "insurance_service_cost", "c090": "expenses",
+    # c012 (premiums ceded to reinsurers) and c080 (the insurance-service
+    # result, c060 − c070) are what premium retention and «результат от
+    # страховых услуг» are calculated from.
+    income_map = {"c060": "revenue", "c070": "insurance_service_cost", "c080": "insurance_service_result",
+                  "c012": "ceded_premiums", "c090": "expenses",
                   "c150": "operating_income", "c160": "financial_income", "c200": "fx_income",
                   "c220": "financial_expenses", "c250": "fx_expenses", "c290": "profit_before_tax",
                   "c320": "net_income", "c011": "direct_insurance_premiums",
@@ -443,7 +459,7 @@ def map_insurance_lines(snapshot, workbook):
             row = lines[code]
             for key, source_key in (("current_values", "raw_current"), (target, "raw_previous")):
                 value = engine.decimal(row[source_key])
-                if field in {"insurance_service_cost", "expenses", "financial_expenses", "fx_expenses"} and value is not None:
+                if field in {"insurance_service_cost", "ceded_premiums", "expenses", "financial_expenses", "fx_expenses"} and value is not None:
                     value = abs(value)
                 snapshot[key][field] = str(value) if value is not None else None
             snapshot.setdefault("field_sources", {})[field] = {"source_line_id": f"insurance:{form}:{code}"}

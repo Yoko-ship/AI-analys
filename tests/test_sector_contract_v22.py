@@ -574,7 +574,7 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert "not by itself evidence of excessive external-funding dependence" in bank_text
     insurance_text = results["UZAS"]["text"]
     assert "reserve retention" in insurance_text
-    assert "Without disclosed claims" in insurance_text
+    assert "the loss ratio is not calculated from the available data" in insurance_text
     assert "general profile" not in insurance_text
     assert 3 <= len(results["UZAS"]["key_changes"]) <= 5
     for ticker in ("UZMK", "HMKB", "UZAS"):
@@ -582,7 +582,9 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
         assert 3 <= len(task_sections["overview"]["blocks"]) <= 5
         assert all(block.get("lead") and block.get("text") for block in task_sections["overview"]["blocks"])
         assert len(task_sections["details_performance"]["blocks"]) >= 2
-        assert len(task_sections["details_position"]["blocks"]) == 2
+        # Banks split position into assets, reserves, funding and structure.
+        expected_position_blocks = 4 if ticker == "HMKB" else 2
+        assert len(task_sections["details_position"]["blocks"]) == expected_position_blocks
 
 
 def test_bank_mapper_preserves_reconciled_catalog_totals():

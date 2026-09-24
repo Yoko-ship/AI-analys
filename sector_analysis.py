@@ -12,9 +12,9 @@ import re
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
-VERSION = "sector-analysis-2.9"
+VERSION = "sector-analysis-2.10"  # 2.10: bank/insurance formulation library (2026-09-24)
 CALCULATION_VERSION = "nsbu-core-2.1"
-MAPPING_VERSION = "nsbu-lines-2.1"
+MAPPING_VERSION = "nsbu-lines-2.2"
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
 SPECIAL_TYPES = {
     "bank": "bank", "insurance": "insurance", "insurer": "insurance",
@@ -372,6 +372,15 @@ INSURANCE_BALANCE = ["cash", "receivables", "gross_insurance_reserves", "reinsur
 FUND_BALANCE = ["cash", "dividends_receivable", "accounts_payable", "total_assets", "total_liabilities", "total_equity"]
 
 
+# Extra source lines behind the bank and insurance formulation library
+# (customer glossary, 2026-09-24).  They are facts only when disclosed.
+SECTOR_PHRASE_BALANCE_LINES = frozenset({"due_from_banks", "demand_deposits", "savings_deposits", "term_deposits"})
+SECTOR_PHRASE_FLOW_LINES = frozenset({
+    "net_interest_income_before_provisions", "credit_loss_provisions", "net_interest_income_after_provisions",
+    "fee_income", "fee_expenses", "ceded_premiums", "insurance_service_cost", "insurance_service_result",
+})
+
+
 def block_codes(template):
     financial = template in {"bank", "microfinance_bank", "microfinance"}
     result = BANK_RESULT if financial else INSURANCE_RESULT if template == "insurance" else FUND_RESULT if template == "investment_fund_ifrs_annual" else CORE_RESULT
@@ -413,6 +422,20 @@ LABELS = {
     "settlement_liabilities": ("Расчётные обязательства", "Hisob-kitob majburiyatlari", "Settlement liabilities"),
     "unrealized_fair_value_gain": ("Нереализованная переоценка", "Realizatsiya qilinmagan qayta baholash", "Unrealized revaluation"),
     "dividend_income": ("Дивидендный доход", "Dividend daromadi", "Dividend income"), "management_expenses": ("Расходы управляющего", "Boshqaruvchi xarajatlari", "Management expenses"),
+    "due_from_banks": ("Средства в других банках", "Boshqa banklardagi mablag‘lar", "Due from other banks"),
+    "demand_deposits": ("Депозиты до востребования", "Talab qilinguncha depozitlar", "Demand deposits"),
+    "savings_deposits": ("Сберегательные депозиты", "Jamg‘arma depozitlari", "Savings deposits"),
+    "term_deposits": ("Срочные депозиты", "Muddatli depozitlar", "Term deposits"),
+    "net_interest_income_before_provisions": ("Чистый процентный доход до оценки кредитных потерь", "Kredit yo‘qotishlarini baholashgacha sof foizli daromad", "Net interest income before the credit-loss estimate"),
+    "credit_loss_provisions": ("Расходы на оценку кредитных потерь", "Kredit yo‘qotishlarini baholash xarajatlari", "Credit-loss estimate"),
+    "net_interest_income_after_provisions": ("Чистый процентный доход после оценки кредитных потерь", "Kredit yo‘qotishlarini baholashdan keyingi sof foizli daromad", "Net interest income after the credit-loss estimate"),
+    "fee_income": ("Комиссионные доходы", "Komission daromadlar", "Fee and commission income"),
+    "fee_expenses": ("Комиссионные расходы", "Komission xarajatlar", "Fee and commission expense"),
+    "fx_income": ("Доходы по валютным операциям", "Valyuta operatsiyalari daromadi", "Foreign-exchange gains"),
+    "fx_expenses": ("Расходы по валютным операциям", "Valyuta operatsiyalari xarajati", "Foreign-exchange losses"),
+    "ceded_premiums": ("Премии, переданные в перестрахование", "Qayta sug‘urtaga berilgan mukofotlar", "Premiums ceded to reinsurers"),
+    "insurance_service_cost": ("Себестоимость страховых услуг", "Sug‘urta xizmatlari tannarxi", "Cost of insurance services"),
+    "insurance_service_result": ("Результат от страховых услуг", "Sug‘urta xizmatlari natijasi", "Insurance-service result"),
     "tax": ("Налог", "Soliq", "Tax"), "portfolio_fair_value": ("Стоимость портфеля", "Portfel qiymati", "Portfolio fair value"),
     "dividends_receivable": ("Дивиденды к получению", "Olinadigan dividendlar", "Dividends receivable"), "accounts_payable": ("Кредиторская задолженность", "Kreditorlik qarzi", "Accounts payable"),
     "level3_investments": ("Инвестиции Level 3", "Level 3 investitsiyalari", "Level 3 investments"), "largest_holding": ("Крупнейшая позиция", "Eng yirik pozitsiya", "Largest holding"), "top5_holdings": ("Пять крупнейших позиций", "Eng yirik beshta pozitsiya", "Top five holdings"),
@@ -574,7 +597,12 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     facts, by_code = [], {}
     mapping = {key: f"form1:{code}" for code, key in FORM1.items()}
     mapping.update({key: f"form2:{code}" for code, key in FORM2.items()})
-    allowed = set(sum(codes.values(), [])) | {"fx_income", "fx_expenses", "financial_income", "financial_expenses", "short_term_investments", "retained_earnings", "share_capital", "additional_capital"}
+    allowed = set(sum(codes.values(), [])) | {"fx_income", "fx_expenses", "financial_income", "financial_expenses", "short_term_investments", "retained_earnings", "share_capital", "additional_capital"} | SECTOR_PHRASE_BALANCE_LINES | SECTOR_PHRASE_FLOW_LINES
+    def metric_label(key):
+        if template == "insurance" and key == "revenue":
+            return tr(lang, "Чистая выручка от страховых услуг", "Sug‘urta xizmatlaridan sof tushum", "Net insurance-service revenue")
+        return label(key, lang)
+
     for key in sorted(allowed):
         value = number(values.get(key))
         if value is None:
@@ -584,9 +612,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         raw = line_row.get("raw_current", str(values[key]))
         fact_url = line_row.get("source_url") or source_url
         fact_doc_id = "filing:" + digest([issuer["id"], standard, period, fact_url])[:24] if fact_url else source.get("document_id")
-        base = opening if key in FORM1.values() or key in codes["cash_and_working_capital"] else previous
+        base = opening if key in FORM1.values() or key in codes["cash_and_working_capital"] or key in SECTOR_PHRASE_BALANCE_LINES else previous
         fact = {"id": digest([issuer["id"], standard, period, key, raw, fact_doc_id])[:24],
-                "issuer_id": issuer["id"], "metric": key, "metric_code": key, "label": label(key, lang),
+                "issuer_id": issuer["id"], "metric": key, "metric_code": key, "label": metric_label(key),
                 "raw": raw, "value_raw": raw, "value": value, "value_normalized": str(decimal(raw)),
                 "unit": "thousand UZS", "unit_raw": line_row.get("unit") or source.get("unit") or "thousand UZS",
                 "unit_normalized": "thousand UZS", "currency": line_row.get("currency") or source.get("currency") or snapshot.get("currency") or "UZS",
@@ -689,9 +717,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         fact = by_code.get(key)
         if not fact:
             return None
-        text = f"{label(key, lang)}: {display_money(fact['value'])} {money_unit}"
+        text = f"{metric_label(key)}: {display_money(fact['value'])} {money_unit}"
         if comparison and fact["previous"] is not None:
-            text = f"{label(key, lang)}: {display_money(fact['previous'])} → {display_money(fact['value'])} {money_unit}"
+            text = f"{metric_label(key)}: {display_money(fact['previous'])} → {display_money(fact['value'])} {money_unit}"
             if fact["change_pct"] is not None:
                 text += f" ({format_number(fact['change_pct'])}%)"
         return text
@@ -756,6 +784,36 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                 ))
             movement = tr(lang, "Главные структурные изменения: ", "Asosiy tarkibiy o‘zgarishlar: ", "The main structural changes were: ") + "; ".join(parts) + "."
 
+        if bank_funding:
+            # Bank wording from the customer's formulation library: concentration
+            # is described, never judged, and each share shift is stated plainly.
+            if dominant["current"] >= 50:
+                first = tr(
+                    lang,
+                    f"Основную часть активов составляет «{label(dominant['key'], lang)}» — {format_number(dominant['current'])}%. Такая структура указывает на значительную концентрацию баланса в этом направлении.",
+                    f"Aktivlarning asosiy qismini «{label(dominant['key'], lang)}» tashkil etadi — {format_number(dominant['current'])}%. Bunday tuzilma balansning shu yo‘nalishda sezilarli darajada jamlanganini ko‘rsatadi.",
+                    f"Most of the assets are «{label(dominant['key'], lang)}» — {format_number(dominant['current'])}%. This structure indicates a significant concentration of the balance sheet in this area.",
+                )
+            else:
+                first = tr(
+                    lang,
+                    f"Крупнейшая раскрытая статья активов — «{label(dominant['key'], lang)}»: {format_number(dominant['current'])}%.",
+                    f"Oshkor qilingan eng yirik aktiv moddasi — «{label(dominant['key'], lang)}»: {format_number(dominant['current'])}%.",
+                    f"The largest disclosed asset item is «{label(dominant['key'], lang)}»: {format_number(dominant['current'])}%.",
+                )
+            shifts = []
+            for row in comparable[:2]:
+                if not row["shift"]:
+                    continue
+                up = row["shift"] > 0
+                shifts.append(tr(
+                    lang,
+                    f"Доля «{label(row['key'], lang)}» в активах {'выросла' if up else 'снизилась'} с {format_number(row['previous'])}% до {format_number(row['current'])}%, что отражает изменение структуры активов.",
+                    f"«{label(row['key'], lang)}»ning aktivlardagi ulushi {format_number(row['previous'])}%dan {format_number(row['current'])}%gacha {'oshdi' if up else 'kamaydi'}, bu aktivlar tuzilmasi o‘zgarganini aks ettiradi.",
+                    f"The share of «{label(row['key'], lang)}» in assets {'rose' if up else 'fell'} from {format_number(row['previous'])}% to {format_number(row['current'])}%, reflecting a change in the asset structure.",
+                ))
+            movement = " ".join(shifts)
+
         rose = dominant["shift"] is None or dominant["shift"] >= 0
         implications = {
             "fixed_assets": tr(lang, "Высокая доля основных средств подтверждает капиталоёмкость бизнеса: значительная часть ресурсов связана в производственной базе.", "Asosiy vositalarning yuqori ulushi biznes kapital talabchanligini ko‘rsatadi: resurslarning katta qismi ishlab chiqarish bazasiga bog‘langan.", "The high fixed-asset share confirms a capital-intensive model, with substantial resources tied to the operating base."),
@@ -766,6 +824,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             "loan_portfolio": tr(lang, "Доминирование кредитного портфеля подтверждает кредитную специализацию банка и концентрацию активов на кредитном риске.", "Kredit portfelining ustunligi bankning kreditlashga ixtisoslashganini va aktivlar kredit riskida jamlanganini ko‘rsatadi.", "The dominant loan portfolio confirms the bank’s lending focus and concentration of assets in credit risk."),
         }
         meaning = implications.get(dominant["key"], tr(lang, "Такое соотношение показывает, где сосредоточена основная часть ресурсов компании.", "Bu nisbat kompaniya resurslarining asosiy qismi qayerda jamlanganini ko‘rsatadi.", "This mix shows where most of the company’s resources are concentrated."))
+        if bank_funding:
+            meaning = ""
         if exchange_funding and dominant["key"] in {"cash", "client_cash", "own_cash"}:
             meaning = tr(
                 lang,
@@ -798,238 +858,590 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                     f"Moliyalashtirish manbalari quyidagicha: kapital aktivlarning {format_number(equity_share)}%ini, majburiyatlar esa {format_number(liability_share)}%ini qoplaydi; bu moliyaviy mustaqillik va tashqi mablag‘larga bog‘liqlik darajasini ko‘rsatadi.",
                     f"Funding is split between equity covering {format_number(equity_share)}% of assets and liabilities covering {format_number(liability_share)}%, directly indicating financial autonomy and reliance on external funding.",
                 )
-        return " ".join(part for part in (heading, first, movement, meaning, funding, tr(
+        return " ".join(part.strip() for part in (heading, first, movement, meaning, funding, tr(
             lang,
             "Точную операционную причину изменения можно подтвердить только примечаниями к отчётности.",
             "O‘zgarishning aniq operatsion sababini faqat hisobot izohlari tasdiqlashi mumkin.",
             "The exact operating cause can only be confirmed from the notes to the financial statements.",
-        )) if part)
+        )) if part and part.strip())
+
+    # ── Bank and insurance narratives: the customer's formulation library ──
+    # Source: «Библиотека аналитических формулировок — банковский и страховой
+    # секторы (НСБУ)», 2026-09-24.  Every statement runs metric → direction →
+    # factor → caveat.  A change is never presented as its own cause, an
+    # analytical ratio is never called a regulatory standard, and a phrase is
+    # used only when every line it needs is disclosed.  In insurance, premiums,
+    # insurance revenue, insurance result and net profit are kept apart.
+    nsbu_name = tr(lang, "НСБУ", "BHMS", "NSBU")
+
+    def moved(key):
+        return (by_code.get(key) or {}).get("change_pct")
+
+    def fact_now(key):
+        return decimal((by_code.get(key) or {}).get("value"))
+
+    def fact_before(key):
+        return decimal((by_code.get(key) or {}).get("previous"))
+
+    def amount_text(amount):
+        return f"{display_money(amount)} {money_unit}"
+
+    def pct_of(numerator, denominator):
+        return ratio(numerator, denominator, True)
+
+    def pct_str(item):
+        return f"{format_number(item)}%"
+
+    def sector_conclusion():
+        """Close with the library's positive / mixed / negative wording."""
+        insurance = template == "insurance"
+        names = {
+            "revenue": tr(lang, "чистая выручка от страховых услуг", "sug‘urta xizmatlaridan sof tushum", "net insurance-service revenue") if insurance else tr(lang, "раскрытые доходы", "oshkor qilingan daromadlar", "disclosed income"),
+            "net_income": tr(lang, "чистая прибыль", "sof foyda", "net profit"),
+            "operating_income": tr(lang, "операционный результат", "operatsion natija", "operating result"),
+            "total_equity": tr(lang, "капитал", "kapital", "equity"),
+            "total_liabilities": tr(lang, "соотношение обязательств и капитала", "majburiyatlar va kapital nisbati", "liabilities relative to equity"),
+            "receivables": tr(lang, "дебиторская задолженность", "debitorlik qarzi", "receivables"),
+            "inventories": tr(lang, "запасы", "zaxiralar", "inventories"),
+            "insurance_claims": tr(lang, "страховые выплаты", "sug‘urta to‘lovlari", "insurance claims"),
+            "profit_quality": tr(lang, "качество прибыли", "foyda sifati", "earnings quality"),
+        }
+        pressure = {
+            "net_income": tr(lang, "прибыльность", "rentabellikka", "profitability"),
+            "operating_income": tr(lang, "результат основной деятельности", "asosiy faoliyat natijasiga", "the core operating result"),
+            "total_liabilities": tr(lang, "структуру баланса", "balans tuzilmasiga", "the balance-sheet structure"),
+            "receivables": tr(lang, "структуру активов", "aktivlar tuzilmasiga", "the asset structure"),
+            "inventories": tr(lang, "структуру активов", "aktivlar tuzilmasiga", "the asset structure"),
+            "insurance_claims": tr(lang, "результат услуг", "xizmatlar natijasiga", "the service result"),
+            "profit_quality": tr(lang, "прибыльность", "rentabellikka", "profitability"),
+        }
+
+        def subject(item):
+            code = item["code"]
+            if code == "profit_quality":
+                return "profit_quality"
+            return item["metric_code"]
+
+        def seen(items):
+            unique = []
+            for item in items:
+                key = subject(item)
+                if key in names and key not in unique:
+                    unique.append(key)
+            return unique
+
+        good, bad = seen(positives), seen(negatives)
+        parts = []
+        if verdict_status == "positive" and good:
+            parts.append(tr(lang, f"За период компания увеличила показатель «{names[good[0]]}».", f"Davr mobaynida kompaniya «{names[good[0]]}» ko‘rsatkichini oshirdi.", f"Over the period the company increased «{names[good[0]]}»."))
+            if len(good) > 1:
+                parts.append(tr(lang, f"Одновременно показатель «{names[good[1]]}» изменился в благоприятном направлении.", f"Bir vaqtning o‘zida «{names[good[1]]}» ko‘rsatkichi ijobiy tomonga o‘zgardi.", f"At the same time «{names[good[1]]}» moved in a favourable direction."))
+            parts.append(tr(lang, f"В целом динамика выглядит положительной в пределах доступных данных {nsbu_name}. Для подтверждения устойчивости тенденции необходимы данные за более длительный период.", f"Umuman olganda, dinamika mavjud {nsbu_name} ma’lumotlari doirasida ijobiy ko‘rinadi. Tendensiya barqarorligini tasdiqlash uchun uzoqroq davr ma’lumotlari kerak.", f"Overall, the trend looks positive within the available {nsbu_name} data. Data for a longer period are needed to confirm that the trend is sustainable."))
+        elif verdict_status == "mixed" and good and bad:
+            parts.append(tr(lang, f"Картина неоднородная: показатель «{names[good[0]]}» улучшился, тогда как показатель «{names[bad[0]]}» ухудшился.", f"Manzara bir xil emas: «{names[good[0]]}» ko‘rsatkichi yaxshilandi, «{names[bad[0]]}» ko‘rsatkichi esa yomonlashdi.", f"The picture is uneven: «{names[good[0]]}» improved, while «{names[bad[0]]}» worsened."))
+            parts.append(tr(lang, f"Ключевой вопрос для дальнейшего наблюдения — дальнейшая динамика показателя «{names[bad[0]]}».", f"Keyingi kuzatuv uchun asosiy savol — «{names[bad[0]]}» ko‘rsatkichining keyingi dinamikasi.", f"The key question to monitor is the further movement of «{names[bad[0]]}»."))
+        elif verdict_status == "negative" and bad:
+            target = pressure.get(bad[0], tr(lang, "прибыльность", "rentabellikka", "profitability"))
+            parts.append(tr(lang, f"За период ухудшился показатель «{names[bad[0]]}», что оказало давление на {target}.", f"Davr mobaynida «{names[bad[0]]}» ko‘rsatkichi yomonlashdi va bu {target} bosim o‘tkazdi.", f"Over the period «{names[bad[0]]}» worsened, which put pressure on {target}."))
+            parts.append(tr(lang, "Наблюдаемая динамика требует внимания, но не позволяет самостоятельно заключить о нарушении нормативов или неплатёжеспособности.", "Kuzatilayotgan dinamika e’tibor talab qiladi, ammo undan mustaqil ravishda me’yorlar buzilgani yoki to‘lovga qobiliyatsizlik haqida xulosa chiqarib bo‘lmaydi.", "The observed trend requires attention, but on its own it does not support a conclusion of a breach of regulatory standards or insolvency."))
+        else:
+            comparable = snapshot.get("previous_comparable_period") or tr(lang, "прошлый год", "o‘tgan yil", "the previous year")
+            parts.append(tr(lang, f"Сравнение ограничено отсутствием сопоставимых данных за {comparable}.", f"Taqqoslash {comparable} uchun taqqoslanadigan ma’lumotlar yo‘qligi bilan cheklangan.", f"The comparison is limited by the absence of comparable data for {comparable}."))
+        parts.append(tr(lang, f"Вывод основан на доступных формах {nsbu_name} за {period_text} и не заменяет оценку по регуляторной отчётности.", f"Xulosa {period_text} uchun mavjud {nsbu_name} shakllariga asoslangan va regulyativ hisobot bo‘yicha baholashni almashtirmaydi.", f"The conclusion is based on the available {nsbu_name} forms for {period_text} and does not replace an assessment based on regulatory reporting."))
+        return " ".join(parts)
 
     def bank_analysis_paragraphs():
-        """Build an explanatory bank narrative from verified totals only.
-
-        The sector report is deterministic: ratios are calculated here and the
-        prose never attributes a movement to an undisclosed business line.
-        """
-        value = lambda key: decimal((by_code.get(key) or {}).get("value"))
-        pct = lambda numerator, denominator: ratio(numerator, denominator, True)
-        money = lambda key: f"{display_money(value(key))} {money_unit}" if value(key) is not None else None
-        pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
-
-        interest_income = value("interest_income")
-        noninterest_income = value("noninterest_income")
-        interest_expenses = value("interest_expenses")
-        noninterest_expenses = value("noninterest_expenses")
-        operating_expenses = value("operating_expenses")
-        net_revenue_before_opex = value("net_revenue_before_operating_expenses")
-        profit_before_tax = value("profit_before_tax")
-        net_income = value("net_income")
-        disclosed_tax = value("tax")
+        """Bank narrative in the library's wording, from verified lines only."""
+        interest_income = fact_now("interest_income")
+        noninterest_income = fact_now("noninterest_income")
+        interest_expenses = fact_now("interest_expenses")
+        noninterest_expenses = fact_now("noninterest_expenses")
+        operating_expenses = fact_now("operating_expenses")
+        net_revenue_before_opex = fact_now("net_revenue_before_operating_expenses")
+        profit_before_tax = fact_now("profit_before_tax")
+        net_income = fact_now("net_income")
+        disclosed_tax = fact_now("tax")
         total_income = total(interest_income, noninterest_income)
         total_expenses = total(interest_expenses, noninterest_expenses, operating_expenses)
         net_interest_income = difference(interest_income, interest_expenses)
-        interest_expense_share = pct(interest_expenses, interest_income)
-        cost_to_income = pct(operating_expenses, net_revenue_before_opex)
+        interest_expense_share = pct_of(interest_expenses, interest_income)
+        cost_to_income = pct_of(operating_expenses, net_revenue_before_opex)
         tax_amount = disclosed_tax
         if tax_amount is None and profit_before_tax is not None and net_income is not None:
             tax_amount = profit_before_tax - net_income
 
-        net_change = (by_code.get("net_income") or {}).get("change_pct")
-        loan_change = (by_code.get("loan_portfolio") or {}).get("change_pct")
+        net_change = moved("net_income")
+        loan_change = moved("loan_portfolio")
+        assets_change = moved("total_assets")
         bank_exec = []
         if net_change is not None:
             bank_exec.append(tr(lang, f"Чистая прибыль изменилась на {format_number(net_change)}%.", f"Sof foyda {format_number(net_change)}% ga o‘zgardi.", f"Net profit changed {format_number(net_change)}%."))
         if net_interest_income is not None:
             bank_exec.append(tr(lang, f"Чистый процентный доход составил {display_money(net_interest_income)} {money_unit}.", f"Sof foizli daromad {display_money(net_interest_income)} {money_unit}ni tashkil etdi.", f"Net interest income was {display_money(net_interest_income)} {money_unit}."))
         if cost_to_income is not None:
-            bank_exec.append(tr(lang, f"Cost-to-Income составил {pct_text(cost_to_income)}.", f"Cost-to-Income {pct_text(cost_to_income)}ni tashkil etdi.", f"Cost-to-Income was {pct_text(cost_to_income)}."))
-        if loan_change is not None and loan_change < 0:
-            bank_exec.append(tr(lang, f"Кредитный портфель сократился на {format_number(abs(loan_change))}%, что ограничивает будущую процентную базу, если снижение продолжится.", f"Kredit portfeli {format_number(abs(loan_change))}% ga qisqardi; pasayish davom etsa, kelajakdagi foiz bazasi cheklanadi.", f"The loan portfolio contracted {format_number(abs(loan_change))}%, which would constrain the future interest base if sustained."))
+            bank_exec.append(tr(lang, f"Cost-to-Income составил {pct_str(cost_to_income)}.", f"Cost-to-Income {pct_str(cost_to_income)}ni tashkil etdi.", f"Cost-to-Income was {pct_str(cost_to_income)}."))
         intro = f"{headline} " + (" ".join(bank_exec) or tr(lang, "Главный вывод ограничен доступными раскрытиями.", "Asosiy xulosa mavjud ma’lumotlar bilan cheklangan.", "The key takeaway is limited by available disclosures."))
 
-        if total_income is not None and total_income > 0 and interest_income >= 0 and noninterest_income >= 0:
-            interest_share = pct(interest_income, total_income)
-            noninterest_share = pct(noninterest_income, total_income)
-            income_text = tr(
+        # Assets and loan portfolio.
+        asset_lines = []
+        if assets_change is not None:
+            grew = assets_change >= 0
+            driver = ""
+            loan_delta = difference(fact_now("loan_portfolio"), fact_before("loan_portfolio"))
+            asset_delta = difference(fact_now("total_assets"), fact_before("total_assets"))
+            if grew and loan_delta is not None and asset_delta is not None and asset_delta > 0 and loan_delta > 0 and loan_delta * 2 >= asset_delta:
+                driver = tr(lang, ", главным образом за счёт роста кредитного портфеля", ", asosan kredit portfeli o‘sishi hisobiga", ", mainly due to growth in the loan portfolio")
+            asset_lines.append(tr(
                 lang,
-                f"Совокупные раскрытые доходы банка за {period_text} составили {display_money(total_income)} {money_unit}: процентные доходы — {money('interest_income')} ({pct_text(interest_share)}), непроцентные — {money('noninterest_income')} ({pct_text(noninterest_share)}). Такая структура показывает, какая часть доходной базы зависит от кредитных и иных процентных инструментов, а какая формируется комиссиями, валютными и прочими операциями. Детализацию внутри этих двух групп отчёт не раскрывает, поэтому конкретный источник роста без примечаний определить нельзя.",
-                f"Bankning {period_text} uchun jami oshkor qilingan daromadi {display_money(total_income)} {money_unit}: foizli daromad — {money('interest_income')} ({pct_text(interest_share)}), foizsiz daromad — {money('noninterest_income')} ({pct_text(noninterest_share)}). Tuzilma daromad bazasining foizli vositalar va boshqa operatsiyalarga bog‘liqligini ko‘rsatadi. Guruhlar ichidagi tafsilotlar oshkor qilinmagan bo‘lsa, o‘sishning aniq manbasini izohlarsiz aniqlab bo‘lmaydi.",
-                f"The bank reported total disclosed income of {display_money(total_income)} {money_unit} for {period_text}: interest income was {money('interest_income')} ({pct_text(interest_share)}) and non-interest income was {money('noninterest_income')} ({pct_text(noninterest_share)}). This mix shows reliance on interest-bearing activity versus fees, FX and other operations. Without line-item notes, the precise growth driver cannot be identified.",
+                f"Активы банка за период {'увеличились' if grew else 'сократились'} на {format_number(abs(assets_change))}%{driver}.",
+                f"Bank aktivlari davr mobaynida {format_number(abs(assets_change))}% ga {'oshdi' if grew else 'kamaydi'}{driver}.",
+                f"The bank's assets {'increased' if grew else 'decreased'} by {format_number(abs(assets_change))}% over the period{driver}.",
+            ))
+        if loan_change is not None:
+            if loan_change < 0:
+                asset_lines.append(tr(lang, f"Кредитный портфель сократился на {format_number(abs(loan_change))}%. Для оценки причины важно сопоставить изменение с погашениями, выдачами и движением резервов — если эти данные раскрыты.", f"Kredit portfeli {format_number(abs(loan_change))}% ga qisqardi. Sababni baholash uchun o‘zgarishni so‘ndirishlar, berilgan kreditlar va zaxiralar harakati bilan solishtirish muhim — agar bu ma’lumotlar oshkor qilingan bo‘lsa.", f"The loan portfolio contracted by {format_number(abs(loan_change))}%. To assess the reason, the change should be compared with repayments, new lending and reserve movements — if these are disclosed."))
+            elif assets_change is not None and loan_change > assets_change:
+                asset_lines.append(tr(lang, f"Кредитный портфель рос быстрее активов: {pct_str(loan_change)} против {pct_str(assets_change)}. В структуре баланса усилилась роль кредитования.", f"Kredit portfeli aktivlardan tezroq o‘sdi: {pct_str(loan_change)} va {pct_str(assets_change)}. Balans tuzilmasida kreditlashning roli kuchaydi.", f"The loan portfolio grew faster than assets: {pct_str(loan_change)} versus {pct_str(assets_change)}. Lending now plays a larger role in the balance sheet."))
+            else:
+                asset_lines.append(tr(lang, f"Рост активов сопровождался расширением кредитного портфеля на {pct_str(loan_change)}. Это указывает на увеличение масштаба кредитных операций, но само по себе не характеризует их качество.", f"Aktivlar o‘sishi kredit portfelining {pct_str(loan_change)} ga kengayishi bilan birga kechdi. Bu kredit operatsiyalari ko‘lami oshganini ko‘rsatadi, ammo o‘z-o‘zidan ularning sifatini tavsiflamaydi.", f"Asset growth was accompanied by a {pct_str(loan_change)} expansion of the loan portfolio. This indicates larger lending operations but does not by itself describe their quality."))
+
+        # Loan quality and reserves.  The statutory bank form reports the loan
+        # line net of the reserve, so the gross book is net + reserve.
+        reserve_lines = []
+        reserves_now, reserves_open = fact_now("loan_reserves"), fact_before("loan_reserves")
+        gross_book = template == "bank"
+        loans_now = total(fact_now("loan_portfolio"), reserves_now) if gross_book else fact_now("loan_portfolio")
+        loans_open = total(fact_before("loan_portfolio"), reserves_open) if gross_book else fact_before("loan_portfolio")
+        reserve_change = change(reserves_now, reserves_open)["change_pct"]
+        book_change = change(loans_now, loans_open)["change_pct"]
+        book_name = tr(lang, "валовой кредитный портфель", "yalpi kredit portfeli", "the gross loan portfolio") if gross_book else tr(lang, "кредитный портфель", "kredit portfeli", "the loan portfolio")
+        if reserve_change is not None and book_change is not None:
+            reserve_up, book_up = reserve_change >= 0, book_change >= 0
+            reserve_lines.append(tr(
+                lang,
+                f"Резервы под кредитные потери {'увеличились' if reserve_up else 'сократились'} на {format_number(abs(reserve_change))}%, тогда как {book_name} {'вырос' if book_up else 'сократился'} на {format_number(abs(book_change))}%.",
+                f"Kredit yo‘qotishlari uchun zaxiralar {format_number(abs(reserve_change))}% ga {'oshdi' if reserve_up else 'kamaydi'}, {book_name} esa {format_number(abs(book_change))}% ga {'oshdi' if book_up else 'qisqardi'}.",
+                f"Loan-loss reserves {'increased' if reserve_up else 'decreased'} by {format_number(abs(reserve_change))}%, while {book_name} {'grew' if book_up else 'contracted'} by {format_number(abs(book_change))}%.",
+            ))
+            if reserve_change > 0 and book_change >= 0 and reserve_change > book_change:
+                reserve_lines.append(tr(lang, "Резервы росли быстрее кредитного портфеля. Это требует внимания, однако без данных о просрочке и классификации кредитов нельзя однозначно заключить, что качество портфеля ухудшилось.", "Zaxiralar kredit portfelidan tezroq o‘sdi. Bu e’tibor talab qiladi, ammo muddati o‘tgan kreditlar va kreditlar tasnifi haqida ma’lumotlarsiz portfel sifati yomonlashgan deb aniq xulosa chiqarib bo‘lmaydi.", "Reserves grew faster than the loan portfolio. This requires attention, but without data on overdue loans and loan classification it cannot be concluded that portfolio quality has deteriorated."))
+            elif reserve_change > 0 and book_change < 0:
+                reserve_lines.append(tr(lang, "Резервы увеличились при сокращении кредитного портфеля. Для объяснения динамики нужны данные о списаниях, восстановлении резервов и изменении качества кредитов.", "Kredit portfeli qisqargan holda zaxiralar oshdi. Dinamikani tushuntirish uchun hisobdan chiqarishlar, zaxiralarni tiklash va kreditlar sifati o‘zgarishi haqidagi ma’lumotlar kerak.", "Reserves increased while the loan portfolio contracted. Explaining this requires data on write-offs, reserve releases and changes in loan quality."))
+        coverage_now, coverage_open = pct_of(reserves_now, loans_now), pct_of(reserves_open, loans_open)
+        if coverage_now is not None:
+            against = tr(lang, f" против {pct_str(coverage_open)}", f" ({pct_str(coverage_open)} o‘rniga)", f" versus {pct_str(coverage_open)}") if coverage_open is not None else ""
+            reserve_lines.append(tr(
+                lang,
+                f"Отношение резервов к {'валовому кредитному портфелю' if gross_book else 'кредитному портфелю'} составило {pct_str(coverage_now)}{against}. Это аналитический коэффициент на основе отчётности, а не регуляторный норматив.",
+                f"Zaxiralarning {'yalpi kredit portfeliga' if gross_book else 'kredit portfeliga'} nisbati {pct_str(coverage_now)}{against}ni tashkil etdi. Bu hisobotga asoslangan tahliliy koeffitsiyent, regulyativ me’yor emas.",
+                f"The ratio of reserves to {'the gross loan portfolio' if gross_book else 'the loan portfolio'} was {pct_str(coverage_now)}{against}. This is an analytical ratio based on the financial statements, not a regulatory standard.",
+            ))
+        if reserves_now is not None:
+            reserve_lines.append(tr(lang, "В доступной форме нет достаточной детализации по просроченным и обесцененным кредитам; поэтому уровень проблемной задолженности по ней оценить нельзя.", "Mavjud shaklda muddati o‘tgan va qadrsizlangan kreditlar bo‘yicha yetarli tafsilot yo‘q; shu sababli muammoli qarzdorlik darajasini u orqali baholab bo‘lmaydi.", "The available form does not provide enough detail on overdue and impaired loans, so the level of problem debt cannot be assessed from it."))
+        if reserve_change is not None and reserve_change > 0:
+            reserve_lines.append(tr(lang, "Рост резервов может отражать как увеличение кредитного риска, так и изменение оценки ожидаемых потерь. По одной балансовой динамике различить эти причины нельзя.", "Zaxiralarning o‘sishi kredit riskining oshishini ham, kutilayotgan yo‘qotishlar bahosining o‘zgarishini ham aks ettirishi mumkin. Faqat balans dinamikasi bo‘yicha bu sabablarni ajratib bo‘lmaydi.", "Reserve growth may reflect either higher credit risk or a change in the estimate of expected losses. Balance-sheet movements alone cannot distinguish between these causes."))
+
+        # Deposits, funding and liquidity.
+        funding_lines = []
+        funds_change = moved("customer_funds")
+        if funds_change is not None and assets_change is not None and funds_change > 0 and assets_change >= 0 and funds_change > assets_change:
+            lead_pp = format_number(funds_change - assets_change)
+            funding_lines.append(tr(lang, f"Средства клиентов увеличились на {pct_str(funds_change)}, опережая рост активов на {lead_pp} п.п. В отчётности это соответствует усилению клиентской ресурсной базы.", f"Mijozlar mablag‘lari {pct_str(funds_change)} ga oshib, aktivlar o‘sishidan {lead_pp} foiz punktga o‘zib ketdi. Hisobotda bu mijozlar resurs bazasining kuchayishiga mos keladi.", f"Customer funds increased by {pct_str(funds_change)}, outpacing asset growth by {lead_pp} pp. In the statements this corresponds to a stronger customer funding base."))
+        if funds_change is not None and loan_change is not None:
+            funding_lines.append(tr(lang, f"Депозиты {'выросли' if funds_change >= 0 else 'сократились'} на {format_number(abs(funds_change))}%, а кредитный портфель — на {pct_str(loan_change)}. Для дополнительной оценки можно рассмотреть их соотношение, но оно не заменяет полноценный анализ ликвидности.", f"Depozitlar {format_number(abs(funds_change))}% ga {'oshdi' if funds_change >= 0 else 'kamaydi'}, kredit portfeli esa {pct_str(loan_change)} ga o‘zgardi. Qo‘shimcha baholash uchun ularning nisbatini ko‘rib chiqish mumkin, ammo u to‘laqonli likvidlik tahlilini almashtirmaydi.", f"Deposits {'grew' if funds_change >= 0 else 'contracted'} by {format_number(abs(funds_change))}%, and the loan portfolio changed by {pct_str(loan_change)}. Their ratio can be considered as an additional check, but it does not replace a full liquidity analysis."))
+        ldr = pct_of(fact_now("loan_portfolio"), fact_now("customer_funds"))
+        if ldr is not None:
+            funding_lines.append(tr(lang, f"Расчётное отношение кредитного портфеля к средствам клиентов (LDR) составляет {pct_str(ldr)}. Показатель описывает соотношение двух статей баланса и не является самостоятельной оценкой платёжеспособности банка.", f"Kredit portfelining mijozlar mablag‘lariga hisoblangan nisbati (LDR) {pct_str(ldr)}ni tashkil etadi. Ko‘rsatkich ikki balans moddasi nisbatini tavsiflaydi va bankning to‘lov qobiliyatini mustaqil baholash emas.", f"The calculated ratio of the loan portfolio to customer funds (LDR) is {pct_str(ldr)}. The ratio describes the relationship between two balance-sheet items and does not by itself assess the bank's solvency."))
+        term_now, term_open = pct_of(fact_now("term_deposits"), fact_now("customer_funds")), pct_of(fact_before("term_deposits"), fact_before("customer_funds"))
+        demand_now, demand_open = pct_of(fact_now("demand_deposits"), fact_now("customer_funds")), pct_of(fact_before("demand_deposits"), fact_before("customer_funds"))
+        if term_now is not None and term_open is not None and term_now > term_open:
+            funding_lines.append(tr(lang, f"Доля срочных вкладов в средствах клиентов увеличилась с {pct_str(term_open)} до {pct_str(term_now)}; структура клиентского фондирования сместилась в сторону срочных средств.", f"Mijozlar mablag‘laridagi muddatli omonatlar ulushi {pct_str(term_open)}dan {pct_str(term_now)}gacha oshdi; mijozlar hisobidan moliyalashtirish tuzilmasi muddatli mablag‘lar tomon siljidi.", f"The share of term deposits in customer funds rose from {pct_str(term_open)} to {pct_str(term_now)}; the customer funding mix shifted towards term funds."))
+        if demand_now is not None and demand_open is not None and demand_now > demand_open:
+            funding_lines.append(tr(lang, "Доля средств до востребования выросла. Это меняет структуру фондирования, но без данных о сроках активов и обязательств нельзя определить влияние на риск ликвидности.", "Talab qilinguncha mablag‘lar ulushi oshdi. Bu moliyalashtirish tuzilmasini o‘zgartiradi, ammo aktivlar va majburiyatlar muddatlari haqida ma’lumotlarsiz likvidlik riskiga ta’sirini aniqlab bo‘lmaydi.", "The share of demand funds increased. This changes the funding mix, but without data on the maturities of assets and liabilities its effect on liquidity risk cannot be determined."))
+        liquid_keys = ("cash", "central_bank_balances", "due_from_banks")
+        liquid_now = total(*(fact_now(key) for key in liquid_keys))
+        liquid_open = total(*(fact_before(key) for key in liquid_keys))
+        liquid_name = tr(lang, "Денежные средства и средства в центральном и других банках", "Pul mablag‘lari hamda markaziy va boshqa banklardagi mablag‘lar", "Cash and balances with the central bank and other banks")
+        if liquid_now is None or liquid_open is None:
+            liquid_now = total(fact_now("cash"), fact_now("central_bank_balances"))
+            liquid_open = total(fact_before("cash"), fact_before("central_bank_balances"))
+            liquid_name = tr(lang, "Денежные средства и средства в центральном банке", "Pul mablag‘lari va markaziy bankdagi mablag‘lar", "Cash and central bank balances")
+        liquid_change = change(liquid_now, liquid_open)["change_pct"]
+        if liquid_change is not None and liquid_change < 0:
+            funding_lines.append(tr(lang, f"{liquid_name} сократились на {format_number(abs(liquid_change))}%. Для оценки ликвидности этого недостаточно: нужны данные о сроках, доступности и составе ликвидных активов.", f"{liquid_name} {format_number(abs(liquid_change))}% ga kamaydi. Likvidlikni baholash uchun bu yetarli emas: likvid aktivlarning muddatlari, mavjudligi va tarkibi haqida ma’lumotlar kerak.", f"{liquid_name} decreased by {format_number(abs(liquid_change))}%. This is not enough to assess liquidity: data on the maturities, availability and composition of liquid assets are needed."))
+            if loan_change is not None and loan_change > 0:
+                funding_lines.append(tr(lang, "Снижение отдельных денежных остатков сопровождается ростом кредитного портфеля. Это указывает на изменение размещения средств, но не позволяет само по себе сделать вывод о дефиците ликвидности.", "Ayrim pul qoldiqlarining kamayishi kredit portfelining o‘sishi bilan birga kechmoqda. Bu mablag‘larni joylashtirish o‘zgarganini ko‘rsatadi, ammo o‘z-o‘zidan likvidlik taqchilligi haqida xulosa chiqarishga imkon bermaydi.", "The decline in some cash balances is accompanied by growth in the loan portfolio. This indicates a reallocation of funds but does not by itself support a conclusion of a liquidity shortage."))
+        elif liquid_change is not None:
+            funding_lines.append(tr(lang, f"{liquid_name} увеличились на {pct_str(liquid_change)}; для оценки ликвидности нужны также данные о сроках, доступности и составе ликвидных активов.", f"{liquid_name} {pct_str(liquid_change)} ga oshdi; likvidlikni baholash uchun likvid aktivlarning muddatlari, mavjudligi va tarkibi haqida ham ma’lumotlar kerak.", f"{liquid_name} increased by {pct_str(liquid_change)}; assessing liquidity also requires data on the maturities, availability and composition of liquid assets."))
+
+        balance_facts = [fact_sentence(key) for key in ("total_assets", "loan_portfolio", "loan_reserves", "cash", "customer_funds", "total_liabilities", "total_equity")]
+        balance_facts = [item for item in balance_facts if item]
+        horizontal_text = " ".join(filter(None, (
+            tr(lang, "Горизонтальный анализ баланса. ", "Balansning gorizontal tahlili. ", "Horizontal balance-sheet analysis. ") + ("; ".join(balance_facts) if balance_facts else tr(lang, "Недостаточно сопоставимых строк.", "Taqqoslanadigan satrlar yetarli emas.", "Insufficient comparable lines.")) + ".",
+            *asset_lines, *reserve_lines, *funding_lines,
+        )))
+        assets = fact_now("total_assets")
+        vertical_text = vertical_narrative(
+            ("loan_portfolio", "cash", "central_bank_balances", "due_from_banks"),
+            tr(lang, "Вертикальный анализ показывает не только текущие доли, но и то, как изменилась модель размещения активов. ", "Vertikal tahlil nafaqat joriy ulushlarni, balki aktivlarni joylashtirish modeli qanday o‘zgarganini ham ko‘rsatadi. ", "Vertical analysis shows both current shares and how the asset-allocation model changed. "),
+            bank_funding=True,
+        )
+
+        # Income and profitability.
+        income_lines = []
+        nii_before = fact_now("net_interest_income_before_provisions")
+        if nii_before is None:
+            nii_before = net_interest_income
+        nii_after = fact_now("net_interest_income_after_provisions")
+        provisions = fact_now("credit_loss_provisions")
+        if nii_before is not None and nii_after is not None:
+            income_lines.append(tr(lang, f"Чистый процентный доход до оценки кредитных потерь составил {amount_text(nii_before)}. После учёта расходов на оценку потерь он составил {amount_text(nii_after)}.", f"Kredit yo‘qotishlarini baholashgacha sof foizli daromad {amount_text(nii_before)}ni tashkil etdi. Yo‘qotishlarni baholash xarajatlari hisobga olingach, u {amount_text(nii_after)}ni tashkil etdi.", f"Net interest income before the credit-loss estimate was {amount_text(nii_before)}. After the credit-loss estimate it was {amount_text(nii_after)}."))
+        elif nii_before is not None:
+            income_lines.append(tr(lang, f"Чистый процентный доход до оценки кредитных потерь составил {amount_text(nii_before)}.", f"Kredit yo‘qotishlarini baholashgacha sof foizli daromad {amount_text(nii_before)}ni tashkil etdi.", f"Net interest income before the credit-loss estimate was {amount_text(nii_before)}."))
+        provision_share = pct_of(provisions, nii_before) if provisions is not None and provisions > 0 else None
+        if provision_share is not None:
+            material = provision_share >= 20
+            income_lines.append(tr(
+                lang,
+                f"Расходы на оценку кредитных потерь уменьшили чистый процентный результат на {pct_str(provision_share)}." + (" Их влияние существенно для итоговой оценки процентного бизнеса за период." if material else ""),
+                f"Kredit yo‘qotishlarini baholash xarajatlari sof foizli natijani {pct_str(provision_share)} ga kamaytirdi." + (" Ularning ta’siri davr uchun foizli biznesning yakuniy bahosi uchun muhim." if material else ""),
+                f"The credit-loss estimate reduced the net interest result by {pct_str(provision_share)}." + (" Its effect is material to the overall assessment of the interest business for the period." if material else ""),
+            ))
+        nii_prior = difference(fact_before("interest_income"), fact_before("interest_expenses"))
+        nii_move = change(net_interest_income, nii_prior)["change_pct"] if nii_prior is not None and nii_prior > 0 else None
+        if nii_move is not None:
+            income_lines.append(tr(lang, f"Чистый процентный доход {'увеличился' if nii_move >= 0 else 'уменьшился'} на {format_number(abs(nii_move))}%. Для объяснения динамики следует отдельно рассмотреть процентные доходы и расходы.", f"Sof foizli daromad {format_number(abs(nii_move))}% ga {'oshdi' if nii_move >= 0 else 'kamaydi'}. Dinamikani tushuntirish uchun foizli daromad va xarajatlarni alohida ko‘rib chiqish kerak.", f"Net interest income {'increased' if nii_move >= 0 else 'decreased'} by {format_number(abs(nii_move))}%. Interest income and interest expense should be examined separately to explain the change."))
+            income_move, expense_move = moved("interest_income"), moved("interest_expenses")
+            if income_move is not None and expense_move is not None and max(income_move, expense_move) > 0:
+                if income_move > expense_move:
+                    income_lines.append(tr(lang, "Процентные доходы росли быстрее процентных расходов, что поддержало чистый процентный результат.", "Foizli daromadlar foizli xarajatlardan tezroq o‘sdi va bu sof foizli natijani qo‘llab-quvvatladi.", "Interest income grew faster than interest expense, which supported the net interest result."))
+                elif expense_move > income_move:
+                    income_lines.append(tr(lang, "Процентные расходы росли быстрее процентных доходов; это оказало давление на чистый процентный результат.", "Foizli xarajatlar foizli daromadlardan tezroq o‘sdi; bu sof foizli natijaga bosim o‘tkazdi.", "Interest expense grew faster than interest income, which put pressure on the net interest result."))
+        fee_net = difference(fact_now("fee_income"), fact_now("fee_expenses"))
+        fx_net = difference(fact_now("fx_income"), fact_now("fx_expenses"))
+        if net_revenue_before_opex is not None and nii_after is not None and fee_net is not None and fx_net is not None:
+            other = net_revenue_before_opex - nii_after - fee_net - fx_net
+            sources = {
+                "interest": (nii_after, tr(lang, "процентные", "foizli", "interest")),
+                "fee": (fee_net, tr(lang, "комиссионные", "komission", "fee and commission")),
+                "fx": (fx_net, tr(lang, "валютные", "valyuta", "foreign-exchange")),
+                "other": (other, tr(lang, "прочие", "boshqa", "other")),
+            }
+            main = max(sources.values(), key=lambda item: item[0])
+            if main[0] > 0:
+                income_lines.append(tr(lang, f"Основной вклад в доходы до операционных расходов внесли {main[1]} операции.", f"Operatsion xarajatlargacha bo‘lgan daromadlarga asosiy hissani {main[1]} operatsiyalar qo‘shdi.", f"{main[1].capitalize()} operations made the main contribution to income before operating expenses."))
+        if fx_net is not None and fx_net != 0:
+            positive = fx_net > 0
+            income_lines.append(tr(lang, f"Чистый результат по валютным операциям составил {amount_text(fx_net)} и оказал {'положительное' if positive else 'отрицательное'} влияние на прибыль периода.", f"Valyuta operatsiyalari bo‘yicha sof natija {amount_text(fx_net)}ni tashkil etdi va davr foydasiga {'ijobiy' if positive else 'salbiy'} ta’sir ko‘rsatdi.", f"The net result from foreign-exchange operations was {amount_text(fx_net)} and had a {'positive' if positive else 'negative'} effect on profit for the period."))
+
+        if total_income is not None and total_income > 0 and interest_income >= 0 and noninterest_income >= 0:
+            interest_share = pct_of(interest_income, total_income)
+            noninterest_share = pct_of(noninterest_income, total_income)
+            income_mix = tr(
+                lang,
+                f"Совокупные раскрытые доходы банка за {period_text} составили {display_money(total_income)} {money_unit}: процентные доходы — {amount_text(interest_income)} ({pct_str(interest_share)}), непроцентные — {amount_text(noninterest_income)} ({pct_str(noninterest_share)}).",
+                f"Bankning {period_text} uchun jami oshkor qilingan daromadi {display_money(total_income)} {money_unit}: foizli daromad — {amount_text(interest_income)} ({pct_str(interest_share)}), foizsiz daromad — {amount_text(noninterest_income)} ({pct_str(noninterest_share)}).",
+                f"The bank reported total disclosed income of {display_money(total_income)} {money_unit} for {period_text}: interest income was {amount_text(interest_income)} ({pct_str(interest_share)}) and non-interest income was {amount_text(noninterest_income)} ({pct_str(noninterest_share)}).",
             )
         else:
             available_income = "; ".join(filter(None, (fact_sentence("interest_income"), fact_sentence("noninterest_income"))))
-            income_text = tr(lang, "Структура доходов. ", "Daromadlar tarkibi. ", "Income mix. ") + (available_income or tr(lang, "Недостаточно данных для расчёта.", "Hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate it."))
+            income_mix = available_income or tr(lang, "Недостаточно данных для расчёта структуры доходов.", "Daromadlar tarkibini hisoblash uchun ma’lumot yetarli emas.", "Insufficient data to calculate the income mix.")
+        income_text = tr(lang, "Доходы и прибыльность. ", "Daromadlar va rentabellik. ", "Income and profitability. ") + " ".join([income_mix, *income_lines])
 
         expense_parts = []
         if interest_expenses is not None:
-            expense_parts.append(tr(lang, f"процентные расходы — {money('interest_expenses')}", f"foizli xarajatlar — {money('interest_expenses')}", f"interest expense was {money('interest_expenses')}"))
+            expense_parts.append(tr(lang, f"процентные расходы — {amount_text(interest_expenses)}", f"foizli xarajatlar — {amount_text(interest_expenses)}", f"interest expense was {amount_text(interest_expenses)}"))
         if interest_expense_share is not None:
             expense_parts.append(tr(
                 lang,
-                f"они равны {pct_text(interest_expense_share)} процентных доходов: это доля расходов в доходах, а не стоимость фондирования, для которой нужны средние процентные обязательства и ставки",
-                f"bu foizli daromadning {pct_text(interest_expense_share)}iga teng: bu daromaddagi xarajat ulushi, moliyalashtirish qiymati emas; buning uchun o‘rtacha foizli majburiyatlar va stavkalar kerak",
-                f"that equals {pct_text(interest_expense_share)} of interest income; this is an expense-to-income share, not funding cost, which requires average interest-bearing liabilities and rates",
+                f"они равны {pct_str(interest_expense_share)} процентных доходов: это доля расходов в доходах, а не стоимость фондирования, для которой нужны средние процентные обязательства и ставки",
+                f"bu foizli daromadning {pct_str(interest_expense_share)}iga teng: bu daromaddagi xarajat ulushi, moliyalashtirish qiymati emas; buning uchun o‘rtacha foizli majburiyatlar va stavkalar kerak",
+                f"that equals {pct_str(interest_expense_share)} of interest income; this is an expense-to-income share, not funding cost, which requires average interest-bearing liabilities and rates",
             ))
         if operating_expenses is not None:
-            op_share = cost_to_income
-            suffix = f" (Cost-to-Income {pct_text(op_share)})" if op_share is not None else ""
-            expense_parts.append(tr(lang, f"операционные расходы — {money('operating_expenses')}{suffix}", f"operatsion xarajatlar — {money('operating_expenses')}{suffix}", f"operating expenses were {money('operating_expenses')}{suffix}"))
+            expense_parts.append(tr(lang, f"операционные расходы — {amount_text(operating_expenses)}", f"operatsion xarajatlar — {amount_text(operating_expenses)}", f"operating expenses were {amount_text(operating_expenses)}"))
         if noninterest_expenses is not None:
-            expense_parts.append(tr(lang, f"непроцентные расходы — {money('noninterest_expenses')}", f"foizsiz xarajatlar — {money('noninterest_expenses')}", f"non-interest expenses were {money('noninterest_expenses')}"))
-        expense_text = tr(lang, "Расходы и стоимость ресурсов. ", "Xarajatlar va resurslar qiymati. ", "Expenses and funding cost. ") + ("; ".join(expense_parts) if expense_parts else tr(lang, "Недостаточно раскрытых данных для расчёта структуры расходов.", "Xarajatlar tarkibini hisoblash uchun ma’lumot yetarli emas.", "Insufficient disclosed data to calculate the expense mix.")) + "."
+            expense_parts.append(tr(lang, f"непроцентные расходы — {amount_text(noninterest_expenses)}", f"foizsiz xarajatlar — {amount_text(noninterest_expenses)}", f"non-interest expenses were {amount_text(noninterest_expenses)}"))
+        expense_body = "; ".join(expense_parts)
+        expense_text = tr(lang, "Расходы и стоимость ресурсов. ", "Xarajatlar va resurslar qiymati. ", "Expenses and funding cost. ") + (expense_body[:1].upper() + expense_body[1:] if expense_parts else tr(lang, "Недостаточно раскрытых данных для расчёта структуры расходов.", "Xarajatlar tarkibini hisoblash uchun ma’lumot yetarli emas.", "Insufficient disclosed data to calculate the expense mix.")) + "."
 
         profit_parts = []
         if net_income is not None:
-            net_fact = by_code["net_income"]
-            movement = net_fact.get("change_pct")
-            profit_parts.append(tr(lang, f"Чистая прибыль составила {money('net_income')}", f"Sof foyda {money('net_income')}ni tashkil etdi", f"Net profit was {money('net_income')}"))
-            if movement is not None:
-                profit_parts.append(tr(lang, f"изменение к сопоставимому периоду — {format_number(movement)}%", f"taqqoslanadigan davrga nisbatan o‘zgarish — {format_number(movement)}%", f"the change from the comparable period was {format_number(movement)}%"))
-        effective_tax = pct(tax_amount, profit_before_tax)
+            profit_parts.append(tr(lang, f"Чистая прибыль составила {amount_text(net_income)}", f"Sof foyda {amount_text(net_income)}ni tashkil etdi", f"Net profit was {amount_text(net_income)}"))
+            if net_change is not None:
+                profit_parts.append(tr(lang, f"изменение к сопоставимому периоду — {format_number(net_change)}%", f"taqqoslanadigan davrga nisbatan o‘zgarish — {format_number(net_change)}%", f"the change from the comparable period was {format_number(net_change)}%"))
+        effective_tax = pct_of(tax_amount, profit_before_tax)
         if profit_before_tax is not None:
-            profit_parts.append(tr(lang, f"прибыль до налога — {money('profit_before_tax')}", f"soliqdan oldingi foyda — {money('profit_before_tax')}", f"profit before tax was {money('profit_before_tax')}"))
+            profit_parts.append(tr(lang, f"прибыль до налога — {amount_text(profit_before_tax)}", f"soliqdan oldingi foyda — {amount_text(profit_before_tax)}", f"profit before tax was {amount_text(profit_before_tax)}"))
         if tax_amount is not None:
             tax_source = tr(lang, "раскрытый налог", "oshkor qilingan soliq", "disclosed tax") if disclosed_tax is not None else tr(lang, "расчётная разница между прибылью до и после налога", "soliqdan oldingi va keyingi foyda o‘rtasidagi hisoblangan farq", "the calculated difference between pre- and post-tax profit")
-            effective_tax_text = pct_text(effective_tax) or tr(lang, "не рассчитывается", "hisoblanmaydi", "not calculable")
-            profit_parts.append(tr(lang, f"налоговый расход — {display_money(tax_amount)} {money_unit}, эффективная ставка — {effective_tax_text} ({tax_source})", f"soliq xarajati — {display_money(tax_amount)} {money_unit}, samarali stavka — {effective_tax_text} ({tax_source})", f"tax expense was {display_money(tax_amount)} {money_unit}, giving an effective rate of {effective_tax_text} ({tax_source})"))
-        profit_text = tr(lang, "Прибыль и налог. ", "Foyda va soliq. ", "Profit and tax. ") + ("; ".join(profit_parts) if profit_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + ". " + tr(
+            effective_tax_text = pct_str(effective_tax) if effective_tax is not None else tr(lang, "не рассчитывается", "hisoblanmaydi", "not calculable")
+            profit_parts.append(tr(lang, f"налоговый расход — {amount_text(tax_amount)}, эффективная ставка — {effective_tax_text} ({tax_source})", f"soliq xarajati — {amount_text(tax_amount)}, samarali stavka — {effective_tax_text} ({tax_source})", f"tax expense was {amount_text(tax_amount)}, giving an effective rate of {effective_tax_text} ({tax_source})"))
+        pbt_move = moved("profit_before_tax")
+        tax_before = fact_before("tax")
+        reconciles = all(
+            item is not None for item in (profit_before_tax, disclosed_tax, net_income, fact_before("profit_before_tax"), tax_before, fact_before("net_income"))
+        ) and profit_before_tax - disclosed_tax == net_income and fact_before("profit_before_tax") - tax_before == fact_before("net_income")
+        pbt_sentence = ""
+        if pbt_move is not None and net_change is not None and reconciles:
+            pbt_sentence = " " + tr(lang, f"Прибыль до налогообложения {'увеличилась' if pbt_move >= 0 else 'снизилась'} на {format_number(abs(pbt_move))}%, а чистая прибыль — на {pct_str(net_change)}. Разница связана с изменением налоговых расходов.", f"Soliqqa tortishgacha foyda {format_number(abs(pbt_move))}% ga {'oshdi' if pbt_move >= 0 else 'kamaydi'}, sof foyda esa {pct_str(net_change)} ga o‘zgardi. Farq soliq xarajatlarining o‘zgarishi bilan bog‘liq.", f"Profit before tax {'increased' if pbt_move >= 0 else 'decreased'} by {format_number(abs(pbt_move))}%, and net profit changed by {pct_str(net_change)}. The difference reflects the change in tax expense.")
+        profit_text = tr(lang, "Прибыль и налог. ", "Foyda va soliq. ", "Profit and tax. ") + ("; ".join(profit_parts) if profit_parts else tr(lang, "Недостаточно данных.", "Ma’lumot yetarli emas.", "Insufficient data.")) + "." + pbt_sentence + " " + tr(
             lang,
             "Отклонение эффективной ставки от законодательной само по себе не доказывает наличие льгот: для вывода нужны налоговые примечания.",
             "Samarali stavkaning qonuniy stavkadan farqi imtiyoz mavjudligini o‘z-o‘zidan isbotlamaydi: xulosa uchun soliq izohlari kerak.",
             "A difference from the statutory rate does not by itself prove tax relief; tax notes are needed for that conclusion.",
         )
-
-        balance_facts = [fact_sentence(key) for key in ("total_assets", "loan_portfolio", "loan_reserves", "cash", "customer_funds", "total_liabilities", "total_equity")]
-        balance_facts = [item for item in balance_facts if item]
-        horizontal_text = tr(lang, "Горизонтальный анализ баланса. ", "Balansning gorizontal tahlili. ", "Horizontal balance-sheet analysis. ") + ("; ".join(balance_facts) if balance_facts else tr(lang, "Недостаточно сопоставимых строк.", "Taqqoslanadigan satrlar yetarli emas.", "Insufficient comparable lines.")) + "."
-        assets = value("total_assets")
-        vertical_text = vertical_narrative(
-            ("loan_portfolio", "cash", "central_bank_balances"),
-            tr(lang, "Вертикальный анализ показывает не только текущие доли, но и то, как изменилась модель размещения активов. ", "Vertikal tahlil nafaqat joriy ulushlarni, balki aktivlarni joylashtirish modeli qanday o‘zgarganini ham ko‘rsatadi. ", "Vertical analysis shows both current shares and how the asset-allocation model changed. "),
-            bank_funding=True,
-        )
         results_text = " ".join((income_text, expense_text, profit_text))
+
+        # Ratios, operating efficiency and capital.
         ratio_parts = []
         if net_interest_income is not None:
-            ratio_parts.append(tr(lang, f"NII = процентные доходы − процентные расходы = {display_money(net_interest_income)} {money_unit}", f"NII = foizli daromad − foizli xarajat = {display_money(net_interest_income)} {money_unit}", f"NII = interest income − interest expense = {display_money(net_interest_income)} {money_unit}"))
+            ratio_parts.append(tr(lang, f"NII = процентные доходы − процентные расходы = {amount_text(net_interest_income)}", f"NII = foizli daromad − foizli xarajat = {amount_text(net_interest_income)}", f"NII = interest income − interest expense = {amount_text(net_interest_income)}"))
         if interest_expense_share is not None:
-            ratio_parts.append(tr(lang, f"Доля процентных расходов в процентных доходах = {pct_text(interest_expense_share)}", f"Foizli xarajatlarning foizli daromaddagi ulushi = {pct_text(interest_expense_share)}", f"Interest expense / interest income = {pct_text(interest_expense_share)}"))
-        ldr = pct(value("loan_portfolio"), value("customer_funds"))
+            ratio_parts.append(tr(lang, f"Доля процентных расходов в процентных доходах = {pct_str(interest_expense_share)}", f"Foizli xarajatlarning foizli daromaddagi ulushi = {pct_str(interest_expense_share)}", f"Interest expense / interest income = {pct_str(interest_expense_share)}"))
         if ldr is not None:
-            ratio_parts.append(f"LDR = {tr(lang, 'кредиты / средства клиентов', 'kreditlar / mijozlar mablag‘i', 'loans / customer funds')} = {pct_text(ldr)}")
+            ratio_parts.append(f"LDR = {tr(lang, 'кредиты / средства клиентов', 'kreditlar / mijozlar mablag‘i', 'loans / customer funds')} = {pct_str(ldr)}")
         if cost_to_income is not None:
-            ratio_parts.append(f"Cost-to-Income = {tr(lang, 'операционные расходы / чистый доход до операционных расходов', 'operatsion xarajatlar / operatsion xarajatlargacha sof daromad', 'operating expenses / net revenue before operating expenses')} = {pct_text(cost_to_income)}")
-        reserve_coverage = pct(value("loan_reserves"), value("loan_portfolio"))
-        if reserve_coverage is not None:
-            ratio_parts.append(f"{tr(lang, 'Резервы / кредитный портфель', 'Zaxiralar / kredit portfeli', 'Loan reserves / loan portfolio')} = {pct_text(reserve_coverage)}")
-        capital_share = pct(value("total_equity"), assets)
+            ratio_parts.append(f"Cost-to-Income = {tr(lang, 'операционные расходы / чистый доход до операционных расходов', 'operatsion xarajatlar / operatsion xarajatlargacha sof daromad', 'operating expenses / net revenue before operating expenses')} = {pct_str(cost_to_income)}")
+        if coverage_now is not None:
+            ratio_parts.append(f"{tr(lang, 'Резервы / валовой кредитный портфель', 'Zaxiralar / yalpi kredit portfeli', 'Loan reserves / gross loan portfolio') if gross_book else tr(lang, 'Резервы / кредитный портфель', 'Zaxiralar / kredit portfeli', 'Loan reserves / loan portfolio')} = {pct_str(coverage_now)}")
+        capital_share = pct_of(fact_now("total_equity"), assets)
+        capital_share_open = pct_of(fact_before("total_equity"), fact_before("total_assets"))
         if capital_share is not None:
-            ratio_parts.append(f"{tr(lang, 'Капитал / активы', 'Kapital / aktivlar', 'Equity / assets')} = {pct_text(capital_share)}")
+            ratio_parts.append(f"{tr(lang, 'Капитал / активы', 'Kapital / aktivlar', 'Equity / assets')} = {pct_str(capital_share)}")
         months = int(str(period)[-1]) * 3 if re.fullmatch(r"\d{4}Q[1-4]", str(period)) else 12
-        assets_open = decimal((by_code.get("total_assets") or {}).get("previous"))
-        equity_open = decimal((by_code.get("total_equity") or {}).get("previous"))
-        average_assets = total(assets, assets_open) / 2 if assets is not None and assets_open is not None else None
-        average_equity = total(value("total_equity"), equity_open) / 2 if value("total_equity") is not None and equity_open is not None else None
+        assets_open = fact_before("total_assets")
+        equity_now, equity_open = fact_now("total_equity"), fact_before("total_equity")
+        average_basis = assets is not None and assets_open is not None and equity_now is not None and equity_open is not None
+        asset_base = total(assets, assets_open) / 2 if assets is not None and assets_open is not None else assets
+        equity_base = total(equity_now, equity_open) / 2 if equity_now is not None and equity_open is not None else equity_now
         annualized_profit = net_income * Decimal(12) / months if net_income is not None else None
-        roa = pct(annualized_profit, average_assets)
-        roe = pct(annualized_profit, average_equity)
+        roa, roe = pct_of(annualized_profit, asset_base), pct_of(annualized_profit, equity_base)
+        yearly = tr(lang, " в годовом выражении", " yillik hisobda", " on an annualised basis") if months < 12 else ""
+        efficiency_lines = []
         if roa is not None:
-            ratio_parts.append(f"{tr(lang, 'ROA (в годовом выражении)', 'ROA (yilliklashtirilgan)', 'ROA (annualized)')} = {pct_text(roa)}")
+            ratio_parts.append(f"{tr(lang, 'ROA (в годовом выражении)', 'ROA (yilliklashtirilgan)', 'ROA (annualized)')} = {pct_str(roa)}")
+            efficiency_lines.append(tr(
+                lang,
+                f"Рентабельность активов (ROA), рассчитанная по доступным данным, составила {pct_str(roa)}{yearly}. Это аналитическая оценка за {period_text} с использованием {'средних' if average_basis else 'конечных'} активов.",
+                f"Mavjud ma’lumotlar bo‘yicha hisoblangan aktivlar rentabelligi (ROA){yearly} {pct_str(roa)}ni tashkil etdi. Bu {period_text} uchun {'o‘rtacha' if average_basis else 'davr oxiridagi'} aktivlardan foydalangan holda tahliliy baho.",
+                f"Return on assets (ROA), calculated from the available data, was {pct_str(roa)}{yearly}. This is an analytical estimate for {period_text} using {'average' if average_basis else 'closing'} assets.",
+            ))
         if roe is not None:
-            ratio_parts.append(f"{tr(lang, 'ROE (в годовом выражении)', 'ROE (yilliklashtirilgan)', 'ROE (annualized)')} = {pct_text(roe)}")
-        ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + "."
-        balance_conclusion = " ".join(bank_exec)
-        balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + (balance_conclusion or tr(lang, "Итог ограничен раскрытыми показателями выше.", "Xulosa yuqorida oshkor qilingan ko‘rsatkichlar bilan cheklangan.", "The conclusion is limited to the disclosed metrics above."))
+            ratio_parts.append(f"{tr(lang, 'ROE (в годовом выражении)', 'ROE (yilliklashtirilgan)', 'ROE (annualized)')} = {pct_str(roe)}")
+            efficiency_lines.append(tr(lang, f"Рентабельность капитала (ROE) составила {pct_str(roe)}{yearly}. При сравнении важно учитывать, что расчёт может быть чувствителен к использованию конечного или среднего капитала и к пересчёту неполного года.", f"Kapital rentabelligi (ROE){yearly} {pct_str(roe)}ni tashkil etdi. Taqqoslashda hisob davr oxiridagi yoki o‘rtacha kapitaldan foydalanishga va to‘liq bo‘lmagan yilni qayta hisoblashga sezgir bo‘lishi mumkinligini hisobga olish muhim.", f"Return on equity (ROE) was {pct_str(roe)}{yearly}. When comparing, note that the calculation can be sensitive to using closing or average equity and to annualising a partial year."))
+        if cost_to_income is not None:
+            efficiency_lines.append(tr(lang, f"Операционные расходы составили {pct_str(cost_to_income)} от выбранной базы операционных доходов (Cost-to-Income). В расчёте использована формула: операционные расходы / чистый доход до операционных расходов.", f"Operatsion xarajatlar tanlangan operatsion daromadlar bazasining {pct_str(cost_to_income)}ini tashkil etdi (Cost-to-Income). Hisobda formula qo‘llanildi: operatsion xarajatlar / operatsion xarajatlargacha sof daromad.", f"Operating expenses were {pct_str(cost_to_income)} of the selected operating-income base (Cost-to-Income). The formula used is: operating expenses / net revenue before operating expenses."))
+            cir_before = pct_of(fact_before("operating_expenses"), fact_before("net_revenue_before_operating_expenses"))
+            if cir_before is not None and cost_to_income < cir_before:
+                efficiency_lines.append(tr(lang, f"Показатель Cost-to-Income снизился с {pct_str(cir_before)} до {pct_str(cost_to_income)}, что соответствует уменьшению доли расходов в рассчитанной базе доходов. Это не обязательно означает абсолютное сокращение расходов.", f"Cost-to-Income ko‘rsatkichi {pct_str(cir_before)}dan {pct_str(cost_to_income)}gacha pasaydi, bu hisoblangan daromad bazasidagi xarajatlar ulushining kamayishiga mos keladi. Bu xarajatlar mutlaq qisqarganini anglatishi shart emas.", f"Cost-to-Income fell from {pct_str(cir_before)} to {pct_str(cost_to_income)}, meaning expenses took a smaller share of the calculated income base. This does not necessarily mean expenses fell in absolute terms."))
+            elif cir_before is not None and cost_to_income > cir_before:
+                efficiency_lines.append(tr(lang, "Операционные расходы росли быстрее доходной базы, поэтому расчётный Cost-to-Income увеличился.", "Operatsion xarajatlar daromad bazasidan tezroq o‘sdi, shu sababli hisoblangan Cost-to-Income oshdi.", "Operating expenses grew faster than the income base, so the calculated Cost-to-Income rose."))
+        equity_move = moved("total_equity")
+        if equity_move is not None and assets_change is not None:
+            equity_up, assets_up = equity_move >= 0, assets_change >= 0
+            assets_clause = tr(lang, f"а активы — на {format_number(abs(assets_change))}%", f"aktivlar esa {format_number(abs(assets_change))}% ga", f"and assets by {format_number(abs(assets_change))}%") if equity_up == assets_up else tr(lang, f"а активы {'выросли' if assets_up else 'сократились'} на {format_number(abs(assets_change))}%", f"aktivlar esa {format_number(abs(assets_change))}% ga {'oshdi' if assets_up else 'kamaydi'}", f"while assets {'grew' if assets_up else 'contracted'} by {format_number(abs(assets_change))}%")
+            shift = tr(lang, f" Балансовое соотношение капитала к активам изменилось с {pct_str(capital_share_open)} до {pct_str(capital_share)}.", f" Kapitalning aktivlarga balans nisbati {pct_str(capital_share_open)}dan {pct_str(capital_share)}gacha o‘zgardi.", f" The balance-sheet ratio of equity to assets moved from {pct_str(capital_share_open)} to {pct_str(capital_share)}.") if capital_share is not None and capital_share_open is not None else ""
+            efficiency_lines.append(tr(lang, f"Капитал {'вырос' if equity_up else 'сократился'} на {format_number(abs(equity_move))}%, {assets_clause}.", f"Kapital {format_number(abs(equity_move))}% ga {'oshdi' if equity_up else 'kamaydi'}, {assets_clause}.", f"Equity {'grew' if equity_up else 'contracted'} by {format_number(abs(equity_move))}% {assets_clause}.") + shift)
+        if capital_share is not None:
+            efficiency_lines.append(tr(lang, "Соотношение капитала и активов рассчитано по бухгалтерскому балансу и не является нормативом достаточности капитала.", "Kapital va aktivlar nisbati buxgalteriya balansi bo‘yicha hisoblangan va kapital yetarliligi me’yori emas.", "The equity-to-assets ratio is calculated from the accounting balance sheet and is not a capital adequacy ratio."))
+        efficiency_lines.append(tr(lang, f"По предоставленной форме {nsbu_name} нельзя подтвердить соблюдение банковских пруденциальных нормативов; для этого требуются регуляторная отчётность и соответствующие нормативные данные.", f"Taqdim etilgan {nsbu_name} shakli bo‘yicha bankning prudensial me’yorlariga rioya qilinishini tasdiqlab bo‘lmaydi; buning uchun regulyativ hisobot va tegishli me’yoriy ma’lumotlar kerak.", f"The {nsbu_name} form provided cannot confirm compliance with prudential banking ratios; that requires regulatory reporting and the relevant regulatory data."))
+        ratio_text = tr(lang, "Коэффициентный анализ. ", "Koeffitsiyentlar tahlili. ", "Ratio analysis. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash komponentlari yetarli emas.", "Insufficient components for calculation.")) + ". " + " ".join(efficiency_lines)
+        balance_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + sector_conclusion()
         if total_expenses is None:
             balance_text += " " + tr(lang, "Полная сумма расходов не рассчитана, поскольку не все необходимые строки раскрыты.", "Barcha zarur satrlar oshkor qilinmagani uchun jami xarajatlar hisoblanmadi.", "Total expenses were not calculated because not all required lines were disclosed.")
         narrative_blocks["performance"] = [
-            {"lead": tr(lang, "Доходная база", "Daromad bazasi", "Income base"), "text": income_text},
+            {"lead": tr(lang, "Доходы и прибыльность", "Daromadlar va rentabellik", "Income and profitability"), "text": income_text},
             {"lead": tr(lang, "Расходы и стоимость ресурсов", "Xarajatlar va resurslar qiymati", "Expenses and resource cost"), "text": expense_text},
             {"lead": tr(lang, "Прибыль и налоги", "Foyda va soliqlar", "Profit and tax"), "text": profit_text},
-            {"lead": tr(lang, "Ключевые банковские коэффициенты", "Asosiy bank koeffitsiyentlari", "Key banking ratios"), "text": ratio_text},
+            {"lead": tr(lang, "Операционная эффективность и капитал", "Operatsion samaradorlik va kapital", "Operating efficiency and capital"), "text": " ".join(efficiency_lines)},
+        ]
+        position_blocks = [
+            (tr(lang, "Активы и кредитный портфель", "Aktivlar va kredit portfeli", "Assets and loan portfolio"), asset_lines),
+            (tr(lang, "Качество кредитов и резервы", "Kreditlar sifati va zaxiralar", "Loan quality and reserves"), reserve_lines),
+            (tr(lang, "Депозиты, финансирование и ликвидность", "Depozitlar, moliyalashtirish va likvidlik", "Deposits, funding and liquidity"), funding_lines),
         ]
         narrative_blocks["position"] = [
-            {"lead": tr(lang, "Динамика активов и фондирования", "Aktivlar va moliyalashtirish dinamikasi", "Asset and funding movement"), "text": horizontal_text},
-            {"lead": tr(lang, "Структура активов и капитала", "Aktivlar va kapital tarkibi", "Asset and capital structure"), "text": vertical_text},
-        ]
+            {"lead": lead, "text": " ".join(lines)} for lead, lines in position_blocks if lines
+        ] + [{"lead": tr(lang, "Структура активов и капитала", "Aktivlar va kapital tarkibi", "Asset and capital structure"), "text": vertical_text}]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, balance_text]
 
     def insurance_analysis_paragraphs():
-        """Use an underwriting lens; never fall back to corporate leverage prose."""
-        value = lambda key: decimal((by_code.get(key) or {}).get("value"))
-        prior = lambda key: decimal((by_code.get(key) or {}).get("previous"))
-        pct = lambda numerator, denominator: ratio(numerator, denominator, True)
-        pct_text = lambda item: f"{format_number(item)}%" if item is not None else None
-
-        premiums = value("insurance_premiums")
-        claims = value("insurance_claims")
-        gross_reserves = value("gross_insurance_reserves")
-        reinsurer_reserves = value("reinsurer_share_in_reserves")
-        net_reserves = value("net_insurance_reserves")
-        operating_income = value("operating_income")
-        net_income = value("net_income")
-        premium_change = (by_code.get("insurance_premiums") or {}).get("change_pct")
-        operating_change = (by_code.get("operating_income") or {}).get("change_pct")
-        net_change = (by_code.get("net_income") or {}).get("change_pct")
-        retention = pct(net_reserves, gross_reserves)
-        prior_retention = pct(prior("net_insurance_reserves"), prior("gross_insurance_reserves"))
-        reinsurer_share = pct(reinsurer_reserves, gross_reserves)
-        retention_shift = difference(retention, prior_retention)
+        """Insurer narrative that keeps premiums, revenue, result and profit apart."""
+        premiums = fact_now("insurance_premiums")
+        premium_change = moved("insurance_premiums")
+        ceded = fact_now("ceded_premiums")
+        ceded_before = fact_before("ceded_premiums")
+        revenue = fact_now("revenue")
+        revenue_change = moved("revenue")
+        service_cost = fact_now("insurance_service_cost")
+        service_cost_change = moved("insurance_service_cost")
+        service_result = fact_now("insurance_service_result")
+        service_result_before = fact_before("insurance_service_result")
+        if service_result is None:
+            service_result = difference(revenue, service_cost)
+            service_result_before = difference(fact_before("revenue"), fact_before("insurance_service_cost"))
+        gross_reserves = fact_now("gross_insurance_reserves")
+        reinsurer_reserves = fact_now("reinsurer_share_in_reserves")
+        net_reserves = fact_now("net_insurance_reserves")
+        operating_income = fact_now("operating_income")
+        operating_change = moved("operating_income")
+        net_income = fact_now("net_income")
+        net_change = moved("net_income")
+        claims = fact_now("insurance_claims")
 
         highlights = []
         if premium_change is not None:
             highlights.append(tr(lang, f"Страховые премии изменились на {format_number(premium_change)}%.", f"Sug‘urta mukofotlari {format_number(premium_change)}% ga o‘zgardi.", f"Insurance premiums changed {format_number(premium_change)}%."))
-        if operating_change is not None and net_change is not None:
+        operating_before = fact_before("operating_income")
+        if operating_change is not None and net_change is not None and operating_income is not None and operating_income > 0 and operating_before is not None and operating_before > 0:
             highlights.append(tr(lang, f"Операционный результат изменился на {format_number(operating_change)}%, а чистая прибыль — на {format_number(net_change)}%.", f"Operatsion natija {format_number(operating_change)}%, sof foyda esa {format_number(net_change)}% ga o‘zgardi.", f"The operating result changed {format_number(operating_change)}% while net profit changed {format_number(net_change)}%."))
-        intro = f"{headline} " + (" ".join(highlights) or tr(lang, "Вывод ограничен раскрытыми страховыми показателями.", "Xulosa oshkor qilingan sug‘urta ko‘rsatkichlari bilan cheklangan.", "The conclusion is limited to disclosed insurance metrics."))
+        highlights.append(tr(lang, "В страховании важно не смешивать начисленные премии, признанную выручку от страховых услуг, страховой результат и чистую прибыль: это разные показатели и этапы учёта.", "Sug‘urtada hisoblangan mukofotlar, tan olingan sug‘urta xizmatlari tushumi, sug‘urta natijasi va sof foydani aralashtirmaslik muhim: bular turli ko‘rsatkichlar va hisobning turli bosqichlaridir.", "In insurance, written premiums, recognised insurance-service revenue, the insurance result and net profit must not be mixed: they are different indicators and different accounting stages."))
+        intro = f"{headline} " + " ".join(highlights)
+
+        # Premiums and scale of business.
+        premium_lines = []
+        if premiums is not None:
+            if premium_change is not None and premium_change >= 0:
+                premium_lines.append(tr(lang, f"Объём страховых премий за период составил {amount_text(premiums)}, увеличившись на {pct_str(premium_change)} к сопоставимому периоду.", f"Davr uchun sug‘urta mukofotlari hajmi {amount_text(premiums)}ni tashkil etib, taqqoslanadigan davrga nisbatan {pct_str(premium_change)} ga oshdi.", f"Insurance premiums for the period were {amount_text(premiums)}, up {pct_str(premium_change)} on the comparable period."))
+                premium_lines.append(tr(lang, "Рост премий указывает на расширение объёма привлечённого бизнеса, но сам по себе не подтверждает улучшение прибыльности или качества страхового портфеля.", "Mukofotlarning o‘sishi jalb qilingan biznes hajmi kengayganini ko‘rsatadi, ammo o‘z-o‘zidan rentabellik yoki sug‘urta portfeli sifati yaxshilanganini tasdiqlamaydi.", "Premium growth indicates a larger volume of business written, but does not by itself confirm better profitability or portfolio quality."))
+            else:
+                premium_lines.append(tr(lang, f"Объём страховых премий за период составил {amount_text(premiums)}.", f"Davr uchun sug‘urta mukofotlari hajmi {amount_text(premiums)}ni tashkil etdi.", f"Insurance premiums for the period were {amount_text(premiums)}."))
+                if premium_change is not None:
+                    premium_lines.append(tr(lang, f"Премии сократились на {format_number(abs(premium_change))}%. Для оценки устойчивости этой динамики нужны сопоставимые данные по видам страхования и каналам продаж.", f"Mukofotlar {format_number(abs(premium_change))}% ga qisqardi. Bu dinamikaning barqarorligini baholash uchun sug‘urta turlari va sotuv kanallari bo‘yicha taqqoslanadigan ma’lumotlar kerak.", f"Premiums fell by {format_number(abs(premium_change))}%. Comparable data by line of insurance and sales channel are needed to judge whether this is lasting."))
+        if premium_change is not None and revenue_change is not None:
+            premium_lines.append(tr(lang, f"Премии {'выросли' if premium_change >= 0 else 'снизились'} на {format_number(abs(premium_change))}%, тогда как чистая выручка от страховых услуг изменилась на {pct_str(revenue_change)}. Показатели отражают разные этапы учёта, поэтому их нельзя считать взаимозаменяемыми.", f"Mukofotlar {format_number(abs(premium_change))}% ga {'oshdi' if premium_change >= 0 else 'kamaydi'}, sug‘urta xizmatlaridan sof tushum esa {pct_str(revenue_change)} ga o‘zgardi. Ko‘rsatkichlar hisobning turli bosqichlarini aks ettiradi, shuning uchun ularni bir-birining o‘rnini bosuvchi deb hisoblab bo‘lmaydi.", f"Premiums {'rose' if premium_change >= 0 else 'fell'} by {format_number(abs(premium_change))}%, while net insurance-service revenue changed by {pct_str(revenue_change)}. The indicators reflect different accounting stages, so they cannot be treated as interchangeable."))
+
+        # Reinsurance and risk retention (premium based, from ceded line c012).
+        retention_lines = []
+        ceded_share = pct_of(ceded, premiums)
+        ceded_share_before = pct_of(ceded_before, fact_before("insurance_premiums"))
+        if ceded_share is not None:
+            versus = tr(lang, f" — против {pct_str(ceded_share_before)} в сопоставимом периоде", f" — taqqoslanadigan davrdagi {pct_str(ceded_share_before)}ga qarshi", f", versus {pct_str(ceded_share_before)} in the comparable period") if ceded_share_before is not None else ""
+            retention_lines.append(tr(lang, f"Переданные перестраховщикам премии составили {pct_str(ceded_share)} от валовых премий{versus}.", f"Qayta sug‘urtalovchilarga berilgan mukofotlar yalpi mukofotlarning {pct_str(ceded_share)}ini tashkil etdi{versus}.", f"Premiums ceded to reinsurers were {pct_str(ceded_share)} of gross premiums{versus}."))
+            if ceded_share_before is not None and ceded_share > ceded_share_before:
+                retention_lines.append(tr(lang, "Доля переданных премий увеличилась. Это указывает на большую передачу премиального потока перестраховщикам, но не позволяет без дополнительных данных оценить снижение риска или экономическую эффективность перестрахования.", "Berilgan mukofotlar ulushi oshdi. Bu mukofotlar oqimining qayta sug‘urtalovchilarga ko‘proq o‘tkazilganini ko‘rsatadi, ammo qo‘shimcha ma’lumotlarsiz riskning kamayishini yoki qayta sug‘urtalashning iqtisodiy samaradorligini baholashga imkon bermaydi.", "The share of ceded premiums increased. This indicates that more of the premium flow is passed to reinsurers, but without further data it does not show whether risk fell or whether the reinsurance is economically efficient."))
+            if ceded_share_before is not None and ceded_share != ceded_share_before:
+                retention_lines.append(tr(lang, "Изменение переданных премий может быть связано с изменением структуры бизнеса или перестраховочной программы; одной отчётности недостаточно, чтобы установить причину.", "Berilgan mukofotlarning o‘zgarishi biznes tuzilmasi yoki qayta sug‘urtalash dasturining o‘zgarishi bilan bog‘liq bo‘lishi mumkin; sababni aniqlash uchun birgina hisobot yetarli emas.", "The change in ceded premiums may reflect a change in the business mix or the reinsurance programme; the statements alone are not enough to establish the cause."))
+            retained = difference(premiums, ceded)
+            retention_lines.append(tr(lang, f"Расчётные удержанные премии составили {amount_text(retained)}: валовые премии за вычетом переданных перестраховщикам премий.", f"Hisoblangan ushlab qolingan mukofotlar {amount_text(retained)}ni tashkil etdi: yalpi mukofotlardan qayta sug‘urtalovchilarga berilgan mukofotlar ayirilgan.", f"Calculated retained premiums were {amount_text(retained)}: gross premiums less premiums ceded to reinsurers."))
+            retention_lines.append(tr(lang, f"Доля удержания премий составила {pct_str(pct_of(retained, premiums))}. Это расчёт по премиям и не тождественно доле удержания страховых убытков.", f"Mukofotlarni ushlab qolish ulushi {pct_str(pct_of(retained, premiums))}ni tashkil etdi. Bu mukofotlar bo‘yicha hisob bo‘lib, sug‘urta zararlarini ushlab qolish ulushiga teng emas.", f"The premium retention rate was {pct_str(pct_of(retained, premiums))}. This is a premium-based calculation and is not the same as the retention of insurance losses."))
+        reserve_retention = pct_of(net_reserves, gross_reserves)
+        if reserve_retention is not None:
+            retention_lines.append(tr(lang, f"Отдельно от премий: после учёта доли перестраховщиков на компании остаётся {pct_str(reserve_retention)} валовых технических резервов (удержание резервов).", f"Mukofotlardan alohida: qayta sug‘urtalovchilar ulushi hisobga olingach, kompaniyada yalpi texnik zaxiralarning {pct_str(reserve_retention)}i qoladi (zaxiralarni ushlab qolish).", f"Separately from premiums, after the reinsurers' share the company retains {pct_str(reserve_retention)} of gross technical reserves (reserve retention)."))
+        if ceded_share is not None or reserve_retention is not None:
+            retention_lines.append(tr(lang, "Для оценки зависимости от перестрахования важно сопоставлять переданные премии с долей перестраховщиков в выплатах и технических резервах — если такие данные раскрыты.", "Qayta sug‘urtalashga bog‘liqlikni baholash uchun berilgan mukofotlarni qayta sug‘urtalovchilarning to‘lovlar va texnik zaxiralardagi ulushi bilan solishtirish muhim — agar bunday ma’lumotlar oshkor qilingan bo‘lsa.", "To assess dependence on reinsurance, ceded premiums should be compared with the reinsurers' share of claims and technical reserves — where these are disclosed."))
+
+        # Insurance services, claims and result.
+        service_lines = []
+        if revenue is not None:
+            service_lines.append(tr(lang, f"Доход от страховых услуг составил {amount_text(revenue)}. Показатель отражает признанный в отчётности доход за период, а не обязательно сумму начисленных премий.", f"Sug‘urta xizmatlaridan daromad {amount_text(revenue)}ni tashkil etdi. Ko‘rsatkich hisobotda tan olingan davr daromadini aks ettiradi va hisoblangan mukofotlar summasiga teng bo‘lishi shart emas.", f"Insurance-service revenue was {amount_text(revenue)}. It reflects the revenue recognised for the period, not necessarily the amount of premiums written."))
+            service_lines.append(tr(lang, "Чистая выручка от страховых услуг включает премии за вычетом переданных в перестрахование, результат изменения страховых резервов и прочие доходы от страховых услуг (стр. 010–050 формы) и поэтому отличается от объёма премий.", "Sug‘urta xizmatlaridan sof tushum qayta sug‘urtaga berilganlari ayirilgan mukofotlar, sug‘urta zaxiralari o‘zgarishi natijasi va boshqa sug‘urta xizmatlari daromadlarini (shaklning 010–050-satrlari) o‘z ichiga oladi, shuning uchun mukofotlar hajmidan farq qiladi.", "Net insurance-service revenue includes premiums net of reinsurance ceded, the result of changes in insurance reserves and other insurance-service income (form lines 010–050), so it differs from premium volume."))
+        if service_cost_change is not None and revenue_change is not None:
+            if service_cost_change > 0 and service_cost_change > revenue_change:
+                gap = format_number(service_cost_change - revenue_change) if revenue_change >= 0 else None
+                service_lines.append(tr(
+                    lang,
+                    f"Расходы на страховые услуги увеличились на {pct_str(service_cost_change)}, опережая рост чистой выручки на {gap} п.п." if gap else f"Расходы на страховые услуги увеличились на {pct_str(service_cost_change)} при снижении чистой выручки на {format_number(abs(revenue_change))}%.",
+                    f"Sug‘urta xizmatlari xarajatlari {pct_str(service_cost_change)} ga oshib, sof tushum o‘sishidan {gap} foiz punktga o‘zib ketdi." if gap else f"Sof tushum {format_number(abs(revenue_change))}% ga kamaygani holda sug‘urta xizmatlari xarajatlari {pct_str(service_cost_change)} ga oshdi.",
+                    f"Insurance-service expenses rose by {pct_str(service_cost_change)}, outpacing net revenue growth by {gap} pp." if gap else f"Insurance-service expenses rose by {pct_str(service_cost_change)} while net revenue fell by {format_number(abs(revenue_change))}%.",
+                ))
+            elif service_cost_change < 0:
+                service_lines.append(tr(lang, "Снижение расходов на страховые услуги поддержало результат периода, однако для оценки устойчивости эффекта нужно проверить, не связан ли он с изменением резервов или объёма бизнеса.", "Sug‘urta xizmatlari xarajatlarining kamayishi davr natijasini qo‘llab-quvvatladi, ammo ta’sir barqarorligini baholash uchun u zaxiralar yoki biznes hajmi o‘zgarishi bilan bog‘liq emasligini tekshirish kerak.", "Lower insurance-service expenses supported the result for the period, but to judge whether the effect will last it must be checked whether it stems from changes in reserves or business volume."))
+            else:
+                service_lines.append(tr(lang, f"Расходы на страховые услуги выросли на {pct_str(service_cost_change)} — медленнее чистой выручки ({pct_str(revenue_change)}).", f"Sug‘urta xizmatlari xarajatlari {pct_str(service_cost_change)} ga oshdi — sof tushumdan ({pct_str(revenue_change)}) sekinroq.", f"Insurance-service expenses rose by {pct_str(service_cost_change)}, more slowly than net revenue ({pct_str(revenue_change)})."))
+        if service_result is not None and service_result_before is not None:
+            comparable_period = str(snapshot.get("previous_comparable_period") or "")
+            year_earlier = comparable_period[:4].isdigit() and str(period)[:4].isdigit() and int(comparable_period[:4]) == int(str(period)[:4]) - 1
+            when = tr(lang, "годом ранее" if year_earlier else "в сопоставимом периоде", "bir yil oldin" if year_earlier else "taqqoslanadigan davrda", "a year earlier" if year_earlier else "in the comparable period")
+            service_lines.append(tr(lang, f"Результат от страховых услуг составил {amount_text(service_result)} против {amount_text(service_result_before)} {when}; изменение обусловлено динамикой выручки и расходов на страховые услуги.", f"Sug‘urta xizmatlari natijasi {when} {amount_text(service_result_before)} bo‘lgan bo‘lsa, endi {amount_text(service_result)}ni tashkil etdi; o‘zgarish tushum va sug‘urta xizmatlari xarajatlari dinamikasi bilan bog‘liq.", f"The insurance-service result was {amount_text(service_result)} versus {amount_text(service_result_before)} {when}; the change reflects the movement in revenue and insurance-service expenses."))
+            if service_result < service_result_before and premium_change is not None and premium_change > 0:
+                service_lines.append(tr(lang, "Результат от страховых услуг снизился, несмотря на рост премий. Следовательно, рост объёма бизнеса не преобразовался в сопоставимое улучшение страхового результата.", "Mukofotlar o‘sganiga qaramay, sug‘urta xizmatlari natijasi pasaydi. Demak, biznes hajmining o‘sishi sug‘urta natijasining mos ravishda yaxshilanishiga aylanmadi.", "The insurance-service result fell despite premium growth, so the larger business volume did not translate into a comparable improvement in the insurance result."))
+        if claims is not None:
+            service_lines.append(tr(lang, "Рост выплат нельзя интерпретировать отдельно от заработанных премий, изменения резервов и доли перестраховщиков.", "To‘lovlar o‘sishini ishlab topilgan mukofotlar, zaxiralar o‘zgarishi va qayta sug‘urtalovchilar ulushidan alohida talqin qilib bo‘lmaydi.", "Claims growth cannot be interpreted apart from earned premiums, reserve changes and the reinsurers' share."))
+        service_lines.append(tr(lang, "В отчётности нет достаточной разбивки страховых выплат и заработанных премий; поэтому коэффициент убыточности по доступным данным не рассчитывается.", "Hisobotda sug‘urta to‘lovlari va ishlab topilgan mukofotlar bo‘yicha yetarli tafsilot yo‘q; shu sababli zararlilik koeffitsiyenti mavjud ma’lumotlar bo‘yicha hisoblanmaydi.", "The statements do not break down claims paid and earned premiums in enough detail, so the loss ratio is not calculated from the available data."))
+        service_lines.append(tr(lang, "Комбинированный коэффициент не рассчитывается: отсутствуют необходимые сопоставимые данные о выплатах, расходах на ведение дела и базе заработанных премий.", "Kombinatsiyalashgan koeffitsiyent hisoblanmaydi: to‘lovlar, ish yuritish xarajatlari va ishlab topilgan mukofotlar bazasi bo‘yicha zarur taqqoslanadigan ma’lumotlar yo‘q.", "The combined ratio is not calculated: the comparable data needed on claims, acquisition and administrative expenses and the earned-premium base are missing."))
+
+        # Technical reserves and reinsurers.
+        reserve_lines = []
+        if gross_reserves is not None and reinsurer_reserves is not None and net_reserves is not None:
+            reserve_lines.append(tr(lang, f"Валовые технические резервы составили {amount_text(gross_reserves)}, доля перестраховщиков — {amount_text(reinsurer_reserves)}, расчётные резервы за вычетом доли перестраховщиков — {amount_text(net_reserves)}.", f"Yalpi texnik zaxiralar {amount_text(gross_reserves)}, qayta sug‘urtalovchilar ulushi — {amount_text(reinsurer_reserves)}, qayta sug‘urtalovchilar ulushi ayirilgan hisoblangan zaxiralar — {amount_text(net_reserves)}ni tashkil etdi.", f"Gross technical reserves were {amount_text(gross_reserves)}, the reinsurers' share {amount_text(reinsurer_reserves)}, and calculated reserves net of the reinsurers' share {amount_text(net_reserves)}."))
+        gross_move, reinsurer_move, net_move = moved("gross_insurance_reserves"), moved("reinsurer_share_in_reserves"), moved("net_insurance_reserves")
+        if gross_move is not None and reinsurer_move is not None:
+            reserve_lines.append(tr(lang, f"Валовые резервы {'выросли' if gross_move >= 0 else 'снизились'} на {format_number(abs(gross_move))}%, а доля перестраховщиков — на {format_number(abs(reinsurer_move)) if (reinsurer_move >= 0) == (gross_move >= 0) else format_number(reinsurer_move)}%. Изменение резервов следует рассматривать вместе с динамикой портфеля и перестрахования.", f"Yalpi zaxiralar {format_number(abs(gross_move))}% ga {'oshdi' if gross_move >= 0 else 'kamaydi'}, qayta sug‘urtalovchilar ulushi esa {format_number(reinsurer_move)}% ga o‘zgardi. Zaxiralar o‘zgarishini portfel va qayta sug‘urtalash dinamikasi bilan birga ko‘rib chiqish kerak.", f"Gross reserves {'rose' if gross_move >= 0 else 'fell'} by {format_number(abs(gross_move))}%, and the reinsurers' share changed by {format_number(reinsurer_move)}%. Reserve changes should be read together with portfolio and reinsurance movements."))
+        if net_move is not None:
+            reserve_lines.append(tr(lang, f"Расчётные чистые технические резервы {'увеличились' if net_move >= 0 else 'снизились'} на {format_number(abs(net_move))}%. Это изменение балансовой оценки обязательств и само по себе не является мерой прибыльности.", f"Hisoblangan sof texnik zaxiralar {format_number(abs(net_move))}% ga {'oshdi' if net_move >= 0 else 'kamaydi'}. Bu majburiyatlar balans bahosining o‘zgarishi bo‘lib, o‘z-o‘zidan rentabellik o‘lchovi emas.", f"Calculated net technical reserves {'increased' if net_move >= 0 else 'decreased'} by {format_number(abs(net_move))}%. This is a change in the balance-sheet measurement of liabilities and is not in itself a measure of profitability."))
+        reinsurer_share = pct_of(reinsurer_reserves, gross_reserves)
+        if reinsurer_share is not None:
+            reserve_lines.append(tr(lang, f"Доля перестраховщиков в технических резервах составила {pct_str(reinsurer_share)}. Это показывает их участие в отражённых резервах, но не подтверждает фактическое получение возмещений.", f"Qayta sug‘urtalovchilarning texnik zaxiralardagi ulushi {pct_str(reinsurer_share)}ni tashkil etdi. Bu ularning aks ettirilgan zaxiralardagi ishtirokini ko‘rsatadi, ammo tovon puli haqiqatda olinishini tasdiqlamaydi.", f"The reinsurers' share of technical reserves was {pct_str(reinsurer_share)}. This shows their participation in the reported reserves but does not confirm that recoveries are actually received."))
+        if gross_reserves is not None:
+            reserve_lines.append(tr(lang, "По имеющейся форме нельзя определить достаточность резервов относительно будущих выплат без актуарной оценки и более детальной разбивки обязательств.", "Mavjud shakl bo‘yicha aktuar baholashsiz va majburiyatlarning batafsilroq taqsimotisiz zaxiralarning kelgusi to‘lovlarga nisbatan yetarliligini aniqlab bo‘lmaydi.", "The available form cannot establish whether reserves are adequate for future claims without an actuarial assessment and a more detailed breakdown of liabilities."))
+
+        # Profitability and financial result.
+        profit_lines = []
+        if operating_income is not None:
+            if operating_change is not None and not (by_code.get("operating_income") or {}).get("base_effect") and operating_income > 0:
+                diverges = net_change is not None and (operating_change >= 0) != (net_change >= 0)
+                profit_lines.append(tr(lang, f"Операционная прибыль составила {amount_text(operating_income)}, изменившись на {pct_str(operating_change)}." + (" Динамика отличается от динамики чистой прибыли." if diverges else ""), f"Operatsion foyda {amount_text(operating_income)}ni tashkil etib, {pct_str(operating_change)} ga o‘zgardi." + (" Uning dinamikasi sof foyda dinamikasidan farq qiladi." if diverges else ""), f"Operating profit was {amount_text(operating_income)}, a change of {pct_str(operating_change)}." + (" Its movement differs from that of net profit." if diverges else "")))
+            else:
+                before = fact_before("operating_income")
+                versus = tr(lang, f" против {amount_text(before)}", f" ({amount_text(before)} o‘rniga)", f" versus {amount_text(before)}") if before is not None else ""
+                profit_lines.append(tr(lang, f"Операционный результат составил {amount_text(operating_income)}{versus}.", f"Operatsion natija {amount_text(operating_income)}ni tashkil etdi{versus}.", f"The operating result was {amount_text(operating_income)}{versus}."))
+        finance_now = difference(fact_now("financial_income"), fact_now("financial_expenses"))
+        fx_now, fx_before = difference(fact_now("fx_income"), fact_now("fx_expenses")), difference(fact_before("fx_income"), fact_before("fx_expenses"))
+        if net_change is not None and operating_change is not None and net_change > 0 and operating_change < 0:
+            drivers = []
+            if finance_now is not None and finance_now > 0:
+                drivers.append(tr(lang, "финансовые доходы", "moliyaviy daromadlar", "finance income"))
+            if fx_now is not None and fx_before is not None and fx_now > fx_before:
+                drivers.append(tr(lang, "валютный результат", "valyuta natijasi", "the FX result"))
+            if drivers:
+                profit_lines.append(tr(lang, f"Чистая прибыль выросла, хотя операционная прибыль снизилась; на итог повлияли {', '.join(drivers)}.", f"Operatsion foyda kamaygan bo‘lsa-da, sof foyda oshdi; yakunga {', '.join(drivers)} ta’sir qildi.", f"Net profit rose although operating profit fell; the result was influenced by {', '.join(drivers)}."))
+        if finance_now is not None and finance_now > 0 and net_income is not None and net_income > 0:
+            support = tr(lang, f"Финансовый результат поддержал чистую прибыль на {amount_text(finance_now)}.", f"Moliyaviy natija sof foydani {amount_text(finance_now)}ga qo‘llab-quvvatladi.", f"The financial result supported net profit by {amount_text(finance_now)}.")
+            if net_change is not None and net_change > 0:
+                support += " " + tr(lang, "Поэтому рост чистой прибыли не следует полностью относить к улучшению страховой деятельности.", "Shu sababli sof foyda o‘sishini to‘liq sug‘urta faoliyatining yaxshilanishiga bog‘lamaslik kerak.", "Net-profit growth should therefore not be attributed entirely to better insurance operations.")
+            profit_lines.append(support)
+        if fx_now is not None and fx_before is not None and fx_now != fx_before:
+            helped = fx_now > fx_before
+            profit_lines.append(tr(lang, f"Чистый валютный результат составил {amount_text(fx_now)} против {amount_text(fx_before)}. Его изменение {'поддержало' if helped else 'снизило'} итоговую прибыль.", f"Sof valyuta natijasi {amount_text(fx_now)}ni tashkil etdi ({amount_text(fx_before)} o‘rniga). Uning o‘zgarishi yakuniy foydani {'qo‘llab-quvvatladi' if helped else 'kamaytirdi'}.", f"The net FX result was {amount_text(fx_now)} versus {amount_text(fx_before)}. The change {'supported' if helped else 'reduced'} the bottom line."))
+        if net_change is not None and net_change > 0 and service_result is not None and service_result_before is not None and service_result < service_result_before:
+            profit_lines.append(tr(lang, "Рост прибыли сопровождается снижением результата от страховых услуг. Это означает, что улучшение итогового результата обеспечено не только основной страховой деятельностью.", "Foyda o‘sishi sug‘urta xizmatlari natijasining pasayishi bilan birga kechmoqda. Bu yakuniy natijaning yaxshilanishi faqat asosiy sug‘urta faoliyati hisobiga bo‘lmaganini anglatadi.", "Profit growth is accompanied by a lower insurance-service result, meaning the better bottom line did not come from core insurance operations alone."))
+        profit_lines.append(tr(lang, "Для оценки устойчивости прибыли важно разделять страховой результат, инвестиционный и прочий финансовый результат, а также влияние налога.", "Foyda barqarorligini baholash uchun sug‘urta natijasi, investitsiya va boshqa moliyaviy natija hamda soliq ta’sirini ajratish muhim.", "To judge how sustainable profit is, the insurance result, the investment and other financial result, and the tax effect must be separated."))
 
         balance_facts = [fact_sentence(key) for key in ("total_assets", "gross_insurance_reserves", "reinsurer_share_in_reserves", "net_insurance_reserves", "total_equity")]
-        horizontal_text = tr(lang, "Баланс и резервы. ", "Balans va zaxiralar. ", "Balance sheet and reserves. ") + "; ".join(item for item in balance_facts if item) + "."
-
-        structure_parts = []
-        if retention is not None:
-            structure_parts.append(tr(lang, f"после учёта перестрахования на компании остаётся {pct_text(retention)} валовых резервов", f"qayta sug‘urtalash hisobga olingach kompaniyada yalpi zaxiralarning {pct_text(retention)}i qoladi", f"after reinsurance, the company retains {pct_text(retention)} of gross reserves"))
-        if reinsurer_share is not None:
-            structure_parts.append(tr(lang, f"доля перестраховщиков составляет {pct_text(reinsurer_share)}", f"qayta sug‘urtalovchilar ulushi {pct_text(reinsurer_share)}ni tashkil etadi", f"the reinsurer share is {pct_text(reinsurer_share)}"))
-        if retention_shift is not None:
-            structure_parts.append(tr(lang, f"коэффициент удержания резервов изменился на {format_number(retention_shift)} п.п.", f"zaxiralarni ushlab qolish koeffitsiyenti {format_number(retention_shift)} foiz punktga o‘zgardi", f"reserve retention changed by {format_number(retention_shift)} pp"))
-        vertical_text = tr(lang, "Структура страхового риска. ", "Sug‘urta xavfi tarkibi. ", "Insurance-risk structure. ") + ("; ".join(structure_parts) if structure_parts else tr(lang, "Компонентов для расчёта удержания недостаточно.", "Ushlab qolishni hisoblash uchun komponentlar yetarli emas.", "There are insufficient components to calculate retention.")) + ". " + tr(
-            lang,
-            "Это удержание резервов, а не премий: коэффициент удержания премий нельзя рассчитывать без раскрытых переданных премий.",
-            "Bu mukofotlar emas, zaxiralar bo‘yicha ushlab qolishdir: berilgan mukofotlar oshkor qilinmasa, mukofotlarni ushlab qolish koeffitsiyentini hisoblab bo‘lmaydi.",
-            "This is reserve retention, not premium retention; premium retention cannot be calculated without disclosed ceded premiums.",
-        )
-
-        result_facts = [fact_sentence(key) for key in ("insurance_premiums", "insurance_claims", "operating_income", "profit_before_tax", "net_income")]
-        results_text = tr(lang, "Премии, выплаты и прибыльность. ", "Mukofotlar, to‘lovlar va rentabellik. ", "Premiums, claims and profitability. ") + "; ".join(item for item in result_facts if item) + "."
-        if operating_change is not None and net_change is not None and operating_change < 0 < net_change:
-            results_text += " " + tr(lang, "Рост чистой прибыли при снижении операционного результата означает, что итог улучшили статьи вне основной страховой деятельности; точный вклад определяется только по раскрытым финансовым и валютным строкам.", "Operatsion natija pasayib, sof foyda oshgani yakuniy natijani asosiy sug‘urta faoliyatidan tashqari moddalar yaxshilaganini anglatadi; aniq hissa faqat oshkor qilingan moliyaviy va valyuta satrlari bo‘yicha aniqlanadi.", "Net-profit growth alongside a lower operating result means non-underwriting items improved the bottom line; their exact contribution can only be established from disclosed finance and FX lines.")
+        horizontal_text = " ".join(filter(None, (
+            tr(lang, "Баланс и технические резервы. ", "Balans va texnik zaxiralar. ", "Balance sheet and technical reserves. ") + "; ".join(item for item in balance_facts if item) + ".",
+            *reserve_lines,
+        )))
+        vertical_text = tr(lang, "Перестрахование и удержание риска. ", "Qayta sug‘urtalash va riskni ushlab qolish. ", "Reinsurance and risk retention. ") + (" ".join(retention_lines) or tr(lang, "Компонентов для расчёта удержания недостаточно.", "Ushlab qolishni hisoblash uchun komponentlar yetarli emas.", "There are insufficient components to calculate retention."))
+        result_facts = [fact_sentence(key) for key in ("insurance_premiums", "revenue", "insurance_service_result", "operating_income", "profit_before_tax", "net_income")]
+        results_text = " ".join(filter(None, (
+            tr(lang, "Премии, страховые услуги и прибыльность. ", "Mukofotlar, sug‘urta xizmatlari va rentabellik. ", "Premiums, insurance services and profitability. ") + "; ".join(item for item in result_facts if item) + ".",
+            *premium_lines, *service_lines, *profit_lines,
+        )))
 
         ratio_parts = []
-        if retention is not None:
-            ratio_parts.append(f"{tr(lang, 'Удержание резервов', 'Zaxiralarni ushlab qolish', 'Reserve retention')} = {pct_text(retention)}")
+        if ceded_share is not None:
+            ratio_parts.append(f"{tr(lang, 'Переданные премии / валовые премии', 'Berilgan mukofotlar / yalpi mukofotlar', 'Ceded premiums / gross premiums')} = {pct_str(ceded_share)}")
+            ratio_parts.append(f"{tr(lang, 'Удержание премий', 'Mukofotlarni ushlab qolish', 'Premium retention')} = {pct_str(pct_of(difference(premiums, ceded), premiums))}")
+        if reserve_retention is not None:
+            ratio_parts.append(f"{tr(lang, 'Удержание резервов', 'Zaxiralarni ushlab qolish', 'Reserve retention')} = {pct_str(reserve_retention)}")
         if reinsurer_share is not None:
-            ratio_parts.append(f"{tr(lang, 'Доля перестраховщиков в резервах', 'Zaxiralardagi qayta sug‘urtalovchilar ulushi', 'Reinsurer share of reserves')} = {pct_text(reinsurer_share)}")
-        claims_ratio = pct(claims, premiums)
-        if claims_ratio is not None:
-            ratio_parts.append(f"{tr(lang, 'Выплаты / премии', 'To‘lovlar / mukofotlar', 'Claims / premiums')} = {pct_text(claims_ratio)}")
-        net_margin = pct(net_income, premiums)
-        if net_margin is not None:
-            ratio_parts.append(f"{tr(lang, 'Чистая прибыль / премии', 'Sof foyda / mukofotlar', 'Net profit / premiums')} = {pct_text(net_margin)}")
-        ratio_text = tr(lang, "Ключевые страховые коэффициенты. ", "Asosiy sug‘urta koeffitsiyentlari. ", "Key insurance ratios. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash uchun komponentlar yetarli emas.", "Insufficient components for calculation.")) + "."
-
-        limitations = []
-        if claims is None:
-            limitations.append(tr(lang, "Без раскрытых страховых выплат нельзя оценить коэффициент выплат и результат андеррайтинга.", "Sug‘urta to‘lovlari oshkor qilinmasa, to‘lovlar koeffitsiyenti va anderrayting natijasini baholab bo‘lmaydi.", "Without disclosed claims, the claims ratio and underwriting result cannot be assessed."))
-        if premiums is not None and net_reserves is not None:
-            limitations.insert(0, tr(lang, "Премии и резервы уже позволяют оценить масштаб страхового бизнеса и передачу риска перестраховщикам.", "Mukofotlar va zaxiralar sug‘urta biznesi ko‘lami hamda riskning qayta sug‘urtalovchilarga o‘tkazilishini baholash imkonini beradi.", "Premiums and reserves are sufficient to assess business scale and risk transfer to reinsurers."))
-        summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + " ".join(limitations)
+            ratio_parts.append(f"{tr(lang, 'Доля перестраховщиков в резервах', 'Zaxiralardagi qayta sug‘urtalovchilar ulushi', 'Reinsurer share of reserves')} = {pct_str(reinsurer_share)}")
+        service_margin = pct_of(service_result, revenue) if revenue is not None and revenue > 0 else None
+        if service_margin is not None:
+            ratio_parts.append(f"{tr(lang, 'Результат от страховых услуг / чистая выручка от страховых услуг', 'Sug‘urta xizmatlari natijasi / sof tushum', 'Insurance-service result / net insurance-service revenue')} = {pct_str(service_margin)}")
+        ratio_text = tr(lang, "Ключевые страховые коэффициенты. ", "Asosiy sug‘urta koeffitsiyentlari. ", "Key insurance ratios. ") + ("; ".join(ratio_parts) if ratio_parts else tr(lang, "Недостаточно компонентов для расчёта.", "Hisoblash uchun komponentlar yetarli emas.", "Insufficient components for calculation.")) + ". " + tr(lang, "Это аналитические коэффициенты на основе отчётности, а не нормативы, установленные регулятором; коэффициенты убыточности и комбинированный не рассчитываются без раскрытых выплат и заработанных премий.", "Bular hisobotga asoslangan tahliliy koeffitsiyentlar, regulyator belgilagan me’yorlar emas; zararlilik va kombinatsiyalashgan koeffitsiyentlar oshkor qilingan to‘lovlar va ishlab topilgan mukofotlarsiz hisoblanmaydi.", "These are analytical ratios based on the statements, not standards set by the regulator; the loss and combined ratios are not calculated without disclosed claims and earned premiums.")
+        summary_text = tr(lang, "Сводная оценка. ", "Yakuniy baho. ", "Summary assessment. ") + sector_conclusion()
         narrative_blocks["performance"] = [
-            {"lead": tr(lang, "Премии, выплаты и прибыльность", "Mukofotlar, to‘lovlar va rentabellik", "Premiums, claims and profitability"), "text": results_text},
+            {"lead": tr(lang, "Премии и масштаб бизнеса", "Mukofotlar va biznes ko‘lami", "Premiums and scale of business"), "text": " ".join(premium_lines) or results_text},
+            {"lead": tr(lang, "Страховые услуги, выплаты и результат", "Sug‘urta xizmatlari, to‘lovlar va natija", "Insurance services, claims and result"), "text": " ".join(service_lines)},
+            {"lead": tr(lang, "Прибыльность и финансовый результат", "Rentabellik va moliyaviy natija", "Profitability and financial result"), "text": " ".join(profit_lines)},
             {"lead": tr(lang, "Ключевые страховые коэффициенты", "Asosiy sug‘urta koeffitsiyentlari", "Key insurance ratios"), "text": ratio_text},
         ]
         narrative_blocks["position"] = [
-            {"lead": tr(lang, "Баланс и страховые резервы", "Balans va sug‘urta zaxiralari", "Balance sheet and insurance reserves"), "text": horizontal_text},
+            {"lead": tr(lang, "Технические резервы и перестраховщики", "Texnik zaxiralar va qayta sug‘urtalovchilar", "Technical reserves and reinsurers"), "text": horizontal_text},
             {"lead": tr(lang, "Перестрахование и удержание риска", "Qayta sug‘urtalash va riskni ushlab qolish", "Reinsurance and risk retention"), "text": vertical_text},
         ]
         return [intro, horizontal_text, vertical_text, results_text, ratio_text, summary_text]
@@ -1500,7 +1912,20 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             op_change, profit_change = fact_change("operating_income"), fact_change("net_income")
             op_direction = tr(lang, "вырос", "oshdi", "grew") if op_change >= 0 else tr(lang, "снизился", "kamaydi", "fell")
             profit_direction = tr(lang, "выросла", "oshdi", "grew") if profit_change >= 0 else tr(lang, "снизилась", "kamaydi", "fell")
-            add_key_change("profit_divergence", "profit_driver", tr(lang, f"Операционный результат {op_direction} на {format_number(abs(op_change))}%, а чистая прибыль {profit_direction} на {format_number(abs(profit_change))}%: итоговая прибыль не повторяет динамику основной деятельности.", f"Operatsion natija {format_number(abs(op_change))}% ga {op_direction}, sof foyda esa {format_number(abs(profit_change))}% ga {profit_direction}: yakuniy foyda asosiy faoliyat dinamikasini takrorlamadi.", f"The operating result {op_direction} {format_number(abs(op_change))}% while net profit {profit_direction} {format_number(abs(profit_change))}%; the bottom line did not track core operations."), ("operating_income", "net_income"))
+            op_now, op_before = fact_value("operating_income"), decimal((by_code.get("operating_income") or {}).get("previous"))
+            # A percentage change of a loss is not a readable movement; show the amounts.
+            if op_now is not None and op_before is not None and op_now > 0 and op_before > 0:
+                op_part = tr(lang, f"Операционный результат {op_direction} на {format_number(abs(op_change))}%", f"Operatsion natija {format_number(abs(op_change))}% ga {op_direction}", f"The operating result {op_direction} {format_number(abs(op_change))}%")
+            else:
+                op_part = tr(lang, f"Операционный результат: {display_money(op_before)} → {display_money(op_now)} {money_unit}", f"Operatsion natija: {display_money(op_before)} → {display_money(op_now)} {money_unit}", f"The operating result moved from {display_money(op_before)} to {display_money(op_now)} {money_unit}")
+            # Only opposite movements mean the bottom line did not track operations.
+            diverges = (op_change >= 0) != (profit_change >= 0)
+            add_key_change("profit_divergence", "profit_driver", tr(
+                lang,
+                f"{op_part}, а чистая прибыль {profit_direction} на {format_number(abs(profit_change))}%" + (": итоговая прибыль не повторяет динамику основной деятельности." if diverges else "."),
+                f"{op_part}, sof foyda esa {format_number(abs(profit_change))}% ga {profit_direction}" + (": yakuniy foyda asosiy faoliyat dinamikasini takrorlamadi." if diverges else "."),
+                f"{op_part}, while net profit {profit_direction} {format_number(abs(profit_change))}%" + ("; the bottom line did not track core operations." if diverges else "."),
+            ), ("operating_income", "net_income"))
         if fact_change("total_assets") is not None and fact_change("total_equity") is not None:
             add_key_change("insurance_balance", "balance", tr(lang, f"Активы изменились на {format_number(fact_change('total_assets'))}%, капитал — на {format_number(fact_change('total_equity'))}%.", f"Aktivlar {format_number(fact_change('total_assets'))}%, kapital {format_number(fact_change('total_equity'))}% ga o‘zgardi.", f"Assets changed {format_number(fact_change('total_assets'))}% and equity {format_number(fact_change('total_equity'))}%."), ("total_assets", "total_equity"))
     elif publishable and template == "commodity_exchange":
@@ -1738,6 +2163,34 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
             ],
         }
         outline = bank_section_titles.get(lang, bank_section_titles["ru"])
+    elif publishable and complete_content and template == "insurance":
+        insurance_section_titles = {
+            "ru": [
+                ("methodology", "Общие сведения и методология анализа"),
+                ("technical_reserves", "Технические резервы и перестраховщики"),
+                ("reinsurance", "Перестрахование и удержание риска"),
+                ("financial_results", "Премии, страховые услуги и прибыльность"),
+                ("ratios", "Коэффициентный анализ"),
+                ("summary", "Вердикт"),
+            ],
+            "uz": [
+                ("methodology", "Umumiy ma’lumot va tahlil metodologiyasi"),
+                ("technical_reserves", "Texnik zaxiralar va qayta sug‘urtalovchilar"),
+                ("reinsurance", "Qayta sug‘urtalash va riskni ushlab qolish"),
+                ("financial_results", "Mukofotlar, sug‘urta xizmatlari va rentabellik"),
+                ("ratios", "Koeffitsiyentlar tahlili"),
+                ("summary", "Xulosa"),
+            ],
+            "en": [
+                ("methodology", "Issuer overview and analysis methodology"),
+                ("technical_reserves", "Technical reserves and reinsurers"),
+                ("reinsurance", "Reinsurance and risk retention"),
+                ("financial_results", "Premiums, insurance services and profitability"),
+                ("ratios", "Ratio analysis"),
+                ("summary", "Verdict"),
+            ],
+        }
+        outline = insurance_section_titles.get(lang, insurance_section_titles["ru"])
     elif publishable and complete_content:
         general_section_titles = {
             "ru": [
