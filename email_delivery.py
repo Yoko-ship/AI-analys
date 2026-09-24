@@ -141,6 +141,32 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None) -
         raise EmailDeliveryError("Could not send the email") from exc
 
 
+_NOTICES = {
+    "login_locked": {
+        "ru": ("UZ Stock: вход в аккаунт временно приостановлен",
+               "Мы заметили {limit} неудачных попыток входа в ваш аккаунт UZ Stock и приостановили вход на {minutes} минут.\n\n"
+               "Если это были вы — подождите или восстановите пароль через «Забыли пароль?» на странице входа.\n"
+               "Если это были не вы — рекомендуем сменить пароль после восстановления доступа."),
+        "uz": ("UZ Stock: akkauntga kirish vaqtincha to‘xtatildi",
+               "UZ Stock akkauntingizga {limit} marta muvaffaqiyatsiz kirishga urinish qayd etildi, shu sababli kirish {minutes} daqiqaga to‘xtatildi.\n\n"
+               "Agar bu siz bo‘lsangiz — kuting yoki kirish sahifasidagi «Parolni unutdingizmi?» orqali parolni tiklang.\n"
+               "Agar bu siz bo‘lmasangiz — kirishni tiklagach parolni almashtirishni tavsiya qilamiz."),
+        "en": ("UZ Stock: sign-in temporarily paused",
+               "We noticed {limit} failed attempts to sign in to your UZ Stock account and paused sign-in for {minutes} minutes.\n\n"
+               "If this was you, wait or reset your password with «Forgot password?» on the sign-in page.\n"
+               "If this was not you, we recommend changing your password once you are back in."),
+    },
+}
+
+
+def send_notice(to: str, kind: str, language: str = "ru", **values) -> None:
+    """A short security notice (no code), in the account owner's language."""
+    variants = _NOTICES[kind]
+    subject, body = variants.get((language or "").lower(), variants["ru"])
+    text = body.format(**values) + "\n\n— uzstock.uz\n"
+    send_email(to, subject, text)
+
+
 def send_code(to: str, purpose: str, code: str, language: str = "ru") -> None:
     subject, text, body = render_code_email(purpose, code, language)
     send_email(to, subject, text, body)

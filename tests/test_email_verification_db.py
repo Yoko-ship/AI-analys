@@ -118,26 +118,26 @@ def test_a_stranger_cannot_squat_an_address_they_do_not_own(store):
     """Someone registers the address first but never proves the inbox.  The real
     owner can still register; the browser that enters the code sets the
     password, and the squatter's password and sessions stop working."""
-    _, squatter_token = store.register_user(EMAIL, "squatter-pass", "Squatter")
-    owner_code = store.start_registration(EMAIL, "owner-password", "Owner")
-    user, token = store.verify_email_code(EMAIL, owner_code, password="owner-password", full_name="Owner")
+    _, squatter_token = store.register_user(EMAIL, "Kettle-Moon-58", "Squatter")
+    owner_code = store.start_registration(EMAIL, "Violin-Lamp-Tree-77", "Owner")
+    user, token = store.verify_email_code(EMAIL, owner_code, password="Violin-Lamp-Tree-77", full_name="Owner")
     assert token and user.full_name == "Owner"
     assert store.get_user_by_token(squatter_token) is None
-    store.login_user(EMAIL, "owner-password", require_verified_email=True)
+    store.login_user(EMAIL, "Violin-Lamp-Tree-77", require_verified_email=True)
     with pytest.raises(ValueError):
-        store.login_user(EMAIL, "squatter-pass", require_verified_email=True)
+        store.login_user(EMAIL, "Kettle-Moon-58", require_verified_email=True)
 
 
 def test_a_squatter_re_registering_cannot_plant_a_password(store):
     """The owner's inbox receives the squatter's code too, but entering it sets
     the owner's own password, never the squatter's."""
-    store.start_registration(EMAIL, "owner-password", "Owner")
+    store.start_registration(EMAIL, "Violin-Lamp-Tree-77", "Owner")
     _age_code(store, web_auth.EMAIL_CODE_RESEND_SECONDS)
-    latest = store.start_registration(EMAIL, "squatter-pass", "Squatter")
-    store.verify_email_code(EMAIL, latest, password="owner-password", full_name="Owner")
-    store.login_user(EMAIL, "owner-password", require_verified_email=True)
+    latest = store.start_registration(EMAIL, "Kettle-Moon-58", "Squatter")
+    store.verify_email_code(EMAIL, latest, password="Violin-Lamp-Tree-77", full_name="Owner")
+    store.login_user(EMAIL, "Violin-Lamp-Tree-77", require_verified_email=True)
     with pytest.raises(ValueError):
-        store.login_user(EMAIL, "squatter-pass")
+        store.login_user(EMAIL, "Kettle-Moon-58")
 
 
 def test_re_registering_does_not_change_the_password_before_verification(store):
@@ -284,12 +284,12 @@ def test_google_takeover_of_an_unverified_account_evicts_the_squatter(store):
     """The pre-hijack: a stranger registered the address with a password; the real
     owner then signs in with Google.  The owner gets the account, and the
     stranger's password and sessions stop working."""
-    _, squatter_token = store.register_user(EMAIL, "squatter-pass")
+    _, squatter_token = store.register_user(EMAIL, "Kettle-Moon-58")
     user, token = store.oauth_login("google", "g-1", EMAIL, "Owner", email_verified=True)
     assert user.email_verified and token
     assert store.get_user_by_token(squatter_token) is None
     with pytest.raises(ValueError):
-        store.login_user(EMAIL, "squatter-pass")
+        store.login_user(EMAIL, "Kettle-Moon-58")
 
 
 def test_google_joins_a_verified_account_without_touching_its_password(store):

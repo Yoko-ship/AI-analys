@@ -125,7 +125,8 @@ FEATURE_FLAGS: dict[str, bool] = {
 from securities_catalog import get_securities_map, get_wiki_info, record_volume, resolve_logo, sync_securities
 from web_auth import WebUser, web_auth_store, is_admin_email
 import email_delivery
-from web_auth import EmailCodeThrottled, EmailNotVerified, _normalize_email
+from web_auth import AccountLocked, EmailCodeThrottled, EmailNotVerified, LOGIN_FAILURE_LIMIT, LOGIN_LOCK_MINUTES, _normalize_email
+import password_policy
 
 logger = logging.getLogger(__name__)
 
@@ -6376,6 +6377,10 @@ def _verification_pending(email: str, retry_after: int | None = None) -> dict[st
 @app.post("/api/auth/register")
 async def api_register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "register")
+    try:
+        password_policy.validate_new_password(payload.password, email=payload.email, full_name=payload.full_name)
+    except password_policy.WeakPassword as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     loop = asyncio.get_running_loop()
     if email_delivery.verification_enabled():
         # With mail configured, an account is created unusable and a code is
@@ -6430,6 +6435,20 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
                 _client_ip(request),
                 require_verified_email=email_delivery.verification_enabled(),
             ))
+    except AccountLocked as exc:
+        if exc.newly_locked and email_delivery.verification_enabled():
+            try:
+                await loop.run_in_executor(None, partial(
+                    email_delivery.send_notice, exc.email, "login_locked", exc.language,
+                    limit=LOGIN_FAILURE_LIMIT, minutes=LOGIN_LOCK_MINUTES))
+            except Exception:  # noqa: BLE001 - the refusal must not depend on mail
+                logger.exception("login lock notice could not be sent")
+        minutes = max(1, -(-exc.retry_after // 60))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed sign-in attempts. Try again in {minutes} min or reset your password.",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
     except EmailNotVerified as exc:
         # The password was right, so this is the owner (or someone who knows
         # it): send a code to the inbox rather than refusing outright.
@@ -6458,6 +6477,11 @@ async def api_auth_options() -> dict[str, Any]:
 @app.post("/api/auth/email/verify")
 async def api_email_verify(payload: EmailVerifyRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "email-verify")
+    if payload.password is not None:
+        try:
+            password_policy.validate_new_password(payload.password, email=payload.email, full_name=payload.full_name or "")
+        except password_policy.WeakPassword as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
             web_auth_store.verify_email_code,
@@ -6519,6 +6543,10 @@ async def api_password_forgot(payload: EmailAddressRequest, request: Request) ->
 @app.post("/api/auth/password/reset")
 async def api_password_reset(payload: PasswordResetRequest, request: Request) -> dict[str, Any]:
     _enforce_auth_rate_limit(request, "password-reset")
+    try:
+        password_policy.validate_new_password(payload.new_password, email=payload.email)
+    except password_policy.WeakPassword as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
             web_auth_store.reset_password_with_code,

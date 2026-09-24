@@ -443,3 +443,14 @@
 .auth-code-back {
   margin-top: 14px;
 }
+
+/* New-password strength meter (sign-up, reset, profile). */
+.password-meter { display: grid; gap: 6px; margin-top: -6px; }
+.password-meter-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.password-meter-bar span { height: 4px; border-radius: 2px; background: var(--border); transition: background 0.15s; }
+.password-meter p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.password-meter.is-weak .is-on { background: var(--danger, #e5484d); }
+.password-meter.is-fair .is-on { background: #f5a524; }
+.password-meter.is-good .is-on { background: #7cc36a; }
+.password-meter.is-strong .is-on { background: var(--success, #30a46c); }
+.password-meter.is-weak strong { color: var(--danger, #e5484d); }

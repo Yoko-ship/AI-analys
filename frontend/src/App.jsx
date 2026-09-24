@@ -56,6 +56,8 @@ const SectorMonitorPage = lazy(() => import("./admin/AnalysisMonitor.jsx").then(
 const VerifiedReport = lazy(() => import("./analysis/VerifiedReport.jsx"));
 const ReportAvailability = lazy(() => import("./analysis/VerifiedReport.jsx").then((module) => ({ default: module.ReportAvailability })));
 const ProfileAccountCenter = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileAccountCenter })));
+import { PasswordMeter } from "./PasswordMeter.jsx";
+import { passwordStrength, translateAuthError } from "./lib/passwordStrength.js";
 const ProfileFavoriteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileFavoriteEditor })));
 const ProfileNoteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileNoteEditor })));
 const ProfileResearchEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileResearchEditor })));
@@ -22010,8 +22012,9 @@ function App() {
       await loadProfile();
     } catch (error) {
       if (/two-factor code required/i.test(error.message)) setAuthOtpRequired(true);
-      setAuthMessage(error.message);
-      addToast(error.message, "error");
+      const message = translateAuthError(error.message, language);
+      setAuthMessage(message);
+      addToast(message, "error");
     }
   };
 
@@ -22034,8 +22037,9 @@ function App() {
       setAuthMessage(t(language, "auth.messages.registerOk"));
       await loadProfile();
     } catch (error) {
-      setAuthMessage(error.message);
-      addToast(error.message, "error");
+      const message = translateAuthError(error.message, language);
+      setAuthMessage(message);
+      addToast(message, "error");
     }
   };
 
@@ -22051,8 +22055,9 @@ function App() {
   };
 
   const authFlowFailed = (error) => {
-    setAuthMessage(error.message);
-    addToast(error.message, "error");
+    const message = translateAuthError(error.message, language);
+    setAuthMessage(message);
+    addToast(message, "error");
   };
 
   const startEmailVerification = (data, password, fullName) => {
@@ -23293,7 +23298,11 @@ function App() {
                             />
                           </label>
                         ) : null}
-                        <button className="auth-primary-button" type="submit" disabled={authCode.length !== 6}>
+                        {authFlow.kind === "forgot" ? (
+                          <PasswordMeter password={resetNewPassword} email={authFlow.email} language={language} />
+                        ) : null}
+                        <button className="auth-primary-button" type="submit"
+                          disabled={authCode.length !== 6 || (authFlow.kind === "forgot" && !passwordStrength(resetNewPassword, { email: authFlow.email }).acceptable)}>
                           {authFlow.kind === "verify" ? authCopy.verifySubmit : authCopy.resetSubmit}
                           <span aria-hidden="true">→</span>
                         </button>
@@ -23425,6 +23434,7 @@ function App() {
                               value={registerForm.password}
                               onChange={(event) => setRegisterForm({ ...registerForm, password: event.target.value })}
                               placeholder="••••••••"
+                              aria-describedby="register-password-meter"
                               required
                             />
                             <button type="button" className="auth-password-toggle" aria-label={showRegisterPassword ? authCopy.hidePassword : authCopy.showPassword} aria-pressed={showRegisterPassword} onClick={() => setShowRegisterPassword((shown) => !shown)}>
@@ -23435,7 +23445,11 @@ function App() {
                             </button>
                           </span>
                         </label>
-                        <button className="auth-primary-button" type="submit">
+                        <div id="register-password-meter">
+                          <PasswordMeter password={registerForm.password} email={registerForm.email} fullName={registerForm.full_name} language={language} />
+                        </div>
+                        <button className="auth-primary-button" type="submit"
+                          disabled={!passwordStrength(registerForm.password, { email: registerForm.email, fullName: registerForm.full_name }).acceptable}>
                           {t(language, "auth.register.submit")}
                           <span aria-hidden="true">→</span>
                         </button>

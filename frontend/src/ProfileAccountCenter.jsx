@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { PasswordMeter } from "./PasswordMeter.jsx";
+import { passwordStrength, translateAuthError } from "./lib/passwordStrength.js";
 
 const pick = (language, ru, en, uz) => (language === "en" ? en : language === "uz" ? uz : ru);
 
@@ -106,7 +108,7 @@ export function ProfileAccountCenter({
       await onRefresh();
       notify(tx("Настройки сохранены", "Preferences saved", "Sozlamalar saqlandi"));
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -128,7 +130,7 @@ export function ProfileAccountCenter({
       await loadSessions();
       notify(`${tx("Пароль изменён", "Password changed", "Parol o'zgartirildi")} · ${data.revoked_sessions || 0} ${tx("сессий закрыто", "sessions closed", "sessiya yopildi")}`);
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -141,7 +143,7 @@ export function ProfileAccountCenter({
       setTwoFactor(data);
       notify(tx("Добавьте ключ в приложение-аутентификатор", "Add the key to your authenticator app", "Kalitni autentifikator ilovasiga qo'shing"), "info");
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -161,7 +163,7 @@ export function ProfileAccountCenter({
         ? tx("Двухфакторная защита включена", "Two-factor authentication enabled", "Ikki bosqichli himoya yoqildi")
         : tx("Двухфакторная защита выключена", "Two-factor authentication disabled", "Ikki bosqichli himoya o'chirildi"));
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -174,7 +176,7 @@ export function ProfileAccountCenter({
       await loadSessions();
       notify(tx("Сессия закрыта", "Session revoked", "Sessiya yopildi"));
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -187,7 +189,7 @@ export function ProfileAccountCenter({
       await loadSessions();
       notify(`${data.revoked_sessions || 0} ${tx("сессий закрыто", "sessions revoked", "sessiya yopildi")}`);
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -207,7 +209,7 @@ export function ProfileAccountCenter({
       URL.revokeObjectURL(url);
       notify(tx("Архив данных скачан", "Data archive downloaded", "Ma'lumotlar arxivi yuklandi"));
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -224,7 +226,7 @@ export function ProfileAccountCenter({
       await onRefresh();
       notify(`${data.deleted_analyses || 0} ${tx("исследований удалено", "analyses deleted", "tahlil o'chirildi")}`);
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -239,7 +241,7 @@ export function ProfileAccountCenter({
       }));
       onLogout();
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -256,7 +258,7 @@ export function ProfileAccountCenter({
       setSupportForm({ subject: "", message: "" });
       notify(`${tx("Обращение принято", "Request received", "Murojaat qabul qilindi")} #${data.request?.id || ""}`);
     } catch (error) {
-      notify(error.message, "error");
+      notify(translateAuthError(error.message, language), "error");
     } finally {
       setBusy("");
     }
@@ -330,7 +332,8 @@ export function ProfileAccountCenter({
                     <label><span>{tx("Новый пароль", "New password", "Yangi parol")}</span><input type="password" minLength="8" autoComplete="new-password" value={password.new_password} onChange={(e) => setPassword({ ...password, new_password: e.target.value })} required /></label>
                     <label><span>{tx("Повторите пароль", "Confirm new password", "Parolni tasdiqlang")}</span><input type="password" minLength="8" autoComplete="new-password" value={password.confirm} onChange={(e) => setPassword({ ...password, confirm: e.target.value })} required /></label>
                   </div>
-                  <button className="ghost-btn" disabled={busy === "password"}>{tx("Обновить пароль", "Update password", "Parolni yangilash")}</button>
+                  <PasswordMeter password={password.new_password} email={profile?.user?.email || ""} fullName={profile?.user?.full_name || ""} language={language} />
+                  <button className="ghost-btn" disabled={busy === "password" || !passwordStrength(password.new_password, { email: profile?.user?.email || "", fullName: profile?.user?.full_name || "" }).acceptable}>{tx("Обновить пароль", "Update password", "Parolni yangilash")}</button>
                 </form>
                 <div className="profile-center-subsection">
                   <div className="profile-center-inline-head"><div><h4>{tx("Двухфакторная защита", "Two-factor authentication", "Ikki bosqichli himoya")}</h4><p>{security.two_factor_enabled ? tx("Включена", "Enabled", "Yoqilgan") : tx("Не включена", "Not enabled", "Yoqilmagan")}</p></div><span className={`profile-center-badge ${security.two_factor_enabled ? "verified" : ""}`}>2FA</span></div>

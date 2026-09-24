@@ -16,11 +16,21 @@ from typing import Any, Optional
 from psycopg import connect
 from psycopg.rows import dict_row
 
+from password_policy import WeakPassword, validate_new_password  # noqa: F401 - re-exported for callers
+
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 SESSION_TTL_DAYS = int(os.getenv("WEB_SESSION_TTL_DAYS", "30"))
-PBKDF2_ITERATIONS = int(os.getenv("WEB_PASSWORD_ITERATIONS", "210000"))
+# OWASP's 2023 guidance for PBKDF2-HMAC-SHA256.  Older hashes keep verifying
+# and are upgraded at the owner's next successful login (password_needs_rehash).
+PBKDF2_ITERATIONS = int(os.getenv("WEB_PASSWORD_ITERATIONS", "600000"))
+
+# Per-account lockout: the per-IP limit alone lets an attacker who rotates
+# addresses keep guessing one account.  A reset by email code unlocks.
+LOGIN_FAILURE_LIMIT = 10
+LOGIN_FAILURE_WINDOW_MINUTES = 15
+LOGIN_LOCK_MINUTES = 15
 OAUTH_FALLBACK_DOMAIN = os.getenv("WEB_OAUTH_FALLBACK_DOMAIN", "oauth.local").strip() or "oauth.local"
 
 DEFAULT_PROFILE_PREFERENCES: dict[str, Any] = {
@@ -55,15 +65,24 @@ def is_admin_email(email: str | None) -> bool:
     return bool(email) and _normalize_email(email) in _admin_emails()
 
 
-def _password_hash(password: str, salt: bytes | None = None) -> str:
+def _password_hash(password: str, salt: bytes | None = None, iterations: int | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
+    rounds = int(iterations or PBKDF2_ITERATIONS)
     digest = hashlib.pbkdf2_hmac(
         "sha256",
         password.encode("utf-8"),
         salt,
-        PBKDF2_ITERATIONS,
+        rounds,
     )
-    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+    return f"pbkdf2_sha256${rounds}${salt.hex()}${digest.hex()}"
+
+
+def password_needs_rehash(encoded: str | None) -> bool:
+    try:
+        algorithm, rounds, _salt, _digest = str(encoded or "").split("$", 3)
+        return algorithm != "pbkdf2_sha256" or int(rounds) < PBKDF2_ITERATIONS
+    except ValueError:
+        return True
 
 
 def _password_verify(password: str, encoded: str) -> bool:
@@ -131,6 +150,17 @@ class EmailNotVerified(Exception):
     def __init__(self, email: str):
         super().__init__("Email address is not verified")
         self.email = email
+
+
+class AccountLocked(Exception):
+    """Too many wrong passwords: sign-in is paused for this account."""
+
+    def __init__(self, email: str, retry_after: int, newly_locked: bool, language: str = "ru"):
+        super().__init__("Too many failed sign-in attempts")
+        self.email = email
+        self.retry_after = int(retry_after)
+        self.newly_locked = newly_locked
+        self.language = language
 
 
 class EmailCodeThrottled(Exception):
@@ -281,6 +311,9 @@ class WebAuthStore:
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ",
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'free'",
                 "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS subscription_until TIMESTAMPTZ",
+                "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS failed_login_started TIMESTAMPTZ",
+                "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ",
             ):
                 conn.execute(statement)
             conn.execute(
@@ -779,8 +812,7 @@ class WebAuthStore:
         normalized = _normalize_email(email)
         if not normalized:
             raise ValueError("Email is required")
-        if len(password or "") < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        validate_new_password(password, email=normalized, full_name=full_name)
 
         full_name = (full_name or "").strip()
         password_encoded = _password_hash(password)
@@ -837,35 +869,82 @@ class WebAuthStore:
         if not normalized:
             raise ValueError("Email is required")
 
+        # Failure bookkeeping must be committed even though the attempt is
+        # refused, so the outcome is decided inside the transaction and raised
+        # only after it closes (an exception inside would roll it back).
+        outcome, detail = "ok", None
+        now = _utcnow()
         with self._conn() as conn:
             row = conn.execute(
                 """
                 SELECT id, email, full_name, avatar_data_url, password_hash, created_at,
                        last_login_at, is_active, email_verified, tier, subscription_until,
-                       two_factor_enabled, two_factor_secret
+                       two_factor_enabled, two_factor_secret, preferences,
+                       failed_login_count, failed_login_started, locked_until
                 FROM web_users
                 WHERE email = %s
+                FOR UPDATE
                 """,
                 (normalized,),
             ).fetchone()
 
-            if not row or not row["is_active"]:
-                raise ValueError("Invalid email or password")
-            if not _password_verify(password, row["password_hash"]):
-                raise ValueError("Invalid email or password")
-            if require_verified_email and not row.get("email_verified"):
-                raise EmailNotVerified(row["email"])
-            if row.get("two_factor_enabled"):
-                if not otp:
-                    raise ValueError("Two-factor code required")
-                if not _verify_totp(row.get("two_factor_secret"), otp):
-                    raise ValueError("Invalid two-factor code")
+            def record_failure():
+                started = row.get("failed_login_started")
+                count = int(row.get("failed_login_count") or 0)
+                if started is None or now - started > timedelta(minutes=LOGIN_FAILURE_WINDOW_MINUTES):
+                    count, started = 0, now
+                count += 1
+                if count >= LOGIN_FAILURE_LIMIT:
+                    # A fresh budget after the pause, not one attempt left.
+                    conn.execute(
+                        "UPDATE web_users SET failed_login_count = 0, failed_login_started = NULL, locked_until = %s WHERE id = %s",
+                        (now + timedelta(minutes=LOGIN_LOCK_MINUTES), row["id"]),
+                    )
+                    return True
+                conn.execute(
+                    "UPDATE web_users SET failed_login_count = %s, failed_login_started = %s WHERE id = %s",
+                    (count, started, row["id"]),
+                )
+                return False
 
-            token = self._issue_session(conn, row["id"], user_agent, ip_address)
-            conn.execute(
-                "UPDATE web_users SET last_login_at = %s WHERE id = %s",
-                (_utcnow(), row["id"]),
-            )
+            locked_until = row.get("locked_until") if row else None
+            if not row or not row["is_active"]:
+                outcome = "invalid"
+            elif locked_until is not None and locked_until > now:
+                outcome, detail = "locked", (int((locked_until - now).total_seconds()) + 1, False)
+            elif not _password_verify(password, row["password_hash"]):
+                outcome = "locked" if record_failure() else "invalid"
+                detail = (LOGIN_LOCK_MINUTES * 60, True)
+            elif require_verified_email and not row.get("email_verified"):
+                outcome = "unverified"
+            elif row.get("two_factor_enabled") and not otp:
+                outcome = "otp_required"
+            elif row.get("two_factor_enabled") and not _verify_totp(row.get("two_factor_secret"), otp):
+                # A wrong authenticator code counts: the password alone must
+                # not allow unlimited guessing of six digits.
+                outcome = "locked" if record_failure() else "otp_invalid"
+                detail = (LOGIN_LOCK_MINUTES * 60, True)
+            else:
+                updates = ["last_login_at = %s", "failed_login_count = 0", "failed_login_started = NULL", "locked_until = NULL"]
+                params: list[Any] = [now]
+                if password_needs_rehash(row["password_hash"]):
+                    updates.append("password_hash = %s")
+                    params.append(_password_hash(password))
+                conn.execute(f"UPDATE web_users SET {', '.join(updates)} WHERE id = %s", (*params, row["id"]))
+                token = self._issue_session(conn, row["id"], user_agent, ip_address)
+
+        if outcome == "invalid":
+            raise ValueError("Invalid email or password")
+        if outcome == "locked":
+            preferences = row.get("preferences") or {}
+            language = preferences.get("language") if isinstance(preferences, dict) else None
+            raise AccountLocked(row["email"], retry_after=detail[0], newly_locked=detail[1], language=language or "ru")
+        if outcome == "unverified":
+            raise EmailNotVerified(row["email"])
+        if outcome == "otp_required":
+            raise ValueError("Two-factor code required")
+        if outcome == "otp_invalid":
+            raise ValueError("Invalid two-factor code")
 
         public_row = {
             "id": row["id"],
@@ -963,8 +1042,7 @@ class WebAuthStore:
         normalized = _normalize_email(email)
         if not normalized:
             raise ValueError("Email is required")
-        if len(password or "") < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        validate_new_password(password, email=normalized, full_name=full_name)
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT id, email_verified FROM web_users WHERE email = %s",
@@ -1006,7 +1084,11 @@ class WebAuthStore:
         """Mark proven, and sign in unless two-factor still has to be satisfied."""
         now = _utcnow()
         conn.execute(
-            "UPDATE web_users SET email_verified = TRUE, last_login_at = %s WHERE id = %s",
+            """
+            UPDATE web_users SET email_verified = TRUE, last_login_at = %s,
+                   failed_login_count = 0, failed_login_started = NULL, locked_until = NULL
+            WHERE id = %s
+            """,
             (now, row["id"]),
         )
         token = None
@@ -1033,8 +1115,8 @@ class WebAuthStore:
         name) it submits become the account's — whatever an earlier, unproven
         registrant chose is discarded, together with any session they hold.
         """
-        if password is not None and len(password) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        if password is not None:
+            validate_new_password(password, email=_normalize_email(email), full_name=full_name or "")
         row = self._consume_email_code(email, "verify", code)
         now = _utcnow()
         with self._conn() as conn:
@@ -1063,8 +1145,7 @@ class WebAuthStore:
         ip_address: str | None = None,
     ) -> tuple[WebUser, str | None]:
         """Set a new password from an emailed code; every old session ends."""
-        if len(new_password or "") < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        validate_new_password(new_password, email=_normalize_email(email))
         row = self._consume_email_code(email, "reset", code)
         now = _utcnow()
         with self._conn() as conn:
@@ -1263,15 +1344,14 @@ class WebAuthStore:
         return int(cursor.rowcount or 0)
 
     def change_password(self, user_id: int, current_password: str, new_password: str, current_token: str) -> int:
-        if len(new_password or "") < 8:
-            raise ValueError("Password must be at least 8 characters long")
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT password_hash FROM web_users WHERE id = %s AND is_active = TRUE",
+                "SELECT password_hash, email, full_name FROM web_users WHERE id = %s AND is_active = TRUE",
                 (user_id,),
             ).fetchone()
             if not row or not _password_verify(current_password or "", row["password_hash"]):
                 raise ValueError("Current password is incorrect")
+            validate_new_password(new_password, email=row["email"], full_name=row["full_name"] or "")
             conn.execute(
                 "UPDATE web_users SET password_hash = %s, password_changed_at = %s WHERE id = %s",
                 (_password_hash(new_password), _utcnow(), user_id),
