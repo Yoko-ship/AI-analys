@@ -3766,6 +3766,12 @@ const AUTH_PAGE_TEXTS = {
   },
 };
 
+function accountInitials(user) {
+  const words = String(user?.full_name || "").trim().split(/\s+/).filter(Boolean);
+  const letters = words.length ? words.slice(0, 2).map((word) => word[0]) : [String(user?.email || "?")[0]];
+  return letters.join("").toUpperCase();
+}
+
 function authPageText(language) {
   return AUTH_PAGE_TEXTS[normalizeLanguage(language)] || AUTH_PAGE_TEXTS.ru;
 }
@@ -21438,6 +21444,24 @@ function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [notifItems, setNotifItems] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  // The account lives in the top bar on every page. Sign-out used to exist
+  // only on the profile page — an unlabeled «↪» on phones — and readers
+  // could not find it.
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const closeOutside = (event) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target)) setAccountMenuOpen(false);
+    };
+    const closeOnEscape = (event) => { if (event.key === "Escape") setAccountMenuOpen(false); };
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [accountMenuOpen]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [catalogStatus, setCatalogStatus] = useState(null);
   const [authTab, setAuthTab] = useState("login");
@@ -22819,7 +22843,7 @@ function App() {
 
           {token && (
             <div className="notif-wrap">
-              <button className="notif-bell" type="button" onClick={() => setNotifOpen((o) => !o)} aria-label="Notifications">
+              <button className="notif-bell" type="button" onClick={() => { setNotifOpen((o) => !o); setAccountMenuOpen(false); }} aria-label="Notifications">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" />
@@ -22860,6 +22884,41 @@ function App() {
               )}
             </div>
           )}
+
+          {token && user ? (
+            <div className="account-wrap" ref={accountMenuRef}>
+              <button
+                className="account-button"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                aria-label={`${language === "en" ? "Account" : language === "uz" ? "Akkaunt" : "Аккаунт"}: ${user.full_name || user.email}`}
+                onClick={() => { setAccountMenuOpen((open) => !open); setNotifOpen(false); }}
+              >
+                {user.avatar_data_url
+                  ? <img src={user.avatar_data_url} alt="" />
+                  : accountInitials(user)}
+              </button>
+              {accountMenuOpen && (
+                <div className="account-menu panel" role="menu" aria-label={language === "en" ? "Account" : language === "uz" ? "Akkaunt" : "Аккаунт"}>
+                  <div className="account-menu-head">
+                    {user.full_name ? <strong>{user.full_name}</strong> : null}
+                    <span>{user.email}</span>
+                  </div>
+                  <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}>
+                    {t(language, "nav.profile")}
+                  </button>
+                  <button type="button" role="menuitem" className="is-logout" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }}>
+                    {t(language, "auth.logout")}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : !token ? (
+            <button className="account-signin" type="button" onClick={() => { setMobileNavOpen(false); setActiveView("auth"); }}>
+              {language === "en" ? "Sign in" : language === "uz" ? "Kirish" : "Войти"}
+            </button>
+          ) : null}
 
           <div className="topbar-meta">
             <div className="topbar-controls">

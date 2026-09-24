@@ -1384,3 +1384,15 @@ iframe {
     display: none;
   }
 }
+
+/* The account avatar sits left of the language and theme controls on a phone,
+   so a menu anchored to it ran off the left edge. Pin it to the screen edge
+   just under the 60px top bar instead. */
+@media (max-width: 760px) {
+  .account-menu {
+    position: fixed;
+    top: 64px;
+    right: max(12px, env(safe-area-inset-right));
+    left: auto;
+  }
+}
