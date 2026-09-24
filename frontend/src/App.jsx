@@ -18696,10 +18696,6 @@ function MarketView({
             { key: "vol", title: `${mt(lang, "topLiquidity")}${changePeriod === "1d" ? "" : ` · ${changePeriodLabel(changePeriod, lang, "short")}`}`,
               rows: periodMovers.topVolume,
               value: (r) => formatCompactVolume(changePeriod === "1d" ? r.stockVolume : r.periodVolume, lang),
-              // Накопительный итог down the list (customer, 23.09.2026): each line
-              // also carries the sum of its own turnover and every line above it,
-              // so the last one reads what the five together traded for.
-              amount: (r) => (changePeriod === "1d" ? r.stockVolume : r.periodVolume),
               hint: (r) => {
                 if (changePeriod === "1d" || !r.periodSessions) return undefined;
                 const from = String(r.periodFrom || "");
@@ -18709,9 +18705,7 @@ function MarketView({
                   ? `${sessions} ${lang === "en" ? "since" : lang === "uz" ? "boshlab" : "с"} ${pretty}`
                   : sessions;
               } },
-          ].map((col) => {
-            let running = 0;
-            return (
+          ].map((col) => (
             <article className={`market-movers-col ${col.key}`} key={col.key}>
               <div className="market-movers-head">
                 <span className={`market-movers-dot ${col.key}`} />
@@ -18733,21 +18727,13 @@ function MarketView({
                         <CompanyLogo logo={smap[r.ticker]?.logo_url} name={r.name || r.ticker} ticker={r.ticker} />
                         <span className="market-movers-name">{r.ticker}</span>
                       </span>
-                      <span className={`market-movers-chg ${col.key}`}>
-                        {col.value(r)}
-                        {col.amount && Number.isFinite(col.amount(r)) && (
-                          <span className="market-movers-cum">
-                            Σ {formatCompactVolume((running += col.amount(r)), lang)}
-                          </span>
-                        )}
-                      </span>
+                      <span className={`market-movers-chg ${col.key}`}>{col.value(r)}</span>
                     </button>
                   </li>
                 )) : <li className="market-movers-empty">—</li>}
               </ul>
             </article>
-            );
-          })}
+          ))}
         </div>
       )}
 
