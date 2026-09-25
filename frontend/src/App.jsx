@@ -14401,6 +14401,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [range, setRange] = React.useState(initial?.range || "1y");
   const [span, setSpan] = React.useState({ from: initial?.from || "", to: initial?.to || "" });
   const [type, setType] = React.useState(initial?.type || "line");
+  // The bar each point stands for: a session, or a week / month rolled up
+  // from the sessions (last close, high/low envelope, summed turnover).
+  const [barInterval, setBarInterval] = React.useState(["W", "M"].includes(initial?.interval) ? initial.interval : "D");
   const [indicators, setIndicators] = React.useState(() => new Set(initial?.indicators || []));
   const [finFields, setFinFields] = React.useState(initial?.fin || []);
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
@@ -14564,12 +14567,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     const p = new URLSearchParams();
     if (custom) { p.set("from", span.from); p.set("to", span.to); } else if (range !== "1y") p.set("range", range);
     if (type !== "line") p.set("type", type);
+    if (barInterval !== "D") p.set("iv", barInterval);
     if (indicators.size) p.set("ind", [...indicators].join(","));
     if (finFields.length) p.set("fin", finFields.join(","));
     if (compareTickers.length) p.set("cmp", compareTickers.join(","));
     const q = p.toString();
     window.history.replaceState(null, "", `/chart/${encodeURIComponent(up)}${q ? `?${q}` : ""}`);
-  }, [up, range, span, type, indicators, finFields, compareTickers, custom]);
+  }, [up, range, span, type, barInterval, indicators, finFields, compareTickers, custom]);
 
   // ── Data preparation ─────────────────────────────────────────────────────
   const daily = React.useMemo(() => (history || []).map((h) => (Array.isArray(h)
@@ -14645,8 +14649,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   })), [compareTickers, cmpSeries]);
   const cmp = React.useMemo(() => buildCompareSeries(visibleWindow, cmpLines), [visibleWindow, cmpLines]);
   const cmpOn = Boolean(cmp && cmp.series.length);
+  // A comparison is aligned session by session, so it stays daily.
+  const effInterval = cmpOn ? "D" : barInterval;
+  const displayWindow = React.useMemo(
+    () => aggregateCompanyPricePoints(visibleWindow, effInterval), [visibleWindow, effInterval]);
 
-  const points = cmpOn ? cmp.points : visibleWindow;
+  const points = cmpOn ? cmp.points : displayWindow;
   const dates = React.useMemo(() => points.map((p) => String(p.date)), [points]);
 
   // A comparison is a percent question, so the price pane answers in percent —
@@ -14758,6 +14766,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       from: span.from,
       to: span.to,
       type,
+      interval: barInterval,
       indicators: [...indicators],
       fin: finFields,
       compare: [],
@@ -14792,8 +14801,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     ? { v: marketRow.changeValue, p: marketRow.changePercent } : null;
   // What the VIEW did, which is not what the day did — the reference states
   // both, and on a range button they are different questions.
-  const windowChange = points.length >= 2 && points[0].close > 0
-    ? ((points[points.length - 1].close / points[0].close) - 1) * 100 : null;
+  const changeBase = cmpOn ? points : visibleWindow;
+  const windowChange = changeBase.length >= 2 && changeBase[0].close > 0
+    ? ((changeBase[changeBase.length - 1].close / changeBase[0].close) - 1) * 100 : null;
 
   const rangeBar = (
     <div className="ac-ranges">
@@ -14987,7 +14997,8 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     const plotLeft = rect.left + (PAD.left / W) * rect.width;
     const plotWidth = (innerW / W) * rect.width;
     const anchorRatio = plotWidth > 0 ? (e.clientX - plotLeft) / plotWidth : 0.5;
-    const next = acZoomView(resolvedCandleView, candleSource.length, anchorRatio, e.deltaY < 0);
+    const minViewPoints = effInterval === "M" ? 60 : effInterval === "W" ? 20 : AC_MIN_CANDLE_POINTS;
+    const next = acZoomView(resolvedCandleView, candleSource.length, anchorRatio, e.deltaY < 0, minViewPoints);
     setCandleView(next);
     setHover(null);
   };
@@ -15043,7 +15054,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const candleViewChanged = Boolean(candleView)
     && (resolvedCandleView.start !== initialCandleView.start
       || resolvedCandleView.end !== initialCandleView.end);
-  const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
+  const relVol = hp && effInterval === "D" ? relativeVolume(daily, hp.date, hp.turnover) : null;
   const addTrendPoint = () => {
     if (!drawMode || hover == null) return;
     setDrawPoints((current) => current.length >= 2 ? [hover] : [...current, hover]);
@@ -15100,7 +15111,20 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       <div className="ac-toolbar">
         {rangeBar}
         <div className="cpc-tool-strip ac-company-tools" data-testid="advanced-chart-tool-strip">
-          <button type="button" className="cpc-tool-btn" aria-label={t("Дневной интервал", "Kunlik interval", "Daily interval")} title={t("Дневной интервал", "Kunlik interval", "Daily interval")}>D</button>
+          <div className="cpc-tool-slot">
+            <button type="button" className={`cpc-tool-btn ${menu === "interval" ? "active" : ""}`}
+              data-testid="advanced-chart-interval" aria-haspopup="menu" aria-expanded={menu === "interval"}
+              aria-label={t(`Интервал: ${effInterval}`, `Interval: ${effInterval}`, `Interval: ${effInterval}`)}
+              title={cmpOn
+                ? t("При сравнении — только дневной интервал", "Taqqoslashda faqat kunlik interval", "Comparison is daily only")
+                : t("Интервал", "Interval", "Interval")}
+              disabled={cmpOn}
+              onClick={() => setMenu(menu === "interval" ? null : "interval")}>{effInterval}</button>
+            {menuPanel("interval", [["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
+              <button key={key} type="button" className={`ac-menu-item ${barInterval === key ? "on" : ""}`}
+                onClick={() => { setBarInterval(key); setMenu(null); }}>{t(ru, uz, en)} <span>{key}</span></button>
+            )))}
+          </div>
           <button type="button" className={`cpc-tool-btn ${cursorOn ? "active" : ""}`}
             aria-pressed={cursorOn} aria-label={t("Перекрестие и подсказки", "Kursor va ko'rsatmalar", "Crosshair and tooltips")}
             onClick={() => { setCursorOn((value) => !value); setHover(null); }}>
@@ -21401,6 +21425,7 @@ function App() {
       from: q.get("from") || "",
       to: q.get("to") || "",
       type: q.get("type") || "line",
+      interval: ["W", "M"].includes(q.get("iv")) ? q.get("iv") : "D",
       indicators: list("ind"),
       fin: list("fin"),
       compare: list("cmp").map((s) => s.toUpperCase()),

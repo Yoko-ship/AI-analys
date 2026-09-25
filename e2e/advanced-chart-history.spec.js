@@ -222,3 +222,42 @@ test("advanced chart menu renders every extended chart type", async ({ page }) =
   await choose("Крестики-нолики");
   await expect(page.locator(".ac-pnf-column").first()).toBeVisible();
 });
+
+test("advanced chart interval rolls sessions up into weeks and months", async ({ page }) => {
+  const history = priceHistory();
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (p === "/api/securities") return json({ ok: true, securities: { [TICKER]: SECURITY } });
+    if (p === `/api/price-history/${TICKER}`) return json({ ok: true, points: history, adjustments: [] });
+    if (p === `/api/company/${TICKER}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
+    if (p === `/api/securities/${TICKER}/info`) return json({ ok: true, security: SECURITY });
+    if (p === "/api/auth/me") return json({ user: null }, 401);
+    return json({});
+  });
+
+  await page.goto(`/chart/${TICKER}?type=candle&range=1y`);
+  const interval = page.getByTestId("advanced-chart-interval");
+  await expect(interval).toHaveText("D");
+  const daily = await page.locator(".ac-candle").count();
+  expect(daily).toBeGreaterThan(200);
+
+  await interval.click();
+  await page.locator(".ac-menu-item", { hasText: "Неделя" }).click();
+  await expect(interval).toHaveText("W");
+  await expect(page).toHaveURL(/iv=W/);
+  const weekly = await page.locator(".ac-candle").count();
+  expect(weekly).toBeGreaterThanOrEqual(50);
+  expect(weekly).toBeLessThanOrEqual(56);
+
+  await interval.click();
+  await page.locator(".ac-menu-item", { hasText: "Месяц" }).click();
+  await expect(interval).toHaveText("M");
+  const monthly = await page.locator(".ac-candle").count();
+  expect(monthly).toBeGreaterThanOrEqual(12);
+  expect(monthly).toBeLessThanOrEqual(14);
+
+  // The choice is in the link, so a reload keeps it.
+  await page.reload();
+  await expect(page.getByTestId("advanced-chart-interval")).toHaveText("M");
+});
