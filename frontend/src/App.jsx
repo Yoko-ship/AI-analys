@@ -10180,31 +10180,46 @@ function applyPatternOverlay(series, overlay) {
 function PatternMenuItems({ patternsOn, setPatternsOn, sensitivity, setSensitivity, available, lang, variant }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const cpc = variant === "cpc";
+  // Two kinds of control in one menu, and they have to look different: three
+  // independent switches (a tick each) and one choice of three (a dot). The
+  // sensitivity only moves the ZigZag, so it is greyed while figures are off.
   const item = (key, label, checked, onClick, disabled = false, radio = false) => (
     <button key={key} type="button" role={cpc ? (radio ? "menuitemradio" : "menuitemcheckbox") : undefined}
-      aria-checked={cpc ? checked : undefined} disabled={disabled}
-      className={cpc ? (checked ? "active" : "") : `ac-menu-item ${checked ? "on" : ""}`}
-      onClick={onClick}>{label}</button>
+      aria-checked={cpc ? checked : undefined} aria-pressed={cpc ? undefined : checked} disabled={disabled}
+      className={`pattern-menu-item ${cpc ? (checked ? "active" : "") : `ac-menu-item ${checked ? "on" : ""}`}`}
+      onClick={onClick}>
+      <span className={`pattern-menu-mark ${radio ? "is-radio" : "is-check"} ${checked ? "is-on" : ""}`} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
   );
+  const figuresOn = available && patternsOn.chart;
   return (
-    <>
+    <div className="pattern-menu">
+      <span className="pattern-menu-head">{t("Показать", "Ko'rsatish", "Show")}</span>
       {item("chart", t("Фигуры", "Shakllar", "Chart figures"), patternsOn.chart,
         () => setPatternsOn((c) => ({ ...c, chart: !c.chart })), !available)}
       {item("candle", t("Свечные модели", "Sham modellari", "Candle models"), patternsOn.candle,
         () => setPatternsOn((c) => ({ ...c, candle: !c.candle })), !available)}
       {item("cycle", t("Цикличность", "Tsikllilik", "Cycles"), patternsOn.cycle,
         () => setPatternsOn((c) => ({ ...c, cycle: !c.cycle })))}
-      <span className={cpc ? "cpc-tool-empty" : "muted ac-menu-hint"}>{t("Чувствительность", "Sezgirlik", "Sensitivity")}</span>
+      <span className="pattern-menu-sep" aria-hidden="true" />
+      <span className="pattern-menu-head">{t("Чувствительность фигур", "Shakllar sezgirligi", "Figure sensitivity")}</span>
       {PATTERN_SENSITIVITY.map(([key, ru, uz, en]) => item(`s:${key}`, t(ru, uz, en), sensitivity === key,
-        () => setSensitivity(key), !available, true))}
+        () => setSensitivity(key), !figuresOn, true))}
+      {available && !patternsOn.chart && (
+        <span className="pattern-menu-hint">
+          {t("Действует только на фигуры — включите их выше", "Faqat shakllarga ta'sir qiladi — ularni yoqing",
+             "Applies to chart figures only — switch them on above")}
+        </span>
+      )}
       {!available && (
-        <span className={cpc ? "cpc-tool-empty" : "muted ac-menu-hint"}>
+        <span className="pattern-menu-hint">
           {t("Фигуры и свечи — только на дневных свечах в сумах, без сравнения",
              "Shakllar va shamlar — faqat kunlik shamlarda, taqqoslashsiz",
              "Figures and candles: daily bars in сум only, no comparison")}
         </span>
       )}
-    </>
+    </div>
   );
 }
 
