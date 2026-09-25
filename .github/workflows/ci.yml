@@ -576,16 +576,14 @@ jobs:
           # below and do not double-run a Railway-era command.
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
-            uzstock-intraday.timer uzstock-collector.timer \
-            uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
+            uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
             uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
-            uzstock-intraday.service uzstock-collector.service \
-            uzstock-quotes-1300.service uzstock-quotes-1610.service \
+            uzstock-collector.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-reports-watch.service \
             uzstock-bank-fx.service uzstock-bank-history.service uzstock-financial-ingestion.service uzstock-news-collector.service; do
             systemctl stop "$service" >/dev/null 2>&1 || true
@@ -853,22 +851,6 @@ jobs:
           """
 
           units = {
-              "/etc/systemd/system/uzstock-intraday.service": worker(
-                  "uzstock-intraday", "UZStock hourly intraday trade collector",
-                  "python collector_financials.py --trades-only --no-quotes"),
-              "/etc/systemd/system/uzstock-intraday.timer": """[Unit]
-          Description=Run the UZStock intraday trade collector hourly
-
-          [Timer]
-          OnBootSec=5min
-          OnUnitActiveSec=1h
-          RandomizedDelaySec=2min
-          Persistent=true
-          Unit=uzstock-intraday.service
-
-          [Install]
-          WantedBy=timers.target
-          """,
               # The schedules below preserve Railway's currently active UTC cron
               # expressions.  The system clock on this VPS is UTC.
               "/etc/systemd/system/uzstock-collector.service": worker(
@@ -923,11 +905,6 @@ jobs:
                   + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-monitor\n",
               "/etc/systemd/system/uzstock-financial-monitor.timer": timer(
                   "Monitor financial evidence every fifteen minutes", "*-*-* *:10,25,40,55:00"),
-              "/etc/systemd/system/uzstock-quotes-1300.service": worker(
-                  "uzstock-quotes-1300", "UZStock mid-session quotes collector",
-                  "python collector_financials.py --trades-only"),
-              "/etc/systemd/system/uzstock-quotes-1300.timer": timer(
-                  "Run UZStock 13:00 local quotes collector", "Tue..Sat *-*-* 08:00:00"),
               "/etc/systemd/system/uzstock-quotes-1610.service": worker(
                   "uzstock-quotes-1610", "UZStock post-close quotes collector",
                   "python collector_financials.py --trades-only"),
@@ -969,33 +946,27 @@ jobs:
           for name, content in units.items():
               Path(name).write_text(content, encoding="utf-8")
           PY
+          # Retired 2026-09-25: an hourly, round-the-clock walk of the uzse.uz
+          # trade feed (plus one more after every deploy) and a mid-session
+          # 13:00 run added up to ~30 full crawls a day, and uzse.uz blocked
+          # this host's IP. Hourly bars come from each execution's own
+          # timestamp, so the 16:10 and 21:30 runs still build every hour of
+          # the session; nothing is lost but mid-session freshness.
+          for retired in uzstock-intraday uzstock-quotes-1300; do
+            systemctl disable --now "$retired.timer" >/dev/null 2>&1 || true
+            systemctl stop "$retired.service" >/dev/null 2>&1 || true
+            docker rm -f "$retired" >/dev/null 2>&1 || true
+            rm -f "/etc/systemd/system/$retired.timer" "/etc/systemd/system/$retired.service"
+          done
           systemctl daemon-reload
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
-            uzstock-intraday.timer uzstock-collector.timer \
-            uzstock-quotes-1300.timer uzstock-quotes-1610.timer \
+            uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-reports-watch.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done
-          # The first exchange walk can take several minutes on a busy day.
-          # Start it under systemd and let the deployment finish; otherwise an
-          # SSH idle timeout can falsely mark a healthy VPS deployment failed.
-          systemctl start --no-block uzstock-intraday.service
-          systemctl is-active --quiet uzstock-intraday.timer
-          docker exec -i uzstock-web python - <<'PY'
-          from reports_catalog import get_catalog_conn
-
-          conn = get_catalog_conn()
-          try:
-              count = conn.execute("SELECT COUNT(*) FROM catalog_intraday_history").fetchone()[0]
-          finally:
-              conn.close()
-          if count < 1:
-              raise SystemExit("intraday collector completed without storing any hourly bars")
-          print(f"intraday_bars_stored={count}")
-          PY
           REMOTE
 
   publish-reviewed-bank-ifrs:

@@ -31,7 +31,7 @@ STREAMS: tuple[dict[str, str], ...] = (
      "title": "Отчётность", "table": "catalog_financials", "column": "updated_at"},
     {"key": "reports", "service": "reports-watch", "schedule": "ежечасно 09–23 · Пн–Сб",
      "title": "Каталог отчётов", "table": "catalog_reports", "column": "synced_at"},
-    {"key": "quotes", "service": "quotes-1300 / quotes-1610", "schedule": "13:00 и 16:10",
+    {"key": "quotes", "service": "quotes-1610 / quotes-2130", "schedule": "16:10 и 21:30",
      "title": "Котировки", "table": "catalog_quotes", "column": "updated_at"},
     {"key": "trades", "service": "quotes-1610", "schedule": "16:10 · Пн–Сб",
      "title": "Итоги торгов", "table": "catalog_trade_stats", "column": "updated_at"},

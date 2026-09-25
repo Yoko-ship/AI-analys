@@ -159,7 +159,7 @@ ADMIN_RAILWAY_RECOVERY_SERVICES=53a76ca7-6a21-4866-b71d-6c33a9fcc678,5771b303-95
 ```
 
 These IDs are for the existing `terrific-freedom` / `production` project. The recovery
-list includes collector, quotes-1610/2130/1300, news-collector, reports-watch and
+list includes collector, quotes-1610/2130, news-collector, reports-watch and
 bank-fx. It deliberately excludes Postgres and the website API. Resolve IDs again
 for a different project; never copy this list into another environment blindly.
 The project/environment overrides may be omitted when monitoring the API service's
@@ -380,7 +380,6 @@ Schedule it on any host that can reach openinfo:
   | Service | `APP_MODE` | Cron (UTC) | Tashkent | Scope |
   | --- | --- | --- | --- | --- |
   | `collector` | `collector` | `0 3 * * 1-5` | 08:00 Mon–Fri | full pipeline |
-  | `quotes-1300` | `quotes` | `0 8 * * 2-6` | 13:00 Tue–Sat | quotes/turnover, mid-session |
   | `quotes-1610` | `quotes` | `10 11 * * 1-6` | 16:10 Mon–Sat | quotes/turnover, trading over but **not yet published** |
   | `quotes-2130` | `quotes` | `30 16 * * 1-6` | 21:30 Mon–Sat | quotes/turnover, the session as the exchange finally published it |
   | `reports-watch` | `reports-watch` | `0 4-18 * * 1-6` | hourly 09:00–23:00 Mon–Sat | issuers that filed since the last sweep |
@@ -403,6 +402,15 @@ Schedule it on any host that can reach openinfo:
   reading an unfinished one, which is fine as long as nobody mistakes it for the close.
   The lag varies (20:57 on Fri 07.08, at least 19:19 on Thu 06.08), so 21:30 carries
   deliberate margin.
+
+  **Two crawls a day, not more.** Until 2026-09-25 an hourly, round-the-clock
+  `uzstock-intraday` job (plus one extra walk after every deploy) and a mid-session
+  `quotes-1300` run added up to ~30 full walks of the trade feed a day — a busy session
+  is 200+ pages — and uzse.uz blocked the server's IP from 2026-09-24 ~16:40 Tashkent.
+  Both jobs are retired and the deploy no longer starts a crawl. Hourly 1Д/1Н bars are
+  built from each execution's own timestamp, so the 16:10 and 21:30 walks still produce
+  every hour of the session; a missed day can be filled with `--backfill-intraday`.
+  Do not add a scheduled uzse.uz crawl without counting the requests it adds.
 
   `news-collector` shares 16:10 with `quotes-1610` deliberately: after the close the site
   refreshes prices and the feed at the same moment, so a reader is not comparing a fresh
@@ -496,16 +504,9 @@ Schedule it on any host that can reach openinfo:
     each retry `UZSE_RETRY_ATTEMPTS` times (default 3) with `UZSE_RETRY_WAIT_SECONDS`
     between them (default 300), and the quote pass re-asks only the pages that could not be
     READ — a page that answered "no session" answered. Worst case a step spends ten minutes
-    waiting; the tightest gap in the schedule is 08:00 to 13:00, and Railway skips a run
+    waiting; the tightest gap in the schedule is 16:10 to 21:30, and Railway skips a run
     whose predecessor is still going, so the bound matters.
-  - Friday's finished session is picked up by **`quotes-2130` on Friday evening**, and
-    again by `quotes-1300` on Saturday. Until 2026-08-07 the Saturday run was the only one
-    that could see it at all, which is why quotes-1300 runs Tue–Sat rather than Mon–Fri.
-  - `quotes-1300` audits a session that is *still being traded*: the feed is summed at 13:00
-    and the pages are read minutes later, so a page ahead of the feed is the session
-    continuing, not a disagreement (on 2026-08-04 that reported 16 false mismatches, all
-    settled by 16:10). Mid-session the audit only fails a page that is BEHIND the executions;
-    once the day has turned, equality is required again and the 08:00 run enforces it.
+  - Friday's finished session is picked up by **`quotes-2130` on Friday evening**.
 
   Re-running the same session is safe by design: `bulk_upsert_trade_stats` accepts
   a same-day correction (a later run sees more executions) and refuses anything
