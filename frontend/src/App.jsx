@@ -15608,7 +15608,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              <LwCanvas spec={spec} height={plotH} lang={lang} crosshair={cursorOn} pan={!drawMode}
+              {/* 22px under the canvas for the TradingView credit: the plot box
+                  clips at its own height. */}
+              <LwCanvas spec={spec} height={plotH - 22} lang={lang} crosshair={cursorOn} pan={!drawMode}
                 viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
                 onHover={setHover} onClick={onChartClick}
                 onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}

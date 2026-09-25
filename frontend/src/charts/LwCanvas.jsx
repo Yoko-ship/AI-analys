@@ -1,3 +1,8 @@
+// TradingView Lightweight Charts™
+// Copyright (c) 2025 TradingView, Inc. https://www.tradingview.com/
+// Licensed under the Apache License 2.0. The licence asks for a link to
+// tradingview.com on the page that shows the chart: it is the credit line this
+// component renders under every chart, in place of the logo drawn on the plot.
 import React from "react";
 import {
   createChart, createSeriesMarkers, createTextWatermark, AreaSeries, LineSeries, BaselineSeries, CandlestickSeries,
@@ -107,6 +112,7 @@ export default function LwCanvas({
     const chart = createChart(el, {
       autoSize: true,
       layout: { background: { type: ColorType.Solid, color: "transparent" }, fontFamily: "inherit", fontSize: 11,
+        attributionLogo: false,
         panes: { separatorColor: "rgba(127,127,127,0.18)", enableResize: false } },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.08 } },
@@ -338,8 +344,13 @@ export default function LwCanvas({
   }, [focus]);
 
   return (
-    <div className={`lw-canvas ${className}`} style={{ position: "relative", height, ...style }} {...rest}>
-      <div ref={boxRef} className="lw-canvas-surface" style={{ position: "absolute", inset: 0 }} />
-    </div>
+    <>
+      <div className={`lw-canvas ${className}`} style={{ position: "relative", height, ...style }} {...rest}>
+        <div ref={boxRef} className="lw-canvas-surface" style={{ position: "absolute", inset: 0 }} />
+      </div>
+      <a className="lw-credit" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
+        {lang === "en" ? "Charts by TradingView" : lang === "uz" ? "Grafiklar: TradingView" : "Графики: TradingView"}
+      </a>
+    </>
   );
 }
