@@ -625,7 +625,7 @@ test("analysis setup uses labeled controls and honest progressive disclosure", a
   await expect(page.getByLabel("Компания", { exact: true })).toHaveValue("AGBA");
 });
 
-test("profile workspace exposes account state, accessible editing, and exact history filters", async ({ page }) => {
+test("profile workspace exposes account state, watchlist alerts, and notes without analysis", async ({ page }) => {
   const signedInUser = {
     id: 99,
     full_name: "E2E Investor",
@@ -654,16 +654,14 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) }));
   await page.goto("/profile");
 
-  await expect(page.getByRole("heading", { name: "Моё пространство", level: 1 })).toBeVisible();
-  await expect(page.getByText("E2E Investor", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "E2E Investor", level: 1 })).toBeVisible();
   await expect(page.locator(".topbar")).toBeVisible();
   await expect(page.locator(".topbar-nav-btn.active")).toHaveText("Профиль");
   await expect(page.locator(".profile-command-center")).toBeVisible();
-  await expect(page.locator(".profile-cmd-sidebar")).toHaveCount(0);
-  await expect(page.locator(".profile-cmd-resume-card")).toContainText("AGBA Bank");
-  await expect(page.locator(".profile-cmd-watch-row")).toContainText("AGBA");
-  await expect(page.locator(".profile-cmd-week-card")).toBeVisible();
-  await expect(page.locator(".profile-cmd-account-card")).toBeVisible();
+  await expect(page.locator(".pf-watch-item")).toContainText("AGBA");
+  // Company analysis is hidden from the product, so the profile offers none of it.
+  await expect(page.getByRole("button", { name: "Новый анализ" })).toHaveCount(0);
+  await expect(page.locator(".pf-account")).toBeVisible();
   const profileShell = await page.evaluate(() => ({
     contentPaddingLeft: getComputedStyle(document.querySelector(".content")).paddingLeft,
     topbarBottom: document.querySelector(".topbar").getBoundingClientRect().bottom,
@@ -699,25 +697,10 @@ test("profile workspace exposes account state, accessible editing, and exact his
   await expect(watchlistEditor.getByText("Ценовое уведомление", { exact: true })).toBeVisible();
   await watchlistEditor.locator("header > button").click();
 
-  await page.locator(".history-item").first().locator("button").click();
-  const researchEditor = page.getByRole("dialog", { name: "Управление исследованием" });
-  await expect(researchEditor.getByText("Добавить в закладки", { exact: true })).toBeVisible();
-  await expect(researchEditor.getByRole("button", { name: "PDF", exact: true })).toBeVisible();
-  await researchEditor.locator("header > button").click();
-
   await page.getByRole("button", { name: /AGBA — выводы/ }).click();
   const noteEditor = page.getByRole("dialog", { name: "Редактировать заметку" });
   await expect(noteEditor.getByLabel("Текст")).toHaveValue("Следить за достаточностью капитала");
   await noteEditor.locator("header > button").click();
-
-  await expect(page.locator(".history-item")).toHaveCount(2);
-  await page.getByLabel("Все анализы").selectOption("favorites");
-  await expect(page.locator(".history-item")).toHaveCount(1);
-  await expect(page.getByText("Показано: 1")).toBeVisible();
-  await page.getByLabel("Все анализы").selectOption("all");
-  await page.getByLabel("Поиск по компании или тикеру").fill("KVTS");
-  await expect(page.locator(".history-item")).toHaveCount(1);
-  await expect(page.locator(".history-item")).toContainText("Kvarts");
 
   await page.setViewportSize({ width: 390, height: 844 });
   const signedInWidths = await page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
@@ -750,7 +733,7 @@ test("profile avatar editor previews removal and restores the saved image on can
   await page.route("**/api/profile", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(profile) }));
   await page.goto("/profile");
 
-  await expect(page.locator(".profile-cmd-identity-card img")).toBeVisible();
+  await expect(page.locator(".pf-hero img")).toBeVisible();
   await page.getByRole("button", { name: "Настройки", exact: true }).last().click();
   const accountCenter = page.locator(".profile-account-center");
   await accountCenter.getByRole("button", { name: "Профиль", exact: true }).click();
@@ -761,7 +744,7 @@ test("profile avatar editor previews removal and restores the saved image on can
   await expect(accountCenter.getByText("Аватар будет удалён после сохранения", { exact: true })).toBeVisible();
 
   await accountCenter.getByRole("button", { name: "Закрыть", exact: true }).click();
-  await expect(page.locator(".profile-cmd-identity-card img")).toBeVisible();
+  await expect(page.locator(".pf-hero img")).toBeVisible();
   await page.getByRole("button", { name: "Настройки", exact: true }).last().click();
   await page.locator(".profile-account-center").getByRole("button", { name: "Профиль", exact: true }).click();
   await expect(page.locator(".profile-account-center .profile-avatar-editor-preview img")).toBeVisible();
@@ -770,7 +753,7 @@ test("profile avatar editor previews removal and restores the saved image on can
 
   signedInUser.avatar_data_url = "data:image/png;base64,not-a-valid-image";
   await page.reload();
-  const fallbackAvatar = page.locator(".profile-cmd-identity-card .profile-cmd-avatar");
+  const fallbackAvatar = page.locator(".pf-hero .profile-cmd-avatar");
   await expect(fallbackAvatar).toHaveText("EI");
   await expect(fallbackAvatar.locator("img")).toHaveCount(0);
 });

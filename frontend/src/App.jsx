@@ -60,7 +60,6 @@ import { PasswordMeter } from "./PasswordMeter.jsx";
 import { passwordStrength, translateAuthError } from "./lib/passwordStrength.js";
 const ProfileFavoriteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileFavoriteEditor })));
 const ProfileNoteEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileNoteEditor })));
-const ProfileResearchEditor = lazy(() => import("./ProfileAccountCenter.jsx").then((module) => ({ default: module.ProfileResearchEditor })));
 // The visit beacon: one fire-and-forget POST per page view, read back by the
 // admin panel's «Аудитория». Admin pages themselves are not counted.
 import { setTrackedUser, trackPageview } from "./lib/track.js";
@@ -2639,8 +2638,6 @@ const TEXTS = {
       signedOutTitle: "Войдите, чтобы открыть профиль",
       signedOutBody: "История анализов, избранные компании и личные настройки доступны после входа.",
       signIn: "Войти в аккаунт",
-      clearSearch: "Очистить поиск",
-      resultsShown: "Показано",
       editTitle: "Редактирование профиля",
       name: "Отображаемое имя",
       avatar: "Аватар",
@@ -2663,32 +2660,26 @@ const TEXTS = {
         topCompany: "Чаще всего смотрят",
       },
       empty: "Профиль появится после входа в систему.",
-      historyEmpty: "После первого анализа здесь появится история действий.",
-      favoritesEmpty: "Добавляйте компании в избранное из анализа или истории.",
-      filters: { search: "Поиск по компании или тикеру", all: "Все анализы", favorites: "Только избранное" },
+      favoritesEmpty: "Добавляйте компании в избранное из каталога или карточки компании.",
       command: {
-        title: "Моё пространство",
-        search: "Поиск исследований",
-        newAnalysis: "Новый анализ",
-        resume: "Продолжить",
-        continue: "Открыть",
-        updated: "Обновлено",
         watchlist: "Избранное",
-        manageList: "Управлять",
         addTicker: "Добавить компанию",
-        thisWeek: "Эта неделя",
-        recentResearch: "Недавние исследования",
-        company: "Компания",
-        score: "Оценка",
-        status: "Статус",
-        upToDate: "Актуально",
-        review: "Проверить",
-        viewAll: "Все исследования",
         pinnedNotes: "Заметки",
         account: "Аккаунт",
-        preferences: "Настройки",
         access: "Безопасность",
-        noNotes: "Заметки появятся из сохранённых выводов анализа.",
+        noNotes: "Здесь появятся ваши заметки о компаниях.",
+        emailVerified: "Email подтверждён",
+        freePlan: "Бесплатный тариф",
+        settings: "Настройки",
+        alertSettings: "Настройки уведомлений",
+        moveLeft: "Левее",
+        moveRight: "Правее",
+        newNote: "Новая",
+        untitledNote: "Заметка без названия",
+        interface: "Интерфейс и отчёты",
+        notifications: "Уведомления",
+        dataPrivacy: "Данные и приватность",
+        twoFactorOff: "2FA выкл.",
       },
       remove: "Убрать",
     },
@@ -2980,8 +2971,6 @@ const TEXTS = {
       signedOutTitle: "Sign in to open your profile",
       signedOutBody: "Analysis history, saved companies, and personal settings are available after sign in.",
       signIn: "Sign in to your account",
-      clearSearch: "Clear search",
-      resultsShown: "Shown",
       editTitle: "Edit profile",
       name: "Display name",
       avatar: "Avatar",
@@ -3004,32 +2993,26 @@ const TEXTS = {
         topCompany: "Most viewed",
       },
       empty: "Profile appears after sign in.",
-      historyEmpty: "Your activity history will appear after the first analysis.",
-      favoritesEmpty: "Add companies to favorites from analysis or history.",
-      filters: { search: "Search by company or ticker", all: "All analyses", favorites: "Favorites only" },
+      favoritesEmpty: "Add companies to your watchlist from the catalog or a company page.",
       command: {
-        title: "My workspace",
-        search: "Search research",
-        newAnalysis: "New analysis",
-        resume: "Resume",
-        continue: "Continue",
-        updated: "Updated",
         watchlist: "Watchlist",
-        manageList: "Manage list",
         addTicker: "Add company",
-        thisWeek: "This week",
-        recentResearch: "Recent research",
-        company: "Company",
-        score: "Score",
-        status: "Status",
-        upToDate: "Up to date",
-        review: "Review",
-        viewAll: "View all research",
         pinnedNotes: "Pinned notes",
         account: "Account",
-        preferences: "Preferences",
         access: "Security",
-        noNotes: "Notes will appear from saved analysis takeaways.",
+        noNotes: "Your notes on companies will appear here.",
+        emailVerified: "Email verified",
+        freePlan: "Free plan",
+        settings: "Settings",
+        alertSettings: "Alert settings",
+        moveLeft: "Move left",
+        moveRight: "Move right",
+        newNote: "New note",
+        untitledNote: "Untitled note",
+        interface: "Interface & reports",
+        notifications: "Notifications",
+        dataPrivacy: "Data & privacy",
+        twoFactorOff: "2FA off",
       },
       remove: "Remove",
     },
@@ -3321,8 +3304,6 @@ const TEXTS = {
       signedOutTitle: "Profilni ochish uchun tizimga kiring",
       signedOutBody: "Tahlil tarixi, tanlangan kompaniyalar va shaxsiy sozlamalar tizimga kirgandan keyin ochiladi.",
       signIn: "Hisobga kirish",
-      clearSearch: "Qidiruvni tozalash",
-      resultsShown: "Ko'rsatildi",
       editTitle: "Profilni tahrirlash",
       name: "Ko'rinadigan ism",
       avatar: "Avatar",
@@ -3345,32 +3326,26 @@ const TEXTS = {
         topCompany: "Eng ko'p ko'rilgan",
       },
       empty: "Profil tizimga kirgandan keyin ko'rinadi.",
-      historyEmpty: "Birinchi tahlildan keyin bu yerda tarix paydo bo'ladi.",
-      favoritesEmpty: "Tahlil yoki tarixdan kompaniyalarni tanlanganlarga qo'shing.",
-      filters: { search: "Kompaniya yoki ticker bo'yicha qidirish", all: "Barcha tahlillar", favorites: "Faqat tanlanganlar" },
+      favoritesEmpty: "Kompaniyalarni katalog yoki kompaniya sahifasidan tanlanganlarga qo'shing.",
       command: {
-        title: "Mening maydonim",
-        search: "Tadqiqotlarni qidirish",
-        newAnalysis: "Yangi tahlil",
-        resume: "Davom ettirish",
-        continue: "Ochish",
-        updated: "Yangilangan",
         watchlist: "Tanlanganlar",
-        manageList: "Boshqarish",
         addTicker: "Kompaniya qo'shish",
-        thisWeek: "Shu hafta",
-        recentResearch: "So'nggi tadqiqotlar",
-        company: "Kompaniya",
-        score: "Baho",
-        status: "Holat",
-        upToDate: "Dolzarb",
-        review: "Tekshirish",
-        viewAll: "Barcha tadqiqotlar",
         pinnedNotes: "Qaydlar",
         account: "Hisob",
-        preferences: "Sozlamalar",
         access: "Xavfsizlik",
-        noNotes: "Qaydlar saqlangan tahlil xulosalaridan paydo bo'ladi.",
+        noNotes: "Kompaniyalar haqidagi qaydlaringiz shu yerda paydo bo'ladi.",
+        emailVerified: "Email tasdiqlangan",
+        freePlan: "Bepul tarif",
+        settings: "Sozlamalar",
+        alertSettings: "Signal sozlamalari",
+        moveLeft: "Chapga",
+        moveRight: "O'ngga",
+        newNote: "Yangi qayd",
+        untitledNote: "Nomsiz qayd",
+        interface: "Interfeys va hisobotlar",
+        notifications: "Bildirishnomalar",
+        dataPrivacy: "Ma'lumotlar va maxfiylik",
+        twoFactorOff: "2FA o'chiq",
       },
       remove: "O'chirish",
     },
@@ -4306,20 +4281,6 @@ function formatMarketNumber(value, language, digits = 2) {
   }).format(num);
 }
 
-function formatRelativeTime(value, language) {
-  const date = value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) return "—";
-  const seconds = Number(((date.getTime() - Date.now()) / 1000).toFixed(0));
-  const absolute = Math.abs(seconds);
-  const locale = language === "en" ? "en" : language === "uz" ? "uz" : "ru";
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-  if (absolute < 60) return formatter.format(seconds, "second");
-  if (absolute < 3600) return formatter.format(Number((seconds / 60).toFixed(0)), "minute");
-  if (absolute < 86400) return formatter.format(Number((seconds / 3600).toFixed(0)), "hour");
-  if (absolute < 604800) return formatter.format(Number((seconds / 86400).toFixed(0)), "day");
-  return formatDateLabel(value, language);
-}
-
 function profileMarketQuote(ticker, rows, securities) {
   const normalized = String(ticker || "").trim().toUpperCase();
   const row = (rows || []).find((item) => String(item?.ticker || "").trim().toUpperCase() === normalized) || {};
@@ -4333,14 +4294,6 @@ function profileMarketQuote(ticker, rows, securities) {
       ? ((price - previous) / Math.abs(previous)) * 100
       : null;
   return { row, security, price, change };
-}
-
-function profileScoreTone(score) {
-  const value = safeNumber(score);
-  if (value === null) return "neutral";
-  if (value >= 70) return "positive";
-  if (value < 50) return "negative";
-  return "neutral";
 }
 
 function formatCompactVolume(value, lang) {
@@ -4970,68 +4923,6 @@ function buildSeriesChart(series, language) {
     x,
     y,
   };
-}
-
-function buildActivitySeries(entries, language) {
-  const items = Array.isArray(entries) ? entries : [];
-  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
-  const dayMap = new Map();
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const keyFor = (date) =>
-    [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, "0"),
-      String(date.getDate()).padStart(2, "0"),
-    ].join("-");
-
-  for (let offset = 13; offset >= 0; offset -= 1) {
-    const date = new Date(now);
-    date.setDate(now.getDate() - offset);
-    const key = keyFor(date);
-    dayMap.set(key, {
-      key,
-      label: new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date),
-      shortLabel: new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date),
-      count: 0,
-      cached: 0,
-      scoreTotal: 0,
-      scoreCount: 0,
-      avgScore: null,
-    });
-  }
-
-  for (const item of items) {
-    const createdAt = item?.created_at;
-    if (!createdAt) continue;
-    const date = new Date(createdAt);
-    if (Number.isNaN(date.getTime())) continue;
-    date.setHours(0, 0, 0, 0);
-    const key = keyFor(date);
-    const bucket = dayMap.get(key);
-    if (!bucket) continue;
-    bucket.count += 1;
-    if (item?.from_cache) bucket.cached += 1;
-    const score = safeNumber(item?.score ?? item?.summary?.score ?? item?.result?.summary?.score);
-    if (score !== null) {
-      bucket.scoreTotal += score;
-      bucket.scoreCount += 1;
-    }
-  }
-
-  const days = Array.from(dayMap.values()).map((day) => ({
-    ...day,
-    avgScore: day.scoreCount ? day.scoreTotal / day.scoreCount : null,
-  }));
-  const maxCount = Math.max(1, ...days.map((day) => day.count || 0));
-  const maxCached = Math.max(1, ...days.map((day) => day.cached || 0));
-  const total = days.reduce((sum, day) => sum + (day.count || 0), 0);
-  const cachedTotal = days.reduce((sum, day) => sum + (day.cached || 0), 0);
-  const scoreDays = days.filter((day) => day.avgScore !== null);
-  const avgScore = scoreDays.length ? scoreDays.reduce((sum, day) => sum + day.avgScore, 0) / scoreDays.length : null;
-  const peak = days.reduce((best, day) => (day.count > (best?.count || 0) ? day : best), days[0] || null);
-
-  return { days, maxCount, maxCached, total, cachedTotal, avgScore, peak };
 }
 
 function buildSparkline(values, width = 220, height = 74) {
@@ -21542,13 +21433,10 @@ function App() {
   const [profileAvatarPreview, setProfileAvatarPreview] = useState("");
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [profileSettingsTab, setProfileSettingsTab] = useState("profile");
-  const [profileResearchEditor, setProfileResearchEditor] = useState(null);
   const [profileFavoriteEditor, setProfileFavoriteEditor] = useState(null);
   const [profileNoteEditor, setProfileNoteEditor] = useState({ open: false, note: null });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileAvatarCleared, setProfileAvatarCleared] = useState(false);
-  const [historySearch, setHistorySearch] = useState("");
-  const [historyMode, setHistoryMode] = useState("all");
   const [marketRows, setMarketRows] = useState([]);
   const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
   // /bonds is not a view of its own — it opens the board's bond segment.
@@ -21704,10 +21592,6 @@ function App() {
       );
     }
   }, [profile]);
-
-  useEffect(() => {
-    setHistorySearch("");
-  }, [activeView]);
 
   // Keep the browser URL in sync with the active view (push a history entry).
   useEffect(() => {
@@ -22282,15 +22166,6 @@ function App() {
     }
   };
 
-  // Re-run a stored history query with fresh data (ТЗ Блок 5: «Повторить запрос»).
-  const handleRepeatAnalysis = (item) => {
-    const company = (item?.ticker || item?.company_input || item?.company_name || "").trim();
-    if (!company) return;
-    setAnalysisCompany(company);
-    setActiveView("analysis");
-    handleAnalysisSubmit(null, company);
-  };
-
   const updateCompareCompany = (index, value) => {
     setCompareCompanies((current) => current.map((item, itemIndex) => (itemIndex === index ? value : item)));
   };
@@ -22484,15 +22359,6 @@ function App() {
   };
 
   const favoriteTickers = new Set((profile?.favorites || []).map((item) => String(item?.ticker || "").trim().toUpperCase()).filter(Boolean));
-  const recentAnalyses = (profile?.recent_analyses || []).filter((item) => {
-    const match = `${item?.company_name || ""} ${item?.company_input || ""} ${item?.ticker || ""}`.toLowerCase().includes(historySearch.trim().toLowerCase());
-    const fav = favoriteTickers.has(String(item?.ticker || "").trim().toUpperCase());
-    const modeMatch = historyMode === "favorites" ? fav
-      : historyMode === "bookmarked" ? item.bookmarked
-        : historyMode === "archived" ? item.archived
-          : !item.archived;
-    return match && modeMatch;
-  });
 
   const chartData = buildSeriesChart(analysisResult?.ifrs_snapshot?.series?.annual || [], language);
   const analysisLabel = analysisResult?.company_name || analysisResult?.input || t(language, "analysis.resultEmpty");
@@ -22549,18 +22415,14 @@ function App() {
     return cards;
   })();
 
-  const profileStats = profile?.stats || {};
   const profileUser = profile?.user || user;
   const profileAvatar = profileUser?.avatar_data_url;
-  const activitySeries = buildActivitySeries(profile?.recent_analyses || [], language);
   const profileHistory = Array.isArray(profile?.recent_analyses) ? profile.recent_analyses : [];
   const profileFavorites = Array.isArray(profile?.favorites) ? profile.favorites : [];
-  const resumeResearch = profileHistory.find((item) => !item.archived) || null;
-  const resumeTicker = resolveTicker(resumeResearch?.ticker || resumeResearch?.company_input || profileFavorites[0]?.ticker || "");
-  const resumeCompany = companies.find((item) => String(item?.ticker || "").toUpperCase() === resumeTicker) || null;
-  const resumeQuote = profileMarketQuote(resumeTicker, marketRows, securitiesMap);
   const profileNotes = Array.isArray(profile?.notes) ? profile.notes : [];
   const hasProAccess = Boolean(profile?.user?.pro_access ?? user?.pro_access);
+  const profileSecurity = profile?.security || {};
+  const profileMemberSince = profileUser?.created_at ? `${t(language, "profile.memberSince")} ${formatDateLabel(profileUser.created_at, language)}` : "";
   const authCopy = authPageText(language);
   const authMarketItems = (Array.isArray(marketRows) ? marketRows : [])
     .map((row) => {
@@ -23477,250 +23339,122 @@ function App() {
           )}
 
           {activeView === "profile" && (
-            <section className="profile-command-center" aria-labelledby="profile-page-title">
-                <header className="profile-cmd-header">
-                  <h1 id="profile-page-title">{t(language, "profile.command.title")}</h1>
-                  <label className="profile-cmd-search" htmlFor="profile-history-search">
-                    <span className="profile-cmd-search-icon" aria-hidden="true" />
-                    <span className="sr-only">{t(language, "profile.filters.search")}</span>
-                    <input
-                      id="profile-history-search"
-                      type="search"
-                      value={historySearch}
-                      onChange={(event) => setHistorySearch(event.target.value)}
-                      placeholder={t(language, "profile.command.search")}
-                    />
-                    {historySearch ? (
-                      <button type="button" onClick={() => setHistorySearch("")} aria-label={t(language, "profile.clearSearch")}>×</button>
-                    ) : null}
-                  </label>
-                  <div className="profile-cmd-header-actions">
-                    {profileUser ? <button className="profile-cmd-header-ghost" type="button" onClick={() => openProfileSettings("profile")}><span aria-hidden="true">⚙</span><span>{language === "en" ? "Settings" : language === "uz" ? "Sozlamalar" : "Настройки"}</span></button> : null}
-                    {profileUser ? <button className="profile-cmd-header-ghost is-logout" type="button" onClick={handleLogout}><span aria-hidden="true">↪</span><span>{t(language, "auth.logout")}</span></button> : null}
-                    <button
-                      className="profile-cmd-primary"
-                      type="button"
-                      onClick={() => setActiveView("analysis")}
-                      aria-label={t(language, "profile.command.newAnalysis")}
-                    >
-                      <span aria-hidden="true">＋</span>
-                      <span className="profile-cmd-primary-label">{t(language, "profile.command.newAnalysis")}</span>
-                    </button>
-                  </div>
-                </header>
-
+            <section className="profile-command-center pf" aria-labelledby="profile-page-title">
                 {!profileUser ? (
-                  <div className="profile-cmd-signed-out">
-                    <span className="profile-cmd-signed-out-icon" aria-hidden="true">{Icons.lock}</span>
-                    <h2>{t(language, "profile.signedOutTitle")}</h2>
+                  <div className="pf-signed-out">
+                    <span className="pf-signed-out-icon" aria-hidden="true">{Icons.lock}</span>
+                    <h1 id="profile-page-title">{t(language, "profile.signedOutTitle")}</h1>
                     <p>{t(language, "profile.signedOutBody")}</p>
-                    <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("auth")}>
+                    <button className="pf-btn pf-btn-accent" type="button" onClick={() => setActiveView("auth")}>
                       {t(language, "profile.signIn")}
                     </button>
                   </div>
                 ) : (
-                  <div className="profile-cmd-grid">
-                    <div className="profile-cmd-column profile-cmd-column-left">
-                      <article className="profile-cmd-card profile-cmd-identity-card">
-                        <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="profile-cmd-avatar-large" />
-                        <div>
-                          <strong>{profileUser.full_name || profileUser.email.split("@")[0]}</strong>
-                          <span className="profile-cmd-active"><i aria-hidden="true" />{t(language, "profile.activeStatus")}</span>
-                          <span className="profile-cmd-active">
-                            <i aria-hidden="true" />
-                            {hasProAccess
-                              ? "PRO"
-                              : (language === "en" ? "Free plan" : language === "uz" ? "Bepul tarif" : "Бесплатный тариф")}
-                          </span>
+                  <>
+                    <header className="pf-band pf-hero">
+                      <div className="pf-hero-identity">
+                        <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="pf-avatar" />
+                        <h1 id="profile-page-title">{profileUser.full_name || profileUser.email.split("@")[0]}</h1>
+                        <div className="pf-hero-meta">
+                          {profileUser.email_verified ? (
+                            <span className="pf-pill"><ProfileGlyph name="check" />{t(language, "profile.command.emailVerified")}</span>
+                          ) : null}
+                          <span className="pf-pill">{hasProAccess ? "PRO" : t(language, "profile.command.freePlan")}</span>
+                          <span className="pf-hero-note">{[profileUser.email, profileMemberSince].filter(Boolean).join(" · ")}</span>
                         </div>
-                      </article>
-
-                      <article id="profile-favorites" className="profile-cmd-card profile-cmd-watchlist" aria-labelledby="profile-favorites-title">
-                        <div className="profile-cmd-card-head">
-                          <h2 id="profile-favorites-title">{t(language, "profile.command.watchlist")}</h2>
-                          <button type="button" onClick={() => setActiveView("catalog")}>{t(language, "profile.command.manageList")}</button>
-                        </div>
-                        {profileFavorites.length ? (
-                          <div className="profile-cmd-watch-rows">
-                            {profileFavorites.slice(0, 7).map((item, index) => {
-                              const ticker = String(item.ticker || "").toUpperCase();
-                              const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
-                              const quote = profileMarketQuote(ticker, marketRows, securitiesMap);
-                              return (
-                                <div className="profile-cmd-watch-row" key={`${ticker}-${item.created_at || "saved"}`}>
-                                  <button className="profile-cmd-watch-main" type="button" onClick={() => openCompanyPage(ticker)}>
-                                    <CompanyLogo logo={company?.logo || quote.security?.logo_url} name={item.company_name || company?.company_name || ticker} ticker={ticker} />
-                                    <span className="profile-cmd-watch-company">
-                                      <strong>{ticker}</strong>
-                                      <small>{item.company_name || company?.company_name || ticker}</small>
-                                    </span>
-                                    <span className="profile-cmd-watch-price">{formatMarketNumber(quote.price, language)}</span>
-                                    <span className={`profile-cmd-watch-change ${quote.change === null ? "is-flat" : quote.change >= 0 ? "is-up" : "is-down"}`}>
-                                      {formatSignedPercent(quote.change, 2)}
-                                    </span>
-                                  </button>
-                                  <div className="profile-cmd-watch-actions">
-                                    <button type="button" onClick={() => moveProfileFavorite(index, -1)} disabled={index === 0} aria-label={language === "en" ? "Move up" : language === "uz" ? "Yuqoriga" : "Выше"}>↑</button>
-                                    <button type="button" onClick={() => moveProfileFavorite(index, 1)} disabled={index === profileFavorites.length - 1} aria-label={language === "en" ? "Move down" : language === "uz" ? "Pastga" : "Ниже"}>↓</button>
-                                    <button className={item.price_alert_enabled || item.news_alert_enabled || item.report_alert_enabled ? "has-alert" : ""} type="button" onClick={() => setProfileFavoriteEditor(item)} aria-label={language === "en" ? "Alert settings" : language === "uz" ? "Signal sozlamalari" : "Настройки уведомлений"}>⌁</button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="profile-cmd-empty profile-cmd-empty-compact">
-                            <p>{t(language, "profile.favoritesEmpty")}</p>
-                          </div>
-                        )}
-                        <button className="profile-cmd-add" type="button" onClick={() => setActiveView("catalog")}>
-                          <span aria-hidden="true">＋</span>{t(language, "profile.command.addTicker")}
+                      </div>
+                      <svg className="pf-horizon" viewBox="0 0 620 244" aria-hidden="true" focusable="false">
+                        {[120, 150, 186, 232].map((y) => <line key={`h${y}`} x1="0" y1={y} x2="620" y2={y} />)}
+                        {[40, 160, 280, 380, 480, 600].map((x) => <line key={`v${x}`} x1="380" y1="120" x2={x} y2="244" />)}
+                        <circle cx="380" cy="120" r="44" />
+                      </svg>
+                      <div className="pf-hero-actions">
+                        <button className="pf-btn" type="button" onClick={() => openProfileSettings("profile")} aria-haspopup="dialog" aria-expanded={showProfileEdit}>
+                          {t(language, "profile.command.settings")}
                         </button>
-                      </article>
-                    </div>
+                      </div>
+                    </header>
 
-                    <div className="profile-cmd-column profile-cmd-column-main">
-                      <article className="profile-cmd-card profile-cmd-resume-card">
-                        <div className="profile-cmd-card-head">
-                          <h2>{t(language, "profile.command.resume")}</h2>
-                        </div>
-                        {resumeResearch ? (
-                          <>
-                            <div className="profile-cmd-resume-top">
-                              <CompanyLogo logo={resumeCompany?.logo || resumeQuote.security?.logo_url} name={resumeResearch.company_name || resumeCompany?.company_name || resumeTicker} ticker={resumeTicker} />
-                              <div className="profile-cmd-resume-company">
-                                <strong>{resumeResearch.company_name || resumeCompany?.company_name || resumeResearch.company_input || resumeTicker}</strong>
-                                <span>{resumeTicker || "—"}</span>
-                                {(resumeCompany?.sector || resumeQuote.row?.sector || resumeQuote.security?.industry) ? (
-                                  <small>{resumeCompany?.sector || resumeQuote.row?.sector || resumeQuote.security?.industry}</small>
-                                ) : null}
-                              </div>
-                              <div className="profile-cmd-score">
-                                <span>{t(language, "profile.command.score")}</span>
-                                <strong className={`is-${profileScoreTone(resumeResearch.score ?? profileStats.avg_score)}`}>
-                                  {resumeResearch.score ?? profileStats.avg_score ?? "—"}
-                                </strong>
-                                <small>/ 100</small>
-                              </div>
-                            </div>
-                            <ProfileScoreTrend entries={profileHistory} ticker={resumeTicker} language={language} />
-                            <footer className="profile-cmd-resume-footer">
-                              <span><i aria-hidden="true" />{t(language, "profile.command.updated")} {formatRelativeTime(resumeResearch.created_at, language)}</span>
-                              <button className="profile-cmd-primary" type="button" onClick={() => handleRepeatAnalysis(resumeResearch)} disabled={analysisLoading}>
-                                {t(language, "profile.command.continue")} <span aria-hidden="true">›</span>
-                              </button>
-                            </footer>
-                          </>
-                        ) : (
-                          <div className="profile-cmd-empty">
-                            <p>{t(language, "profile.historyEmpty")}</p>
-                            <button className="profile-cmd-primary" type="button" onClick={() => setActiveView("analysis")}>
-                              {t(language, "profile.command.newAnalysis")}
-                            </button>
-                          </div>
-                        )}
-                      </article>
-
-                      <article id="profile-history" className="profile-cmd-card profile-cmd-research-card" aria-labelledby="profile-history-title">
-                        <div className="profile-cmd-card-head profile-cmd-research-head">
-                          <h2 id="profile-history-title">{t(language, "profile.command.recentResearch")}</h2>
-                          <label>
-                            <span className="sr-only">{t(language, "profile.filters.all")}</span>
-                            <select id="profile-history-mode" aria-label={t(language, "profile.filters.all")} value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>
-                              <option value="all">{t(language, "profile.filters.all")}</option>
-                              <option value="favorites">{t(language, "profile.filters.favorites")}</option>
-                              <option value="bookmarked">{language === "en" ? "Bookmarked" : language === "uz" ? "Xatcho'plar" : "Закладки"}</option>
-                              <option value="archived">{language === "en" ? "Archive" : language === "uz" ? "Arxiv" : "Архив"}</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div className="profile-cmd-table-head" aria-hidden="true">
-                          <span>{t(language, "profile.command.company")}</span>
-                          <span>{t(language, "profile.command.score")}</span>
-                          <span>{t(language, "profile.command.updated")}</span>
-                          <span>{t(language, "profile.command.status")}</span>
-                          <span />
-                        </div>
-                        {recentAnalyses.length ? (
-                          <div className="profile-cmd-research-rows">
-                            {recentAnalyses.slice(0, 7).map((item) => {
-                              const ticker = resolveTicker(item.ticker || item.company_input);
-                              const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
-                              return (
-                                <article className="profile-cmd-research-row history-item" key={item.id || `${item.created_at}-${item.company_input}`}>
-                                  <div className="profile-cmd-research-company">
-                                    <CompanyLogo logo={company?.logo || securitiesMap[ticker]?.logo_url} name={item.company_name || item.company_input || ticker} ticker={ticker} />
-                                    <span><strong>{item.company_name || item.company_input || ticker}</strong><small>{ticker || "—"}</small></span>
-                                  </div>
-                                  <strong className={`profile-cmd-row-score is-${profileScoreTone(item.score)}`}>{item.score ?? "—"}</strong>
-                                  <span className="profile-cmd-row-date">{formatRelativeTime(item.created_at, language)}</span>
-                                  <span className={`profile-cmd-row-status ${item.archived || item.from_cache ? "needs-review" : "up-to-date"}`}>
-                                    <i aria-hidden="true" />{item.archived ? (language === "en" ? "Archived" : language === "uz" ? "Arxivda" : "В архиве") : item.bookmarked ? (language === "en" ? "Bookmarked" : language === "uz" ? "Xatcho'p" : "Закладка") : item.from_cache ? t(language, "profile.command.review") : t(language, "profile.command.upToDate")}
+                    <section id="profile-favorites" className="pf-band pf-band-ink pf-watch" aria-labelledby="profile-favorites-title">
+                      <h2 id="profile-favorites-title">{t(language, "profile.command.watchlist")}</h2>
+                      {profileFavorites.length ? (
+                        <ul className="pf-watch-list">
+                          {profileFavorites.map((item, index) => {
+                            const ticker = String(item.ticker || "").toUpperCase();
+                            const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
+                            const quote = profileMarketQuote(ticker, marketRows, securitiesMap);
+                            const direction = quote.change === null || Math.abs(quote.change) < 0.005 ? "flat" : quote.change > 0 ? "up" : "down";
+                            const hasAlert = item.price_alert_enabled || item.news_alert_enabled || item.report_alert_enabled;
+                            return (
+                              <li className="pf-watch-item" key={`${ticker}-${item.created_at || "saved"}`}>
+                                <button className="pf-watch-main" type="button" onClick={() => openCompanyPage(ticker)}>
+                                  <strong>{ticker}</strong>
+                                  <span className="sr-only">{item.company_name || company?.company_name || ticker}</span>
+                                  <span className="pf-watch-quote">
+                                    <span>{formatMarketNumber(quote.price, language)}</span>
+                                    <span className={`pf-change is-${direction}`}>
+                                      <span aria-hidden="true">{direction === "up" ? "▲" : direction === "down" ? "▼" : "●"}</span> {formatSignedPercent(quote.change, 2)}
+                                    </span>
                                   </span>
-                                  <button type="button" onClick={() => setProfileResearchEditor(item)} aria-label={`${language === "en" ? "Manage" : language === "uz" ? "Boshqarish" : "Управлять"}: ${item.company_name || ticker}`}>•••</button>
-                                </article>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="profile-cmd-empty profile-cmd-empty-table">
-                            <p>{historySearch || historyMode === "favorites" ? t(language, "analysis.resultEmpty") : t(language, "profile.historyEmpty")}</p>
-                          </div>
-                        )}
-                        <footer className="profile-cmd-table-footer">
-                          <button type="button" onClick={() => { setHistorySearch(""); setHistoryMode("all"); }}>{t(language, "profile.command.viewAll")}</button>
-                          <span aria-live="polite">{t(language, "profile.resultsShown")}: {recentAnalyses.length}</span>
-                        </footer>
-                      </article>
-                    </div>
+                                </button>
+                                <div className="pf-watch-actions">
+                                  <button className="pf-watch-move" type="button" onClick={() => moveProfileFavorite(index, -1)} disabled={index === 0} aria-label={t(language, "profile.command.moveLeft")}>‹</button>
+                                  <button className="pf-watch-move" type="button" onClick={() => moveProfileFavorite(index, 1)} disabled={index === profileFavorites.length - 1} aria-label={t(language, "profile.command.moveRight")}>›</button>
+                                  <button className={hasAlert ? "has-alert" : ""} type="button" onClick={() => setProfileFavoriteEditor(item)} aria-label={t(language, "profile.command.alertSettings")}>
+                                    <ProfileGlyph name="bell" />
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="pf-watch-empty">{t(language, "profile.favoritesEmpty")}</p>
+                      )}
+                      <button className="pf-btn pf-btn-on-ink" type="button" onClick={() => setActiveView("catalog")}>
+                        <span aria-hidden="true">＋</span>{t(language, "profile.command.addTicker")}
+                      </button>
+                    </section>
 
-                    <div className="profile-cmd-column profile-cmd-column-right">
-                      <article id="profile-activity" className="profile-cmd-card profile-cmd-week-card" aria-labelledby="profile-activity-title">
-                        <div className="profile-cmd-card-head">
-                          <h2 id="profile-activity-title">{t(language, "profile.command.thisWeek")}</h2>
-                          <span>{activitySeries.days.slice(-7)[0]?.label || ""} – {activitySeries.days.at(-1)?.label || ""}</span>
-                        </div>
-                        <ProfileActivityMini series={activitySeries} />
-                      </article>
-
-                      <article className="profile-cmd-card profile-cmd-notes-card">
-                        <div className="profile-cmd-card-head">
-                          <h2><span aria-hidden="true">⌁</span>{t(language, "profile.command.pinnedNotes")}</h2>
-                          <button type="button" onClick={() => setProfileNoteEditor({ open: true, note: null })}>{language === "en" ? "New note" : language === "uz" ? "Yangi qayd" : "Новая"}</button>
+                    <div className="pf-band pf-lower">
+                      <section className="pf-lower-col" aria-labelledby="profile-notes-title">
+                        <div className="pf-col-head">
+                          <h2 id="profile-notes-title">{t(language, "profile.command.pinnedNotes")}</h2>
+                          <button type="button" onClick={() => setProfileNoteEditor({ open: true, note: null })}>
+                            <span aria-hidden="true">＋</span> {t(language, "profile.command.newNote")}
+                          </button>
                         </div>
                         {profileNotes.length ? profileNotes.slice(0, 3).map((item) => (
-                          <button type="button" className="profile-cmd-note" key={item.id} onClick={() => setProfileNoteEditor({ open: true, note: item })}>
-                            <span className="profile-cmd-note-icon" aria-hidden="true">▤</span>
-                            <span><strong>{item.title || (language === "en" ? "Untitled note" : language === "uz" ? "Nomsiz qayd" : "Заметка без названия")}</strong><small>{item.body}</small></span>
-                            <span aria-hidden="true">›</span>
+                          <button type="button" className="pf-note" key={item.id} onClick={() => setProfileNoteEditor({ open: true, note: item })}>
+                            <strong>{item.title || t(language, "profile.command.untitledNote")}</strong>
+                            <small>{item.body}</small>
                           </button>
                         )) : (
-                          <div className="profile-cmd-empty profile-cmd-empty-compact"><p>{t(language, "profile.command.noNotes")}</p></div>
+                          <p className="pf-muted">{t(language, "profile.command.noNotes")}</p>
                         )}
-                      </article>
+                      </section>
 
-                      <article className="profile-cmd-card profile-cmd-account-card">
-                        <div className="profile-cmd-card-head">
-                          <h2><span aria-hidden="true">○</span>{t(language, "profile.command.account")}</h2>
-                        </div>
-                        <button type="button" onClick={() => openProfileSettings("preferences")} aria-expanded={showProfileEdit} aria-controls="profile-edit-panel">
-                          <span aria-hidden="true">⚙</span><strong>{t(language, "profile.command.preferences")}</strong><span aria-hidden="true">›</span>
+                      <nav className="pf-lower-col pf-account" aria-labelledby="profile-account-title">
+                        <h2 id="profile-account-title">{t(language, "profile.command.account")}</h2>
+                        <button type="button" onClick={() => openProfileSettings("preferences")}>
+                          <span>{t(language, "profile.command.interface")}</span><span aria-hidden="true">›</span>
                         </button>
                         <button type="button" onClick={() => openProfileSettings("security")}>
-                          <span aria-hidden="true">◇</span><strong>{t(language, "profile.command.access")}</strong><span aria-hidden="true">›</span>
+                          <span>{t(language, "profile.command.access")}</span>
+                          {profileSecurity.two_factor_enabled ? <span aria-hidden="true">›</span> : <small>{t(language, "profile.command.twoFactorOff")}</small>}
                         </button>
                         <button type="button" onClick={() => openProfileSettings("notifications")}>
-                          <span aria-hidden="true">◌</span><strong>{language === "en" ? "Notifications" : language === "uz" ? "Bildirishnomalar" : "Уведомления"}</strong><span aria-hidden="true">›</span>
+                          <span>{t(language, "profile.command.notifications")}</span><span aria-hidden="true">›</span>
                         </button>
                         <button type="button" onClick={() => openProfileSettings("data")}>
-                          <span aria-hidden="true">⇩</span><strong>{language === "en" ? "Data & privacy" : language === "uz" ? "Ma'lumotlar" : "Данные и приватность"}</strong><span aria-hidden="true">›</span>
+                          <span>{t(language, "profile.command.dataPrivacy")}</span><span aria-hidden="true">›</span>
                         </button>
-                        <button type="button" onClick={handleLogout}>
-                          <span aria-hidden="true">↪</span><strong>{t(language, "auth.logout")}</strong><span aria-hidden="true">›</span>
+                        <button type="button" className="pf-account-logout" onClick={handleLogout}>
+                          <span>{t(language, "auth.logout")}</span><span aria-hidden="true">↪</span>
                         </button>
-                      </article>
+                      </nav>
                     </div>
-                  </div>
+                  </>
                 )}
 
               {profileUser ? (
@@ -23738,36 +23472,45 @@ function App() {
                   onLanguage={setLanguage}
                   onTheme={setTheme}
                   onTextScale={setTextScale}
+                  avatar={<ProfileAvatar user={profileUser} src={displayedProfileAvatar} />}
                   identityForm={(
-                    <form className="profile-settings-form" onSubmit={handleProfileSave}>
-                      <div className="profile-form-group">
-                        <label htmlFor="profile-display-name">{t(language, "profile.name")}</label>
-                        <input id="profile-display-name" type="text" maxLength="120" autoComplete="name" value={profileForm.full_name} onChange={(event) => setProfileForm({ full_name: event.target.value })} placeholder={t(language, "profile.name")} />
-                      </div>
-                      <div className="profile-form-group">
-                        <span className="profile-field-label">{t(language, "profile.avatar")}</span>
-                        <div className="profile-avatar-editor">
-                          <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="profile-avatar-editor-preview" />
-                          <div className="profile-avatar-editor-controls">
-                            <div className="profile-avatar-upload">
-                              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
-                              <label htmlFor="avatar-input" className="profile-avatar-btn"><span aria-hidden="true">＋</span>{language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}</label>
-                              {displayedProfileAvatar ? <button type="button" className="profile-avatar-remove" onClick={removeAvatar}>{t(language, "profile.clearAvatar")}</button> : null}
+                    <form className="acct-form" onSubmit={handleProfileSave}>
+                      <div className="acct-section">
+                        <div className="acct-row">
+                          <div className="acct-row-label">
+                            <label htmlFor="profile-display-name">{t(language, "profile.name")}</label>
+                            <span>{language === "en" ? "Shown in the account menu and on your notes." : language === "uz" ? "Hisob menyusida va qaydlaringizda ko'rinadi." : "Так вас видно в меню аккаунта и в заметках."}</span>
+                          </div>
+                          <div className="acct-row-control">
+                            <input id="profile-display-name" className="acct-input" type="text" maxLength="120" autoComplete="name" value={profileForm.full_name} onChange={(event) => setProfileForm({ full_name: event.target.value })} placeholder={t(language, "profile.name")} />
+                          </div>
+                        </div>
+                        <div className="acct-row">
+                          <div className="acct-row-label">
+                            <strong>{t(language, "profile.avatar")}</strong>
+                            <span id="avatar-input-hint">{t(language, "profile.avatarHint")}</span>
+                          </div>
+                          <div className="acct-row-control">
+                            <div className="acct-inline">
+                              <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="profile-avatar-editor-preview acct-avatar-preview" />
+                              <input type="file" className="acct-file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarChange} id="avatar-input" aria-describedby="avatar-input-hint" />
+                              <label htmlFor="avatar-input" className="acct-btn"><span aria-hidden="true">＋</span>{language === "en" ? "Choose image" : language === "uz" ? "Rasm tanlash" : "Выбрать изображение"}</label>
+                              {displayedProfileAvatar ? <button type="button" className="acct-btn acct-btn-ghost" onClick={removeAvatar}>{t(language, "profile.clearAvatar")}</button> : null}
                             </div>
-                            <span id="avatar-input-hint" className="profile-field-hint">{t(language, "profile.avatarHint")}</span>
-                            {profileAvatarCleared ? <span className="profile-avatar-pending">{language === "en" ? "Avatar will be removed after saving" : language === "uz" ? "Avatar saqlangandan keyin o'chiriladi" : "Аватар будет удалён после сохранения"}</span> : null}
+                            {profileAvatarCleared ? <span className="acct-note">{language === "en" ? "Avatar will be removed after saving" : language === "uz" ? "Avatar saqlangandan keyin o'chiriladi" : "Аватар будет удалён после сохранения"}</span> : null}
                           </div>
                         </div>
                       </div>
-                      <div className="profile-form-actions">
-                        <button className="profile-cmd-primary" type="submit" disabled={profileSaving}>{profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}</button>
-                      </div>
+                      <footer className="acct-footer">
+                        <span />
+                        <button type="button" className="acct-btn acct-btn-ghost" onClick={closeProfileSettings}>{language === "en" ? "Cancel" : language === "uz" ? "Bekor qilish" : "Отмена"}</button>
+                        <button className="acct-btn acct-btn-accent" type="submit" disabled={profileSaving}>{profileSaving ? t(language, "profile.saving") : t(language, "profile.saveChanges")}</button>
+                      </footer>
                     </form>
                   )}
                 /></Suspense>
               ) : null}
               <Suspense fallback={null}>
-                <ProfileResearchEditor item={profileResearchEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileResearchEditor(null)} onRefresh={loadProfile} onRepeat={handleRepeatAnalysis} />
                 <ProfileFavoriteEditor item={profileFavoriteEditor} language={language} apiFetch={apiFetch} onClose={() => setProfileFavoriteEditor(null)} onRefresh={loadProfile} onRemove={async (item) => { await handleToggleFavorite(item.ticker, item.company_name); setProfileFavoriteEditor(null); }} />
                 {profileNoteEditor.open ? <ProfileNoteEditor note={profileNoteEditor.note} analyses={profileHistory} language={language} apiFetch={apiFetch} onClose={() => setProfileNoteEditor({ open: false, note: null })} onRefresh={loadProfile} /> : null}
               </Suspense>
@@ -25185,72 +24928,11 @@ function ActivityChart({ series, language }) {
   );
 }
 
-function ProfileScoreTrend({ entries, ticker, language }) {
-  const normalized = String(ticker || "").trim().toUpperCase();
-  const points = (Array.isArray(entries) ? entries : [])
-    .filter((item) => String(item?.ticker || item?.company_input || "").trim().toUpperCase() === normalized)
-    .map((item) => ({ score: safeNumber(item?.score), date: item?.created_at }))
-    .filter((item) => item.score !== null)
-    .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0))
-    .slice(-8);
-  const plotted = points.length === 1 ? [points[0], points[0]] : points;
-  const width = 640;
-  const height = 176;
-  const pad = { top: 16, right: 48, bottom: 28, left: 4 };
-  const innerWidth = width - pad.left - pad.right;
-  const innerHeight = height - pad.top - pad.bottom;
-  const x = (index) => pad.left + (index / Math.max(1, plotted.length - 1)) * innerWidth;
-  const y = (score) => pad.top + ((100 - Math.max(0, Math.min(100, score))) / 100) * innerHeight;
-  const line = plotted.map((item, index) => `${index ? "L" : "M"} ${x(index)} ${y(item.score)}`).join(" ");
-  const area = line ? `${line} L ${x(plotted.length - 1)} ${pad.top + innerHeight} L ${x(0)} ${pad.top + innerHeight} Z` : "";
-
-  if (!plotted.length) {
-    return <div className="profile-cmd-trend profile-cmd-trend-empty"><span /></div>;
-  }
-
-  return (
-    <div className="profile-cmd-trend">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t(language, "profile.command.score")}>
-        <defs>
-          <linearGradient id="profileScoreFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.24" />
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[25, 50, 75].map((tick) => (
-          <line key={tick} x1={pad.left} x2={pad.left + innerWidth} y1={y(tick)} y2={y(tick)} className="profile-cmd-trend-grid" />
-        ))}
-        <path d={area} className="profile-cmd-trend-area" />
-        <path d={line} className="profile-cmd-trend-line" />
-        <circle cx={x(plotted.length - 1)} cy={y(plotted.at(-1).score)} r="4" className="profile-cmd-trend-dot" />
-        {[25, 50, 75].map((tick) => (
-          <text key={tick} x={width - 2} y={y(tick) + 4} textAnchor="end" className="profile-cmd-trend-label">{tick}</text>
-        ))}
-      </svg>
-      <div className="profile-cmd-trend-dates">
-        <span>{formatDateLabel(plotted[0]?.date, language)}</span>
-        <span>{formatDateLabel(plotted.at(-1)?.date, language)}</span>
-      </div>
-    </div>
-  );
-}
-
-function ProfileActivityMini({ series }) {
-  const days = Array.isArray(series?.days) ? series.days.slice(-7) : [];
-  const max = Math.max(1, ...days.map((day) => day.count || 0));
-  return (
-    <div className="profile-cmd-activity-bars">
-      {days.map((day) => (
-        <div className="profile-cmd-activity-day" key={day.key}>
-          <strong>{day.count || 0}</strong>
-          <span className="profile-cmd-activity-track">
-            <i style={{ height: `${Math.max(day.count ? 10 : 2, ((day.count || 0) / max) * 100)}%` }} />
-          </span>
-          <small>{day.shortLabel}</small>
-        </div>
-      ))}
-    </div>
-  );
+function ProfileGlyph({ name }) {
+  const common = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" };
+  if (name === "check") return <svg {...common}><polyline points="4 12 10 18 20 6" /></svg>;
+  if (name === "bell") return <svg {...common}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>;
+  return null;
 }
 
 function ResultSkeleton({ language }) {

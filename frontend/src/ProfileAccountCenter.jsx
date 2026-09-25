@@ -24,6 +24,68 @@ function ActionStatus({ text, tone = "" }) {
   return text ? <p className={`profile-center-status ${tone}`}>{text}</p> : null;
 }
 
+// Account center building blocks: a settings row (label and hint beside the
+// control), pill radio groups, switches and the sticky save bar.
+function AccountRow({ label, hint, htmlFor, children }) {
+  return (
+    <div className="acct-row">
+      <div className="acct-row-label">
+        {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <strong>{label}</strong>}
+        {hint ? <span>{hint}</span> : null}
+      </div>
+      <div className="acct-row-control">{children}</div>
+    </div>
+  );
+}
+
+function AccountChoice({ label, options, value, onChange }) {
+  return (
+    <div className="acct-segmented" role="radiogroup" aria-label={label}>
+      {options.map(([optionValue, optionLabel]) => (
+        <button key={String(optionValue)} type="button" role="radio" aria-checked={value === optionValue} onClick={() => onChange(optionValue)}>
+          {optionLabel}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AccountSwitch({ label, hint, checked, onChange }) {
+  return (
+    <label className="acct-switch-row">
+      <span><strong>{label}</strong>{hint ? <small>{hint}</small> : null}</span>
+      <input type="checkbox" role="switch" checked={Boolean(checked)} onChange={(event) => onChange(event.target.checked)} />
+      <i aria-hidden="true" />
+    </label>
+  );
+}
+
+function AccountFooter({ note, cancelLabel, submitLabel, busy, onCancel }) {
+  return (
+    <footer className="acct-footer">
+      <span>{note}</span>
+      <button type="button" className="acct-btn acct-btn-ghost" onClick={onCancel}>{cancelLabel}</button>
+      <button type="submit" className="acct-btn acct-btn-accent" disabled={busy}>{submitLabel}</button>
+    </footer>
+  );
+}
+
+function CloseGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false">
+      <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
+    </svg>
+  );
+}
+
+function ChevronGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
+  );
+}
+
 export function ProfileAccountCenter({
   open,
   initialTab,
@@ -39,6 +101,7 @@ export function ProfileAccountCenter({
   onTheme,
   onTextScale,
   identityForm,
+  avatar,
 }) {
   const [tab, setTab] = useState(initialTab || "profile");
   const [preferences, setPreferences] = useState(profile?.preferences || {});
@@ -215,23 +278,6 @@ export function ProfileAccountCenter({
     }
   };
 
-  const clearHistory = async () => {
-    setBusy("clear");
-    try {
-      const data = await readJson(await apiFetch("/api/profile/history", {
-        method: "DELETE",
-        body: JSON.stringify({ confirmation }),
-      }));
-      setConfirmation("");
-      await onRefresh();
-      notify(`${data.deleted_analyses || 0} ${tx("исследований удалено", "analyses deleted", "tahlil o'chirildi")}`);
-    } catch (error) {
-      notify(translateAuthError(error.message, language), "error");
-    } finally {
-      setBusy("");
-    }
-  };
-
   const deleteAccount = async () => {
     setBusy("delete");
     try {
@@ -272,171 +318,208 @@ export function ProfileAccountCenter({
     ["data", tx("Данные", "Data & privacy", "Ma'lumotlar")],
     ["help", tx("Помощь", "Help", "Yordam")],
   ];
+  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
+  const formatDay = (value) => (value ? new Date(value).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" }) : "—");
+  const plan = user.pro_access ? "PRO" : tx("Бесплатный тариф", "Free plan", "Bepul tarif");
+  const cancelLabel = tx("Отмена", "Cancel", "Bekor qilish");
+  const helpDocs = [
+    ["metrics", tx("Справочник показателей", "Metrics reference", "Ko'rsatkichlar lug'ati"), tx("Формулы, термины и источники данных", "Formulas, terminology, and data sources", "Formulalar, atamalar va ma'lumot manbalari"), tx("Как читать показатели", "Reading the metrics", "Ko'rsatkichlarni o'qish")],
+    ["privacy", tx("Политика конфиденциальности", "Privacy policy", "Maxfiylik siyosati"), tx("Как хранятся и обрабатываются данные аккаунта", "How account data is stored and handled", "Hisob ma'lumotlari qanday saqlanadi va ishlatiladi"), tx("Конфиденциальность", "Privacy", "Maxfiylik")],
+    ["terms", tx("Условия использования", "Terms of use", "Foydalanish shartlari"), tx("Правила сервиса и ограничения аналитики", "Service rules and analysis limitations", "Xizmat qoidalari va tahlil cheklovlari"), tx("Условия", "Terms", "Shartlar")],
+    ["support", tx("Написать в поддержку", "Contact support", "Yordamga yozish"), tx("Обращение уйдёт команде из вашего аккаунта", "Your request reaches the team from your account", "Murojaat hisobingizdan jamoaga yuboriladi"), tx("Новое обращение", "New support request", "Yangi murojaat")],
+  ];
+  const helpText = {
+    metrics: tx("Оценки и коэффициенты помогают сравнивать данные, но не заменяют первичную отчётность. Наведите курсор на значок ⓘ рядом с показателем, чтобы увидеть его формулу, период и источник. Сравнивайте компании одного сектора и одинаковых отчётных периодов.", "Scores and ratios help compare data but do not replace source filings. Use the ⓘ marker beside a metric to see its formula, period, and source. Compare companies from the same sector and reporting period.", "Baholar va koeffitsiyentlar ma'lumotlarni solishtirishga yordam beradi, lekin birlamchi hisobot o'rnini bosmaydi. Formula, davr va manbani ko'rish uchun ko'rsatkich yonidagi ⓘ belgisidan foydalaning."),
+    privacy: tx("Мы храним данные аккаунта, настройки, избранное, заметки и сессии для работы профиля. Пароли хранятся только в виде криптографического хеша. Данные можно скачать или удалить в разделе «Данные». Не отправляйте конфиденциальные сведения в заметках.", "We store account details, preferences, watchlists, notes, and sessions to operate your profile. Passwords are stored only as cryptographic hashes. You can export or delete your data from the Data tab. Do not place confidential information in notes.", "Profil ishlashi uchun hisob ma'lumotlari, sozlamalar, tanlanganlar, qaydlar va sessiyalar saqlanadi. Parollar faqat kriptografik xesh ko'rinishida saqlanadi. Ma'lumotlarni Ma'lumotlar bo'limida yuklash yoki o'chirish mumkin."),
+    terms: tx("Платформа предоставляет информационную аналитику по публичным данным. Материалы не являются индивидуальной инвестиционной рекомендацией, гарантией результата или предложением совершить сделку. Проверяйте исходные документы и учитывайте риск потери капитала.", "The platform provides informational analytics based on public data. It is not personalized investment advice, a guarantee of results, or an offer to trade. Verify source documents and consider the risk of capital loss.", "Platforma ochiq ma'lumotlar asosida axborot tahlilini taqdim etadi. Bu shaxsiy investitsiya tavsiyasi, natija kafolati yoki savdo taklifi emas. Manba hujjatlarini tekshiring va kapital yo'qotish xavfini hisobga oling."),
+  };
 
   return (
     <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="profile-cmd-settings profile-account-center" role="dialog" aria-modal="true" aria-labelledby="profile-center-title">
-        <header>
-          <div>
-            <span>{tx("Центр аккаунта", "Account center", "Hisob markazi")}</span>
-            <h2 id="profile-center-title">{tabs.find(([key]) => key === tab)?.[1]}</h2>
+      <section className="profile-account-center acct" role="dialog" aria-modal="true" aria-labelledby="profile-center-title">
+        <header className="acct-head">
+          {avatar ? <span className="acct-head-avatar">{avatar}</span> : null}
+          <div className="acct-head-text">
+            <h2 id="profile-center-title">{tx("Настройки аккаунта", "Account settings", "Hisob sozlamalari")}</h2>
+            <p className="acct-head-name">{user.full_name || user.email || "—"}</p>
+            <p className="acct-head-meta">{[user.email, plan].filter(Boolean).join(" · ")}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label={tx("Закрыть", "Close", "Yopish")}>×</button>
+          <button type="button" className="acct-close" onClick={onClose} aria-label={tx("Закрыть", "Close", "Yopish")}><CloseGlyph /></button>
         </header>
-        <div className="profile-center-layout">
-          <nav className="profile-center-tabs" aria-label={tx("Настройки аккаунта", "Account settings", "Hisob sozlamalari")}>
-            {tabs.map(([key, label]) => (
-              <button key={key} type="button" className={tab === key ? "active" : ""} onClick={() => { setTab(key); setStatus(""); }}>
-                <span aria-hidden="true">{({ profile: "○", preferences: "◐", security: "◇", notifications: "◌", data: "⇩", help: "?" })[key]}</span>
-                {label}
-              </button>
-            ))}
-            <button type="button" className="profile-center-logout" onClick={onLogout}><span aria-hidden="true">↪</span>{tx("Выйти", "Sign out", "Chiqish")}</button>
-          </nav>
 
-          <div className="profile-center-content">
-            {tab === "profile" ? (
-              <section className="profile-center-section">
-                <div className="profile-center-section-head">
-                  <div><h3>{tx("Личные данные", "Personal details", "Shaxsiy ma'lumotlar")}</h3><p>{tx("Имя, аватар и данные входа.", "Your name, avatar, and sign-in identity.", "Ism, avatar va kirish ma'lumotlari.")}</p></div>
-                  <span className={`profile-center-badge ${user.email_verified ? "verified" : ""}`}>{user.email_verified ? tx("Email подтверждён", "Email verified", "Email tasdiqlangan") : tx("Email не подтверждён", "Email not verified", "Email tasdiqlanmagan")}</span>
-                </div>
-                <div className="profile-center-readonly"><span>Email</span><strong>{user.email || "—"}</strong></div>
-                <div className="profile-center-readonly"><span>{tx("Аккаунт создан", "Member since", "Hisob yaratilgan")}</span><strong>{user.created_at ? new Date(user.created_at).toLocaleDateString(language) : "—"}</strong></div>
-                {identityForm}
-              </section>
-            ) : null}
+        <nav className="acct-tabs" aria-label={tx("Разделы настроек", "Settings sections", "Sozlamalar bo'limlari")}>
+          {tabs.map(([key, label]) => (
+            <button key={key} type="button" aria-pressed={tab === key} onClick={() => { setTab(key); setStatus(""); }}>{label}</button>
+          ))}
+          <button type="button" className="acct-logout" onClick={onLogout}>{tx("Выйти", "Sign out", "Chiqish")}</button>
+        </nav>
 
-            {tab === "preferences" ? (
-              <form className="profile-center-section" onSubmit={savePreferences}>
-                <div className="profile-center-section-head"><div><h3>{tx("Интерфейс и отчёты", "Interface & reports", "Interfeys va hisobotlar")}</h3><p>{tx("Эти настройки сохраняются в аккаунте и работают на всех устройствах.", "These settings follow your account across devices.", "Bu sozlamalar barcha qurilmalarda hisobingizga bog'lanadi.")}</p></div></div>
-                <div className="profile-center-form-grid">
-                  <label><span>{tx("Язык", "Language", "Til")}</span><select value={preferences.language || language} onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}><option value="ru">Русский</option><option value="uz">O‘zbekcha</option><option value="en">English</option></select></label>
-                  <label><span>{tx("Тема", "Theme", "Mavzu")}</span><select value={preferences.theme || theme} onChange={(e) => setPreferences({ ...preferences, theme: e.target.value })}><option value="dark">{tx("Тёмная", "Dark", "Qorong'i")}</option><option value="light">{tx("Светлая", "Light", "Yorug'")}</option></select></label>
-                  <label><span>{tx("Размер текста", "Text size", "Matn o'lchami")}</span><select value={preferences.text_scale || textScale} onChange={(e) => setPreferences({ ...preferences, text_scale: Number(e.target.value) })}>{[85, 100, 115, 130].map((value) => <option key={value} value={value}>{value}%</option>)}</select></label>
-                  <label><span>{tx("Часовой пояс", "Time zone", "Vaqt mintaqasi")}</span><input value={preferences.timezone || "Asia/Tashkent"} onChange={(e) => setPreferences({ ...preferences, timezone: e.target.value })} /></label>
-                  <label><span>{tx("Язык отчёта", "Report language", "Hisobot tili")}</span><select value={preferences.default_report_language || language} onChange={(e) => setPreferences({ ...preferences, default_report_language: e.target.value })}><option value="ru">Русский</option><option value="uz">O‘zbekcha</option><option value="en">English</option></select></label>
-                  <label><span>{tx("Период анализа", "Default analysis period", "Tahlil davri")}</span><select value={preferences.default_analysis_period || "latest"} onChange={(e) => setPreferences({ ...preferences, default_analysis_period: e.target.value })}><option value="latest">{tx("Последние данные", "Latest data", "So'nggi ma'lumot")}</option><option value="quarterly">{tx("Квартал", "Quarterly", "Chorak")}</option><option value="annual">{tx("Год", "Annual", "Yillik")}</option></select></label>
-                </div>
-                <button className="profile-cmd-primary" disabled={busy === "preferences"}>{busy === "preferences" ? tx("Сохраняем…", "Saving…", "Saqlanmoqda…") : tx("Сохранить настройки", "Save preferences", "Sozlamalarni saqlash")}</button>
-              </form>
-            ) : null}
+        {status ? <p className={`acct-status ${statusTone}`} role="status">{status}</p> : null}
 
-            {tab === "security" ? (
-              <div className="profile-center-section profile-center-security">
-                <div className="profile-center-section-head"><div><h3>{tx("Пароль и доступ", "Password & access", "Parol va kirish")}</h3><p>{tx("Управляйте паролем, 2FA и активными устройствами.", "Manage your password, 2FA, and active devices.", "Parol, 2FA va faol qurilmalarni boshqaring.")}</p></div></div>
-                <form className="profile-center-subsection" onSubmit={changePassword}>
-                  <h4>{tx("Изменить пароль", "Change password", "Parolni o'zgartirish")}</h4>
-                  <div className="profile-center-form-grid">
-                    <label><span>{tx("Текущий пароль", "Current password", "Joriy parol")}</span><input type="password" autoComplete="current-password" value={password.current_password} onChange={(e) => setPassword({ ...password, current_password: e.target.value })} required /></label>
-                    <label><span>{tx("Новый пароль", "New password", "Yangi parol")}</span><input type="password" minLength="8" autoComplete="new-password" value={password.new_password} onChange={(e) => setPassword({ ...password, new_password: e.target.value })} required /></label>
-                    <label><span>{tx("Повторите пароль", "Confirm new password", "Parolni tasdiqlang")}</span><input type="password" minLength="8" autoComplete="new-password" value={password.confirm} onChange={(e) => setPassword({ ...password, confirm: e.target.value })} required /></label>
+        <div className="acct-body">
+          {tab === "profile" ? (
+            <>
+              <div className="acct-section">
+                <AccountRow label="Email" hint={tx("Адрес для входа и восстановления пароля.", "Used to sign in and recover your password.", "Kirish va parolni tiklash uchun manzil.")}>
+                  <div className="acct-inline">
+                    <strong className="acct-value">{user.email || "—"}</strong>
+                    <span className={`acct-badge ${user.email_verified ? "is-ok" : "is-warn"}`}>
+                      {user.email_verified ? tx("Email подтверждён", "Email verified", "Email tasdiqlangan") : tx("Email не подтверждён", "Email not verified", "Email tasdiqlanmagan")}
+                    </span>
                   </div>
-                  <PasswordMeter password={password.new_password} email={profile?.user?.email || ""} fullName={profile?.user?.full_name || ""} language={language} />
-                  <button className="ghost-btn" disabled={busy === "password" || !passwordStrength(password.new_password, { email: profile?.user?.email || "", fullName: profile?.user?.full_name || "" }).acceptable}>{tx("Обновить пароль", "Update password", "Parolni yangilash")}</button>
+                </AccountRow>
+                <AccountRow label={tx("Аккаунт создан", "Member since", "Hisob yaratilgan")}>
+                  <span className="acct-mono">{formatDay(user.created_at)}</span>
+                </AccountRow>
+              </div>
+              {identityForm}
+            </>
+          ) : null}
+
+          {tab === "preferences" ? (
+            <form className="acct-form" onSubmit={savePreferences}>
+              <div className="acct-section">
+                <AccountRow label={tx("Язык", "Language", "Til")} hint={tx("Язык интерфейса на всех устройствах.", "Interface language on every device.", "Barcha qurilmalarda interfeys tili.")}>
+                  <AccountChoice label={tx("Язык", "Language", "Til")} options={[["ru", "Русский"], ["uz", "O‘zbekcha"], ["en", "English"]]} value={preferences.language || language} onChange={(value) => setPreferences({ ...preferences, language: value })} />
+                </AccountRow>
+                <AccountRow label={tx("Тема", "Theme", "Mavzu")}>
+                  <AccountChoice label={tx("Тема", "Theme", "Mavzu")} options={[["dark", tx("Тёмная", "Dark", "Qorong'i")], ["light", tx("Светлая", "Light", "Yorug'")]]} value={preferences.theme || theme} onChange={(value) => setPreferences({ ...preferences, theme: value })} />
+                </AccountRow>
+                <AccountRow label={tx("Размер текста", "Text size", "Matn o'lchami")} hint={tx("Масштаб всего текста на сайте.", "Scales all text on the site.", "Saytdagi barcha matn o'lchami.")}>
+                  <AccountChoice label={tx("Размер текста", "Text size", "Matn o'lchami")} options={[85, 100, 115, 130].map((value) => [value, `${value}%`])} value={Number(preferences.text_scale || textScale)} onChange={(value) => setPreferences({ ...preferences, text_scale: value })} />
+                </AccountRow>
+                <AccountRow label={tx("Часовой пояс", "Time zone", "Vaqt mintaqasi")} hint={tx("В нём показывается время новостей и торгов.", "News and trading times are shown in it.", "Yangiliklar va savdo vaqti shu mintaqada ko'rsatiladi.")} htmlFor="acct-timezone">
+                  <input id="acct-timezone" className="acct-input" value={preferences.timezone || "Asia/Tashkent"} onChange={(event) => setPreferences({ ...preferences, timezone: event.target.value })} />
+                </AccountRow>
+              </div>
+              <AccountFooter
+                note={tx("Настройки сохраняются в аккаунте и работают на всех устройствах.", "These settings follow your account across devices.", "Bu sozlamalar barcha qurilmalarda hisobingizga bog'lanadi.")}
+                cancelLabel={cancelLabel}
+                submitLabel={busy === "preferences" ? tx("Сохраняем…", "Saving…", "Saqlanmoqda…") : tx("Сохранить", "Save", "Saqlash")}
+                busy={busy === "preferences"}
+                onCancel={onClose}
+              />
+            </form>
+          ) : null}
+
+          {tab === "security" ? (
+            <div className="acct-section">
+              <AccountRow label={tx("Изменить пароль", "Change password", "Parolni o'zgartirish")} hint={tx("После смены пароля остальные сессии завершатся.", "Changing it signs out your other sessions.", "Parol o'zgarganda boshqa sessiyalar yopiladi.")}>
+                <form className="acct-stack" onSubmit={changePassword}>
+                  <input className="acct-input" type="password" autoComplete="current-password" aria-label={tx("Текущий пароль", "Current password", "Joriy parol")} placeholder={tx("Текущий пароль", "Current password", "Joriy parol")} value={password.current_password} onChange={(e) => setPassword({ ...password, current_password: e.target.value })} required />
+                  <input className="acct-input" type="password" minLength="8" autoComplete="new-password" aria-label={tx("Новый пароль", "New password", "Yangi parol")} placeholder={tx("Новый пароль", "New password", "Yangi parol")} value={password.new_password} onChange={(e) => setPassword({ ...password, new_password: e.target.value })} required />
+                  <input className="acct-input" type="password" minLength="8" autoComplete="new-password" aria-label={tx("Повторите пароль", "Confirm new password", "Parolni tasdiqlang")} placeholder={tx("Повторите новый пароль", "Confirm new password", "Yangi parolni tasdiqlang")} value={password.confirm} onChange={(e) => setPassword({ ...password, confirm: e.target.value })} required />
+                  <PasswordMeter password={password.new_password} email={user.email || ""} fullName={user.full_name || ""} language={language} />
+                  <div><button className="acct-btn" disabled={busy === "password" || !passwordStrength(password.new_password, { email: user.email || "", fullName: user.full_name || "" }).acceptable}>{tx("Обновить пароль", "Update password", "Parolni yangilash")}</button></div>
                 </form>
-                <div className="profile-center-subsection">
-                  <div className="profile-center-inline-head"><div><h4>{tx("Двухфакторная защита", "Two-factor authentication", "Ikki bosqichli himoya")}</h4><p>{security.two_factor_enabled ? tx("Включена", "Enabled", "Yoqilgan") : tx("Не включена", "Not enabled", "Yoqilmagan")}</p></div><span className={`profile-center-badge ${security.two_factor_enabled ? "verified" : ""}`}>2FA</span></div>
-                  {!security.two_factor_enabled && !twoFactor ? <button className="ghost-btn" type="button" onClick={beginTwoFactor} disabled={busy === "2fa"}>{tx("Настроить 2FA", "Set up 2FA", "2FA ni sozlash")}</button> : null}
-                  {twoFactor ? <div className="profile-center-2fa"><p>{tx("Скопируйте ключ в Google Authenticator, 1Password или другое TOTP-приложение.", "Copy this key into Google Authenticator, 1Password, or another TOTP app.", "Bu kalitni Google Authenticator, 1Password yoki boshqa TOTP ilovasiga nusxalang.")}</p><code>{twoFactor.secret}</code><input inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} /><button className="profile-cmd-primary" type="button" onClick={() => confirmTwoFactor(true)} disabled={busy === "2fa" || twoFactorCode.length < 6}>{tx("Подтвердить и включить", "Verify and enable", "Tasdiqlash va yoqish")}</button></div> : null}
-                  {security.two_factor_enabled ? <div className="profile-center-2fa"><input inputMode="numeric" autoComplete="one-time-code" placeholder={tx("Код из приложения", "Authenticator code", "Ilovadagi kod")} value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} /><button className="ghost-btn danger" type="button" onClick={() => confirmTwoFactor(false)} disabled={busy === "2fa" || twoFactorCode.length < 6}>{tx("Выключить 2FA", "Disable 2FA", "2FA ni o'chirish")}</button></div> : null}
+              </AccountRow>
+              <AccountRow label={tx("Двухфакторная защита", "Two-factor authentication", "Ikki bosqichli himoya")} hint={tx("При входе нужен код из Google Authenticator, 1Password или другого TOTP-приложения.", "Sign-in asks for a code from Google Authenticator, 1Password, or another TOTP app.", "Kirishda Google Authenticator, 1Password yoki boshqa TOTP ilovasidan kod so'raladi.")}>
+                <div className="acct-inline">
+                  <span className={`acct-badge ${security.two_factor_enabled ? "is-ok" : "is-warn"}`}>{security.two_factor_enabled ? tx("Включена", "Enabled", "Yoqilgan") : tx("Выключена", "Off", "O'chiq")}</span>
+                  {!security.two_factor_enabled && !twoFactor ? <button className="acct-btn" type="button" onClick={beginTwoFactor} disabled={busy === "2fa"}>{tx("Настроить 2FA", "Set up 2FA", "2FA ni sozlash")}</button> : null}
                 </div>
-                <div className="profile-center-subsection">
-                  <div className="profile-center-inline-head"><div><h4>{tx("Активные сессии", "Active sessions", "Faol sessiyalar")}</h4><p>{tx("Устройства, где выполнен вход в аккаунт.", "Devices currently signed in to your account.", "Hisobga kirilgan qurilmalar.")}</p></div><button type="button" className="ghost-btn" onClick={revokeOthers} disabled={busy === "sessions"}>{tx("Закрыть остальные", "Revoke others", "Boshqalarini yopish")}</button></div>
-                  {sessionsLoading ? <p className="muted">{tx("Загрузка…", "Loading…", "Yuklanmoqda…")}</p> : <div className="profile-center-sessions">{sessions.map((session) => <article key={session.id}><div><strong>{session.current ? tx("Это устройство", "This device", "Bu qurilma") : (session.user_agent || tx("Неизвестное устройство", "Unknown device", "Noma'lum qurilma"))}</strong><small>{session.ip_address || "—"} · {session.last_seen_at ? new Date(session.last_seen_at).toLocaleString(language) : "—"}</small></div>{session.current ? <span>{tx("Текущая", "Current", "Joriy")}</span> : <button type="button" onClick={() => revokeSession(session.id)} disabled={busy === `session-${session.id}`}>{tx("Закрыть", "Revoke", "Yopish")}</button>}</article>)}</div>}
-                </div>
-              </div>
-            ) : null}
+                {twoFactor ? (
+                  <div className="acct-stack">
+                    <p className="acct-note">{tx("Скопируйте ключ в Google Authenticator, 1Password или другое TOTP-приложение.", "Copy this key into Google Authenticator, 1Password, or another TOTP app.", "Bu kalitni Google Authenticator, 1Password yoki boshqa TOTP ilovasiga nusxalang.")}</p>
+                    <code className="acct-code">{twoFactor.secret}</code>
+                    <input className="acct-input acct-input-short" inputMode="numeric" autoComplete="one-time-code" aria-label={tx("Код из приложения", "Authenticator code", "Ilovadagi kod")} placeholder="000000" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} />
+                    <div><button className="acct-btn acct-btn-accent" type="button" onClick={() => confirmTwoFactor(true)} disabled={busy === "2fa" || twoFactorCode.length < 6}>{tx("Подтвердить и включить", "Verify and enable", "Tasdiqlash va yoqish")}</button></div>
+                  </div>
+                ) : null}
+                {security.two_factor_enabled ? (
+                  <div className="acct-inline">
+                    <input className="acct-input acct-input-short" inputMode="numeric" autoComplete="one-time-code" aria-label={tx("Код из приложения", "Authenticator code", "Ilovadagi kod")} placeholder={tx("Код из приложения", "Authenticator code", "Ilovadagi kod")} value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} />
+                    <button className="acct-btn acct-btn-danger" type="button" onClick={() => confirmTwoFactor(false)} disabled={busy === "2fa" || twoFactorCode.length < 6}>{tx("Выключить 2FA", "Disable 2FA", "2FA ni o'chirish")}</button>
+                  </div>
+                ) : null}
+              </AccountRow>
+              <AccountRow label={tx("Активные сессии", "Active sessions", "Faol sessiyalar")} hint={tx("Устройства, где выполнен вход в аккаунт.", "Devices currently signed in to your account.", "Hisobga kirilgan qurilmalar.")}>
+                {sessionsLoading ? <p className="acct-note">{tx("Загрузка…", "Loading…", "Yuklanmoqda…")}</p> : (
+                  <ul className="acct-sessions">
+                    {sessions.map((session) => (
+                      <li key={session.id}>
+                        <div>
+                          <strong>{session.current ? tx("Это устройство", "This device", "Bu qurilma") : (session.user_agent || tx("Неизвестное устройство", "Unknown device", "Noma'lum qurilma"))}</strong>
+                          <span>{session.ip_address || "—"} · {session.last_seen_at ? new Date(session.last_seen_at).toLocaleString(locale) : "—"}</span>
+                        </div>
+                        {session.current
+                          ? <span className="acct-badge is-ok">{tx("Текущая", "Current", "Joriy")}</span>
+                          : <button type="button" className="acct-text-danger" onClick={() => revokeSession(session.id)} disabled={busy === `session-${session.id}`}>{tx("Закрыть", "Revoke", "Yopish")}</button>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div><button type="button" className="acct-btn" onClick={revokeOthers} disabled={busy === "sessions"}>{tx("Закрыть остальные", "Revoke others", "Boshqalarini yopish")}</button></div>
+              </AccountRow>
+            </div>
+          ) : null}
 
-            {tab === "notifications" ? (
-              <form className="profile-center-section" onSubmit={savePreferences}>
-                <div className="profile-center-section-head"><div><h3>{tx("Какие события присылать", "Notification preferences", "Bildirishnoma sozlamalari")}</h3><p>{tx("Выберите полезные сигналы. Состояние уведомлений синхронизируется между устройствами.", "Choose the signals that matter. Read state syncs across devices.", "Kerakli signallarni tanlang. O'qilgan holat qurilmalar orasida saqlanadi.")}</p></div></div>
-                <div className="profile-center-switches">
-                  <SwitchRow label={tx("Новая отчётность", "New company reports", "Yangi hisobotlar")} hint={tx("Документы по компаниям из избранного", "Filings for watchlist companies", "Tanlangan kompaniya hujjatlari")} checked={preferences.notify_reports ?? true} onChange={(value) => setPreferences({ ...preferences, notify_reports: value })} />
-                  <SwitchRow label={tx("Новости компаний", "Company news", "Kompaniya yangiliklari")} checked={preferences.notify_news ?? true} onChange={(value) => setPreferences({ ...preferences, notify_news: value })} />
-                  <SwitchRow label={tx("Ценовые уровни", "Price alerts", "Narx signallari")} checked={preferences.notify_price ?? true} onChange={(value) => setPreferences({ ...preferences, notify_price: value })} />
-                  <SwitchRow label={tx("Готовые анализы", "Analysis updates", "Tahlil yangilanishlari")} checked={preferences.notify_analysis ?? true} onChange={(value) => setPreferences({ ...preferences, notify_analysis: value })} />
-                </div>
-                <button className="profile-cmd-primary" disabled={busy === "preferences"}>{tx("Сохранить уведомления", "Save notifications", "Bildirishnomalarni saqlash")}</button>
-              </form>
-            ) : null}
-
-            {tab === "data" ? (
-              <div className="profile-center-section">
-                <div className="profile-center-section-head"><div><h3>{tx("Данные и приватность", "Data & privacy", "Ma'lumotlar va maxfiylik")}</h3><p>{tx("Скачайте свои данные или удалите то, что больше не нужно.", "Download your data or remove what you no longer need.", "Ma'lumotlarni yuklab oling yoki keraksizini o'chiring.")}</p></div></div>
-                <div className="profile-center-data-action"><div><h4>{tx("Экспорт данных", "Export your data", "Ma'lumotlarni eksport qilish")}</h4><p>{tx("Профиль, настройки, избранное, исследования, заметки и список сессий в JSON.", "Profile, preferences, watchlist, analyses, notes, and sessions in JSON.", "Profil, sozlamalar, tanlanganlar, tahlillar, qaydlar va sessiyalar JSON formatida.")}</p></div><button className="ghost-btn" type="button" onClick={downloadData} disabled={busy === "export"}>{tx("Скачать", "Download", "Yuklash")}</button></div>
-                <div className="profile-center-danger-zone">
-                  <h4>{tx("Опасная зона", "Danger zone", "Xavfli hudud")}</h4>
-                  <p>{tx("Для очистки истории введите CLEAR. Для удаления аккаунта введите свой email.", "Enter CLEAR to erase history. Enter your email to delete the account.", "Tarixni o'chirish uchun CLEAR, hisobni o'chirish uchun emailingizni kiriting.")}</p>
-                  <input value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder={tx("CLEAR или email", "CLEAR or your email", "CLEAR yoki email")} />
-                  <div><button className="ghost-btn danger" type="button" onClick={clearHistory} disabled={busy === "clear" || confirmation !== "CLEAR"}>{tx("Очистить историю", "Clear analysis history", "Tahlil tarixini tozalash")}</button><button className="ghost-btn danger" type="button" onClick={deleteAccount} disabled={busy === "delete" || confirmation.toLowerCase() !== String(user.email || "").toLowerCase()}>{tx("Удалить аккаунт", "Delete account", "Hisobni o'chirish")}</button></div>
-                </div>
+          {tab === "notifications" ? (
+            <form className="acct-form" onSubmit={savePreferences}>
+              <div className="acct-section">
+                <p className="acct-lead">{tx("Сигналы по компаниям из вашего избранного. Прочитанное синхронизируется между устройствами.", "Signals for the companies on your watchlist. Read state syncs across devices.", "Tanlangan kompaniyalar bo'yicha signallar. O'qilgan holat qurilmalar orasida saqlanadi.")}</p>
+                <AccountSwitch label={tx("Новая отчётность", "New company reports", "Yangi hisobotlar")} hint={tx("Опубликован квартальный или годовой отчёт", "A quarterly or annual filing is published", "Choraklik yoki yillik hisobot e'lon qilindi")} checked={preferences.notify_reports ?? true} onChange={(value) => setPreferences({ ...preferences, notify_reports: value })} />
+                <AccountSwitch label={tx("Новости компаний", "Company news", "Kompaniya yangiliklari")} hint={tx("Существенные факты и новости эмитента", "Material facts and issuer news", "Muhim faktlar va emitent yangiliklari")} checked={preferences.notify_news ?? true} onChange={(value) => setPreferences({ ...preferences, notify_news: value })} />
+                <AccountSwitch label={tx("Ценовые уровни", "Price alerts", "Narx signallari")} hint={tx("Цена пересекла заданный вами уровень", "The price crossed a level you set", "Narx siz belgilagan darajani kesib o'tdi")} checked={preferences.notify_price ?? true} onChange={(value) => setPreferences({ ...preferences, notify_price: value })} />
               </div>
-            ) : null}
+              <AccountFooter
+                note={tx("Уровни цен задаются в избранном, у каждой компании.", "Price levels are set per company on your watchlist.", "Narx darajalari tanlanganlardagi har bir kompaniya uchun belgilanadi.")}
+                cancelLabel={cancelLabel}
+                submitLabel={tx("Сохранить", "Save", "Saqlash")}
+                busy={busy === "preferences"}
+                onCancel={onClose}
+              />
+            </form>
+          ) : null}
 
-            {tab === "help" ? (
-              <div className="profile-center-section">
-                <div className="profile-center-section-head"><div><h3>{tx("Помощь и документы", "Help & legal", "Yordam va hujjatlar")}</h3><p>{tx("Справка по показателям и быстрый канал связи с командой.", "Product guidance and a direct way to reach the team.", "Ko'rsatkichlar bo'yicha yordam va jamoa bilan aloqa.")}</p></div></div>
-                <div className="profile-center-links">
-                  <button type="button" onClick={() => setHelpDoc(helpDoc === "metrics" ? "" : "metrics")}><span>?</span><div><strong>{tx("Справочник показателей", "Metrics reference", "Ko'rsatkichlar lug'ati")}</strong><small>{tx("Формулы, термины и источники", "Formulas, terminology, and sources", "Formulalar, atamalar va manbalar")}</small></div><b>›</b></button>
-                  <button type="button" onClick={() => setHelpDoc(helpDoc === "support" ? "" : "support")}><span>✉</span><div><strong>{tx("Написать в поддержку", "Contact support", "Yordamga yozish")}</strong><small>{tx("Создать обращение внутри аккаунта", "Create an account support request", "Hisob ichida murojaat yaratish")}</small></div><b>›</b></button>
-                  <button type="button" onClick={() => setHelpDoc(helpDoc === "privacy" ? "" : "privacy")}><span>◇</span><div><strong>{tx("Политика конфиденциальности", "Privacy policy", "Maxfiylik siyosati")}</strong><small>{tx("Как обрабатываются данные аккаунта", "How account data is handled", "Hisob ma'lumotlari qanday ishlatiladi")}</small></div><b>›</b></button>
-                  <button type="button" onClick={() => setHelpDoc(helpDoc === "terms" ? "" : "terms")}><span>§</span><div><strong>{tx("Условия использования", "Terms of use", "Foydalanish shartlari")}</strong><small>{tx("Правила сервиса и ограничения аналитики", "Service rules and analysis limitations", "Xizmat qoidalari va tahlil cheklovlari")}</small></div><b>›</b></button>
-                </div>
-                {helpDoc ? <article className="profile-center-help-doc"><h4>{helpDoc === "privacy" ? tx("Конфиденциальность", "Privacy", "Maxfiylik") : helpDoc === "terms" ? tx("Условия", "Terms", "Shartlar") : helpDoc === "support" ? tx("Новое обращение", "New support request", "Yangi murojaat") : tx("Как читать показатели", "Reading the metrics", "Ko'rsatkichlarni o'qish")}</h4>{helpDoc === "support" ? <form className="profile-center-support-form" onSubmit={submitSupport}><label><span>{tx("Тема", "Subject", "Mavzu")}</span><input value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} minLength="2" maxLength="160" required /></label><label><span>{tx("Что произошло?", "How can we help?", "Qanday yordam kerak?")}</span><textarea rows="5" value={supportForm.message} onChange={(event) => setSupportForm({ ...supportForm, message: event.target.value })} minLength="5" maxLength="6000" required /></label><button className="profile-cmd-primary" disabled={busy === "support"}>{busy === "support" ? tx("Отправляем…", "Sending…", "Yuborilmoqda…") : tx("Отправить обращение", "Send request", "Murojaat yuborish")}</button></form> : <p>{helpDoc === "privacy" ? tx("Мы храним данные аккаунта, настройки, избранное, историю исследований, заметки и сессии для работы профиля. Пароли хранятся только в виде криптографического хеша. Данные можно скачать или удалить в разделе «Данные». Не отправляйте конфиденциальные сведения в заметках.", "We store account details, preferences, watchlists, research history, notes, and sessions to operate your profile. Passwords are stored only as cryptographic hashes. You can export or delete your data from the Data tab. Do not place confidential information in notes.", "Profil ishlashi uchun hisob ma'lumotlari, sozlamalar, tanlanganlar, tahlil tarixi, qaydlar va sessiyalar saqlanadi. Parollar faqat kriptografik xesh ko'rinishida saqlanadi. Ma'lumotlarni Ma'lumotlar bo'limida yuklash yoki o'chirish mumkin.") : helpDoc === "terms" ? tx("Платформа предоставляет информационную аналитику по публичным данным. Материалы не являются индивидуальной инвестиционной рекомендацией, гарантией результата или предложением совершить сделку. Проверяйте исходные документы и учитывайте риск потери капитала.", "The platform provides informational analytics based on public data. It is not personalized investment advice, a guarantee of results, or an offer to trade. Verify source documents and consider the risk of capital loss.", "Platforma ochiq ma'lumotlar asosida axborot tahlilini taqdim etadi. Bu shaxsiy investitsiya tavsiyasi, natija kafolati yoki savdo taklifi emas. Manba hujjatlarini tekshiring va kapital yo'qotish xavfini hisobga oling.") : tx("Оценки и коэффициенты помогают сравнивать данные, но не заменяют первичную отчётность. Наведите курсор на значок ⓘ рядом с показателем, чтобы увидеть его формулу, период и источник. Сравнивайте компании одного сектора и одинаковых отчётных периодов.", "Scores and ratios help compare data but do not replace source filings. Use the ⓘ marker beside a metric to see its formula, period, and source. Compare companies from the same sector and reporting period.", "Baholar va koeffitsiyentlar ma'lumotlarni solishtirishga yordam beradi, lekin birlamchi hisobot o'rnini bosmaydi. Formula, davr va manbani ko'rish uchun ko'rsatkich yonidagi ⓘ belgisidan foydalaning.")}</p>}</article> : null}
+          {tab === "data" ? (
+            <>
+              <div className="acct-section">
+                <AccountRow label={tx("Экспорт данных", "Export your data", "Ma'lumotlarni eksport qilish")} hint={tx("Профиль, настройки, избранное, заметки и список сессий в одном JSON-файле.", "Profile, preferences, watchlist, notes, and sessions in one JSON file.", "Profil, sozlamalar, tanlanganlar, qaydlar va sessiyalar bitta JSON faylida.")}>
+                  <div><button className="acct-btn" type="button" onClick={downloadData} disabled={busy === "export"}>{tx("Скачать архив", "Download archive", "Arxivni yuklash")}</button></div>
+                </AccountRow>
               </div>
-            ) : null}
-            <ActionStatus text={status} tone={statusTone} />
-          </div>
+              <section className="acct-danger" aria-labelledby="acct-danger-title">
+                <div className="acct-row-label">
+                  <strong id="acct-danger-title">{tx("Удалить аккаунт", "Delete account", "Hisobni o'chirish")}</strong>
+                  <span>{tx("Профиль, избранное, заметки и сессии будут удалены без возможности восстановления.", "Your profile, watchlist, notes, and sessions are deleted for good.", "Profil, tanlanganlar, qaydlar va sessiyalar butunlay o'chiriladi.")}</span>
+                </div>
+                <div className="acct-stack">
+                  <label htmlFor="acct-delete-confirm">{tx("Для подтверждения введите ваш email", "Type your email to confirm", "Tasdiqlash uchun emailingizni kiriting")}</label>
+                  <input id="acct-delete-confirm" className="acct-input" type="email" autoComplete="off" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder={user.email || ""} />
+                  <div><button className="acct-btn acct-btn-danger" type="button" onClick={deleteAccount} disabled={busy === "delete" || confirmation.toLowerCase() !== String(user.email || "").toLowerCase()}>{tx("Удалить аккаунт навсегда", "Delete account permanently", "Hisobni butunlay o'chirish")}</button></div>
+                </div>
+              </section>
+            </>
+          ) : null}
+
+          {tab === "help" ? (
+            <div className="acct-section">
+              {helpDocs.map(([key, title, hint, heading]) => (
+                <div className="acct-help-item" key={key}>
+                  <button type="button" className="acct-link-row" aria-expanded={helpDoc === key} onClick={() => setHelpDoc(helpDoc === key ? "" : key)}>
+                    <span><strong>{title}</strong><small>{hint}</small></span>
+                    <ChevronGlyph />
+                  </button>
+                  {helpDoc === key ? (
+                    <div className="acct-help-body">
+                      <h4>{heading}</h4>
+                      {key === "support" ? (
+                        <form className="acct-stack acct-stack-wide" onSubmit={submitSupport}>
+                          <label htmlFor="acct-support-subject">{tx("Тема", "Subject", "Mavzu")}</label>
+                          <input id="acct-support-subject" className="acct-input" value={supportForm.subject} onChange={(event) => setSupportForm({ ...supportForm, subject: event.target.value })} minLength="2" maxLength="160" required />
+                          <label htmlFor="acct-support-message">{tx("Что произошло?", "How can we help?", "Qanday yordam kerak?")}</label>
+                          <textarea id="acct-support-message" className="acct-input" rows="5" value={supportForm.message} onChange={(event) => setSupportForm({ ...supportForm, message: event.target.value })} minLength="5" maxLength="6000" required />
+                          <div><button className="acct-btn acct-btn-accent" disabled={busy === "support"}>{busy === "support" ? tx("Отправляем…", "Sending…", "Yuborilmoqda…") : tx("Отправить обращение", "Send request", "Murojaat yuborish")}</button></div>
+                        </form>
+                      ) : <p>{helpText[key]}</p>}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
-      </section>
-    </div>
-  );
-}
-
-export function ProfileResearchEditor({ item, language, apiFetch, onClose, onRefresh, onRepeat }) {
-  const tx = (ru, en, uz) => pick(language, ru, en, uz);
-  const [form, setForm] = useState({ title: "", folder: "", tags: "", pinned_note: "", archived: false, bookmarked: false });
-  const [status, setStatus] = useState("");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!item) return;
-    setForm({ title: item.title || item.company_name || item.company_input || "", folder: item.folder || "", tags: (item.tags || []).join(", "), pinned_note: item.pinned_note || "", archived: Boolean(item.archived), bookmarked: Boolean(item.bookmarked) });
-    setStatus("");
-  }, [item]);
-  if (!item) return null;
-  const save = async (event) => {
-    event.preventDefault(); setBusy(true);
-    try {
-      await readJson(await apiFetch(`/api/profile/analyses/${item.id}`, { method: "PATCH", body: JSON.stringify({ ...form, tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean) }) }));
-      await onRefresh(); onClose();
-    } catch (error) { setStatus(error.message); } finally { setBusy(false); }
-  };
-  const remove = async () => {
-    if (!window.confirm(tx("Удалить это исследование без возможности восстановления?", "Permanently delete this research?", "Bu tahlil butunlay o'chirilsinmi?"))) return;
-    setBusy(true);
-    try { await readJson(await apiFetch(`/api/profile/analyses/${item.id}`, { method: "DELETE" })); await onRefresh(); onClose(); } catch (error) { setStatus(error.message); } finally { setBusy(false); }
-  };
-  const download = async (format) => {
-    setBusy(true);
-    try {
-      const response = await apiFetch(`/api/profile/analyses/${item.id}/export?format=${format}&language=${language}`);
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || "Export failed");
-      const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${item.ticker || "analysis"}.${format}`; link.click(); URL.revokeObjectURL(url);
-    } catch (error) { setStatus(error.message); } finally { setBusy(false); }
-  };
-  return (
-    <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <section className="profile-item-editor" role="dialog" aria-modal="true" aria-labelledby="research-editor-title">
-        <header><div><span>{item.ticker || tx("Исследование", "Research", "Tahlil")}</span><h2 id="research-editor-title">{tx("Управление исследованием", "Manage research", "Tahlilni boshqarish")}</h2></div><button type="button" onClick={onClose}>×</button></header>
-        <form onSubmit={save}>
-          <label><span>{tx("Название", "Title", "Nomi")}</span><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-          <div className="profile-center-form-grid"><label><span>{tx("Папка", "Folder", "Papka")}</span><input value={form.folder} onChange={(e) => setForm({ ...form, folder: e.target.value })} placeholder={tx("Например, Банки", "e.g. Banks", "Masalan, Banklar")} /></label><label><span>{tx("Теги через запятую", "Comma-separated tags", "Teglar vergul bilan")}</span><input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></label></div>
-          <label><span>{tx("Закреплённая заметка", "Pinned takeaway", "Mahkamlangan qayd")}</span><textarea rows="5" value={form.pinned_note} onChange={(e) => setForm({ ...form, pinned_note: e.target.value })} /></label>
-          <div className="profile-item-checks"><SwitchRow label={tx("Добавить в закладки", "Bookmark", "Xatcho'pga qo'shish")} checked={form.bookmarked} onChange={(value) => setForm({ ...form, bookmarked: value })} /><SwitchRow label={tx("Переместить в архив", "Archive", "Arxivlash")} checked={form.archived} onChange={(value) => setForm({ ...form, archived: value })} /></div>
-          {status ? <ActionStatus text={status} tone="error" /> : null}
-          <div className="profile-item-actions"><button className="profile-cmd-primary" disabled={busy}>{tx("Сохранить", "Save", "Saqlash")}</button><button className="ghost-btn" type="button" onClick={() => onRepeat(item)}>{tx("Повторить анализ", "Run again", "Qayta tahlil")}</button><button className="ghost-btn" type="button" onClick={() => download("pdf")}>PDF</button><button className="ghost-btn" type="button" onClick={() => download("csv")}>CSV</button><button className="ghost-btn danger" type="button" onClick={remove}>{tx("Удалить", "Delete", "O'chirish")}</button></div>
-        </form>
       </section>
     </div>
   );
