@@ -261,3 +261,40 @@ test("advanced chart interval rolls sessions up into weeks and months", async ({
   await page.reload();
   await expect(page.getByTestId("advanced-chart-interval")).toHaveText("M");
 });
+
+test("advanced chart draws the same hourly 1Д and 1Н bars as the company chart", async ({ page }) => {
+  const history = priceHistory();
+  // Seven hourly bars on each of the last two sessions.
+  const sessions = history.slice(-2).map((p) => p.date);
+  const bars = sessions.flatMap((day) => [10, 11, 12, 13, 14, 15, 16].map((h, i) => ({
+    date: `${day}T${String(h).padStart(2, "0")}:00`,
+    open: 8000 + i, high: 8010 + i, low: 7990 + i, close: 8005 + i, volume: 100, value: 800_000,
+  })));
+  const requested = [];
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    requested.push(p);
+    const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (p === "/api/securities") return json({ ok: true, securities: { [TICKER]: SECURITY } });
+    if (p === `/api/price-history/${TICKER}`) return json({ ok: true, points: history, adjustments: [] });
+    if (p === `/api/intraday/${TICKER}`) return json({ ok: true, points: bars });
+    if (p === `/api/company/${TICKER}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
+    if (p === `/api/securities/${TICKER}/info`) return json({ ok: true, security: SECURITY });
+    if (p === "/api/auth/me") return json({ user: null }, 401);
+    return json({});
+  });
+
+  await page.goto(`/chart/${TICKER}?type=candle&range=1d`);
+  await expect(page.getByRole("button", { name: "1Д", exact: true })).toHaveClass(/active/);
+  await expect(page.locator(".ac-candle")).toHaveCount(7);
+  await expect(page.getByTestId("advanced-chart-interval")).toHaveText("1ч");
+  await expect(page.getByTestId("advanced-chart-interval")).toBeDisabled();
+  await expect(page.locator(".ac-svg text", { hasText: "10:00" })).toHaveCount(1);
+  expect(requested).toContain(`/api/intraday/${TICKER}`);
+
+  // 1Н: hourly bars for the two banked sessions, daily closes for the rest of the week.
+  await page.getByRole("button", { name: "1Н", exact: true }).click();
+  const weekly = await page.locator(".ac-candle").count();
+  expect(weekly).toBeGreaterThanOrEqual(16);
+  expect(weekly).toBeLessThanOrEqual(19);
+});

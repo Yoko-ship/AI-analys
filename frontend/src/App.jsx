@@ -13880,9 +13880,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               series: compareLines, loading: compareLoading,
             }}
             onExpandChart={onOpenChart
-              // The advanced chart draws the daily archive and offers no 1Д —
-              // expanding from it opens the week instead of an empty frame.
-              ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
+              ? () => onOpenChart(ticker, { range: priceRange,
                                             type: "line", compare: compareTickers,
                                             indicators: [], fin: [], from: "", to: "" })
               : null}
@@ -13908,7 +13906,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               compareTools={{ peers: comparePeers, securitiesMap, selected: compareTickers,
                               onToggle: toggleCompare, onClear: clearCompare }}
               onExpand={onOpenChart
-                ? () => onOpenChart(ticker, { range: priceRange === "1d" ? "1w" : priceRange,
+                ? () => onOpenChart(ticker, { range: priceRange,
                                               type: "line", compare: compareTickers,
                                               indicators: [], fin: [], from: "", to: "" })
                 : null} />
@@ -14512,6 +14510,22 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     return () => { alive = false; };
   }, [up, months, retry]);
 
+  // 1Д and 1Н draw the same hourly bars as the company chart (/api/intraday),
+  // so both surfaces show the same thing for the same button.
+  const hourlyRange = !custom && Boolean(chartRange(range).hourly);
+  const [intraday, setIntraday] = React.useState(null);
+  React.useEffect(() => {
+    if (!up || !hourlyRange) return undefined;
+    let alive = true;
+    setIntraday(null);
+    fetch(`/api/intraday/${encodeURIComponent(up)}?days=8`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setIntraday(d.ok ? (d.points || []) : []); })
+      .catch(() => { if (alive) setIntraday([]); });
+    return () => { alive = false; };
+  }, [up, hourlyRange]);
+  const busy = loading || (hourlyRange && intraday === null);
+
   // Only `quality` is read here: whether this security trades often enough for
   // a candle to describe a day rather than invent one (ТЗ §6). The rest of the
   // metrics envelope belongs to the company page.
@@ -14593,8 +14607,29 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     .filter((p) => p.close > 0 && p.date)
     .sort((a, b) => String(a.date).localeCompare(String(b.date))), [history]);
 
+  const hourlyBars = React.useMemo(() => (intraday || []).map((h) => ({
+    date: h.date,
+    open: h.open != null ? Number(h.open) : null,
+    high: h.high != null ? Number(h.high) : null,
+    low: h.low != null ? Number(h.low) : null,
+    close: Number(h.close ?? 0),
+    volume: Number(h.volume ?? 0) || 0,
+    turnover: Number(h.value ?? 0) || 0,
+    change: null,
+  })).filter((p) => p.close > 0 && p.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date))), [intraday]);
+  // Peers arrive as daily series, so 1Н with a comparison stays on daily
+  // closes; 1Д has no dates a peer could be sampled on and drops them.
+  const peersWanted = compareTickers.length > 0;
+  const sessionRange = hourlyRange && range === "1d";
+
   const windowed = React.useMemo(() => {
     if (custom) return daily.filter((p) => String(p.date) >= span.from && String(p.date) <= span.to);
+    if (sessionRange) {
+      // The newest banked session, not the last 24 hours: on a Sunday 1Д is Friday.
+      const lastDay = hourlyBars.length ? String(hourlyBars.at(-1).date).slice(0, 10) : null;
+      return lastDay ? hourlyBars.filter((p) => String(p.date).startsWith(lastDay)) : [];
+    }
     let cutoff = chartRangeCutoff(range, daily.at(-1)?.date);
     // Normally the API request itself enforces month-based presets. Candle
     // mode deliberately fetches farther back for panning, so reproduce that
@@ -14607,8 +14642,16 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         cutoff = d.toISOString().slice(0, 10);
       }
     }
+    if (hourlyRange && hourlyBars.length && !peersWanted) {
+      // Hourly bars where the bank has them, the settled daily close where it
+      // does not. "2026-08-17" < "2026-08-17T10:00" as strings, so one sort holds.
+      const covered = new Set(hourlyBars.map((p) => String(p.date).slice(0, 10)));
+      const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourlyBars]
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      return cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
+    }
     return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
-  }, [daily, custom, span.from, span.to, range, type]);
+  }, [daily, custom, span.from, span.to, range, hourlyRange, sessionRange, hourlyBars, peersWanted]);
 
   // A preset defines the view we open with, not a wall around the data.
   // The full fetched archive stays behind it so a zoomed view can be dragged
@@ -14624,7 +14667,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   }, [candleSource, custom, windowed]);
   const resolvedCandleView = acClampView(candleView, defaultCandleView, candleSource.length);
   const candlesAllowed = quality ? quality.candles_enabled !== false : true;
-  const chartNavigation = !custom && compareTickers.length === 0
+  const chartNavigation = !custom && !hourlyRange && compareTickers.length === 0
     && (type !== "candle" || candlesAllowed);
   const visibleWindow = chartNavigation
     ? candleSource.slice(resolvedCandleView.start, resolvedCandleView.end)
@@ -14647,10 +14690,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     color: QC_COLORS[i % QC_COLORS.length],
     points: cmpSeries[tk] || null,
   })), [compareTickers, cmpSeries]);
-  const cmp = React.useMemo(() => buildCompareSeries(visibleWindow, cmpLines), [visibleWindow, cmpLines]);
+  const cmp = React.useMemo(() => (sessionRange ? null : buildCompareSeries(visibleWindow, cmpLines)),
+    [sessionRange, visibleWindow, cmpLines]);
   const cmpOn = Boolean(cmp && cmp.series.length);
-  // A comparison is aligned session by session, so it stays daily.
-  const effInterval = cmpOn ? "D" : barInterval;
+  // A comparison is aligned session by session, so it stays daily; the hourly
+  // ranges already have their own bar.
+  const effInterval = cmpOn || hourlyRange ? "D" : barInterval;
+  const hasHourly = visibleWindow.some((p) => String(p.date).includes("T"));
   const displayWindow = React.useMemo(
     () => aggregateCompanyPricePoints(visibleWindow, effInterval), [visibleWindow, effInterval]);
 
@@ -14784,11 +14830,14 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   );
 
   const dateLocale = lang === "en" ? "en-US" : "ru-RU";
-  const fmtDate = (d, withYear) => (d
-    ? new Date(d).toLocaleDateString(dateLocale, withYear
+  // An hourly bar's date carries its hour ("2026-08-17T14:00") and is labelled with it.
+  const isHourly = (d) => String(d || "").includes("T");
+  const fmtDate = (d, withYear) => (!d ? ""
+    : isHourly(d)
+      ? new Date(d).toLocaleString(dateLocale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : new Date(d).toLocaleDateString(dateLocale, withYear
         ? { year: "2-digit", month: "short", day: "numeric" }
-        : { month: "short", day: "numeric" })
-    : "");
+        : { month: "short", day: "numeric" }));
   const fmtFull = (v) => (v == null || !Number.isFinite(v) ? "—"
     : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
   const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : `${signedFixed(v, 1)}%`);
@@ -14807,10 +14856,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const rangeBar = (
     <div className="ac-ranges">
-      {/* No 1Д here: the advanced chart draws the daily archive and computes
-          calendar-windowed indicators on it — a one-session window would be a
-          button that answers nothing. The hourly view lives on the company page. */}
-      {CHART_RANGES.filter((r) => r.key !== "1d").map((r) => (
+      {CHART_RANGES.map((r) => (
         <button key={r.key} type="button"
           className={`ac-range-btn ${!custom && range === r.key ? "active" : ""}`}
           onClick={() => { setSpan({ from: "", to: "" }); setRange(r.key); }}>
@@ -14927,7 +14973,19 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   {
     const withYear = (chartRangeSpan(range) || 12) >= 12 || custom;
     const spanMonths = chartRangeSpan(range) || 12;
-    if (spanMonths <= 12) {
+    if (hourlyRange) {
+      // 1Д labels every hour; 1Н labels each day once.
+      let previousDay = null;
+      points.forEach((point, i) => {
+        const day = String(point.date).slice(0, 10);
+        if (sessionRange) {
+          xLabels.push({ x: xs(i), label: new Date(point.date).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" }) });
+        } else if (day !== previousDay) {
+          previousDay = day;
+          xLabels.push({ x: xs(i), label: fmtDate(day) });
+        }
+      });
+    } else if (spanMonths <= 12) {
       let previousMonth = null;
       points.forEach((point, i) => {
         const month = String(point.date).slice(0, 7);
@@ -15054,7 +15112,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const candleViewChanged = Boolean(candleView)
     && (resolvedCandleView.start !== initialCandleView.start
       || resolvedCandleView.end !== initialCandleView.end);
-  const relVol = hp && effInterval === "D" ? relativeVolume(daily, hp.date, hp.turnover) : null;
+  const relVol = hp && effInterval === "D" && !isHourly(hp.date) ? relativeVolume(daily, hp.date, hp.turnover) : null;
   const addTrendPoint = () => {
     if (!drawMode || hover == null) return;
     setDrawPoints((current) => current.length >= 2 ? [hover] : [...current, hover]);
@@ -15072,7 +15130,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     })),
   ];
 
-  const emptyState = !loading && n < 2;
+  const emptyState = !busy && n < 2;
 
   return (
     <div ref={chartShellRef} className={`advanced-chart ${railOpen ? "rail-open" : ""} ${isFullscreen ? "is-fullscreen" : ""}`}>
@@ -15115,11 +15173,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             <button type="button" className={`cpc-tool-btn ${menu === "interval" ? "active" : ""}`}
               data-testid="advanced-chart-interval" aria-haspopup="menu" aria-expanded={menu === "interval"}
               aria-label={t(`Интервал: ${effInterval}`, `Interval: ${effInterval}`, `Interval: ${effInterval}`)}
-              title={cmpOn
-                ? t("При сравнении — только дневной интервал", "Taqqoslashda faqat kunlik interval", "Comparison is daily only")
-                : t("Интервал", "Interval", "Interval")}
-              disabled={cmpOn}
-              onClick={() => setMenu(menu === "interval" ? null : "interval")}>{effInterval}</button>
+              title={hourlyRange
+                ? t("На 1Д и 1Н — часовые бары", "1K va 1H da — soatlik barlar", "1D and 1W use hourly bars")
+                : cmpOn
+                  ? t("При сравнении — только дневной интервал", "Taqqoslashda faqat kunlik interval", "Comparison is daily only")
+                  : t("Интервал", "Interval", "Interval")}
+              disabled={cmpOn || hourlyRange}
+              onClick={() => setMenu(menu === "interval" ? null : "interval")}>{hasHourly ? t("1ч", "1s", "1h") : effInterval}</button>
             {menuPanel("interval", [["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
               <button key={key} type="button" className={`ac-menu-item ${barInterval === key ? "on" : ""}`}
                 onClick={() => { setBarInterval(key); setMenu(null); }}>{t(ru, uz, en)} <span>{key}</span></button>
@@ -15293,7 +15353,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         </button>
 
         <div className="ac-plot" ref={attach} style={{ height: plotH }}>
-          {loading && <div className="ac-state muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>}
+          {busy && <div className="ac-state muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>}
           {failed && (
             <div className="ac-state">
               <p>{t("Не удалось загрузить историю цен.", "Narxlar tarixini yuklab bo'lmadi.", "Failed to load the price history.")}</p>
@@ -15306,11 +15366,19 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             <div className="ac-state muted">
               {custom
                 ? t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period")
-                : t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable")}
+                : sessionRange
+                  ? (n === 0
+                    ? t("В последних сессиях сделок не было — часовой график недоступен",
+                        "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
+                        "No trades in the recent sessions — no hourly view to draw")
+                    : t("В последней сессии сделки были только в одном часе — линию не построить",
+                        "Oxirgi sessiyada bitimlar faqat bir soatda bo'lgan — chiziq chizib bo'lmaydi",
+                        "The last session traded in a single hour — too little for a line"))
+                  : t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable")}
             </div>
           )}
 
-          {!loading && !failed && n >= 2 && (
+          {!busy && !failed && n >= 2 && (
             <>
               {legendChips.length > 0 && (
                 <div className="ac-legend">
