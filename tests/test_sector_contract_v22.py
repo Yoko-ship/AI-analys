@@ -335,9 +335,14 @@ def test_bond_unverified_schedule_no_trade_and_missing_daycount():
     result = bonds.bond_row(row, reference=ref, coupons=coupons, today=TODAY)
     assert result["freshness"]["status"] == "never_traded"
     assert result["ytm"]["value"] is None and result["duration"]["value"] is None
+    # No disclosed basis no longer blanks the bond: the basis is read off the
+    # issuer's coupon amounts, or taken from the market convention, and the
+    # source is always named beside it (bonds.with_day_count_evidence).
     ref.pop("day_count")
     result = bonds.bond_row(row, reference=ref, coupons=coupons, today=TODAY)
-    assert result["accrued"]["value"] is None and result["dirty"]["value"] is None
+    assert result["day_count_basis"] == "ACT/365"
+    assert result["day_count_source"] in ("filed_coupons", "market_convention")
+    assert "DAY_COUNT_NOT_DISCLOSED" not in {q["code"] for q in result["data_quality"]}
 
 
 def test_bond_accrual_does_not_require_a_market_trade_but_does_require_its_period():

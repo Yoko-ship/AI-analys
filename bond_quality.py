@@ -1,8 +1,18 @@
 """Cash-flow verification and market freshness are independent dimensions."""
+
 from __future__ import annotations
 
 import math
 from datetime import date
+
+# Sanity bounds. A value outside them is a data fault until shown otherwise —
+# ANBK3B's register row said 66 % a year monthly where its only filed coupon
+# is 22 % for 90 days, and its «yield» came out at 80 %. Numbers like that
+# must not reach a map where they look like the market's best offer. There is
+# deliberately no bound on price: a 19-year zero at 12 % of par is a fair
+# price, and an absurd one shows up as an absurd yield.
+MAX_PLAUSIBLE_COUPON_PCT = 45.0
+YIELD_PCT_BOUNDS = (-10.0, 60.0)
 
 
 def day(value):
@@ -37,6 +47,7 @@ def apply_quality(result, reference, coupons, as_of, curve):
     basis_raw = reference.get("day_count") or reference.get("day_count_basis")
     basis = bonds.normalize_day_count(basis_raw)
     result["day_count_basis"] = basis
+    result["day_count_source"] = reference.get("day_count_source") or ("disclosed" if basis_raw else None)
     maturity = day(reference.get("maturity_date"))
     exact_schedule = (
         reference.get("cashflows_verified") in (True, 1)
@@ -71,6 +82,9 @@ def apply_quality(result, reference, coupons, as_of, curve):
         blocked.append("AMORTIZATION_OR_OPTIONS_NOT_VERIFIED")
     if reference.get("payment_overdue") or reference.get("status") in {"defaulted", "suspended"}:
         blocked.append("PAYMENT_OR_ISSUE_STATUS_BLOCKED")
+    coupon_rate = bonds._num(reference.get("coupon_rate"))
+    if coupon_rate is not None and coupon_rate > MAX_PLAUSIBLE_COUPON_PCT:
+        blocked.append("COUPON_RATE_IMPLAUSIBLE")
     if not basis_raw:
         blocked.append("DAY_COUNT_NOT_DISCLOSED")
         withhold("accrued", "DAY_COUNT_NOT_DISCLOSED")
@@ -171,6 +185,9 @@ def apply_quality(result, reference, coupons, as_of, curve):
             result["spread"] = {"value": None, "status": "unavailable", "blocked_reason": "BASIS_NOT_VERIFIED"}
             annual = sum(float(c["amount"]) for c in confirmed if (day(c["pay_date"]) - as_of).days <= 365)
             result["simple_yield"] = bonds.simple_yield(annual, result.get("price"))
+    ytm_now = (result.get("ytm") or {}).get("value")
+    if ytm_now is not None and not (YIELD_PCT_BOUNDS[0] <= ytm_now <= YIELD_PCT_BOUNDS[1]):
+        blocked.append("YIELD_OUT_OF_RANGE")
     calculation = "stale_indicative" if market["status"] in {"stale", "very_stale"} else "exact" if exact_schedule and market["days_since_trade"] == 0 else "indicative"
     for key in ("ytm", "ytc", "ytp", "ytw", "duration", "modified_duration", "convexity", "bpv", "dv01", "spread"):
         metric = result.get(key) or {"value": None, "status": "unavailable"}
@@ -182,7 +199,25 @@ def apply_quality(result, reference, coupons, as_of, curve):
     if blocked:
         result["rate_scenarios"] = {"status": "unavailable", "items": [],
                                     "small_shift_check": None, "blocked_reason": blocked[0]}
-    withhold("g_spread", "COMPOUNDING_BASIS_OR_SCHEDULE_NOT_VERIFIED")
+    # The G-spread as an indicative figure: the bond's effective annual YTM over
+    # the ГЦБ curve on the same basis (bonds.gov_curve_points puts every auction
+    # at its own duration and effective yield), read at the bond's Macaulay
+    # duration. It is the market-standard way to put a corporate bond beside the
+    # sovereign — and it stays «indicative» until a same-day zero curve exists,
+    # which replaces it below for an exact bond.
+    ytm_value = (result.get("ytm") or {}).get("value")
+    horizon = (result.get("duration") or {}).get("value")
+    base, extrapolated = bonds.gov_curve_at(horizon, curve) if horizon is not None else (None, False)
+    if blocked or ytm_value is None:
+        withhold("g_spread", blocked[0] if blocked else "NO_YIELD")
+    elif base is None:
+        result["g_spread"] = {"value": None, "status": "unavailable", "blocked_reason": "NO_GOV_CURVE"}
+    else:
+        spread = ytm_value - base
+        result["g_spread"] = {"value": spread, "bps": spread * 100, "status": calculation,
+                              "calculation_status": calculation, "curve_rate": base,
+                              "horizon_years": horizon, "extrapolated": extrapolated,
+                              "basis": "effective_annual", "curve": "gov_auctions"}
     # CBU rates are continuously compounded. Dates, currency and convention
     # must be explicit on every curve point; an auction yield is not this curve.
     if calculation == "exact" and not blocked and curve and all(

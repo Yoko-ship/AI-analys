@@ -1,0 +1,637 @@
+{
+  "model_version": "patterns-v1",
+  "generated": "2026-09-25",
+  "universe": "UZSE shares in the full liquidity tier (formulas.data_quality)",
+  "parameters": {
+    "atr_days": 14,
+    "zigzag_atr": 2.0,
+    "zigzag_min_pct": 3.0,
+    "breakout_wait": 15,
+    "horizon": 20,
+    "fee_bps": 15,
+    "slippage_bps": 20
+  },
+  "sensitivity": {
+    "low": 3.0,
+    "medium": 2.0,
+    "high": 1.5
+  },
+  "method": "Signal at the breakout close, filled at the next session's close with fee and slippage; hit = target before stop within the horizon; chance = the same target/stop distances from ordinary sessions of the same stock.",
+  "by_sensitivity": {
+    "low": {
+      "securities": 54,
+      "types": {
+        "all": {
+          "signals": 4904,
+          "decided": 3322,
+          "hit_rate_pct": 24.7,
+          "chance_pct": 31.3,
+          "avg_return_pct": -4.1,
+          "securities": 54
+        },
+        "ascending_channel": {
+          "signals": 76,
+          "decided": 25,
+          "hit_rate_pct": 52.0,
+          "chance_pct": 50.2,
+          "avg_return_pct": -4.5,
+          "securities": 35
+        },
+        "ascending_triangle": {
+          "signals": 70,
+          "decided": 33,
+          "hit_rate_pct": 24.2,
+          "chance_pct": 25.5,
+          "avg_return_pct": -9.9,
+          "securities": 34
+        },
+        "bear_flag": {
+          "signals": 70,
+          "decided": 38,
+          "hit_rate_pct": 5.3,
+          "chance_pct": 9.4,
+          "avg_return_pct": -10.7,
+          "securities": 32
+        },
+        "bear_pennant": {
+          "signals": 9,
+          "decided": 9,
+          "hit_rate_pct": 0.0,
+          "chance_pct": 2.1,
+          "avg_return_pct": -7.5,
+          "securities": 8
+        },
+        "bearish_engulfing": {
+          "signals": 465,
+          "decided": 351,
+          "hit_rate_pct": 23.4,
+          "chance_pct": 32.1,
+          "avg_return_pct": -4.7,
+          "securities": 51
+        },
+        "bull_flag": {
+          "signals": 48,
+          "decided": 37,
+          "hit_rate_pct": 13.5,
+          "chance_pct": 16.9,
+          "avg_return_pct": -6.3,
+          "securities": 23
+        },
+        "bull_pennant": {
+          "signals": 6,
+          "decided": 5,
+          "hit_rate_pct": 20.0,
+          "chance_pct": 10.0,
+          "avg_return_pct": 10.0,
+          "securities": 5
+        },
+        "bullish_engulfing": {
+          "signals": 495,
+          "decided": 378,
+          "hit_rate_pct": 23.8,
+          "chance_pct": 29.2,
+          "avg_return_pct": -3.3,
+          "securities": 51
+        },
+        "descending_channel": {
+          "signals": 55,
+          "decided": 14,
+          "hit_rate_pct": 50.0,
+          "chance_pct": 59.5,
+          "avg_return_pct": -11.2,
+          "securities": 35
+        },
+        "descending_triangle": {
+          "signals": 109,
+          "decided": 32,
+          "hit_rate_pct": 18.8,
+          "chance_pct": 25.6,
+          "avg_return_pct": -5.3,
+          "securities": 40
+        },
+        "double_bottom": {
+          "signals": 175,
+          "decided": 87,
+          "hit_rate_pct": 74.7,
+          "chance_pct": 82.2,
+          "avg_return_pct": 0.2,
+          "securities": 47
+        },
+        "double_top": {
+          "signals": 109,
+          "decided": 48,
+          "hit_rate_pct": 54.2,
+          "chance_pct": 53.2,
+          "avg_return_pct": -18.5,
+          "securities": 41
+        },
+        "evening_star": {
+          "signals": 175,
+          "decided": 121,
+          "hit_rate_pct": 26.4,
+          "chance_pct": 33.4,
+          "avg_return_pct": -1.9,
+          "securities": 48
+        },
+        "falling_wedge": {
+          "signals": 140,
+          "decided": 38,
+          "hit_rate_pct": 31.6,
+          "chance_pct": 35.7,
+          "avg_return_pct": 0.2,
+          "securities": 43
+        },
+        "hammer": {
+          "signals": 1708,
+          "decided": 1349,
+          "hit_rate_pct": 16.8,
+          "chance_pct": 25.7,
+          "avg_return_pct": -3.3,
+          "securities": 53
+        },
+        "head_shoulders": {
+          "signals": 25,
+          "decided": 9,
+          "hit_rate_pct": 11.1,
+          "chance_pct": 23.6,
+          "avg_return_pct": -23.7,
+          "securities": 19
+        },
+        "horizontal_channel": {
+          "signals": 75,
+          "decided": 32,
+          "hit_rate_pct": 50.0,
+          "chance_pct": 63.6,
+          "avg_return_pct": -2.4,
+          "securities": 32
+        },
+        "inverse_head_shoulders": {
+          "signals": 32,
+          "decided": 18,
+          "hit_rate_pct": 77.8,
+          "chance_pct": 52.0,
+          "avg_return_pct": 12.0,
+          "securities": 24
+        },
+        "morning_star": {
+          "signals": 155,
+          "decided": 116,
+          "hit_rate_pct": 19.8,
+          "chance_pct": 29.8,
+          "avg_return_pct": -4.6,
+          "securities": 48
+        },
+        "rising_wedge": {
+          "signals": 52,
+          "decided": 18,
+          "hit_rate_pct": 38.9,
+          "chance_pct": 29.2,
+          "avg_return_pct": 2.4,
+          "securities": 22
+        },
+        "shooting_star": {
+          "signals": 580,
+          "decided": 436,
+          "hit_rate_pct": 29.8,
+          "chance_pct": 32.4,
+          "avg_return_pct": -5.0,
+          "securities": 54
+        },
+        "symmetrical_triangle": {
+          "signals": 151,
+          "decided": 65,
+          "hit_rate_pct": 13.8,
+          "chance_pct": 13.7,
+          "avg_return_pct": -3.4,
+          "securities": 43
+        },
+        "triple_bottom": {
+          "signals": 90,
+          "decided": 47,
+          "hit_rate_pct": 74.5,
+          "chance_pct": 86.3,
+          "avg_return_pct": 3.4,
+          "securities": 40
+        },
+        "triple_top": {
+          "signals": 34,
+          "decided": 16,
+          "hit_rate_pct": 56.2,
+          "chance_pct": 49.4,
+          "avg_return_pct": -25.7,
+          "securities": 22
+        }
+      }
+    },
+    "medium": {
+      "securities": 54,
+      "types": {
+        "all": {
+          "signals": 7018,
+          "decided": 4397,
+          "hit_rate_pct": 27.2,
+          "chance_pct": 33.6,
+          "avg_return_pct": -4.1,
+          "securities": 54
+        },
+        "ascending_channel": {
+          "signals": 191,
+          "decided": 87,
+          "hit_rate_pct": 58.6,
+          "chance_pct": 55.4,
+          "avg_return_pct": -3.9,
+          "securities": 47
+        },
+        "ascending_triangle": {
+          "signals": 325,
+          "decided": 159,
+          "hit_rate_pct": 26.4,
+          "chance_pct": 25.7,
+          "avg_return_pct": -2.3,
+          "securities": 50
+        },
+        "bear_flag": {
+          "signals": 70,
+          "decided": 38,
+          "hit_rate_pct": 5.3,
+          "chance_pct": 9.4,
+          "avg_return_pct": -10.7,
+          "securities": 32
+        },
+        "bear_pennant": {
+          "signals": 9,
+          "decided": 9,
+          "hit_rate_pct": 0.0,
+          "chance_pct": 2.1,
+          "avg_return_pct": -7.5,
+          "securities": 8
+        },
+        "bearish_engulfing": {
+          "signals": 465,
+          "decided": 351,
+          "hit_rate_pct": 23.4,
+          "chance_pct": 32.1,
+          "avg_return_pct": -4.7,
+          "securities": 51
+        },
+        "bull_flag": {
+          "signals": 48,
+          "decided": 37,
+          "hit_rate_pct": 13.5,
+          "chance_pct": 16.9,
+          "avg_return_pct": -6.3,
+          "securities": 23
+        },
+        "bull_pennant": {
+          "signals": 6,
+          "decided": 5,
+          "hit_rate_pct": 20.0,
+          "chance_pct": 10.0,
+          "avg_return_pct": 10.0,
+          "securities": 5
+        },
+        "bullish_engulfing": {
+          "signals": 495,
+          "decided": 378,
+          "hit_rate_pct": 23.8,
+          "chance_pct": 29.2,
+          "avg_return_pct": -3.3,
+          "securities": 51
+        },
+        "descending_channel": {
+          "signals": 178,
+          "decided": 59,
+          "hit_rate_pct": 42.4,
+          "chance_pct": 60.2,
+          "avg_return_pct": -0.7,
+          "securities": 43
+        },
+        "descending_triangle": {
+          "signals": 395,
+          "decided": 167,
+          "hit_rate_pct": 12.0,
+          "chance_pct": 25.6,
+          "avg_return_pct": -8.7,
+          "securities": 50
+        },
+        "double_bottom": {
+          "signals": 359,
+          "decided": 192,
+          "hit_rate_pct": 68.8,
+          "chance_pct": 75.6,
+          "avg_return_pct": -0.2,
+          "securities": 51
+        },
+        "double_top": {
+          "signals": 262,
+          "decided": 122,
+          "hit_rate_pct": 64.8,
+          "chance_pct": 58.0,
+          "avg_return_pct": -8.6,
+          "securities": 49
+        },
+        "evening_star": {
+          "signals": 175,
+          "decided": 121,
+          "hit_rate_pct": 26.4,
+          "chance_pct": 33.4,
+          "avg_return_pct": -1.9,
+          "securities": 48
+        },
+        "falling_wedge": {
+          "signals": 301,
+          "decided": 104,
+          "hit_rate_pct": 19.2,
+          "chance_pct": 30.0,
+          "avg_return_pct": -4.1,
+          "securities": 48
+        },
+        "hammer": {
+          "signals": 1708,
+          "decided": 1349,
+          "hit_rate_pct": 16.8,
+          "chance_pct": 25.7,
+          "avg_return_pct": -3.3,
+          "securities": 53
+        },
+        "head_shoulders": {
+          "signals": 69,
+          "decided": 31,
+          "hit_rate_pct": 19.4,
+          "chance_pct": 26.4,
+          "avg_return_pct": -16.9,
+          "securities": 35
+        },
+        "horizontal_channel": {
+          "signals": 265,
+          "decided": 132,
+          "hit_rate_pct": 50.8,
+          "chance_pct": 57.6,
+          "avg_return_pct": -3.9,
+          "securities": 51
+        },
+        "inverse_head_shoulders": {
+          "signals": 106,
+          "decided": 70,
+          "hit_rate_pct": 31.4,
+          "chance_pct": 41.3,
+          "avg_return_pct": -3.8,
+          "securities": 44
+        },
+        "morning_star": {
+          "signals": 155,
+          "decided": 116,
+          "hit_rate_pct": 19.8,
+          "chance_pct": 29.8,
+          "avg_return_pct": -4.6,
+          "securities": 48
+        },
+        "rising_wedge": {
+          "signals": 158,
+          "decided": 66,
+          "hit_rate_pct": 25.8,
+          "chance_pct": 25.5,
+          "avg_return_pct": -2.7,
+          "securities": 46
+        },
+        "shooting_star": {
+          "signals": 580,
+          "decided": 436,
+          "hit_rate_pct": 29.8,
+          "chance_pct": 32.4,
+          "avg_return_pct": -5.0,
+          "securities": 54
+        },
+        "symmetrical_triangle": {
+          "signals": 411,
+          "decided": 220,
+          "hit_rate_pct": 10.5,
+          "chance_pct": 12.2,
+          "avg_return_pct": -3.7,
+          "securities": 53
+        },
+        "triple_bottom": {
+          "signals": 181,
+          "decided": 105,
+          "hit_rate_pct": 67.6,
+          "chance_pct": 78.8,
+          "avg_return_pct": 0.3,
+          "securities": 47
+        },
+        "triple_top": {
+          "signals": 106,
+          "decided": 43,
+          "hit_rate_pct": 69.8,
+          "chance_pct": 58.5,
+          "avg_return_pct": -12.3,
+          "securities": 43
+        }
+      }
+    },
+    "high": {
+      "securities": 54,
+      "types": {
+        "all": {
+          "signals": 8288,
+          "decided": 5338,
+          "hit_rate_pct": 28.2,
+          "chance_pct": 32.8,
+          "avg_return_pct": -3.3,
+          "securities": 54
+        },
+        "ascending_channel": {
+          "signals": 246,
+          "decided": 119,
+          "hit_rate_pct": 51.3,
+          "chance_pct": 53.3,
+          "avg_return_pct": -3.2,
+          "securities": 50
+        },
+        "ascending_triangle": {
+          "signals": 604,
+          "decided": 340,
+          "hit_rate_pct": 19.7,
+          "chance_pct": 23.7,
+          "avg_return_pct": -5.7,
+          "securities": 51
+        },
+        "bear_flag": {
+          "signals": 70,
+          "decided": 38,
+          "hit_rate_pct": 5.3,
+          "chance_pct": 9.4,
+          "avg_return_pct": -10.7,
+          "securities": 32
+        },
+        "bear_pennant": {
+          "signals": 9,
+          "decided": 9,
+          "hit_rate_pct": 0.0,
+          "chance_pct": 2.1,
+          "avg_return_pct": -7.5,
+          "securities": 8
+        },
+        "bearish_engulfing": {
+          "signals": 465,
+          "decided": 351,
+          "hit_rate_pct": 23.4,
+          "chance_pct": 32.1,
+          "avg_return_pct": -4.7,
+          "securities": 51
+        },
+        "bull_flag": {
+          "signals": 48,
+          "decided": 37,
+          "hit_rate_pct": 13.5,
+          "chance_pct": 16.9,
+          "avg_return_pct": -6.3,
+          "securities": 23
+        },
+        "bull_pennant": {
+          "signals": 6,
+          "decided": 5,
+          "hit_rate_pct": 20.0,
+          "chance_pct": 10.0,
+          "avg_return_pct": 10.0,
+          "securities": 5
+        },
+        "bullish_engulfing": {
+          "signals": 495,
+          "decided": 378,
+          "hit_rate_pct": 23.8,
+          "chance_pct": 29.2,
+          "avg_return_pct": -3.3,
+          "securities": 51
+        },
+        "descending_channel": {
+          "signals": 269,
+          "decided": 98,
+          "hit_rate_pct": 58.2,
+          "chance_pct": 58.5,
+          "avg_return_pct": 1.6,
+          "securities": 49
+        },
+        "descending_triangle": {
+          "signals": 743,
+          "decided": 411,
+          "hit_rate_pct": 19.0,
+          "chance_pct": 24.9,
+          "avg_return_pct": -3.2,
+          "securities": 52
+        },
+        "double_bottom": {
+          "signals": 293,
+          "decided": 185,
+          "hit_rate_pct": 69.7,
+          "chance_pct": 72.4,
+          "avg_return_pct": 2.2,
+          "securities": 47
+        },
+        "double_top": {
+          "signals": 226,
+          "decided": 121,
+          "hit_rate_pct": 66.1,
+          "chance_pct": 61.5,
+          "avg_return_pct": -8.4,
+          "securities": 47
+        },
+        "evening_star": {
+          "signals": 175,
+          "decided": 121,
+          "hit_rate_pct": 26.4,
+          "chance_pct": 33.4,
+          "avg_return_pct": -1.9,
+          "securities": 48
+        },
+        "falling_wedge": {
+          "signals": 419,
+          "decided": 171,
+          "hit_rate_pct": 21.6,
+          "chance_pct": 32.2,
+          "avg_return_pct": -1.7,
+          "securities": 51
+        },
+        "hammer": {
+          "signals": 1708,
+          "decided": 1349,
+          "hit_rate_pct": 16.8,
+          "chance_pct": 25.7,
+          "avg_return_pct": -3.3,
+          "securities": 53
+        },
+        "head_shoulders": {
+          "signals": 99,
+          "decided": 54,
+          "hit_rate_pct": 24.1,
+          "chance_pct": 23.8,
+          "avg_return_pct": -5.0,
+          "securities": 40
+        },
+        "horizontal_channel": {
+          "signals": 419,
+          "decided": 225,
+          "hit_rate_pct": 57.8,
+          "chance_pct": 56.0,
+          "avg_return_pct": -2.8,
+          "securities": 49
+        },
+        "inverse_head_shoulders": {
+          "signals": 136,
+          "decided": 87,
+          "hit_rate_pct": 35.6,
+          "chance_pct": 37.8,
+          "avg_return_pct": -2.1,
+          "securities": 48
+        },
+        "morning_star": {
+          "signals": 155,
+          "decided": 116,
+          "hit_rate_pct": 19.8,
+          "chance_pct": 29.8,
+          "avg_return_pct": -4.6,
+          "securities": 48
+        },
+        "rising_wedge": {
+          "signals": 234,
+          "decided": 125,
+          "hit_rate_pct": 31.2,
+          "chance_pct": 27.0,
+          "avg_return_pct": -2.6,
+          "securities": 46
+        },
+        "shooting_star": {
+          "signals": 580,
+          "decided": 436,
+          "hit_rate_pct": 29.8,
+          "chance_pct": 32.4,
+          "avg_return_pct": -5.0,
+          "securities": 54
+        },
+        "symmetrical_triangle": {
+          "signals": 565,
+          "decided": 371,
+          "hit_rate_pct": 13.2,
+          "chance_pct": 12.3,
+          "avg_return_pct": -3.0,
+          "securities": 54
+        },
+        "triple_bottom": {
+          "signals": 186,
+          "decided": 122,
+          "hit_rate_pct": 70.5,
+          "chance_pct": 74.8,
+          "avg_return_pct": 1.0,
+          "securities": 45
+        },
+        "triple_top": {
+          "signals": 138,
+          "decided": 69,
+          "hit_rate_pct": 79.7,
+          "chance_pct": 62.6,
+          "avg_return_pct": -4.2,
+          "securities": 46
+        }
+      }
+    }
+  }
+}

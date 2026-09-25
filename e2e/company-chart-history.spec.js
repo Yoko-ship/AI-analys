@@ -75,7 +75,9 @@ test("the company overview chart zooms, pans through history, and resets", async
   });
 
   await page.goto(`/company/${TICKER}`);
-  const chart = page.locator(".company-price-chart-svg");
+  const chart = page.locator(".company-price-chart");
+  // The canvas has no DOM per bar; the wrapper states what is drawn on it.
+  const series = () => chart.getAttribute("data-series");
   const range = page.getByTestId("company-visible-range");
   await expect(chart).toBeVisible();
   await expect(range).toContainText("Ctrl + колесо");
@@ -106,49 +108,48 @@ test("the company overview chart zooms, pans through history, and resets", async
   await typeTool.click();
   await page.getByRole("menuitemradio", { name: "Свечи" }).click();
   await expect(chart).toHaveAttribute("data-chart-type", "candle");
-  expect(await page.locator(".cpc-candle").count()).toBeGreaterThan(20);
+  await expect(chart.locator("canvas").first()).toBeVisible();
   await typeTool.click();
   await page.getByRole("menuitemradio", { name: "Область" }).click();
-  await expect(page.locator(".cpc-area-fill")).toBeVisible();
+  await expect(chart).toHaveAttribute("data-chart-type", "area");
 
   await page.getByTestId("company-chart-compare").click();
   const peer = page.getByRole("menuitemcheckbox", { name: /Aloqabank/ });
   await expect(peer).toBeVisible();
   await peer.click();
-  await expect(page.locator(".cpc-compare-path")).toBeVisible();
+  await expect.poll(series).toContain("cmp:ALKB");
   await peer.click();
-  await expect(page.locator(".cpc-compare-path")).toHaveCount(0);
+  await expect.poll(series).not.toContain("cmp:");
 
   const boxForDrawing = await chart.boundingBox();
   expect(boxForDrawing).not.toBeNull();
   await page.getByTestId("company-chart-draw").click();
   await chart.click({ position: { x: boxForDrawing.width * 0.30, y: boxForDrawing.height * 0.40 } });
   await chart.click({ position: { x: boxForDrawing.width * 0.65, y: boxForDrawing.height * 0.58 } });
-  await expect(page.locator(".cpc-drawing-line")).toBeVisible();
+  await expect(chart).toHaveAttribute("data-trend-points", "2");
   await page.getByRole("button", { name: "Очистить", exact: true }).click();
-  await expect(page.locator(".cpc-drawing-line")).toHaveCount(0);
+  await expect(chart).toHaveAttribute("data-trend-points", "0");
 
   await page.getByTestId("company-chart-indicators").click();
   await page.getByRole("menuitemcheckbox", { name: /MA20/ }).click();
-  await expect(page.locator(".cpc-ma20")).toBeVisible();
+  await expect.poll(series).toContain("ma20");
 
   // "Clear all" removes every additive overlay in one action: comparison,
   // moving averages and the user-drawn trend line. View/range preferences are
   // deliberately not part of this reset.
   await page.getByTestId("company-chart-compare").click();
   await peer.click();
-  await expect(page.locator(".cpc-compare-path")).toBeVisible();
+  await expect.poll(series).toContain("cmp:ALKB");
   await page.getByTestId("company-chart-draw").click();
   await chart.click({ position: { x: boxForDrawing.width * 0.25, y: boxForDrawing.height * 0.35 } });
   await chart.click({ position: { x: boxForDrawing.width * 0.70, y: boxForDrawing.height * 0.62 } });
-  await expect(page.locator(".cpc-drawing-line")).toBeVisible();
+  await expect(chart).toHaveAttribute("data-trend-points", "2");
   const clearAllShot = testInfo.outputPath("company-chart-clear-all.png");
   await page.screenshot({ path: clearAllShot, fullPage: false });
   await testInfo.attach("company-chart-clear-all", { path: clearAllShot, contentType: "image/png" });
   await page.getByTestId("company-chart-clear-all").click();
-  await expect(page.locator(".cpc-compare-path")).toHaveCount(0);
-  await expect(page.locator(".cpc-ma20")).toHaveCount(0);
-  await expect(page.locator(".cpc-drawing-line")).toHaveCount(0);
+  await expect.poll(series).toBe("price");
+  await expect(chart).toHaveAttribute("data-trend-points", "0");
   await expect(page.getByTestId("company-chart-clear-all")).toHaveCount(0);
   await expect(chart).toHaveAttribute("data-chart-interval", "D");
   await expect(chart).toHaveAttribute("data-chart-type", "area");
@@ -159,9 +160,9 @@ test("the company overview chart zooms, pans through history, and resets", async
   await testInfo.attach("company-chart-toolbar-menu", { path: menuShot, contentType: "image/png" });
   const gridSetting = page.getByLabel("Сетка");
   await gridSetting.uncheck();
-  await expect(page.locator(".cpc-grid-line")).toHaveCount(0);
+  await expect(chart).toHaveAttribute("data-grid", "off");
   await gridSetting.check();
-  await expect.poll(() => page.locator(".cpc-grid-line").count()).toBeGreaterThan(0);
+  await expect(chart).toHaveAttribute("data-grid", "on");
   await page.keyboard.press("Escape");
 
   const box = await chart.boundingBox();

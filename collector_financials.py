@@ -1261,11 +1261,7 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
         by_ticker = {t["ticker"]: t for t in terms["reference"]}
         merged: list[dict] = []
         for row in rows:
-            filed = {k: v for k, v in by_ticker.get(row["ticker"], {}).items() if v is not None}
-            if filed.get("coupon_rate") is not None:
-                filed["coupon_source"] = "openinfo_facts"
-            if filed.get("maturity_date"):
-                filed["maturity_source"] = "openinfo_facts"
+            filed = _filed_terms_for(row, by_ticker.get(row["ticker"], {}))
             merged.append({**row, **filed})
         rows = merged
         coupons = terms["coupons"]
@@ -1278,6 +1274,30 @@ def push_bond_reference(listing_rows: list[dict]) -> int:
                    and r.get("maturity_date"))
     log.info("bond reference: %d issues, %d complete enough to discount", len(rows), complete)
     return _post("/api/admin/bonds/reference", {"rows": rows, "coupons": coupons})
+
+
+def _filed_terms_for(row: dict, terms: dict) -> dict:
+    """What the issuer's filings add to one register row, with their sources.
+
+    Filings win when several coupons agree — they prove the rate. A rate
+    inverted from ONE coupon rests on the register's frequency, so when it
+    still disagrees with the register's own rate the register stands (rate and
+    frequency both) and the conflict is logged rather than published.
+    """
+    filed = {k: v for k, v in (terms or {}).items() if v is not None}
+    evidence = filed.pop("coupon_evidence", 0) or 0
+    listed = row.get("coupon_rate")
+    if (evidence <= 1 and listed is not None and filed.get("coupon_rate") is not None
+            and abs(float(filed["coupon_rate"]) - float(listed)) > 0.5):
+        log.warning("bond %s: one filed coupon implies %.2f%%, the register states %.2f%% — "
+                    "keeping the register", row.get("ticker"), filed["coupon_rate"], listed)
+        filed.pop("coupon_rate", None)
+        filed.pop("coupon_freq", None)
+    if filed.get("coupon_rate") is not None:
+        filed["coupon_source"] = "openinfo_facts"
+    if filed.get("maturity_date"):
+        filed["maturity_source"] = "openinfo_facts"
+    return filed
 
 
 def push_gov_auctions() -> int:

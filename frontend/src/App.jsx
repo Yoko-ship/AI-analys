@@ -5,6 +5,15 @@ import { createPortal } from "react-dom";
 // layer did not apply.
 import { compact as fmtCompact, metric as fmtMetric, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "./lib/format.js";
 import { loadConfig, threshold as cfgThreshold } from "./lib/flags.js";
+import { LineType as LwLineType } from "lightweight-charts";
+import LwCanvas from "./charts/LwCanvas.jsx";
+import { patternName } from "./lib/patterns.js";
+import {
+  UP as LW_UP, DOWN as LW_DOWN, UP_FILL as LW_UP_FILL, UP_FILL_FAINT as LW_UP_FILL_FAINT,
+  DOWN_FILL as LW_DOWN_FILL, DOWN_FILL_FAINT as LW_DOWN_FILL_FAINT, toTime as lwTime,
+  priceFormatFor as lwPriceFormatFor, percentFormat as lwPercentFormat, ohlcBar as lwOhlcBar, ohlcOk as lwOhlcOk, heikinAshi as lwHeikinAshi,
+  syntheticSeries as lwSyntheticSeries, customFormat as lwCustomFormat, calendarMA, uniqueByTime as lwUniqueByTime,
+} from "./charts/lwCore.js";
 // Sector membership is one rule, shared by the Рынок filter bar and the heat map
 // (see frontend/src/lib/sectors.js and tests/sectors.test.js) — they used to read
 // two different maps and file the same ticker under two different sectors.
@@ -8447,125 +8456,406 @@ function BondPaymentCalendar({ lang, onOpenBond }) {
 
 /** YTM against duration, bubble area = issue value, with the ГЦБ base curve.
  * Only bonds whose yield IS computed appear — the map never plots a guess. */
-function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond }) {
+// Issuer groups on the yield map (bonds.issuer_segment). Colour carries the
+// group, and the legend chips double as filters.
+const BOND_SEGMENTS = [
+  { key: "bank", color: "#3b82f6", label: ["Банки", "Banklar", "Banks"] },
+  { key: "mortgage", color: "#f97316", label: ["Ипотека и SPV", "Ipoteka va SPV", "Mortgage & SPV"] },
+  { key: "mfo", color: "#10b981", label: ["МФО и финкомпании", "MMT va moliya kompaniyalari", "Microfinance & finance cos"] },
+  { key: "leasing", color: "#a855f7", label: ["Лизинг", "Lizing", "Leasing"] },
+  { key: "corporate", color: "#eab308", label: ["Корпоративные", "Korporativ", "Corporates"] },
+];
+const bondSegment = (key) => BOND_SEGMENTS.find((sg) => sg.key === key) || BOND_SEGMENTS[4];
+
+const BOND_BLOCK_TEXT = {
+  NO_VERIFIED_TRADE: ["нет сделок", "bitim yo'q", "no trades"],
+  COUPON_RATE_IMPLAUSIBLE: ["купон вне правдоподобных границ — проверяется", "kupon ishonchli chegaradan tashqarida", "coupon outside plausible bounds — under review"],
+  YIELD_OUT_OF_RANGE: ["доходность вне правдоподобных границ — вероятна ошибка данных", "daromadlilik ishonchli chegaradan tashqarida", "yield outside plausible bounds — likely a data fault"],
+  UNKNOWN_FUTURE_COUPONS: ["плавающий купон без будущих ставок", "suzuvchi kupon", "floating coupon, future rates unknown"],
+  AMORTIZATION_OR_OPTIONS_NOT_VERIFIED: ["амортизация или оферта не подтверждены", "amortizatsiya yoki oferta tasdiqlanmagan", "amortisation or option not verified"],
+};
+
+const PRICE_METHOD_TEXT = {
+  vwap: ["средневзвешенная по объёму", "hajm bo'yicha o'rtacha", "volume-weighted"],
+  median_close: ["медиана закрытий", "yopilishlar medianasi", "median close"],
+  last_trade: ["последняя сделка", "oxirgi bitim", "last trade"],
+};
+
+/** Median of a list of numbers (null for none). */
+function medianOf(values) {
+  const v = values.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
+/** A round step for an axis spanning `span` in about `count` ticks. */
+function niceAxisStep(span, count) {
+  const raw = span / Math.max(1, count);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+  const norm = (raw || 1) / mag;
+  return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+}
+
+/**
+ * Карта доходности: every priced issue at its duration and yield, beside the
+ * ГЦБ curve. The standard picture of a bond market — how much each issuer
+ * pays over the sovereign for the same interest-rate exposure.
+ *
+ * Every number comes from the server on one basis (bonds.py / bond_quality):
+ * effective annual YTM struck on the volume-weighted price of the last
+ * sessions, Macaulay duration, the ГЦБ curve with each auction placed at its
+ * own duration and effective yield, and the G-spread read at the bond's
+ * duration. All of it «indicative»: a thin market and inferred terms make it
+ * an estimate, and the page says so rather than hiding the map.
+ *
+ * `compact` draws the small version for a bond card, with `highlight` marked
+ * and every other dot faded.
+ */
+function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = false, highlight = null }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const pts = rows
+  const li = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const [hidden, setHidden] = React.useState(() => new Set());
+  const [showStale, setShowStale] = React.useState(true);
+  const [hover, setHover] = React.useState(null);
+  const [sortKey, setSortKey] = React.useState("spread");
+  const boxRef = React.useRef(null);
+
+  const priced = rows
     .map((r) => ({
       ...r,
-      x: r.dur != null ? r.dur : r.years,
+      x: r.dur,
       y: r.ytm,
-      size: r.b.issue_value || 0,
+      size: r.issueValue || r.b.issue_value || 0,
+      seg: r.b.segment || "corporate",
+      stale: (r.b.ytm?.status || "") === "stale_indicative",
+      g: r.b.g_spread || {},
     }))
     .filter((p) => p.x != null && p.y != null);
+  const pts = priced.filter((p) => !hidden.has(p.seg) && (showStale || !p.stale || p.ticker === highlight));
 
-  if (!pts.length) {
+  // What is NOT on the map, and why — counted, and the data faults named.
+  const live = rows.filter((r) => ["live", "last"].includes(r.b.state));
+  const noTrade = live.filter((r) => r.ytm == null && (r.b.data_quality || []).some((q) => q.code === "NO_VERIFIED_TRADE")).length;
+  const faults = live.filter((r) => r.ytm == null && (r.b.data_quality || [])
+    .some((q) => ["COUPON_RATE_IMPLAUSIBLE", "YIELD_OUT_OF_RANGE"].includes(q.code)));
+
+  if (!priced.length) {
     return (
       <div className="bondsec-empty">
         <b>{t("Карта пуста", "Xarita bo'sh", "The map is empty")}</b>
-        {t("Ни один выпуск сейчас не имеет одновременно цены, купона и даты погашения — доходность не вычислима, и точке неоткуда взяться.",
-           "Hozircha hech bir chiqarilishda narx, kupon va to'lov sanasi birga yo'q.",
-           "No issue currently has a price, a coupon and a maturity at once — no yield, no dot.")}
+        {t("Ни у одного выпуска сейчас нет цены, по которой можно посчитать доходность.",
+           "Hozircha hech bir chiqarilishda daromadlilik hisoblash uchun narx yo'q.",
+           "No issue currently has a price a yield can be computed from.")}
       </div>
     );
   }
 
-  const W = 1060; const H = 460; const L = 58; const R = 170; const T = 24; const B = 54;
+  // Curve on the server's basis: (duration, effective yield) per auction.
+  const curvePts = (govPoints || [])
+    .map((p) => ({ x: Number(p.duration_years ?? (p.term_days / 365)), y: Number(p.rate_effective ?? p.rate), p }))
+    .filter((c) => Number.isFinite(c.x) && Number.isFinite(c.y))
+    .sort((a, b) => a.x - b.x);
+
+  const W = compact ? 560 : 1060;
+  const H = compact ? 250 : 470;
+  const L = compact ? 44 : 58; const R = compact ? 16 : 150; const T = 18; const B = compact ? 34 : 50;
   const pw = W - L - R; const ph = H - T - B;
-  const maxX = Math.max(4, ...pts.map((p) => p.x)) * 1.1;
-  const yVals = pts.map((p) => p.y).concat(govPoints.map((p) => p.rate)).concat(keyRate?.rate != null ? [keyRate.rate] : []);
-  const minY = Math.floor(Math.min(...yVals) / 5) * 5;
-  const maxY = Math.ceil((Math.max(...yVals) + 2) / 5) * 5;
-  const X = (v) => L + (pw * Math.min(v, maxX)) / maxX;
+  const xMaxData = Math.max(...priced.map((p) => p.x), ...curvePts.map((c) => c.x), 1);
+  const xStep = niceAxisStep(xMaxData, compact ? 4 : 6);
+  const maxX = Math.ceil((xMaxData * 1.06) / xStep) * xStep;
+  const yVals = priced.map((p) => p.y).concat(curvePts.map((c) => c.y), keyRate?.rate != null ? [Number(keyRate.rate)] : []);
+  const yStep = niceAxisStep(Math.max(...yVals) - Math.min(...yVals) || 5, compact ? 4 : 6);
+  const minY = Math.floor((Math.min(...yVals) - yStep * 0.3) / yStep) * yStep;
+  const maxY = Math.ceil((Math.max(...yVals) + yStep * 0.3) / yStep) * yStep;
+  const X = (v) => L + (pw * Math.max(0, Math.min(v, maxX))) / maxX;
   const Y = (v) => T + ph - (ph * (v - minY)) / (maxY - minY || 1);
-  const maxSize = Math.max(...pts.map((p) => p.size), 1);
+  const maxSize = Math.max(...priced.map((p) => p.size), 1);
+  const radius = (p) => (compact ? 4 : 5) + (compact ? 5 : 11) * Math.sqrt((p.size || 0) / maxSize);
 
   const gridY = [];
-  for (let v = minY; v <= maxY; v += 5) gridY.push(v);
+  for (let v = minY; v <= maxY + 1e-9; v += yStep) gridY.push(Number(v.toFixed(6)));
   const gridX = [];
-  for (let v = 0; v <= maxX; v += 1) gridX.push(v);
+  for (let v = 0; v <= maxX + 1e-9; v += xStep) gridX.push(Number(v.toFixed(6)));
+  const fmtAxis = (v, d) => Number(v).toLocaleString(lang === "en" ? "en-US" : "ru-RU", { maximumFractionDigits: d });
 
-  const curvePath = govPoints.length
-    ? Array.from({ length: 81 }, (_, i) => {
-        const yrs = (maxX * i) / 80;
-        const rate = govCurveAt(yrs, govPoints);
-        return rate == null ? null : `${i === 0 ? "M" : "L"}${X(yrs).toFixed(1)},${Y(rate).toFixed(1)}`;
-      }).filter(Boolean).join(" ")
+  // Solid where the curve has auctions on both sides, dashed where it is only
+  // held flat past the first and last of them.
+  const curveSolid = curvePts.length >= 2
+    ? curvePts.map((c, i) => `${i ? "L" : "M"}${X(c.x).toFixed(1)},${Y(c.y).toFixed(1)}`).join(" ") : null;
+  const curveFlat = curvePts.length
+    ? [`M${X(0).toFixed(1)},${Y(curvePts[0].y).toFixed(1)} L${X(curvePts[0].x).toFixed(1)},${Y(curvePts[0].y).toFixed(1)}`,
+       `M${X(curvePts.at(-1).x).toFixed(1)},${Y(curvePts.at(-1).y).toFixed(1)} L${X(maxX).toFixed(1)},${Y(curvePts.at(-1).y).toFixed(1)}`].join(" ")
     : null;
 
-  const spreadRows = pts.slice().sort((a, b) => (b.gspread ?? -1e9) - (a.gspread ?? -1e9));
+  // Labels: largest issues first, each tried right, left, above, below of its
+  // dot and dropped (hover still names it) when all four collide.
+  const placed = [];
+  const labels = new Map();
+  if (!compact) {
+    pts.slice().sort((a, b) => b.size - a.size).forEach((p) => {
+      const r = radius(p); const cx = X(p.x); const cy = Y(p.y);
+      const w = p.ticker.length * 6.6 + 4; const h = 13;
+      const tries = [[cx + r + 4, cy - h / 2, "start"], [cx - r - 4 - w, cy - h / 2, "end"],
+                     [cx - w / 2, cy - r - 4 - h, "middle"], [cx - w / 2, cy + r + 4, "middle"]];
+      for (const [x0, y0, anchor] of tries) {
+        const box = { x0, y0, x1: x0 + w, y1: y0 + h };
+        const clash = box.x0 < L || box.x1 > L + pw + R - 4 || box.y0 < T - 6 || box.y1 > T + ph
+          || placed.some((q) => !(box.x1 < q.x0 || box.x0 > q.x1 || box.y1 < q.y0 || box.y0 > q.y1))
+          || pts.some((o) => o !== p && Math.hypot(X(o.x) - Math.min(Math.max(X(o.x), box.x0), box.x1),
+                                                   Y(o.y) - Math.min(Math.max(Y(o.y), box.y0), box.y1)) < radius(o) - 1);
+        if (!clash) {
+          placed.push(box);
+          labels.set(p.ticker, { x: anchor === "start" ? x0 : anchor === "end" ? x0 + w : x0 + w / 2, y: y0 + h - 3, anchor });
+          break;
+        }
+      }
+    });
+  }
 
-  return (
-    <div className="bondsec-map">
-      <div className="bondsec-legend muted">
-        <span><i className="bondsec-dot" style={{ background: "var(--accent)" }} />{t("выпуск (размер — стоимость выпуска)", "chiqarilish (o'lcham — qiymat)", "issue (size = issue value)")}</span>
-        {curvePath && <span><i className="bondsec-line" />{t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}<TermInfo termId="govCurve" lang={lang} /></span>}
-        {keyRate?.rate != null && <span><i className="bondsec-line bondsec-line-dash" />{t("ставка ЦБ", "MB stavkasi", "key rate")} {fmtNumber(keyRate.rate, lang, 2)}%</span>}
-      </div>
-      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img"
-           aria-label={t("Карта доходности: доходность против дюрации", "Daromadlilik xaritasi", "Yield map: yield vs duration")}>
+  const onPointerMove = (e, p) => {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHover({ ticker: p.ticker, x: e.clientX - rect.left, y: e.clientY - rect.top, fromMap: true });
+  };
+  const hp = hover?.fromMap ? priced.find((p) => p.ticker === hover.ticker) : null;
+  const priceBasis = (p) => {
+    const pr = p.b.pricing || {};
+    const how = (PRICE_METHOD_TEXT[pr.method] || [pr.method, pr.method, pr.method])[li];
+    const span = pr.from && pr.to && pr.from !== pr.to ? `${fmtBondDay(pr.from)} — ${fmtBondDay(pr.to)}` : fmtBondDay(pr.to || pr.from);
+    return `${how}${pr.sessions > 1 ? `, ${pr.sessions} ${t("сесс.", "sess.", "sess.")}` : ""} · ${span}`;
+  };
+
+  // The market's own read, group by group: median spread and how many issues.
+  // Fresh prices only, unless a group has none — then its stale ones, marked.
+  const segSummary = BOND_SEGMENTS.map((sg) => {
+    const all = priced.filter((p) => p.seg === sg.key && p.g.bps != null);
+    const fresh = all.filter((p) => !p.stale);
+    return { ...sg, n: priced.filter((p) => p.seg === sg.key).length,
+             median: medianOf((fresh.length ? fresh : all).map((p) => p.g.bps)), staleOnly: !fresh.length && all.length > 0 };
+  }).filter((sg) => sg.n > 0);
+
+  const sorters = {
+    spread: (a, b) => (b.g.bps ?? -1e9) - (a.g.bps ?? -1e9),
+    duration: (a, b) => a.x - b.x,
+    ytm: (a, b) => b.y - a.y,
+  };
+  const tableRows = pts.slice().sort(sorters[sortKey]);
+  const maxAbsBp = Math.max(1, ...tableRows.map((p) => Math.abs(p.g.bps || 0)));
+  const hl = highlight ? priced.find((p) => p.ticker === highlight) : null;
+
+  const chart = (
+    <div className="bondmap-plot" ref={boxRef}>
+      <svg className="bondsec-chart" viewBox={`0 0 ${W} ${H}`} role="img" data-testid="bond-yield-map"
+           data-points={pts.length}
+           aria-label={t("Карта доходности: доходность к погашению против дюрации, с кривой ГЦБ",
+                         "Daromadlilik xaritasi: dyuratsiyaga nisbatan daromadlilik, DQQ egri chizig'i bilan",
+                         "Yield map: yield to maturity against duration, with the government curve")}>
         {gridY.map((v) => (
           <g key={`y${v}`}>
             <line x1={L} x2={L + pw} y1={Y(v)} y2={Y(v)} className="bondsec-grid" />
-            <text x={L - 8} y={Y(v) + 4} textAnchor="end" className="bondsec-tick">{v}%</text>
+            <text x={L - 8} y={Y(v) + 4} textAnchor="end" className="bondsec-tick">{fmtAxis(v, 1)}%</text>
           </g>
         ))}
         {gridX.map((v) => (
           <g key={`x${v}`}>
             <line x1={X(v)} x2={X(v)} y1={T} y2={T + ph} className="bondsec-grid" />
-            <text x={X(v)} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{v}</text>
+            <text x={X(v)} y={T + ph + 16} textAnchor="middle" className="bondsec-tick">{fmtAxis(v, 2)}</text>
           </g>
         ))}
         <line x1={L} x2={L + pw} y1={T + ph} y2={T + ph} className="bondsec-axis" />
         <line x1={L} x2={L} y1={T} y2={T + ph} className="bondsec-axis" />
-        <text x={L + pw / 2} y={H - 12} textAnchor="middle" className="bondsec-tick">
-          {t("Дюрация, лет (или срок до погашения)", "Dyuratsiya, yil", "Duration, years (or term to maturity)")}
-        </text>
-        <text x={L - 40} y={T - 8} className="bondsec-tick">{t("Доходность, % годовых", "Daromadlilik, % yillik", "Yield, % p.a.")}</text>
-        {keyRate?.rate != null && (
-          <line x1={L} x2={L + pw} y1={Y(keyRate.rate)} y2={Y(keyRate.rate)} className="bondsec-keyrate" />
+        {!compact && (
+          <text x={L + pw / 2} y={H - 10} textAnchor="middle" className="bondsec-tick">
+            {t("Дюрация Маколея, лет", "Makoley dyuratsiyasi, yil", "Macaulay duration, years")}
+          </text>
         )}
-        {curvePath && <path d={curvePath} className="bondsec-curve" fill="none" />}
+        {keyRate?.rate != null && (
+          <g>
+            <line x1={L} x2={L + pw} y1={Y(keyRate.rate)} y2={Y(keyRate.rate)} className="bondsec-keyrate" />
+            {!compact && (
+              <text x={L + pw + 6} y={Y(keyRate.rate) + 4} className="bondsec-tick">
+                {t("ставка ЦБ", "MB stavkasi", "key rate")} {fmtNumber(keyRate.rate, lang, 2)}%
+              </text>
+            )}
+          </g>
+        )}
+        {curveFlat && <path d={curveFlat} className="bondsec-curve bondsec-curve-flat" fill="none" />}
+        {curveSolid && <path d={curveSolid} className="bondsec-curve" fill="none" />}
+        {curvePts.map((c) => (
+          <g key={`gov${c.p.term_days}`}>
+            <rect x={X(c.x) - 4} y={Y(c.y) - 4} width="8" height="8" className="bondsec-govpt">
+              <title>{`${t("ГЦБ", "DQQ", "Gov")} ${fmtNumber(c.p.term_days / 365, lang, 1)} ${t("г.", "y.", "y")} · ${fmtNumber(c.y, lang, 2)}% · ${t("аукцион", "auksion", "auction")} ${fmtBondDay(c.p.auction_date)}`}</title>
+            </rect>
+            {!compact && (
+              <text x={X(c.x)} y={Y(c.y) + 18} textAnchor="middle" className="bondsec-govlabel">
+                {t("ГЦБ", "DQQ", "Gov")} {fmtNumber(c.p.term_days / 365, lang, 0)}{t("г", "y", "y")}
+              </text>
+            )}
+          </g>
+        ))}
+        {!compact && curvePts.length > 0 && (
+          <text x={L + pw + 6} y={Y(curvePts.at(-1).y) + 4} className="bondsec-tick">{t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}</text>
+        )}
         {pts.slice().sort((a, b) => b.size - a.size).map((p) => {
-          const r = 6 + 10 * Math.sqrt(p.size / maxSize);
-          const base = govCurveAt(p.x, govPoints);
+          const r = radius(p);
+          const sg = bondSegment(p.seg);
+          const faded = (hl && p.ticker !== highlight) || (hover && hover.ticker !== p.ticker);
+          const lab = labels.get(p.ticker);
           return (
-            <g key={p.ticker} className="bondsec-map-pt" onClick={() => onOpenBond && onOpenBond(p.ticker)}>
-              <circle cx={X(p.x)} cy={Y(p.y)} r={r} className="bondsec-bubble" />
-              <text x={X(p.x) + r + 6} y={Y(p.y) + 4} className="bondsec-label">{p.ticker}</text>
-              <title>
-                {`${p.ticker} · ${p.issuer}\n`}
-                {`${t("Доходность", "Daromadlilik", "Yield")}: ${fmtNumber(p.y, lang, 2)}%\n`}
-                {`${t("Дюрация", "Dyuratsiya", "Duration")}: ${fmtNumber(p.x, lang, 2)} ${t("г.", "y.", "y")}\n`}
-                {base != null ? `${t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}: ${fmtNumber(base, lang, 2)}%\n${t("Спред", "Spred", "Spread")}: ${fmtBp(p.y - base, lang)}\n` : ""}
-                {`${t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}: ${fmtCompact(p.size, lang)}`}
-              </title>
+            <g key={p.ticker} className={`bondsec-map-pt ${faded ? "is-faded" : ""} ${p.ticker === highlight ? "is-highlight" : ""}`}
+               data-ticker={p.ticker} data-segment={p.seg}
+               onPointerMove={(e) => onPointerMove(e, p)} onPointerLeave={() => setHover(null)}
+               onClick={() => onOpenBond && onOpenBond(p.ticker)}>
+              <circle cx={X(p.x)} cy={Y(p.y)} r={r}
+                style={{ fill: p.stale ? "transparent" : sg.color, stroke: sg.color }}
+                className={`bondsec-bubble ${p.stale ? "is-stale" : ""}`} />
+              {lab && <text x={lab.x} y={lab.y} textAnchor={lab.anchor} className="bondsec-label">{p.ticker}</text>}
+              {compact && p.ticker === highlight && (
+                <text x={X(p.x) + r + 5} y={Y(p.y) + 4} className="bondsec-label bondsec-label-strong">{p.ticker}</text>
+              )}
             </g>
           );
         })}
       </svg>
+      {hp && (
+        <div className="bondmap-tip" style={{ left: Math.max(4, Math.min(hover.x + 14, (boxRef.current?.clientWidth || 600) - 260)), top: Math.max(4, hover.y - 20) }}>
+          <div className="bondmap-tip-head">
+            <i style={{ background: bondSegment(hp.seg).color }} /> <b>{hp.ticker}</b>
+            <span className="muted">{bondSegment(hp.seg).label[li]}</span>
+          </div>
+          <div className="muted bondmap-tip-issuer">{hp.issuer}</div>
+          <dl>
+            <div><dt>{t("Доходность к погашению", "So'ndirishgacha daromadlilik", "Yield to maturity")}</dt><dd>{fmtNumber(hp.y, lang, 2)}%</dd></div>
+            <div><dt>{t("Дюрация", "Dyuratsiya", "Duration")}</dt><dd>{fmtNumber(hp.x, lang, 2)} {t("г.", "y.", "y")}</dd></div>
+            {hp.g.curve_rate != null && <div><dt>{t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}</dt><dd>{hp.g.extrapolated ? "≈" : ""}{fmtNumber(hp.g.curve_rate, lang, 2)}%</dd></div>}
+            {hp.g.bps != null && <div><dt>{t("G-спред", "G-spred", "G-spread")}</dt><dd>{fmtBp(hp.g.value, lang)}</dd></div>}
+            {hp.b.pricing?.value != null && hp.b.reference?.nominal ? (
+              <div><dt>{t("Цена для расчёта", "Hisob narxi", "Price used")}</dt><dd>{fmtNumber(hp.b.pricing.value / hp.b.reference.nominal * 100, lang, 2)}%</dd></div>
+            ) : null}
+          </dl>
+          <div className="muted bondmap-tip-foot">
+            {priceBasis(hp)}
+            {hp.stale ? ` · ${t("цена устарела", "narx eskirgan", "stale price")}` : ""}
+            {hp.g.extrapolated ? ` · ${t("кривая за пределами аукционных сроков", "egri chiziq auksion muddatlaridan tashqarida", "curve beyond auctioned terms")}` : ""}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
-      <h3 className="bondsec-h3">{t("Спреды к базовой кривой", "Tayanch egri chiziqqa spredlar", "Spreads to the base curve")}<TermInfo termId="gSpread" lang={lang} /></h3>
+  if (compact) {
+    return (
+      <div className="bondmap bondmap-compact">
+        {chart}
+        <p className="muted bondsec-note">
+          {t("Точки — другие выпуски в обращении, линия — кривая ГЦБ. Доходность индикативная.",
+             "Nuqtalar — boshqa chiqarilishlar, chiziq — DQQ egri chizig'i. Daromadlilik indikativ.",
+             "Dots are other live issues, the line is the government curve. Yields are indicative.")}
+        </p>
+      </div>
+    );
+  }
+
+  const head = (key, label, cls = "num") => (
+    <th className={`${cls} ${sortKey === key ? "is-sorted" : ""}`} aria-sort={sortKey === key ? "descending" : "none"}>
+      <button type="button" className="bondmap-sort" onClick={() => setSortKey(key)}>{label}</button>
+    </th>
+  );
+
+  return (
+    <div className="bondsec-map bondmap">
+      <div className="bondmap-controls">
+        <div className="bondmap-legend" role="group" aria-label={t("Группы эмитентов", "Emitent guruhlari", "Issuer groups")}>
+          {BOND_SEGMENTS.filter((sg) => priced.some((p) => p.seg === sg.key)).map((sg) => (
+            <button key={sg.key} type="button" aria-pressed={!hidden.has(sg.key)}
+              className={`bondmap-chip ${hidden.has(sg.key) ? "is-off" : ""}`}
+              onClick={() => setHidden((cur) => { const n = new Set(cur); if (n.has(sg.key)) n.delete(sg.key); else n.add(sg.key); return n; })}>
+              <i style={{ background: sg.color }} />{sg.label[li]}
+              <span className="muted">{priced.filter((p) => p.seg === sg.key).length}</span>
+            </button>
+          ))}
+        </div>
+        <label className="bondmap-toggle">
+          <input type="checkbox" checked={showStale} onChange={(e) => setShowStale(e.target.checked)} />
+          <span>{t("Показывать устаревшие цены", "Eskirgan narxlarni ko'rsatish", "Show stale prices")}</span>
+        </label>
+      </div>
+      <div className="bondsec-legend muted">
+        <span><i className="bondsec-line" />{t("кривая ГЦБ", "DQQ egri chizig'i", "gov curve")}<TermInfo termId="govCurve" lang={lang} /></span>
+        <span><i className="bondsec-line bondsec-line-flat" />{t("за пределами аукционных сроков — удерживается ровной", "auksion muddatlaridan tashqarida", "beyond auctioned terms — held flat")}</span>
+        {keyRate?.rate != null && <span><i className="bondsec-line bondsec-line-dash" />{t("ставка ЦБ", "MB stavkasi", "key rate")}</span>}
+        <span><i className="bondsec-ring" />{t("цена старше 30 дней", "narx 30 kundan eski", "price older than 30 days")}</span>
+        <span>{t("размер точки — объём выпуска", "nuqta o'lchami — chiqarilish hajmi", "dot size = issue value")}</span>
+      </div>
+
+      {chart}
+
+      <p className="bondmap-coverage" data-testid="bond-map-coverage">
+        {t(`На карте ${pts.length} из ${live.length} выпусков в обращении.`,
+           `Xaritada muomaladagi ${live.length} tadan ${pts.length} ta chiqarilish.`,
+           `${pts.length} of ${live.length} live issues on the map.`)}{" "}
+        {noTrade > 0 && t(`${noTrade} без сделок — без цены доходность не считается. `,
+                          `${noTrade} tasida bitim yo'q. `, `${noTrade} have never traded — no price, no yield. `)}
+        {faults.length > 0 && (
+          <>
+            {t("Исключены проверкой данных: ", "Ma'lumotlar tekshiruvi bilan chiqarilgan: ", "Excluded by data checks: ")}
+            {faults.map((f, i) => {
+              const code = (f.b.data_quality || []).find((q) => ["COUPON_RATE_IMPLAUSIBLE", "YIELD_OUT_OF_RANGE"].includes(q.code))?.code;
+              return <React.Fragment key={f.ticker}>{i > 0 && "; "}<b>{f.ticker}</b> — {(BOND_BLOCK_TEXT[code] || [code, code, code])[li]}</React.Fragment>;
+            })}.
+          </>
+        )}
+      </p>
+
+      {segSummary.length > 0 && (
+        <div className="bondmap-segments" data-testid="bond-segment-summary">
+          {segSummary.map((sg) => (
+            <div key={sg.key} className="bondmap-seg">
+              <span><i style={{ background: sg.color }} />{sg.label[li]}</span>
+              <b>{sg.median != null ? fmtBp(sg.median / 100, lang) : "—"}</b>
+              <small className="muted">{t("медианный спред", "median spred", "median spread")} · {sg.n}{sg.staleOnly ? ` · ${t("по устаревшим ценам", "eskirgan narxlar bo'yicha", "on stale prices")}` : ""}</small>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <h3 className="bondsec-h3">{t("Спреды к кривой ГЦБ", "DQQ egri chizig'iga spredlar", "Spreads to the government curve")}<TermInfo termId="gSpread" lang={lang} /></h3>
       <div className="market-table-scroll">
-        <table className="market-table bondsec-spread-table">
+        <table className="market-table bondsec-spread-table" data-testid="bond-spread-table">
           <thead>
             <tr>
               <th>{t("Выпуск", "Chiqarilish", "Issue")}</th>
-              <th className="num">{t("Дюрация, лет", "Dyuratsiya, yil", "Duration, yrs")}</th>
-              <th className="num">{t("Доходность", "Daromadlilik", "Yield")}</th>
+              <th>{t("Группа", "Guruh", "Group")}</th>
+              {head("duration", t("Дюрация, лет", "Dyuratsiya, yil", "Duration, yrs"))}
+              {head("ytm", t("Доходность", "Daromadlilik", "Yield"))}
               <th className="num">{t("Кривая ГЦБ", "DQQ egri chizig'i", "Gov curve")}</th>
-              <th className="num">{t("G-спред", "G-spred", "G-spread")}</th>
+              {head("spread", t("G-спред", "G-spred", "G-spread"))}
+              <th>{t("Цена для расчёта", "Hisob narxi", "Price used")}</th>
             </tr>
           </thead>
           <tbody>
-            {spreadRows.map((p) => {
-              const base = govCurveAt(p.x, govPoints);
+            {tableRows.map((p) => {
+              const sg = bondSegment(p.seg);
+              const bp = p.g.bps;
               return (
-                <tr key={p.ticker} className="bond-row" onClick={() => onOpenBond && onOpenBond(p.ticker)}>
-                  <td><strong>{p.issuer || p.ticker}</strong> <span className="muted">{p.ticker}</span></td>
+                <tr key={p.ticker} className={`bond-row ${hover?.ticker === p.ticker ? "is-hover" : ""}`}
+                    onPointerEnter={() => setHover({ ticker: p.ticker, fromMap: false })}
+                    onPointerLeave={() => setHover(null)}
+                    onClick={() => onOpenBond && onOpenBond(p.ticker)}>
+                  <td><strong>{p.ticker}</strong> <span className="muted bondmap-issuer">{p.issuer}</span></td>
+                  <td><span className="bondmap-segtag"><i style={{ background: sg.color }} />{sg.label[li]}</span></td>
                   <td className="num">{fmtNumber(p.x, lang, 2)}</td>
-                  <td className="num">{fmtNumber(p.y, lang, 2)}%</td>
-                  <td className="num">{base != null ? `${fmtNumber(base, lang, 2)}%` : "—"}</td>
-                  <td className="num">{base != null ? fmtBp(p.y - base, lang) : "—"}</td>
+                  <td className="num">{fmtNumber(p.y, lang, 2)}%{p.stale ? <small className="bondsec-issuer"> {t("устар.", "eskirgan", "stale")}</small> : null}</td>
+                  <td className="num">{p.g.curve_rate != null ? `${p.g.extrapolated ? "≈" : ""}${fmtNumber(p.g.curve_rate, lang, 2)}%` : "—"}</td>
+                  <td className="num bondmap-spread">
+                    {bp != null && (
+                      <span className={`bondmap-bar ${bp >= 0 ? "pos" : "neg"}`}
+                        style={{ width: `${Math.max(2, (Math.abs(bp) / maxAbsBp) * 46)}%` }} aria-hidden="true" />
+                    )}
+                    <span>{bp != null ? fmtBp(p.g.value, lang) : "—"}</span>
+                  </td>
+                  <td className="muted bondmap-basis">{priceBasis(p)}</td>
                 </tr>
               );
             })}
@@ -8573,9 +8863,9 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond }) {
         </table>
       </div>
       <p className="muted bondsec-note">
-        {t("Кривая построена по средневзвешенным ставкам последних аукционов ГЦБ (фискальный агент — ЦБ РУз) с линейной интерполяцией между сроками; за пределы аукционных сроков она не продлевается. Вертикальный зазор между точкой и линией — кредитный спред выпуска.",
-           "Egri chiziq so'nggi DQQ auksionlarining o'rtacha tortilgan stavkalari bo'yicha qurilgan; auksion muddatlaridan tashqariga uzaytirilmaydi.",
-           "The curve is built from the weighted-average rates of the latest government auctions (the Central Bank is fiscal agent), linear between tenors and never extended beyond them. The vertical gap between a dot and the line is the issue's credit spread.")}
+        {t("Как считается. Доходность к погашению — эффективная годовая, по всем оставшимся купонам и номиналу, от средневзвешенной по объёму цены последних сессий (до 10 сессий за 30 дней; если объёма нет — медиана закрытий). База начисления ACT/365 подтверждена суммами выплаченных купонов (N × C × d / 365), где их нет — принята по рыночной практике. Кривая ГЦБ — последние аукционы Минфина (фискальный агент — ЦБ) за 200 дней: доходность дисконтных бумаг приведена к эффективной годовой, каждая точка поставлена на свою дюрацию; между точками — линейно, за их пределами кривая удерживается ровной и помечена «≈». G-спред — доходность выпуска минус кривая на его дюрации. Все значения индикативные: рынок тонкий, часть условий восстановлена по раскрытиям.",
+           "Qanday hisoblanadi. So'ndirishgacha daromadlilik — samarali yillik, so'nggi sessiyalarning hajm bo'yicha o'rtacha narxidan. ACT/365 bazasi to'langan kuponlar summalari bilan tasdiqlangan. DQQ egri chizig'i — so'nggi auksionlar, har bir nuqta o'z dyuratsiyasida. G-spred — chiqarilish daromadliligi minus uning dyuratsiyasidagi egri chiziq. Barcha qiymatlar indikativ.",
+           "How it is computed. Yield to maturity is effective annual, over every remaining coupon and the principal, struck on the volume-weighted price of the latest sessions (up to 10 within 30 days; the median close where no volume is published). The ACT/365 basis is confirmed by the amounts of the coupons paid (N × C × d / 365), and taken as market practice where none is filed yet. The government curve is the latest Ministry of Finance auctions within 200 days: discount yields converted to effective annual, each point placed at its own duration, linear between points and held flat (marked «≈») beyond them. The G-spread is the issue's yield minus the curve at its duration. All values are indicative: the market is thin and some terms are reconstructed from disclosures.")}
       </p>
     </div>
   );
@@ -8656,6 +8946,69 @@ function BondLifeLine({ bond, flows, lang }) {
         {"; "}{t("высокая засечка — возврат номинала.", "baland chiziqcha — nominal qaytishi.", "the tall tick is the return of principal.")}
       </p>
     </>
+  );
+}
+
+/**
+ * Where one issue stands in the market: its G-spread, its rank among issuers
+ * of the same kind, that group's median, and the small yield map with the
+ * issue marked. Built from the same board payload as the market's map, so
+ * the card and the map can never disagree about a number.
+ */
+function BondMarketPosition({ bond, board, keyRate, lang }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const li = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const val = (m) => (m && typeof m === "object" ? m.value : m);
+  const items = board?.items || [];
+  const me = items.find((b) => b.ticker === bond.ticker);
+  if (!me || val(me.ytm) == null || val(me.duration) == null) return null;
+  const rows = items.map((b) => ({
+    b, ticker: b.ticker, issuer: b.issuer || b.name || "",
+    ytm: val(b.ytm), dur: val(b.duration),
+    issueValue: b.issue_value ?? (((b.reference?.nominal ?? 0) * (b.reference?.placed_volume ?? b.reference?.issue_volume ?? 0)) || null),
+  }));
+  const sg = bondSegment(me.segment);
+  const peers = items.filter((b) => b.segment === me.segment && b.g_spread?.bps != null)
+    .sort((a, b) => b.g_spread.bps - a.g_spread.bps);
+  const rank = peers.findIndex((b) => b.ticker === me.ticker) + 1;
+  const median = medianOf(peers.map((b) => b.g_spread.bps));
+  return (
+    <section className="panel pad bond-market-position" data-testid="bond-market-position">
+      <div className="section-title" style={{ marginTop: 0 }}>
+        <h2>{t("Место на рынке", "Bozordagi o'rni", "Place in the market")}</h2>
+      </div>
+      <p className="bond-spread-badge">
+        {me.g_spread?.bps != null && (
+          <>
+            <span>{t("G-спред", "G-spred", "G-spread")}</span>
+            <b>{fmtBp(me.g_spread.value, lang)}</b>
+          </>
+        )}
+        {rank > 0 && peers.length > 1 && (
+          <span className="muted">
+            {t(`${rank}-й по спреду из ${peers.length} в группе «${sg.label[0]}»`,
+               `«${sg.label[1]}» guruhidagi ${peers.length} tadan ${rank}-o'rin`,
+               `${rank} of ${peers.length} by spread among ${sg.label[2]}`)}
+            {median != null && ` · ${t("медиана группы", "guruh medianasi", "group median")} ${fmtBp(median / 100, lang)}`}
+          </span>
+        )}
+        {me.g_spread?.extrapolated && (
+          <span className="muted">{t("кривая ГЦБ за пределами аукционных сроков", "DQQ egri chizig'i auksion muddatlaridan tashqarida", "government curve beyond auctioned terms")}</span>
+        )}
+      </p>
+      <BondYieldMap rows={rows} govPoints={board.gov_curve || []} keyRate={keyRate} lang={lang}
+        compact highlight={me.ticker} />
+      <p className="muted bondsec-note">
+        {(me.pricing && (PRICE_METHOD_TEXT[me.pricing.method] || [])[li])
+          ? `${t("Цена для расчёта", "Hisob narxi", "Price used")}: ${(PRICE_METHOD_TEXT[me.pricing.method] || [])[li]}${me.pricing.sessions > 1 ? `, ${t("сессий", "sessiya", "sessions")}: ${me.pricing.sessions}` : ""}. `
+          : ""}
+        {me.day_count_source === "filed_coupons"
+          ? t("База ACT/365 подтверждена суммами выплаченных купонов.", "ACT/365 bazasi to'langan kuponlar bilan tasdiqlangan.", "The ACT/365 basis is confirmed by the coupons paid.")
+          : me.day_count_source === "market_convention"
+            ? t("База ACT/365 принята по рыночной практике — эмитент её не раскрыл.", "ACT/365 bazasi bozor amaliyoti bo'yicha qabul qilingan.", "ACT/365 is taken as market practice — the issuer has not disclosed it.")
+            : ""}
+      </p>
+    </section>
   );
 }
 
@@ -8932,6 +9285,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           <p><strong>{t("Нужно раскрыть", "Oshkor qilish kerak", "Disclosure needed")}:</strong> {monitorCopy(point, "required_disclosure")}</p>
         </article>)}</div>
       </section>}
+
+      <BondMarketPosition bond={bond} board={board} keyRate={keyRate} lang={lang} />
 
       <BondLifeLine bond={bond} flows={(bond.schedule_flows || []).map((f) => ({
         date: f.date, paid: f.paid, due: f.due, executionStatus: f.execution_status, principal: f.principal || 0,
@@ -9647,6 +10002,12 @@ function CompanyChartToolIcon({ kind }) {
       <path d="M7 20h10" strokeDasharray="2 2" opacity=".65" />
     </>
   );
+  if (kind === "patterns") content = (
+    <>
+      <path d="M3 17l4-8 4 6 4-10 6 12" />
+      <path d="M3 13h18" strokeDasharray="2 2" opacity=".6" />
+    </>
+  );
   if (kind === "settings") content = (
     <>
       <path d="M3 7h18M3 17h18" />
@@ -9664,35 +10025,383 @@ function CompanyChartToolIcon({ kind }) {
   );
 }
 
+/**
+ * Peers on one percent scale with the security, over the WHOLE series the
+ * chart holds (so dragging back through history keeps the peers on screen).
+ *
+ * Every line is rebased at the SAME session — the first one inside the range
+ * window that all of them have — exactly as buildCompareSeries does for the
+ * window alone. Peer closes are carried forward, not interpolated: a price on a
+ * session a security sat out is the last one it printed, which is what the
+ * exchange itself carries.
+ */
+function buildCompareAligned(source, compare, windowStart) {
+  const wanted = Array.isArray(compare) ? compare : [];
+  if (!source.length || !wanted.length) return null;
+  const from = String(windowStart || source[0].date);
+  const prepared = [];
+  const dropped = [];
+  for (const c of wanted) {
+    const norm = (Array.isArray(c.points) ? c.points : [])
+      .map((p) => (Array.isArray(p)
+        ? [compareIsoDay(p[0]), Number(p[1]), Number(p[2]) || 0]
+        : [compareIsoDay(p.date || p.trade_date), Number(p.close ?? p.close_price),
+           Number(p.value ?? p.turnover ?? 0) || 0]))
+      .filter(([d, v]) => d && Number.isFinite(v) && v > 0)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    const volHist = norm.map(([d, , tv]) => ({ date: d, turnover: tv }));
+    if (norm.filter(([d]) => d >= from).length < 2) dropped.push(c);
+    else prepared.push({ ...c, pts: norm, volHist });
+  }
+  if (!prepared.length) return { series: [], dropped, start: null, baseIdx: -1 };
+  const start = prepared.reduce((m, c) => {
+    const first = c.pts.find(([d]) => d >= from)?.[0] || from;
+    return first > m ? first : m;
+  }, from);
+  const baseIdx = source.findIndex((p) => String(p.date).slice(0, 10) >= start);
+  if (baseIdx < 0 || source.length - baseIdx < 2) {
+    return { series: [], dropped: [...dropped, ...prepared], start: null, baseIdx: -1 };
+  }
+  const base0 = source[baseIdx].close;
+  const basePct = source.map((p) => (p.close / base0 - 1) * 100);
+  const series = [];
+  for (const c of prepared) {
+    let j = 0;
+    let last = null;
+    const closes = source.map((p) => {
+      const d = String(p.date).slice(0, 10);
+      while (j < c.pts.length && c.pts[j][0] <= d) { last = c.pts[j][1]; j += 1; }
+      return last;
+    });
+    const first = closes[baseIdx];
+    if (!Number.isFinite(first) || first <= 0) { dropped.push(c); continue; }
+    series.push({ ...c, closes, pct: closes.map((v) => (v == null ? null : (v / first - 1) * 100)) });
+  }
+  return { basePct, base0, series, dropped, start: start > from ? start : null, baseIdx };
+}
+
+// ── Chart patterns (pattern_engine.py, /api/company/{t}/patterns) ─────────
+// Annotation, not advice. Each figure on the chart is listed beside how that
+// figure has actually done on liquid UZSE shares and how often an ordinary
+// session reaches the same target by chance — on this market usually more
+// often. No arrows, no «купить»: the list states the record and stops there.
+const PATTERN_SENSITIVITY = [
+  ["low", "Низкая", "Past", "Low"],
+  ["medium", "Средняя", "O'rta", "Medium"],
+  ["high", "Высокая", "Yuqori", "High"],
+];
+const patternKey = (s) => `${s.type}:${s.signal_date}`;
+
+/** A security's detected patterns at one sensitivity, fetched when first asked for. */
+function usePatterns(ticker, enabled, sensitivity = "medium") {
+  const [cache, setCache] = React.useState({});
+  const up = String(ticker || "").toUpperCase();
+  React.useEffect(() => { setCache({}); }, [up]);
+  const data = cache[sensitivity] || null;
+  React.useEffect(() => {
+    if (!enabled || !up || data) return undefined;
+    let alive = true;
+    const keep = (d) => { if (alive) setCache((c) => ({ ...c, [sensitivity]: d })); };
+    fetch(`/api/company/${encodeURIComponent(up)}/patterns?sensitivity=${sensitivity}`)
+      .then((r) => r.json())
+      .then((d) => keep(d && d.ok ? d : { status: "ERROR", signals: [] }))
+      .catch(() => keep({ status: "ERROR", signals: [] }));
+    return () => { alive = false; };
+  }, [up, enabled, data, sensitivity]);
+  return data;
+}
+
+/**
+ * What the patterns add to the price series. A figure is shaded over its
+ * extent, drawn through its turning points (dotted) with its neckline or
+ * edges (solid) and marked at the session whose close completed it; a candle
+ * model is only marked. Figures completing on one session share one marker,
+ * and names are written only when `labels` is set — on a multi-year view they
+ * would print over each other. The `selected` pattern also gets its target and
+ * stop, drawn across the horizon it was scored over.
+ */
+function patternOverlay(signals, times, lang, labels = true, selected = null, horizon = 20) {
+  const known = new Set(times);
+  const segments = [];
+  const boxes = [];
+  const marks = new Map();
+  const at = (p) => ({ time: lwTime(p.date), value: p.price });
+  (signals || []).forEach((s) => {
+    const t = lwTime(s.signal_date);
+    if (!known.has(t)) return;
+    const up = s.direction === "bullish";
+    const solid = up ? "rgba(47,197,132,0.95)" : "rgba(238,106,96,0.95)";
+    const faint = up ? "rgba(47,197,132,0.5)" : "rgba(238,106,96,0.5)";
+    (s.lines || []).forEach((l) => segments.push({ from: at(l.from), to: at(l.to), color: solid, width: 1.6 }));
+    if (s.family === "chart") {
+      (s.points || []).slice(1).forEach((p, i) => segments.push({
+        from: at(s.points[i]), to: at(p), color: faint, width: 1, dash: [3, 3] }));
+      if (s.box) {
+        boxes.push({ from: lwTime(s.box.from), to: lwTime(s.box.to), high: s.box.high, low: s.box.low,
+          fill: up ? "rgba(47,197,132,0.07)" : "rgba(238,106,96,0.07)" });
+      }
+    }
+    const key = `${t}:${s.direction}`;
+    const mark = marks.get(key) || { time: t, position: up ? "belowBar" : "aboveBar", color: solid,
+      shape: "circle", size: 0.7, names: [] };
+    mark.names.push(patternName(s.type, lang));
+    marks.set(key, mark);
+  });
+  if (selected && known.has(lwTime(selected.signal_date))) {
+    const i = times.indexOf(lwTime(selected.signal_date));
+    const end = times[Math.min(times.length - 1, i + horizon)];
+    const from = times[i];
+    const up = selected.direction === "bullish";
+    const fmt = (v) => Number(v).toLocaleString(lang === "en" ? "en-US" : "ru-RU", { maximumFractionDigits: 2 });
+    const tgt = lang === "en" ? "target" : lang === "uz" ? "maqsad" : "цель";
+    segments.push({ from: { time: from, value: selected.target }, to: { time: end, value: selected.target },
+      color: up ? "rgba(47,197,132,0.95)" : "rgba(238,106,96,0.95)", width: 1.4, dash: [6, 4],
+      label: `${tgt} ${fmt(selected.target)}` });
+    segments.push({ from: { time: from, value: selected.stop }, to: { time: end, value: selected.stop },
+      color: "rgba(245,158,11,0.95)", width: 1.4, dash: [6, 4], label: `${lang === "uz" ? "stop" : lang === "en" ? "stop" : "стоп"} ${fmt(selected.stop)}` });
+  }
+  const markers = [...marks.values()].map(({ names, ...m }) => ({ ...m, text: labels ? names.join(" · ") : "" }));
+  return { segments, markers, boxes };
+}
+
+/** Merge the pattern layer into a spec's price series (mutates the fresh series list). */
+function applyPatternOverlay(series, overlay) {
+  const price = series[0];
+  if (!price || price.key !== "price") return;
+  price.segments = [...(price.segments || []), ...overlay.segments];
+  price.boxes = [...(price.boxes || []), ...overlay.boxes];
+  price.markers = [...(price.markers || []), ...overlay.markers].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * The switches behind the «Паттерны» button, for either toolbar. `variant`
+ * picks the company chart's menu roles or the full-screen chart's menu items.
+ */
+function PatternMenuItems({ patternsOn, setPatternsOn, sensitivity, setSensitivity, available, lang, variant }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const cpc = variant === "cpc";
+  const item = (key, label, checked, onClick, disabled = false, radio = false) => (
+    <button key={key} type="button" role={cpc ? (radio ? "menuitemradio" : "menuitemcheckbox") : undefined}
+      aria-checked={cpc ? checked : undefined} disabled={disabled}
+      className={cpc ? (checked ? "active" : "") : `ac-menu-item ${checked ? "on" : ""}`}
+      onClick={onClick}>{label}</button>
+  );
+  return (
+    <>
+      {item("chart", t("Фигуры", "Shakllar", "Chart figures"), patternsOn.chart,
+        () => setPatternsOn((c) => ({ ...c, chart: !c.chart })), !available)}
+      {item("candle", t("Свечные модели", "Sham modellari", "Candle models"), patternsOn.candle,
+        () => setPatternsOn((c) => ({ ...c, candle: !c.candle })), !available)}
+      {item("cycle", t("Цикличность", "Tsikllilik", "Cycles"), patternsOn.cycle,
+        () => setPatternsOn((c) => ({ ...c, cycle: !c.cycle })))}
+      <span className={cpc ? "cpc-tool-empty" : "muted ac-menu-hint"}>{t("Чувствительность", "Sezgirlik", "Sensitivity")}</span>
+      {PATTERN_SENSITIVITY.map(([key, ru, uz, en]) => item(`s:${key}`, t(ru, uz, en), sensitivity === key,
+        () => setSensitivity(key), !available, true))}
+      {!available && (
+        <span className={cpc ? "cpc-tool-empty" : "muted ac-menu-hint"}>
+          {t("Фигуры и свечи — только на дневных свечах в сумах, без сравнения",
+             "Shakllar va shamlar — faqat kunlik shamlarda, taqqoslashsiz",
+             "Figures and candles: daily bars in сум only, no comparison")}
+        </span>
+      )}
+    </>
+  );
+}
+
+const PATTERN_OUTCOME = {
+  target: ["цель достигнута", "maqsadga yetdi", "target reached"],
+  stop: ["сработал стоп", "stop ishladi", "stop hit"],
+  horizon: ["за 20 сессий ни цель, ни стоп", "20 sessiyada na maqsad, na stop", "neither target nor stop in 20 sessions"],
+  open: ["ещё в пределах 20 сессий", "hali 20 sessiya ichida", "still within 20 sessions"],
+  pending: ["исполнение со следующей сессии", "keyingi sessiyadan", "fills from the next session"],
+};
+
+/**
+ * The patterns panel under a chart: the figures in view, newest first, each
+ * with its UZSE record; the strategy test for the families switched on; the
+ * cycle test when asked for.
+ */
+function PatternList({ data, signals, lang, onPick, visibleFrom, visibleTo, limit = 8, families, selectedKey }) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const li = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
+  const locale = lang === "en" ? "en-US" : "ru-RU";
+  if (!data) return <p className="pattern-note muted">{t("Поиск паттернов…", "Patternlar qidirilmoqda…", "Finding patterns…")}</p>;
+  if (data.status === "INSUFFICIENT_LIQUIDITY") {
+    return (
+      <p className="pattern-note muted" data-testid="pattern-list">
+        {t("Паттерны не строятся для этой бумаги — слишком редкие сделки", "Bu qog'oz uchun patternlar qurilmaydi — bitimlar juda kam",
+           "No patterns for this security — it trades too rarely")}
+        {data.reason ? `: ${data.reason}.` : "."}
+      </p>
+    );
+  }
+  if (data.status !== "AVAILABLE") {
+    return <p className="pattern-note muted" data-testid="pattern-list">{t("Паттерны недоступны", "Patternlar mavjud emas", "Patterns unavailable")}</p>;
+  }
+  const showPatterns = families.chart || families.candle;
+  const inView = (signals || [])
+    .filter((s) => (!visibleFrom || s.signal_date >= String(visibleFrom).slice(0, 10))
+      && (!visibleTo || s.signal_date <= String(visibleTo).slice(0, 10)))
+    .slice().reverse();
+  const stats = data.market_stats || {};
+  const meta = data.stats_meta || {};
+  const num = (v, d = 0) => (v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: d }));
+  const pct = (v, d = 0) => (v == null ? "—" : `${num(v, d)}%`);
+  const dateOf = (d) => new Date(d).toLocaleDateString(locale, { day: "numeric", month: "short", year: "2-digit" });
+  const bt = data.backtest?.[families.chart && families.candle ? "all" : families.chart ? "chart" : "candle"];
+  const cyc = data.cycle;
+  return (
+    <section className="pattern-list" data-testid="pattern-list">
+      {showPatterns && (
+        <>
+          <header>
+            <strong>{t("Паттерны на графике", "Grafikdagi patternlar", "Patterns on the chart")}</strong>
+            <span className="muted">{inView.length}</span>
+          </header>
+          {inView.length === 0 && (
+            <p className="pattern-note muted">{t("В видимом периоде паттернов нет", "Ko'rinayotgan davrda pattern yo'q", "No patterns in the visible period")}</p>
+          )}
+          <ul>
+            {inView.slice(0, limit).map((s) => {
+              const st = stats[s.type] || {};
+              // Better or worse than chance only when the gap is well beyond
+              // noise: z ≥ 3 over the trades that reached target or stop. With
+              // some 25 pattern types tested, z ≥ 2 would crown one by luck.
+              const h = (st.hit_rate_pct ?? NaN) / 100, c = (st.chance_pct ?? NaN) / 100, n = st.decided || 0;
+              const z = n && c > 0 && c < 1 ? (h - c) / Math.sqrt((c * (1 - c)) / n) : 0;
+              const verdict = z >= 3 ? "above" : z <= -3 ? "below" : "same";
+              const key = patternKey(s);
+              return (
+                <li key={key} className={selectedKey === key ? "is-selected" : ""}>
+                  <button type="button" onClick={() => onPick?.(s)} aria-pressed={selectedKey === key}>
+                    <span className={`pattern-dir ${s.direction === "bullish" ? "up" : "down"}`}>
+                      {s.direction === "bullish" ? "↑" : "↓"}
+                    </span>
+                    <span className="pattern-name">{patternName(s.type, lang)}</span>
+                    <span className="pattern-date muted">{dateOf(s.signal_date)}</span>
+                    <span className="pattern-outcome muted">{(PATTERN_OUTCOME[s.outcome] || [s.outcome, s.outcome, s.outcome])[li]}</span>
+                  </button>
+                  <p className="pattern-record">
+                    {t("На UZSE цель раньше стопа", "UZSEda maqsad stopdan oldin", "On UZSE, target before stop")}{" "}
+                    <b>{pct(st.hit_rate_pct)}</b>{" "}
+                    {t("случаев; случайный вход —", "holatda; tasodifiy kirish —", "of cases; a random entry —")}{" "}
+                    <b>{pct(st.chance_pct)}</b>
+                    <span className={`pattern-verdict ${verdict}`}>
+                      {verdict === "above" ? t("лучше случайного", "tasodifiydan yaxshiroq", "better than chance")
+                        : verdict === "below" ? t("хуже случайного", "tasodifiydan yomonroq", "worse than chance")
+                          : t("не отличается от случайного", "tasodifiydan farq qilmaydi", "no different from chance")}
+                    </span>
+                    <span className="muted"> · n={st.decided ?? 0}</span>
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+          {bt && (
+            <div className="pattern-backtest" data-testid="pattern-backtest">
+              <strong>{t("Проверка на истории этой бумаги", "Bu qog'oz tarixida sinov", "Tested on this security's history")}</strong>
+              <p className="muted">
+                {t(`Покупка по каждому бычьему сигналу, по одной сделке, вход на следующей сессии, выход по цели, стопу или через ${data.backtest.horizon} сессий; комиссия ${num(data.backtest.fee_bps / 100, 2)}% и проскальзывание ${num(data.backtest.slippage_bps / 100, 2)}% за сторону.`,
+                   `Har bir buqa signalida xarid, bitta bitim, keyingi sessiyada kirish, maqsad, stop yoki ${data.backtest.horizon} sessiyadan keyin chiqish; komissiya ${num(data.backtest.fee_bps / 100, 2)}% va sirpanish ${num(data.backtest.slippage_bps / 100, 2)}% har tomonga.`,
+                   `A buy on every bullish signal, one trade at a time, entry next session, exit at target, stop or after ${data.backtest.horizon} sessions; fee ${num(data.backtest.fee_bps / 100, 2)}% and slippage ${num(data.backtest.slippage_bps / 100, 2)}% per side.`)}
+              </p>
+              <dl>
+                <div><dt>{t("Сделок", "Bitimlar", "Trades")}</dt><dd>{num(bt.trades)}</dd></div>
+                <div><dt>{t("Прибыльных", "Foydali", "Profitable")}</dt><dd>{pct(bt.win_rate_pct)}</dd></div>
+                <div><dt>{t("Доходность", "Daromad", "Return")}</dt><dd className={bt.total_return_pct >= 0 ? "pos" : "neg"}>{pct(bt.total_return_pct, 1)}</dd></div>
+                <div><dt>{t("Макс. просадка", "Maks. pasayish", "Max drawdown")}</dt><dd>{pct(bt.max_drawdown_pct, 1)}</dd></div>
+                <div><dt>{t("Шарп", "Sharp", "Sharpe")}</dt><dd>{num(bt.sharpe, 2)}</dd></div>
+              </dl>
+            </div>
+          )}
+        </>
+      )}
+      {families.cycle && cyc && (
+        <div className="pattern-cycle" data-testid="pattern-cycle">
+          <strong>{t("Цикличность", "Tsikllilik", "Cycles")}</strong>
+          {cyc.status !== "AVAILABLE" ? (
+            <p className="muted">{t("Слишком короткая история для поиска цикла.", "Tsikl uchun tarix juda qisqa.", "Too little history to look for a cycle.")}</p>
+          ) : (
+            <p>
+              {t(`Самый сильный период — около ${num(cyc.period_sessions)} сессий (размах ±${num(cyc.amplitude_pct, 1)}%). `,
+                 `Eng kuchli davr — taxminan ${num(cyc.period_sessions)} sessiya (±${num(cyc.amplitude_pct, 1)}%). `,
+                 `The strongest period is about ${num(cyc.period_sessions)} sessions (±${num(cyc.amplitude_pct, 1)}%). `)}
+              {cyc.significant ? (
+                <span data-verdict="significant">
+                  {t(`Случайное блуждание даёт такой же пик лишь в ${pct(cyc.p_value * 100)} случаев — цикл статистически заметен. Следующий гребень — через ~${num(cyc.next_peak_in)} сессий, впадина — через ~${num(cyc.next_trough_in)}.`,
+                     `Tasodifiy yurish bunday cho'qqini faqat ${pct(cyc.p_value * 100)} holatda beradi — tsikl sezilarli. Keyingi cho'qqi ~${num(cyc.next_peak_in)} sessiyadan, chuqurlik ~${num(cyc.next_trough_in)} dan keyin.`,
+                     `A random walk produces as strong a peak only ${pct(cyc.p_value * 100)} of the time — the cycle is statistically visible. Next crest in ~${num(cyc.next_peak_in)} sessions, trough in ~${num(cyc.next_trough_in)}.`)}
+                </span>
+              ) : (
+                <span data-verdict="noise">
+                  {t(`Но случайное блуждание с теми же дневными движениями даёт такой же пик в ${pct(cyc.p_value * 100)} случаев — это не цикл, а шум. Прогноз по нему не строится.`,
+                     `Ammo xuddi shu kunlik harakatlar bilan tasodifiy yurish bunday cho'qqini ${pct(cyc.p_value * 100)} holatda beradi — bu tsikl emas, shovqin. Unga prognoz qurilmaydi.`,
+                     `But a random walk with the same daily moves produces as strong a peak ${pct(cyc.p_value * 100)} of the time — this is noise, not a cycle. No forecast is drawn from it.`)}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+      <p className="pattern-caption muted">
+        {t(`Статистика по ${meta.securities ?? "—"} ликвидным акциям UZSE за всю историю при выбранной чувствительности: вход по закрытию следующей сессии, комиссия и проскальзывание учтены, горизонт 20 сессий; «лучше/хуже случайного» — только при разнице больше трёх стандартных ошибок. Это описание прошлого, не инвестиционная рекомендация.`,
+           `UZSEning ${meta.securities ?? "—"} ta likvid aksiyasi bo'yicha tanlangan sezgirlikdagi butun tarix statistikasi: keyingi sessiya yopilishida kirish, komissiya va sirpanish hisobga olingan, ufq 20 sessiya; «tasodifiydan yaxshi/yomon» — faqat farq uch standart xatodan katta bo'lganda. Bu o'tmish tavsifi, investitsiya tavsiyasi emas.`,
+           `Statistics over ${meta.securities ?? "—"} liquid UZSE shares, full history, at the chosen sensitivity: entry at the next session's close, fee and slippage included, 20-session horizon; «better/worse than chance» only beyond three standard errors. A description of the past, not investment advice.`)}
+      </p>
+    </section>
+  );
+}
+
+const CPC_COMPARISON_TYPES = new Set(["line", "area", "baseline", "columns"]);
+const CPC_SYNTHETIC_TYPES = new Set(["kagi", "point_figure", "renko"]);
+
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
                              ticker, compare, compareLoading, compareTools, onExpand, intraday }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const months = chartRangeSpan(range);
   const [hover, setHover] = React.useState(null);
-  // Where the pointer is INSIDE the wrapper, in px. The tooltip used to be
-  // pinned at `top: 8px`, which was near enough when the chart was 360px tall;
-  // at 660px, hovering the lower two thirds put the readout five hundred pixels
-  // away behind the range buttons, and it read as nothing happening at all.
-  const [hoverY, setHoverY] = React.useState(0);
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
-  const [priceView, setPriceView] = React.useState(null);
-  const [priceDragging, setPriceDragging] = React.useState(false);
-  const priceDrag = React.useRef(null);
-  const priceWheelHandler = React.useRef(null);
   const [chartInterval, setChartInterval] = React.useState("D");
   const [chartType, setChartType] = React.useState("area");
   const [cursorOn, setCursorOn] = React.useState(true);
   const [toolMenu, setToolMenu] = React.useState(null);
   const [drawMode, setDrawMode] = React.useState(false);
   const [drawingPoints, setDrawingPoints] = React.useState([]);
-  const [chartPrefs, setChartPrefs] = React.useState({ grid: true, fill: true, lastPrice: true, events: true });
+  const [chartPrefs, setChartPrefs] = React.useState({ grid: true, fill: true, lastPrice: true, events: true, volume: false });
+  const [visible, setVisible] = React.useState(null);
+  const [resetToken, setResetToken] = React.useState(0);
+  const [patternsOn, setPatternsOn] = React.useState({ chart: false, candle: false, cycle: false });
+  const [sensitivity, setSensitivity] = React.useState("medium");
+  const [selectedPattern, setSelectedPattern] = React.useState(null);
+  const [focus, setFocus] = React.useState(null);
+  // «Час» on a range longer than a week: every hourly bar the bank holds (60
+  // days, from the day the collector first stored them). 1Д/1Н already get
+  // their own hourly bars through `intraday`.
+  const hourMode = chartInterval === "H" && !chartRange(range).hourly;
+  const [longIntraday, setLongIntraday] = React.useState(null);
+  React.useEffect(() => {
+    if (!hourMode || !ticker) { setLongIntraday(null); return undefined; }
+    let alive = true;
+    fetch(`/api/intraday/${encodeURIComponent(ticker)}?days=60`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setLongIntraday(d.ok ? (d.points || []) : []); })
+      .catch(() => { if (alive) setLongIntraday([]); });
+    return () => { alive = false; };
+  }, [hourMode, ticker]);
+  React.useEffect(() => { setSelectedPattern(null); }, [ticker, sensitivity]);
   const toolStripRef = React.useRef(null);
   const selectedCompareKey = (compareTools?.selected || []).join(",");
+  // 340…660px, 58 % of the window: shorter cannot show a candle body, taller
+  // pushes «О компании» off the fold on a laptop.
+  const [chartPx, setChartPx] = React.useState(() => (typeof window === "undefined" ? 420
+    : Math.max(340, Math.min(660, window.innerHeight * 0.58))));
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => setChartPx(Math.max(340, Math.min(660, window.innerHeight * 0.58)));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   React.useEffect(() => {
-    setPriceView(null);
-    priceDrag.current = null;
-    setPriceDragging(false);
     setChartInterval("D");
     setToolMenu(null);
     setDrawMode(false);
@@ -9701,7 +10410,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
   React.useEffect(() => {
     setDrawingPoints([]);
     setDrawMode(false);
-  }, [chartInterval, selectedCompareKey]);
+  }, [chartInterval, selectedCompareKey, chartType]);
   React.useEffect(() => {
     if (!toolMenu || typeof document === "undefined") return undefined;
     const closeOutside = (event) => {
@@ -9716,54 +10425,288 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     };
   }, [toolMenu]);
 
-  // The chart's height used to be a side effect of its width: the SVG carried a
-  // fixed 820x360 viewBox at `width: 100%; height: auto`, so it was 488px tall
-  // in a 1112px column and 246px in a 560px one — tall where there was room to
-  // spare and short where there was none, with 664px of empty page underneath it
-  // at 1900px. Measure the box instead and solve the viewBox height for the
-  // height we actually want, which keeps the 1:1 aspect mapping (no distorted
-  // strokes or stretched axis labels, which is what preserveAspectRatio="none"
-  // would have cost) while letting the drawing fill its space.
-  // A CALLBACK ref, not useRef + useLayoutEffect([]): this component returns
-  // early while the history is still loading, so on the first render there is no
-  // <svg> to measure — and an effect with an empty dependency list never runs
-  // again once the chart appears. It measured 0 forever and the chart stayed at
-  // its old fixed height.
-  const [boxW, setBoxW] = React.useState(0);
-  const [viewH, setViewH] = React.useState(0);
-  const chartNode = React.useRef(null);
-  const roRef = React.useRef(null);
-  const measure = React.useCallback(() => {
-    const n = chartNode.current;
-    if (!n || typeof window === "undefined") return;
-    setBoxW(n.getBoundingClientRect().width);
-    setViewH(window.innerHeight);
-  }, []);
-  const attachChart = React.useCallback((node) => {
-    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
-    chartNode.current = node;
-    if (!node) return;
-    measure();
-    if (typeof ResizeObserver !== "undefined") {
-      roRef.current = new ResizeObserver(measure);
-      roRef.current.observe(node);
+  // ── The series, by the same rules the SVG chart used ─────────────────────
+  const model = React.useMemo(() => {
+    // The feed returns newest-first — sort ascending so time reads left→right.
+    const rawDaily = (history || []).map((h) => {
+      if (Array.isArray(h)) return { date: h[0], open: null, high: null, low: null, close: Number(h[1]) || 0, volume: 0, turnover: Number(h[2]) || 0, change: null };
+      return {
+        date: h.date || h.trade_date,
+        open: h.open != null ? Number(h.open) : null,
+        high: h.high != null ? Number(h.high) : null,
+        low: h.low != null ? Number(h.low) : null,
+        close: Number(h.close ?? h.price ?? h.close_price ?? 0),
+        volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
+        // «Объём» on this site means MONEY — the landing board says «Объём
+        // торгов · 4,57 млрд сум» — so the chart means the same thing by it.
+        turnover: Number(h.value ?? h.trading_value ?? 0) || 0,
+        change: h.change != null ? Number(h.change) : null,
+      };
+    }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const daily = lwUniqueByTime(rawDaily);
+
+    // The endpoint's smallest unit is a month, so 1Н and YTD ask for the
+    // month(s) that contain them and are trimmed here.
+    let cutoff = chartRangeCutoff(range);
+    if (!cutoff && range !== "max") {
+      const spanMonths = chartRangeSpan(range);
+      if (spanMonths) {
+        const d = new Date(daily.at(-1)?.date || Date.now());
+        d.setUTCMonth(d.getUTCMonth() - spanMonths);
+        cutoff = d.toISOString().slice(0, 10);
+      }
     }
-  }, [measure]);
-  React.useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [measure]);
-  // React's delegated wheel listener is passive. This chart gives Ctrl+wheel a
-  // local meaning, so attach one non-passive listener to the SVG after it has
-  // appeared (the component renders a loading state before that).
-  React.useEffect(() => {
-    const node = chartNode.current;
-    if (!node) return undefined;
-    const onWheel = (event) => priceWheelHandler.current?.(event);
-    node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
-  }, [loading, history, range]);
+    // Peer compare stays on daily closes: the peers arrive as daily series.
+    // On 1Д the peers are dropped instead — a session of hourly bars has no
+    // dates a daily peer series could be sampled on.
+    const peersOn = Boolean((compare || []).some((s) => s.points && s.points.length));
+    const hourlyRange = Boolean(chartRange(range).hourly);
+    const hourlyRaw = hourlyRange && (range === "1d" || !peersOn)
+      ? (intraday || []).map((h) => ({
+          date: h.date,
+          open: h.open != null ? Number(h.open) : null,
+          high: h.high != null ? Number(h.high) : null,
+          low: h.low != null ? Number(h.low) : null,
+          close: Number(h.close ?? 0),
+          volume: Number(h.volume ?? 0) || 0,
+          turnover: Number(h.value ?? 0) || 0,
+          change: null,
+        })).filter((p) => p.close > 0 && p.date)
+          .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      : [];
+    const hourly = lwUniqueByTime(hourlyRaw);
+    let windowed;
+    if (range === "1d") {
+      // The newest banked SESSION, not the last 24 hours: on a Sunday «1Д» is Friday.
+      const lastDay = hourly.length ? String(hourly.at(-1).date).slice(0, 10) : null;
+      windowed = lastDay ? hourly.filter((p) => String(p.date).startsWith(lastDay)) : [];
+    } else if (hourly.length) {
+      // 1Н: hourly bars where the bank has them, the settled daily close where
+      // it does not. "2026-08-17" < "2026-08-17T10:00" as strings, so one sort holds.
+      const covered = new Set(hourly.map((p) => String(p.date).slice(0, 10)));
+      const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourly]
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      windowed = cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
+    } else {
+      windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+    }
+    // Period buttons choose the first view; they do not discard the rest of
+    // the daily archive, which stays reachable by dragging.
+    const historyNavigation = !hourlyRange && daily.length >= 2;
+    if (chartInterval === "H" && !hourlyRange) {
+      const bars = lwUniqueByTime((longIntraday || []).map((h) => ({
+        date: h.date,
+        open: h.open != null ? Number(h.open) : null,
+        high: h.high != null ? Number(h.high) : null,
+        low: h.low != null ? Number(h.low) : null,
+        close: Number(h.close ?? 0),
+        volume: Number(h.volume ?? 0) || 0,
+        turnover: Number(h.value ?? 0) || 0,
+        change: null,
+      })).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date))));
+      // The range's window, cut to where hourly bars exist at all.
+      const from = String(windowed[0]?.date || "");
+      const inRange = bars.filter((p) => String(p.date) >= from);
+      return { daily, cutoff, hourlyRange, windowed, historyNavigation: bars.length > 0, hourBars: true,
+               source: bars, rangeWindow: inRange.length ? inRange : bars };
+    }
+    const source = historyNavigation ? aggregateCompanyPricePoints(daily, chartInterval) : windowed;
+    const rangeWindow = historyNavigation ? aggregateCompanyPricePoints(windowed, chartInterval) : windowed;
+    return { daily, cutoff, hourlyRange, windowed, historyNavigation, source, rangeWindow };
+  }, [history, intraday, range, compare, chartInterval, longIntraday]);
+
+  const { daily, cutoff, windowed, historyNavigation } = model;
+  const stepLine = quality ? quality.candles_enabled === false : false;
+  const cmp = React.useMemo(() => (range === "1d" || model.hourBars ? null
+    : buildCompareAligned(model.source, compare, model.rangeWindow[0]?.date)), [range, model, compare]);
+  const cmpOn = Boolean(cmp && cmp.series.length);
+  const effectiveChartType = cmpOn && !CPC_COMPARISON_TYPES.has(chartType) ? "line" : chartType;
+  const synthetic = CPC_SYNTHETIC_TYPES.has(effectiveChartType);
+  // A synthetic figure is built from the range's closes and has no calendar;
+  // everything else draws the whole loaded archive and opens on the range.
+  const points = synthetic ? model.rangeWindow : model.source;
+  const baseVals = React.useMemo(() => (cmpOn ? cmp.basePct : points.map((p) => p.close)), [cmpOn, cmp, points]);
+
+  // Patterns are read off daily sessions in сумы: not a percent comparison, a
+  // weekly bucket, an hourly bar or a synthetic figure.
+  const patternsWanted = patternsOn.chart || patternsOn.candle || patternsOn.cycle;
+  const patternsAvailable = !synthetic && !cmpOn && chartInterval === "D" && !model.hourlyRange;
+  const patternData = usePatterns(ticker, patternsWanted, sensitivity);
+  const shownPatterns = React.useMemo(() => (patternsAvailable && patternData?.signals
+    ? patternData.signals.filter((s) => (s.family === "chart" ? patternsOn.chart : patternsOn.candle)) : []),
+  [patternsAvailable, patternData, patternsOn]);
+  // Names on the chart up to about a year of sessions in view; wider, the
+  // markers stay and the names live in the list and the tooltip.
+  const patternLabels = Boolean(visible) && visible.to - visible.from <= 300;
+
+  const MA_DAYS = {
+    ma20: metricsWindows?.ma20 || cfgThreshold("moving_average.ma20_calendar_days", 28),
+    ma50: metricsWindows?.ma50 || cfgThreshold("moving_average.ma50_calendar_days", 70),
+  };
+  const maSeries = React.useMemo(() => ({
+    ma20: calendarMA(daily, MA_DAYS.ma20),
+    ma50: calendarMA(daily, MA_DAYS.ma50),
+  }), [daily, MA_DAYS.ma20, MA_DAYS.ma50]);
+  const ma20Available = maSeries.ma20.some((v) => v != null);
+  const ma50Available = maSeries.ma50.some((v) => v != null);
+
+  // Splits and bonus issues inside the drawn span. The prices either side are
+  // already in one unit (the server restated the older half), but the day the
+  // share count changed is still named — otherwise a reader checking a 2024
+  // close against uzse.uz finds a different number and no explanation.
+  const eventMarks = React.useMemo(() => (synthetic ? [] : (adjustments || [])
+    .map((a) => ({ ...a, i: points.findIndex((p) => String(p.date) >= String(a.ex_date)) }))
+    .filter((a) => a.i > 0)), [adjustments, points, synthetic]);
+
+  const up = baseVals.length >= 2
+    ? baseVals.at(-1) >= (cmpOn ? 0 : (model.rangeWindow[0]?.close ?? baseVals[0]))
+    : true;
+  const color = up ? LW_UP : LW_DOWN;
+
+  // ── The spec the canvas draws ────────────────────────────────────────────
+  const spec = React.useMemo(() => {
+    if (points.length < 1) return null;
+    const times = points.map((p) => lwTime(p.date));
+    const lastPriceOpts = { lastValueVisible: chartPrefs.lastPrice, priceLineVisible: chartPrefs.lastPrice };
+    const priceFormat = cmpOn ? lwPercentFormat(lang) : lwPriceFormatFor(points.at(-1).close, lang);
+    const series = [];
+    const lineType = stepLine ? LwLineType.WithSteps : LwLineType.Simple;
+    const valueData = points.map((p, i) => ({ time: times[i], value: baseVals[i] }));
+    const trend = drawingPoints.map((d) => ({ time: d.time, value: d.value }));
+    const markers = [];
+    if (chartPrefs.events) {
+      const bonus = lang === "en" || lang === "uz" ? "Bonus" : "Бонус";
+      const split = lang === "en" || lang === "uz" ? "Split" : "Сплит";
+      eventMarks.forEach((m) => markers.push({ time: times[m.i], position: "aboveBar", color: "#8b82f0", shape: "arrowDown",
+        text: m.kind === "bonus" ? bonus : split }));
+    }
+    // ТЗ §6: on a step chart a move that stopped exactly at the ±20 % daily
+    // limit is marked — a rule of the exchange, not a decision of the market.
+    if (stepLine && !synthetic) {
+      points.forEach((p, i) => {
+        const prev = i > 0 ? points[i - 1].close : null;
+        const move = prev ? ((p.close - prev) / prev) * 100 : null;
+        if (move != null && Math.abs(Math.abs(move) - 20) < 0.5) {
+          markers.push({ time: times[i], position: "inBar", color: "#fbbf24", shape: "square", size: 0.6 });
+        }
+      });
+    }
+    markers.sort((a, b) => a.time - b.time);
+    let labels = null;
+
+    if (synthetic) {
+      const syn = lwSyntheticSeries(effectiveChartType, points);
+      labels = syn.labels;
+      series.push({
+        key: "price", kind: syn.kind, data: syn.data,
+        options: syn.kind === "line"
+          ? { ...lastPriceOpts, lineType: LwLineType.WithSteps, lineWidth: 2, priceFormat }
+          : effectiveChartType === "point_figure"
+            ? { ...lastPriceOpts, priceFormat, upColor: "rgba(0,0,0,0)", downColor: "rgba(0,0,0,0)",
+                borderVisible: false, wickVisible: false }
+            : { ...lastPriceOpts, priceFormat, upColor: LW_UP_FILL, downColor: LW_DOWN_FILL,
+                borderUpColor: LW_UP, borderDownColor: LW_DOWN, wickVisible: false },
+        glyphs: syn.glyphs ? { columns: syn.glyphs, box: syn.box } : null,
+      });
+    } else if (["candle", "heikin_ashi", "bars"].includes(effectiveChartType)) {
+      const src = effectiveChartType === "heikin_ashi" ? lwHeikinAshi(points) : points;
+      series.push({
+        key: "price", kind: effectiveChartType === "bars" ? "bar" : "candle",
+        data: src.map((p, i) => lwOhlcBar(p, times[i])),
+        options: effectiveChartType === "bars"
+          ? { ...lastPriceOpts, priceFormat, upColor: LW_UP, downColor: LW_DOWN, thinBars: false }
+          : { ...lastPriceOpts, priceFormat, upColor: LW_UP, downColor: LW_DOWN, borderVisible: false, wickUpColor: LW_UP, wickDownColor: LW_DOWN },
+        markers, trend,
+      });
+    } else if (effectiveChartType === "columns") {
+      series.push({
+        key: "price", kind: "histogram",
+        data: valueData.map((d, i) => ({ ...d, color: i && d.value < valueData[i - 1].value ? LW_DOWN : LW_UP })),
+        options: { ...lastPriceOpts, priceFormat, base: cmpOn ? 0 : undefined },
+        markers, trend,
+      });
+    } else if (effectiveChartType === "baseline") {
+      series.push({
+        key: "price", kind: "baseline", data: valueData,
+        options: { ...lastPriceOpts, priceFormat, lineType, lineWidth: 2,
+          baseValue: { type: "price", price: cmpOn ? 0 : (model.rangeWindow[0]?.close ?? baseVals[0]) },
+          topLineColor: LW_UP, bottomLineColor: LW_DOWN,
+          topFillColor1: LW_UP_FILL, topFillColor2: LW_UP_FILL_FAINT,
+          bottomFillColor1: LW_DOWN_FILL_FAINT, bottomFillColor2: LW_DOWN_FILL },
+        markers, trend,
+      });
+    } else if (effectiveChartType === "area" && !cmpOn && chartPrefs.fill) {
+      series.push({
+        key: "price", kind: "area", data: valueData,
+        options: { ...lastPriceOpts, priceFormat, lineType, lineColor: color, lineWidth: 2,
+          topColor: up ? LW_UP_FILL : LW_DOWN_FILL, bottomColor: up ? LW_UP_FILL_FAINT : LW_DOWN_FILL_FAINT,
+          pointMarkersVisible: stepLine && points.length <= 260 },
+        markers, trend,
+      });
+    } else {
+      series.push({
+        key: "price", kind: "line", data: valueData,
+        options: { ...lastPriceOpts, priceFormat, lineType, color, lineWidth: 2,
+          pointMarkersVisible: stepLine && points.length <= 260 },
+        markers, trend,
+      });
+    }
+
+    if (cmpOn) {
+      cmp.series.forEach((s) => {
+        series.push({
+          key: `cmp:${s.ticker}`, kind: "line",
+          data: s.pct.map((v, i) => (v == null ? { time: times[i] } : { time: times[i], value: v })),
+          options: { color: s.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: chartPrefs.lastPrice,
+            crosshairMarkerRadius: 3, priceFormat },
+        });
+      });
+    }
+
+    // ТЗ §6: moving averages on the RAW DAILY series over a calendar window,
+    // read off at each drawn point's date (a weekly bucket carries its last day).
+    if (!synthetic && !model.hourlyRange) {
+      const byDate = new Map(daily.map((p, i) => [p.date, i]));
+      [["ma20", "#f59e0b"], ["ma50", "#a855f7"]].forEach(([k, maColor]) => {
+        if (!maOn[k]) return;
+        const arr = maSeries[k];
+        const data = points.map((p, i) => {
+          const v = arr[byDate.get(p.date)];
+          return v == null ? { time: times[i] } : { time: times[i], value: cmpOn ? (v / cmp.base0 - 1) * 100 : v };
+        });
+        if (!data.some((d) => d.value != null)) return;
+        series.push({ key: k, kind: "line", data,
+          options: { color: maColor, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false,
+            crosshairMarkerVisible: false, priceFormat } });
+      });
+    }
+
+    if (shownPatterns.length) {
+      applyPatternOverlay(series, patternOverlay(shownPatterns, times, lang, patternLabels,
+        shownPatterns.find((sig) => patternKey(sig) === selectedPattern) || null));
+    }
+
+    if (chartPrefs.volume && !cmpOn && !synthetic) {
+      series.push({
+        key: "volume", kind: "histogram",
+        data: points.map((p, i) => ({ time: times[i], value: p.turnover || 0,
+          color: i && p.close < points[i - 1].close ? "rgba(238,106,96,0.45)" : "rgba(47,197,132,0.45)" })),
+        options: { priceScaleId: "vol", priceFormat: lwCustomFormat((v) => fmtCompact(v, lang), 1), lastValueVisible: false, priceLineVisible: false },
+        scale: { scaleMargins: { top: 0.82, bottom: 0 } },
+      });
+    }
+    return { series, main: "price", percent: cmpOn, hourly: model.hourlyRange || Boolean(model.hourBars), labels };
+  }, [points, baseVals, cmpOn, cmp, effectiveChartType, synthetic, stepLine, chartPrefs, maOn, maSeries, daily,
+      eventMarks, drawingPoints, color, up, model, lang, shownPatterns, patternLabels, selectedPattern]);
+
+  // The range button's window is the first view; synthetic and hourly views
+  // are the whole of what they drew. A comparison opens on its shared start.
+  const initialView = React.useMemo(() => {
+    if (synthetic || !historyNavigation || range === "max" || !points.length) return null;
+    const first = cmpOn ? points[cmp.baseIdx]?.date : model.rangeWindow[0]?.date;
+    return first ? { from: lwTime(first), to: lwTime(points.at(-1).date) } : null;
+  }, [synthetic, historyNavigation, range, points, cmpOn, cmp, model.rangeWindow]);
+  const viewKey = `${ticker}|${range}|${chartInterval}|${synthetic ? effectiveChartType : "t"}|${cmpOn ? cmp.baseIdx : "-"}`;
 
   const rangeBar = (
     <div className="company-chart-ranges">
@@ -9779,566 +10722,85 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   if (loading) return <div className="chart-loading muted">{t("Загрузка...", "Yuklanmoqda...", "Loading...")}</div>;
 
-  // The feed returns newest-first — sort ascending so time reads left→right.
-  const daily = (history || []).map((h) => {
-    if (Array.isArray(h)) return { date: h[0], close: Number(h[1]) || 0, volume: 0, turnover: Number(h[2]) || 0, change: null };
-    return {
-      date: h.date || h.trade_date,
-      open: h.open != null ? Number(h.open) : null,
-      high: h.high != null ? Number(h.high) : null,
-      low: h.low != null ? Number(h.low) : null,
-      close: Number(h.close ?? h.price ?? h.close_price ?? 0),
-      volume: Number(h.volume ?? h.trading_volume ?? 0) || 0,
-      // «Объём» on this site means MONEY — the landing board says «Объём торгов ·
-      // 4,57 млрд сум» — so the chart has to mean the same thing by it. The
-      // endpoint has carried both all along: `volume` is the security count,
-      // `value` the turnover in сум. Measured 2026-08-10 over the full archive
-      // of UZTL / HMKB / KVTS (619 / 1947 / 2056 sessions back to 2016): every
-      // point that has a quantity has a turnover, so nothing degrades.
-      turnover: Number(h.value ?? h.trading_value ?? 0) || 0,
-      change: h.change != null ? Number(h.change) : null,
-    };
-  }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-
-  // The endpoint's smallest unit is a month, so 1Н and YTD ask for the month(s)
-  // that contain them and are trimmed here. ISO dates compare as strings.
-  let cutoff = chartRangeCutoff(range);
-  // The overview keeps the complete archive behind the selected preset. The
-  // API request is therefore wider than the button, and month-based presets
-  // need the same client-side boundary that 1Н and YTD already have.
-  if (!cutoff && range !== "max") {
-    const spanMonths = chartRangeSpan(range);
-    if (spanMonths) {
-      const d = new Date(daily.at(-1)?.date || Date.now());
-      d.setUTCMonth(d.getUTCMonth() - spanMonths);
-      cutoff = d.toISOString().slice(0, 10);
-    }
-  }
-  // The hourly ranges draw the executions-log bars (see CHART_RANGES). Peer
-  // compare stays on daily closes: the peers arrive as daily series, and a
-  // percent line needs every line sampled on the same dates.
-  const peersOn = Boolean((compare || []).some((s) => s.points && s.points.length));
-  // On 1Д the peers are dropped instead: a session of hourly bars has no dates
-  // a daily peer series could be sampled on, and an empty frame under a chip
-  // that has data would read as a bug.
-  const hourly = chartRange(range).hourly && (range === "1d" || !peersOn)
-    ? (intraday || []).map((h) => ({
-        date: h.date,
-        open: h.open != null ? Number(h.open) : null,
-        high: h.high != null ? Number(h.high) : null,
-        low: h.low != null ? Number(h.low) : null,
-        close: Number(h.close ?? 0),
-        volume: Number(h.volume ?? 0) || 0,
-        turnover: Number(h.value ?? 0) || 0,
-        change: null,
-      })).filter((p) => p.close > 0 && p.date)
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    : [];
-  let windowed;
-  if (range === "1d") {
-    // The newest banked SESSION, not the last 24 calendar hours: on a Sunday
-    // the answer to «1Д» is Friday's session, not an empty frame.
-    const lastDay = hourly.length ? String(hourly[hourly.length - 1].date).slice(0, 10) : null;
-    windowed = lastDay ? hourly.filter((p) => String(p.date).startsWith(lastDay)) : [];
-  } else if (hourly.length) {
-    // 1Н: hourly bars where the bank has them, the settled daily close where it
-    // does not (the bank only starts the day the collector first stored the
-    // log). "2026-08-17" < "2026-08-17T10:00" as strings, so one sort holds.
-    const covered = new Set(hourly.map((p) => String(p.date).slice(0, 10)));
-    const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourly]
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    windowed = cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
-  } else {
-    windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
-  }
   // A week with no executions is a fact about the security, not a failure to
-  // load anything — on this market most securities trade on a minority of days,
-  // and «история недоступна» would be a lie about a page that has years of it.
-  if (range === "1d" && windowed.length === 0) return (
+  // load anything — «история недоступна» would be a lie about a page that has
+  // years of it.
+  const emptyNote = (msg) => (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">{rangeBar}</div>
-      <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
-        {t("В последних сессиях сделок не было — часовой график недоступен",
-            "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
-            "No trades in the recent sessions — no hourly view to draw")}
-      </div>
+      <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>{msg}</div>
     </div>
   );
-  if (cutoff && !chartRange(range).hourly && windowed.length < 2 && daily.length >= 2) return (
-    <div className="company-chart-wrap">
-      <div className="company-chart-toolbar">{rangeBar}</div>
-      <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>
-        {chartRange(range).ytd
-          ? t("С начала года сделок не было", "Yil boshidan bitim bo'lmagan", "No trades since the start of the year")
-          : chartRange(range).days
-            ? t("За выбранные дни сделок не было", "Tanlangan kunlarda bitim bo'lmagan", "No trades in the selected days")
-            : t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period")}
-      </div>
-    </div>
-  );
+  if (range === "1d" && windowed.length === 0) {
+    return emptyNote(t("В последних сессиях сделок не было — часовой график недоступен",
+      "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
+      "No trades in the recent sessions — no hourly view to draw"));
+  }
+  if (cutoff && !model.hourlyRange && windowed.length < 2 && daily.length >= 2) {
+    return emptyNote(chartRange(range).ytd
+      ? t("С начала года сделок не было", "Yil boshidan bitim bo'lmagan", "No trades since the start of the year")
+      : chartRange(range).days
+        ? t("За выбранные дни сделок не было", "Tanlangan kunlarda bitim bo'lmagan", "No trades in the selected days")
+        : t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period"));
+  }
+  if (model.hourBars && !spec) {
+    // Picking another period resets the interval to «День».
+    return emptyNote(longIntraday === null
+      ? t("Загрузка часовых баров…", "Soatlik barlar yuklanmoqda…", "Loading hourly bars…")
+      : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было. Выберите другой период, чтобы вернуться к дневным свечам.",
+          "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan. Kunlik shamlarga qaytish uchun boshqa davrni tanlang.",
+          "No hourly bars for this security — it has not traded in the last 60 days. Pick another period to return to daily bars."));
+  }
+  if ((daily.length < 2 && windowed.length === 0) || !spec) {
+    return emptyNote(t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable"));
+  }
 
-  if (daily.length < 2 && windowed.length === 0) return (
-    <div>
-      <div className="company-chart-toolbar">{rangeBar}</div>
-      <div className="muted" style={{ padding: "32px 0", textAlign: "center" }}>
-        {t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable")}
-      </div>
-    </div>
-  );
-
-  // Period buttons choose the initial viewport; they do not discard the rest
-  // of the daily archive. Intraday modes keep their established session logic,
-  // while 1М…Макс can be zoomed and dragged through older history.
-  const historyNavigation = !chartRange(range).hourly && daily.length >= 2;
-  const historySource = historyNavigation ? daily : windowed;
-  const initialPriceView = (() => {
-    if (!historySource.length) return { start: 0, end: 0 };
-    if (!historyNavigation || range === "max" || !windowed.length) {
-      return { start: 0, end: historySource.length };
-    }
-    const first = String(windowed[0].date);
-    const found = historySource.findIndex((p) => String(p.date) >= first);
-    return { start: found < 0 ? 0 : found, end: historySource.length };
-  })();
-  // Shared with the expanded chart below: the same clamping and pointer-centred
-  // zoom math keeps both chart surfaces behaving identically.
-  const resolvedPriceView = acClampView(priceView, initialPriceView, historySource.length);
-  const visibleWindow = historyNavigation
-    ? historySource.slice(resolvedPriceView.start, resolvedPriceView.end)
-    : windowed;
-  const priceViewChanged = Boolean(priceView)
-    && (resolvedPriceView.start !== initialPriceView.start
-      || resolvedPriceView.end !== initialPriceView.end);
-
-  // uz-UZ renders months as "M01"/"M02"; keep Russian month names for ru+uz.
   const dateLocale = lang === "en" ? "en-US" : "ru-RU";
-  // An hourly bar's date carries its hour ("2026-08-17T14:00") and is labelled
-  // with it — a tooltip saying only «17 авг.» over seven same-day bars answers
-  // nothing.
   const isHourly = (d) => String(d || "").includes("T");
   const fmtDate = (d, withYear) => {
     if (!d) return "";
     if (isHourly(d)) return new Date(d).toLocaleString(dateLocale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     return new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" });
   };
-  // Multi-year ranges show "mon 'yy" on the axis (day-of-month is noise at monthly/quarterly buckets).
-  // On the one-session axis the date would repeat on every tick — the hour IS the label.
-  const fmtAxis = (d) => {
-    if (!d) return "";
-    if (isHourly(d) && range === "1d") return new Date(d).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" });
-    return months >= 12 ? new Date(d).toLocaleDateString(dateLocale, { year: "2-digit", month: "short" }) : fmtDate(d);
-  };
-  const fmtFull = (v) => v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 });
-
-  const W = 820;
-  // How tall the drawing should actually be on screen, before it is expressed in
-  // viewBox units. Bounded at both ends: a chart shorter than 340px cannot show
-  // a candle body, and one taller than 660px pushes «О компании» off the fold on
-  // a laptop. 58 % of the window is the band between those on the screens this
-  // is used on; the fallback runs one frame, before the box has been measured.
-  // Left unrounded on purpose: these are SVG user units, not a published figure,
-  // and the repo's round-on-output rule is about the latter.
-  const targetPx = Math.max(340, Math.min(660, (viewH || 900) * 0.58));
-  const H = boxW > 0 ? (targetPx * W) / boxW : 360;
-  const chartPx = boxW > 0 ? targetPx : 360;
-  const PAD = { top: 14, right: 14, bottom: 40, left: 64 };
-  // No volume strip: the reference design has none, and the session's turnover,
-  // share count and trade count are stated in the «Торги» block beside the
-  // chart — so the information is on the page, not in a 1px histogram that a
-  // daily line at «Макс» turns into a smear.
-  const priceTop = PAD.top;
-  const priceBot = H - PAD.bottom;
-  const innerW = W - PAD.left - PAD.right;
-
-  // ONE view: a line. The customer asked for the reference page's chart and only
-  // that, so the candle mode, its interval roll-up (day/week/month/quarter) and
-  // the Линия/Свечи switch are gone. A line needs no bar width, which is what
-  // the roll-up existed to protect, so every session the range loaded is drawn.
-  //
-  // ТЗ §6: OHLC correctness is a property of a POINT, not of the series — kept
-  // because the tooltip still states open/high/low for the days that have them.
-  const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
-    && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
-  // ТЗ §6 still applies to the SHAPE of the line. On a security that trades on a
-  // minority of days a straight segment between two trades three weeks apart
-  // draws prices that never existed, so the series becomes a step. The server
-  // decides which securities those are (data_tier sparse/illiquid), not a hand.
-  const stepLine = quality ? quality.candles_enabled === false : false;
-
-  // Быстрое сравнение. With a peer on the chart the drawn window narrows to the
-  // span every line has and the axis stops being сумы — see buildCompareSeries.
-  // Nothing below this point reads `p.close` for a Y position; it reads
-  // `baseVals`, which is the close or the percent depending on the mode.
-  const displayWindow = historyNavigation
-    ? aggregateCompanyPricePoints(visibleWindow, chartInterval)
-    : visibleWindow;
-  const cmp = buildCompareSeries(displayWindow, range === "1d" ? null : compare);
-  const cmpOn = Boolean(cmp && cmp.series.length);
-  const rawPoints = cmpOn ? cmp.points : displayWindow;
-  // A comparison is a percent-line question. Price-construction charts encode
-  // one security's OHLC or reversal structure, so peers temporarily use a line.
-  const comparisonTypes = new Set(["line", "area", "baseline"]);
-  const effectiveChartType = cmpOn && !comparisonTypes.has(chartType) ? "line" : chartType;
-  const heikinPoints = (() => {
-    let previous = null;
-    return rawPoints.map((point) => {
-      const valid = point.open > 0 && point.high > 0 && point.low > 0 && point.close > 0;
-      if (!valid) { previous = null; return point; }
-      const close = (point.open + point.high + point.low + point.close) / 4;
-      const open = previous ? (previous.open + previous.close) / 2 : (point.open + point.close) / 2;
-      const next = { ...point, open, close, high: Math.max(point.high, open, close), low: Math.min(point.low, open, close) };
-      previous = next;
-      return next;
-    });
-  })();
-  const points = effectiveChartType === "heikin_ashi" ? heikinPoints : rawPoints;
-  const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
-  const drawCandles = (effectiveChartType === "candle" || effectiveChartType === "heikin_ashi") && !cmpOn;
-  // A price expressed on whatever scale the chart is currently drawing. The
-  // moving averages arrive in сумы and have to follow the axis, or MA20 would
-  // be plotted at 8 900 on a scale that runs from −12 % to +40 %.
-  const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
+  const fmtFull = (v) => (v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
   const fmtPct = (v) => `${signedFixed(v, 1)}%`;
 
-  // Per point, again: a single record without a low must not drag the whole
-  // price scale to NaN. In compare mode the scale is a percent one and there is
-  // no intraday low to honour — every line, this one and the peers, has to fit.
-  const lows = cmpOn ? baseVals : points.map((p) => (ohlcOk(p) ? p.low : p.close));
-  const highs = cmpOn ? baseVals : points.map((p) => (ohlcOk(p) ? p.high : p.close));
-  const cmpVals = cmpOn
-    ? cmp.series.flatMap((s) => s.pct.filter((v) => v != null && Number.isFinite(v)))
-    : [];
-  const dataMinP = Math.min(...lows, ...cmpVals);
-  const dataMaxP = Math.max(...highs, ...cmpVals);
-  // A one-hour session is still market data. Give a flat series a small,
-  // value-relative plotting band so its one recorded price lands in the middle
-  // of the chart instead of on the bottom axis.
-  const flatSeries = dataMaxP === dataMinP;
-  const flatPadding = Math.max(Math.abs(dataMaxP) * 0.02, 1);
-  const minP = flatSeries ? dataMinP - flatPadding : dataMinP;
-  const maxP = flatSeries ? dataMaxP + flatPadding : dataMaxP;
-  const rangeP = maxP - minP || 1;
-  const maxVol = Math.max(...points.map((p) => p.turnover || 0), 1);
-  // Per-point markers only where a marker can be READ. On a step series every
-  // point is a trade and worth showing, but KSCM at «Макс» has 1033 of them:
-  // they stop being marks and become a smear over the line. Same measured-width
-  // reasoning the candle interval used before it was removed.
-  const gapPx = (innerW * (boxW > 0 ? boxW / W : 1)) / Math.max(1, points.length - 1);
-  const showPointMarks = stepLine && gapPx >= 8;
-  const candleWidth = Math.max(1, Math.min(9, (innerW / Math.max(1, points.length - 1)) * 0.65));
-
-  // A single hourly bar has no second x-coordinate to form a line with, but
-  // it is valid information and must remain visible. Centre it in the plot;
-  // the dot rendered below provides the actual mark.
-  const xs = (i) => points.length === 1
-    ? PAD.left + innerW / 2
-    : PAD.left + (i / (points.length - 1)) * innerW;
-  const ys = (p) => priceTop + (1 - (p - minP) / rangeP) * (priceBot - priceTop);
-
-  const lineD = points.map((p, i) => {
-    const x = xs(i).toFixed(1), y = ys(baseVals[i]).toFixed(1);
-    if (i === 0) return `M${x},${y}`;
-    // A step carries the previous price forward to the day it actually changed.
-    return stepLine ? `L${x},${ys(baseVals[i - 1]).toFixed(1)} L${x},${y}` : `L${x},${y}`;
-  }).join(" ");
-  const areaD = `${lineD} L${xs(points.length - 1).toFixed(1)},${priceBot.toFixed(1)} L${xs(0).toFixed(1)},${priceBot.toFixed(1)} Z`;
-  const baselineValue = baseVals[0];
-  const baselineY = ys(baselineValue);
-  const baselineStop = Math.max(0, Math.min(100, ((baselineY - priceTop) / Math.max(1, priceBot - priceTop)) * 100));
-  const renkoBox = Math.max(rangeP / 20, Math.abs(baseVals[0] || 1) * 0.0025);
-  const renkoBricks = (() => {
-    if (!points.length || !Number.isFinite(renkoBox) || renkoBox <= 0) return [];
-    const bricks = [];
-    let level = baseVals[0];
-    points.slice(1).forEach((point, pointIndex) => {
-      let guard = 0;
-      while (Math.abs(baseVals[pointIndex + 1] - level) >= renkoBox && guard < 80) {
-        const direction = baseVals[pointIndex + 1] > level ? 1 : -1;
-        const open = level;
-        level += direction * renkoBox;
-        bricks.push({ open, close: level, direction, date: point.date });
-        guard += 1;
-      }
-    });
-    return bricks.slice(-120);
-  })();
-  const renkoX = (i) => PAD.left + (i / Math.max(1, renkoBricks.length)) * innerW;
-  const renkoWidth = innerW / Math.max(1, renkoBricks.length);
-  const pointFigureMarks = (() => {
-    const limit = 48;
-    const stride = Math.max(1, Math.ceil((points.length - 1) / limit));
-    const marks = [];
-    for (let i = stride; i < points.length; i += stride) {
-      const previous = baseVals[Math.max(0, i - stride)];
-      const current = baseVals[i];
-      if (current === previous) continue;
-      marks.push({ value: current, up: current > previous });
-    }
-    return marks;
-  })();
-  const isUp = baseVals[baseVals.length - 1] >= baseVals[0];
-  const color = isUp ? "#2fc584" : "#ee6a60";
-  // A peer's line, on the same percent scale, skipping the sessions before its
-  // own first stored one rather than drawing a flat lead-in that never happened.
-  const cmpPath = (pct) => {
-    let d = "", started = false;
-    pct.forEach((v, i) => {
-      if (v == null || !Number.isFinite(v)) { started = false; return; }
-      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(v).toFixed(1)}`;
-      started = true;
-    });
-    return d;
+  const onChartClick = ({ index, pane }) => {
+    if (!drawMode || pane !== 0 || synthetic) return;
+    const next = { time: lwTime(points[index].date), value: baseVals[index], date: String(points[index].date) };
+    setDrawingPoints((current) => (current.length >= 2 ? [next] : [...current, next]));
+    if (drawingPoints.length === 1) setDrawMode(false);
   };
 
-  // ТЗ §6: moving averages are always computed on the RAW DAILY series over a
-  // calendar window, whatever the display bucket is. Averaging 20 weekly
-  // candles spans 134 calendar days, not 28 — which is why "MA20" drew one
-  // line in candle mode and a different one in line mode on 72 of 72
-  // securities. The window comes from the server's threshold config.
-  // The window the SERVER applied: from the metrics response when it has
-  // arrived, otherwise from /api/config — never a literal invented here.
-  const MA_DAYS = {
-    ma20: metricsWindows?.ma20 || cfgThreshold("moving_average.ma20_calendar_days", 28),
-    ma50: metricsWindows?.ma50 || cfgThreshold("moving_average.ma50_calendar_days", 70),
-  };
-  const MA_MIN_OBS = 3;
-  const calendarMA = (days) => {
-    const out = new Array(daily.length).fill(null);
-    let start = 0, sum = 0;
-    for (let i = 0; i < daily.length; i++) {
-      sum += daily[i].close;
-      const cutoff = new Date(daily[i].date);
-      cutoff.setDate(cutoff.getDate() - (days - 1));
-      while (start < i && new Date(daily[start].date) < cutoff) {
-        sum -= daily[start].close;
-        start += 1;
-      }
-      const n = i - start + 1;
-      out[i] = n >= MA_MIN_OBS ? sum / n : null;
-    }
-    return out;
-  };
-  // The MA is a daily series; the chart may be drawing weekly or monthly
-  // buckets. Each drawn point carries the date of the last day in its bucket,
-  // so the value is read off that day rather than recomputed on the buckets.
-  const alignToPoints = (dailySeries) => {
-    const byDate = new Map();
-    daily.forEach((p, i) => byDate.set(p.date, dailySeries[i]));
-    return points.map((p) => (byDate.has(p.date) ? byDate.get(p.date) : null));
-  };
-  // Not memoised on purpose: this sits after the component's early returns, so
-  // a hook here would be a conditional hook. Both passes are O(n) over a few
-  // hundred points.
-  const ma20Daily = calendarMA(MA_DAYS.ma20);
-  const ma50Daily = calendarMA(MA_DAYS.ma50);
-  const ma20Available = ma20Daily.some((v) => v != null);
-  const ma50Available = ma50Daily.some((v) => v != null);
-  const maPath = (arr) => {
-    let d = "", started = false;
-    arr.forEach((v, i) => {
-      if (v == null) return;
-      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${ys(toScale(v)).toFixed(1)}`;
-      started = true;
-    });
-    return d;
-  };
-  const ma20 = maOn.ma20 && ma20Available ? alignToPoints(ma20Daily) : null;
-  const ma50 = maOn.ma50 && ma50Available ? alignToPoints(ma50Daily) : null;
-
-  // Grid lines land on round numbers inside the data range — 5K / 10K / 15K —
-  // instead of five samples of it (9.8K, 14.5K, 19.3K), which read as data
-  // rather than as a scale. The plotted range is untouched: only where the
-  // lines are drawn changes.
-  const yTicks = 4;
-  const niceStep = (span, count) => {
-    const raw = span / count;
-    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const norm = raw / mag;
-    return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
-  };
-  const yStep = rangeP > 0 ? niceStep(rangeP, yTicks) : 0;
-  // Enough decimals to tell neighbouring gridlines apart: a 0.005 step printed
-  // at two decimals labelled two of KASU's lines «0,02» each. Two decimals
-  // stay the floor so ordinary price axes keep their look.
-  const yDecimals = yStep > 0 ? Math.max(2, Math.min(6, Math.ceil(-Math.log10(yStep)))) : 2;
-  const fmtYPrice = (v) => (v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: yDecimals }));
-  // Full numbers, not 10.0K: this is a price scale and the reference states it
-  // as one. The tooltip's turnover is the one place a млн/млрд helps, and it
-  // uses the shared `compact` so it reads like the rest of the site.
-  // In compare mode the axis measures the move, not the price, and says so.
-  const fmtAxisVal = cmpOn ? fmtPct : fmtYPrice;
-  const yLabels = [];
-  if (yStep > 0) {
-    const first = Math.ceil(minP / yStep) * yStep;
-    for (let v = first; v <= maxP + yStep * 1e-9; v += yStep) yLabels.push({ y: ys(v), label: fmtAxisVal(v) });
-  }
-  // A flat or near-flat series can leave one round number in range (or none) —
-  // then an even split of the range is the only honest axis left.
-  if (yLabels.length < 2) {
-    yLabels.length = 0;
-    const seen = new Set();
-    for (let i = 0; i <= yTicks; i++) {
-      const v = minP + (i / yTicks) * rangeP;
-      // A price that never moved would otherwise stack the same number five
-      // times down the panel and call it a scale.
-      const label = fmtAxisVal(v);
-      if (seen.has(label)) continue;
-      seen.add(label);
-      yLabels.push({ y: ys(v), label });
-    }
-  }
-
-  // The last point always gets a label. When the regular grid lands a candle or
-  // two short of it the two strings print on top of each other (three years of
-  // weekly buckets did exactly that), so a tick too close to its neighbour
-  // yields — and the endpoint wins the collision.
-  const X_LABEL_GAP = 64;
-  const xStep = Math.max(1, Math.floor(points.length / 6));
-  // The axis grain follows the DRAWN span, not the period button. A «1Г»
-  // request over a listing that has only traded for two months otherwise
-  // stamps «июль 26 г.» under five ticks in a row (KFSK, UZASP, FRAZP).
-  const spanMs = points.length > 1
-    ? (new Date(points[points.length - 1].date) - new Date(points[0].date))
-    : 0;
-  const monthGrain = months >= 12 && spanMs > 200 * 864e5;
-  const crossesYear = points.length > 1
-    && new Date(points[0].date).getFullYear() !== new Date(points[points.length - 1].date).getFullYear();
-  const fmtTick = (d) => (monthGrain ? fmtAxis(d) : fmtDate(d, crossesYear));
-  const xLabels = [];
-  points.forEach((p, i) => {
-    const isLast = i === points.length - 1;
-    if (i % xStep !== 0 && !isLast) return;
-    const x = xs(i);
-    const label = fmtTick(p.date);
-    const prev = xLabels[xLabels.length - 1];
-    // Yield on a position collision — or on the SAME WORDS: two ticks that both
-    // say «март 26 г.» tell the reader less than one that says it once.
-    if (prev && (x - prev.x < X_LABEL_GAP || prev.label === label)) {
-      if (!isLast) return;
-      xLabels.pop();
-    }
-    xLabels.push({ x, label });
-  });
-
-  const onMove = (e) => {
-    if (!cursorOn || drawMode) { setHover(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (!rect.width) return;
-    const relX = ((e.clientX - rect.left) / rect.width) * W;
-    let i = Math.round(((relX - PAD.left) / innerW) * (points.length - 1));
-    i = Math.max(0, Math.min(points.length - 1, i));
-    setHover(i);
-    // Measured against the POSITIONED wrapper, not the svg: the tooltip is
-    // absolute inside the wrapper, and the toolbar above the svg is part of it.
-    const wrap = e.currentTarget.parentElement;
-    const wrapTop = wrap ? wrap.getBoundingClientRect().top : rect.top;
-    setHoverY(e.clientY - wrapTop);
-  };
-
-  const onPriceWheel = (e) => {
-    if (!historyNavigation || !e.ctrlKey || !historySource.length || e.deltaY === 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const plotLeft = rect.left + (PAD.left / W) * rect.width;
-    const plotWidth = (innerW / W) * rect.width;
-    const anchorRatio = plotWidth > 0 ? (e.clientX - plotLeft) / plotWidth : 0.5;
-    const minViewPoints = chartInterval === "M" ? 60 : chartInterval === "W" ? 20 : AC_MIN_CANDLE_POINTS;
-    setPriceView(acZoomView(
-      resolvedPriceView,
-      historySource.length,
-      anchorRatio,
-      e.deltaY < 0,
-      minViewPoints,
-    ));
-    setHover(null);
-  };
-  priceWheelHandler.current = onPriceWheel;
-
-  const onPricePointerDown = (e) => {
-    // Pointer events unify mouse, pen and touch. The old mouse-only gate made
-    // the chart draggable on desktop but inert on phones. CSS `touch-action:
-    // pan-y` still leaves vertical page scrolling to the browser.
-    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
-    if (drawMode && points.length) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      if (!rect.width) return;
-      const relX = ((e.clientX - rect.left) / rect.width) * W;
-      let i = acNearestInt(((relX - PAD.left) / innerW) * (points.length - 1));
-      i = Math.max(0, Math.min(points.length - 1, i));
-      const nextPoint = { date: String(points[i].date), value: baseVals[i] };
-      setDrawingPoints((current) => (current.length >= 2 ? [nextPoint] : [...current, nextPoint]));
-      if (drawingPoints.length === 1) setDrawMode(false);
-      setHover(null);
-      e.preventDefault();
-      return;
-    }
-    if (!historyNavigation || !historySource.length) return;
-    const size = resolvedPriceView.end - resolvedPriceView.start;
-    if (size >= historySource.length) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const plotWidth = (innerW / W) * rect.width;
-    priceDrag.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      start: resolvedPriceView.start,
-      size,
-      pixelsPerPoint: plotWidth / Math.max(1, size - 1),
-    };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-    setPriceDragging(true);
-    setHover(null);
-  };
-
-  const onPricePointerMove = (e) => {
-    const drag = priceDrag.current;
-    if (!drag || drag.pointerId !== e.pointerId) { onMove(e); return; }
-    const delta = acNearestInt((e.clientX - drag.startX) / Math.max(0.5, drag.pixelsPerPoint));
-    const start = Math.max(0, Math.min(historySource.length - drag.size, drag.start - delta));
-    setPriceView({ start, end: start + drag.size });
-  };
-
-  const endPriceDrag = (e) => {
-    if (!priceDrag.current || priceDrag.current.pointerId !== e.pointerId) return;
-    try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* capture may already be gone */ }
-    priceDrag.current = null;
-    setPriceDragging(false);
-  };
-
-  const hp = hover != null ? points[hover] : null;
+  // A synthetic figure's bar is a brick or a column, not a session: the
+  // readout names the date that completed it and the level it stands at.
+  const synthBar = synthetic && hover != null ? spec.series[0].data[hover.index] : null;
+  const hp = !cursorOn || drawMode || hover == null ? null
+    : synthetic
+      ? (synthBar ? { date: spec.labels?.get(synthBar.time), close: synthBar.close ?? synthBar.value, change: null } : null)
+      : points[hover.index];
   // Measured on the full loaded series, not the drawn window, so the first
   // points of a 1М chart still have their history behind them.
-  const relVol = hp ? relativeVolume(daily, hp.date, hp.turnover) : null;
-  const hx = hover != null ? xs(hover) : 0;
-  const ttRight = hover != null && hx > W * 0.62;
-
-  // Splits and bonus issues that fall inside the visible span. The prices either side are
-  // already in the same unit (the server restated the older half), but the day the share
-  // count changed is still worth naming — otherwise a reader checking a 2024 close against
-  // uzse.uz finds a different number and no explanation. An event before the first point
-  // (index 0) has nothing left to mark: the whole span is already post-event.
-  const eventMarks = (adjustments || [])
-    .map((a) => ({ ...a, i: points.findIndex((p) => String(p.date) >= String(a.ex_date)) }))
-    .filter((a) => a.i > 0);
-  const kindLabel = (kind) => kind === "bonus"
-    ? t("бонусная эмиссия", "bonus emissiya", "bonus issue")
-    : t("дробление", "aksiyalarni maydalash", "split");
-  const drawingSvgPoints = drawingPoints.map((point) => {
-    const i = points.findIndex((p) => String(p.date) === point.date);
-    return i < 0 ? null : { x: xs(i), y: ys(point.value) };
-  }).filter(Boolean);
+  const relVol = hp && !synthetic ? relativeVolume(daily, hp.date, hp.turnover) : null;
   const selectedCompare = new Set(compareTools?.selected || []);
   const hasDrawing = drawMode || drawingPoints.length > 0;
-  const hasChartOverlays = hasDrawing || maOn.ma20 || maOn.ma50 || selectedCompare.size > 0;
+  const hasChartOverlays = hasDrawing || maOn.ma20 || maOn.ma50 || selectedCompare.size > 0 || patternsWanted;
   const clearAllOverlays = () => {
     setDrawingPoints([]);
     setDrawMode(false);
     setMaOn({ ma20: false, ma50: false });
+    setPatternsOn({ chart: false, candle: false, cycle: false });
+    setSelectedPattern(null);
     compareTools?.onClear?.();
     setToolMenu(null);
     setHover(null);
   };
+  const kindLabel = (kind) => kind === "bonus"
+    ? t("бонусная эмиссия", "bonus emissiya", "bonus issue")
+    : t("дробление", "aksiyalarni maydalash", "split");
+  const visFrom = visible ? points[visible.from]?.date : null;
+  const visTo = visible ? points[visible.to]?.date : null;
+  const ttRight = hover && hover.point.x > (hover.width || 800) * 0.62;
 
   return (
     <div className="company-chart-wrap">
@@ -10352,10 +10814,10 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
                 aria-label={t(`Интервал: ${chartInterval}`, `Interval: ${chartInterval}`, `Interval: ${chartInterval}`)}
                 title={t("Интервал свечей", "Grafik intervali", "Chart interval")}
                 disabled={!historyNavigation}
-                onClick={() => setToolMenu((m) => m === "interval" ? null : "interval")}>{chartInterval}</button>
+                onClick={() => setToolMenu((m) => m === "interval" ? null : "interval")}>{chartInterval === "H" ? t("1ч", "1s", "1h") : chartInterval}</button>
               {toolMenu === "interval" && (
                 <div className="cpc-tool-menu" role="menu">
-                  {[["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
+                  {[["H", "Час", "Soat", "Hour"], ["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
                     <button key={key} type="button" role="menuitemradio" aria-checked={chartInterval === key}
                       className={chartInterval === key ? "active" : ""}
                       onClick={() => { setChartInterval(key); setToolMenu(null); }}>{t(ru, uz, en)} <span>{key}</span></button>
@@ -10396,7 +10858,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
                   ].map(([key, ru, uz, en]) => (
                     <button key={key} type="button" role="menuitemradio" aria-checked={chartType === key}
                       className={chartType === key ? "active" : ""}
-                      onClick={() => { setChartType(key); setDrawingPoints([]); setToolMenu(null); }}>{t(ru, uz, en)}</button>
+                      onClick={() => { setChartType(key); setToolMenu(null); }}>{t(ru, uz, en)}</button>
                   ))}
                 </div>
               )}
@@ -10433,6 +10895,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
               data-testid="company-chart-draw" aria-pressed={drawMode}
               aria-label={t("Линия тренда", "Trend chizig'i", "Trend line")}
               title={t("Линия тренда", "Trend chizig'i", "Trend line")}
+              disabled={synthetic}
               onClick={() => { setDrawMode((on) => !on); setToolMenu(null); setHover(null); }}>
               <CompanyChartToolIcon kind="draw" />
             </button>
@@ -10458,6 +10921,22 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
             </div>
 
             <div className="cpc-tool-slot">
+              <button type="button" className={`cpc-tool-btn ${patternsWanted ? "has-value" : ""} ${toolMenu === "patterns" ? "active" : ""}`}
+                data-testid="company-chart-patterns" aria-haspopup="menu" aria-expanded={toolMenu === "patterns"}
+                aria-label={t("Паттерны", "Patternlar", "Patterns")}
+                title={t("Паттерны", "Patternlar", "Patterns")}
+                onClick={() => setToolMenu((m) => m === "patterns" ? null : "patterns")}>
+                <CompanyChartToolIcon kind="patterns" />
+              </button>
+              {toolMenu === "patterns" && (
+                <div className="cpc-tool-menu cpc-tool-menu-right" role="menu">
+                  <PatternMenuItems patternsOn={patternsOn} setPatternsOn={setPatternsOn} sensitivity={sensitivity}
+                    setSensitivity={setSensitivity} available={patternsAvailable} lang={lang} variant="cpc" />
+                </div>
+              )}
+            </div>
+
+            <div className="cpc-tool-slot">
               <button type="button" className={`cpc-tool-btn ${toolMenu === "settings" ? "active" : ""}`}
                 data-testid="company-chart-settings" aria-haspopup="menu" aria-expanded={toolMenu === "settings"}
                 aria-label={t("Настройки графика", "Grafik sozlamalari", "Chart settings")}
@@ -10467,7 +10946,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
               </button>
               {toolMenu === "settings" && (
                 <div className="cpc-tool-menu cpc-tool-menu-right cpc-settings-menu">
-                  {[["grid", "Сетка", "To'r", "Grid"], ["fill", "Заливка", "To'ldirish", "Area fill"], ["lastPrice", "Последняя цена", "So'nggi narx", "Last price"], ["events", "События", "Voqealar", "Events"]].map(([key, ru, uz, en]) => (
+                  {[["grid", "Сетка", "To'r", "Grid"], ["fill", "Заливка", "To'ldirish", "Area fill"],
+                    ["lastPrice", "Последняя цена", "So'nggi narx", "Last price"], ["events", "События", "Voqealar", "Events"],
+                    ["volume", "Объём", "Hajm", "Volume"]].map(([key, ru, uz, en]) => (
                     <label key={key}>
                       <input type="checkbox" checked={chartPrefs[key]}
                         onChange={(event) => setChartPrefs((prefs) => ({ ...prefs, [key]: event.target.checked }))} />
@@ -10491,6 +10972,20 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </div>
       </div>
 
+      {model.hourBars && (
+        <p className="cpc-tier-note muted" data-testid="cpc-hourly-note">
+          {longIntraday === null
+            ? t("Загрузка часовых баров…", "Soatlik barlar yuklanmoqda…", "Loading hourly bars…")
+            : model.source.length
+              ? t(`Часовые бары — из ленты сделок биржи; хранятся с ${new Date(model.source[0].date.slice(0, 10)).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "2-digit" })}, раньше почасовых данных нет.`,
+                  `Soatlik barlar — birja bitimlar lentasidan; ${model.source[0].date.slice(0, 10)} dan saqlanadi.`,
+                  `Hourly bars come from the exchange's trade feed, stored from ${model.source[0].date.slice(0, 10)}; nothing hourly exists before that.`)
+              : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было.",
+                  "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan.",
+                  "No hourly bars for this security — it has not traded in the last 60 days.")}
+        </p>
+      )}
+
       {stepLine && (
         <p className="cpc-tier-note muted">
           {t("Цена показана ступенями — между сделками она не менялась",
@@ -10501,209 +10996,96 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </p>
       )}
 
-      {/* `height: auto` still derives the height from the viewBox — but the
-          viewBox height is now solved from the measured width, so the result is
-          `targetPx` at any column width. Everything expressed in viewBox units
-          (axis gutter, volume strip, type) renders at a size set by the WIDTH
-          and is unchanged by this; the whole of the extra height goes to the
-          price plot, which is the part worth more room. */}
-      <svg ref={attachChart} viewBox={`0 0 ${W} ${H}`}
-        className={`company-price-chart-svg ${historyNavigation ? "is-history-interactive" : ""} ${cursorOn ? "is-inspect" : ""} ${drawMode ? "is-drawing" : ""} ${priceDragging ? "is-panning" : ""}`}
-        data-chart-type={effectiveChartType} data-chart-interval={chartInterval}
-        style={{ width: "100%", height: "auto" }}
-        aria-label={historyNavigation
-          ? t("График истории цены. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
-              "Narx tarixi grafigi. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
-              "Price history chart. Ctrl and the wheel zoom; drag to browse history.")
-          : undefined}
-        onPointerDown={onPricePointerDown}
-        onPointerMove={onPricePointerMove}
-        onPointerUp={endPriceDrag}
-        onPointerCancel={endPriceDrag}
-        onPointerLeave={() => { if (!priceDrag.current) setHover(null); }}>
-        <defs>
-          <linearGradient id="cpcgrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id="cpcbaseline" x1="0" y1={priceTop} x2="0" y2={priceBot} gradientUnits="userSpaceOnUse">
-            <stop offset={`${baselineStop}%`} stopColor="#2fc584" />
-            <stop offset={`${baselineStop}%`} stopColor="#ee6a60" />
-          </linearGradient>
-        </defs>
+      <div className="cpc-plot">
+        <LwCanvas spec={spec} height={chartPx} lang={lang} grid={chartPrefs.grid} crosshair={cursorOn}
+          pan={!drawMode} viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
+          onHover={setHover}
+          onClick={onChartClick}
+          onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}
+          className={`company-price-chart ${cursorOn ? "is-inspect" : ""} ${drawMode ? "is-drawing" : ""}`}
+          data-chart-type={effectiveChartType} data-chart-interval={chartInterval}
+          data-series={spec.series.map((s) => s.key).join(",")}
+          data-trend-points={drawingPoints.length} data-grid={chartPrefs.grid ? "on" : "off"}
+          data-visible-bars={visible ? visible.to - visible.from + 1 : spec.series[0].data.length}
+          data-patterns={shownPatterns.length}
+          aria-label={historyNavigation
+            ? t("График истории цены. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
+                "Narx tarixi grafigi. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
+                "Price history chart. Ctrl and the wheel zoom; drag to browse history.")
+            : undefined} />
 
-        {/* Dashed horizontal grid, as in the reference. Full plot width, under
-            everything the reader is meant to look at. */}
-        {chartPrefs.grid && yLabels.map((tick, i) => (
-          <line key={i} className="cpc-grid-line" x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
-            stroke="currentColor" strokeOpacity="0.16" strokeDasharray="4 6" strokeWidth="0.8" />
-        ))}
-
-        {/* No fill under the line while comparing: the peers cross it, and a
-            tinted band under one of several lines reads as the chart's subject
-            rather than as one series among them. */}
-        {!cmpOn && effectiveChartType === "area" && chartPrefs.fill && <path className="cpc-area-fill" d={areaD} fill="url(#cpcgrad)" />}
-        {!cmpOn && effectiveChartType === "baseline" && (
-          <line x1={PAD.left} y1={baselineY} x2={W - PAD.right} y2={baselineY}
-            stroke="currentColor" strokeOpacity="0.28" strokeDasharray="4 4" />
+        {hp && (
+          <div className="cpc-tooltip" style={{
+            // Follows the pointer down the chart, then stops short of either
+            // end so the readout never hangs outside the panel that frames it.
+            top: `${Math.max(8, Math.min(hover.point.y - 40, chartPx - 150))}px`,
+            ...(ttRight ? { right: `calc(100% - ${hover.point.x - 12}px)` } : { left: `${hover.point.x + 14}px` }),
+          }}>
+            <div className="cpc-tt-date">{fmtDate(hp.date, true)}</div>
+            <div className="cpc-tt-row"><span>{synthetic ? t("Уровень", "Daraja", "Level") : t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
+            {lwOhlcOk(hp) && !synthetic && (
+              <>
+                <div className="cpc-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
+                <div className="cpc-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
+                <div className="cpc-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
+              </>
+            )}
+            {!synthetic && (
+              <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
+                <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
+              </div>
+            )}
+            {relVol != null && (
+              <div className="cpc-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
+                <b>{fmtRelVol(relVol, lang)}</b>
+              </div>
+            )}
+            {!synthetic && shownPatterns.filter((sig) => sig.signal_date === String(hp.date).slice(0, 10)).map((sig) => (
+              <div className="cpc-tt-row" key={`ttp${sig.type}`}>
+                <span style={{ color: sig.direction === "bullish" ? LW_UP : LW_DOWN }}>{sig.direction === "bullish" ? "↑" : "↓"} {patternName(sig.type, lang)}</span>
+              </div>
+            ))}
+            {hp.change != null && !synthetic && (
+              <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
+                <b style={{ color: hp.change >= 0 ? LW_UP : LW_DOWN }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
+              </div>
+            )}
+            {/* While comparing, the readout states what the lines do: the move
+                since the shared start, per security, with the peer's close
+                beside it so the percentage can be checked against a price. */}
+            {cmpOn && (
+              <div className="cpc-tt-cmp">
+                <div className="cpc-tt-row">
+                  <span style={{ color }}>{ticker || t("Эта бумага", "Bu qog'oz", "This security")}</span>
+                  <b style={{ color }}>{fmtPct(baseVals[hover.index])}</b>
+                </div>
+                {cmp.series.map((s) => {
+                  const pv = peerVolumeAt(s.volHist, String(hp.date).slice(0, 10));
+                  return (
+                    <React.Fragment key={`tt${s.ticker}`}>
+                      <div className="cpc-tt-row">
+                        <span style={{ color: s.color }}>{s.ticker}</span>
+                        <b style={{ color: s.color }}>
+                          {s.pct[hover.index] == null ? "—" : fmtPct(s.pct[hover.index])}
+                          {s.closes[hover.index] != null && (
+                            <span className="cpc-tt-cmp-price"> · {fmtFull(s.closes[hover.index])}</span>
+                          )}
+                        </b>
+                      </div>
+                      <div className="cpc-tt-row cpc-tt-volrow">
+                        <span>{t("объём", "hajm", "vol")}</span>
+                        <b>{pv
+                          ? `${fmtCompact(pv.turnover, lang)}${pv.rel != null ? ` · ${fmtRelVol(pv.rel, lang)}` : ""}`
+                          : "—"}</b>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
-        {/* Where the shared start sits — the line every percentage is measured
-            from, and the only value on that axis that is not an opinion. */}
-        {cmpOn && minP <= 0 && maxP >= 0 && (
-          <line x1={PAD.left} y1={ys(0)} x2={W - PAD.right} y2={ys(0)}
-            stroke="currentColor" strokeOpacity="0.35" strokeWidth="0.9" />
-        )}
-        {drawCandles ? points.map((point, i) => {
-          const valid = ohlcOk(point);
-          const candleColor = point.close >= (valid ? point.open : (i > 0 ? points[i - 1].close : point.close)) ? "#2fc584" : "#ee6a60";
-          const x = xs(i);
-          if (!valid) return (
-            <line key={`candle${i}`} className="cpc-candle" x1={x} y1={ys(point.close)} x2={x} y2={ys(point.close) + 1}
-              stroke={candleColor} strokeWidth={Math.max(1, candleWidth)} />
-          );
-          const openY = ys(point.open), closeY = ys(point.close);
-          return (
-            <g key={`candle${i}`} className="cpc-candle">
-              <line x1={x} y1={ys(point.high)} x2={x} y2={ys(point.low)} stroke={candleColor} strokeWidth="1" />
-              <rect x={x - candleWidth / 2} y={Math.min(openY, closeY)} width={candleWidth}
-                height={Math.max(1, Math.abs(closeY - openY))} fill={candleColor} />
-            </g>
-          );
-        }) : effectiveChartType === "bars" ? points.map((point, i) => {
-          const valid = ohlcOk(point);
-          const barColor = point.close >= (valid ? point.open : (i > 0 ? points[i - 1].close : point.close)) ? "#2fc584" : "#ee6a60";
-          const x = xs(i);
-          const half = Math.max(1.5, candleWidth * 0.55);
-          return valid ? (
-            <g key={`bar${i}`} className="cpc-ohlc-bar" stroke={barColor} strokeWidth="1.2">
-              <line x1={x} y1={ys(point.high)} x2={x} y2={ys(point.low)} />
-              <line x1={x - half} y1={ys(point.open)} x2={x} y2={ys(point.open)} />
-              <line x1={x} y1={ys(point.close)} x2={x + half} y2={ys(point.close)} />
-            </g>
-          ) : null;
-        }) : effectiveChartType === "columns" ? points.map((point, i) => {
-          const x = xs(i);
-          const y = ys(baseVals[i]);
-          const columnColor = i === 0 || baseVals[i] >= baseVals[i - 1] ? "#2fc584" : "#ee6a60";
-          return <rect key={`column${i}`} x={x - candleWidth / 2} y={Math.min(y, priceBot)}
-            width={candleWidth} height={Math.max(1, Math.abs(priceBot - y))} fill={columnColor} fillOpacity="0.82" />;
-        }) : effectiveChartType === "renko" ? renkoBricks.map((brick, i) => {
-          const top = Math.min(ys(brick.open), ys(brick.close));
-          const height = Math.max(1, Math.abs(ys(brick.open) - ys(brick.close)));
-          const brickColor = brick.direction > 0 ? "#2fc584" : "#ee6a60";
-          return <rect key={`renko${i}`} x={renkoX(i)} y={top} width={Math.max(1, renkoWidth)} height={height}
-            fill={brickColor} fillOpacity="0.2" stroke={brickColor} strokeWidth="1" />;
-        }) : effectiveChartType === "point_figure" ? pointFigureMarks.map((mark, i) => {
-          const x = PAD.left + ((i + 0.5) / Math.max(1, pointFigureMarks.length)) * innerW;
-          const y = ys(mark.value);
-          const size = Math.max(3, Math.min(7, innerW / Math.max(1, pointFigureMarks.length) * 0.3));
-          return mark.up ? (
-            <g key={`pf${i}`} stroke="#2fc584" strokeWidth="1.3">
-              <line x1={x - size} y1={y - size} x2={x + size} y2={y + size} />
-              <line x1={x + size} y1={y - size} x2={x - size} y2={y + size} />
-            </g>
-          ) : <circle key={`pf${i}`} cx={x} cy={y} r={size} fill="none" stroke="#ee6a60" strokeWidth="1.3" />;
-        }) : effectiveChartType === "kagi" ? points.slice(1).map((point, i) => {
-          const upSegment = baseVals[i + 1] >= baseVals[i];
-          return <path key={`kagi${i}`} d={`M${xs(i)},${ys(baseVals[i])} H${xs(i + 1)} V${ys(baseVals[i + 1])}`}
-            fill="none" stroke={upSegment ? "#2fc584" : "#ee6a60"} strokeWidth={upSegment ? "2.4" : "1.2"}
-            strokeLinejoin="miter" vectorEffect="non-scaling-stroke" />;
-        }) : (
-          <path className="cpc-price-line" d={lineD} fill="none" strokeWidth="2"
-            stroke={effectiveChartType === "baseline" ? "url(#cpcbaseline)" : color}
-            strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        )}
-
-        {/* An SVG path containing only `M` is intentionally invisible. The
-            one-point intraday session therefore gets an explicit mark, while
-            retaining the regular axis, tooltip, and recorded OHLC values. */}
-        {points.length === 1 && ["line", "area", "baseline"].includes(effectiveChartType) && (
-          <circle className="cpc-single-point" cx={xs(0)} cy={ys(baseVals[0])} r="4.5"
-            fill={color} stroke="var(--panel)" strokeWidth="2" />
-        )}
-
-        {cmpOn && cmp.series.map((s) => (
-          <path key={`cmp${s.ticker}`} className="cpc-compare-path" d={cmpPath(s.pct)} fill="none" stroke={s.color}
-            strokeWidth="1.6" strokeOpacity="0.95" strokeLinejoin="round" strokeLinecap="round"
-            vectorEffect="non-scaling-stroke" />
-        ))}
-
-        {ma20 && <path className="cpc-ma20" d={maPath(ma20)} fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeOpacity="0.9" />}
-        {ma50 && <path className="cpc-ma50" d={maPath(ma50)} fill="none" stroke="#a855f7" strokeWidth="1.5" strokeOpacity="0.9" />}
-
-        {yLabels.map((tick, i) => (
-          <text key={`yl${i}`} x={PAD.left - 6} y={tick.y + 4} textAnchor="end" fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
-        ))}
-        {/* Centred everywhere except at the ends, where half of "июнь 26 г."
-            would hang outside the viewBox and get clipped by the frame. */}
-        {xLabels.map((tick, i) => (
-          <text key={`xl${i}`} x={tick.x} y={H - 6}
-            textAnchor={tick.x < PAD.left + 26 ? "start" : tick.x > W - PAD.right - 26 ? "end" : "middle"}
-            fontSize="10" fill="currentColor" opacity="0.5">{tick.label}</text>
-        ))}
-
-        {/* ТЗ §6: on a step chart the points carry the day's volume in their
-            size, so a run of identical prices does not read as steady trading;
-            and a move that stopped exactly at the ±20 % daily limit is marked,
-            because it is a rule of the exchange, not a decision of the market.
-            Sized on TURNOVER, the same thing the readout now names — a marker
-            scaled by share count next to a tooltip quoting сум would encode two
-            different quantities under one word. */}
-        {!drawCandles && showPointMarks && points.map((p, i) => {
-          const share = maxVol > 0 ? (p.turnover || 0) / maxVol : 0;
-          const r = 1.6 + Math.sqrt(Math.max(share, 0)) * 3.4;
-          const prev = i > 0 ? points[i - 1].close : null;
-          const move = prev && prev > 0 ? ((p.close - prev) / prev) * 100 : null;
-          const atLimit = move != null && Math.abs(Math.abs(move) - 20) < 0.5;
-          return (
-            <g key={`pt${i}`}>
-              <circle cx={xs(i)} cy={ys(baseVals[i])} r={r} fill={color} fillOpacity="0.75" />
-              {atLimit && (
-                <rect x={xs(i) - 4.5} y={ys(baseVals[i]) - 4.5} width="9" height="9"
-                  fill="none" stroke="#fbbf24" strokeWidth="1.2">
-                  <title>{t("движение упёрлось в дневной лимит ±20 %",
-                            "harakat kunlik ±20 % limitga tayandi",
-                            "move hit the ±20 % daily limit")}</title>
-                </rect>
-              )}
-            </g>
-          );
-        })}
-
-        {chartPrefs.lastPrice && <circle className="cpc-last-price" cx={xs(points.length - 1)} cy={ys(baseVals[points.length - 1])} r="4" fill={color} />}
-        {chartPrefs.lastPrice && cmpOn && cmp.series.map((s) => {
-          const v = s.pct[s.pct.length - 1];
-          return v == null ? null
-            : <circle key={`cmpdot${s.ticker}`} cx={xs(points.length - 1)} cy={ys(v)} r="3.2" fill={s.color} />;
-        })}
-
-        {chartPrefs.events && eventMarks.map((m) => (
-          <line key={`ev${m.ex_date}`} x1={xs(m.i)} y1={priceTop} x2={xs(m.i)} y2={priceBot}
-            stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
-        ))}
-
-        {drawingSvgPoints.length === 2 && (
-          <line className="cpc-drawing-line" x1={drawingSvgPoints[0].x} y1={drawingSvgPoints[0].y}
-            x2={drawingSvgPoints[1].x} y2={drawingSvgPoints[1].y}
-            stroke="var(--accent)" strokeWidth="1.6" strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
-        )}
-        {drawingSvgPoints.map((point, i) => (
-          <circle key={`drawing${i}`} className="cpc-drawing-point" cx={point.x} cy={point.y} r="3.2"
-            fill="var(--panel)" stroke="var(--accent)" strokeWidth="1.5" />
-        ))}
-
-        {/* Crosshair */}
-        {cursorOn && hover != null && (
-          <>
-            <line x1={hx} y1={priceTop} x2={hx} y2={priceBot} stroke="currentColor" strokeOpacity="0.38" strokeDasharray="3 3" />
-            <circle cx={hx} cy={ys(baseVals[hover])} r="3.6" fill={color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
-            {cmpOn && cmp.series.map((s) => (s.pct[hover] == null ? null : (
-              <circle key={`cmphov${s.ticker}`} cx={hx} cy={ys(s.pct[hover])} r="3.2" fill={s.color}
-                stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
-            )))}
-          </>
-        )}
-      </svg>
+      </div>
 
       {hasChartOverlays && (
         <p className="cpc-draw-status" role="status">
@@ -10726,97 +11108,50 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </p>
       )}
 
-      {historyNavigation && points.length > 0 && (
-        <p className="cpc-history-help" data-testid="company-visible-range"
-          data-from={points[0].date} data-to={points[points.length - 1].date}>
+      {historyNavigation && !synthetic && visFrom && (
+        <p className="cpc-history-help" data-testid="company-visible-range" data-from={visFrom} data-to={visTo}>
           <span>
             {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
                "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
                "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
           </span>
-          <span className="cpc-history-dates">{fmtDate(points[0].date, true)} — {fmtDate(points[points.length - 1].date, true)}</span>
-          {priceViewChanged && (
-            <button type="button" className="cpc-history-reset" onClick={() => setPriceView(null)}>
+          <span className="cpc-history-dates">{fmtDate(visFrom, true)} — {fmtDate(visTo, true)}</span>
+          {visible?.changed && (
+            <button type="button" className="cpc-history-reset" onClick={() => setResetToken((n) => n + 1)}>
               {t("Сбросить", "Tiklash", "Reset")}
             </button>
           )}
         </p>
       )}
 
-      {cursorOn && hp && (
-        <div className="cpc-tooltip" style={{
-          // Follows the pointer down the chart, then stops short of either end
-          // so the readout never hangs outside the panel that frames it.
-          top: `${Math.max(8, Math.min(hoverY - 40, chartPx - 150))}px`,
-          ...(ttRight
-            ? { right: `calc(${((W - hx) / W) * 100}% + 12px)` }
-            : { left: `calc(${(hx / W) * 100}% + 12px)` }),
-        }}>
-          <div className="cpc-tt-date">{fmtDate(hp.date, true)}</div>
-          <div className="cpc-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
-          {ohlcOk(hp) && (
-            <>
-              <div className="cpc-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
-              <div className="cpc-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
-              <div className="cpc-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
-            </>
-          )}
-          <div className="cpc-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
-            <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
-          </div>
-          {relVol != null && (
-            <div className="cpc-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
-              <b>{fmtRelVol(relVol, lang)}</b>
-            </div>
-          )}
-          {hp.change != null && (
-            <div className="cpc-tt-row"><span>{t("Изм.", "O'zg.", "Chg")}</span>
-              <b style={{ color: hp.change >= 0 ? "#2fc584" : "#ee6a60" }}>{hp.change >= 0 ? "+" : ""}{fmtFull(hp.change)}</b>
-            </div>
-          )}
-          {/* While comparing, the readout states the same thing the lines do:
-              the move since the shared start, per security. The peer's close is
-              named beside it so the percentage can be checked against a price. */}
-          {cmpOn && (
-            <div className="cpc-tt-cmp">
-              <div className="cpc-tt-row">
-                <span style={{ color }}>{ticker || t("Эта бумага", "Bu qog'oz", "This security")}</span>
-                <b style={{ color }}>{fmtPct(baseVals[hover])}</b>
-              </div>
-              {cmp.series.map((s) => {
-                const pv = peerVolumeAt(s.volHist, hp.date);
-                return (
-                  <React.Fragment key={`tt${s.ticker}`}>
-                    <div className="cpc-tt-row">
-                      <span style={{ color: s.color }}>{s.ticker}</span>
-                      <b style={{ color: s.color }}>
-                        {s.pct[hover] == null ? "—" : fmtPct(s.pct[hover])}
-                        {s.closes[hover] != null && (
-                          <span className="cpc-tt-cmp-price"> · {fmtFull(s.closes[hover])}</span>
-                        )}
-                      </b>
-                    </div>
-                    {/* Raw volumes are each on their own scale; the «×N»
-                        multiple is the part that compares across securities. */}
-                    <div className="cpc-tt-row cpc-tt-volrow">
-                      <span>{t("объём", "hajm", "vol")}</span>
-                      <b>{pv
-                        ? `${fmtCompact(pv.turnover, lang)}${pv.rel != null ? ` · ${fmtRelVol(pv.rel, lang)}` : ""}`
-                        : "—"}</b>
-                    </div>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      {patternsWanted && (patternsAvailable || patternsOn.cycle ? (
+        <PatternList data={patternData} signals={shownPatterns} lang={lang} visibleFrom={visFrom} visibleTo={visTo}
+          families={{ chart: patternsAvailable && patternsOn.chart, candle: patternsAvailable && patternsOn.candle,
+                      cycle: patternsOn.cycle }}
+          selectedKey={selectedPattern}
+          onPick={(sig) => {
+            setSelectedPattern(patternKey(sig));
+            setFocus({ from: lwTime(sig.start_date) - 10 * 86400, to: lwTime(sig.exit_date || sig.signal_date) + 10 * 86400 });
+          }} />
+      ) : (
+        <p className="pattern-note muted" data-testid="pattern-list">
+          {t("Паттерны строятся по дневным свечам в сумах — без сравнения, недельных баров и синтетических видов.",
+             "Patternlar kunlik shamlarda quriladi — taqqoslash, haftalik barlar va sintetik turlarsiz.",
+             "Patterns are read off daily bars in сум — not while comparing, on weekly bars or synthetic types.")}
+        </p>
+      ))}
+
+      {synthetic && (
+        <p className="cpc-tier-note muted cpc-synthetic-note">
+          {t("Расчётный вид по ценам закрытия выбранного периода; значения фигур синтетические и не являются ценами сделок.",
+             "Tanlangan davr yopilish narxlari asosidagi hisobiy ko‘rinish; shakl qiymatlari sintetik va bitim narxlari emas.",
+             "Calculated from the period's closes; figure values are synthetic and are not traded prices.")}
+        </p>
       )}
 
-      {/* Two facts about a comparison that the chart cannot draw. The stored
-          quote history begins in Aug 2025, so a peer on a «Макс» chart moves
-          the shared start — and a security with no stored session inside the
-          window has no line at all. Both are stated, never implied by an
-          absence. */}
+      {/* Two facts about a comparison the chart cannot draw: the stored quote
+          history begins in Aug 2025, so a peer can move the shared start — and
+          a security with no stored session in the window has no line at all. */}
       {cmpOn && cmp.start && (
         <p className="cpc-tier-note muted">
           {t(`Сравнение считается с ${fmtDate(cmp.start, true)} — раньше сохранённых котировок нет; шкала показывает изменение в процентах от этого дня.`,
@@ -14015,114 +14350,6 @@ const AC_SYNTHETIC_TYPES = new Set(["kagi", "point_figure", "heikin_ashi", "renk
 const AC_OHLC_TYPES = new Set(["candle", "bars", "heikin_ashi"]);
 const AC_COMPARISON_TYPES = new Set(["line", "area", "baseline", "columns"]);
 
-function acHeikinAshi(points) {
-  let previous = null;
-  return points.map((point) => {
-    const source = [point.open, point.high, point.low, point.close].every((value) => Number.isFinite(value) && value > 0)
-      ? point : { ...point, open: point.close, high: point.close, low: point.close };
-    const close = (source.open + source.high + source.low + source.close) / 4;
-    const open = previous ? (previous.open + previous.close) / 2 : (source.open + source.close) / 2;
-    const next = { ...source, open, close, high: Math.max(source.high, open, close), low: Math.min(source.low, open, close) };
-    previous = next;
-    return next;
-  });
-}
-
-function acMovementBox(points) {
-  const moves = points.slice(1).map((point, i) => Math.abs(point.close - points[i].close)).filter((value) => value > 0).sort((a, b) => a - b);
-  if (moves.length) return moves[Math.floor(moves.length / 2)];
-  const closes = points.map((point) => point.close).filter(Number.isFinite);
-  return Math.max(0.01, (Math.max(...closes) - Math.min(...closes)) / 30 || closes[0] * 0.01 || 1);
-}
-
-function acRenko(points) {
-  if (!points.length) return { box: 1, bricks: [] };
-  const box = acMovementBox(points);
-  let level = points[0].close;
-  const bricks = [];
-  points.slice(1).forEach((point) => {
-    while (Math.abs(point.close - level) >= box && bricks.length < 400) {
-      const direction = point.close > level ? 1 : -1;
-      const next = level + direction * box;
-      bricks.push({ from: level, to: next, direction, date: point.date });
-      level = next;
-    }
-  });
-  return { box, bricks };
-}
-
-function acKagi(points) {
-  if (!points.length) return { box: 1, turns: [] };
-  const box = acMovementBox(points);
-  const turns = [{ value: points[0].close, direction: 0 }];
-  let extreme = points[0].close, direction = 0;
-  points.slice(1).forEach((point) => {
-    const price = point.close;
-    if (!direction && Math.abs(price - extreme) >= box) direction = price > extreme ? 1 : -1;
-    if ((direction >= 0 && price >= extreme) || (direction <= 0 && price <= extreme)) {
-      extreme = price;
-      turns[turns.length - 1] = { value: price, direction };
-    } else if (Math.abs(price - extreme) >= box) {
-      turns.push({ value: extreme, direction }, { value: price, direction: -direction });
-      direction *= -1;
-      extreme = price;
-    }
-  });
-  return { box, turns };
-}
-
-function acPointFigure(points) {
-  if (!points.length) return { box: 1, columns: [] };
-  const box = acMovementBox(points);
-  const columns = [];
-  let anchor = points[0].close;
-  points.slice(1).forEach((point) => {
-    const boxes = Math.floor(Math.abs(point.close - anchor) / box);
-    if (!boxes) return;
-    const direction = point.close > anchor ? 1 : -1;
-    const last = columns.at(-1);
-    if (!last || last.direction === direction) {
-      if (!last) columns.push({ direction, from: anchor, to: anchor + direction * boxes * box });
-      else if ((direction > 0 && point.close > last.to) || (direction < 0 && point.close < last.to)) last.to = anchor + direction * boxes * box;
-    } else if (boxes >= 3) {
-      columns.push({ direction, from: anchor + direction * box, to: anchor + direction * boxes * box });
-    }
-    anchor = columns.at(-1)?.to ?? anchor;
-  });
-  return { box, columns: columns.slice(-120) };
-}
-
-// The candle chart is the one view where horizontal density is part of the
-// question: a reader needs to open the bars up, then move back through the
-// archive without guessing a succession of date ranges. Keep enough bars in
-// view that the resulting shape is still a chart rather than a handful of
-// disconnected sessions.
-const AC_MIN_CANDLE_POINTS = 12;
-const acNearestInt = (value) => (value < 0
-  ? Math.ceil(value - 0.5)
-  : Math.floor(value + 0.5));
-
-function acClampView(view, fallback, total) {
-  if (total <= 0) return { start: 0, end: 0 };
-  const source = view || fallback || { start: 0, end: total };
-  const size = Math.max(1, Math.min(total, acNearestInt(source.end - source.start)));
-  const start = Math.max(0, Math.min(total - size, acNearestInt(source.start)));
-  return { start, end: start + size };
-}
-
-function acZoomView(view, total, anchorRatio, zoomIn, minimumPoints = AC_MIN_CANDLE_POINTS) {
-  const size = view.end - view.start;
-  const minSize = Math.min(minimumPoints, total);
-  const nextSize = Math.max(minSize, Math.min(total,
-    acNearestInt(size * (zoomIn ? 0.8 : 1.25))));
-  if (nextSize === size) return view;
-  const ratio = Math.max(0, Math.min(1, anchorRatio));
-  const anchor = view.start + ratio * Math.max(0, size - 1);
-  const start = Math.max(0, Math.min(total - nextSize,
-    acNearestInt(anchor - ratio * Math.max(0, nextSize - 1))));
-  return { start, end: start + nextSize };
-}
-
 // Windows are CALENDAR DAYS, never bars — see lib/indicators.js for why that
 // is a correctness matter here and not a preference. The labels say «дн.» so
 // the screen states the same window the calculation used.
@@ -14401,7 +14628,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [type, setType] = React.useState(initial?.type || "line");
   // The bar each point stands for: a session, or a week / month rolled up
   // from the sessions (last close, high/low envelope, summed turnover).
-  const [barInterval, setBarInterval] = React.useState(["W", "M"].includes(initial?.interval) ? initial.interval : "D");
+  const [barInterval, setBarInterval] = React.useState(["H", "W", "M"].includes(initial?.interval) ? initial.interval : "D");
   const [indicators, setIndicators] = React.useState(() => new Set(initial?.indicators || []));
   const [finFields, setFinFields] = React.useState(initial?.fin || []);
   const [compareTickers, setCompareTickers] = React.useState(initial?.compare || []);
@@ -14438,7 +14665,12 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     if (!isFullscreen || typeof document === "undefined") return undefined;
     const previousOverflow = document.body.style.overflow;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setIsFullscreen(false);
+      if (event.key !== "Escape") return;
+      // Browsers leave native full screen on Esc themselves; one that did not
+      // (a headless or embedded one) would keep the chart in the top layer,
+      // over the whole page, after the workspace had already restored.
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
     };
     document.body.style.overflow = "hidden";
     document.body.classList.add("advanced-chart-fullscreen");
@@ -14472,10 +14704,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [fin, setFin] = React.useState(null);
   const [cmpSeries, setCmpSeries] = React.useState({});
   const [cmpLoading, setCmpLoading] = React.useState(false);
-  const [candleView, setCandleView] = React.useState(null);
-  const [candleDragging, setCandleDragging] = React.useState(false);
-  const candleDrag = React.useRef(null);
-  const candleWheelHandler = React.useRef(null);
 
   const custom = Boolean(span.from && span.to);
   // How much history to ask for. A custom span asks back to its own start; the
@@ -14513,18 +14741,22 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // 1Д and 1Н draw the same hourly bars as the company chart (/api/intraday),
   // so both surfaces show the same thing for the same button.
   const hourlyRange = !custom && Boolean(chartRange(range).hourly);
+  // «Час» on a longer range: every hourly bar the bank holds (it keeps 60
+  // days, and starts the day the collector first stored them), opened on the
+  // range the button asked for.
+  const hourBars = !custom && !hourlyRange && barInterval === "H";
   const [intraday, setIntraday] = React.useState(null);
   React.useEffect(() => {
-    if (!up || !hourlyRange) return undefined;
+    if (!up || !(hourlyRange || hourBars)) return undefined;
     let alive = true;
     setIntraday(null);
-    fetch(`/api/intraday/${encodeURIComponent(up)}?days=8`)
+    fetch(`/api/intraday/${encodeURIComponent(up)}?days=${hourBars ? 60 : 8}`)
       .then((r) => r.json())
       .then((d) => { if (alive) setIntraday(d.ok ? (d.points || []) : []); })
       .catch(() => { if (alive) setIntraday([]); });
     return () => { alive = false; };
-  }, [up, hourlyRange]);
-  const busy = loading || (hourlyRange && intraday === null);
+  }, [up, hourlyRange, hourBars]);
+  const busy = loading || ((hourlyRange || hourBars) && intraday === null);
 
   // Only `quality` is read here: whether this security trades often enough for
   // a candle to describe a day rather than invent one (ТЗ §6). The rest of the
@@ -14653,55 +14885,40 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
   }, [daily, custom, span.from, span.to, range, hourlyRange, sessionRange, hourlyBars, peersWanted]);
 
-  // A preset defines the view we open with, not a wall around the data.
-  // The full fetched archive stays behind it so a zoomed view can be dragged
+  // A preset defines the view we open with, not a wall around the data: the
+  // whole fetched archive stays on the canvas, so a zoomed view can be dragged
   // into earlier history. A custom range remains a hard boundary because the
   // dates were an explicit request rather than a convenient zoom preset.
-  const candleSource = custom ? windowed : daily;
-  const defaultCandleView = React.useMemo(() => {
-    if (!candleSource.length) return { start: 0, end: 0 };
-    if (custom || !windowed.length) return { start: 0, end: candleSource.length };
-    const first = String(windowed[0].date);
-    const found = candleSource.findIndex((p) => String(p.date) >= first);
-    return { start: found < 0 ? 0 : found, end: candleSource.length };
-  }, [candleSource, custom, windowed]);
-  const resolvedCandleView = acClampView(candleView, defaultCandleView, candleSource.length);
   const candlesAllowed = quality ? quality.candles_enabled !== false : true;
-  const chartNavigation = !custom && !hourlyRange && compareTickers.length === 0
-    && (type !== "candle" || candlesAllowed);
-  const visibleWindow = chartNavigation
-    ? candleSource.slice(resolvedCandleView.start, resolvedCandleView.end)
-    : windowed;
-
-  React.useEffect(() => {
-    setCandleView(null);
-    candleDrag.current = null;
-    setCandleDragging(false);
-    setDrawPoints([]);
-  }, [up, range, span.from, span.to, type]);
-
-  // Indicators run on the WHOLE fetched series, not on the visible window: a
-  // 200-day average at the left edge of a one-month view is a real average of
-  // the two hundred days before it, not a truncated one.
-  const cal = React.useMemo(() => indCalendar(daily), [daily]);
-
+  const historyNavigation = !custom && !hourlyRange;
   const cmpLines = React.useMemo(() => compareTickers.map((tk, i) => ({
     ticker: tk,
     color: QC_COLORS[i % QC_COLORS.length],
     points: cmpSeries[tk] || null,
   })), [compareTickers, cmpSeries]);
-  const cmp = React.useMemo(() => (sessionRange ? null : buildCompareSeries(visibleWindow, cmpLines)),
-    [sessionRange, visibleWindow, cmpLines]);
-  const cmpOn = Boolean(cmp && cmp.series.length);
   // A comparison is aligned session by session, so it stays daily; the hourly
   // ranges already have their own bar.
-  const effInterval = cmpOn || hourlyRange ? "D" : barInterval;
-  const hasHourly = visibleWindow.some((p) => String(p.date).includes("T"));
-  const displayWindow = React.useMemo(
-    () => aggregateCompanyPricePoints(visibleWindow, effInterval), [visibleWindow, effInterval]);
-
-  const points = cmpOn ? cmp.points : displayWindow;
-  const dates = React.useMemo(() => points.map((p) => String(p.date)), [points]);
+  const peersLoaded = !sessionRange && cmpLines.some((c) => c.points && c.points.length);
+  const effInterval = peersLoaded || hourlyRange ? "D" : barInterval;
+  const source = React.useMemo(() => {
+    if (effInterval === "H") return lwUniqueByTime(hourlyBars);
+    return lwUniqueByTime(historyNavigation
+      ? aggregateCompanyPricePoints(daily, effInterval)
+      : aggregateCompanyPricePoints(windowed, effInterval));
+  }, [historyNavigation, daily, windowed, effInterval, hourlyBars]);
+  const rangeWindow = React.useMemo(() => {
+    if (effInterval === "H") {
+      // The range's window, cut to where hourly bars exist at all.
+      const from = String(windowed[0]?.date || "");
+      const inRange = source.filter((p) => String(p.date) >= from);
+      return inRange.length ? inRange : source;
+    }
+    return historyNavigation ? aggregateCompanyPricePoints(windowed, effInterval) : source;
+  }, [historyNavigation, windowed, effInterval, source]);
+  const cmp = React.useMemo(() => (sessionRange || effInterval === "H" ? null
+    : buildCompareAligned(source, cmpLines, rangeWindow[0]?.date)), [sessionRange, effInterval, source, cmpLines, rangeWindow]);
+  const cmpOn = Boolean(cmp && cmp.series.length);
+  const hasHourly = source.some((p) => String(p.date).includes("T"));
 
   // A comparison is a percent question, so the price pane answers in percent —
   // and a candle has no meaning on a rebased axis. The type control says so
@@ -14710,6 +14927,36 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // ТЗ §6: candles are only drawn where a day HAS a body worth drawing.
   const stepLine = quality ? quality.candles_enabled === false : false;
   const drawType = (AC_OHLC_TYPES.has(effType) && !candlesAllowed) ? "line" : effType;
+  const synthetic = ["kagi", "point_figure", "renko"].includes(drawType);
+  // A synthetic figure is built from the period's closes and has no calendar.
+  const points = synthetic ? rangeWindow : source;
+  const n = points.length;
+  const dates = React.useMemo(() => points.map((p) => String(p.date)), [points]);
+  const baseVals = React.useMemo(() => (cmpOn ? cmp.basePct : points.map((p) => p.close)), [cmpOn, cmp, points]);
+  const toScale = React.useCallback((price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price), [cmpOn, cmp]);
+
+  const [visible, setVisible] = React.useState(null);
+  const [resetToken, setResetToken] = React.useState(0);
+  const [focus, setFocus] = React.useState(null);
+
+  // Patterns: daily sessions in сумы only, as on the company chart.
+  const [patternsOn, setPatternsOn] = React.useState({ chart: false, candle: false, cycle: false });
+  const [sensitivity, setSensitivity] = React.useState("medium");
+  const [selectedPattern, setSelectedPattern] = React.useState(null);
+  React.useEffect(() => { setSelectedPattern(null); }, [up, sensitivity]);
+  const patternsWanted = patternsOn.chart || patternsOn.candle || patternsOn.cycle;
+  const patternsAvailable = !synthetic && !cmpOn && effInterval === "D" && !hourlyRange;
+  const patternData = usePatterns(up, patternsWanted, sensitivity);
+  const shownPatterns = React.useMemo(() => (patternsAvailable && patternData?.signals
+    ? patternData.signals.filter((s) => (s.family === "chart" ? patternsOn.chart : patternsOn.candle)) : []),
+  [patternsAvailable, patternData, patternsOn]);
+  const patternLabels = Boolean(visible) && visible.to - visible.from <= 300;
+  React.useEffect(() => { setDrawPoints([]); }, [up, range, span.from, span.to, type, effInterval, cmpKey]);
+
+  // Indicators run on the WHOLE fetched series, not on the visible window: a
+  // 200-day average at the left edge of a one-month view is a real average of
+  // the two hundred days before it, not a truncated one.
+  const cal = React.useMemo(() => indCalendar(daily), [daily]);
 
   const ind = React.useMemo(() => {
     if (!cal.days.length) return {};
@@ -14756,30 +15003,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       empty: !series,
     };
   }), [finFields, fin, dates]);
-
-  // ── Geometry ─────────────────────────────────────────────────────────────
-  const [box, setBox] = React.useState({ w: 0, h: 0, view: 0 });
-  const boxNode = React.useRef(null);
-  const roRef = React.useRef(null);
-  const measure = React.useCallback(() => {
-    const n = boxNode.current;
-    if (!n || typeof window === "undefined") return;
-    const r = n.getBoundingClientRect();
-    setBox({ w: Math.round(r.width), h: Math.round(r.height), view: window.innerHeight });
-  }, []);
-  const attach = React.useCallback((node) => {
-    if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
-    boxNode.current = node;
-    if (!node) return;
-    measure();
-    if (typeof ResizeObserver !== "undefined") {
-      roRef.current = new ResizeObserver(measure);
-      roRef.current.observe(node);
-    }
-  }, [measure]);
-
-  const [hover, setHover] = React.useState(null);
-  const [pointer, setPointer] = React.useState({ x: 0, y: 0 });
 
   const toggleIndicator = (key) => setIndicators((cur) => {
     const next = new Set(cur);
@@ -14850,7 +15073,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     ? { v: marketRow.changeValue, p: marketRow.changePercent } : null;
   // What the VIEW did, which is not what the day did — the reference states
   // both, and on a range button they are different questions.
-  const changeBase = cmpOn ? points : visibleWindow;
+  const changeBase = visible && !synthetic ? points.slice(visible.from, visible.to + 1) : rangeWindow;
   const windowChange = changeBase.length >= 2 && changeBase[0].close > 0
     ? ((changeBase[changeBase.length - 1].close / changeBase[0].close) - 1) * 100 : null;
 
@@ -14874,249 +15097,231 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const menuPanel = (key, children) => (menu === key
     ? <div className="ac-menu" onMouseLeave={() => setMenu(null)}>{children}</div> : null);
 
-  // ── Drawing ──────────────────────────────────────────────────────────────
+  // ── The canvas ───────────────────────────────────────────────────────────
   const GAP = 12;
-  // Volume needs enough of its own pane to be readable. UZSE sessions often
-  // contain one block trade that is orders of magnitude larger than normal
-  // turnover, so using the absolute maximum would flatten every other bar.
-  const VOL_H = 160;
+  // Volume needs enough of its own pane to be readable.
+  const VOL_H = 130;
   const SUB_H = 92;
-  const subPanes = [
+  const subPanes = React.useMemo(() => [
     ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
     ...(indicators.has("macd") ? [{ key: "macd" }] : []),
     ...(indicators.has("stoch") ? [{ key: "stoch" }] : []),
     ...finPanes.map((f) => ({ key: `fin:${f.field}`, fin: f })),
-  ];
+  ], [indicators, finPanes]);
+  const [viewH, setViewH] = React.useState(() => (typeof window === "undefined" ? 900 : window.innerHeight));
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => setViewH(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   // The panel GROWS with what is on it. A fixed height would take an
   // oscillator's ninety pixels out of the price pane, which is the one pane
   // that was the reason to open this page.
-  const plotH = Math.max(420, Math.round((box.view || 900) * 0.62))
-    + subPanes.length * (SUB_H + GAP);
-  const W = Math.max(320, box.w || 900);
-  const H = Math.max(320, box.h || plotH);
-  // The legend floats over the top-left of the price pane; without the extra
-  // gutter the first candles are drawn underneath it.
-  const legendCount = compareTickers.length + indicators.size + finFields.length;
-  const PAD = { top: legendCount ? 34 : 10, right: 66, bottom: 26, left: 10 };
-  const innerW = W - PAD.left - PAD.right;
-  const stackH = VOL_H + subPanes.length * (SUB_H + GAP);
-  const priceTop = PAD.top;
-  const priceBot = Math.max(priceTop + 80, H - PAD.bottom - stackH - GAP);
-  const volTop = priceBot + GAP;
-  const volBot = volTop + VOL_H;
-  const subTop = (i) => volBot + GAP + i * (SUB_H + GAP);
+  const plotH = Math.max(420, Math.floor(viewH * 0.62)) + subPanes.length * (SUB_H + GAP);
 
-  const n = points.length;
-  const xs = (i) => PAD.left + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
-  const gapPx = n > 1 ? innerW / (n - 1) : innerW;
+  const isUp = n >= 2 && baseVals[n - 1] >= (cmpOn ? 0 : (rangeWindow[0]?.close ?? baseVals[0]));
+  const priceColor = cmpOn ? LW_UP : isUp ? LW_UP : LW_DOWN;
 
-  const ohlcOk = (p) => p.open > 0 && p.high > 0 && p.low > 0 && p.close > 0
-    && p.low <= Math.min(p.open, p.close) && Math.max(p.open, p.close) <= p.high;
+  const spec = React.useMemo(() => {
+    if (n < 2) return null;
+    const tt = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+    const times = points.map((p) => lwTime(p.date));
+    const priceFormat = cmpOn ? lwPercentFormat(lang) : lwPriceFormatFor(points.at(-1).close, lang);
+    const lineType = stepLine ? LwLineType.WithSteps : LwLineType.Simple;
+    const valueData = points.map((p, i) => ({ time: times[i], value: baseVals[i] }));
+    const baseLevel = cmpOn ? 0 : (rangeWindow[0]?.close ?? baseVals[0]);
+    const series = [];
+    const markers = synthetic ? [] : adjustments
+      .map((a) => ({ i: points.findIndex((p) => String(p.date) >= String(a.ex_date)), kind: a.kind }))
+      .filter((a) => a.i > 0)
+      .map((a) => ({ time: times[a.i], position: "aboveBar", color: "#8b82f0", shape: "arrowDown",
+        text: a.kind === "bonus" ? (lang === "ru" ? "Бонус" : "Bonus") : (lang === "ru" ? "Сплит" : "Split") }));
+    const trend = drawPoints.map((d) => ({ time: d.time, value: d.value }));
+    let labels = null;
 
-  // What the price pane measures: сумы, or percent from the shared start when
-  // a peer is on the chart.
-  const baseVals = cmpOn ? cmp.basePct : points.map((p) => p.close);
-  const toScale = (price) => (cmpOn ? (price / cmp.base0 - 1) * 100 : price);
-  const heikinPoints = React.useMemo(() => acHeikinAshi(points), [points]);
-  const candleDrawPoints = drawType === "heikin_ashi" ? heikinPoints : points;
-  const drawCandles = ["candle", "heikin_ashi"].includes(drawType) && !cmpOn;
-  const renko = React.useMemo(() => acRenko(points), [points]);
-  const kagi = React.useMemo(() => acKagi(points), [points]);
-  const pointFigure = React.useMemo(() => acPointFigure(points), [points]);
-
-  const priceExtent = () => {
-    const vals = [];
-    points.forEach((p, i) => {
-      const candlePoint = candleDrawPoints[i];
-      if (drawCandles && ohlcOk(candlePoint)) { vals.push(toScale(candlePoint.high)); vals.push(toScale(candlePoint.low)); }
-      else vals.push(baseVals[i]);
-    });
-    if (drawType === "renko") renko.bricks.forEach((brick) => vals.push(brick.from, brick.to));
-    if (drawType === "kagi") kagi.turns.forEach((turn) => vals.push(turn.value));
-    if (drawType === "point_figure") pointFigure.columns.forEach((column) => vals.push(column.from, column.to));
-    if (cmpOn) cmp.series.forEach((s) => s.pct.forEach((v) => { if (v != null) vals.push(v); }));
-    ["sma50", "sma200", "ema50", "ema200"].forEach((k) => {
-      (ind[k] || []).forEach((v) => { if (v != null) vals.push(toScale(v)); });
-    });
-    if (ind.bb) {
-      ind.bb.upper.forEach((v) => { if (v != null) vals.push(toScale(v)); });
-      ind.bb.lower.forEach((v) => { if (v != null) vals.push(toScale(v)); });
-    }
-    const lo = Math.min(...vals), hi = Math.max(...vals);
-    return Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : [0, 1];
-  };
-  const [minP, maxP] = n ? priceExtent() : [0, 1];
-  const rangeP = maxP - minP || Math.abs(maxP) || 1;
-  const ys = (v) => priceTop + (1 - (v - minP) / rangeP) * (priceBot - priceTop);
-
-  const niceStep = (spanV, count) => {
-    const raw = spanV / count;
-    const mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
-    const norm = (raw || 1) / mag;
-    return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
-  };
-  const yLabels = [];
-  {
-    const step = niceStep(rangeP, 5);
-    // Same rule as the company chart: enough decimals that neighbouring
-    // gridlines never print the same number (a 0.005 step at two decimals did).
-    const dec = Math.max(2, Math.min(6, Math.ceil(-Math.log10(step))));
-    const fmtY = (v) => (v == null || !Number.isFinite(v) ? "—"
-      : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: dec }));
-    const fmtAxisVal = cmpOn ? fmtPctVal : fmtY;
-    for (let v = Math.ceil(minP / step) * step; v <= maxP + step * 1e-9; v += step) {
-      yLabels.push({ y: ys(v), label: fmtAxisVal(v) });
-    }
-  }
-
-  const xLabels = [];
-  {
-    const withYear = (chartRangeSpan(range) || 12) >= 12 || custom;
-    const spanMonths = chartRangeSpan(range) || 12;
-    if (hourlyRange) {
-      // 1Д labels every hour; 1Н labels each day once.
-      let previousDay = null;
-      points.forEach((point, i) => {
-        const day = String(point.date).slice(0, 10);
-        if (sessionRange) {
-          xLabels.push({ x: xs(i), label: new Date(point.date).toLocaleTimeString(dateLocale, { hour: "2-digit", minute: "2-digit" }) });
-        } else if (day !== previousDay) {
-          previousDay = day;
-          xLabels.push({ x: xs(i), label: fmtDate(day) });
-        }
+    if (synthetic) {
+      const syn = lwSyntheticSeries(drawType, points);
+      labels = syn.labels;
+      series.push({
+        key: "price", kind: syn.kind, data: syn.data,
+        options: syn.kind === "line"
+          ? { lineType: LwLineType.WithSteps, lineWidth: 2, priceFormat }
+          : drawType === "point_figure"
+            ? { priceFormat, upColor: "rgba(0,0,0,0)", downColor: "rgba(0,0,0,0)", borderVisible: false, wickVisible: false }
+            : { priceFormat, upColor: LW_UP_FILL, downColor: LW_DOWN_FILL, borderUpColor: LW_UP, borderDownColor: LW_DOWN, wickVisible: false },
+        glyphs: syn.glyphs ? { columns: syn.glyphs, box: syn.box } : null,
       });
-    } else if (spanMonths <= 12) {
-      let previousMonth = null;
-      points.forEach((point, i) => {
-        const month = String(point.date).slice(0, 7);
-        if (month === previousMonth) return;
-        previousMonth = month;
-        xLabels.push({ x: xs(i), label: fmtDate(point.date, true) });
+    } else if (["candle", "heikin_ashi", "bars"].includes(drawType)) {
+      const src = drawType === "heikin_ashi" ? lwHeikinAshi(points) : points;
+      series.push({
+        key: "price", kind: drawType === "bars" ? "bar" : "candle",
+        data: src.map((p, i) => lwOhlcBar(p, times[i])),
+        options: drawType === "bars"
+          ? { priceFormat, upColor: LW_UP, downColor: LW_DOWN, thinBars: false }
+          : { priceFormat, upColor: LW_UP, downColor: LW_DOWN, borderVisible: false, wickUpColor: LW_UP, wickDownColor: LW_DOWN },
+        markers, trend,
+      });
+    } else if (drawType === "columns") {
+      series.push({
+        key: "price", kind: "histogram",
+        data: valueData.map((d, i) => ({ ...d, color: i && d.value < valueData[i - 1].value ? LW_DOWN : LW_UP })),
+        options: { priceFormat }, markers, trend,
+      });
+    } else if (drawType === "baseline") {
+      series.push({
+        key: "price", kind: "baseline", data: valueData,
+        options: { priceFormat, lineType, lineWidth: 2, baseValue: { type: "price", price: baseLevel },
+          topLineColor: LW_UP, bottomLineColor: LW_DOWN,
+          topFillColor1: LW_UP_FILL, topFillColor2: LW_UP_FILL_FAINT,
+          bottomFillColor1: LW_DOWN_FILL_FAINT, bottomFillColor2: LW_DOWN_FILL },
+        markers, trend,
+      });
+    } else if (drawType === "area" && !cmpOn) {
+      series.push({
+        key: "price", kind: "area", data: valueData,
+        options: { priceFormat, lineType, lineColor: priceColor, lineWidth: 2,
+          topColor: isUp ? LW_UP_FILL : LW_DOWN_FILL, bottomColor: isUp ? LW_UP_FILL_FAINT : LW_DOWN_FILL_FAINT },
+        markers, trend,
       });
     } else {
-      const step = Math.max(1, Math.floor(n / Math.max(2, Math.floor(innerW / 110))));
-      for (let i = 0; i < n; i += step) {
-        xLabels.push({ x: xs(i), label: withYear ? fmtDate(points[i].date, true) : fmtDate(points[i].date) });
-      }
+      series.push({
+        key: "price", kind: "line", data: valueData,
+        options: { priceFormat, lineType, color: priceColor, lineWidth: 2 }, markers, trend,
+      });
     }
-  }
 
-  const linePath = (vals, toY) => {
-    let d = "", started = false;
-    vals.forEach((v, i) => {
-      if (v == null || !Number.isFinite(v)) { started = false; return; }
-      d += `${started ? "L" : "M"}${xs(i).toFixed(1)},${toY(v).toFixed(1)}`;
-      started = true;
-    });
-    return d;
-  };
-  const stepPath = (vals, toY) => {
-    let d = "", prev = null;
-    vals.forEach((v, i) => {
-      if (v == null || !Number.isFinite(v)) return;
-      const x = xs(i).toFixed(1);
-      if (prev == null) { d += `M${x},${toY(v).toFixed(1)}`; } else {
-        d += ` L${x},${toY(prev).toFixed(1)} L${x},${toY(v).toFixed(1)}`;
+    if (!synthetic) {
+      const overlay = (key, values, color, extra = {}) => series.push({
+        key, kind: "line",
+        data: values.map((v, i) => (v == null ? { time: times[i] } : { time: times[i], value: toScale(v) })),
+        options: { color, lineWidth: 1.4, priceLineVisible: false, lastValueVisible: false,
+          crosshairMarkerVisible: false, priceFormat, ...extra },
+      });
+      if (ind.bb) {
+        overlay("bb:upper", ind.bb.upper, "rgba(20,184,166,0.75)", { lineWidth: 1 });
+        overlay("bb:lower", ind.bb.lower, "rgba(20,184,166,0.75)", { lineWidth: 1 });
+        overlay("bb:mid", ind.bb.mid, "rgba(20,184,166,0.5)", { lineWidth: 1, lineStyle: 2 });
       }
-      prev = v;
-    });
-    return d;
+      ["sma50", "sma200", "ema50", "ema200"].forEach((k) => {
+        if (ind[k]) overlay(k, ind[k], AC_INDICATORS.find((d) => d.key === k).color);
+      });
+      if (cmpOn) {
+        cmp.series.forEach((s) => series.push({
+          key: `cmp:${s.ticker}`, kind: "line",
+          data: s.pct.map((v, i) => (v == null ? { time: times[i] } : { time: times[i], value: v })),
+          options: { color: s.color, lineWidth: 1.6, priceLineVisible: false, lastValueVisible: true, priceFormat },
+        }));
+      }
+
+      // Volume. Not decoration: on this market a move worth 40 000 сум and a
+      // move worth 400 млн are different events, and the price line cannot
+      // tell them apart. Money rather than share count, so a 2 сум share and a
+      // 23 000 сум one are on the same scale. A fourth-root display keeps small
+      // sessions readable beside rare block trades (the readout keeps the exact
+      // turnover); a session with no published volume keeps a neutral stub, so
+      // a gap reads as «no trades», not as a rendering bug.
+      const volumeValues = points.map((p) => p.turnover || 0).filter((v) => v > 0).sort((a, b) => a - b);
+      const volumeScale = volumeValues.length
+        ? Math.max(1, volumeValues[Math.min(volumeValues.length - 1, Math.floor((volumeValues.length - 1) * 0.95))])
+        : 1;
+      series.push({
+        key: "volume", kind: "histogram", pane: 1,
+        data: points.map((p, i) => {
+          const v = p.turnover || 0;
+          if (!v) return { time: times[i], value: 8, color: "rgba(127,127,127,0.35)" };
+          const upDay = i > 0 ? p.close >= points[i - 1].close : true;
+          return { time: times[i], value: Math.max(20, Math.pow(Math.min(1, v / volumeScale), 0.25) * 100),
+            color: upDay ? "rgba(47,197,132,0.9)" : "rgba(238,106,96,0.9)" };
+        }),
+        options: { priceLineVisible: false, lastValueVisible: false, priceFormat: lwCustomFormat(() => "") },
+        // The axis stays (it prints nothing): hiding a pane's only price axis
+        // trips the library's layout pass on a fresh canvas.
+        scale: { scaleMargins: { top: 0.12, bottom: 0 } },
+      });
+    }
+
+    if (shownPatterns.length) {
+      applyPatternOverlay(series, patternOverlay(shownPatterns, times, lang, patternLabels,
+        shownPatterns.find((sig) => patternKey(sig) === selectedPattern) || null));
+    }
+
+    const panes = synthetic ? [] : [{
+      height: VOL_H,
+      title: `${tt("Объём", "Hajm", "Volume")} · ${fmtCompact(Math.max(1, ...points.map((p) => p.turnover || 0)), lang)} ${tt("сум", "so'm", "UZS")}`,
+    }];
+    if (!synthetic) {
+      subPanes.forEach((pane, pi) => {
+        const paneIndex = 2 + pi;
+        const line = (key, values, color, extra = {}) => series.push({
+          key, kind: "line", pane: paneIndex,
+          data: values.map((v, i) => (v == null ? { time: times[i] } : { time: times[i], value: v })),
+          options: { color, lineWidth: 1.4, priceLineVisible: false, lastValueVisible: false, ...extra },
+        });
+        const fixed = (lo, hi) => ({ autoscaleInfoProvider: () => ({ priceRange: { minValue: lo, maxValue: hi } }) });
+        if (pane.key === "rsi") {
+          line("rsi", ind.rsi || [], "#22d3ee", fixed(0, 100));
+          series.at(-1).lines = [{ price: 30 }, { price: 70 }];
+          panes.push({ height: SUB_H, title: "RSI 14" });
+        } else if (pane.key === "stoch") {
+          line("stoch:k", ind.stoch?.k || [], "#a3e635", fixed(0, 100));
+          series.at(-1).lines = [{ price: 20 }, { price: 80 }];
+          line("stoch:d", ind.stoch?.d || [], "#fb923c", { ...fixed(0, 100), lineStyle: 2, lineWidth: 1.2 });
+          panes.push({ height: SUB_H, title: "Stoch 14/3" });
+        } else if (pane.key === "macd") {
+          series.push({
+            key: "macd:hist", kind: "histogram", pane: paneIndex,
+            data: (ind.macd?.hist || []).map((v, i) => (v == null ? { time: times[i] }
+              : { time: times[i], value: v, color: v >= 0 ? "rgba(47,197,132,0.45)" : "rgba(238,106,96,0.45)" })),
+            options: { priceLineVisible: false, lastValueVisible: false },
+            lines: [{ price: 0 }],
+          });
+          line("macd:line", ind.macd?.line || [], "#f472b6");
+          line("macd:signal", ind.macd?.signal || [], "#facc15", { lineWidth: 1.2 });
+          panes.push({ height: SUB_H, title: "MACD 12/26/9" });
+        } else {
+          const f = pane.fin;
+          const has = f.values.some((v) => v != null);
+          // A step, because an annual figure does not drift through its year —
+          // it lands when the filing does.
+          line(`fin:${f.field}`, f.values, f.color, {
+            lineType: LwLineType.WithSteps, lineWidth: 1.5,
+            priceFormat: lwCustomFormat((v) => `${abbrev(v)}${f.unit ? ` ${f.unit}` : ""}`),
+          });
+          if (!has) series.at(-1).data = [{ time: times[0], value: 0 }, { time: times.at(-1), value: 0 }];
+          if (!has) series.at(-1).options.color = "rgba(0,0,0,0)";
+          panes.push({ height: SUB_H, color: f.color,
+            title: has ? `${finLabel(f.field, lang)}${f.unit ? `, ${f.unit}` : ""}`
+              : `${finLabel(f.field, lang)} — ${tt("нет отчётности за этот период", "bu davr uchun hisobot yo'q", "no filing covers this period")}` });
+        }
+      });
+    }
+    return { series, main: "price", panes, hourly: hasHourly, labels };
+  }, [n, points, baseVals, cmpOn, cmp, drawType, synthetic, stepLine, priceColor, isUp, rangeWindow, adjustments,
+      drawPoints, ind, toScale, subPanes, finPanes, hasHourly, lang, shownPatterns, patternLabels, selectedPattern]);
+
+  const initialView = React.useMemo(() => {
+    if (synthetic || !historyNavigation || range === "max" || n < 2) return null;
+    const first = cmpOn ? points[cmp.baseIdx]?.date : rangeWindow[0]?.date;
+    return first ? { from: lwTime(first), to: lwTime(points.at(-1).date) } : null;
+  }, [synthetic, historyNavigation, range, n, cmpOn, cmp, points, rangeWindow]);
+  const viewKey = `${up}|${range}|${span.from}|${span.to}|${effInterval}|${synthetic ? drawType : "t"}|${cmpOn ? cmp.baseIdx : "-"}`;
+
+  const [hover, setHover] = React.useState(null);
+  const onChartClick = ({ index, pane }) => {
+    if (!drawMode || pane !== 0 || synthetic) return;
+    const next = { time: lwTime(points[index].date), value: baseVals[index] };
+    setDrawPoints((current) => (current.length >= 2 ? [next] : [...current, next]));
   };
-
-  const baseD = stepLine && !drawCandles ? stepPath(baseVals, ys) : linePath(baseVals, ys);
-  const isUp = n >= 2 && baseVals[n - 1] >= baseVals[0];
-  const priceColor = cmpOn ? "#2fc584" : isUp ? "#2fc584" : "#ee6a60";
-  const baseLevel = n ? baseVals[0] : 0;
-
-  const volumeValues = points.map((p) => p.turnover || 0).filter((v) => v > 0).sort((a, b) => a - b);
-  const maxVol = Math.max(1, volumeValues.at(-1) || 0);
-  const volumeScale = volumeValues.length
-    ? Math.max(1, volumeValues[Math.min(volumeValues.length - 1, Math.floor((volumeValues.length - 1) * 0.95))])
-    : 1;
-
-  const onMove = (e) => {
-    if (!cursorOn && !drawMode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (!rect.width || n < 1) return;
-    const x = ((e.clientX - rect.left) / rect.width) * W;
-    let i = Math.round(((x - PAD.left) / innerW) * (n - 1));
-    i = Math.max(0, Math.min(n - 1, i));
-    setHover(i);
-    setPointer({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
-  const onCandleWheel = (e) => {
-    if (!chartNavigation || !e.ctrlKey || !candleSource.length || e.deltaY === 0) return;
-    // Ctrl+wheel normally zooms the whole browser. Inside a candle chart the
-    // modifier has a local, visible meaning, so keep the page itself steady.
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const plotLeft = rect.left + (PAD.left / W) * rect.width;
-    const plotWidth = (innerW / W) * rect.width;
-    const anchorRatio = plotWidth > 0 ? (e.clientX - plotLeft) / plotWidth : 0.5;
-    const minViewPoints = effInterval === "M" ? 60 : effInterval === "W" ? 20 : AC_MIN_CANDLE_POINTS;
-    const next = acZoomView(resolvedCandleView, candleSource.length, anchorRatio, e.deltaY < 0, minViewPoints);
-    setCandleView(next);
-    setHover(null);
-  };
-  candleWheelHandler.current = onCandleWheel;
-
-  // React delegates wheel events with a passive root listener. The chart must
-  // cancel the browser's Ctrl+wheel page zoom, so this one listener belongs on
-  // the plot node itself and explicitly opts out of passive handling.
-  React.useEffect(() => {
-    const node = boxNode.current;
-    if (!node) return undefined;
-    const onWheel = (event) => candleWheelHandler.current?.(event);
-    node.addEventListener("wheel", onWheel, { passive: false });
-    return () => node.removeEventListener("wheel", onWheel);
-  }, []);
-
-  const onCandlePointerDown = (e) => {
-    if (drawMode || !chartNavigation || (e.pointerType === "mouse" && e.button !== 0) || !candleSource.length) return;
-    const size = resolvedCandleView.end - resolvedCandleView.start;
-    if (size >= candleSource.length) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const plotWidth = (innerW / W) * rect.width;
-    candleDrag.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      start: resolvedCandleView.start,
-      size,
-      pixelsPerPoint: plotWidth / Math.max(1, size - 1),
-    };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    e.preventDefault();
-    setCandleDragging(true);
-    setHover(null);
-  };
-
-  const onCandlePointerMove = (e) => {
-    const drag = candleDrag.current;
-    if (!drag || drag.pointerId !== e.pointerId) { onMove(e); return; }
-    const delta = acNearestInt((e.clientX - drag.startX) / Math.max(0.5, drag.pixelsPerPoint));
-    const start = Math.max(0, Math.min(candleSource.length - drag.size, drag.start - delta));
-    setCandleView({ start, end: start + drag.size });
-  };
-
-  const endCandleDrag = (e) => {
-    if (!candleDrag.current || candleDrag.current.pointerId !== e.pointerId) return;
-    try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch { /* capture may already be gone */ }
-    candleDrag.current = null;
-    setCandleDragging(false);
-  };
-
-  const hp = hover != null && points[hover] ? points[hover] : null;
-  const initialCandleView = acClampView(null, defaultCandleView, candleSource.length);
-  const candleViewChanged = Boolean(candleView)
-    && (resolvedCandleView.start !== initialCandleView.start
-      || resolvedCandleView.end !== initialCandleView.end);
-  const relVol = hp && effInterval === "D" && !isHourly(hp.date) ? relativeVolume(daily, hp.date, hp.turnover) : null;
-  const addTrendPoint = () => {
-    if (!drawMode || hover == null) return;
-    setDrawPoints((current) => current.length >= 2 ? [hover] : [...current, hover]);
-  };
+  const synthBar = synthetic && hover && spec ? spec.series[0].data[hover.index] : null;
+  const hIdx = hover && !synthetic ? hover.index : null;
+  const hp = !cursorOn || drawMode || !hover ? null
+    : synthetic
+      ? (synthBar ? { date: spec.labels?.get(synthBar.time), close: synthBar.close ?? synthBar.value } : null)
+      : points[hover.index] || null;
+  const relVol = hp && !synthetic && effInterval === "D" && !isHourly(hp.date) ? relativeVolume(daily, hp.date, hp.turnover) : null;
+  const visFrom = visible && !synthetic ? points[visible.from]?.date : null;
+  const visTo = visible && !synthetic ? points[visible.to]?.date : null;
 
   const legendChips = [
     ...(cmpOn ? cmp.series.map((s) => ({ key: `c:${s.ticker}`, color: s.color, text: s.ticker, off: () => toggleCompare(s.ticker) })) : []),
@@ -15128,6 +15333,8 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       key: `f:${f.field}`, color: f.color, off: () => toggleFin(f.field),
       text: finLabel(f.field, lang),
     })),
+    ...(patternsWanted ? [{ key: "patterns", color: "var(--accent)", text: t("Паттерны", "Patternlar", "Patterns"),
+      off: () => { setPatternsOn({ chart: false, candle: false, cycle: false }); setSelectedPattern(null); } }] : []),
   ];
 
   const emptyState = !busy && n < 2;
@@ -15180,7 +15387,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                   : t("Интервал", "Interval", "Interval")}
               disabled={cmpOn || hourlyRange}
               onClick={() => setMenu(menu === "interval" ? null : "interval")}>{hasHourly ? t("1ч", "1s", "1h") : effInterval}</button>
-            {menuPanel("interval", [["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
+            {menuPanel("interval", [["H", "Час", "Soat", "Hour"], ["D", "День", "Kun", "Day"], ["W", "Неделя", "Hafta", "Week"], ["M", "Месяц", "Oy", "Month"]].map(([key, ru, uz, en]) => (
               <button key={key} type="button" className={`ac-menu-item ${barInterval === key ? "on" : ""}`}
                 onClick={() => { setBarInterval(key); setMenu(null); }}>{t(ru, uz, en)} <span>{key}</span></button>
             )))}
@@ -15279,6 +15486,16 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             )))}
           </div>
           <div className="ac-menu-wrap">
+            <button type="button" className={`ac-menu-btn ${patternsWanted ? "on" : ""}`} data-testid="ac-patterns"
+              onClick={() => setMenu(menu === "pat" ? null : "pat")}>
+              {t("Паттерны", "Patternlar", "Patterns")}{patternsWanted && patternData?.signals ? ` · ${shownPatterns.length}` : ""}
+            </button>
+            {menuPanel("pat", (
+              <PatternMenuItems patternsOn={patternsOn} setPatternsOn={setPatternsOn} sensitivity={sensitivity}
+                setSensitivity={setSensitivity} available={patternsAvailable} lang={lang} variant="ac" />
+            ))}
+          </div>
+          <div className="ac-menu-wrap">
             <button type="button" className={`ac-menu-btn ${finFields.length ? "on" : ""}`}
               onClick={() => setMenu(menu === "fin" ? null : "fin")}>
               {t("Финансы", "Moliya", "Financials")}{finFields.length ? ` · ${finFields.length}` : ""}
@@ -15352,7 +15569,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           {railOpen ? "‹" : "›"}
         </button>
 
-        <div className="ac-plot" ref={attach} style={{ height: plotH }}>
+        <div className="ac-plot" style={{ height: plotH }}>
           {busy && <div className="ac-state muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>}
           {failed && (
             <div className="ac-state">
@@ -15378,7 +15595,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
             </div>
           )}
 
-          {!busy && !failed && n >= 2 && (
+          {!busy && !failed && n >= 2 && spec && (
             <>
               {legendChips.length > 0 && (
                 <div className="ac-legend">
@@ -15391,357 +15608,62 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              <svg className={`ac-svg ${chartNavigation ? "is-candle-interactive" : ""} ${candleDragging ? "is-panning" : ""}`}
-                viewBox={`0 0 ${W} ${H}`} width="100%" height={H}
-                aria-label={chartNavigation
-                  ? t("График. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
-                      "Grafik. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
-                      "Chart. Ctrl and the wheel zoom; drag to browse history.")
-                  : undefined}
-                onPointerDown={onCandlePointerDown}
-                onPointerMove={onCandlePointerMove}
-                onPointerUp={endCandleDrag}
-                onPointerCancel={endCandleDrag}
-                onClick={addTrendPoint}
-                onPointerLeave={() => { if (!candleDrag.current) setHover(null); }}>
-                <defs>
-                  <linearGradient id="acArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={priceColor} stopOpacity="0.26" />
-                    <stop offset="100%" stopColor={priceColor} stopOpacity="0.02" />
-                  </linearGradient>
-                  <linearGradient id="acBase" x1="0" y1={priceTop} x2="0" y2={priceBot}
-                    gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stopColor="#2fc584" stopOpacity="0.34" />
-                    <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
-                      stopColor="#2fc584" stopOpacity="0.04" />
-                    <stop offset={Math.max(0, Math.min(1, (ys(baseLevel) - priceTop) / (priceBot - priceTop)))}
-                      stopColor="#ee6a60" stopOpacity="0.04" />
-                    <stop offset="1" stopColor="#ee6a60" stopOpacity="0.34" />
-                  </linearGradient>
-                </defs>
-
-                {yLabels.map((tick, i) => (
-                  <g key={`y${i}`}>
-                    <line x1={PAD.left} y1={tick.y} x2={W - PAD.right} y2={tick.y}
-                      stroke="currentColor" strokeOpacity="0.14" strokeDasharray="4 6" strokeWidth="0.8" />
-                    <text x={W - PAD.right + 8} y={tick.y + 4} fontSize="11" fill="currentColor" opacity="0.55">
-                      {tick.label}
-                    </text>
-                  </g>
-                ))}
-                {cmpOn && minP <= 0 && maxP >= 0 && (
-                  <line x1={PAD.left} y1={ys(0)} x2={W - PAD.right} y2={ys(0)}
-                    stroke="currentColor" strokeOpacity="0.4" strokeWidth="0.9" />
-                )}
-
-                {ind.bb && (
-                  <>
-                    <path d={`${linePath(ind.bb.upper.map(toScaleOrNull(toScale)), ys)}`} fill="none"
-                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.7" />
-                    <path d={`${linePath(ind.bb.lower.map(toScaleOrNull(toScale)), ys)}`} fill="none"
-                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.7" />
-                    <path d={`${linePath(ind.bb.mid.map(toScaleOrNull(toScale)), ys)}`} fill="none"
-                      stroke="#14b8a6" strokeWidth="1" strokeOpacity="0.45" strokeDasharray="4 4" />
-                  </>
-                )}
-
-                {drawType === "area" && !drawCandles && (
-                  <path d={`${baseD} L${xs(n - 1).toFixed(1)},${priceBot} L${xs(0).toFixed(1)},${priceBot} Z`}
-                    fill="url(#acArea)" />
-                )}
-                {drawType === "baseline" && !drawCandles && (
-                  <path d={`${baseD} L${xs(n - 1).toFixed(1)},${ys(baseLevel).toFixed(1)} L${xs(0).toFixed(1)},${ys(baseLevel).toFixed(1)} Z`}
-                    fill="url(#acBase)" />
-                )}
-                {drawType === "baseline" && (
-                  <line x1={PAD.left} y1={ys(baseLevel)} x2={W - PAD.right} y2={ys(baseLevel)}
-                    stroke="currentColor" strokeOpacity="0.35" strokeDasharray="3 4" />
-                )}
-
-                {drawCandles ? candleDrawPoints.map((p, i) => {
-                  const okp = ohlcOk(p);
-                  const upDay = okp ? p.close >= p.open : (i > 0 ? p.close >= points[i - 1].close : true);
-                  const c = upDay ? "#2fc584" : "#ee6a60";
-                  const w = Math.max(1, Math.min(9, gapPx * 0.68));
-                  const x = xs(i);
-                  if (!okp) {
-                    return <line key={`k${i}`} className="ac-candle" x1={x} y1={ys(p.close)} x2={x} y2={ys(p.close) + 1}
-                      stroke={c} strokeWidth={Math.max(1, w)} />;
-                  }
-                  const yo = ys(p.open), yc = ys(p.close);
-                  return (
-                    <g key={`k${i}`} className="ac-candle">
-                      <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1" />
-                      <rect x={x - w / 2} y={Math.min(yo, yc)} width={w}
-                        height={Math.max(1, Math.abs(yc - yo))} fill={c} />
-                    </g>
-                  );
-                }) : drawType === "bars" ? points.map((p, i) => {
-                  if (!ohlcOk(p)) return null;
-                  const c = p.close >= p.open ? "#2fc584" : "#ee6a60";
-                  const x = xs(i), tick = Math.max(2, Math.min(6, gapPx * 0.32));
-                  return <g key={`bar${i}`} className="ac-ohlc-bar">
-                    <line x1={x} y1={ys(p.high)} x2={x} y2={ys(p.low)} stroke={c} strokeWidth="1.4" />
-                    <line x1={x - tick} y1={ys(p.open)} x2={x} y2={ys(p.open)} stroke={c} strokeWidth="1.4" />
-                    <line x1={x} y1={ys(p.close)} x2={x + tick} y2={ys(p.close)} stroke={c} strokeWidth="1.4" />
-                  </g>;
-                }) : drawType === "columns" ? points.map((p, i) => {
-                  const y = ys(baseVals[i]);
-                  const previous = i ? baseVals[i - 1] : baseVals[i];
-                  return <rect key={`col${i}`} className="ac-price-column"
-                    x={xs(i) - Math.max(1, gapPx * 0.34)} y={Math.min(y, priceBot)}
-                    width={Math.max(2, gapPx * 0.68)} height={Math.max(1, priceBot - y)}
-                    fill={baseVals[i] >= previous ? "#2fc584" : "#ee6a60"} fillOpacity="0.78" />;
-                }) : drawType === "renko" ? renko.bricks.map((brick, i) => {
-                  const width = innerW / Math.max(1, renko.bricks.length);
-                  const y1 = ys(brick.from), y2 = ys(brick.to);
-                  return <rect key={`renko${i}`} className="ac-renko-brick"
-                    x={PAD.left + i * width} y={Math.min(y1, y2)} width={Math.max(2, width * 0.92)}
-                    height={Math.max(2, Math.abs(y2 - y1))} fill={brick.direction > 0 ? "#2fc584" : "#ee6a60"}
-                    fillOpacity="0.72" stroke={brick.direction > 0 ? "#2fc584" : "#ee6a60"} />;
-                }) : drawType === "kagi" ? (
-                  <path className="ac-kagi-line" d={kagi.turns.reduce((path, turn, i) => {
-                    const x = PAD.left + (i / Math.max(1, kagi.turns.length - 1)) * innerW;
-                    return i ? `${path} H${x.toFixed(1)} V${ys(turn.value).toFixed(1)}` : `M${x.toFixed(1)},${ys(turn.value).toFixed(1)}`;
-                  }, "")} fill="none" stroke={priceColor} strokeWidth="2.2" strokeLinejoin="round" />
-                ) : drawType === "point_figure" ? pointFigure.columns.map((column, i) => {
-                  const x = PAD.left + ((i + 0.5) / Math.max(1, pointFigure.columns.length)) * innerW;
-                  const from = Math.round(column.from / pointFigure.box), to = Math.round(column.to / pointFigure.box);
-                  const levels = Array.from({ length: Math.min(80, Math.abs(to - from) + 1) }, (_, j) => from + Math.sign(to - from || 1) * j);
-                  return <g key={`pnf${i}`} className={`ac-pnf-column ${column.direction > 0 ? "up" : "down"}`}>
-                    {levels.map((level) => <text key={level} x={x} y={ys(level * pointFigure.box) + 4}
-                      textAnchor="middle" fontSize={Math.max(7, Math.min(13, innerW / Math.max(20, pointFigure.columns.length * 1.4)))}
-                      fill={column.direction > 0 ? "#2fc584" : "#ee6a60"}>{column.direction > 0 ? "×" : "○"}</text>)}
-                  </g>;
-                }) : (
-                  <path d={baseD} fill="none" stroke={drawType === "baseline" ? "url(#acBase)" : priceColor}
-                    strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-                )}
-
-                {["sma50", "sma200", "ema50", "ema200"].map((k) => (ind[k] ? (
-                  <path key={k} d={linePath(ind[k].map(toScaleOrNull(toScale)), ys)} fill="none"
-                    stroke={AC_INDICATORS.find((d) => d.key === k).color} strokeWidth="1.4" strokeOpacity="0.95" />
-                ) : null))}
-
-                {cmpOn && cmp.series.map((s) => (
-                  <path key={`cs${s.ticker}`} d={linePath(s.pct, ys)} fill="none" stroke={s.color}
-                    strokeWidth="1.5" strokeOpacity="0.95" strokeLinejoin="round" />
-                ))}
-
-                {drawPoints.length === 2 && points[drawPoints[0]] && points[drawPoints[1]] && (
-                  <line className="ac-trend-line" x1={xs(drawPoints[0])} y1={ys(baseVals[drawPoints[0]])}
-                    x2={xs(drawPoints[1])} y2={ys(baseVals[drawPoints[1]])}
-                    stroke="var(--accent)" strokeWidth="2" strokeDasharray="5 3" />
-                )}
-
-                {/* Volume. Not decoration: on this market a move worth 40 000
-                    сум and a move worth 400 млн are different events, and the
-                    price line cannot tell them apart. Money rather than share
-                    count, so a 2 сум share and a 23 000 сум one are on the same
-                    scale — and so the bar agrees with the readout above it. */}
-                {points.map((p, i) => {
-                  const v = p.turnover || 0;
-                  const w = Math.max(1.5, Math.min(10, gapPx * 0.76));
-                  // A carried close with no turnover used to disappear entirely,
-                  // leaving unexplained holes between otherwise continuous dates.
-                  // Keep zero honest (never invent a coloured volume bar), but
-                  // draw a neutral baseline tick so the reader can distinguish a
-                  // no-trade / unpublished-volume session from a rendering bug.
-                  if (!v) return (
-                    <rect key={`v0${i}`} className="ac-volume-empty"
-                      x={xs(i) - w / 2} y={volBot - 8} width={w} height="8"
-                      fill="currentColor" fillOpacity="0.2">
-                      <title>{t("Торгов не было или объём не опубликован",
-                                "Savdo bo'lmagan yoki hajm e'lon qilinmagan",
-                                "No trades or volume was not published")}</title>
-                    </rect>
-                  );
-                  // A fourth-root display scale keeps genuinely small sessions
-                  // readable beside rare multi-million spikes. Square-root still
-                  // crushed KFSK's older 48k–100k sessions into an 8px baseline
-                  // while recent 11.8m sessions filled the pane, which looked like
-                  // missing data. The tooltip keeps the exact turnover; only the
-                  // visual height is compressed.
-                  const volumeRatio = Math.min(1, v / volumeScale);
-                  // A 12px floor was still effectively invisible at the 115%
-                  // browser scale used on the market workstation: KFSK's small
-                  // sessions looked like missing columns between the large ones.
-                  // Reserve one fifth of the pane as the visible floor. Exact
-                  // magnitude remains in the tooltip; the bar chart communicates
-                  // both presence and relative activity without blank-looking days.
-                  const h = Math.max(32, Math.pow(volumeRatio, 0.25) * (volBot - volTop));
-                  const upDay = i > 0 ? p.close >= points[i - 1].close : true;
-                  return <rect key={`v${i}`} className="ac-volume-bar" x={xs(i) - w / 2} y={volBot - h} width={w} height={h}
-                    fill={upDay ? "#2fc584" : "#ee6a60"} fillOpacity="0.9" />;
-                })}
-                <line x1={PAD.left} y1={volBot} x2={W - PAD.right} y2={volBot}
-                  stroke="currentColor" strokeOpacity="0.18" />
-                <line x1={PAD.left} y1={volTop + VOL_H / 2} x2={W - PAD.right} y2={volTop + VOL_H / 2}
-                  stroke="currentColor" strokeOpacity="0.08" strokeDasharray="3 5" />
-                <text x={PAD.left + 4} y={volTop + 15} fontSize="12" fontWeight="600" fill="currentColor" opacity="0.72">
-                  {t("Объём", "Hajm", "Volume")} · {fmtCompact(maxVol, lang)} {t("сум", "so'm", "UZS")}
-                </text>
-
-                {subPanes.map((pane, pi) => {
-                  const top = subTop(pi), bot = top + SUB_H;
-                  const frame = (
-                    <>
-                      <line x1={PAD.left} y1={bot} x2={W - PAD.right} y2={bot}
-                        stroke="currentColor" strokeOpacity="0.18" />
-                    </>
-                  );
-                  if (pane.key === "rsi" || pane.key === "stoch") {
-                    const lo = 0, hi = 100;
-                    const yv = (v) => top + (1 - (v - lo) / (hi - lo)) * SUB_H;
-                    const guides = pane.key === "rsi" ? [30, 70] : [20, 80];
-                    return (
-                      <g key={pane.key}>
-                        {frame}
-                        {guides.map((g) => (
-                          <line key={g} x1={PAD.left} y1={yv(g)} x2={W - PAD.right} y2={yv(g)}
-                            stroke="currentColor" strokeOpacity="0.18" strokeDasharray="3 5" />
-                        ))}
-                        {pane.key === "rsi" && (
-                          <path d={linePath(ind.rsi || [], yv)} fill="none" stroke="#22d3ee" strokeWidth="1.4" />
-                        )}
-                        {pane.key === "stoch" && (
-                          <>
-                            <path d={linePath(ind.stoch?.k || [], yv)} fill="none" stroke="#a3e635" strokeWidth="1.4" />
-                            <path d={linePath(ind.stoch?.d || [], yv)} fill="none" stroke="#fb923c" strokeWidth="1.2" strokeDasharray="4 3" />
-                          </>
-                        )}
-                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">
-                          {pane.key === "rsi" ? "RSI 14" : "Stoch 14/3"}
-                        </text>
-                        {[guides[0], guides[1]].map((g) => (
-                          <text key={`gl${g}`} x={W - PAD.right + 8} y={yv(g) + 4} fontSize="10"
-                            fill="currentColor" opacity="0.5">{g}</text>
-                        ))}
-                      </g>
-                    );
-                  }
-                  if (pane.key === "macd") {
-                    const vals = [...(ind.macd?.line || []), ...(ind.macd?.signal || []), ...(ind.macd?.hist || [])]
-                      .filter((v) => v != null);
-                    const m = Math.max(1e-9, ...vals.map(Math.abs));
-                    const yv = (v) => top + SUB_H / 2 - (v / m) * (SUB_H / 2 - 4);
-                    return (
-                      <g key={pane.key}>
-                        {frame}
-                        <line x1={PAD.left} y1={yv(0)} x2={W - PAD.right} y2={yv(0)}
-                          stroke="currentColor" strokeOpacity="0.22" />
-                        {(ind.macd?.hist || []).map((v, i) => (v == null ? null : (
-                          <rect key={`mh${i}`} x={xs(i) - Math.max(0.6, gapPx * 0.3)} y={Math.min(yv(0), yv(v))}
-                            width={Math.max(1.2, gapPx * 0.6)} height={Math.max(0.6, Math.abs(yv(v) - yv(0)))}
-                            fill={v >= 0 ? "#2fc584" : "#ee6a60"} fillOpacity="0.45" />
-                        )))}
-                        <path d={linePath(ind.macd?.line || [], yv)} fill="none" stroke="#f472b6" strokeWidth="1.4" />
-                        <path d={linePath(ind.macd?.signal || [], yv)} fill="none" stroke="#facc15" strokeWidth="1.2" />
-                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">MACD 12/26/9</text>
-                      </g>
-                    );
-                  }
-                  const f = pane.fin;
-                  const fv = f.values.filter((v) => v != null);
-                  if (!fv.length) {
-                    return (
-                      <g key={pane.key}>
-                        {frame}
-                        <text x={PAD.left + 2} y={top + 11} fontSize="10" fill="currentColor" opacity="0.6">
-                          {finLabel(f.field, lang)}
-                        </text>
-                        <text x={PAD.left + 2} y={top + SUB_H / 2} fontSize="11" fill="currentColor" opacity="0.45">
-                          {t("Нет отчётности за этот период", "Bu davr uchun hisobot yo'q", "No filing covers this period")}
-                        </text>
-                      </g>
-                    );
-                  }
-                  const lo = Math.min(...fv), hi = Math.max(...fv);
-                  const sp = hi - lo || Math.abs(hi) || 1;
-                  const yv = (v) => top + SUB_H - 8 - ((v - lo) / sp) * (SUB_H - 18);
-                  return (
-                    <g key={pane.key}>
-                      {frame}
-                      {/* A step, because an annual figure does not drift through
-                          its year — it lands when the filing does. */}
-                      <path d={stepPath(f.values, yv)} fill="none" stroke={f.color} strokeWidth="1.5" />
-                      <text x={PAD.left + 2} y={top + 11} fontSize="10" fill={f.color} opacity="0.9">
-                        {finLabel(f.field, lang)}{f.unit ? `, ${f.unit}` : ""}
-                      </text>
-                      <text x={W - PAD.right + 8} y={top + 12} fontSize="10" fill="currentColor" opacity="0.5">{abbrev(hi)}</text>
-                      <text x={W - PAD.right + 8} y={top + SUB_H - 2} fontSize="10" fill="currentColor" opacity="0.5">{abbrev(lo)}</text>
-                    </g>
-                  );
-                })}
-
-                {xLabels.map((tick, i) => (
-                  <text key={`x${i}`} x={tick.x} y={H - 8} fontSize="11" fill="currentColor" opacity="0.55"
-                    textAnchor={tick.x < PAD.left + 30 ? "start" : tick.x > W - PAD.right - 30 ? "end" : "middle"}>
-                    {tick.label}
-                  </text>
-                ))}
-
-                {adjustments.map((a) => {
-                  const i = points.findIndex((p) => String(p.date) >= String(a.ex_date));
-                  return i > 0 ? (
-                    <line key={`adj${a.ex_date}`} x1={xs(i)} y1={priceTop} x2={xs(i)} y2={priceBot}
-                      stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 4" />
-                  ) : null;
-                })}
-
-                {hover != null && (
-                  <g>
-                    <line x1={xs(hover)} y1={priceTop} x2={xs(hover)}
-                      y2={subPanes.length ? subTop(subPanes.length - 1) + SUB_H : volBot}
-                      stroke="currentColor" strokeOpacity="0.4" strokeDasharray="3 3" />
-                    <circle cx={xs(hover)} cy={ys(baseVals[hover])} r="3.6" fill={priceColor}
-                      stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
-                    {cmpOn && cmp.series.map((s) => (s.pct[hover] == null ? null : (
-                      <circle key={`ch${s.ticker}`} cx={xs(hover)} cy={ys(s.pct[hover])} r="3.2"
-                        fill={s.color} stroke="var(--panel, #0b0f1a)" strokeWidth="1.5" />
-                    )))}
-                    <rect x={W - PAD.right + 2} y={ys(baseVals[hover]) - 9} width={PAD.right - 6} height="18"
-                      rx="3" fill={priceColor} />
-                    <text x={W - PAD.right + 6} y={ys(baseVals[hover]) + 4} fontSize="10.5" fill="#04140a">
-                      {cmpOn ? fmtPctVal(baseVals[hover]) : fmtFull(points[hover].close)}
-                    </text>
-                  </g>
-                )}
-              </svg>
+              <LwCanvas spec={spec} height={plotH} lang={lang} crosshair={cursorOn} pan={!drawMode}
+                viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
+                onHover={setHover} onClick={onChartClick}
+                onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}
+                className={`ac-canvas ${drawMode ? "is-drawing" : ""}`}
+                data-chart-type={drawType} data-chart-interval={effInterval}
+                data-series={spec.series.map((s) => s.key).join(",")}
+                data-panes={1 + spec.panes.length} data-trend-points={drawPoints.length}
+                data-visible-bars={visible ? visible.to - visible.from + 1 : spec.series[0].data.length}
+                data-patterns={shownPatterns.length}
+                aria-label={t("График. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
+                  "Grafik. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",
+                  "Chart. Ctrl and the wheel zoom; drag to browse history.")} />
 
               {hp && (
                 <div className="ac-tooltip" style={{
-                  left: Math.min(Math.max(12, pointer.x + 16), Math.max(12, (box.w || W) - 210)),
-                  top: Math.min(Math.max(8, pointer.y - 30), Math.max(8, (box.h || H) - 200)),
+                  left: Math.min(Math.max(12, hover.point.x + 16), Math.max(12, (hover.width || 900) - 210)),
+                  top: Math.min(Math.max(8, hover.point.y - 30), Math.max(8, plotH - 200)),
                 }}>
                   <div className="ac-tt-date">{fmtDate(hp.date, true)}</div>
-                  {ohlcOk(hp) && (
+                  {!synthetic && lwOhlcOk(hp) && (
                     <>
                       <div className="ac-tt-row"><span>{t("Откр.", "Ochil.", "Open")}</span><b>{fmtFull(hp.open)}</b></div>
                       <div className="ac-tt-row"><span>{t("Макс.", "Maks.", "High")}</span><b>{fmtFull(hp.high)}</b></div>
                       <div className="ac-tt-row"><span>{t("Мин.", "Min.", "Low")}</span><b>{fmtFull(hp.low)}</b></div>
                     </>
                   )}
-                  <div className="ac-tt-row"><span>{t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
-                  <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
-                    <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
-                  </div>
+                  <div className="ac-tt-row"><span>{synthetic ? t("Уровень", "Daraja", "Level") : t("Закрытие", "Yopilish", "Close")}</span><b>{fmtFull(hp.close)}</b></div>
+                  {!synthetic && (
+                    <div className="ac-tt-row"><span>{t("Объём", "Hajm", "Volume")}</span>
+                      <b>{hp.turnover ? `${fmtCompact(hp.turnover, lang)} ${t("сум", "so'm", "UZS")}` : "—"}</b>
+                    </div>
+                  )}
                   {relVol != null && (
                     <div className="ac-tt-row"><span>{t("Объём к среднему", "O'rtacha hajmga", "Vol vs avg")}</span>
                       <b>{fmtRelVol(relVol, lang)}</b>
                     </div>
                   )}
-                  {cmpOn && (
+                  {!synthetic && shownPatterns.filter((sig) => sig.signal_date === String(hp.date).slice(0, 10)).map((sig) => (
+                    <div className="ac-tt-row" key={`ttp${sig.type}`}>
+                      <span style={{ color: sig.direction === "bullish" ? LW_UP : LW_DOWN }}>
+                        {sig.direction === "bullish" ? "↑" : "↓"} {patternName(sig.type, lang)}
+                      </span>
+                    </div>
+                  ))}
+                  {cmpOn && hIdx != null && (
                     <div className="ac-tt-block">
                       <div className="ac-tt-row"><span style={{ color: priceColor }}>{up}</span>
-                        <b style={{ color: priceColor }}>{fmtPctVal(baseVals[hover])}</b></div>
+                        <b style={{ color: priceColor }}>{fmtPctVal(baseVals[hIdx])}</b></div>
                       {cmp.series.map((s) => {
-                        const pv = peerVolumeAt(s.volHist, hp.date);
+                        const pv = peerVolumeAt(s.volHist, String(hp.date).slice(0, 10));
                         return (
                           <React.Fragment key={`tt${s.ticker}`}>
                             <div className="ac-tt-row">
                               <span style={{ color: s.color }}>{s.ticker}</span>
-                              <b style={{ color: s.color }}>{fmtPctVal(s.pct[hover])}</b>
+                              <b style={{ color: s.color }}>{fmtPctVal(s.pct[hIdx])}</b>
                             </div>
                             <div className="ac-tt-row ac-tt-volrow">
                               <span>{t("объём", "hajm", "vol")}</span>
@@ -15754,13 +15676,13 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                       })}
                     </div>
                   )}
-                  {(indicators.size > 0 || finPanes.length > 0) && (
+                  {hIdx != null && (indicators.size > 0 || finPanes.length > 0) && (
                     <div className="ac-tt-block">
                       {AC_INDICATORS.filter((d) => indicators.has(d.key)).map((d) => {
-                        const v = d.key === "bb" ? ind.bb?.mid?.[hover]
-                          : d.key === "macd" ? ind.macd?.line?.[hover]
-                          : d.key === "stoch" ? ind.stoch?.k?.[hover]
-                          : ind[d.key]?.[hover];
+                        const v = d.key === "bb" ? ind.bb?.mid?.[hIdx]
+                          : d.key === "macd" ? ind.macd?.line?.[hIdx]
+                          : d.key === "stoch" ? ind.stoch?.k?.[hIdx]
+                          : ind[d.key]?.[hIdx];
                         return (
                           <div className="ac-tt-row" key={`tti${d.key}`}>
                             <span style={{ color: d.color }}>{d.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}</span>
@@ -15771,8 +15693,8 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                       {finPanes.map((f) => (
                         <div className="ac-tt-row" key={`ttf${f.field}`}>
                           <span style={{ color: f.color }}>{finLabel(f.field, lang)}</span>
-                          <b>{f.values[hover] == null ? "—"
-                            : `${abbrev(f.values[hover])}${f.unit ? ` ${f.unit}` : ""}`}</b>
+                          <b>{f.values[hIdx] == null ? "—"
+                            : `${abbrev(f.values[hIdx])}${f.unit ? ` ${f.unit}` : ""}`}</b>
                         </div>
                       ))}
                     </div>
@@ -15785,17 +15707,43 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       </div>
 
       <div className="ac-notes">
-        {chartNavigation && points.length > 0 && (
-          <p className="ac-history-help" data-testid="ac-visible-range"
-            data-from={points[0].date} data-to={points[points.length - 1].date}>
+        {effInterval === "H" && !busy && (
+          <p className="muted" data-testid="ac-hourly-note">
+            {source.length
+              ? t(`Часовые бары — из ленты сделок биржи; хранятся с ${fmtDate(String(source[0].date).slice(0, 10), true)}, раньше почасовых данных нет.`,
+                  `Soatlik barlar — birja bitimlar lentasidan; ${fmtDate(String(source[0].date).slice(0, 10), true)} dan saqlanadi.`,
+                  `Hourly bars come from the exchange's trade feed, stored from ${fmtDate(String(source[0].date).slice(0, 10), true)}; nothing hourly exists before that.`)
+              : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было.",
+                  "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan.",
+                  "No hourly bars for this security — it has not traded in the last 60 days.")}
+          </p>
+        )}
+        {patternsWanted && (patternsAvailable || patternsOn.cycle ? (
+          <PatternList data={patternData} signals={shownPatterns} lang={lang} visibleFrom={visFrom} visibleTo={visTo}
+            limit={12} selectedKey={selectedPattern}
+            families={{ chart: patternsAvailable && patternsOn.chart, candle: patternsAvailable && patternsOn.candle,
+                        cycle: patternsOn.cycle }}
+            onPick={(sig) => {
+              setSelectedPattern(patternKey(sig));
+              setFocus({ from: lwTime(sig.start_date) - 10 * 86400, to: lwTime(sig.exit_date || sig.signal_date) + 10 * 86400 });
+            }} />
+        ) : (
+          <p className="pattern-note muted" data-testid="pattern-list">
+            {t("Паттерны строятся по дневным свечам в сумах — без сравнения, недельных баров и синтетических видов.",
+               "Patternlar kunlik shamlarda quriladi — taqqoslash, haftalik barlar va sintetik turlarsiz.",
+               "Patterns are read off daily bars in сум — not while comparing, on weekly bars or synthetic types.")}
+          </p>
+        ))}
+        {visFrom && (
+          <p className="ac-history-help" data-testid="ac-visible-range" data-from={visFrom} data-to={visTo}>
             <span>
               {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
                  "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
                  "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
             </span>
-            <span className="ac-history-dates">{fmtDate(points[0].date, true)} — {fmtDate(points[points.length - 1].date, true)}</span>
-            {candleViewChanged && (
-              <button type="button" className="ac-history-reset" onClick={() => setCandleView(null)}>
+            <span className="ac-history-dates">{fmtDate(visFrom, true)} — {fmtDate(visTo, true)}</span>
+            {visible?.changed && (
+              <button type="button" className="ac-history-reset" onClick={() => setResetToken((v) => v + 1)}>
                 {t("Сбросить", "Tiklash", "Reset")}
               </button>
             )}
@@ -15831,9 +15779,9 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         )}
         {adjustments.length > 0 && (
           <p className="muted">
-            {t("Пунктиром отмечены дробления и бонусные эмиссии; цены до них пересчитаны на текущую акцию.",
-               "Punktir bilan maydalash va bonus emissiyalar belgilangan; ulardan oldingi narxlar qayta hisoblangan.",
-               "The dashed lines mark splits and bonus issues; prices before them are restated onto the current share.")}
+            {t("Стрелками отмечены дробления и бонусные эмиссии; цены до них пересчитаны на текущую акцию.",
+               "Strelkalar bilan maydalash va bonus emissiyalar belgilangan; ulardan oldingi narxlar qayta hisoblangan.",
+               "The arrows mark splits and bonus issues; prices before them are restated onto the current share.")}
           </p>
         )}
         {finFields.length > 0 && (
@@ -15848,11 +15796,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
     </div>
   );
-}
-
-/** Scale a price-unit indicator onto whatever the price pane is measuring. */
-function toScaleOrNull(toScale) {
-  return (v) => (v == null || !Number.isFinite(v) ? null : toScale(v));
 }
 
 function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loading }) {
@@ -22646,6 +22589,7 @@ function App() {
       setAdminSection("feedback");
       setActiveView("admin");
     }
+    if (notification.kind === "pattern" && notification.ticker) openCompanyPage(notification.ticker);
   };
 
   const moveProfileFavorite = async (index, delta) => {
@@ -22832,8 +22776,12 @@ function App() {
                           <button className="notif-item-main" type="button" onClick={() => openNotification(n)}>
                             <div className="notif-item-title">{n.kind === "feedback"
                               ? (language === "en" ? "New feedback" : language === "uz" ? "Yangi fikr-mulohaza" : "Новая обратная связь")
-                              : `${n.ticker} · ${n.report_form} · ${n.year || "—"}${n.quarter > 0 ? ` Q${n.quarter}` : ""}`}</div>
-                            <div className="notif-item-sub muted">{n.title || clg(language, "notifNewReport")} · {n.detected_at?.slice(0, 10)}</div>
+                              : n.kind === "pattern"
+                                ? `${n.ticker} · ${patternName(n.pattern, normalizeLanguage(language))}`
+                                : `${n.ticker} · ${n.report_form} · ${n.year || "—"}${n.quarter > 0 ? ` Q${n.quarter}` : ""}`}</div>
+                            <div className="notif-item-sub muted">{n.kind === "pattern"
+                              ? `${n.direction === "bullish" ? "↑" : "↓"} ${language === "en" ? "pattern completed on the chart" : language === "uz" ? "grafikda pattern yakunlandi" : "фигура завершилась на графике"}`
+                              : (n.title || clg(language, "notifNewReport"))} · {n.detected_at?.slice(0, 10)}</div>
                           </button>
                           <button className="notif-item-dismiss" type="button" onClick={() => updateNotificationState([n.id], true)} aria-label={language === "en" ? "Dismiss" : language === "uz" ? "O'chirish" : "Удалить"}>×</button>
                         </li>
@@ -23477,7 +23425,7 @@ function App() {
                             const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
                             const quote = profileMarketQuote(ticker, marketRows, securitiesMap);
                             const direction = quote.change === null || Math.abs(quote.change) < 0.005 ? "flat" : quote.change > 0 ? "up" : "down";
-                            const hasAlert = item.price_alert_enabled || item.news_alert_enabled || item.report_alert_enabled;
+                            const hasAlert = item.price_alert_enabled || item.news_alert_enabled || item.report_alert_enabled || item.pattern_alert_enabled;
                             return (
                               <li className="pf-watch-item" key={`${ticker}-${item.created_at || "saved"}`}>
                                 <button className="pf-watch-main" type="button" onClick={() => openCompanyPage(ticker)}>

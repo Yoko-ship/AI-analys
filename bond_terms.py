@@ -257,7 +257,13 @@ def _repair_transposed(accruals: Sequence[dict[str, Any]]) -> None:
             a["amount"], a["pct"] = pct, amount
 
 
-def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[float | None, int | None, str]:
+# Coupon period in days for each frequency the exchange register publishes.
+# The filings count whole periods this way (ASAK4B5 paid 90 days a quarter).
+PERIOD_BY_FREQ = {12: 30, 6: 60, 4: 90, 2: 182, 1: 365}
+
+
+def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]],
+                 known_freq: Any = None) -> tuple[float | None, int | None, str]:
     """Annual rate, period length and coupon type from the filed accruals.
 
     Each filing states what one security earns for one period; the decision
@@ -265,6 +271,11 @@ def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[fl
     gives the rate, and every other amount then has to fall out of the same rate
     with a day count near the period — a floating coupon or a mis-joined series
     fails that and returns no rate.
+
+    ``known_freq`` is the coupon frequency the exchange register states. It is
+    what sets the period when only ONE coupon has been filed and the filings
+    cannot show their own spacing: guessing «monthly» there turned ANBK3B's
+    quarterly 22 % into 66 % and ONLJ4's annual 15 % into 182.5 %.
     """
     _repair_transposed(accruals)
     amounts = [a["amount"] for a in accruals if a.get("amount")]
@@ -275,11 +286,16 @@ def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]]) -> tuple[fl
     gaps = [(b - a).days for a, b in zip(starts, starts[1:]) if 20 <= (b - a).days <= 200]
     period = int(round(statistics.median(gaps) / 30.0) * 30) if gaps else None
     if period is None:
-        # A single filed coupon cannot show its own spacing. The two issues in
-        # that state pay quarterly on a par of ten million and above; anything
-        # else is a guess, and a guessed period would fabricate a rate.
-        period = 90 if nominal >= 10_000_000 else 30
         if len(accruals) > 1:
+            return None, None, "unknown"
+        # A single filed coupon cannot show its own spacing: the register's
+        # frequency sets it. Without one, no rate — a guessed period is a
+        # fabricated rate.
+        try:
+            period = PERIOD_BY_FREQ.get(int(float(known_freq))) if known_freq else None
+        except (TypeError, ValueError):
+            period = None
+        if period is None:
             return None, None, "unknown"
 
     base = Counter(amounts).most_common(1)[0][0]
@@ -366,7 +382,7 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                           key=lambda a: a["pay_date"])
             if not mine:
                 continue
-            rate, period, kind = _coupon_rate(float(row["nominal"]), mine)
+            rate, period, kind = _coupon_rate(float(row["nominal"]), mine, row.get("coupon_freq"))
             redemption = next((r for r in redemptions
                                if r["decision_date"] == issue["decision_date"] and r["begins"]), None)
             reference.append({
@@ -376,6 +392,9 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                 "issue_volume": row.get("issue_volume"),
                 "coupon_rate": rate,
                 "coupon_freq": int(round(365 / period)) if period else None,
+                # How many filed coupons the rate rests on: one is an inversion
+                # through the register's frequency, several prove themselves.
+                "coupon_evidence": len(mine),
                 # "floating" survives without a rate: the detector concluding
                 # "no single annual rate fits the filings" is information the
                 # coupon column can state, where a bare NULL reads as silence.

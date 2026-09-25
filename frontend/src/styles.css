@@ -12789,11 +12789,11 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .range-btn { padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); background: none; font-size: 13px; line-height: 1.2; cursor: pointer; color: var(--text-secondary, var(--text-muted)); transition: all 0.12s; }
 .range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
 .range-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.company-price-chart-svg { display: block; color: var(--text-primary); cursor: crosshair; }
-.company-price-chart-svg.is-history-interactive { cursor: grab; touch-action: pan-y; }
-.company-price-chart-svg.is-history-interactive.is-inspect,
-.company-price-chart-svg.is-drawing { cursor: crosshair; }
-.company-price-chart-svg.is-history-interactive.is-panning { cursor: grabbing; user-select: none; }
+/* The price charts are Lightweight Charts canvases (charts/LwCanvas.jsx). A
+   finger dragging up or down still scrolls the page; sideways it pans history. */
+.lw-canvas { touch-action: pan-y; }
+.lw-canvas.is-drawing { cursor: crosshair; }
+.cpc-plot { position: relative; }
 .chart-loading { padding: 48px 0; text-align: center; }
 
 /* Interactive price chart */
@@ -12826,7 +12826,6 @@ body[data-theme="dark"] .view-catalog .topbar-nav-btn:focus-visible { outline-co
 .cpc-draw-status button { appearance: none; border: 0; padding: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .cpc-draw-status button.cpc-clear-all { color: var(--accent); font-weight: 700; }
 .cpc-draw-status button.cpc-clear-all:hover { color: var(--text-primary); }
-.cpc-drawing-line, .cpc-drawing-point { pointer-events: none; }
 .chart-opt-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
 .chart-opt-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
 .chart-opt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -12952,7 +12951,6 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .ac-company-tools { flex: 0 0 auto; }
 .ac-company-tools .ac-menu { right: auto; left: 0; }
 .ac-company-tools .ac-menu-item { justify-content: space-between; white-space: nowrap; }
-.ac-trend-line { pointer-events: none; }
 .ac-ranges, .ac-toolbar-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .ac-range-btn, .ac-type-btn, .ac-menu-btn { padding: 4px 11px; border-radius: 999px; border: 1px solid transparent; background: none; font-size: 12.5px; line-height: 1.3; color: var(--text-secondary, var(--text-muted)); cursor: pointer; transition: all 0.12s; }
 .ac-range-btn:hover, .ac-type-btn:hover:not(:disabled), .ac-menu-btn:hover { color: var(--text-primary); border-color: var(--border); }
@@ -13015,6 +13013,9 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 .ac-body { position: relative; display: grid; grid-template-columns: 0 1fr; gap: 0; min-height: 0; }
 .advanced-chart.rail-open .ac-body { grid-template-columns: 232px 1fr; gap: 14px; }
 .advanced-chart.is-fullscreen .ac-body { flex: 1 1 auto; min-height: 0; }
+/* Outside full screen the body is as tall as its plot. Allowed to shrink, it
+   did on a 720px-high window and the notes (and «Сбросить») slid under the chart. */
+.advanced-chart:not(.is-fullscreen) .ac-body { flex-shrink: 0; }
 .ac-rail-wrap { overflow: hidden; min-width: 0; }
 .advanced-chart:not(.rail-open) .ac-rail-wrap { visibility: hidden; }
 .ac-rail { display: flex; flex-direction: column; gap: 12px; max-height: 100%; overflow-y: auto; padding-right: 4px; }
@@ -13043,13 +13044,6 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
    measurement lands. */
 .ac-plot { position: relative; min-width: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
 .advanced-chart.is-fullscreen .ac-plot { height: 100% !important; min-height: 0; }
-.ac-svg { display: block; color: var(--text-primary); cursor: crosshair; }
-.ac-volume-bar { transition: fill-opacity 0.12s; shape-rendering: crispEdges; filter: saturate(1.12); }
-.ac-volume-bar:hover { fill-opacity: 1; }
-.ac-volume-empty { shape-rendering: crispEdges; }
-.ac-volume-empty:hover { fill-opacity: 0.38; }
-.ac-svg.is-candle-interactive { cursor: grab; touch-action: pan-y; }
-.ac-svg.is-candle-interactive.is-panning { cursor: grabbing; user-select: none; }
 .ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
 .ac-legend { position: absolute; z-index: 3; top: 8px; left: 10px; display: flex; flex-wrap: wrap; gap: 5px; max-width: calc(100% - 90px); }
 .ac-legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--text-primary); background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--ac-color, var(--border)); cursor: pointer; }
@@ -15885,3 +15879,85 @@ body[data-theme="light"] .profile-page .dashboard-metric-card {
     grid-template-columns: 1fr;
   }
 }
+
+/* Chart patterns (pattern_engine.py): the figures in view, each beside its
+   UZSE record. Direction is colour AND an arrow, so it survives greyscale. */
+.pattern-list { margin-top: 10px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+.pattern-list header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.pattern-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pattern-list li { border-top: 1px solid var(--border); padding: 6px 0; }
+.pattern-list li:first-child { border-top: 0; }
+.pattern-list li > button { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.pattern-list li > button:hover .pattern-name { text-decoration: underline; }
+.pattern-list li > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.pattern-dir { font-weight: 700; }
+.pattern-dir.up { color: #2fc584; }
+.pattern-dir.down { color: #ee6a60; }
+.pattern-name { font-weight: 600; }
+.pattern-date, .pattern-outcome { font-size: 12px; }
+.pattern-record { margin: 3px 0 0 18px; font-size: 12px; color: var(--text-secondary); }
+.pattern-verdict { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; }
+.pattern-verdict.same { background: rgba(127,127,127,0.14); color: var(--muted); }
+.pattern-verdict.below { background: rgba(238,106,96,0.14); color: #d9534a; }
+.pattern-verdict.above { background: rgba(47,197,132,0.14); color: #1f9e68; }
+.pattern-caption { margin: 8px 0 0; font-size: 11.5px; line-height: 1.45; }
+.pattern-note { margin: 8px 0 0; font-size: 12.5px; }
+.ac-menu-hint { display: block; padding: 6px 10px; font-size: 12px; max-width: 220px; }
+.pattern-list li.is-selected { background: var(--accent-soft, rgba(98,87,217,0.08)); border-radius: 8px; padding-inline: 6px; }
+.pattern-backtest, .pattern-cycle { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 13px; }
+.pattern-backtest p, .pattern-cycle p { margin: 4px 0 6px; font-size: 12.5px; line-height: 1.45; }
+.pattern-backtest dl { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; }
+.pattern-backtest dl div { display: grid; gap: 1px; }
+.pattern-backtest dt { font-size: 11px; color: var(--muted); }
+.pattern-backtest dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pattern-backtest dd.pos { color: #1f9e68; }
+.pattern-backtest dd.neg { color: #d9534a; }
+
+/* Карта доходности (BondYieldMap). Colour is the issuer group; a hollow ring
+   is a price older than 30 days; the curve is solid where auctions exist and
+   dashed where it is only held flat beyond them. */
+.bondmap .bondsec-bubble { opacity: 0.82; stroke-width: 1.5; transition: opacity 0.12s; }
+.bondmap .bondsec-bubble.is-stale { stroke-width: 2; stroke-dasharray: 3 2; }
+.bondmap .bondsec-map-pt.is-faded { opacity: 0.25; }
+.bondmap .bondsec-map-pt.is-highlight .bondsec-bubble { opacity: 1; stroke: var(--text) !important; stroke-width: 2.5; }
+.bondmap .bondsec-map-pt:focus-visible { outline: 2px solid var(--accent); }
+.bondsec-curve-flat { stroke-dasharray: 6 5; opacity: 0.7; }
+.bondsec-govpt { fill: var(--panel); stroke: var(--muted); stroke-width: 1.5; }
+.bondsec-govlabel { fill: var(--muted); font-size: 10.5px; }
+.bondsec-line-flat { background: repeating-linear-gradient(90deg, var(--muted-light) 0 6px, transparent 6px 10px); }
+.bondsec-ring { width: 10px; height: 10px; border-radius: 50%; border: 2px dashed var(--muted); display: inline-block; }
+.bondmap-plot { position: relative; }
+.bondmap-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.bondmap-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.bondmap-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 12.5px; cursor: pointer; }
+.bondmap-chip i, .bondmap-segtag i, .bondmap-seg i, .bondmap-tip-head i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.bondmap-chip.is-off { opacity: 0.45; text-decoration: line-through; }
+.bondmap-chip:focus-visible, .bondmap-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bondmap-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.bondmap-tip { position: absolute; z-index: 5; width: 250px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 8px 26px rgba(0,0,0,0.22); font-size: 12px; pointer-events: none; }
+.bondmap-tip-head { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.bondmap-tip-issuer { margin: 2px 0 6px; font-size: 11.5px; }
+.bondmap-tip dl { margin: 0; display: grid; gap: 3px; }
+.bondmap-tip dl div { display: flex; justify-content: space-between; gap: 10px; }
+.bondmap-tip dt { color: var(--muted); }
+.bondmap-tip dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bondmap-tip-foot { margin-top: 6px; font-size: 11px; line-height: 1.4; }
+.bondmap-coverage { margin: 8px 0 0; font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.bondmap-segments { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+.bondmap-seg { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; min-width: 150px; }
+.bondmap-seg span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.bondmap-seg b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.bondmap-segtag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.bondmap-issuer { font-size: 12px; }
+.bondmap-basis { font-size: 11.5px; white-space: nowrap; }
+.bondmap-sort { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.bondsec-spread-table th.is-sorted .bondmap-sort { color: var(--accent); }
+.bondsec-spread-table tr.is-hover td { background: var(--accent-light, rgba(98,87,217,0.08)); }
+.bondmap-spread { position: relative; min-width: 120px; }
+.bondmap-spread span:last-child { position: relative; font-variant-numeric: tabular-nums; }
+.bondmap-bar { position: absolute; top: 50%; height: 14px; transform: translateY(-50%); border-radius: 3px; opacity: 0.18; right: 8px; }
+.bondmap-bar.pos { background: #10b981; }
+.bondmap-bar.neg { background: #ee6a60; }
+.bondmap-compact .bondsec-chart { max-height: 260px; }
+.bond-spread-badge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 6px 0 10px; font-size: 13px; }
+.bond-spread-badge b { font-size: 18px; font-variant-numeric: tabular-nums; }

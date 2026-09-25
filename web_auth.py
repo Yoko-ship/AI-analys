@@ -44,6 +44,11 @@ DEFAULT_PROFILE_PREFERENCES: dict[str, Any] = {
     "notify_news": True,
     "notify_price": True,
     "notify_analysis": True,
+    # Chart patterns completed on a watchlist company's last sessions. The type
+    # list is what the reader chose; empty means every chart figure (candle
+    # models are opt-in — they fire most days on a liquid share).
+    "notify_patterns": True,
+    "pattern_alert_types": [],
 }
 
 
@@ -395,6 +400,7 @@ class WebAuthStore:
                 "ALTER TABLE web_favorite_companies ADD COLUMN IF NOT EXISTS price_alert_below NUMERIC",
                 "ALTER TABLE web_favorite_companies ADD COLUMN IF NOT EXISTS news_alert_enabled BOOLEAN NOT NULL DEFAULT TRUE",
                 "ALTER TABLE web_favorite_companies ADD COLUMN IF NOT EXISTS report_alert_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+                "ALTER TABLE web_favorite_companies ADD COLUMN IF NOT EXISTS pattern_alert_enabled BOOLEAN NOT NULL DEFAULT FALSE",
             ):
                 conn.execute(statement)
             conn.execute(
@@ -1219,7 +1225,7 @@ class WebAuthStore:
                 """
                 SELECT ticker, company_name, created_at, position,
                        price_alert_enabled, price_alert_above, price_alert_below,
-                       news_alert_enabled, report_alert_enabled
+                       news_alert_enabled, report_alert_enabled, pattern_alert_enabled
                 FROM web_favorite_companies
                 WHERE user_id = %s
                 ORDER BY position ASC, created_at DESC
@@ -1237,6 +1243,7 @@ class WebAuthStore:
                 "price_alert_below": float(row["price_alert_below"]) if row.get("price_alert_below") is not None else None,
                 "news_alert_enabled": bool(row.get("news_alert_enabled", True)),
                 "report_alert_enabled": bool(row.get("report_alert_enabled", True)),
+                "pattern_alert_enabled": bool(row.get("pattern_alert_enabled")),
             }
             for row in rows
         ]
@@ -1425,6 +1432,13 @@ class WebAuthStore:
             clean["timezone"] = str(clean["timezone"]).strip()[:80] or "Asia/Tashkent"
         if "default_analysis_period" in clean and clean["default_analysis_period"] not in ("latest", "quarterly", "annual"):
             raise ValueError("Unsupported analysis period")
+        if "pattern_alert_types" in clean:
+            import pattern_engine
+            known = set(pattern_engine.CHART_TYPES) | set(pattern_engine.CANDLE_TYPES)
+            types = clean["pattern_alert_types"]
+            if not isinstance(types, list) or any(t not in known for t in types):
+                raise ValueError("Unsupported pattern type")
+            clean["pattern_alert_types"] = sorted(set(types))
         with self._conn() as conn:
             row = conn.execute(
                 """
@@ -1666,7 +1680,7 @@ class WebAuthStore:
     def update_favorite(self, user_id: int, ticker: str, updates: dict[str, Any]) -> dict[str, Any]:
         allowed = {
             "position", "price_alert_enabled", "price_alert_above", "price_alert_below",
-            "news_alert_enabled", "report_alert_enabled",
+            "news_alert_enabled", "report_alert_enabled", "pattern_alert_enabled",
         }
         parts: list[str] = []
         params: list[Any] = []
@@ -1898,7 +1912,7 @@ class WebAuthStore:
                 """
                 SELECT ticker, company_name, created_at, position,
                        price_alert_enabled, price_alert_above, price_alert_below,
-                       news_alert_enabled, report_alert_enabled
+                       news_alert_enabled, report_alert_enabled, pattern_alert_enabled
                 FROM web_favorite_companies
                 WHERE user_id = %s
                 ORDER BY position ASC, created_at DESC
@@ -1974,6 +1988,7 @@ class WebAuthStore:
                 "price_alert_below": float(row["price_alert_below"]) if row.get("price_alert_below") is not None else None,
                 "news_alert_enabled": bool(row.get("news_alert_enabled", True)),
                 "report_alert_enabled": bool(row.get("report_alert_enabled", True)),
+                "pattern_alert_enabled": bool(row.get("pattern_alert_enabled")),
             }
             for row in favorites_rows
         ]

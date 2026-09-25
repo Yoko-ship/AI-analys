@@ -219,6 +219,109 @@ def _unavailable(reason: str = NO_REFERENCE_NOTE, **extra: Any) -> dict[str, Any
     return _metric(None, STATUS_NO_REFERENCE, note=reason, **extra)
 
 
+STATUS_NO_PRICE = "no_price"
+NO_PRICE_NOTE = "нет сделок — доходность к погашению считается только от цены"
+
+
+def _no_price() -> dict[str, Any]:
+    """Absent because nobody has traded the issue — its terms are complete.
+
+    Forty-five of the sixty-six registered issues were reported as «нет
+    справочных данных» for this reason alone, which blamed a reference that
+    was there for a trade that was not.
+    """
+    return _metric(None, STATUS_NO_PRICE, note=NO_PRICE_NOTE)
+
+
+# ---------------------------------------------------------------------------
+# Evidence the sources do not state outright
+# ---------------------------------------------------------------------------
+
+def infer_day_count(reference: dict[str, Any] | None,
+                    coupons: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """The accrual basis an issuer actually pays on, read off its own coupons.
+
+    No source publishes a day-count field, but every coupon filing publishes
+    the amount paid per bond — and on UZSE that amount is N × C × d / B with d
+    a whole number of days. Solving for d under each basis B, only the true
+    basis gives whole days on every filing (27 % on 100 000 paid 2 219.18 =
+    30 days under /365, 29.59 under /360). The basis is taken only when every
+    filing agrees; one filing that does not fit is enough to leave it unknown.
+    """
+    reference = reference or {}
+    nominal, rate = _num(reference.get("nominal")), _num(reference.get("coupon_rate"))
+    if not nominal or not rate or rate <= 0:
+        return None
+    amounts = [_num(c.get("amount")) for c in coupons or [] if not c.get("inferred")]
+    amounts = [a for a in amounts if a and a > 0]
+    if not amounts:
+        return None
+    for basis, year in (("ACT/365", 365.0), ("ACT/360", 360.0)):
+        days = [a * year / (nominal * rate / 100.0) for a in amounts]
+        if all(1 <= d <= 400 and abs(d - round(d)) <= 0.02 for d in days):
+            return {"basis": basis, "source": "filed_coupons", "evidence": len(amounts),
+                    "note": f"сумма каждого из {len(amounts)} выплаченных купонов = N × C × d / "
+                            f"{int(year)} с целым числом дней"}
+    return None
+
+
+# The price a yield is struck on. One odd lot at 122 % the day after a session
+# at 107 % moves a single-trade yield by several points; the volume-weighted
+# average of the last sessions is the market's price, and the practice of
+# exchanges that publish a «признаваемая котировка» for thin bonds.
+REFERENCE_PRICE_SESSIONS = 10
+REFERENCE_PRICE_WINDOW_DAYS = 30
+
+
+def reference_price(history: Sequence[dict[str, Any]] | None, as_of: date | None = None,
+                    sessions: int = REFERENCE_PRICE_SESSIONS,
+                    window_days: int = REFERENCE_PRICE_WINDOW_DAYS) -> dict[str, Any] | None:
+    """Volume-weighted price per bond over the latest sessions inside the window."""
+    as_of = as_of or date.today()
+    rows = []
+    for h in history or []:
+        when = _as_date(h.get("trade_date") or h.get("date"))
+        if when is None or when > as_of or (as_of - when).days > window_days:
+            continue
+        rows.append((when, _num(h.get("turnover")), _num(h.get("quantity")),
+                     _num(h.get("close_price") if h.get("close_price") is not None else h.get("close"))))
+    rows.sort(key=lambda r: r[0], reverse=True)
+    rows = rows[:sessions]
+    weighted = [(t, q) for _, t, q, _ in rows if t and q and t > 0 and q > 0]
+    if weighted:
+        value = sum(t for t, _ in weighted) / sum(q for _, q in weighted)
+        method = "vwap"
+    else:
+        closes = sorted(c for *_, c in rows if c and c > 0)
+        if not closes:
+            return None
+        mid = len(closes) // 2
+        value = closes[mid] if len(closes) % 2 else (closes[mid - 1] + closes[mid]) / 2
+        method = "median_close"
+    return {"value": value, "method": method, "sessions": len(rows),
+            "from": rows[-1][0].isoformat(), "to": rows[0][0].isoformat(),
+            "window_days": window_days}
+
+
+# Issuer groups for the yield map. Name rules, because no source publishes a
+# sector for a bond issuer; the rules are the words the issuers put in their
+# own registered names.
+SEGMENT_RULES = (
+    ("mortgage", ("IPOTEKA", "ИПОТЕК", "SPV", "UMRC")),
+    ("bank", ("BANK", "БАНК", "AITB", "ATB", "АТБ")),
+    ("leasing", ("LIZING", "LEASING", "ЛИЗИНГ")),
+    ("mfo", ("MIKROMOLIYA", "MMT", "МИКРОФИН", "FINANCE", "FINANS", "LOMBARD", "CREDIT", "KREDIT")),
+)
+
+
+def issuer_segment(name: Any) -> str:
+    text = str(name or "").upper()
+    for segment, words in SEGMENT_RULES:
+        if any(w in text for w in words):
+            return segment
+    return "corporate"
+
+
 def _matured(maturity: date) -> dict[str, Any]:
     """Absent because the issue is redeemed — its own status, not a missing reference."""
     return _metric(None, STATUS_MATURED, note=MATURED_NOTE.format(date=maturity.isoformat()))
@@ -417,34 +520,90 @@ def gov_curve_points(auctions: Iterable[dict[str, Any]],
         held = best.get(int(term))
         if held is None or day > held[0]:
             best[int(term)] = (day, auction)
-    return [{"term_days": term, "rate": _num(a.get("wavg_rate")),
-             "auction_date": day.isoformat(), "sec_id": a.get("sec_id"),
-             "isin": a.get("isin")}
-            for term, (day, a) in sorted(best.items())]
+    out = []
+    for term, (day, a) in sorted(best.items()):
+        rate = _num(a.get("wavg_rate"))
+        kind = str(a.get("income_type") or "").lower() or None
+        out.append({"term_days": term, "rate": rate,
+                    "auction_date": day.isoformat(), "sec_id": a.get("sec_id"),
+                    "isin": a.get("isin"), "income_type": kind,
+                    "age_days": (today - day).days,
+                    "rate_effective": gov_effective_rate(rate, term, kind),
+                    "duration_years": gov_point_duration(rate, term, kind)})
+    return out
+
+
+def gov_effective_rate(rate_pct: Any, term_days: Any, income_type: str | None) -> float | None:
+    """An auction yield on the same basis as a corporate YTM: effective annual.
+
+    A discount bill's auction yield is a simple annual rate over its term;
+    compounding it to a year is what makes it comparable with a solver's
+    (1+y)^t yield. A coupon auction's yield is published as an annual yield to
+    maturity and is taken as it stands.
+    """
+    rate, term = _num(rate_pct), _num(term_days)
+    if rate is None or not term or term <= 0:
+        return None
+    if income_type == "discount":
+        return ((1 + rate / 100.0 * term / 365.0) ** (365.0 / term) - 1) * 100.0
+    return rate
+
+
+def gov_point_duration(rate_pct: Any, term_days: Any, income_type: str | None) -> float | None:
+    """Where an auction sits on a duration axis.
+
+    A discount bill pays once, so its duration is its term. A coupon bond sold
+    at its auction yield is a par bond, whose Macaulay duration is
+    (1+y)/y · (1 − (1+y)^−n) — 2.68 years for the 3-year line at 12 %, not 3.
+    The map's x-axis is duration, and a curve drawn at term would sit to the
+    right of every corporate bond it is compared with.
+    """
+    rate, term = _num(rate_pct), _num(term_days)
+    if not term or term <= 0:
+        return None
+    years = term / 365.0
+    if income_type == "discount" or rate is None or rate <= 0:
+        return years
+    y = rate / 100.0
+    return (1 + y) / y * (1 - (1 + y) ** -years)
+
+
+def gov_curve_at(years: float | None, points: Sequence[dict[str, Any]]) -> tuple[float | None, bool]:
+    """The curve's yield at ``years`` and whether that is beyond its evidence.
+
+    Points on the normalised basis (duration, effective rate) when they carry
+    one, the raw tenor and auction rate otherwise. Linear between points and
+    held flat past the ends — held, not extended: beyond the last auctioned
+    line there is no market evidence, and the second value says when a reader
+    is looking at that flat part.
+    """
+    if years is None or not points:
+        return None, False
+    usable = []
+    for p in points:
+        x = _num(p.get("duration_years"))
+        r = _num(p.get("rate_effective"))
+        if x is None or r is None:
+            x = (_num(p.get("term_days")) or 0) / 365.0 or None
+            r = _num(p.get("rate"))
+        if x and r is not None:
+            usable.append((x, r))
+    if not usable:
+        return None, False
+    usable.sort()
+    if years <= usable[0][0]:
+        return usable[0][1], years < usable[0][0] - 1e-9
+    if years >= usable[-1][0]:
+        return usable[-1][1], years > usable[-1][0] + 1e-9
+    for (x0, r0), (x1, r1) in zip(usable, usable[1:]):
+        if x0 <= years <= x1:
+            return (r0 + (r1 - r0) * (years - x0) / (x1 - x0) if x1 > x0 else r0), False
+    return None, False
 
 
 def gov_curve_yield(years: float | None, points: Sequence[dict[str, Any]]) -> float | None:
-    """Linear interpolation on the auction tenors, clamped at the ends.
-
-    Clamped, not extrapolated: beyond the last auctioned tenor there is no
-    market evidence, and a straight line extended past it manufactures some.
-    """
-    if years is None or not points:
-        return None
-    days = years * 365.0
-    usable = [(float(p["term_days"]), float(p["rate"])) for p in points
-              if _num(p.get("term_days")) and _num(p.get("rate")) is not None]
-    if not usable:
-        return None
-    usable.sort()
-    if days <= usable[0][0]:
-        return usable[0][1]
-    if days >= usable[-1][0]:
-        return usable[-1][1]
-    for (t0, r0), (t1, r1) in zip(usable, usable[1:]):
-        if t0 <= days <= t1:
-            return r0 + (r1 - r0) * (days - t0) / (t1 - t0) if t1 > t0 else r0
-    return None
+    """Linear interpolation on the curve, clamped at the ends (see gov_curve_at)."""
+    return gov_curve_at(years, points)[0]
 
 
 def g_spread(ytm_pct: float | None, years: float | None,
@@ -845,7 +1004,8 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
              key_rate: Any = None, today: date | None = None,
              stats: dict[str, Any] | None = None,
              board_day: date | None = None,
-             gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+             gov_points: Sequence[dict[str, Any]] | None = None,
+             history: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
     """One issue: what is computable today, and a reason for what is not."""
     meta = meta or {}
     row = apply_day_stats(row, stats)
@@ -893,6 +1053,7 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
         # it"; absence says the question does not apply.
         "multiples": {"available": False, "reason": "долговой инструмент"},
         "day_count_basis": stated_basis,
+        "segment": issuer_segment((reference or {}).get("issuer") or meta.get("name") or row.get("name")),
     }
 
     if price is None:
@@ -977,6 +1138,14 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
                      else _unavailable("нет даты последней купонной выплаты")))
     clean = price
     dirty = dirty_price(clean, accrued.get("value"))
+    # Yields are struck on the reference price (see reference_price) when the
+    # sessions give one, and on the last trade otherwise; `pricing` says which.
+    pricing = reference_price(history, today) if history else None
+    yield_price = pricing["value"] if pricing else price
+    out["pricing"] = (pricing or ({"value": price, "method": "last_trade", "sessions": 1,
+                                   "from": out["last_trade_date"], "to": out["last_trade_date"]}
+                                  if price is not None else None))
+    yield_dirty = dirty_price(yield_price, accrued.get("value"))
     out.update({
         "accrued": accrued,
         "clean": _metric(clean, "ok") if clean is not None else _unavailable("нет цены"),
@@ -1010,15 +1179,15 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
         return out
 
     flows = coupon_cashflows(reference, coupons or [], today, schedule)
-    ytm = yield_to_maturity(flows, dirty, basis=stated_basis) if dirty else _unavailable()
-    duration = macaulay_duration(flows, dirty, ytm.get("value")) if dirty else _unavailable()
+    ytm = yield_to_maturity(flows, yield_dirty, basis=stated_basis) if yield_dirty else _no_price()
+    duration = macaulay_duration(flows, yield_dirty, ytm.get("value")) if yield_dirty else _no_price()
     mod = modified_duration(duration.get("value"), ytm.get("value"), 1)
     # The curve is read at the bond's own horizon — its duration when the solver
     # produced one, its remaining term otherwise.
     horizon = duration.get("value")
     if horizon is None and maturity:
         horizon = (maturity - today).days / 365.0
-    dv01 = bpv(mod.get("value"), dirty)
+    dv01 = bpv(mod.get("value"), yield_dirty)
     out.update({
         "ytm": ytm,
         "ytc": _unavailable("условия досрочного погашения не подтверждены"),
@@ -1026,9 +1195,9 @@ def _bond_row_unchecked(row: dict[str, Any], meta: dict[str, Any] | None = None,
         "duration": duration,
         "modified_duration": mod,
         "spread": spread_to_key_rate(ytm.get("value"), key_rate),
-        "convexity": convexity(flows, dirty, ytm.get("value")),
+        "convexity": convexity(flows, yield_dirty, ytm.get("value")),
         "bpv": dv01, "dv01": dict(dv01),
-        "rate_scenarios": rate_scenarios(flows, dirty, ytm.get("value")),
+        "rate_scenarios": rate_scenarios(flows, yield_dirty, ytm.get("value")),
         "g_spread": g_spread(ytm.get("value"), horizon, gov_points or []),
     })
     return out
@@ -1040,11 +1209,32 @@ def bond_row(row: dict[str, Any], meta: dict[str, Any] | None = None,
              coupons: Sequence[dict[str, Any]] | None = None,
              key_rate: Any = None, today: date | None = None,
              stats: dict[str, Any] | None = None, board_day: date | None = None,
-             gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+             gov_points: Sequence[dict[str, Any]] | None = None,
+             history: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
     from bond_quality import apply_quality
+    reference = with_day_count_evidence(reference, coupons)
     result = _bond_row_unchecked(row, meta, quality, reference, coupons, key_rate, today,
-                                stats, board_day, gov_points)
+                                stats, board_day, gov_points, history)
     return apply_quality(result, reference or {}, list(coupons or []), today or date.today(), gov_points or [])
+
+
+def with_day_count_evidence(reference: dict[str, Any] | None,
+                            coupons: Sequence[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """The reference with its accrual basis filled from evidence, and its source named.
+
+    Disclosed first; then read off the issuer's own coupon amounts
+    (infer_day_count); then, for an issue with no coupon filed yet, the
+    market's convention from config — stated as such, never as disclosed.
+    """
+    if not reference:
+        return reference
+    if reference.get("day_count") or reference.get("day_count_basis"):
+        return {**reference, "day_count_source": reference.get("day_count_source") or "disclosed"}
+    inferred = infer_day_count(reference, coupons)
+    if inferred:
+        return {**reference, "day_count": inferred["basis"], "day_count_source": "filed_coupons",
+                "day_count_evidence": inferred["evidence"]}
+    return {**reference, "day_count": day_count_basis(), "day_count_source": "market_convention"}
 
 
 def issue_schedule(reference: dict[str, Any] | None,
@@ -1193,7 +1383,8 @@ def build_bond_board(board: Iterable[dict[str, Any]],
                      key_rate: Any = None,
                      stats: dict[str, dict[str, Any]] | None = None,
                      board_day: date | None = None,
-                     gov_points: Sequence[dict[str, Any]] | None = None) -> dict[str, Any]:
+                     gov_points: Sequence[dict[str, Any]] | None = None,
+                     histories: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any]:
     """The bond section of the market screen.
 
     ``stats`` is the exchange's day statistics keyed by ISIN — the same store the
@@ -1217,7 +1408,8 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         day_stats = stats.get(isin) or stats.get(isin.upper()) or stats.get(isin.lower())
         rows.append(bond_row(row, meta, (quality or {}).get(ticker),
                              references.get(ticker), (coupons or {}).get(ticker), key_rate,
-                             stats=day_stats, board_day=board_day, gov_points=gov_points))
+                             stats=day_stats, board_day=board_day, gov_points=gov_points,
+                             history=(histories or {}).get(isin.upper())))
 
     # The board is the list of issues that TRADED; the exchange's register is
     # the list that EXISTS. Sixty-five are registered and about a sixth of them
@@ -1231,12 +1423,14 @@ def build_bond_board(board: Iterable[dict[str, Any]],
         if ticker in seen or not reference:
             continue
         meta = securities.get(ticker) or {}
+        ref_isin = str(reference.get("isin") or meta.get("isin") or "").upper()
         rows.append(bond_row({"ticker": ticker, "type": "bond",
                               "isin": reference.get("isin") or meta.get("isin"),
                               "name": reference.get("issuer") or meta.get("name")},
                              meta, (quality or {}).get(ticker), reference,
                              (coupons or {}).get(ticker), key_rate,
-                             board_day=board_day, gov_points=gov_points))
+                             board_day=board_day, gov_points=gov_points,
+                             history=(histories or {}).get(ref_isin)))
     rows.sort(key=lambda r: r["ticker"])
     # The board's own day, as the ROWS report it — so «за сессию» on this
     # section means the same session the rows do, even when the caller passes

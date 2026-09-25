@@ -377,6 +377,30 @@ class TestTermsFromFilings:
                                                       self._accruals(5_917_808.22, 3, step=91))
         assert (rate, period) == (24.0, 90)
 
+    def test_one_filed_coupon_takes_its_period_from_the_register(self):
+        """ANBK3B filed one coupon, 5 424.66 per 100 000: 22 % over 90 days.
+        Read as monthly it became 66 %; ONLJ4's one annual 150 000 per
+        1 000 000 became 182.5 %."""
+        import bond_terms
+
+        one = [{"amount": 5424.66, "pay_date": date(2026, 8, 11)}]
+        assert bond_terms._coupon_rate(100_000.0, one, 4) == (22.0, 90, "fixed")
+        annual = [{"amount": 150_000.0, "pay_date": date(2023, 12, 11)}]
+        assert bond_terms._coupon_rate(1_000_000.0, annual, 1) == (15.0, 365, "fixed")
+
+    def test_one_filed_coupon_and_no_frequency_states_no_rate(self):
+        """A guessed period is a fabricated rate."""
+        import bond_terms
+
+        one = [{"amount": 5424.66, "pay_date": date(2026, 8, 11)}]
+        assert bond_terms._coupon_rate(100_000.0, one, None) == (None, None, "unknown")
+
+    def test_several_coupons_prove_their_own_period_whatever_the_register_says(self):
+        import bond_terms
+
+        rate, period, _kind = bond_terms._coupon_rate(100_000.0, self._accruals(2301.37), 4)
+        assert (rate, period) == (28.0, 30)
+
     def test_the_series_is_matched_on_par_and_quantity_then_sequence(self):
         """AGAT's four series share a par and three share a quantity — neither
         field alone is a key, and a coupon on the wrong series is worse than
@@ -944,3 +968,33 @@ def _clean_wire_fixtures():
         conn.commit()
     finally:
         conn.close()
+
+
+class TestFiledTermsAgainstTheRegister:
+    """Which source a coupon rate comes from when the two disagree."""
+
+    def test_one_coupon_that_disagrees_leaves_the_register_standing(self):
+        import collector_financials as cf
+
+        row = {"ticker": "ANBK3B", "coupon_rate": 22.0, "coupon_freq": 4}
+        filed = cf._filed_terms_for(row, {"coupon_rate": 66.0, "coupon_freq": 12, "coupon_evidence": 1,
+                                          "maturity_date": "2029-04-27"})
+        assert "coupon_rate" not in filed and "coupon_freq" not in filed
+        assert "coupon_source" not in filed
+        assert filed["maturity_source"] == "openinfo_facts"
+
+    def test_one_coupon_that_agrees_is_the_filed_rate(self):
+        import collector_financials as cf
+
+        filed = cf._filed_terms_for({"ticker": "ANBK3B", "coupon_rate": 22.0},
+                                    {"coupon_rate": 22.0, "coupon_freq": 4, "coupon_evidence": 1})
+        assert filed["coupon_rate"] == 22.0 and filed["coupon_source"] == "openinfo_facts"
+        assert "coupon_evidence" not in filed
+
+    def test_several_coupons_outrank_the_register(self):
+        """BFMT3B4's accruals prove 28 % where prose said 27 %."""
+        import collector_financials as cf
+
+        filed = cf._filed_terms_for({"ticker": "BFMT3B4", "coupon_rate": 27.0},
+                                    {"coupon_rate": 28.0, "coupon_freq": 12, "coupon_evidence": 8})
+        assert filed["coupon_rate"] == 28.0 and filed["coupon_source"] == "openinfo_facts"

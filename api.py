@@ -571,6 +571,8 @@ class ProfilePreferencesRequest(BaseModel):
     notify_news: bool | None = None
     notify_price: bool | None = None
     notify_analysis: bool | None = None
+    notify_patterns: bool | None = None
+    pattern_alert_types: list[str] | None = Field(default=None, max_length=40)
 
 
 class PasswordChangeRequest(BaseModel):
@@ -598,6 +600,7 @@ class FavoriteUpdateRequest(BaseModel):
     price_alert_below: float | None = Field(default=None, ge=0)
     news_alert_enabled: bool | None = None
     report_alert_enabled: bool | None = None
+    pattern_alert_enabled: bool | None = None
 
 
 class PortfolioPositionRequest(BaseModel):
@@ -2963,6 +2966,29 @@ async def _bond_history_quality(inputs: dict[str, Any]) -> dict[str, dict[str, A
         return {}
 
 
+async def _bond_price_histories(inputs: dict[str, Any],
+                                references: dict[str, dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Recent stored sessions of every bond, keyed by ISIN — one query for all.
+
+    The yield is struck on the volume-weighted price of these sessions
+    (bonds.reference_price), not on whichever odd lot printed last.
+    """
+    securities = inputs["securities"]
+    isins = {str(r.get("isin") or "").upper() for r in (references or {}).values() if r and r.get("isin")}
+    for row in inputs["board"]:
+        ticker = str(row.get("ticker") or "").upper()
+        if bonds.is_bond(row, securities.get(ticker) or {}):
+            code = row.get("isin") or (securities.get(ticker) or {}).get("isin")
+            if code:
+                isins.add(str(code).upper())
+    isins.discard("")
+    if not isins:
+        return {}
+    window = bonds.REFERENCE_PRICE_WINDOW_DAYS + 15
+    return await asyncio.get_running_loop().run_in_executor(
+        None, partial(get_quote_history, sorted(isins), window))
+
+
 @app.get("/api/bonds")
 async def api_bonds(request: Request) -> Response:
     """The bond contour (Дополнение 1 §А.6).
@@ -2988,7 +3014,8 @@ async def api_bonds(request: Request) -> Response:
         payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
                                          references, coupons, quality,
                                          key_rate=(key_rate or {}).get("rate"),
-                                         stats=inputs["stats"], gov_points=gov_points)
+                                         stats=inputs["stats"], gov_points=gov_points,
+                                         histories=await _bond_price_histories(inputs, references))
         payload["ok"] = True
         payload["trade_date"] = inputs["trade_date"]
         payload["gov_curve"] = gov_points
@@ -3061,7 +3088,8 @@ async def api_bond_detail(ticker: str) -> dict[str, Any]:
     payload = bonds.build_bond_board(inputs["board"], inputs["securities"],
                                      references, coupons, quality,
                                      key_rate=(key_rate or {}).get("rate"),
-                                     stats=inputs["stats"], gov_points=gov_points)
+                                     stats=inputs["stats"], gov_points=gov_points,
+                                     histories=await _bond_price_histories(inputs, references))
     row = next((r for r in payload["items"] if r["ticker"] == ticker), None)
     if not row:
         raise HTTPException(status_code=404, detail="bond not found")
@@ -6167,6 +6195,137 @@ async def api_company_technical_backtest(
                        "source": "stored confirmed exchange sessions", **result})
 
 
+_PATTERN_CACHE: dict[str, dict[str, Any]] = {}
+_PATTERN_STATS: dict[str, Any] = {}
+
+
+def _pattern_market_stats() -> dict[str, Any]:
+    """The liquid-tier outcome table scripts/pattern_research.py wrote.
+
+    Read once: it changes only when the research is re-run and redeployed.
+    """
+    if not _PATTERN_STATS:
+        path = Path(__file__).with_name("config") / "pattern_stats.json"
+        try:
+            _PATTERN_STATS.update(json.loads(path.read_text()))
+        except (OSError, ValueError):
+            logger.warning("pattern stats unavailable at %s", path)
+    return _PATTERN_STATS
+
+
+async def _pattern_analysis(isin: str, points: list[dict[str, Any]], level: str = "medium") -> dict[str, Any]:
+    """pattern_engine.analyse on the chart's own history, re-run only when a new
+    session has arrived (the history cache already dedupes the fetch)."""
+    import pattern_engine
+
+    key = f"{len(points)}:{points[-1].get('date') if points else ''}"
+    cache_key = f"{isin}:{level}"
+    hit = _PATTERN_CACHE.get(cache_key)
+    if not hit or hit["key"] != key:
+        result = await asyncio.get_running_loop().run_in_executor(
+            None, partial(pattern_engine.analyse, points, sensitivity=level))
+        if len(_PATTERN_CACHE) >= _HISTORY_CACHE_MAX:
+            _PATTERN_CACHE.pop(next(iter(_PATTERN_CACHE)), None)
+        hit = _PATTERN_CACHE[cache_key] = {"key": key, "result": result}
+    return hit["result"]
+
+
+# A pattern stays in the bell for this many calendar days after the session
+# that completed it — long enough to span a weekend and a holiday.
+PATTERN_ALERT_DAYS = 5
+
+
+async def _pattern_alerts(favorites: list[dict[str, Any]], types: list[str]) -> list[dict[str, Any]]:
+    """Bell items for figures completed lately on watchlist companies.
+
+    Only liquid securities (the chart draws nothing on the rest), at the
+    default sensitivity, and only the chosen types — every chart figure when
+    none were chosen. The fields are the stable facts of the event (ticker,
+    pattern, session), so the item keeps its read state between polls.
+    """
+    import formulas
+    import pattern_engine
+    from datetime import date, timedelta
+
+    wanted = set(types) if types else set(pattern_engine.CHART_TYPES)
+    since = (date.today() - timedelta(days=PATTERN_ALERT_DAYS)).isoformat()
+    items: list[dict[str, Any]] = []
+    for favorite in favorites:
+        ticker = str(favorite.get("ticker") or "").upper()
+        if not ticker or not favorite.get("pattern_alert_enabled"):
+            continue
+        isin = await _resolve_isin(ticker)
+        if not isin:
+            continue
+        points = (await _full_history(str(isin).upper(), months=240)).get("points") or []
+        if formulas.data_quality(formulas.normalize_points(points))["data_tier"] != "full":
+            continue
+        result = await _pattern_analysis(str(isin).upper(), points, "medium")
+        for sig in result.get("signals") or []:
+            if sig["signal_date"] < since or sig["type"] not in wanted:
+                continue
+            # Only the event's own facts: the item id is a hash of its fields,
+            # and a market-wide figure here would re-open every read alert the
+            # day the statistics are regenerated.
+            items.append({"ticker": ticker, "report_form": "PATTERN", "year": None, "quarter": 0,
+                          "kind": "pattern", "pattern": sig["type"], "direction": sig["direction"],
+                          "signal_date": sig["signal_date"], "detected_at": sig["signal_date"],
+                          "title": f"{sig['type']} {sig['direction']}", "href": f"/company/{ticker}"})
+    return items
+
+
+@app.get("/api/company/{ticker}/patterns")
+async def api_company_patterns(ticker: str, sensitivity: str = "medium") -> Any:
+    """Chart figures, reversal candles and cycles in a security's daily history.
+
+    Annotation, not advice: every pattern arrives with how that pattern type
+    has actually done on liquid UZSE shares, beside the rate an ordinary
+    session reaches the same target by chance — and on this market the first
+    number is usually the smaller. Securities outside the full liquidity tier
+    get no patterns at all: on a day that printed one price a candle has no
+    shape, and a triangle drawn through three trades a month is a drawing of
+    the gaps. ``sensitivity`` (low / medium / high) is the ZigZag swing size,
+    and the outcome table quoted is the one measured at that size.
+    """
+    import formulas
+    import pattern_engine
+
+    ticker = ticker.strip().upper()
+    level = sensitivity if sensitivity in pattern_engine.SENSITIVITY else "medium"
+    isin = await _resolve_isin(ticker)
+    if not isin:
+        return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found"}, status_code=404)
+    isin = str(isin).upper()
+    data = await _full_history(isin, months=240)
+    points = data.get("points") or []
+    quality = formulas.data_quality(formulas.normalize_points(points))
+    stats = _pattern_market_stats()
+    level_stats = (stats.get("by_sensitivity") or {}).get(level) or {}
+    base = {"ok": True, "ticker": ticker, "isin": isin, "tier": quality["data_tier"], "sensitivity": level,
+            "model_version": pattern_engine.MODEL_VERSION, "market_stats": level_stats.get("types", {}),
+            "stats_meta": {"securities": level_stats.get("securities"),
+                           **{k: stats.get(k) for k in ("generated", "universe", "method", "parameters")}},
+            "disclaimer": "Historical pattern statistics only; not a trading recommendation."}
+    if quality["data_tier"] != "full":
+        return {**base, "status": "INSUFFICIENT_LIQUIDITY", "reason": quality.get("reason"), "signals": []}
+
+    result = await _pattern_analysis(isin, points, level)
+    if result["status"] != "AVAILABLE":
+        return {**base, "status": result["status"], "reason": result.get("reason"), "signals": []}
+    keep = ("type", "family", "direction", "start_date", "signal_date", "price", "target", "stop",
+            "points", "lines", "angles", "box", "outcome", "entry_date", "exit_date", "directional_return_pct")
+    return _json_safe({
+        **base, "status": "AVAILABLE", "period": result["period"],
+        "signals": [{k: s.get(k) for k in keep} for s in result["signals"]],
+        "stock_stats": result["summary"],
+        "backtest": {"all": result["backtest"], **result["backtest_by_family"],
+                     "fee_bps": result["parameters"]["fee_bps"],
+                     "slippage_bps": result["parameters"]["slippage_bps"],
+                     "horizon": result["parameters"]["horizon"]},
+        "cycle": result["cycle"],
+    })
+
+
 @app.get("/api/quotes/series")
 async def api_quotes_series(request: Request, tickers: str = "", days: int = 30) -> Response:
     """Settled daily closes for several securities in ONE request.
@@ -8401,6 +8560,8 @@ async def api_notifications(current_user: WebUser = Depends(_require_user)) -> d
                               "title": f"Price {price:g} reached threshold {threshold:g}",
                               "detected_at": (listings.get(ticker) or {}).get("updated_at"),
                               "kind": "price_threshold", "price": price, "threshold": threshold})
+        if favorites and preferences.get("notify_patterns", True):
+            items.extend(await _pattern_alerts(favorites, list(preferences.get("pattern_alert_types") or [])))
         if is_human_admin:
             from financial_ingestion.maintenance import incidents
             ingestion_alerts = await loop.run_in_executor(None, incidents)

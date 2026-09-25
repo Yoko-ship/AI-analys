@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { PasswordMeter } from "./PasswordMeter.jsx";
 import { passwordStrength, translateAuthError } from "./lib/passwordStrength.js";
+import { CANDLE_PATTERN_TYPES, CHART_PATTERN_TYPES, patternName } from "./lib/patterns.js";
 
 const pick = (language, ru, en, uz) => (language === "en" ? en : language === "uz" ? uz : ru);
 
@@ -46,6 +47,39 @@ function AccountChoice({ label, options, value, onChange }) {
           {optionLabel}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Which pattern types reach the bell. An empty choice means every chart
+ * figure — the default — so it is shown as all figures ticked, and the first
+ * change turns that implicit set into an explicit one.
+ */
+function PatternTypePicker({ language, value, onChange }) {
+  const tx = (ru, en, uz) => pick(language, ru, en, uz);
+  const chosen = new Set(value.length ? value : CHART_PATTERN_TYPES);
+  const toggle = (type) => {
+    const next = new Set(chosen);
+    if (next.has(type)) next.delete(type); else next.add(type);
+    onChange([...next]);
+  };
+  const group = (title, types) => (
+    <fieldset className="acct-pattern-group">
+      <legend>{title}</legend>
+      {types.map((type) => (
+        <label key={type} className="acct-pattern-type">
+          <input type="checkbox" checked={chosen.has(type)} onChange={() => toggle(type)} />
+          <span>{patternName(type, language)}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+  return (
+    <div className="acct-pattern-picker" data-testid="pattern-alert-types">
+      {group(tx("Фигуры", "Chart figures", "Shakllar"), CHART_PATTERN_TYPES)}
+      {group(tx("Свечные модели — на ликвидной бумаге появляются почти каждый день", "Candle models — near daily on a liquid share", "Sham modellari — likvid qog'ozda deyarli har kuni"), CANDLE_PATTERN_TYPES)}
+      <p className="acct-pattern-note">{tx("Уведомление приходит только по бумагам из избранного, где включены паттерны, и только по ликвидным. На UZSE ни одна фигура не доходит до цели чаще случайного входа — статистика у каждого паттерна на графике.", "Alerts come only for watchlist companies with patterns switched on, and only for liquid shares. On UZSE no figure reaches its target more often than a random entry — each pattern's record is on the chart.", "Bildirishnoma faqat patternlar yoqilgan tanlangan va likvid qog'ozlar bo'yicha keladi. UZSEda hech bir shakl tasodifiy kirishdan ko'ra ko'proq maqsadga yetmaydi — har bir pattern statistikasi grafikda.")}</p>
     </div>
   );
 }
@@ -461,6 +495,11 @@ export function ProfileAccountCenter({
                 <AccountSwitch label={tx("Новая отчётность", "New company reports", "Yangi hisobotlar")} hint={tx("Опубликован квартальный или годовой отчёт", "A quarterly or annual filing is published", "Choraklik yoki yillik hisobot e'lon qilindi")} checked={preferences.notify_reports ?? true} onChange={(value) => setPreferences({ ...preferences, notify_reports: value })} />
                 <AccountSwitch label={tx("Новости компаний", "Company news", "Kompaniya yangiliklari")} hint={tx("Существенные факты и новости эмитента", "Material facts and issuer news", "Muhim faktlar va emitent yangiliklari")} checked={preferences.notify_news ?? true} onChange={(value) => setPreferences({ ...preferences, notify_news: value })} />
                 <AccountSwitch label={tx("Ценовые уровни", "Price alerts", "Narx signallari")} hint={tx("Цена пересекла заданный вами уровень", "The price crossed a level you set", "Narx siz belgilagan darajani kesib o'tdi")} checked={preferences.notify_price ?? true} onChange={(value) => setPreferences({ ...preferences, notify_price: value })} />
+                <AccountSwitch label={tx("Паттерны на графике", "Chart patterns", "Grafik patternlari")} hint={tx("На графике компании завершилась выбранная фигура — это описание, не сигнал к сделке", "A chosen figure completed on the company's chart — a description, not a trade signal", "Kompaniya grafigida tanlangan shakl yakunlandi — bu tavsif, savdo signali emas")} checked={preferences.notify_patterns ?? true} onChange={(value) => setPreferences({ ...preferences, notify_patterns: value })} />
+                {(preferences.notify_patterns ?? true) ? (
+                  <PatternTypePicker language={language} value={preferences.pattern_alert_types || []}
+                    onChange={(types) => setPreferences({ ...preferences, pattern_alert_types: types })} />
+                ) : null}
               </div>
               <AccountFooter
                 note={tx("Уровни цен задаются в избранном, у каждой компании.", "Price levels are set per company on your watchlist.", "Narx darajalari tanlanganlardagi har bir kompaniya uchun belgilanadi.")}
@@ -528,10 +567,10 @@ export function ProfileAccountCenter({
 export function ProfileFavoriteEditor({ item, language, apiFetch, onClose, onRefresh, onRemove }) {
   const tx = (ru, en, uz) => pick(language, ru, en, uz);
   const [form, setForm] = useState({}); const [status, setStatus] = useState(""); const [busy, setBusy] = useState(false);
-  useEffect(() => { if (item) setForm({ position: item.position || 0, price_alert_enabled: Boolean(item.price_alert_enabled), price_alert_above: item.price_alert_above ?? "", price_alert_below: item.price_alert_below ?? "", news_alert_enabled: item.news_alert_enabled !== false, report_alert_enabled: item.report_alert_enabled !== false }); }, [item]);
+  useEffect(() => { if (item) setForm({ position: item.position || 0, price_alert_enabled: Boolean(item.price_alert_enabled), price_alert_above: item.price_alert_above ?? "", price_alert_below: item.price_alert_below ?? "", news_alert_enabled: item.news_alert_enabled !== false, report_alert_enabled: item.report_alert_enabled !== false, pattern_alert_enabled: Boolean(item.pattern_alert_enabled) }); }, [item]);
   if (!item) return null;
   const save = async (event) => { event.preventDefault(); setBusy(true); try { await readJson(await apiFetch(`/api/favorites/${encodeURIComponent(item.ticker)}`, { method: "PATCH", body: JSON.stringify({ ...form, price_alert_above: form.price_alert_above === "" ? null : Number(form.price_alert_above), price_alert_below: form.price_alert_below === "" ? null : Number(form.price_alert_below) }) })); await onRefresh(); onClose(); } catch (error) { setStatus(error.message); } finally { setBusy(false); } };
-  return <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="profile-item-editor" role="dialog" aria-modal="true" aria-labelledby="favorite-editor-title"><header><div><span>{item.ticker}</span><h2 id="favorite-editor-title">{tx("Настройки избранного", "Watchlist settings", "Tanlanganlar sozlamasi")}</h2></div><button type="button" onClick={onClose}>×</button></header><form onSubmit={save}><SwitchRow label={tx("Ценовое уведомление", "Price alert", "Narx bildirishnomasi")} checked={form.price_alert_enabled} onChange={(value) => setForm({ ...form, price_alert_enabled: value })} /><div className="profile-center-form-grid"><label><span>{tx("Цена выше", "Price above", "Narx yuqori")}</span><input type="number" min="0" step="any" value={form.price_alert_above ?? ""} onChange={(e) => setForm({ ...form, price_alert_above: e.target.value })} /></label><label><span>{tx("Цена ниже", "Price below", "Narx past")}</span><input type="number" min="0" step="any" value={form.price_alert_below ?? ""} onChange={(e) => setForm({ ...form, price_alert_below: e.target.value })} /></label></div><SwitchRow label={tx("Новости компании", "Company news", "Kompaniya yangiliklari")} checked={form.news_alert_enabled} onChange={(value) => setForm({ ...form, news_alert_enabled: value })} /><SwitchRow label={tx("Новая отчётность", "New reports", "Yangi hisobotlar")} checked={form.report_alert_enabled} onChange={(value) => setForm({ ...form, report_alert_enabled: value })} /><label><span>{tx("Позиция в списке", "List position", "Ro'yxat o'rni")}</span><input type="number" min="0" value={form.position ?? 0} onChange={(e) => setForm({ ...form, position: Number(e.target.value) })} /></label>{status ? <ActionStatus text={status} tone="error" /> : null}<div className="profile-item-actions"><button className="profile-cmd-primary" disabled={busy}>{tx("Сохранить", "Save", "Saqlash")}</button><button className="ghost-btn danger" type="button" onClick={() => onRemove(item)}>{tx("Убрать из избранного", "Remove from watchlist", "Tanlanganlardan o'chirish")}</button></div></form></section></div>;
+  return <div className="profile-cmd-settings-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="profile-item-editor" role="dialog" aria-modal="true" aria-labelledby="favorite-editor-title"><header><div><span>{item.ticker}</span><h2 id="favorite-editor-title">{tx("Настройки избранного", "Watchlist settings", "Tanlanganlar sozlamasi")}</h2></div><button type="button" onClick={onClose}>×</button></header><form onSubmit={save}><SwitchRow label={tx("Ценовое уведомление", "Price alert", "Narx bildirishnomasi")} checked={form.price_alert_enabled} onChange={(value) => setForm({ ...form, price_alert_enabled: value })} /><div className="profile-center-form-grid"><label><span>{tx("Цена выше", "Price above", "Narx yuqori")}</span><input type="number" min="0" step="any" value={form.price_alert_above ?? ""} onChange={(e) => setForm({ ...form, price_alert_above: e.target.value })} /></label><label><span>{tx("Цена ниже", "Price below", "Narx past")}</span><input type="number" min="0" step="any" value={form.price_alert_below ?? ""} onChange={(e) => setForm({ ...form, price_alert_below: e.target.value })} /></label></div><SwitchRow label={tx("Новости компании", "Company news", "Kompaniya yangiliklari")} checked={form.news_alert_enabled} onChange={(value) => setForm({ ...form, news_alert_enabled: value })} /><SwitchRow label={tx("Новая отчётность", "New reports", "Yangi hisobotlar")} checked={form.report_alert_enabled} onChange={(value) => setForm({ ...form, report_alert_enabled: value })} /><SwitchRow label={tx("Паттерны на графике", "Chart patterns", "Grafik patternlari")} hint={tx("Типы паттернов выбираются в настройках уведомлений", "Pattern types are chosen in notification settings", "Pattern turlari bildirishnoma sozlamalarida tanlanadi")} checked={form.pattern_alert_enabled} onChange={(value) => setForm({ ...form, pattern_alert_enabled: value })} /><label><span>{tx("Позиция в списке", "List position", "Ro'yxat o'rni")}</span><input type="number" min="0" value={form.position ?? 0} onChange={(e) => setForm({ ...form, position: Number(e.target.value) })} /></label>{status ? <ActionStatus text={status} tone="error" /> : null}<div className="profile-item-actions"><button className="profile-cmd-primary" disabled={busy}>{tx("Сохранить", "Save", "Saqlash")}</button><button className="ghost-btn danger" type="button" onClick={() => onRemove(item)}>{tx("Убрать из избранного", "Remove from watchlist", "Tanlanganlardan o'chirish")}</button></div></form></section></div>;
 }
 
 export function ProfileNoteEditor({ note, analyses, language, apiFetch, onClose, onRefresh }) {
