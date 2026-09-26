@@ -1,4 +1,6 @@
 """Interim, component evidence, shared reads and operational recovery checks."""
+
+import web_auth as subject_web_auth
 import json
 
 import pytest
@@ -263,9 +265,9 @@ def test_admin_dashboard_and_bell_access(setup, monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_ENVIRONMENT", "test")
     user = type("User", (), {"id": 77, "email": "operator@example.test", "has_pro_access": False})()
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "administrator"}))
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
-    monkeypatch.setattr(api.web_auth_store, "list_support_requests", lambda **kw: {"items": []})
-    monkeypatch.setattr(api.web_auth_store, "notification_states", lambda *a: {})
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "list_support_requests", lambda **kw: {"items": []})
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "notification_states", lambda *a: {})
     maintenance.monitor()
     client = TestClient(api.app)
     assert client.get("/api/admin/control/overview").status_code == 401

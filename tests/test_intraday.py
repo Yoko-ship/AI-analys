@@ -21,6 +21,9 @@ Pinned here:
 """
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+import server.market.history as subject_server_market_history
+
 import datetime as dt
 import importlib
 
@@ -166,8 +169,8 @@ class TestTheEndpoint:
         async def _isin(_ticker):
             return ISIN
 
-        monkeypatch.setattr(api, "_resolve_isin", _isin)
-        monkeypatch.setattr(api, "get_intraday_history", lambda isin, days: [
+        monkeypatch.setattr(subject_server_market_history, '_resolve_isin', _isin)
+        monkeypatch.setattr(subject_reports_catalog, 'get_intraday_history', lambda isin, days: [
             {"trade_date": "20260817", "hour": 10, "open_price": 100.0, "high_price": 104.0,
              "low_price": 100.0, "close_price": 101.0, "quantity": 15.0, "turnover": 1518.0},
         ])
@@ -186,5 +189,5 @@ class TestTheEndpoint:
         async def _no_isin(_ticker):
             return None
 
-        monkeypatch.setattr(api, "_resolve_isin", _no_isin)
+        monkeypatch.setattr(subject_server_market_history, '_resolve_isin', _no_isin)
         assert TestClient(api.app).get("/api/intraday/NOPE").status_code == 404

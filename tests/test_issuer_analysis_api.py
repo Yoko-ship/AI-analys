@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import issuer_financials as issuer_sources
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
@@ -98,16 +100,16 @@ def client(monkeypatch, tmp_path) -> TestClient:
     }
 
     monkeypatch.setattr(subject, "_RUN_DB_PATH", tmp_path / "comparison.sqlite3")
-    monkeypatch.setattr(subject, "get_securities_map", lambda: securities)
-    monkeypatch.setattr(subject, "get_company_index", lambda ticker: indexes.get(ticker, {}))
-    monkeypatch.setattr(subject, "get_company_reports", lambda ticker: [])
-    monkeypatch.setattr(subject, "get_financials_series", annual)
-    monkeypatch.setattr(subject, "get_financials_series_quarterly", quarterly)
-    monkeypatch.setattr(subject, "get_all_ratios", lambda: ratios)
-    monkeypatch.setattr(subject, "get_all_financials", lambda form="NSBU": latest)
-    monkeypatch.setattr(subject, "fetch_report_excel_data", excel_data)
-    monkeypatch.setattr(subject, "get_all_quotes", lambda: quotes)
-    monkeypatch.setattr(subject, "get_all_trade_stats", lambda: trades)
+    monkeypatch.setattr(issuer_sources, 'get_securities_map', lambda: securities)
+    monkeypatch.setattr(issuer_sources, 'get_company_index', lambda ticker: indexes.get(ticker, {}))
+    monkeypatch.setattr(issuer_sources, 'get_company_reports', lambda ticker: [])
+    monkeypatch.setattr(issuer_sources, 'get_financials_series', annual)
+    monkeypatch.setattr(issuer_sources, 'get_financials_series_quarterly', quarterly)
+    monkeypatch.setattr(issuer_sources, 'get_all_ratios', lambda: ratios)
+    monkeypatch.setattr(issuer_sources, 'get_all_financials', lambda form="NSBU": latest)
+    monkeypatch.setattr(issuer_sources, 'fetch_report_excel_data', excel_data)
+    monkeypatch.setattr(issuer_sources, 'get_all_quotes', lambda: quotes)
+    monkeypatch.setattr(issuer_sources, 'get_all_trade_stats', lambda: trades)
     monkeypatch.setattr(subject.provenance, "bond_references", lambda: {})
     monkeypatch.setattr(subject.provenance, "bond_coupons", lambda: {})
     monkeypatch.setattr(subject.news_store, "get_news_for_ticker", lambda *args, **kwargs: [])
@@ -258,8 +260,8 @@ def test_commodity_exchange_summary_matches_available_full_report(monkeypatch):
         },
         "source_snapshot_hash": "urts-snapshot",
     }
-    monkeypatch.setattr(subject, "_resolve_issuer", lambda _issuer_id: issuer)
-    monkeypatch.setattr(subject, "_financial_snapshot", lambda *_args: snapshot)
+    monkeypatch.setattr(issuer_sources, 'resolve_issuer', lambda _issuer_id: issuer)
+    monkeypatch.setattr(issuer_sources, 'financial_snapshot', lambda *_args: snapshot)
 
     body = subject.issuer_ai_report(
         "URTS", "nsbu", None, "separate", "ru", True,
@@ -315,7 +317,7 @@ def test_three_object_run_has_reproducible_table_csv_pdf_and_summary(client):
 
 
 def test_short_report_does_not_pad_missing_data(client, monkeypatch):
-    monkeypatch.setattr(subject, "get_financials_series_quarterly", lambda ticker, form="NSBU": {"2026Q2": {"revenue": 100.0}})
+    monkeypatch.setattr(issuer_sources, 'get_financials_series_quarterly', lambda ticker, form="NSBU": {"2026Q2": {"revenue": 100.0}})
     body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru").json()
     assert body["status"] == "quality_blocked"
     assert body["verified_facts"] == []
@@ -355,7 +357,7 @@ def test_insurance_reserves_are_separate_and_included_in_liabilities(client):
 
 
 def test_balance_mismatch_blocks_text_generation(client, monkeypatch):
-    original = subject.get_financials_series_quarterly
+    original = issuer_sources.get_financials_series_quarterly
 
     def mismatched(ticker, form="NSBU"):
         rows = original(ticker, form)
@@ -364,7 +366,7 @@ def test_balance_mismatch_blocks_text_generation(client, monkeypatch):
             rows["2026Q2"]["total_assets"] = 99999
         return rows
 
-    monkeypatch.setattr(subject, "get_financials_series_quarterly", mismatched)
+    monkeypatch.setattr(issuer_sources, 'get_financials_series_quarterly', mismatched)
     body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru").json()
     assert body["status"] == "quality_blocked"
     assert body["paragraph_count"] == 1
@@ -373,8 +375,8 @@ def test_balance_mismatch_blocks_text_generation(client, monkeypatch):
 
 
 def test_missing_filing_returns_coded_unavailable_state(client, monkeypatch):
-    monkeypatch.setattr(subject, "get_financials_series", lambda ticker, form="NSBU": {})
-    monkeypatch.setattr(subject, "get_financials_series_quarterly", lambda ticker, form="NSBU": {})
+    monkeypatch.setattr(issuer_sources, 'get_financials_series', lambda ticker, form="NSBU": {})
+    monkeypatch.setattr(issuer_sources, 'get_financials_series_quarterly', lambda ticker, form="NSBU": {})
 
     body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&lang=ru").json()
 

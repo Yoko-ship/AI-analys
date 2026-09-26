@@ -7576,18 +7576,19 @@ def _sector_nsbu_result(
     public API stable while making the sector-selected, NSBU-first facts the
     only source of narrative and risk statements.
     """
-    from issuer_analysis_api import _resolve_issuer, _sector_ai_report
+    from issuer_financials import resolve_issuer
+    from sector_report_service import public_report, sector_report
 
     security = (company_data or {}).get("security") or {}
     identifier = security.get("ticker") or company_input or resolved_name
-    issuer = _resolve_issuer(str(identifier))
+    issuer = resolve_issuer(str(identifier))
 
     requested_period = None
     current_year = report_comparison.get("current_year")
     quarter = report_comparison.get("quarter")
     if current_year:
         requested_period = f"{current_year}Q{quarter}" if quarter else str(current_year)
-    report = _sector_ai_report(issuer, "nsbu", requested_period, "separate", language)
+    report = public_report(sector_report(issuer, "nsbu", requested_period, "separate", language))
     paragraphs = list(report.get("paragraphs") or [])
     risks = list(report.get("risks") or [])
     data_quality = list(report.get("data_quality") or [])

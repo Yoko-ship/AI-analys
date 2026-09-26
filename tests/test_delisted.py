@@ -12,6 +12,13 @@ DELISTED_TICKERS by mistake is the failure mode worth a test.
 """
 from __future__ import annotations
 
+import server.settings as subject_server_settings
+
+import reports_catalog as subject_reports_catalog
+import requests as subject_requests
+import server.market.dates as subject_server_market_dates
+import server.settings as subject_server_settings
+
 import sqlite3
 
 import pytest
@@ -109,7 +116,7 @@ class TestCatalogRemoval:
     def test_hidden_from_the_market_board(self) -> None:
         import api
 
-        assert DELISTED_TICKERS <= api.BOARD_DENYLIST
+        assert DELISTED_TICKERS <= subject_server_settings.BOARD_DENYLIST
 
 
 @pytest.fixture()
@@ -256,20 +263,20 @@ class TestInactiveFlag:
     def test_date_normalisation(self, raw, expected) -> None:
         import api
 
-        assert api._iso_trade_date(raw) == expected
+        assert subject_server_market_dates._iso_trade_date(raw) == expected
 
     def test_dd_mm_is_not_read_as_mm_dd(self) -> None:
         """A day-first date silently read as month-first shifts a trade by months."""
         import api
 
-        assert api._iso_trade_date("07.01.2026") == "2026-01-07"
+        assert subject_server_market_dates._iso_trade_date("07.01.2026") == "2026-01-07"
 
     def _feed(self, monkeypatch, listings, live, stats=None):
         import api
 
-        monkeypatch.setattr(api, "get_all_listings", lambda: listings)
-        monkeypatch.setattr(api, "_live_last_trade_dates", lambda: live)
-        monkeypatch.setattr(api, "get_all_trade_stats", lambda: stats or {})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: listings)
+        monkeypatch.setattr(subject_server_market_dates, '_live_last_trade_dates', lambda: live)
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: stats or {})
         from fastapi.testclient import TestClient
 
         with TestClient(api.app) as client:
@@ -330,8 +337,8 @@ class TestInactiveFlag:
         def _boom(*a, **k):
             raise _rq.RequestException("down")
 
-        monkeypatch.setattr(api.requests, "get", _boom)
-        assert api._live_last_trade_dates() == {}
+        monkeypatch.setattr(subject_requests, "get", _boom)
+        assert subject_server_market_dates._live_last_trade_dates() == {}
 
     def test_a_carried_forward_close_is_not_a_trade(self, monkeypatch) -> None:
         """close_date advances daily whether or not anything traded.
@@ -342,7 +349,7 @@ class TestInactiveFlag:
         """
         import api
 
-        monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "https://uzse-mirror.test")
+        monkeypatch.setattr(subject_server_settings, 'UZSE_STOCK_API_BASE', "https://uzse-mirror.test")
         rows = {
             None: [{"ticker": "FRAZP", "last_trade_date": None,
                     "close_date": "23.07.2026", "volume": None},
@@ -356,8 +363,8 @@ class TestInactiveFlag:
             def raise_for_status(self): pass
             def json(self): return {"stocks": rows[self._key]}
 
-        monkeypatch.setattr(api.requests, "get",
+        monkeypatch.setattr(subject_requests, "get",
                             lambda url, params=None, timeout=None: _Resp((params or {}).get("type")))
-        dates = api._live_last_trade_dates()
+        dates = subject_server_market_dates._live_last_trade_dates()
         assert "FRAZP" not in dates, "a quote carried forward was read as a trade"
         assert dates["ACMT1B2"] == "2026-07-17", "a session with turnover is a real trade"

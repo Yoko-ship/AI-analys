@@ -94,13 +94,34 @@ jobs:
         # cron jobs exited 0 having silently collected nothing for weeks.
         run: python scripts/check_server_requirements.py
 
-      - name: Run backend tests
-        # The current branch has a recorded baseline of ten legacy-contract test
-        # failures (1,498 tests pass). Keep the result visible in Actions, but do
-        # not make every unrelated production fix undeployable while those tests
-        # are repaired separately. Image build, import validation and browser E2E
-        # remain required deployment gates.
-        continue-on-error: true
+      - name: Required reporting module regressions
+        env:
+          PYTHON_DOTENV_DISABLED: "1"
+          DATABASE_BACKEND: sqlite
+          DATABASE_URL: ""
+          DATABASE_PUBLIC_URL: ""
+          APP_DATA_DIR: ${{ runner.temp }}/uzstock-module-tests
+          CATALOG_WATCH: "0"
+          NEWS_CALENDAR_WATCH: "0"
+          SECTOR_ANALYSIS_WORKER: "0"
+          ADMIN_CONTROL_WORKER: "0"
+        run: >-
+          python -m pytest tests/test_reporting_boundaries.py
+          tests/test_issuer_analysis_api.py tests/test_email_verification.py
+          tests/test_sector_contract_v22.py tests/test_sector_analysis_service.py
+          tests/test_admin_control.py -q
+
+      - name: Required full backend suite and architecture boundaries
+        env:
+          PYTHON_DOTENV_DISABLED: "1"
+          DATABASE_BACKEND: sqlite
+          DATABASE_URL: ""
+          DATABASE_PUBLIC_URL: ""
+          APP_DATA_DIR: ${{ runner.temp }}/uzstock-full-tests
+          CATALOG_WATCH: "0"
+          NEWS_CALENDAR_WATCH: "0"
+          SECTOR_ANALYSIS_WORKER: "0"
+          ADMIN_CONTROL_WORKER: "0"
         run: python -m pytest tests -q
 
       - name: Required bank ingestion safety tests
@@ -137,12 +158,19 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: E2E production smoke suite
-        # Keep production releases fast: this covers the market board, profile,
-        # and news. The complete 81-scenario regression suite remains available
-        # as `npm run test:e2e` when making UI-wide changes.
+        # Include module integration, login/edit/logout on desktop and mobile,
+        # public report access and report error recovery.
         run: >-
-          npx playwright test e2e/smoke.spec.js
-          --grep="navigating to Рынок|profile workspace exposes|Новости renders"
+          npx playwright test e2e/smoke.spec.js e2e/company-chart-history.spec.js
+          e2e/auth-design.spec.js e2e/company-registry.spec.js
+          --grep="module navigation|module routing|session module|shared market data|profile workspace exposes|navigating to Рынок|company overview opens|company report preserves|company AI insight|Новости renders|company overview chart|auth controls|phone viewport|Soliq registry"
+
+      - name: Current authentication, charts and financial views
+        run: >-
+          npx playwright test e2e/account-menu.spec.js e2e/auth-email-code.spec.js
+          e2e/password-strength.spec.js e2e/chart-patterns.spec.js
+          e2e/pattern-alerts.spec.js e2e/bond-yield-map.spec.js
+          e2e/financial-scope.spec.js e2e/bank-interim.spec.js
 
       - name: Upload Playwright artifacts on failure
         if: failure()
@@ -222,7 +250,7 @@ jobs:
           docker exec uzstock-web python -m financial_ingestion.worker backup
           REMOTE
 
-      - name: Inspect active HTTPS proxy
+      - name: Inspect active application, service manager and HTTPS proxy
         # The VPS has both Nginx and OpenResty installed. Keep the active
         # listener visible in deployment logs so protected routes are always
         # configured in the process actually serving uzstock.uz.
@@ -233,7 +261,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
-            'ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; ss -ltnp "sport = :443" || true; docker ps --format "{{.Names}} {{.Image}} {{.Ports}}" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
+            'set -e; cd /root/uzstock/app; pwd -P; git rev-parse HEAD; docker inspect --format "{{.Config.Image}} {{.State.Status}}" uzstock-web; systemctl list-units "uzstock-*" --all --no-pager; ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; ss -ltnp "sport = :443" || true; docker ps --format "{{.Names}} {{.Image}} {{.Ports}}" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
 
       - name: Synchronize Google OAuth configuration
         # OAuth credentials live only in GitHub Secrets and the production .env;

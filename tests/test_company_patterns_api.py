@@ -7,6 +7,9 @@ The upstream fetch is stubbed.
 """
 from __future__ import annotations
 
+import server.market.history as subject_server_market_history
+import server.market.patterns as subject_server_market_patterns
+
 import importlib
 from datetime import date, timedelta
 
@@ -41,9 +44,9 @@ def client(monkeypatch):
         async def fake_history(isin: str, months: int = 60):
             return _history(flat)
 
-        monkeypatch.setattr(api, "_resolve_isin", fake_resolve)
-        monkeypatch.setattr(api, "_full_history", fake_history)
-        api._PATTERN_CACHE.clear()
+        monkeypatch.setattr(subject_server_market_history, '_resolve_isin', fake_resolve)
+        monkeypatch.setattr(subject_server_market_history, '_full_history', fake_history)
+        subject_server_market_patterns._PATTERN_CACHE.clear()
         return TestClient(api.app)
     return make
 

@@ -1,6 +1,8 @@
 """Admin-reviewed UZSE/OpenInfo company imports."""
 from __future__ import annotations
 
+import web_auth as subject_web_auth
+
 import dbx
 import pytest
 from fastapi.testclient import TestClient
@@ -90,7 +92,7 @@ class _PostgresStrictCandidateConnection:
 
 def _as_user(monkeypatch, email: str | None) -> None:
     monkeypatch.setattr(
-        api.web_auth_store,
+        subject_web_auth.web_auth_store,
         "get_user_by_token",
         lambda token: _User(email) if token and email else None,
     )

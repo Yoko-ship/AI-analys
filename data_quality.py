@@ -490,9 +490,9 @@ def scan_analysis_issue(ticker: str) -> dict[str, Any]:
     if not _TICKER_RE.fullmatch(ticker):
         raise DataQualityError("Ticker must contain 2-40 Latin letters or digits")
     try:
-        from issuer_analysis_api import _resolve_issuer
+        from issuer_financials import resolve_issuer
         from sector_report_service import sector_report
-        report = sector_report(_resolve_issuer(ticker), "nsbu", None, "separate", "ru", persist=False)
+        report = sector_report(resolve_issuer(ticker), "nsbu", None, "separate", "ru", persist=False)
     except Exception as exc:
         raise DataQualityError(f"Company analysis could not be checked: {exc}") from None
 

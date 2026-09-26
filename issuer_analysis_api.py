@@ -11,7 +11,6 @@ This router adds reproducible, snapshot-backed runs suitable for API clients.
 from __future__ import annotations
 
 import csv
-import hashlib
 import io
 import json
 import math
@@ -21,12 +20,15 @@ import sqlite3
 import statistics
 import threading
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
+from fastapi.routing import APIRoute
+
+import issuer_financials as financials
 from pydantic import BaseModel, Field, model_validator
 
 import bonds as bond_math
@@ -34,22 +36,28 @@ import corporate_actions
 import dividends
 import news_store
 import provenance
-from reports_catalog import (
-    extract_insurance_balance,
-    fetch_report_excel_data,
-    get_all_financials,
-    get_all_quotes,
-    get_all_ratios,
-    get_all_trade_stats,
-    get_company_index,
-    get_company_reports,
-    get_financials_series,
-    get_financials_series_quarterly,
-)
-from securities_catalog import get_securities_map
 
 
-router = APIRouter(prefix="/api/v1", tags=["issuer comparative analysis"])
+class IssuerRoute(APIRoute):
+    """Translate domain failures at the HTTP seam, including threaded endpoints."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def handle(request):
+            try:
+                return await handler(request)
+            except financials.IssuerNotFoundError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+            except financials.UnsupportedPeriodError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        return handle
+
+
+router = APIRouter(prefix="/api/v1", tags=["issuer comparative analysis"], route_class=IssuerRoute)
+
+
 
 API_VERSION = "issuer-comparison-v1.0"
 DEFAULT_ISSUER_METRICS = (
@@ -109,34 +117,6 @@ METRIC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "years_to_maturity": {"label": "Years to maturity", "unit": "years", "direction": "neutral", "level": "bond"},
 }
 
-SECTOR_TEMPLATES: dict[str, dict[str, Any]] = {
-    "bank": {
-        "required_metrics": ["revenue", "net_income", "total_assets", "total_liabilities", "total_equity"],
-        "optional_metrics": ["operating_income", "cash"],
-        "warning_rules": ["Use only verified bank NSBU lines."],
-        "paragraph_structure": ["verdict", "income", "balance", "risks"],
-        "version": "bank-nsbu-1.0",
-    },
-    "insurance": {
-        "required_metrics": [
-            "revenue", "net_income", "total_assets", "total_equity",
-            "gross_insurance_reserves", "reinsurer_share_in_reserves",
-            "net_insurance_reserves", "total_liabilities",
-        ],
-        "optional_metrics": ["operating_income", "cash", "other_liabilities"],
-        "warning_rules": ["Gross reserves, reinsurer share and net reserves remain separately traceable."],
-        "paragraph_structure": ["verdict", "income", "reserves", "risks"],
-        "version": "insurance-nsbu-1.0",
-    },
-    "non_financial": {
-        "required_metrics": ["revenue", "net_income", "net_margin_pct", "roe_pct", "debt_ratio_pct", "current_ratio"],
-        "optional_metrics": ["quick_ratio", "pe", "pb"],
-        "warning_rules": ["Do not publish EBITDA, CFO, CAPEX or FCF without a separately verified source."],
-        "paragraph_structure": ["verdict", "income", "balance", "ratios", "risks"],
-        "version": "non-financial-nsbu-1.0",
-    },
-}
-
 
 class ComparisonRequest(BaseModel):
     object_type: Literal["issuer", "stock", "bond", "sector"] = "issuer"
@@ -167,86 +147,6 @@ _RUN_DB_PATH = Path(os.getenv("ISSUER_ANALYTICS_DB", Path(__file__).with_name("d
 _RUN_LOCK = threading.Lock()
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _safe_float(value: Any) -> float | None:
-    if value is None or isinstance(value, bool):
-        return None
-    try:
-        result = float(value)
-    except (TypeError, ValueError):
-        return None
-    return result if math.isfinite(result) else None
-
-
-def _canonical(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
-
-
-def _snapshot_hash(value: Any) -> str:
-    return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
-
-
-def _normal_name(value: Any) -> str:
-    return re.sub(r"[^a-z0-9а-яёўқғҳ]+", " ", str(value or "").lower()).strip()
-
-
-def _organization_type(issuer: dict[str, Any], standard: str = "nsbu") -> str:
-    """Resolve the legal/reporting type before choosing metrics or prose.
-
-    ``sector=finance`` is not specific enough: it contains banks, insurers and
-    other financial organizations.  The NSBU Excel URL records the form type
-    explicitly and is therefore preferred over name-based fallbacks.
-    """
-    latest = get_all_financials(_standard_form(standard)).get(issuer["ticker"]) or {}
-    explicit = str(latest.get("org_type") or "").strip().lower()
-    aliases = {
-        "jsc": "non_financial",
-        "bank": "bank",
-        "insurance": "insurance",
-        "microfinance": "microfinance",
-        "mfo": "microfinance",
-        "microfinance_bank": "microfinance_bank",
-        "microbank": "microfinance_bank",
-        "investment_fund": "investment_fund_ifrs_annual",
-        "commodity_exchange": "commodity_exchange",
-    }
-    from sector_report_service import special_type
-    special = special_type(issuer)
-    if special:
-        return special
-    if explicit in aliases:
-        return aliases[explicit]
-
-    availability = ((issuer.get("index") or {}).get("availability") or {}).get(
-        _standard_form(standard), {}
-    )
-    for kind in ("quarter", "annual"):
-        for report in availability.get(kind) or []:
-            for key in ("excel_url", "excel_url_form1"):
-                match = re.search(r"(?:[?&])org_type=([^&]+)", str(report.get(key) or ""), re.I)
-                if match and match.group(1).lower() in aliases:
-                    return aliases[match.group(1).lower()]
-
-    name = _normal_name(f"{issuer.get('name')} {issuer.get('ticker')}")
-    if any(token in name for token in ("bank", "банк")):
-        return "bank"
-    if any(token in name for token in ("insurance", "страх", "sug urta", "sugurta")):
-        return "insurance"
-    if any(token in name for token in ("microfinance", "микрофинанс", "mikromoliya")):
-        return "microfinance"
-    if str(issuer.get("sector") or "").strip().lower() == "finance":
-        return "financial_unknown"
-    return "non_financial"
-
-
-def _sector_template_code(issuer: dict[str, Any], standard: str = "nsbu") -> str:
-    organization_type = _organization_type(issuer, standard)
-    return organization_type if organization_type in SECTOR_TEMPLATES else "sector_template_missing"
-
-
 def _run_connection() -> sqlite3.Connection:
     _RUN_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(_RUN_DB_PATH, timeout=20)
@@ -271,8 +171,8 @@ def _save_run(run: dict[str, Any]) -> None:
                 run["run_id"],
                 run["created_at"],
                 run["snapshot_hash"],
-                _canonical(run["request"]),
-                _canonical(run),
+                financials.canonical(run["request"]),
+                financials.canonical(run),
             ),
         )
 
@@ -287,374 +187,18 @@ def _load_run(run_id: str) -> dict[str, Any]:
     return json.loads(row["result_json"])
 
 
-def _resolve_issuer(identifier: str) -> dict[str, Any]:
-    wanted = str(identifier or "").strip()
-    if not wanted:
-        raise HTTPException(status_code=404, detail="issuer not found")
-    upper = wanted.upper()
-    securities = get_securities_map()
-    ticker = upper if upper in securities else None
-    if not ticker:
-        ticker = next(
-            (key for key, row in securities.items() if str(row.get("isin") or "").upper() == upper),
-            None,
-        )
-    candidates = [ticker] if ticker else list(securities)
-    if not ticker:
-        for key in candidates:
-            idx = get_company_index(key) or {}
-            if str(idx.get("org_id") or "") == wanted or _normal_name(idx.get("company_name")) == _normal_name(wanted):
-                ticker = key
-                break
-    if not ticker:
-        raise HTTPException(status_code=404, detail="issuer not found")
-    security = dict(securities.get(ticker) or {})
-    index = dict(get_company_index(ticker) or {})
-    return {
-        "id": str(index.get("org_id") or ticker),
-        "ticker": ticker,
-        "tickers": index.get("tickers") or [ticker],
-        "isin": security.get("isin"),
-        "name": index.get("company_name") or security.get("name") or ticker,
-        "sector": index.get("sector") or security.get("sector"),
-        "security": security,
-        "index": index,
-    }
-
-
-def _standard_form(standard: str) -> str:
-    return "NSBU" if standard == "nsbu" else "MSFO"
-
-
-def _period_key(period: str) -> tuple[int, int]:
-    match = re.fullmatch(r"(\d{4})(?:Q([1-4]))?", str(period or ""))
-    if not match:
-        return (0, 0)
-    return int(match.group(1)), int(match.group(2) or 4)
-
-
-def _period_before(period: str) -> str | None:
-    year, quarter = _period_key(period)
-    if not year:
-        return None
-    return f"{year - 1}Q{quarter}" if "Q" in period else str(year - 1)
-
-
-def _report_rows(issuer: dict[str, Any], standard: str) -> list[dict[str, Any]]:
-    form = _standard_form(standard)
-    availability = ((issuer.get("index") or {}).get("availability") or {}).get(form) or {}
-    rows: list[dict[str, Any]] = []
-    for kind in ("annual", "quarter"):
-        for row in availability.get(kind) or []:
-            period = str(row.get("year") or "") + (f"Q{row.get('quarter')}" if row.get("quarter") else "")
-            rows.append({**row, "period": period, "period_type": kind})
-    if rows:
-        return rows
-    for row in get_company_reports(issuer["ticker"]):
-        if row.get("report_form") != form:
-            continue
-        period = str(row.get("year") or "") + (f"Q{row.get('quarter')}" if row.get("quarter") else "")
-        rows.append({**row, "period": period})
-    return rows
-
-
-def _expected_reporting_period(standard: str, today: date) -> tuple[str, date, bool]:
-    if standard == "ifrs":
-        period = str(today.year - 1)
-        due = date(today.year, 6, 30)
-        if today < due:
-            period, due = str(today.year - 2), date(today.year - 1, 6, 30)
-        return period, due, today < due
-
-    candidates: list[tuple[str, date, date]] = []
-    for year in range(today.year - 2, today.year + 1):
-        candidates.extend(
-            [
-                (f"{year}Q1", date(year, 3, 31), date(year, 4, 30)),
-                (f"{year}Q2", date(year, 6, 30), date(year, 7, 30)),
-                (f"{year}Q3", date(year, 9, 30), date(year, 10, 30)),
-                (str(year), date(year, 12, 31), date(year + 1, 3, 31)),
-            ]
-        )
-    ended = [item for item in candidates if item[1] <= today]
-    period, _end, due = max(ended, key=lambda item: item[1])
-    return period, due, today < due
-
-
-def _freshness_one(issuer: dict[str, Any], standard: str, today: date | None = None) -> dict[str, Any]:
-    today = today or _now().date()
-    rows = _report_rows(issuer, standard)
-    expected, due, within_window = _expected_reporting_period(standard, today)
-    latest = max(rows, key=lambda row: _period_key(row.get("period")), default=None)
-    latest_period = latest.get("period") if latest else None
-    published = (latest or {}).get("published_at") or (latest or {}).get("synced_at")
-    published_day = None
-    try:
-        published_day = datetime.fromisoformat(str(published).replace("Z", "+00:00")).date() if published else None
-    except ValueError:
-        pass
-    if not latest:
-        status = "no_data"
-    elif _period_key(latest_period) >= _period_key(expected):
-        status = "updated" if published_day and (today - published_day).days <= 30 else "current"
-    elif within_window:
-        status = "awaiting"
-    else:
-        gap = (_period_key(expected)[0] * 4 + _period_key(expected)[1]) - (_period_key(latest_period)[0] * 4 + _period_key(latest_period)[1])
-        status = "stale" if gap >= (8 if standard == "nsbu" else 2) else "overdue"
-    return {
-        "standard": standard,
-        "expected_period": expected,
-        "latest_period": latest_period,
-        "expected_due_date": due.isoformat(),
-        "status": status,
-        "publication_date": published,
-        "calculated_at": _now().isoformat(),
-        "source": (latest or {}).get("pdf_url") or (latest or {}).get("excel_url"),
-    }
-
-
-def _financial_snapshot(
-    issuer: dict[str, Any],
-    standard: str,
-    period: str | None,
-    scope: str,
-) -> dict[str, Any]:
-    if standard == "ifrs" and period and "Q" in period:
-        raise HTTPException(status_code=422, detail="IFRS quarterly data is not part of the market-wide comparable layer")
-    ticker = issuer["ticker"]
-    form = _standard_form(standard)
-    organization_type = _organization_type(issuer, standard)
-    template_code = _sector_template_code(issuer, standard)
-    is_quarterly = standard == "nsbu" and bool(period and "Q" in period)
-    if standard == "nsbu" and period is None:
-        annual_series = get_financials_series(ticker, form)
-        quarterly_series = get_financials_series_quarterly(ticker, form)
-        selected = max(
-            [*(str(key) for key in (annual_series or {})), *(str(key) for key in (quarterly_series or {}))],
-            key=_period_key,
-            default=None,
-        )
-        is_quarterly = bool(selected and "Q" in selected)
-        series = quarterly_series if is_quarterly else annual_series
-    else:
-        series = get_financials_series_quarterly(ticker, form) if is_quarterly else get_financials_series(ticker, form)
-        selected = period
-    available = sorted((str(key) for key in (series or {})), key=_period_key, reverse=True)
-    selected = selected or (available[0] if available else None)
-    reported_values = dict((series or {}).get(selected) or {}) if selected else {}
-    values = dict(reported_values)
-    # The catalogue reader already overlays reviewed corrections.  Keep an
-    # explicit marker so the sector layer does not replace one with the raw
-    # workbook line while enriching a report for display or re-validation.
-    reviewed_correction_fields: set[str] = set()
-    if selected:
-        try:
-            import data_quality
-            correction_year, correction_quarter = _period_key(selected)
-            reviewed_correction_fields = set(data_quality.approved_corrections_for(
-                ticker, form, correction_year, correction_quarter))
-        except Exception:
-            # Read errors must not make the public analysis unavailable; the
-            # normal raw-workbook reconciliation remains the fallback.
-            reviewed_correction_fields = set()
-    previous_period = _period_before(selected) if selected else None
-    previous_reported = dict((series or {}).get(previous_period) or {}) if previous_period else {}
-    previous = dict(previous_reported)
-    # OpenInfo's quarterly NSBU forms are cumulative from 1 January.  Q2 means
-    # six months, not a standalone second quarter, and must be compared with Q2
-    # of the prior year without subtraction or annualization.
-    period_basis = "cumulative_ytd" if is_quarterly and selected else "annual"
-    reports = _report_rows(issuer, standard)
-    source_doc = next((row for row in reports if row.get("period") == selected), None)
-    source = {
-        "document_id": (source_doc or {}).get("report_id") or f"catalog:{ticker}:{form}:{selected or 'none'}",
-        "url": (source_doc or {}).get("pdf_url") or (source_doc or {}).get("excel_url"),
-        "publication_date": (source_doc or {}).get("published_at") or (source_doc or {}).get("synced_at"),
-        "provider": "openinfo/catalog",
-    }
-    insurance_balance: dict[str, Any] = {}
-    insurance_mapping_error: str | None = None
-    if standard == "nsbu" and organization_type == "insurance" and selected:
-        year, quarter = _period_key(selected)
-        if "Q" not in selected:
-            quarter = 0
-        try:
-            workbook = fetch_report_excel_data(ticker, form, year, quarter)
-            insurance_balance = extract_insurance_balance(
-                workbook.get("balance") or workbook.get("income")
-            ) if workbook.get("ok") else {}
-            if insurance_balance.get("gross_insurance_reserves") is None:
-                insurance_mapping_error = str(workbook.get("error") or "insurance reserve lines were not mapped")
-            else:
-                # Replace the generic section-III liability subtotal with the
-                # economic amount: net insurance reserves + other liabilities.
-                for field in (
-                    "total_assets", "total_equity", "total_liabilities",
-                    "gross_insurance_reserves", "reinsurer_share_in_reserves",
-                    "net_insurance_reserves", "other_liabilities",
-                ):
-                    values[field] = insurance_balance.get(field)
-                    reported_values[field] = insurance_balance.get(field)
-        except Exception as exc:  # a missing workbook becomes a quality state, never an invented zero
-            insurance_mapping_error = str(exc)
-    observations: dict[str, dict[str, Any]] = {}
-
-    missing = object()
-
-    def add(code: str, value: Any, unit: str, raw_value: Any = missing) -> None:
-        number = _safe_float(value)
-        reported = number if raw_value is missing else _safe_float(raw_value)
-        observations[code] = {
-            "metric": code,
-            "raw": reported,
-            "normalized": number,
-            "period": selected,
-            "standard": standard,
-            "scope": scope,
-            "currency": "UZS" if "UZS" in unit else None,
-            "unit": unit,
-            "source": source,
-            "quality": ("normalized" if reported is not None and number is not None and reported != number else "reported") if number is not None else "missing",
-        }
-
-    direct_codes = [
-        "revenue", "net_income", "operating_income", "cash",
-        "total_assets", "total_equity", "total_liabilities",
-    ]
-    if organization_type == "non_financial":
-        direct_codes.insert(2, "gross_profit")
-    if organization_type == "insurance":
-        direct_codes.extend([
-            "gross_insurance_reserves", "reinsurer_share_in_reserves",
-            "net_insurance_reserves", "other_liabilities",
-        ])
-    for code in direct_codes:
-        add(code, values.get(code), "thousand UZS", reported_values.get(code))
-    if organization_type == "non_financial":
-        ratios = get_all_ratios().get(ticker) or {}
-        for source_code, code in (("roe", "roe_pct"), ("roa", "roa_pct"), ("debt_to_equity", "debt_to_equity"), ("current_ratio", "current_ratio"), ("quick_ratio", "quick_ratio")):
-            value = values.get(source_code)
-            ratio_period = selected
-            if value is None and ratios.get(source_code) is not None:
-                value = ratios.get(source_code)
-                ratio_period = (ratios.get("periods") or {}).get(source_code) or ratios.get("period")
-            add(code, value, "%" if code.endswith("_pct") else "x")
-            observations[code]["period"] = ratio_period
-            if ratio_period and selected and ratio_period != selected:
-                observations[code]["quality"] = "different_period"
-
-    def derived(code: str, value: Any, formula: str, unit: str = "%") -> None:
-        add(code, value, unit)
-        observations[code]["quality"] = "derived" if value is not None else "missing"
-        observations[code]["formula"] = formula
-
-    revenue, net_income = _safe_float(values.get("revenue")), _safe_float(values.get("net_income"))
-    prev_revenue, prev_income = _safe_float(previous.get("revenue")), _safe_float(previous.get("net_income"))
-    derived("revenue_growth_pct", ((revenue - prev_revenue) / abs(prev_revenue) * 100) if revenue is not None and prev_revenue not in (None, 0) else None, "(current-prior)/abs(prior)*100")
-    derived("net_income_growth_pct", ((net_income - prev_income) / abs(prev_income) * 100) if net_income is not None and prev_income not in (None, 0) else None, "(current-prior)/abs(prior)*100")
-    assets = _safe_float(values.get("total_assets"))
-    equity = _safe_float(values.get("total_equity"))
-    liabilities = _safe_float(values.get("total_liabilities"))
-    if organization_type == "non_financial":
-        derived("net_margin_pct", (net_income / revenue * 100) if net_income is not None and revenue not in (None, 0) else None, "net_income/revenue*100")
-        derived("debt_ratio_pct", (liabilities / assets * 100) if liabilities is not None and assets not in (None, 0) else None, "total_liabilities/total_assets*100")
-    else:
-        derived("liabilities_to_assets_pct", (liabilities / assets * 100) if liabilities is not None and assets not in (None, 0) else None, "total_liabilities/total_assets*100")
-
-    data_quality: list[dict[str, Any]] = []
-    if template_code == "sector_template_missing":
-        data_quality.append({
-            "code": "SECTOR_TEMPLATE_MISSING", "severity": "blocking",
-            "message": "The financial organization type could not be mapped to a sector template",
-        })
-    if insurance_mapping_error:
-        data_quality.append({
-            "code": "INSURANCE_RESERVES_OMITTED", "severity": "blocking",
-            "message": "Gross reserves, reinsurer share and net insurance reserves were not mapped",
-        })
-    balance_check: dict[str, Any] = {"status": "not_checked", "difference": None, "tolerance": None}
-    if assets is not None and equity is not None and liabilities is not None:
-        difference = assets - equity - liabilities
-        tolerance = max(1.0, abs(assets) * 0.0005)
-        balance_check = {
-            "status": "passed" if abs(difference) <= tolerance else "failed",
-            "difference": difference,
-            "tolerance": tolerance,
-            "formula": "assets = equity + liabilities",
-        }
-        if abs(difference) > tolerance:
-            data_quality.append({
-                "code": "BALANCE_IDENTITY_FAILED", "severity": "blocking",
-                "message": "Assets do not equal equity plus sector-correct liabilities",
-                "actual_difference": difference, "tolerance": tolerance,
-            })
-    elif selected and values:
-        data_quality.append({
-            "code": "BALANCE_COMPONENTS_MISSING", "severity": "warning",
-            "message": "The balance identity could not be checked because a component is missing",
-        })
-
-    payload = {
-        "issuer": {key: issuer[key] for key in ("id", "ticker", "name", "sector", "isin")},
-        "standard": standard,
-        "template_basis": "NSBU_PRIMARY" if standard == "nsbu" else "IFRS_ANNUAL_SEPARATE",
-        "organization_type": organization_type,
-        "sector_template_code": template_code,
-        "template_version": (SECTOR_TEMPLATES.get(template_code) or {}).get("version"),
-        "scope": scope,
-        "period": selected,
-        "period_basis": period_basis,
-        "available_periods": available,
-        "previous_comparable_period": previous_period,
-        "observations": list(observations.values()),
-        "source": source,
-        "current_values": values,
-        "previous_values": previous,
-        "opening_values": {},
-        "reviewed_correction_fields": sorted(reviewed_correction_fields),
-        "scope_verified": (source_doc or {}).get("scope") == scope,
-        "audited": (source_doc or {}).get("audited") is True,
-    }
-    payload["quality"] = {
-        "traceable": all(item["source"]["document_id"] for item in observations.values() if item["raw"] is not None),
-        "missing_metrics": [code for code, item in observations.items() if item["normalized"] is None],
-        "verification_status": "blocked" if any(item["severity"] == "blocking" for item in data_quality) else "verified",
-        "balance_check": balance_check,
-        "data_quality": data_quality,
-        "warnings": (["requested period is unavailable"] if selected and not values else [])
-        + (["NSBU and IFRS are separate layers; this response contains only one standard"])
-        + ([insurance_mapping_error] if insurance_mapping_error else []),
-    }
-    payload["source_snapshot_hash"] = _snapshot_hash(payload)
-    return payload
-
-
-def _quote_and_trade(issuer: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    isin = str(issuer.get("isin") or "").upper()
-    quote = dict(get_all_quotes().get(isin) or {})
-    trade = dict(get_all_trade_stats().get(isin) or {})
-    security = issuer.get("security") or {}
-    if not quote:
-        quote = {
-            "close_price": security.get("close_price") or security.get("last_price"),
-            "trade_date": security.get("last_trade_date"),
-        }
-    return quote, trade
-
-
 def _risk_flags(snapshot: dict[str, Any], quote: dict[str, Any]) -> list[dict[str, Any]]:
     obs = {item["metric"]: item.get("normalized") for item in snapshot.get("observations") or []}
     flags: list[dict[str, Any]] = []
-    debt = _safe_float(obs.get("debt_ratio_pct"))
-    current = _safe_float(obs.get("current_ratio"))
+    debt = financials.safe_float(obs.get("debt_ratio_pct"))
+    current = financials.safe_float(obs.get("current_ratio"))
     if snapshot.get("organization_type") == "non_financial" and debt is not None and debt >= 70:
         flags.append({"code": "high_leverage", "level": "warning", "evidence": {"debt_ratio_pct": debt}})
     if snapshot.get("organization_type") == "non_financial" and current is not None and current < 1:
         flags.append({"code": "low_current_liquidity", "level": "warning", "evidence": {"current_ratio": current}})
     trade_date = quote.get("trade_date")
     try:
-        stale_days = (_now().date() - date.fromisoformat(str(trade_date)[:10])).days if trade_date else None
+        stale_days = (financials.now().date() - date.fromisoformat(str(trade_date)[:10])).days if trade_date else None
     except ValueError:
         stale_days = None
     if stale_days is None or stale_days > 7:
@@ -665,11 +209,11 @@ def _risk_flags(snapshot: dict[str, Any], quote: dict[str, Any]) -> list[dict[st
 
 
 def _issuer_bonds(issuer: dict[str, Any]) -> list[dict[str, Any]]:
-    issuer_name = _normal_name(issuer.get("name"))
-    ticker_names = {_normal_name(t) for t in issuer.get("tickers") or []}
+    issuer_name = financials.normal_name(issuer.get("name"))
+    ticker_names = {financials.normal_name(t) for t in issuer.get("tickers") or []}
     rows = []
     for ticker, reference in provenance.bond_references().items():
-        reference_name = _normal_name(reference.get("issuer"))
+        reference_name = financials.normal_name(reference.get("issuer"))
         linked_id = str(reference.get("issuer_id") or "")
         if not (linked_id == str(issuer["id"]) or (not linked_id and reference_name and (reference_name == issuer_name or reference_name in ticker_names))):
             continue
@@ -731,7 +275,7 @@ def _entity_metrics(identifier: str, object_type: str, standard: str, period: st
     if object_type == "sector":
         sector = str(identifier or "").strip().lower()
         candidates = [
-            ticker for ticker, row in get_securities_map().items()
+            ticker for ticker, row in financials.get_securities_map().items()
             if str(row.get("sector") or "").strip().lower() == sector and row.get("type") != "bond"
         ]
         members: list[dict[str, Any]] = []
@@ -739,7 +283,7 @@ def _entity_metrics(identifier: str, object_type: str, standard: str, period: st
         for ticker in candidates:
             try:
                 member = _entity_metrics(ticker, "issuer", standard, period, scope)
-            except HTTPException:
+            except (HTTPException, financials.IssuerNotFoundError):
                 continue
             issuer_key = str(member.get("issuer_id") or member["id"])
             if issuer_key in seen_issuers:
@@ -762,7 +306,7 @@ def _entity_metrics(identifier: str, object_type: str, standard: str, period: st
         for code in codes:
             values = sorted(
                 value for member in members
-                if (value := _safe_float(member["metrics"].get(code))) is not None
+                if (value := financials.safe_float(member["metrics"].get(code))) is not None
             )
             metrics[code] = statistics.median(values) if values else None
             statistics_by_metric[code] = {
@@ -790,7 +334,7 @@ def _entity_metrics(identifier: str, object_type: str, standard: str, period: st
             "sector_type": "sector",
             "period": member_periods[0] if len(member_periods) == 1 else period,
             "source": aggregate_source,
-            "source_snapshot_hash": _snapshot_hash(aggregate_source),
+            "source_snapshot_hash": financials.snapshot_hash(aggregate_source),
             "metrics": metrics,
             "statistics": statistics_by_metric,
             "warnings": (["sector aggregate contains fewer than three issuers"] if len(members) < 3 else [])
@@ -803,52 +347,52 @@ def _entity_metrics(identifier: str, object_type: str, standard: str, period: st
         if not reference:
             raise HTTPException(status_code=404, detail=f"bond {identifier} not found")
         isin = str(reference.get("isin") or "").upper()
-        quote = get_all_quotes().get(isin) or {}
-        trade = get_all_trade_stats().get(isin) or {}
-        latest_price = _safe_float(quote.get("close_price") or trade.get("close_price"))
-        nominal = _safe_float(reference.get("nominal"))
+        quote = financials.get_all_quotes().get(isin) or {}
+        trade = financials.get_all_trade_stats().get(isin) or {}
+        latest_price = financials.safe_float(quote.get("close_price") or trade.get("close_price"))
+        nominal = financials.safe_float(reference.get("nominal"))
         maturity = None
         try:
             maturity = date.fromisoformat(str(reference.get("maturity_date")))
         except ValueError:
             pass
-        years = max(0.0, (maturity - _now().date()).days / 365.0) if maturity else None
+        years = max(0.0, (maturity - financials.now().date()).days / 365.0) if maturity else None
         return {
             "id": ticker,
             "ticker": ticker,
             "name": reference.get("issuer") or ticker,
             "sector_type": "bond",
-            "period": str(quote.get("trade_date") or _now().date()),
+            "period": str(quote.get("trade_date") or financials.now().date()),
             "source": reference.get("source_url"),
             "metrics": {
                 "latest_price": latest_price,
                 "price_pct": latest_price / nominal * 100 if latest_price is not None and nominal else None,
-                "coupon_rate_pct": _safe_float(reference.get("coupon_rate")),
+                "coupon_rate_pct": financials.safe_float(reference.get("coupon_rate")),
                 "ytm_pct": None,
                 "duration_years": None,
                 "years_to_maturity": years,
-                "turnover": _safe_float(trade.get("total_value") or quote.get("turnover")),
+                "turnover": financials.safe_float(trade.get("total_value") or quote.get("turnover")),
             },
             "warnings": (["cash-flow schedule or market price is insufficient; YTM and duration are not published"]),
         }
 
-    issuer = _resolve_issuer(identifier)
-    snapshot = _financial_snapshot(issuer, standard, period, scope)
+    issuer = financials.resolve_issuer(identifier)
+    snapshot = financials.financial_snapshot(issuer, standard, period, scope)
     obs = {item["metric"]: item.get("normalized") for item in snapshot["observations"]}
-    quote, trade = _quote_and_trade(issuer)
-    ratios = get_all_ratios().get(issuer["ticker"]) or {}
-    organization_type = snapshot.get("organization_type") or _organization_type(issuer, standard)
+    quote, trade = financials.quote_and_trade(issuer)
+    ratios = financials.get_all_ratios().get(issuer["ticker"]) or {}
+    organization_type = snapshot.get("organization_type") or financials.classify_organization(issuer, standard)
     sector_type = organization_type if organization_type in {"bank", "insurance"} else "nonbank"
     metrics = {
         **obs,
-        "latest_price": _safe_float(quote.get("close_price")),
-        "price_change_pct": _safe_float(quote.get("change_percent")),
-        "turnover": _safe_float(trade.get("total_value") or quote.get("turnover")),
-        "trade_count": _safe_float(trade.get("trade_count")),
-        "pe": _safe_float(ratios.get("pe")),
-        "pb": _safe_float(ratios.get("pb")),
-        "ev_ebitda": _safe_float(ratios.get("ev_ebitda")),
-        "nim_pct": _safe_float(ratios.get("nim")),
+        "latest_price": financials.safe_float(quote.get("close_price")),
+        "price_change_pct": financials.safe_float(quote.get("change_percent")),
+        "turnover": financials.safe_float(trade.get("total_value") or quote.get("turnover")),
+        "trade_count": financials.safe_float(trade.get("trade_count")),
+        "pe": financials.safe_float(ratios.get("pe")),
+        "pb": financials.safe_float(ratios.get("pb")),
+        "ev_ebitda": financials.safe_float(ratios.get("ev_ebitda")),
+        "nim_pct": financials.safe_float(ratios.get("nim")),
     }
     return {
         "id": issuer["ticker"],
@@ -891,7 +435,7 @@ def _comparison_run(payload: ComparisonRequest) -> dict[str, Any]:
     if payload.peer_rule:
         sector = str(payload.peer_rule.get("sector") or "").strip().lower()
         limit = max(2, min(int(payload.peer_rule.get("limit") or 3), 3))
-        ids = [ticker for ticker, row in get_securities_map().items() if str(row.get("sector") or "").lower() == sector and row.get("type") != "bond"][:limit]
+        ids = [ticker for ticker, row in financials.get_securities_map().items() if str(row.get("sector") or "").lower() == sector and row.get("type") != "bond"][:limit]
         if len(ids) < 2:
             raise HTTPException(status_code=422, detail="peer rule resolved fewer than two objects")
     defaults = DEFAULT_BOND_METRICS if object_type == "bond" else DEFAULT_STOCK_METRICS if object_type == "stock" else DEFAULT_ISSUER_METRICS
@@ -923,7 +467,7 @@ def _comparison_run(payload: ComparisonRequest) -> dict[str, Any]:
     columns: list[dict[str, Any]] = []
     for metric in metrics:
         definition = METRIC_DEFINITIONS[metric]
-        values = [(row["id"], _safe_float(row["metrics"].get(metric))) for row in entities]
+        values = [(row["id"], financials.safe_float(row["metrics"].get(metric))) for row in entities]
         available = [value for _id, value in values if value is not None]
         if not available:
             warnings.append({
@@ -997,13 +541,13 @@ def _comparison_run(payload: ComparisonRequest) -> dict[str, Any]:
 
     request_data = payload.model_dump(mode="json")
     snapshot = {"request": request_data, "entities": entities, "table": columns, "warnings": warnings}
-    created = _now().isoformat()
+    created = financials.now().isoformat()
     run = {
         "ok": True,
         "api_version": API_VERSION,
         "run_id": uuid.uuid4().hex,
         "created_at": created,
-        "snapshot_hash": _snapshot_hash(snapshot),
+        "snapshot_hash": financials.snapshot_hash(snapshot),
         "normalization_version": "min-max-directional-v1",
         "request": request_data,
         "objects": [{key: row.get(key) for key in ("id", "issuer_id", "ticker", "name", "sector", "sector_type", "period", "member_count", "statistics")} for row in entities],
@@ -1017,7 +561,7 @@ def _comparison_run(payload: ComparisonRequest) -> dict[str, Any]:
 
 
 def _fmt_number(value: Any, lang: str) -> str:
-    number = _safe_float(value)
+    number = financials.safe_float(value)
     if number is None:
         return "—"
     text = f"{number:,.2f}".rstrip("0").rstrip(".")
@@ -1075,11 +619,11 @@ def _ai_report_headline(
     if not sufficient:
         return copy[language]["insufficient"], "neutral"
 
-    net_income = _safe_float(available.get("net_income"))
-    revenue_growth = _safe_float(available.get("revenue_growth_pct"))
-    income_growth = _safe_float(available.get("net_income_growth_pct"))
-    debt_ratio = _safe_float(available.get("debt_ratio_pct"))
-    current_ratio = _safe_float(available.get("current_ratio"))
+    net_income = financials.safe_float(available.get("net_income"))
+    revenue_growth = financials.safe_float(available.get("revenue_growth_pct"))
+    income_growth = financials.safe_float(available.get("net_income_growth_pct"))
+    debt_ratio = financials.safe_float(available.get("debt_ratio_pct"))
+    current_ratio = financials.safe_float(available.get("current_ratio"))
     sector = str(issuer.get("sector") or "").casefold()
     financial_sector = any(token in sector for token in ("bank", "банк", "insurance", "страх"))
     leverage_risk = not financial_sector and (
@@ -1104,7 +648,7 @@ def _ai_report_headline(
 
 
 def _ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope: str, lang: str) -> dict[str, Any]:
-    snapshot = _financial_snapshot(issuer, standard, period, scope)
+    snapshot = financials.financial_snapshot(issuer, standard, period, scope)
     values = {item["metric"]: item for item in snapshot["observations"]}
     available = {key: item["normalized"] for key, item in values.items() if item["normalized"] is not None}
     required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
@@ -1164,7 +708,7 @@ def _ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope:
     headline, headline_tone = _ai_report_headline(issuer, available, sufficient, lang)
     version_key = {
         "issuer": issuer["id"], "standard": standard, "period": snapshot.get("period"),
-        "scope": scope, "lang": lang, "template": SECTOR_TEMPLATES["nonbank"]["version"],
+        "scope": scope, "lang": lang, "template": financials.SECTOR_TEMPLATES["nonbank"]["version"],
         "source_snapshot_hash": snapshot["source_snapshot_hash"], "text": text,
     }
     return {
@@ -1184,22 +728,10 @@ def _ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope:
         "headline_tone": headline_tone,
         "number_references": refs,
         "source_snapshot_hash": snapshot["source_snapshot_hash"],
-        "version": _snapshot_hash(version_key),
-        "generated_at": _now().isoformat(),
+        "version": financials.snapshot_hash(version_key),
+        "generated_at": financials.now().isoformat(),
         "disclaimer": "Information only; not a personalized investment recommendation.",
     }
-
-
-def _period_label(period: str | None, lang: str) -> str:
-    year, quarter = _period_key(period or "")
-    if not year:
-        return "—"
-    labels = {
-        "ru": {0: f"{year} год", 1: f"I квартал {year} года", 2: f"I полугодие {year} года", 3: f"9 месяцев {year} года", 4: f"{year} год"},
-        "uz": {0: f"{year} yil", 1: f"{year} yil I chorak", 2: f"{year} yil I yarim yillik", 3: f"{year} yil 9 oy", 4: f"{year} yil"},
-        "en": {0: f"FY {year}", 1: f"Q1 {year}", 2: f"H1 {year}", 3: f"9M {year}", 4: f"FY {year}"},
-    }
-    return labels.get(lang, labels["ru"])[quarter if period and "Q" in period else 0]
 
 
 def _sector_ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope: str, lang: str) -> dict[str, Any]:
@@ -1208,9 +740,9 @@ def _sector_ai_report(issuer: dict[str, Any], standard: str, period: str | None,
 
 @router.get("/issuers/{issuer_id}/profile")
 def issuer_profile(issuer_id: str) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
-    snapshot = _financial_snapshot(issuer, "nsbu", None, "separate")
-    quote, trade = _quote_and_trade(issuer)
+    issuer = financials.resolve_issuer(issuer_id)
+    snapshot = financials.financial_snapshot(issuer, "nsbu", None, "separate")
+    quote, trade = financials.quote_and_trade(issuer)
     events = _events(issuer)
     bond_rows = _issuer_bonds(issuer)
     dividend_rows = dividends.read_snapshot(issuer["ticker"])
@@ -1227,7 +759,7 @@ def issuer_profile(issuer_id: str) -> dict[str, Any]:
             "trade_count": trade.get("trade_count"),
             "source": "UZSE catalog",
         },
-        "report_freshness": [_freshness_one(issuer, "nsbu"), _freshness_one(issuer, "ifrs")],
+        "report_freshness": [financials.freshness_one(issuer, "nsbu"), financials.freshness_one(issuer, "ifrs")],
         "key_metrics": key_metrics,
         "dividends": {"count": len(dividend_rows), "latest": dividend_rows[0] if dividend_rows else None},
         "events": events[:8],
@@ -1239,118 +771,45 @@ def issuer_profile(issuer_id: str) -> dict[str, Any]:
 
 @router.get("/issuers/{issuer_id}/report-freshness")
 def issuer_report_freshness(issuer_id: str) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
-    return {"ok": True, "issuer_id": issuer["id"], "ticker": issuer["ticker"], "layers": [_freshness_one(issuer, "nsbu"), _freshness_one(issuer, "ifrs")]}
+    issuer = financials.resolve_issuer(issuer_id)
+    return {"ok": True, "issuer_id": issuer["id"], "ticker": issuer["ticker"], "layers": [financials.freshness_one(issuer, "nsbu"), financials.freshness_one(issuer, "ifrs")]}
 
 
-@router.get("/issuers/{issuer_id}/financial-analysis")
-def issuer_financial_analysis(
-    issuer_id: str,
-    standard: Literal["nsbu", "ifrs"] = Query(...),
-    period: str | None = Query(default=None, pattern=r"^\d{4}(?:Q[1-4])?$"),
-    scope: Literal["separate", "consolidated"] = "separate",
-) -> dict[str, Any]:
-    return {"ok": True, "api_version": API_VERSION, **_financial_snapshot(_resolve_issuer(issuer_id), standard, period, scope)}
+@router.get('/issuers/{issuer_id}/financial-analysis')
+def issuer_financial_analysis(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...), period: str | None=Query(default=None, pattern='^\\d{4}(?:Q[1-4])?$'), scope: Literal['separate', 'consolidated']='separate') -> dict[str, Any]:
+    return {'ok': True, 'api_version': API_VERSION, **financials.financial_snapshot(financials.resolve_issuer(issuer_id), standard, period, scope)}
 
 
-@router.get("/issuers/{issuer_id}/ai-report")
-def issuer_ai_report(
-    issuer_id: str,
-    standard: Literal["nsbu", "ifrs"] = Query(...),
-    period: str | None = Query(default=None, pattern=r"^\d{4}(?:Q[1-4])?$"),
-    scope: Literal["separate", "consolidated"] = "separate",
-    lang: Literal["ru", "uz", "en"] = "ru",
-    summary: bool = False,
-) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
+@router.get('/issuers/{issuer_id}/ai-report')
+def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...), period: str | None=Query(default=None, pattern='^\\d{4}(?:Q[1-4])?$'), scope: Literal['separate', 'consolidated']='separate', lang: Literal['ru', 'uz', 'en']='ru', summary: bool=False) -> dict[str, Any]:
+    issuer = financials.resolve_issuer(issuer_id)
     if not summary:
         return _sector_ai_report(issuer, standard, period, scope, lang)
-
-    # The company page only needs one sentence until the reader asks to open
-    # the report. Building the complete sector report here used to fetch and
-    # map source workbooks, run the regression gate, persist monitoring state,
-    # and send a large response that stayed hidden behind a button.
-    snapshot = _financial_snapshot(issuer, standard, period, scope)
-    values = {item["metric"]: item for item in snapshot["observations"]}
-    normalized = {
-        key: item["normalized"] for key, item in values.items()
-        if item["normalized"] is not None
-    }
-    organization_type = snapshot.get("organization_type")
-    if organization_type in {"commodity_exchange", "insurance"}:
-        # Commodity exchanges and insurers have dedicated full-report
-        # templates and do not expose the generic industrial ROE/margin set.
-        # Judge their teasers by the core statement totals those templates
-        # actually use.  URTS also carries the generic SECTOR_TEMPLATE_MISSING
-        # marker until its commodity-exchange override is applied below.
-        required = {"revenue", "net_income", "total_assets", "total_equity", "total_liabilities"}
+    snapshot = financials.financial_snapshot(issuer, standard, period, scope)
+    values = {item['metric']: item for item in snapshot['observations']}
+    normalized = {key: item['normalized'] for key, item in values.items() if item['normalized'] is not None}
+    organization_type = snapshot.get('organization_type')
+    if organization_type in {'commodity_exchange', 'insurance'}:
+        required = {'revenue', 'net_income', 'total_assets', 'total_equity', 'total_liabilities'}
         available = required.issubset(normalized)
-    elif organization_type in {"bank", "microfinance_bank", "microfinance"}:
-        # Bank statements do not define the industrial margin and liquidity
-        # fields used below for ordinary companies.  Requiring those fields made
-        # every healthy bank summary fail before its bank-specific report was
-        # even opened.
-        required = {"revenue", "net_income", "total_assets", "total_equity"}
+    elif organization_type in {'bank', 'microfinance_bank', 'microfinance'}:
+        required = {'revenue', 'net_income', 'total_assets', 'total_equity'}
         available = required.issubset(normalized)
     else:
-        required = {"revenue", "net_income", "net_margin_pct", "debt_ratio_pct", "roe_pct"}
+        required = {'revenue', 'net_income', 'net_margin_pct', 'debt_ratio_pct', 'roe_pct'}
         available = len(required & set(normalized)) >= 4
-    quality = snapshot.get("quality", {})
-    quality_blockers = [
-        item for item in quality.get("data_quality", [])
-        if item.get("severity") == "blocking"
-    ]
-    blocking_quality = [
-        item for item in quality_blockers
-        if not (
-            organization_type == "commodity_exchange"
-            and item.get("code") == "SECTOR_TEMPLATE_MISSING"
-        )
-    ]
-    commodity_override_only = (
-        organization_type == "commodity_exchange"
-        and bool(quality_blockers)
-        and not blocking_quality
-    )
-    available = (
-        bool(snapshot.get("period"))
-        and available
-        and not blocking_quality
-        and (
-            quality.get("verification_status") != "blocked"
-            or commodity_override_only
-        )
-    )
+    quality = snapshot.get('quality', {})
+    quality_blockers = [item for item in quality.get('data_quality', []) if item.get('severity') == 'blocking']
+    blocking_quality = [item for item in quality_blockers if not (organization_type == 'commodity_exchange' and item.get('code') == 'SECTOR_TEMPLATE_MISSING')]
+    commodity_override_only = organization_type == 'commodity_exchange' and bool(quality_blockers) and (not blocking_quality)
+    available = bool(snapshot.get('period')) and available and (not blocking_quality) and (quality.get('verification_status') != 'blocked' or commodity_override_only)
     headline, headline_tone = _ai_report_headline(issuer, normalized, available, lang)
-    return {
-        "ok": True,
-        "issuer": {key: issuer[key] for key in ("id", "ticker", "name")},
-        "standard": standard,
-        "period": snapshot.get("period"),
-        "period_label": _period_label(snapshot.get("period"), lang),
-        "scope": scope,
-        "language": lang,
-        "status": "available" if available else "quality_blocked",
-        "content_status": "complete" if available else "shortened",
-        "headline": headline,
-        "headline_tone": headline_tone,
-        "card_text": headline,
-        "short_summary": headline,
-        "card_word_count": len(str(headline or "").split()),
-        "deferred_full_report": available,
-        "availability": {
-            "reason_code": "available" if available else "quality_blocked",
-            "last_source_period": snapshot.get("period"),
-            "last_successful_period": snapshot.get("period") if available else None,
-            "next_action": None,
-        },
-        "source_snapshot_hash": snapshot.get("source_snapshot_hash"),
-    }
+    return {'ok': True, 'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name')}, 'standard': standard, 'period': snapshot.get('period'), 'period_label': financials.period_label(snapshot.get('period'), lang), 'scope': scope, 'language': lang, 'status': 'available' if available else 'quality_blocked', 'content_status': 'complete' if available else 'shortened', 'headline': headline, 'headline_tone': headline_tone, 'card_text': headline, 'short_summary': headline, 'card_word_count': len(str(headline or '').split()), 'deferred_full_report': available, 'availability': {'reason_code': 'available' if available else 'quality_blocked', 'last_source_period': snapshot.get('period'), 'last_successful_period': snapshot.get('period') if available else None, 'next_action': None}, 'source_snapshot_hash': snapshot.get('source_snapshot_hash')}
 
 
 @router.get("/issuers/{issuer_id}/credit-profile")
 def issuer_credit_profile(issuer_id: str, standard: Literal["nsbu", "ifrs"] = "nsbu", period: str | None = None) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
+    issuer = financials.resolve_issuer(issuer_id)
     report = _sector_ai_report(issuer, standard, period, "separate", "ru")
     return {
         "ok": True, "issuer": report["issuer"], "standard": report["standard"],
@@ -1362,14 +821,14 @@ def issuer_credit_profile(issuer_id: str, standard: Literal["nsbu", "ifrs"] = "n
 
 @router.get("/issuers/{issuer_id}/events")
 def issuer_events(issuer_id: str, limit: int = Query(default=50, ge=1, le=200)) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
+    issuer = financials.resolve_issuer(issuer_id)
     items = _events(issuer)[:limit]
     return {"ok": True, "issuer_id": issuer["id"], "ticker": issuer["ticker"], "count": len(items), "items": items}
 
 
 @router.get("/issuers/{issuer_id}/bonds")
 def issuer_bonds(issuer_id: str) -> dict[str, Any]:
-    issuer = _resolve_issuer(issuer_id)
+    issuer = financials.resolve_issuer(issuer_id)
     items = _issuer_bonds(issuer)
     if items:
         report = _sector_ai_report(issuer, "nsbu", None, "separate", "ru")
@@ -1415,7 +874,7 @@ def export_comparison_csv(run_id: str) -> Response:
     for column in run["table"]["columns"]:
         for item in column["values"]:
             writer.writerow([
-                run_id, run["snapshot_hash"], item["object_id"], column["metric"], item["raw"], item["normalized"], item["rank"], item["percentile"], column["unit"], item["period"], item["standard"], _canonical(item["source"]),
+                run_id, run["snapshot_hash"], item["object_id"], column["metric"], item["raw"], item["normalized"], item["rank"], item["percentile"], column["unit"], item["period"], item["standard"], financials.canonical(item["source"]),
             ])
     return Response(
         content="\ufeff" + output.getvalue(),

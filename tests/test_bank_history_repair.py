@@ -1,4 +1,7 @@
 """Bank history recovery must revisit known reports and expose partial coverage."""
+
+import reports_catalog as subject_reports_catalog
+import server.company.financials as subject_server_company_financials
 import pytest
 from fastapi.testclient import TestClient
 
@@ -108,7 +111,7 @@ def test_discovery_failure_is_not_silently_an_empty_feed(monkeypatch):
 
 def test_quarterly_conflict_explains_both_missing_quarters():
     gaps = []
-    _, series = api.derive_quarterly_series({
+    _, series = subject_server_company_financials.derive_quarterly_series({
         "2025Q1": {"revenue": 1143, "net_income": 24},
         "2025Q2": {"revenue": 2491, "net_income": 49},
         "2025Q3": {"revenue": 3876, "net_income": 90},
@@ -137,7 +140,7 @@ def test_fresh_collector_reads_remote_rotation_checkpoint(catalog, monkeypatch):
 
 def test_ifrs_api_distinguishes_an_unparsed_report_from_no_publication(catalog, monkeypatch):
     filing(catalog, "IPTB", "17", 2022, form="MSFO")
-    monkeypatch.setattr(api, "get_company_index", lambda ticker: {"org_id": "17"})
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda ticker: {"org_id": "17"})
     body = TestClient(api.app).get("/api/company/IPTB/financials?form=MSFO").json()
     assert body["series"] == {}
     assert body["periods"] == []

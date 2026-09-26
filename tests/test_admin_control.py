@@ -1,7 +1,10 @@
 """Control-plane acceptance checks against isolated persistence and real handlers."""
 from __future__ import annotations
 
+import web_auth as subject_web_auth
+
 import io
+import sqlite3
 import json
 import uuid
 
@@ -12,6 +15,25 @@ from admin_control import store as s, service, rules, documents, worker, adapter
 ADMIN = {"id": 1, "email": "owner@example.test", "role": "administrator"}
 EDITOR = {"id": 2, "email": "reviewer@example.test", "role": "rule_editor"}
 VIEWER = {"id": 3, "email": "viewer@example.test", "role": "viewer"}
+
+
+def test_catalog_refresh_preserves_special_issuer_classification(monkeypatch):
+    import reports_catalog
+
+    def source_connection():
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE catalog_companies (ticker, company_name, org_id, last_synced_at)")
+        conn.execute("INSERT INTO catalog_companies VALUES ('URTS', 'Commodity Exchange', '123', NULL)")
+        conn.execute("CREATE TABLE catalog_reports (id INTEGER)")
+        return conn
+
+    monkeypatch.setattr(reports_catalog, "get_catalog_conn", source_connection)
+    assert adapters.refresh_catalog() == {"documents": 0, "issuers": 1, "verified": False}
+    with s.connection() as conn:
+        issuer = next(item for item in s.all_items(conn, "issuers") if item["ticker"] == "URTS")
+    assert issuer["special_type"] == "commodity_exchange"
+    assert issuer["sector_template"] == "commodity_exchange"
 
 
 @pytest.fixture(autouse=True)
@@ -296,8 +318,8 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
     from fastapi.testclient import TestClient
     user = type("User", (), {"id": 77, "email": "operator@example.test"})()
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "administrator"}))
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
-    monkeypatch.setattr(api.web_auth_store, "verify_admin_two_factor", lambda user_id, code: user_id == 77 and code == "123456")
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "verify_admin_two_factor", lambda user_id, code: user_id == 77 and code == "123456")
     monkeypatch.setattr(documents, "fetch_original", lambda url: workbook_bytes())
     doc = put("documents", {"id": "http-doc", "ticker": "UZNF", "standard": "IFRS", "period": "2026", "period_end": "2026-12-31",
                           "duration_months": 12, "published_at": "2026-08-01", "source_url": "https://openinfo.uz/test", "source": "openinfo.uz"})
@@ -328,15 +350,16 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
 
 
 def test_publication_pointer_and_four_eyes_rollback_survive_reindex():
-    import analysis_monitor
+    from reporting import store as report_store
+    from reporting import publication, worker as report_worker
     def report(version, period, status="available"):
         return {"version": version, "issuer": {"id": "1", "ticker": "FACT"}, "standard": "nsbu", "language": "en",
                 "period": period, "financial_as_of": "2026-06-30" if period == "2026Q2" else "2026-03-31", "status": status,
                 "availability": {}, "data_quality": [], "source_snapshot_hash": version, "calculation_version": "v1"}
-    analysis_monitor.record_report(report("first", "2026Q1"))
-    analysis_monitor.record_report(report("latest", "2026Q2"))
-    analysis_monitor.record_report(report("historical", "2026Q1"))
-    analysis_monitor.record_report(report("failed", "2026Q2", "quality_blocked"))
+    publication.publish_report(report("first", "2026Q1"))
+    publication.publish_report(report("latest", "2026Q2"))
+    publication.publish_report(report("historical", "2026Q1"))
+    publication.publish_report(report("failed", "2026Q2", "quality_blocked"))
     adapters.refresh_analyses()
     with s.connection() as c:
         assert [p["id"] for p in s.all_items(c, "publications", {"status": "PUBLISHED"})] == ["latest"]
@@ -351,7 +374,7 @@ def test_publication_pointer_and_four_eyes_rollback_survive_reindex():
     adapters.refresh_analyses()
     with s.connection() as c:
         assert [p["id"] for p in s.all_items(c, "publications", {"status": "PUBLISHED"})] == ["first"]
-    domain = analysis_monitor.connect()
+    domain = report_store.connect()
     try:
         assert domain.execute("SELECT version FROM sector_publications").fetchone()["version"] == "first"
     finally:
@@ -447,7 +470,7 @@ def test_real_filing_fixture_projects_every_ratio_input_with_exact_rows():
                 "source": filing["source"], "quality": {"data_quality": []}}
     report = engine.make_report(snapshot, {**filing["issuer"], "oked_code": "24100"}, "en", date(2026, 8, 30), filing["workbook"])
     assert report["status"] == "available"
-    adapters.record_analysis(report)
+    adapters.record_analysis(report, current_version=None)
     with s.connection() as c:
         trace = next(r for r in s.all_items(c, "calculations") if r["metric_code"] == "current_ratio")
         assert len(trace["inputs"]) == 5

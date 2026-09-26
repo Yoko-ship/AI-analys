@@ -10,6 +10,11 @@ a real Postgres in ``test_email_verification_db.py``.
 """
 from __future__ import annotations
 
+import email_delivery as subject_email_delivery
+import server.auth.access as subject_server_auth_access
+import server.auth.limits as subject_server_auth_limits
+import web_auth as subject_web_auth
+
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -211,7 +216,7 @@ def test_smtp_failure_raises_a_delivery_error(smtp_env, monkeypatch):
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setattr(api, "_enforce_auth_rate_limit", lambda request, scope: None)
+    monkeypatch.setattr(subject_server_auth_limits, '_enforce_auth_rate_limit', lambda request, scope: None)
     return TestClient(api.app)
 
 
@@ -219,15 +224,15 @@ def client(monkeypatch):
 def mail(monkeypatch):
     """Verification on; capture outgoing codes instead of sending them."""
     sent: list[tuple[str, str, str, str]] = []
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
-    monkeypatch.setattr(api.email_delivery, "send_code",
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
+    monkeypatch.setattr(subject_email_delivery, "send_code",
                         lambda to, purpose, code, language="ru": sent.append((to, purpose, code, language)))
     return sent
 
 
 def test_register_without_mail_configured_keeps_the_old_instant_login(client, monkeypatch):
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: False)
-    monkeypatch.setattr(api.web_auth_store, "register_user",
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: False)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "register_user",
                         lambda *args, **kwargs: (_user(verified=False), "tok-1"))
     response = client.post("/api/auth/register",
                            json={"email": "reader@example.test", "password": "long-password"})
@@ -241,8 +246,8 @@ def test_register_sends_a_code_and_issues_no_session(client, mail, monkeypatch):
     def start(email, password, full_name=""):
         calls["args"] = (email, password, full_name)
         return "123456"
-    monkeypatch.setattr(api.web_auth_store, "start_registration", start)
-    monkeypatch.setattr(api.web_auth_store, "register_user",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "start_registration", start)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "register_user",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not log in")))
 
     response = client.post("/api/auth/register", json={
@@ -260,7 +265,7 @@ def test_register_sends_a_code_and_issues_no_session(client, mail, monkeypatch):
 def test_register_of_a_verified_address_is_a_conflict(client, mail, monkeypatch):
     def start(*args, **kwargs):
         raise ValueError("Email already registered")
-    monkeypatch.setattr(api.web_auth_store, "start_registration", start)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "start_registration", start)
     response = client.post("/api/auth/register",
                            json={"email": "reader@example.test", "password": "long-password"})
     assert response.status_code == 409
@@ -270,7 +275,7 @@ def test_register_of_a_verified_address_is_a_conflict(client, mail, monkeypatch)
 def test_register_during_resend_cooldown_still_points_to_the_code_screen(client, mail, monkeypatch):
     def start(*args, **kwargs):
         raise web_auth.EmailCodeThrottled(42)
-    monkeypatch.setattr(api.web_auth_store, "start_registration", start)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "start_registration", start)
     response = client.post("/api/auth/register",
                            json={"email": "reader@example.test", "password": "long-password"})
     assert response.status_code == 200
@@ -280,12 +285,12 @@ def test_register_during_resend_cooldown_still_points_to_the_code_screen(client,
 
 
 def test_register_reports_mail_outage_as_503(client, monkeypatch):
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
-    monkeypatch.setattr(api.web_auth_store, "start_registration", lambda *a, **k: "123456")
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "start_registration", lambda *a, **k: "123456")
 
     def fail(*args, **kwargs):
         raise email_delivery.EmailDeliveryError("smtp down")
-    monkeypatch.setattr(api.email_delivery, "send_code", fail)
+    monkeypatch.setattr(subject_email_delivery, "send_code", fail)
     response = client.post("/api/auth/register",
                            json={"email": "reader@example.test", "password": "long-password"})
     assert response.status_code == 503
@@ -297,8 +302,8 @@ def test_login_with_an_unverified_email_sends_a_code_instead_of_a_session(client
     def login(email, password, otp=None, user_agent=None, ip_address=None, *, require_verified_email=False):
         seen["require"] = require_verified_email
         raise web_auth.EmailNotVerified("reader@example.test")
-    monkeypatch.setattr(api.web_auth_store, "login_user", login)
-    monkeypatch.setattr(api.web_auth_store, "issue_email_code", lambda email, purpose: "777111")
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "login_user", login)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "issue_email_code", lambda email, purpose: "777111")
 
     response = client.post("/api/auth/login",
                            json={"email": "reader@example.test", "password": "long-password"})
@@ -311,7 +316,7 @@ def test_login_with_an_unverified_email_sends_a_code_instead_of_a_session(client
 
 
 def test_login_of_a_verified_user_is_unchanged(client, mail, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "login_user", lambda *a, **k: (_user(), "tok-2"))
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "login_user", lambda *a, **k: (_user(), "tok-2"))
     response = client.post("/api/auth/login",
                            json={"email": "reader@example.test", "password": "long-password"})
     assert response.status_code == 200
@@ -325,7 +330,7 @@ def test_verify_returns_a_session_and_forwards_the_chosen_password(client, mail,
     def verify(email, code, password=None, full_name=None, user_agent=None, ip_address=None):
         seen["args"] = (email, code, password, full_name)
         return _user(), "tok-3"
-    monkeypatch.setattr(api.web_auth_store, "verify_email_code", verify)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "verify_email_code", verify)
     response = client.post("/api/auth/email/verify", json={
         "email": "reader@example.test", "code": "123456", "password": "long-password", "full_name": "R"})
     assert response.status_code == 200
@@ -335,7 +340,7 @@ def test_verify_returns_a_session_and_forwards_the_chosen_password(client, mail,
 
 
 def test_verify_for_a_two_factor_account_asks_to_sign_in_again(client, mail, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "verify_email_code",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "verify_email_code",
                         lambda *a, **k: (_user(), None))
     response = client.post("/api/auth/email/verify",
                            json={"email": "reader@example.test", "code": "123456"})
@@ -346,16 +351,16 @@ def test_verify_for_a_two_factor_account_asks_to_sign_in_again(client, mail, mon
 def test_verify_with_a_bad_code_is_400(client, mail, monkeypatch):
     def bad(*args, **kwargs):
         raise ValueError("Invalid or expired code")
-    monkeypatch.setattr(api.web_auth_store, "verify_email_code", bad)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "verify_email_code", bad)
     response = client.post("/api/auth/email/verify",
                            json={"email": "reader@example.test", "code": "000000"})
     assert response.status_code == 400
 
 
 def test_resend_never_reveals_whether_an_account_exists(client, mail, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "issue_email_code", lambda email, purpose: None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "issue_email_code", lambda email, purpose: None)
     unknown = client.post("/api/auth/email/resend", json={"email": "nobody@example.test"})
-    monkeypatch.setattr(api.web_auth_store, "issue_email_code",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "issue_email_code",
                         lambda email, purpose: (_ for _ in ()).throw(web_auth.EmailCodeThrottled(30)))
     throttled = client.post("/api/auth/email/resend", json={"email": "reader@example.test"})
     assert unknown.status_code == throttled.status_code == 200
@@ -364,7 +369,7 @@ def test_resend_never_reveals_whether_an_account_exists(client, mail, monkeypatc
 
 
 def test_forgot_password_sends_a_reset_code_and_reveals_nothing(client, mail, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "issue_email_code",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "issue_email_code",
                         lambda email, purpose: "246810" if email == "reader@example.test" else None)
     known = client.post("/api/auth/password/forgot", json={"email": "reader@example.test", "language": "en"})
     unknown = client.post("/api/auth/password/forgot", json={"email": "nobody@example.test"})
@@ -373,7 +378,7 @@ def test_forgot_password_sends_a_reset_code_and_reveals_nothing(client, mail, mo
 
 
 def test_forgot_password_without_mail_is_unavailable(client, monkeypatch):
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: False)
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: False)
     response = client.post("/api/auth/password/forgot", json={"email": "reader@example.test"})
     assert response.status_code == 503
 
@@ -384,7 +389,7 @@ def test_password_reset_returns_a_fresh_session(client, mail, monkeypatch):
     def reset(email, code, new_password, user_agent=None, ip_address=None):
         seen["args"] = (email, code, new_password)
         return _user(), "tok-4"
-    monkeypatch.setattr(api.web_auth_store, "reset_password_with_code", reset)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "reset_password_with_code", reset)
     response = client.post("/api/auth/password/reset", json={
         "email": "reader@example.test", "code": "246810", "new_password": "brand-new-pass"})
     assert response.status_code == 200
@@ -401,7 +406,7 @@ def test_password_reset_rejects_a_short_password(client, mail):
 def test_password_reset_with_a_bad_code_is_400(client, mail, monkeypatch):
     def bad(*args, **kwargs):
         raise ValueError("Invalid or expired code")
-    monkeypatch.setattr(api.web_auth_store, "reset_password_with_code", bad)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "reset_password_with_code", bad)
     response = client.post("/api/auth/password/reset", json={
         "email": "reader@example.test", "code": "000000", "new_password": "brand-new-pass"})
     assert response.status_code == 400
@@ -411,28 +416,28 @@ def test_password_reset_with_a_bad_code_is_400(client, mail, monkeypatch):
 
 def test_unverified_admin_email_gets_no_admin_role_when_verification_is_on(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAILS", "boss@example.test")
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
-    assert api._admin_role(_user(verified=True, email="boss@example.test")) == "administrator"
-    assert api._admin_role(_user(verified=False, email="boss@example.test")) is None
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
+    assert subject_server_auth_access._admin_role(_user(verified=True, email="boss@example.test")) == "administrator"
+    assert subject_server_auth_access._admin_role(_user(verified=False, email="boss@example.test")) is None
 
 
 def test_admin_role_is_unchanged_while_verification_is_off(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAILS", "boss@example.test")
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: False)
-    assert api._admin_role(_user(verified=False, email="boss@example.test")) == "administrator"
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: False)
+    assert subject_server_auth_access._admin_role(_user(verified=False, email="boss@example.test")) == "administrator"
 
 
 def test_unverified_admin_is_refused_by_the_admin_panel(client, monkeypatch):
     monkeypatch.setenv("ADMIN_EMAILS", "boss@example.test")
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token",
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token",
                         lambda token: _user(verified=False, email="boss@example.test"))
     response = client.get("/api/admin/users", headers={"Authorization": "Bearer t"})
     assert response.status_code == 403
 
 
 def test_auth_options_tell_the_page_whether_email_codes_work(client, monkeypatch):
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
     assert client.get("/api/auth/options").json() == {"ok": True, "email_codes": True}
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: False)
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: False)
     assert client.get("/api/auth/options").json() == {"ok": True, "email_codes": False}

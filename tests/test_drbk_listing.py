@@ -1,6 +1,12 @@
 """Davr Bank's newly relisted DRBK line stays correctly wired."""
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+import requests as subject_requests
+import securities_catalog as subject_securities_catalog
+import server.market.board as subject_server_market_board
+import server.settings as subject_server_settings
+
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -112,21 +118,21 @@ def test_drbk_registry_row_reaches_stock_board_before_mirror_updates(monkeypatch
         "last_trade_date": "2019-10-31",
         "market_cap": 500_000_000_000,
     }
-    monkeypatch.setattr(api.requests, "get", lambda *_args, **_kwargs: _MirrorResponse())
-    monkeypatch.setattr(api, "_issuer_names", lambda: {"DRBK": listing["name"]})
-    monkeypatch.setattr(api, "_registered_bond_isins", lambda: frozenset())
-    monkeypatch.setattr(api, "get_all_listings", lambda: {"DRBK": listing})
-    monkeypatch.setattr(api, "get_all_quotes", dict)
-    monkeypatch.setattr(api, "get_securities_map", dict)
+    monkeypatch.setattr(subject_requests, "get", lambda *_args, **_kwargs: _MirrorResponse())
+    monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: {"DRBK": listing["name"]})
+    monkeypatch.setattr(subject_server_market_board, '_registered_bond_isins', lambda: frozenset())
+    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {"DRBK": listing})
+    monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', dict)
+    monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', dict)
     synced = []
 
     def _sync(rows, _logos):
         synced.extend(rows)
         return len(rows)
 
-    monkeypatch.setattr(api, "sync_securities", _sync)
-    monkeypatch.setattr(api, "record_volume", lambda *_args, **_kwargs: 0)
-    monkeypatch.setattr(api, "_load_logos", dict)
+    monkeypatch.setattr(subject_securities_catalog, 'sync_securities', _sync)
+    monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(subject_server_settings, '_load_logos', dict)
 
     with TestClient(api.app) as client:
         body = client.get("/api/market/stocks?type=stock").json()
@@ -137,12 +143,14 @@ def test_drbk_registry_row_reaches_stock_board_before_mirror_updates(monkeypatch
     assert body["stocks"][0]["url"] == (
         "https://uzse.uz/isu_infos/STK?isu_cd=UZ7050240009"
     )
+    # Registry-only rows are served without writing synthetic trades into the
+    # live securities cache; the company endpoint joins registry metadata.
     assert [row["ticker"] for row in synced] == ["DRBK"]
 
 
 def test_drbk_info_combines_catalog_and_listing_metadata(monkeypatch) -> None:
     name = '"Davr-bank" Xususiy aksiyadorlik tijorat banki'
-    monkeypatch.setattr(api, "get_securities_map", lambda: {
+    monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {
         "DRBK": {
             "ticker": "DRBK",
             "isin": "UZ7050240009",
@@ -151,7 +159,7 @@ def test_drbk_info_combines_catalog_and_listing_metadata(monkeypatch) -> None:
             "logo_url": "/logos/DRBK.png",
         },
     })
-    monkeypatch.setattr(api, "get_all_listings", lambda: {
+    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {
         "DRBK": {
             "ticker": "DRBK",
             "name": name,
@@ -161,7 +169,7 @@ def test_drbk_info_combines_catalog_and_listing_metadata(monkeypatch) -> None:
             "market_cap": 500_000_000_000,
         },
     })
-    monkeypatch.setattr(api, "get_wiki_info", lambda *_args, **_kwargs: {
+    monkeypatch.setattr(subject_securities_catalog, 'get_wiki_info', lambda *_args, **_kwargs: {
         "ticker": "DRBK",
         "title": "Davr Bank",
         "extract": "Davr Bank profile",

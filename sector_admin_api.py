@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from datetime import date
 from typing import Literal
 
-import analysis_monitor
+from reporting import store as report_store
 from sector_access import CAPABILITIES, role_for
 
 router = APIRouter(prefix="/api/admin/sector-analysis", tags=["analysis monitoring"])
@@ -35,7 +35,7 @@ class OverrideRequest(BaseModel):
 @router.get("")
 def overview(request: Request):
     actor_for(request)
-    return {**analysis_monitor.overview(), "role": request.state.control_actor["role"],
+    return {**report_store.overview(), "role": request.state.control_actor["role"],
             "capabilities": sorted(CAPABILITIES[request.state.control_actor["role"]] - {"activate", "rollback"}),
             "governed_workflow": True}
 
@@ -43,7 +43,7 @@ def overview(request: Request):
 @router.get("/runs/{version}")
 def run(version: str, request: Request):
     actor_for(request)
-    report = analysis_monitor.get_run(version)
+    report = report_store.get_run(version)
     if report is None:
         raise HTTPException(status_code=404, detail="Analysis version not found")
     return report
@@ -52,7 +52,7 @@ def run(version: str, request: Request):
 @router.post("/jobs/{job_id}/retry")
 def retry(job_id: str, payload: RetryRequest, request: Request):
     actor = actor_for(request, "retry")
-    if not analysis_monitor.retry(job_id, actor, payload.reason):
+    if not report_store.retry(job_id, actor, payload.reason):
         raise HTTPException(status_code=404, detail="Analysis job not found")
     return {"ok": True, "state": "queued"}
 

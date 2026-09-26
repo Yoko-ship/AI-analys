@@ -7,6 +7,10 @@ user's own email/name, the site name) instead of demanding character classes.
 """
 from __future__ import annotations
 
+import email_delivery as subject_email_delivery
+import server.auth.limits as subject_server_auth_limits
+import web_auth as subject_web_auth
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -88,13 +92,13 @@ def test_new_hashes_use_600k_rounds_and_old_ones_still_verify():
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setattr(api, "_enforce_auth_rate_limit", lambda request, scope: None)
-    monkeypatch.setattr(api.email_delivery, "verification_enabled", lambda: True)
+    monkeypatch.setattr(subject_server_auth_limits, '_enforce_auth_rate_limit', lambda request, scope: None)
+    monkeypatch.setattr(subject_email_delivery, "verification_enabled", lambda: True)
     return TestClient(api.app)
 
 
 def test_register_refuses_a_weak_password_before_touching_the_store(client, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "start_registration",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "start_registration",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not register")))
     response = client.post("/api/auth/register", json={"email": "reader@example.uz", "password": "12345678"})
     assert response.status_code == 400
@@ -102,7 +106,7 @@ def test_register_refuses_a_weak_password_before_touching_the_store(client, monk
 
 
 def test_password_reset_refuses_a_weak_password(client, monkeypatch):
-    monkeypatch.setattr(api.web_auth_store, "reset_password_with_code",
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "reset_password_with_code",
                         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not reset")))
     response = client.post("/api/auth/password/reset", json={
         "email": "reader@example.uz", "code": "123456", "new_password": "qwertyuiop"})
@@ -112,11 +116,11 @@ def test_password_reset_refuses_a_weak_password(client, monkeypatch):
 
 def test_locked_login_is_429_with_retry_after_and_notifies_the_owner_once(client, monkeypatch):
     sent = []
-    monkeypatch.setattr(api.email_delivery, "send_notice", lambda to, kind, language="ru", **kw: sent.append((to, kind, language)))
+    monkeypatch.setattr(subject_email_delivery, "send_notice", lambda to, kind, language="ru", **kw: sent.append((to, kind, language)))
 
     def locked(*args, **kwargs):
         raise web_auth.AccountLocked("reader@example.uz", retry_after=900, newly_locked=True, language="uz")
-    monkeypatch.setattr(api.web_auth_store, "login_user", locked)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "login_user", locked)
     response = client.post("/api/auth/login", json={"email": "reader@example.uz", "password": "whatever-1"})
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "900"
@@ -125,6 +129,6 @@ def test_locked_login_is_429_with_retry_after_and_notifies_the_owner_once(client
 
     def still_locked(*args, **kwargs):
         raise web_auth.AccountLocked("reader@example.uz", retry_after=600, newly_locked=False, language="uz")
-    monkeypatch.setattr(api.web_auth_store, "login_user", still_locked)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "login_user", still_locked)
     assert client.post("/api/auth/login", json={"email": "reader@example.uz", "password": "whatever-1"}).status_code == 429
     assert len(sent) == 1  # no email for every blocked attempt

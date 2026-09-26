@@ -1,6 +1,8 @@
 """Automatic refresh for the source-backed news calendars."""
 from __future__ import annotations
 
+import server.news.jobs as subject_server_news_jobs
+
 import sys
 from pathlib import Path
 
@@ -16,7 +18,7 @@ def test_watch_refreshes_meetings_and_dividends(monkeypatch) -> None:
     monkeypatch.setattr(meetings, "refresh", lambda *, force=False: calls.append(("meetings", force)) or {"ok": True})
     monkeypatch.setattr(dividends, "refresh", lambda *, force=False: calls.append(("dividends", force)) or {"ok": True})
 
-    result = api._news_calendar_watch_once()
+    result = subject_server_news_jobs._news_calendar_watch_once()
 
     assert result["ok"] is True
     assert calls == [("meetings", True), ("dividends", True)]
@@ -31,7 +33,7 @@ def test_one_calendar_failure_does_not_stop_the_other(monkeypatch) -> None:
     monkeypatch.setattr(meetings, "refresh", fail_meetings)
     monkeypatch.setattr(dividends, "refresh", lambda *, force=False: calls.append("dividends") or {"ok": True})
 
-    result = api._news_calendar_watch_once()
+    result = subject_server_news_jobs._news_calendar_watch_once()
 
     assert result["ok"] is False
     assert result["meetings"]["ok"] is False

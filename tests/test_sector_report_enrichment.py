@@ -1,6 +1,8 @@
 """Regressions for optional source-workbook enrichment."""
 from __future__ import annotations
 
+import issuer_financials as issuer_sources
+
 from copy import deepcopy
 
 import issuer_analysis_api as api
@@ -67,15 +69,15 @@ def _run_report(monkeypatch, snapshot):
         "excel_url": "https://example.org/combined.xlsx",
         "excel_url_form1": "https://example.org/combined.xlsx",
     }
-    monkeypatch.setattr(api, "_organization_type", lambda *_: "non_financial")
-    monkeypatch.setattr(api, "_financial_snapshot", lambda *_: deepcopy(snapshot))
-    monkeypatch.setattr(api, "_report_rows", lambda *_: [document])
+    monkeypatch.setattr(issuer_sources, 'classify_organization', lambda *_: "non_financial")
+    monkeypatch.setattr(issuer_sources, 'financial_snapshot', lambda *_: deepcopy(snapshot))
+    monkeypatch.setattr(issuer_sources, 'report_rows', lambda *_: [document])
 
     def fail_fetch(*_args):
         raise TimeoutError("source timeout")
 
-    monkeypatch.setattr(api, "fetch_report_excel_data", fail_fetch)
-    monkeypatch.setattr(api, "_quote_and_trade", lambda *_: ({}, {}))
+    monkeypatch.setattr(issuer_sources, 'fetch_report_excel_data', fail_fetch)
+    monkeypatch.setattr(issuer_sources, 'quote_and_trade', lambda *_: ({}, {}))
     monkeypatch.setattr(service, "_REPORT_CACHE", {})
     return service.sector_report(issuer, "nsbu", "2025Q1", "separate", "ru", persist=False)
 

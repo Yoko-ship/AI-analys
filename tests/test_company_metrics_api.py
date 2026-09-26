@@ -10,6 +10,10 @@ that needs openinfo to be up is not a test.
 """
 from __future__ import annotations
 
+import server.market.history as subject_server_market_history
+
+import server.market.history as subject_server_market_history
+
 import importlib
 from datetime import date, timedelta
 
@@ -52,8 +56,8 @@ def client(monkeypatch):
         requested_months.append(months)
         return _history()
 
-    monkeypatch.setattr(api, "_resolve_isin", fake_resolve)
-    monkeypatch.setattr(api, "_full_history", fake_history)
+    monkeypatch.setattr(subject_server_market_history, '_resolve_isin', fake_resolve)
+    monkeypatch.setattr(subject_server_market_history, '_full_history', fake_history)
     app_client = TestClient(api.app)
     app_client.requested_history_months = requested_months
     return app_client
@@ -117,7 +121,7 @@ def test_unknown_ticker_is_reported_not_guessed(client, monkeypatch):
     async def no_isin(ticker: str):
         return None
 
-    monkeypatch.setattr(api, "_resolve_isin", no_isin)
+    monkeypatch.setattr(subject_server_market_history, '_resolve_isin', no_isin)
     body = client.get("/api/company/NOPE/metrics").json()
     assert body["ok"] is False
     assert body["error"] == "ISIN not found"

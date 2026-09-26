@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import company_imports as subject_company_imports
+import reports_catalog as subject_reports_catalog
+import server.catalog.routes as subject_server_catalog_routes
+
 import asyncio
 
 import api
@@ -82,14 +86,14 @@ def test_nonfinance_catalog_analysis_never_downloads_openinfo(monkeypatch):
                         "debt_ratio": 60.0, "debt_to_equity": 1.5},
         }
 
-    monkeypatch.setattr(api.company_imports, "approved_metadata_map", lambda: {})
-    monkeypatch.setattr(api, "fetch_report_excel_data", no_upstream)
-    monkeypatch.setattr(api, "get_cached_catalog_period", cached_period)
-    request = api.CatalogAnalyzeRequest(
+    monkeypatch.setattr(subject_company_imports, "approved_metadata_map", lambda: {})
+    monkeypatch.setattr(subject_reports_catalog, 'fetch_report_excel_data', no_upstream)
+    monkeypatch.setattr(subject_reports_catalog, 'get_cached_catalog_period', cached_period)
+    request = subject_server_catalog_routes.CatalogAnalyzeRequest(
         ticker="BECM", year=2025, form="NSBU", analysis_type="financial", language="ru"
     )
 
-    result = asyncio.run(api.api_catalog_analyze(request, object()))
+    result = asyncio.run(subject_server_catalog_routes.api_catalog_analyze(request, object()))
 
     assert result["data_source"] == "verified_cache"
     assert result["sector"] == "manufacturing"
@@ -103,13 +107,13 @@ def test_finance_catalog_analysis_keeps_existing_upstream_path(monkeypatch):
         calls.append(args)
         return {"ok": True, "income": None, "balance": None}
 
-    monkeypatch.setattr(api.company_imports, "approved_metadata_map", lambda: {})
-    monkeypatch.setattr(api, "fetch_report_excel_data", upstream)
-    request = api.CatalogAnalyzeRequest(
+    monkeypatch.setattr(subject_company_imports, "approved_metadata_map", lambda: {})
+    monkeypatch.setattr(subject_reports_catalog, 'fetch_report_excel_data', upstream)
+    request = subject_server_catalog_routes.CatalogAnalyzeRequest(
         ticker="IPTB", year=2025, form="NSBU", analysis_type="ratio", language="ru"
     )
 
-    result = asyncio.run(api.api_catalog_analyze(request, object()))
+    result = asyncio.run(subject_server_catalog_routes.api_catalog_analyze(request, object()))
 
     assert len(calls) == 2
     assert "data_source" not in result

@@ -1,6 +1,10 @@
 """Public financial contract regression tests for the 2026-09-01 specification."""
 from __future__ import annotations
 
+import server.market.valuations as subject_server_market_valuations
+
+import server.market.valuations as subject_server_market_valuations
+
 from datetime import date, datetime, timedelta, timezone
 
 import fundamentals
@@ -181,8 +185,8 @@ def test_only_inactive_preferred_never_produces_zero_cap_or_multiples():
 def test_api_uses_catalog_share_class_to_exclude_inactive_preferred(monkeypatch, preferred_quote):
     import api
 
-    monkeypatch.setattr(api, "_apply_audit_blocks", lambda rows: 0)
-    payload = api._multiples_payload({
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    payload = subject_server_market_valuations._multiples_payload({
         "securities": {
             "PLST": {"name": "Portlatishsanoat", "type": "stock"},
             "PLSTP": {"name": "Portlatishsanoat", "type": "stock", "is_preferred": True},
@@ -247,8 +251,8 @@ def test_cache_input_version_changes_when_openinfo_cap_changes():
 def test_api_uses_openinfo_cap_for_all_issuer_classes(monkeypatch):
     import api
 
-    monkeypatch.setattr(api, "_apply_audit_blocks", lambda rows: 0)
-    payload = api._multiples_payload({
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    payload = subject_server_market_valuations._multiples_payload({
         "securities": {
             "ACME": {"name": "Acme AJ", "type": "stock"},
             "ACMEP": {"name": "Acme AJ", "type": "stock", "is_preferred": True},
@@ -368,8 +372,8 @@ def test_api_payload_passes_price_and_freshness_into_the_contract(monkeypatch):
     # Importing here keeps the pure contract tests independent of the web app.
     import api
 
-    monkeypatch.setattr(api, "_apply_audit_blocks", lambda rows: 0)
-    payload = api._multiples_payload({
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    payload = subject_server_market_valuations._multiples_payload({
         "securities": {"ACME": {"name": "Acme", "type": "stock"}},
         "board": [{
             "ticker": "ACME", "name": "Acme", "type": "stock",

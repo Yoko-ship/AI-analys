@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import soliq_company as subject_soliq_company
+
 import importlib
 
 import pytest
@@ -112,7 +114,7 @@ def test_company_registry_route_is_lazy_and_normalises_ticker(monkeypatch):
             "registry": _Response().json(),
         }
 
-    monkeypatch.setattr(api.soliq_company, "fetch_company_registry", fake_fetch)
+    monkeypatch.setattr(subject_soliq_company, "fetch_company_registry", fake_fetch)
     client = TestClient(api.app)
     assert calls == []
     response = client.get("/api/company/upos/registry")

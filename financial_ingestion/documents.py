@@ -37,11 +37,15 @@ def archive(payload: bytes):
                 pass
         finally:
             os.unlink(scratch)
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        # POSIX permits syncing a directory entry after the durable file/link.
+        # Windows cannot open directories through os.open; the file itself was
+        # already flushed above and the create-only link is still preserved.
+        if os.name != "nt":
+            directory = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     if hashlib.sha256(path.read_bytes()).hexdigest() != sha:
         raise ValueError("Stored original failed its integrity check")
     return sha, relative

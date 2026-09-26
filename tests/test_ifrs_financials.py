@@ -1,4 +1,6 @@
 """IFRS PDFs have their own units, years, signed amounts and source passports."""
+
+import reports_catalog as subject_reports_catalog
 from copy import deepcopy
 import hashlib
 import io
@@ -129,7 +131,7 @@ def test_import_converts_millions_once_keeps_losses_and_source_pages(review):
 def test_api_uses_bank_lines_without_fabricating_revenue_or_nsbu_ratios(review, monkeypatch):
     run(review)
     rc.upsert_financials_cache("BRBN", "NSBU", 2024, 0, {"revenue": 99})
-    monkeypatch.setattr(api, "get_facts", lambda *a, **kw: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda *a, **kw: [
         {"field": "roe", "period": "2024", "value_num": 99, "dataset": "financial_indicators"}])
     got = TestClient(api.app).get("/api/company/BRBN/financials?form=MSFO").json()
     assert got["availability"] == "AVAILABLE"

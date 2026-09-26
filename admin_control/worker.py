@@ -98,16 +98,16 @@ def process_document(entity_id):
     # A verified header is not proof that the financial series was mapped.
     # The existing domain worker owns mapping and publication and receives the event.
     if not doc["blockers"]:
-        import analysis_monitor
-        analysis_monitor.enqueue(doc["ticker"], "document:" + checksum)
+        from reporting import store as report_store
+        report_store.enqueue(doc["ticker"], "document:" + checksum)
         doc = _stage_document(entity_id, "RECALCULATING")
     return {"verified": not doc["blockers"], "verification_scope": "classification", "document_id": entity_id, "parser_run_id": run_id, "blockers": doc["blockers"]}
 
 
 def recalculate(ticker, *, override=None, persist=True):
-    from issuer_analysis_api import _resolve_issuer
+    from issuer_financials import resolve_issuer
     from sector_report_service import sector_report
-    issuer = _resolve_issuer(ticker)
+    issuer = resolve_issuer(ticker)
     outputs = [sector_report(issuer, "nsbu", None, "separate", lang, persist=persist, rule_override=override) for lang in ("ru", "uz", "en")]
     return {"verified": all(r["status"] == "available" for r in outputs), "verification_scope": "financial", "reports": outputs,
             "versions": [r["version"] for r in outputs], "statuses": [r["status"] for r in outputs]}
@@ -151,12 +151,12 @@ def process_target(job, target):
         return {"verified": True, "ticker": target, "current": current["versions"], "draft": draft["versions"],
                 "before": current["statuses"], "after": draft["statuses"]}
     if kind == "publication-rollback":
-        import analysis_monitor
+        from reporting import store as report_store
         with s.connection() as c:
             publication = s.get(c, "publications", target)
         if publication["version"] != job["payload"]["publication_version"]:
             raise s.ControlError("VERSION_CONFLICT", "Publication changed before rollback.")
-        if not analysis_monitor.rollback(publication["domain_version"], job["requested_by"], job["reason"]):
+        if not report_store.rollback(publication["domain_version"], job["requested_by"], job["reason"]):
             raise s.ControlError("ROLLBACK_REJECTED", "The domain rejected this publication rollback.")
         with s.connection(write=True) as c:
             for previous in s.all_items(c, "publications", {"ticker": publication["ticker"], "standard": publication["standard"], "status": "PUBLISHED"}):

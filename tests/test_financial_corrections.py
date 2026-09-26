@@ -1,6 +1,8 @@
 """Reviewed financial-organization corrections and their catalog integration."""
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+
 import importlib
 
 import pytest
@@ -131,7 +133,7 @@ def test_approved_corrections_use_the_requested_standard_and_quarter(monkeypatch
 
 def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "api-corrections.db"))
-    monkeypatch.setattr(api, "get_company_index", lambda ticker: {"org_id": ticker})
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda ticker: {"org_id": ticker})
 
     def facts(org_id, dataset=None):
         if org_id != "UZAS":
@@ -143,8 +145,8 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
             for field in ("total_assets", "total_equity", "total_liabilities", "cash")
         ]
 
-    monkeypatch.setattr(api, "get_facts", facts)
-    monkeypatch.setattr(api, "get_company_reports", lambda ticker: [])
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', facts)
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_reports', lambda ticker: [])
 
     client = TestClient(api.app)
     responses = {}

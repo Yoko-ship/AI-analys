@@ -16,6 +16,9 @@ Two properties matter more than the rest and are pinned here:
 """
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+import securities_catalog as subject_securities_catalog
+
 import importlib
 
 import pytest
@@ -151,9 +154,9 @@ class TestTheStore:
 class TestTheEndpoint:
     @pytest.fixture()
     def client(self, monkeypatch):
-        monkeypatch.setattr(api, "get_securities_map",
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map',
                             lambda: {"UZTL": {"isin": ISIN_A}, "TGPG": {"isin": ISIN_B}})
-        monkeypatch.setattr(api, "get_quote_history", lambda isins, days: {
+        monkeypatch.setattr(subject_reports_catalog, 'get_quote_history', lambda isins, days: {
             ISIN_A: [{"trade_date": "20260806", "close_price": 10000},
                      {"trade_date": "20260807", "close_price": 12000, "turnover": 154900.4}],
         })

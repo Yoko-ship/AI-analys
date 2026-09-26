@@ -139,10 +139,7 @@ function Overview({ data, navigate, t }) {
   </>;
 }
 
-export default function ControlPanel({ apiFetch: fetchProp, language = "ru", section = "overview", onSectionChange, user }) {
-  const fetchRef = useRef(fetchProp);
-  fetchRef.current = fetchProp;
-  const apiFetch = useCallback((...args) => fetchRef.current(...args), []);
+export default function ControlPanel({ apiFetch, language = "ru", section = "overview", onSectionChange, user }) {
   const li = langIndex(language);
   const t = useCallback((ru, uz, en) => [ru, uz, en][li], [li]);
   const [session, setSession] = useState(null);

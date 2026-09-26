@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { PasswordMeter } from "./PasswordMeter.jsx";
 import { passwordStrength, translateAuthError } from "./lib/passwordStrength.js";
 import { CANDLE_PATTERN_TYPES, CHART_PATTERN_TYPES, patternName } from "./lib/patterns.js";
@@ -170,23 +170,22 @@ export function ProfileAccountCenter({
     setTwoFactorCode("");
   }, [open, initialTab, profile]);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     setSessionsLoading(true);
     try {
       const data = await readJson(await apiFetch("/api/profile/sessions"));
       setSessions(data.sessions || []);
     } catch (error) {
-      notify(error.message, "error");
+      setStatus(error.message);
+      setStatusTone("error");
     } finally {
       setSessionsLoading(false);
     }
-  };
+  }, [apiFetch]);
 
   useEffect(() => {
     if (open && tab === "security") loadSessions();
-    // apiFetch is recreated by the app render; tab/open are the intentional triggers.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tab]);
+  }, [open, tab, loadSessions]);
 
   if (!open) return null;
 

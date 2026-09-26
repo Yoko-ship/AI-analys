@@ -11,8 +11,9 @@ import sector_analysis as core
 
 
 def code_fingerprint():
-    paths = ("sector_analysis.py", "sector_report_service.py", "fund_analysis.py",
-             "bond_quality.py", "sector_regressions.py", "config/verified_fund_reports.json",
+    paths = ("issuer_financials.py", "sector_analysis.py", "sector_report_service.py", "fund_analysis.py",
+             "bond_quality.py", "sector_regressions.py", "reporting/store.py",
+             "reporting/publication.py", "config/verified_fund_reports.json",
              "config/verified_sector_classifications.json")
     return core.digest({name: (Path(__file__).parent / name).read_bytes().hex() for name in paths})
 

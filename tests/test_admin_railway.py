@@ -1,4 +1,6 @@
 """Authorization, scoping, recovery safety and honest Railway failure states."""
+
+import web_auth as subject_web_auth
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -42,7 +44,7 @@ def setup(monkeypatch):
     monkeypatch.setenv("ADMIN_RAILWAY_ENVIRONMENT_ID", ENV)
     monkeypatch.setenv("ADMIN_RAILWAY_RECOVERY_SERVICES", SERVICE)
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: SimpleNamespace(id=41, email="admin@example.com"))
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: SimpleNamespace(id=41, email="admin@example.com"))
     rw._snapshot_cache.clear()
     rw._recovery_times.clear()
     query = AsyncMock(return_value=environment())
@@ -63,7 +65,7 @@ def test_machine_and_anonymous_cannot_access(setup, path, method, headers):
 
 def test_non_admin_cannot_access(setup, monkeypatch):
     client, query, _ = setup
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: SimpleNamespace(id=7, email="reader@example.com"))
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: SimpleNamespace(id=7, email="reader@example.com"))
     assert client.get("/api/admin/railway", headers=AUTH).status_code == 403
     assert client.post(ROOT + "/recover", headers=AUTH, json=payload()).status_code == 403
     query.assert_not_awaited()

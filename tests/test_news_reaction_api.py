@@ -8,6 +8,9 @@ The upstream fetch is stubbed: a test that needs openinfo to be up is not a test
 """
 from __future__ import annotations
 
+import news_store as subject_news_store
+import server.market.history as subject_server_market_history
+
 import importlib
 from datetime import date, timedelta
 
@@ -38,7 +41,7 @@ def _series(days: int = 40, *, stop_before_story: bool = False) -> dict:
 def client(monkeypatch):
     item = {"id": 7, "title": "Дивиденды", "published_at": PUBLISHED,
             "tickers": ["AGBA", "KVTS"], "url": "https://example.test/a"}
-    monkeypatch.setattr(api.news_store, "get_news_item",
+    monkeypatch.setattr(subject_news_store, "get_news_item",
                         lambda news_id: dict(item) if int(news_id) == 7 else None)
 
     async def fake_resolve(ticker: str):
@@ -47,8 +50,8 @@ def client(monkeypatch):
     async def fake_history(isin: str, months: int = 60):
         return _series()
 
-    monkeypatch.setattr(api, "_resolve_isin", fake_resolve)
-    monkeypatch.setattr(api, "_full_history", fake_history)
+    monkeypatch.setattr(subject_server_market_history, '_resolve_isin', fake_resolve)
+    monkeypatch.setattr(subject_server_market_history, '_full_history', fake_history)
     return TestClient(api.app)
 
 
@@ -73,7 +76,7 @@ def test_an_unreachable_series_is_reported_not_raised(client, monkeypatch):
     async def boom(isin: str, months: int = 60):
         raise RuntimeError("openinfo down")
 
-    monkeypatch.setattr(api, "_full_history", boom)
+    monkeypatch.setattr(subject_server_market_history, '_full_history', boom)
     body = client.get("/api/news/item/7/reaction").json()
     assert body["ok"] is True
     assert {r["status"] for r in body["items"]} == {"unavailable", "no_isin"}
@@ -83,7 +86,7 @@ def test_no_session_since_the_story_is_not_a_zero(client, monkeypatch):
     async def stale(isin: str, months: int = 60):
         return _series(stop_before_story=True)
 
-    monkeypatch.setattr(api, "_full_history", stale)
+    monkeypatch.setattr(subject_server_market_history, '_full_history', stale)
     reaction = client.get("/api/news/item/7/reaction").json()["items"][0]
     assert reaction["status"] == "no_session_yet"
     assert reaction["change"]["value"] is None

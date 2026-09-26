@@ -210,14 +210,132 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
+for (const remember of [true, false]) {
+  test(`session module: login, edit, reload and logout (${remember ? "remembered desktop" : "temporary mobile"})`, async ({ page }, testInfo) => {
+    if (!remember) await page.setViewportSize({ width: 390, height: 844 });
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    let user = { id: 99, full_name: "Session Investor", email: "session@test.uz", created_at: "2026-09-01T10:00:00Z" };
+    const profile = () => ({ ok: true, user, stats: { total_analyses: 0 },
+      preferences: { language: "ru", theme: "dark", text_scale: 100 },
+      security: {}, notes: [], favorites: [], recent_analyses: [] });
+    const authorizedCalls = [];
+    await page.route("**/api/auth/login", route => route.fulfill({ json: { token: "session-test-token", user } }));
+    await page.route("**/api/auth/me", route => route.fulfill({ json: { user } }));
+    await page.route("**/api/profile", route => {
+      authorizedCalls.push(route.request().headers().authorization);
+      if (route.request().method() === "PATCH") user = { ...user, ...route.request().postDataJSON() };
+      return route.fulfill({ json: profile() });
+    });
+    await page.route("**/api/profile/sessions", route => route.fulfill({ json: { sessions: [] } }));
+    await page.route("**/api/auth/logout", route => {
+      authorizedCalls.push(route.request().headers().authorization);
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/login");
+    const login = page.locator(".auth-hub-form");
+    await login.locator('input[type="email"]').fill(user.email);
+    await login.locator('input[autocomplete="current-password"]').fill("test-password");
+    await login.getByRole("checkbox").setChecked(remember);
+    await login.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/profile$/);
+    await expect(page.getByRole("heading", { name: "Session Investor", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => ({
+      permanent: localStorage.getItem("uz_stock_analyzer_token"),
+      temporary: sessionStorage.getItem("uz_stock_analyzer_token"),
+    }))).toEqual({ permanent: remember ? "session-test-token" : null, temporary: remember ? null : "session-test-token" });
+    await page.getByRole("button", { name: "Настройки", exact: true }).last().click();
+    const account = page.locator(".profile-account-center");
+    await account.getByRole("button", { name: "Профиль", exact: true }).click();
+    await page.getByLabel("Отображаемое имя").fill("Updated Investor");
+    await page.screenshot({ path: testInfo.outputPath("account.png") });
+    await account.locator('button[type="submit"]').click();
+    await expect.poll(() => user.full_name).toBe("Updated Investor");
+    await expect(account).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Updated Investor", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Updated Investor", exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("profile.png"), fullPage: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    await page.getByRole("button", { name: "Выйти", exact: true }).first().click();
+    await expect(page.locator(".auth-hub-form")).toBeVisible();
+    expect(await page.evaluate(() => [localStorage.getItem("uz_stock_analyzer_token"), sessionStorage.getItem("uz_stock_analyzer_token")])).toEqual([null, null]);
+    expect(authorizedCalls.length).toBeGreaterThan(2);
+    expect(authorizedCalls.every(value => value === "Bearer session-test-token")).toBe(true);
+    expect(errors).toEqual([]);
+  });
+}
+
 test("boots to the landing view without uncaught errors", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.locator("header.topbar")).toBeVisible();
-  await expect(page.locator(".hero-copy-block h1")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();
   await expect(page.locator(".topbar-nav-btn").first()).toBeVisible();
   expect(errors, errors.join("\n")).toHaveLength(0);
+});
+
+test("module navigation preserves market filters through browser back and forward", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/market");
+  await page.locator(".market-search input").fill("AGBA");
+  const ticker = page.locator(".market-table-wrap .market-ticker-btn");
+  await expect(ticker).toHaveText(["AGBA"]);
+  await ticker.click();
+  await expect(page).toHaveURL(/\/company\/AGBA$/);
+  await expect(page.locator(".company-page-price-val")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/market$/);
+  await expect(page.locator(".market-search input")).toHaveValue("AGBA");
+  await expect(ticker).toHaveText(["AGBA"]);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/company\/AGBA$/);
+  await expect(page.locator(".company-page-price-val")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("module routing preserves hidden workspace redirects and the bonds alias", async ({ page }) => {
+  await page.route("**/api/bonds", (route) => route.fulfill({ json: { ok: true, items: [], count: 0 } }));
+  for (const path of ["/analysis", "/compare", "/portfolio"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();
+  }
+  await page.goto("/bonds");
+  await expect(page).toHaveURL(/\/market$/);
+  await expect(page.locator(".bonds-head")).toBeVisible();
+});
+
+test("shared market data keeps all four market views aligned", async ({ page }, testInfo) => {
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/market/stocks**", route => route.fulfill({ json: {
+    ...STOCKS, stocks: [{ ...STOCKS.stocks[0], last_price: 120, close_price: 100,
+      last_trade_date: "2026-09-24", close_date: "2026-09-23" }],
+  } }));
+  await page.route("**/api/market/trade-stats**", route => route.fulfill({ json: {
+    ok: true, trade_date: "20260925", stats: { UZ0001: {
+      trade_date: "20260925", close_price: 144, total_value: 1440, total_qty: 10, trade_count: 2,
+    } },
+  } }));
+  await page.goto("/market");
+  const row = page.locator(".market-table-wrap tbody tr").filter({ hasText: "AGBA" }).first();
+  await expect(row).toContainText("144");
+  await expect(row).toContainText(/\+20(?:[,.]00)?%/);
+  await page.screenshot({ path: testInfo.outputPath("market.png") });
+  await page.goto("/company/AGBA");
+  await expect(page.locator(".company-page-price-val")).toHaveText("144 сум");
+  await expect(page.locator(".company-page-price-change")).toContainText("20.00%");
+  await page.goto("/chart/AGBA");
+  await expect(page.locator(".ac-price")).toHaveText("144");
+  await expect(page.locator(".ac-change")).toContainText("20.00%");
+  await page.goto("/");
+  const company = page.locator(".lv-company-card").filter({ hasText: "AGBA" });
+  await expect(company.locator(".lv-cc-pr")).toContainText("144");
+  await expect(company.locator(".lv-cc-pr")).toContainText(/\+20(?:[,.]00)?%/);
+  expect(errors).toEqual([]);
 });
 
 test("theme toggle flips the data-theme attribute", async ({ page }) => {
@@ -362,6 +480,40 @@ test("navigating to Рынок shows the market board", async ({ page }) => {
   await expect(page.getByText("AGBA Bank").first()).toBeVisible();
 });
 
+test("a slow quote refresh keeps the existing market rows visible", async ({ page }) => {
+  let releaseRefresh;
+  const refreshGate = new Promise((resolve) => { releaseRefresh = resolve; });
+
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-admin-token"));
+  await page.route("**/api/auth/me", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ user: { id: 1, email: "admin@example.uz", is_admin: true } }),
+  }));
+
+  await page.route("**/api/market/stocks**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("refresh") === "true") await refreshGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(STOCKS),
+    });
+  });
+
+  await page.goto("/market");
+  const table = page.locator(".market-table-wrap .market-table");
+  await expect(table.getByText("AGBA Bank")).toBeVisible();
+
+  await page.getByRole("button", { name: "Обновить", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Загружаем котировки...", exact: true })).toBeDisabled();
+  await expect(table.getByText("AGBA Bank")).toBeVisible();
+  await expect(table.locator(".market-empty-cell")).toHaveCount(0);
+
+  releaseRefresh();
+  await expect(page.getByRole("button", { name: "Обновить", exact: true })).toBeEnabled();
+});
+
 test("default market defers optional analytics until they are used", async ({ page }) => {
   let releaseStocks;
   const stocksGate = new Promise((resolve) => { releaseStocks = resolve; });
@@ -438,7 +590,7 @@ test("market financial cells show numeric candidates instead of status prose", a
       "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets",
     ]));
   });
-  await page.route("**/api/market/multiples", (route) => route.fulfill({
+  await page.route("**/api/market/multiples**", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -514,20 +666,42 @@ test("company details use a viewport-bound bottom sheet on mobile", async ({ pag
   expect(panelBox.y).toBeGreaterThan(0);
 });
 
-test("company overview opens the sourced AI financial report", async ({ page }) => {
+async function signInReportReader(page) {
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "report-reader"));
+  await page.route("**/api/auth/me", route => route.fulfill({ json: { user: { id: 98, full_name: "Report reader", email: "reader@test.uz" } } }));
+}
+
+test("company report preserves public access without sign-in", async ({ page }) => {
+  const requests = [];
+  page.on("request", request => { if (request.url().includes("/ai-report")) requests.push(request.url()); });
+  await page.goto("/company/AGBA");
+  await page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" }).click();
+  await expect(page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" })).toBeVisible();
+  await expect(page).toHaveURL(/\/company\/AGBA$/);
+  expect(requests.length).toBeGreaterThan(0);
+});
+
+test("company overview opens the sourced AI financial report", async ({ page }, testInfo) => {
+  await signInReportReader(page);
   await page.goto("/company/AGBA");
 
   const card = page.getByTestId("company-insight-card");
-  const details = card.getByRole("button", { name: "Подробнее" });
+  const details = card.getByRole("button", { name: "Открыть полный анализ" });
   await expect(card).toContainText(COMPANY_AI_REPORT.headline);
   await expect(details).toBeVisible();
   const sponsor = page.getByRole("complementary", { name: "Реклама" });
   await expect(sponsor).toBeVisible();
-  const actionBox = await details.boundingBox();
-  const sponsorBox = await sponsor.boundingBox();
-  expect(actionBox).not.toBeNull();
-  expect(sponsorBox).not.toBeNull();
-  expect(actionBox.x + actionBox.width).toBeLessThanOrEqual(sponsorBox.x);
+  // Measure after fonts and the entry transition have settled. A brief frame
+  // during reflow must not make the layout regression depend on test load.
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(async () => {
+    const actionBox = await details.boundingBox();
+    const sponsorBox = await sponsor.boundingBox();
+    if (!actionBox || !sponsorBox) return false;
+    return actionBox.x + actionBox.width <= sponsorBox.x
+      || actionBox.y + actionBox.height <= sponsorBox.y
+      || sponsorBox.y + sponsorBox.height <= actionBox.y;
+  }).toBe(true);
   await details.click();
 
   const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
@@ -537,6 +711,7 @@ test("company overview opens the sourced AI financial report", async ({ page }) 
     .toHaveAttribute("href", "https://openinfo.uz/report/agba-2025.pdf");
   await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
   await expect(page.getByRole("button", { name: "Закрыть AI-финансовый отчёт" })).toBeFocused();
+  await page.screenshot({ path: testInfo.outputPath("report.png"), animations: "disabled" });
 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
@@ -544,6 +719,7 @@ test("company overview opens the sourced AI financial report", async ({ page }) 
 });
 
 test("company insight remains available for a company classified as a bond", async ({ page }) => {
+  await signInReportReader(page);
   await page.route("**/api/securities", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -559,15 +735,16 @@ test("company insight remains available for a company classified as a bond", asy
 
   const card = page.getByTestId("company-insight-card");
   await expect(card).toContainText(COMPANY_AI_REPORT.headline);
-  await expect(card.getByRole("button", { name: "Подробнее" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toBeVisible();
 });
 
-test("company AI insight becomes a readable bottom sheet on mobile", async ({ page }) => {
+test("company AI insight becomes a readable bottom sheet on mobile", async ({ page }, testInfo) => {
+  await signInReportReader(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/company/AGBA");
 
   const card = page.getByTestId("company-insight-card");
-  const details = card.getByRole("button", { name: "Подробнее" });
+  const details = card.getByRole("button", { name: "Открыть полный анализ" });
   await expect(details).toBeVisible();
   const cardBox = await card.boundingBox();
   const buttonBox = await details.boundingBox();
@@ -584,9 +761,11 @@ test("company AI insight becomes a readable bottom sheet on mobile", async ({ pa
   expect(Math.abs(box.width - 390)).toBeLessThan(1);
   expect(Math.abs(box.y + box.height - 844)).toBeLessThan(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath("report.png"), animations: "disabled" });
 });
 
 test("company AI insight exposes a retry state when its report is unavailable", async ({ page }) => {
+  await signInReportReader(page);
   await page.route("**/api/v1/issuers/*/ai-report**", (route) => route.fulfill({
     status: 503,
     contentType: "application/json",

@@ -1,4 +1,6 @@
 """Acceptance regressions: analytical safety, arithmetic, provenance and state."""
+
+import web_auth as subject_web_auth
 from copy import deepcopy
 from datetime import date, timedelta
 from decimal import Decimal
@@ -8,7 +10,8 @@ import pytest
 
 import sector_analysis as core
 import fund_analysis
-import analysis_monitor
+from reporting import store as report_store
+from reporting import publication, worker as report_worker
 import bonds
 from bond_quality import freshness
 from reports_catalog import extract_insurance_balance
@@ -398,50 +401,50 @@ def test_due_date_and_accrual_filing_do_not_claim_payment_execution():
 def test_monitor_idempotency_retains_last_good_and_audits_retries(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "monitor.sqlite3"))
     good = core.make_report(snapshot(), ISSUER, today=TODAY)
-    analysis_monitor.record_report(deepcopy(good))
-    analysis_monitor.record_report(deepcopy(good))
+    publication.publish_report(deepcopy(good))
+    publication.publish_report(deepcopy(good))
     bad = snapshot()
     bad["current_values"]["total_assets"] = 0
-    blocked = analysis_monitor.record_report(core.make_report(bad, ISSUER, today=TODAY))
+    blocked = publication.publish_report(core.make_report(bad, ISSUER, today=TODAY))
     assert blocked["last_successful_report"]["version"] == good["version"]
-    assert len(analysis_monitor.overview()["runs"]) == 2
-    job = analysis_monitor.enqueue("FACT", "source-1")
-    assert analysis_monitor.enqueue("FACT", "source-1") == job
-    assert len(analysis_monitor.overview()["jobs"]) == 1
-    assert analysis_monitor.retry(job, "admin@example.org", "Corrected mapping")
-    assert analysis_monitor.overview()["audit"][0]["actor"] == "admin@example.org"
+    assert len(report_store.overview()["runs"]) == 2
+    job = report_store.enqueue("FACT", "source-1")
+    assert report_store.enqueue("FACT", "source-1") == job
+    assert len(report_store.overview()["jobs"]) == 1
+    assert report_store.retry(job, "admin@example.org", "Corrected mapping")
+    assert report_store.overview()["audit"][0]["actor"] == "admin@example.org"
 
 
 def test_override_versions_impact_queue_and_publication_rollback(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "rules.sqlite3"))
     rule = {"override_template": "telecom", "evidence_source": "https://example.org/classification",
             "reason_code": "Verified principal activity", "valid_from": "2026-01-01", "valid_to": "2026-12-31"}
-    saved = analysis_monitor.save_override(ISSUER, rule, "admin@example.org")
+    saved = report_store.save_override(ISSUER, rule, "admin@example.org")
     assert saved["regression"]["status"] == "passed"
-    assert analysis_monitor.active_override("1", "2026-08-30")["version"] == saved["version"]
-    assert analysis_monitor.active_override("1", "2027-01-01") is None
-    assert len(analysis_monitor.overview()["jobs"]) == 1
-    good = analysis_monitor.record_report(core.make_report(snapshot(), ISSUER, today=TODAY))
+    assert report_store.active_override("1", "2026-08-30")["version"] == saved["version"]
+    assert report_store.active_override("1", "2027-01-01") is None
+    assert len(report_store.overview()["jobs"]) == 1
+    good = publication.publish_report(core.make_report(snapshot(), ISSUER, today=TODAY))
     newer_input = snapshot()
     newer_input["current_values"]["revenue"] = 550
-    newer = analysis_monitor.record_report(core.make_report(newer_input, ISSUER, today=TODAY))
-    assert analysis_monitor.rollback(good["version"], "admin@example.org", "Review source correction")
-    restored = analysis_monitor.record_report(deepcopy(newer))
+    newer = publication.publish_report(core.make_report(newer_input, ISSUER, today=TODAY))
+    assert report_store.rollback(good["version"], "admin@example.org", "Review source correction")
+    restored = publication.publish_report(deepcopy(newer))
     assert restored["version"] == good["version"]
     assert restored["publication_restored"]
     newer_input["current_values"]["revenue"] = 600
-    released = analysis_monitor.record_report(core.make_report(newer_input, ISSUER, today=TODAY))
+    released = publication.publish_report(core.make_report(newer_input, ISSUER, today=TODAY))
     assert released["version"] != good["version"]
     assert not released.get("publication_restored")
 
 
 def test_rollback_does_not_make_an_old_filing_current(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "stale-rollback.sqlite3"))
-    old = analysis_monitor.record_report(core.make_report(snapshot(period="2025Q2"), ISSUER, today=date(2025, 8, 30)))
-    current = analysis_monitor.record_report(core.make_report(snapshot(), ISSUER, today=TODAY))
-    assert analysis_monitor.rollback(old["version"], "admin@example.org", "Review source change")
+    old = publication.publish_report(core.make_report(snapshot(period="2025Q2"), ISSUER, today=date(2025, 8, 30)))
+    current = publication.publish_report(core.make_report(snapshot(), ISSUER, today=TODAY))
+    assert report_store.rollback(old["version"], "admin@example.org", "Review source change")
     current["generated_at"] = "2026-08-30T10:00:00+00:00"
-    restored = analysis_monitor.record_report(current)
+    restored = publication.publish_report(current)
     assert restored["status"] == "stale"
     assert restored["last_successful_report"]["period"] == "2025Q2"
 
@@ -458,23 +461,23 @@ def test_stale_but_traceable_filing_keeps_its_analysis_visible():
 
 def test_worker_retries_then_deduplicates_incident(monkeypatch, tmp_path):
     import sector_report_service
-    import issuer_analysis_api
+    import issuer_financials
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "worker.sqlite3"))
-    monkeypatch.setattr(issuer_analysis_api, "_resolve_issuer", lambda _: ISSUER)
+    monkeypatch.setattr(issuer_financials, "resolve_issuer", lambda _: ISSUER)
     def failure(*args, **kwargs):
         raise TimeoutError("Temporary source failure")
     monkeypatch.setattr(sector_report_service, "sector_report", failure)
-    job = analysis_monitor.enqueue("FACT", "source-timeout")
+    job = report_store.enqueue("FACT", "source-timeout")
     for attempt in range(1, 5):
-        with analysis_monitor.connect() as connection:
+        with report_store.connect() as connection:
             connection.execute("UPDATE sector_jobs SET next_attempt='2000-01-01' WHERE id=?", (job,))
-        assert analysis_monitor.run_pending() == 1
-        row = analysis_monitor.overview()["jobs"][0]
+        assert report_worker.run_pending() == 1
+        row = report_store.overview()["jobs"][0]
         assert row["attempts"] == attempt
         assert row["state"] == ("retry" if attempt < 4 else "incident")
-    assert analysis_monitor.run_pending() == 0
-    assert analysis_monitor.enqueue("FACT", "source-timeout") == job
-    assert len(analysis_monitor.overview()["jobs"]) == 1
+    assert report_worker.run_pending() == 0
+    assert report_store.enqueue("FACT", "source-timeout") == job
+    assert len(report_store.overview()["jobs"]) == 1
 
 
 def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp_path):
@@ -485,7 +488,7 @@ def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp
     monkeypatch.setenv("ADMIN_EMAILS", "allowed@example.org")
     monkeypatch.setenv("ADMIN_API_SECRET", "collector-test-secret")
     user = type("User", (), {"email": "allowed@example.org", "id": 12})()
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: user if token == "test-token" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "test-token" else None)
     client = TestClient(api.app)
     path = "/api/admin/sector-analysis"
     assert client.get(path).status_code == 401
@@ -495,26 +498,26 @@ def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp
     user.email = "not-admin@example.org"
     assert client.get(path, headers=headers).status_code == 403
     user.email = "allowed@example.org"
-    job = analysis_monitor.enqueue("FACT", "blocked-source")
+    job = report_store.enqueue("FACT", "blocked-source")
     assert client.post(f"{path}/jobs/{job}/retry", headers=headers, json={"reason": "x"}).status_code == 422
     assert client.post(f"{path}/jobs/{job}/retry", headers=headers, json={"reason": "Retest corrected source"}).status_code == 200
-    assert analysis_monitor.overview()["audit"][0]["actor"] == user.email
+    assert report_store.overview()["audit"][0]["actor"] == user.email
 
 
 def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_path):
     import api
-    import issuer_analysis_api
+    import issuer_financials
     from fastapi.testclient import TestClient
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "roles.sqlite3"))
     monkeypatch.setenv("ADMIN_CONTROL_DB", str(tmp_path / "access.sqlite3"))
     monkeypatch.setenv("ADMIN_EMAILS", "scoped@example.org")
     user = type("User", (), {"email": "scoped@example.org", "id": 3})()
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda _: user)
-    monkeypatch.setattr(issuer_analysis_api, "_resolve_issuer", lambda _: ISSUER)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda _: user)
+    monkeypatch.setattr(issuer_financials, "resolve_issuer", lambda _: ISSUER)
     client = TestClient(api.app)
     headers = {"Authorization": "Bearer role-test"}
     path = "/api/admin/sector-analysis"
-    job = analysis_monitor.enqueue("FACT", "role-test")
+    job = report_store.enqueue("FACT", "role-test")
     payload = {"ticker": "FACT", "override_template": "metallurgy", "evidence_source": "https://example.org/activity",
                "reason_code": "Verified activity", "valid_from": "2026-01-01", "valid_to": "2026-12-31"}
     for role in ("viewer", "analyst", "rule_editor", "administrator"):
@@ -621,14 +624,14 @@ def test_bank_mapper_preserves_reconciled_catalog_totals():
 
 def test_two_bonds_share_issuer_calculation_but_not_instrument_results(monkeypatch, tmp_path):
     import sector_report_service as service
-    import issuer_analysis_api as api
+    import issuer_financials as api
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "shared.sqlite3"))
     monkeypatch.setattr(service, "_REPORT_CACHE", {})
-    monkeypatch.setattr(api, "_resolve_issuer", lambda _: ISSUER)
-    monkeypatch.setattr(api, "_organization_type", lambda *_: "non_financial")
-    monkeypatch.setattr(api, "_financial_snapshot", lambda *_: snapshot())
-    monkeypatch.setattr(api, "_report_rows", lambda *_: [])
-    monkeypatch.setattr(api, "_quote_and_trade", lambda *_: ({"trade_date": "2026-08-28", "close_price": 123}, {}))
+    monkeypatch.setattr(api, "resolve_issuer", lambda _: ISSUER)
+    monkeypatch.setattr(api, "classify_organization", lambda *_: "non_financial")
+    monkeypatch.setattr(api, "financial_snapshot", lambda *_: snapshot())
+    monkeypatch.setattr(api, "report_rows", lambda *_: [])
+    monkeypatch.setattr(api, "quote_and_trade", lambda *_: ({"trade_date": "2026-08-28", "close_price": 123}, {}))
     calls = []
     make = core.make_report
     def counted(*args, **kwargs):

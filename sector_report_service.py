@@ -9,6 +9,7 @@ from copy import deepcopy
 from threading import RLock
 
 import sector_analysis as engine
+import issuer_financials as financials
 
 logger = logging.getLogger(__name__)
 _REPORT_CACHE = {}
@@ -115,14 +116,13 @@ def special_type(issuer):
 
 
 def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None):
-    import issuer_analysis_api as api
     if persist:
-        import analysis_monitor
-        override = analysis_monitor.active_override(issuer["id"], api._now().date().isoformat())
+        from reporting import store as report_store
+        override = report_store.active_override(issuer["id"], financials.now().date().isoformat())
         if override:
             issuer = {**issuer, "template_override": override}
-    org = api._organization_type(issuer, standard)
-    resolution = engine.resolve_template(issuer, org, api._now().date())
+    org = financials.classify_organization(issuer, standard)
+    resolution = engine.resolve_template(issuer, org, financials.now().date())
     classifications = json.loads((Path(__file__).parent / "config" / "verified_sector_classifications.json").read_text(encoding="utf-8"))
     verified_activity = next((r for r in classifications["records"] if r["issuer_id"] == str(issuer["id"])), None)
     if verified_activity and resolution["resolution_status"] == "generic_fallback":
@@ -140,7 +140,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     if org == "investment_fund_ifrs_annual":
         from fund_analysis import audited_snapshot
         snapshot = audited_snapshot(issuer, period)
-    snapshot = snapshot or api._financial_snapshot(issuer, standard, period, scope)
+    snapshot = snapshot or financials.financial_snapshot(issuer, standard, period, scope)
     if snapshot.get("fund_record") and scope != snapshot.get("scope"):
         snapshot["quality"]["data_quality"].append({
             "code": "SCOPE_NOT_VERIFIED", "severity": "blocking",
@@ -156,14 +156,14 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         snapshot["organization_type"] = "non_financial"
     workbook = None
     selected = snapshot.get("period")
-    reports = api._report_rows(issuer, standard)
+    reports = financials.report_rows(issuer, standard)
     doc = next((r for r in reports if r.get("period") == selected), {})
     if selected and standard == "nsbu" and (doc.get("excel_url") or doc.get("excel_url_form1")):
-        year, quarter = api._period_key(selected)
+        year, quarter = financials.period_key(selected)
         if "Q" not in selected:
             quarter = 0
         try:
-            workbook = api.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
+            workbook = financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
             if not workbook.get("ok"):
                 raise ValueError("source workbook unavailable")
             workbook = deepcopy(workbook)
@@ -179,7 +179,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                 source_issuer = {**issuer, "oked_code": next(iter(source_codes))}
                 if verified_activity:
                     source_issuer["verified_activity_template"] = verified_activity["template"]
-                source_resolution = engine.resolve_template(source_issuer, org, api._now().date())
+                source_resolution = engine.resolve_template(source_issuer, org, financials.now().date())
                 if source_resolution["resolution_status"] == "classification_conflict":
                     snapshot["quality"]["data_quality"].append({"code": "CLASSIFICATION_CONFLICT", "severity": "blocking",
                                                                "message": "Source OKED conflicts with the evidenced principal activity."})
@@ -227,19 +227,19 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         })
     from admin_control.rules import apply_snapshot, runtime_rules
     snapshot = apply_snapshot(snapshot, issuer, workbook, runtime_rules(rule_override))
-    snapshot["generated_at"] = api._now().isoformat()
+    snapshot["generated_at"] = financials.now().isoformat()
     from sector_regressions import run
     regression = run()
     if regression["status"] != "passed":
         snapshot["quality"]["data_quality"].append({"code": "REGRESSION_GATE_FAILED", "severity": "blocking",
                                                    "message": "Calculation release did not pass its regression gate."})
     # Same issuer, filing and rules share the fundamentals across share classes.
-    cache_key = engine.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, workbook, lang, api._now().date(), engine.VERSION])
+    cache_key = engine.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, workbook, lang, financials.now().date(), engine.VERSION])
     with _CACHE_LOCK:
         report = deepcopy(_REPORT_CACHE.get(cache_key))
     if report is None:
-        report = engine.make_report(snapshot, issuer, lang, api._now().date(), workbook,
-                                    api._period_label(selected, lang))
+        report = engine.make_report(snapshot, issuer, lang, financials.now().date(), workbook,
+                                    financials.period_label(selected, lang))
         if snapshot.get("fund_record"):
             from fund_analysis import enrich
             report = enrich(report, snapshot)
@@ -250,9 +250,9 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     report["financial_snapshot_id"] = report["source_snapshot_hash"]
     report["regression"] = regression
     security = issuer.get("security") or {}
-    quote, _ = api._quote_and_trade(issuer)
+    quote, _ = financials.quote_and_trade(issuer)
     from bond_quality import freshness
-    market = freshness(quote.get("trade_date"), api._now().date())
+    market = freshness(quote.get("trade_date"), financials.now().date())
     report["market_as_of"] = market["quote_as_of"]
     report["instrument"] = {
         "issuer_id": issuer["id"], "issuer_analysis_id": report["financial_snapshot_id"],
@@ -272,13 +272,13 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     }
     if snapshot.get("fund_record"):
         from fund_analysis import reconcile_share_basis
-        reconcile_share_basis(report, security.get("share_reconciliation"), report["instrument"]["last_price"], api._now().date())
+        reconcile_share_basis(report, security.get("share_reconciliation"), report["instrument"]["last_price"], financials.now().date())
     # Financial version is independent of a quote or share-class event.
     report["instrument_version"] = engine.digest([report["instrument"], report["version"]])
     if persist:
         try:
-            import analysis_monitor
-            report = analysis_monitor.record_report(report)
+            from reporting import publication
+            report = publication.publish_report(report)
         except Exception:
             logger.exception("Could not record sector-analysis run")
     return report
@@ -301,17 +301,13 @@ def source_oked_codes(workbook):
 
 def bond_issuer_context(reference, lang="ru"):
     """Resolve an exact issuer identity; never infer credit quality from a name fragment."""
-    from fastapi import HTTPException
-    import issuer_analysis_api as api
     identifier = reference.get("issuer_id") or reference.get("issuer")
     if not identifier:
         return {"issuer_id": None, "issuer_analysis_id": None, "issuer_report": None,
                 "issuer_link_status": "not_verified"}
     try:
-        issuer = api._resolve_issuer(str(identifier))
-    except HTTPException as exc:
-        if exc.status_code != 404:
-            raise
+        issuer = financials.resolve_issuer(str(identifier))
+    except financials.IssuerNotFoundError:
         return {"issuer_id": None, "issuer_analysis_id": None, "issuer_report": None,
                 "issuer_link_status": "not_verified"}
     try:

@@ -10,6 +10,10 @@ the predecessor filing is missing.
 """
 from __future__ import annotations
 
+import server.company.financials as subject_server_company_financials
+
+import server.company.financials as subject_server_company_financials
+
 import api
 
 
@@ -19,7 +23,7 @@ def _cum(**periods: dict) -> dict:
 
 class TestFlowsAreDifferenced:
     def test_q1_is_the_filing_itself(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 100.0, "net_income": 10.0}}, {})
 
         assert periods == ["2024Q1"]
@@ -27,7 +31,7 @@ class TestFlowsAreDifferenced:
         assert series["net_profit"]["2024Q1"] == 10.0
 
     def test_later_quarters_are_the_difference_of_running_totals(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 100.0},
              "2024Q2": {"revenue": 250.0},
              "2024Q3": {"revenue": 300.0}}, {})
@@ -35,7 +39,7 @@ class TestFlowsAreDifferenced:
         assert series["net_revenue"] == {"2024Q1": 100.0, "2024Q2": 150.0, "2024Q3": 50.0}
 
     def test_filed_period_expenses_are_differenced_like_other_income_statement_flows(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2026Q1": {"revenue": 100.0, "operating_expenses": 74.424438},
              "2026Q2": {"revenue": 250.0, "operating_expenses": 151.604589}}, {})
 
@@ -48,7 +52,7 @@ class TestFlowsAreDifferenced:
     def test_a_missing_predecessor_yields_no_figure_not_a_running_total(self):
         """A six-month sum in a column of quarters is the «full year beside a
         quarter» defect — absence is the honest answer."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q2": {"revenue": 250.0}}, {})
 
         assert "2024Q2" not in series.get("net_revenue", {})
@@ -56,7 +60,7 @@ class TestFlowsAreDifferenced:
     def test_a_loss_quarter_goes_negative_and_stays(self):
         """Cumulative PROFIT legitimately falls when a quarter loses money —
         only the revenue witness polices the chain, never the profit lines."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 100.0, "net_income": 40.0},
              "2024Q2": {"revenue": 250.0, "net_income": 25.0}}, {})
 
@@ -65,7 +69,7 @@ class TestFlowsAreDifferenced:
 
 class TestQ4ComesFromTheAnnual:
     def test_q4_is_the_annual_less_the_nine_month_filing(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q3": {"revenue": 300.0, "cash": 40.0}},
             {"2024": {"revenue": 420.0, "cash": 55.0}})
 
@@ -74,7 +78,7 @@ class TestQ4ComesFromTheAnnual:
         assert series["cash"]["2024Q4"] == 55.0
 
     def test_no_q4_without_the_nine_month_filing_to_subtract(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 100.0, "cash": 20.0}},
             {"2024": {"revenue": 420.0, "cash": 55.0}})
 
@@ -85,7 +89,7 @@ class TestQ4ComesFromTheAnnual:
     def test_an_annual_only_year_synthesises_no_quarters(self):
         """An issuer that files no quarterlies must not grow a lone Q4 column —
         that would dress the annual view up as a quarterly one."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2023Q1": {"revenue": 10.0}},
             {"2024": {"revenue": 420.0}})
 
@@ -94,7 +98,7 @@ class TestQ4ComesFromTheAnnual:
 
 class TestStocksPassThrough:
     def test_balance_lines_are_snapshots_not_differences(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"cash": 20.0, "total_liabilities": 200.0},
              "2024Q2": {"cash": 30.0, "total_liabilities": 180.0}}, {})
 
@@ -105,7 +109,7 @@ class TestStocksPassThrough:
         """The quarterly Баланс shows the annual view's three lines — Активы,
         Обязательства, Капитал — so the balance totals ride the same snapshot
         rule as cash, year-end doubling as Q4's."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q3": {"revenue": 300.0, "total_assets": 1000.0, "total_equity": 400.0}},
             {"2024": {"revenue": 420.0, "total_assets": 1100.0, "total_equity": 450.0}})
 
@@ -130,20 +134,20 @@ class TestEquityByIdentity:
 
     def test_a_missing_period_is_closed_by_the_identity(self):
         s = self._series(equity_values={"2016": 480.0})
-        api._fill_equity_by_identity(s)
+        subject_server_company_financials._fill_equity_by_identity(s)
         assert s["total_equity"]["values"]["2015"] == 400.0
         # ... and a figure the source carries always wins over the derivation.
         assert s["total_equity"]["values"]["2016"] == 480.0
 
     def test_an_absent_series_is_created_and_marked_derived(self):
         s = self._series(with_equity=False)
-        api._fill_equity_by_identity(s)
+        subject_server_company_financials._fill_equity_by_identity(s)
         assert s["total_equity"]["derived"] is True
         assert s["total_equity"]["values"] == {"2015": 400.0, "2016": 500.0}
 
     def test_one_side_missing_derives_nothing(self):
         s = {"total_assets": {"unit": "UZS", "money": True, "values": {"2015": 1000.0}}}
-        api._fill_equity_by_identity(s)
+        subject_server_company_financials._fill_equity_by_identity(s)
         assert "total_equity" not in s
 
 
@@ -183,7 +187,7 @@ class TestTheWitnessLine:
         """The live defect: 932 B «Q1» against a 585 B half-year printed a
         revenue of −347 B. The odd point out loses its flows; its balance
         snapshot stays."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2023Q1": {"revenue": 932.0, "net_income": 21.0, "cash": 50.0},
              "2023Q2": {"revenue": 585.0, "net_income": 28.0},
              "2023Q3": {"revenue": 894.0, "net_income": 33.0}},
@@ -201,7 +205,7 @@ class TestTheWitnessLine:
         """SQBN 2024: a zero annual against a 8 018 B nine-month would have
         printed Q4 revenue of −8 T. The rejected annual contributes nothing —
         not even its (equally empty) balance."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 2551.0}, "2024Q2": {"revenue": 5196.0},
              "2024Q3": {"revenue": 8018.0, "cash": 100.0}},
             {"2024": {"revenue": 0.0, "cash": 0.0}})
@@ -210,7 +214,7 @@ class TestTheWitnessLine:
         assert series["net_revenue"]["2024Q3"] == 8018.0 - 5196.0
 
     def test_a_consistent_chain_is_left_alone(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 100.0}, "2024Q2": {"revenue": 100.0},
              "2024Q3": {"revenue": 300.0}},
             {"2024": {"revenue": 420.0}})
@@ -221,7 +225,7 @@ class TestTheWitnessLine:
     def test_on_a_tie_the_later_filing_is_believed(self):
         """KSCM 2024: Q1 36.5 against Q2 27.3 with Q3 91.5 — either of the
         first two chains with Q3. The later filing wins the tie."""
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 36.5}, "2024Q2": {"revenue": 27.3},
              "2024Q3": {"revenue": 91.5}}, {})
 
@@ -231,13 +235,13 @@ class TestTheWitnessLine:
 
 class TestHygiene:
     def test_an_all_zero_row_is_an_empty_filing_and_is_dropped(self):
-        periods, series = api.derive_quarterly_series(
+        periods, series = subject_server_company_financials.derive_quarterly_series(
             {"2024Q1": {"revenue": 0.0, "net_income": 0.0, "cash": 0.0}}, {})
 
         assert periods == []
 
     def test_periods_come_newest_first(self):
-        periods, _ = api.derive_quarterly_series(
+        periods, _ = subject_server_company_financials.derive_quarterly_series(
             {"2023Q3": {"revenue": 3.0, "cash": 5.0}, "2024Q1": {"revenue": 2.0},
              "2023Q1": {"revenue": 1.0}}, {})
 
@@ -246,6 +250,6 @@ class TestHygiene:
     def test_a_quarter_with_nothing_derivable_gets_no_column(self):
         """A lone cumulative Q3 (no Q2 to subtract, no balance snapshot) has no
         figure to show — a column of dashes would be noise."""
-        periods, _ = api.derive_quarterly_series({"2023Q3": {"revenue": 1.0}}, {})
+        periods, _ = subject_server_company_financials.derive_quarterly_series({"2023Q3": {"revenue": 1.0}}, {})
 
         assert periods == []

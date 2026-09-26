@@ -14,6 +14,9 @@ opinions, whose endpoint has no per-issuer filter.
 """
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+import server.catalog.jobs as subject_server_catalog_jobs
+
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -171,25 +174,25 @@ class TestWhoeverHasWaitedLongest:
 class TestTheSweepClockIsRecorded:
     def test_a_catalog_that_has_never_swept_sweeps(self, catalog, monkeypatch) -> None:
         calls = []
-        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: calls.append("full") or {"total": 1})
+        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: calls.append("full") or {"total": 1})
 
-        assert api._catalog_watch_once()["mode"] == "full"
+        assert subject_server_catalog_jobs._catalog_watch_once()["mode"] == "full"
         assert calls == ["full"]
 
     def test_a_completed_sweep_is_written_down(self, catalog, monkeypatch) -> None:
-        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: {"total": 1})
+        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: {"total": 1})
 
-        api._catalog_watch_once()
+        subject_server_catalog_jobs._catalog_watch_once()
 
         assert rc.full_sweep_age_hours() < 0.1
 
     def test_a_sweep_that_finished_is_not_repeated(self, catalog, monkeypatch) -> None:
-        monkeypatch.setattr(api, "catalog_sync_all", lambda **kw: {"total": 1})
+        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: {"total": 1})
         monkeypatch.setattr(rc, "sync_recent_filings", lambda **kw: {"synced": 0})
         monkeypatch.setattr(rc, "sync_stale_companies", lambda **kw: {"synced": 0})
-        api._catalog_watch_once()
+        subject_server_catalog_jobs._catalog_watch_once()
 
-        assert api._catalog_watch_once()["mode"] == "filings"
+        assert subject_server_catalog_jobs._catalog_watch_once()["mode"] == "filings"
 
     def test_an_interrupted_sweep_does_not_count_as_done(self, catalog, monkeypatch) -> None:
         """The company timestamps say a sweep happened — some of them were just
@@ -198,13 +201,13 @@ class TestTheSweepClockIsRecorded:
         def _die(**kw):
             raise RuntimeError("container went away")
 
-        monkeypatch.setattr(api, "catalog_sync_all", _die)
+        monkeypatch.setattr(subject_reports_catalog, 'sync_all', _die)
         with pytest.raises(RuntimeError):
-            api._catalog_watch_once()
+            subject_server_catalog_jobs._catalog_watch_once()
 
         assert rc.full_sweep_age_hours() is None
 
     def test_the_window_is_wider_than_the_interval(self) -> None:
         """A missed tick — a deploy, a restart, one failed request — has to heal
         on the next pass rather than leave a hole nothing ever fills."""
-        assert api.CATALOG_WATCH_WINDOW_HOURS * 60 > api.CATALOG_WATCH_INTERVAL_MIN
+        assert subject_server_catalog_jobs.CATALOG_WATCH_WINDOW_HOURS * 60 > subject_server_catalog_jobs.CATALOG_WATCH_INTERVAL_MIN

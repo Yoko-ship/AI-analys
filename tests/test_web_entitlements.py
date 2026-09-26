@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import analysis_service as subject_analysis_service
+import web_auth as subject_web_auth
+
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
@@ -29,8 +32,8 @@ def test_pro_access_respects_active_and_expired_entitlements() -> None:
 
 
 def test_paid_analysis_is_rejected_before_the_engine_runs(monkeypatch) -> None:
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda _: _user())
-    monkeypatch.setattr(api, "run_company_analysis", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not run")))
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda _: _user())
+    monkeypatch.setattr(subject_analysis_service, 'run_company_analysis', lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not run")))
     client = TestClient(api.app)
 
     response = client.post(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import web_auth as subject_web_auth
+
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
@@ -21,7 +23,7 @@ def _user() -> WebUser:
 
 
 def _authorize(monkeypatch) -> TestClient:
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: _user() if token == "token" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: _user() if token == "token" else None)
     return TestClient(api.app)
 
 
@@ -43,7 +45,7 @@ def test_preferences_endpoint_persists_only_supplied_fields(monkeypatch) -> None
         captured.update(user_id=user_id, values=values)
         return {"language": "en", "theme": "dark", **values}
 
-    monkeypatch.setattr(api.web_auth_store, "update_preferences", update)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "update_preferences", update)
     response = client.patch(
         "/api/profile/preferences",
         headers={"Authorization": "Bearer token"},
@@ -67,7 +69,7 @@ def test_password_change_keeps_current_session(monkeypatch) -> None:
         )
         return 3
 
-    monkeypatch.setattr(api.web_auth_store, "change_password", change)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "change_password", change)
     response = client.post(
         "/api/profile/password",
         headers={"Authorization": "Bearer token"},
@@ -86,7 +88,7 @@ def test_analysis_update_is_scoped_to_current_user(monkeypatch) -> None:
         captured.update(user_id=user_id, analysis_id=analysis_id, values=values)
         return {"id": analysis_id, **values}
 
-    monkeypatch.setattr(api.web_auth_store, "update_analysis", update)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "update_analysis", update)
     response = client.patch(
         "/api/profile/analyses/42",
         headers={"Authorization": "Bearer token"},
@@ -102,7 +104,7 @@ def test_analysis_update_is_scoped_to_current_user(monkeypatch) -> None:
 
 def test_history_clear_requires_explicit_confirmation(monkeypatch) -> None:
     client = _authorize(monkeypatch)
-    monkeypatch.setattr(api.web_auth_store, "clear_analysis_history", lambda user_id: 5)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "clear_analysis_history", lambda user_id: 5)
     rejected = client.request(
         "DELETE",
         "/api/profile/history",
@@ -128,7 +130,7 @@ def test_support_request_is_attached_to_current_user(monkeypatch) -> None:
         captured.update(user_id=user_id, subject=subject, message=message)
         return {"id": 12, "subject": subject, "status": "open"}
 
-    monkeypatch.setattr(api.web_auth_store, "create_support_request", create)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "create_support_request", create)
     response = client.post(
         "/api/profile/support",
         headers={"Authorization": "Bearer token"},
@@ -142,10 +144,10 @@ def test_support_request_is_attached_to_current_user(monkeypatch) -> None:
 def test_admin_receives_open_feedback_in_notification_bell(monkeypatch) -> None:
     admin = _user()
     admin.email = "admin@example.com"
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
     monkeypatch.setattr("admin_control.service.role_for", lambda _email: "administrator")
     monkeypatch.setattr(
-        api.web_auth_store,
+        subject_web_auth.web_auth_store,
         "list_support_requests",
         lambda status, limit: {"items": [{
             "id": 32,
@@ -154,7 +156,7 @@ def test_admin_receives_open_feedback_in_notification_bell(monkeypatch) -> None:
             "created_at": "2026-09-11T10:15:00+00:00",
         }]},
     )
-    monkeypatch.setattr(api.web_auth_store, "notification_states", lambda _user_id: {})
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "notification_states", lambda _user_id: {})
 
     response = TestClient(api.app).get("/api/notifications", headers={"Authorization": "Bearer token"})
 
@@ -168,14 +170,14 @@ def test_admin_receives_open_feedback_in_notification_bell(monkeypatch) -> None:
 def test_admin_can_mark_feedback_notification_read_without_pro(monkeypatch) -> None:
     admin = _user()
     admin.email = "admin@example.com"
-    monkeypatch.setattr(api.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: admin if token == "token" else None)
     captured = {}
 
     def mark_read(user_id, ids, *, dismissed=False):
         captured.update(user_id=user_id, ids=ids, dismissed=dismissed)
         return len(ids)
 
-    monkeypatch.setattr(api.web_auth_store, "set_notification_state", mark_read)
+    monkeypatch.setattr(subject_web_auth.web_auth_store, "set_notification_state", mark_read)
     response = TestClient(api.app).post(
         "/api/notifications/read",
         headers={"Authorization": "Bearer token"},

@@ -32,7 +32,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 
-# What the deployed image starts (see railway.json / railway.*.json).
+# Application and collector entry points included in the server image.
 ENTRYPOINTS = ("api.py", "bot.py", "collector_financials.py", "news_collector.py")
 
 # Import name -> distribution name, where they differ.
@@ -63,6 +63,14 @@ TRANSITIVE_OK = {
 def _repo_modules() -> set[str]:
     return ({p.stem for p in REPO.glob("*.py")}
             | {p.parent.name for p in REPO.glob("*/__init__.py")})
+
+
+def _package_sources(package: Path):
+    """Visit importable packages, excluding archived repositories and evidence."""
+    yield from package.glob("*.py")
+    for child in package.iterdir():
+        if child.is_dir() and (child / "__init__.py").is_file():
+            yield from _package_sources(child)
 
 
 def _imports_of(path: Path) -> tuple[set[str], set[str], set[str]]:
@@ -159,7 +167,7 @@ def main() -> int:
             package = REPO / module
             if (package / "__init__.py").is_file():
                 # Include relative imports and siblings in each runtime package.
-                queue.extend(package.rglob("*.py"))
+                queue.extend(_package_sources(package))
             else:
                 queue.append(REPO / f"{module}.py")
 

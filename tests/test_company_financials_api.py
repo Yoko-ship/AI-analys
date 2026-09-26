@@ -8,6 +8,10 @@ exist to prevent, so the money-field list is pinned rather than trusted.
 """
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+
+import reports_catalog as subject_reports_catalog
+
 import importlib
 
 import pytest
@@ -16,6 +20,7 @@ from fastapi.testclient import TestClient
 import reports_catalog as rc
 
 api = importlib.import_module("api")
+pytestmark = pytest.mark.usefixtures("authenticated_reader")
 
 
 def _fact(field, period, value, unit="UZS", source="openinfo_financial_indicators"):
@@ -47,13 +52,13 @@ def _no_filings(monkeypatch):
     """These tests are about the INDICATOR-FEED path. The filings series is read
     from the real catalog otherwise, and UZTL's actual 2025 leaks into every
     fixture — see test_the_filings_win for the merge itself."""
-    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {})
+    monkeypatch.setattr(subject_reports_catalog, 'get_financials_series', lambda t, form="NSBU": {})
 
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 666} if t == "UZTL" else {})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: FACTS)
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 666} if t == "UZTL" else {})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: FACTS)
     return TestClient(api.app)
 
 
@@ -82,8 +87,8 @@ def test_only_the_verified_identities_carry_a_unit(monkeypatch):
     debt_ratio = liabilities/assets (401 of 401) — those get a %.
     debt_to_equity matched that identity 0 times of 225, and
     total_asset_turnover IS revenue/assets, a coefficient — both stay bare."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("roe", "2025", 19.5, unit="%"),
         _fact("roa", "2025", 4.37, unit="%"),
         _fact("debt_ratio", "2025", 77.6, unit=None),
@@ -104,8 +109,8 @@ def test_net_margin_is_derived_not_republished(monkeypatch):
     """The fed net_profit_margin matched profit/revenue in only 396 of 655
     issuer-years — AGBA reads 0.05 where the sums give 24.08 %. So it is not
     published; the margin is computed from the two sums in this same payload."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2025", 4_265_600_000.0),
         _fact("net_profit", "2025", 1_880_100_000.0),
         _fact("net_profit_margin", "2025", 0.11, unit="x"),
@@ -122,8 +127,8 @@ def test_net_margin_is_derived_not_republished(monkeypatch):
 def test_no_margin_on_a_zero_revenue_base(monkeypatch):
     """BRBN files no revenue line. A margin on a zero base is a division, not a
     fact about the issuer."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2024", 0.0),
         _fact("net_profit", "2024", -2_231_102_237.0),
         _fact("total_assets", "2024", 32_133_397_827.0),
@@ -166,8 +171,8 @@ def test_a_year_filed_entirely_as_zero_is_not_a_column(monkeypatch):
     with no margins. A balance sheet cannot total zero, so that is an empty
     filing — publishing it drew a cement plant collapsing to nothing with a
     -100 % growth row underneath."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2021", 0.0), _fact("net_profit", "2021", 0.0),
         _fact("total_assets", "2021", 0.0),
         _fact("net_revenue", "2020", 551_396_888.0),
@@ -184,8 +189,8 @@ def test_a_zero_balance_sheet_is_dropped_even_with_a_stray_figure(monkeypatch):
     was enough to keep the column and draw a bank collapsing to nothing and back.
     A going concern cannot have no balance sheet, so zero total assets is the
     test, not "every money field is zero"."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("total_assets", "2024", 0.0), _fact("total_equity", "2024", 0.0),
         _fact("total_liabilities", "2024", 0.0), _fact("net_revenue", "2024", 0.0),
         _fact("net_profit", "2024", 13.0),
@@ -196,13 +201,31 @@ def test_a_zero_balance_sheet_is_dropped_even_with_a_stray_figure(monkeypatch):
     assert body["periods"] == ["2023"]
 
 
+def test_a_zero_assets_placeholder_does_not_hide_a_real_income_statement(monkeypatch):
+    """CBSK 2016, UZMT 2016 and ORGS 2025 report real revenue and profit
+    beside an unusable zero-assets indicator.  The broken balance line must not
+    suppress the entire filed P&L period.
+    """
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 633})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
+        _fact("total_assets", "2016", 0.0),
+        _fact("net_revenue", "2016", 16_882_974.8),
+        _fact("net_profit", "2016", 5_951_780.25),
+    ])
+
+    body = TestClient(api.app).get("/api/company/CBSK/financials").json()
+
+    assert body["periods"] == ["2016"]
+    assert body["series"]["net_revenue"]["values"]["2016"] == 16_882_974_800.0
+
+
 def test_a_junk_zero_assets_line_beside_real_equity_is_kept(monkeypatch):
     """GRBK 2024 defeated the assets-only test from the other direction: the
     feed prints total_assets 0.0 beside an equity of 546.9 B (and a real filed
     annual with a −64 B loss). A zero balance sheet means BOTH sides zero —
     one junk line must not purge a genuine year."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 11})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 11})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("total_assets", "2024", 0.0),
         _fact("total_equity", "2024", 546_908_188.0),
         _fact("net_profit", "2024", -64_342_762.0),
@@ -218,8 +241,8 @@ def test_a_zero_income_line_on_a_real_balance_sheet_is_kept(monkeypatch):
     """BRBN and UZNGP file on forms with no revenue line, and UZNF is a fund
     that genuinely earns nothing while holding 30 T of assets. Those zeros are
     what the source says — only a missing STATEMENT is dropped."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2024", 0.0),
         _fact("net_profit", "2024", -2_231_102_237.0),
         _fact("total_assets", "2024", 32_133_397_827.0),
@@ -232,8 +255,8 @@ def test_a_zero_income_line_on_a_real_balance_sheet_is_kept(monkeypatch):
 def test_a_single_zero_is_kept(monkeypatch):
     """UZNF is a fund: it genuinely earns no revenue while holding assets, and
     that zero is a fact about the issuer rather than a missing filing."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2025", 0.0),
         _fact("total_assets", "2025", 4_000_000.0),
     ])
@@ -245,8 +268,8 @@ def test_a_single_zero_is_kept(monkeypatch):
 def test_the_newest_write_wins_a_repeated_period(monkeypatch):
     """openinfo publishes an indicator and the NSBU pass derives it; the derived
     one is computed from the filing this platform parsed."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 666})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 666})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_profit", "2025", 1.0),
         _fact("net_profit", "2025", 2.0, source="nsbu_derived_indicators"),
     ])
@@ -259,12 +282,12 @@ def test_the_filings_win_over_the_indicator_feed(monkeypatch):
     filing's 8 965 — and agreed with it on 2025, 2022 and 2020. So a year parsed
     from the issuer's own annual report overwrites the fed one, and the feed is
     left to cover only what the filings do not carry."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [
         _fact("net_revenue", "2024", 7_849_956_534.0),     # the transposed one
         _fact("total_assets", "2024", 10_407_235_283.0),   # only the feed has this
     ])
-    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {
+    monkeypatch.setattr(subject_reports_catalog, 'get_financials_series', lambda t, form="NSBU": {
         "2024": {"revenue": 8_964_716_518.0, "gross_profit": 2_624_566_570.0,
                  "operating_income": 488_411_678.0, "net_income": 41_629_721.0},
     })
@@ -280,9 +303,9 @@ def test_the_filings_win_over_the_indicator_feed(monkeypatch):
 
 def test_a_filed_operating_expense_line_wins_over_the_proxy(monkeypatch):
     """Bank filings name expenses directly; do not replace them with a proxy."""
-    monkeypatch.setattr(api, "get_company_index", lambda t: {"org_id": 1})
-    monkeypatch.setattr(api, "get_facts", lambda org, dataset=None: [])
-    monkeypatch.setattr(api, "get_financials_series", lambda t, form="NSBU": {
+    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda t: {"org_id": 1})
+    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda org, dataset=None: [])
+    monkeypatch.setattr(subject_reports_catalog, 'get_financials_series', lambda t, form="NSBU": {
         "2024": {"revenue": 4_156_327_248.0, "gross_profit": 0.0,
                  "operating_income": -2_231_102_237.0,
                  "operating_expenses": 929_275_668.0},

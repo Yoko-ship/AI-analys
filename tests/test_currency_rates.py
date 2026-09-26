@@ -8,6 +8,8 @@ official rate stays official until the bank publishes the next one.
 """
 from __future__ import annotations
 
+import server.currency.routes as subject_server_currency_routes
+
 import importlib
 
 import pytest
@@ -31,9 +33,9 @@ CBU_FEED = [
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setattr(api, "_fetch_cbu_rates", lambda: list(CBU_FEED))
-    monkeypatch.setitem(api._cbu_rates_cache, "payload", None)
-    monkeypatch.setitem(api._cbu_rates_cache, "at", 0.0)
+    monkeypatch.setattr(subject_server_currency_routes, '_fetch_cbu_rates', lambda: list(CBU_FEED))
+    monkeypatch.setitem(subject_server_currency_routes._cbu_rates_cache, "payload", None)
+    monkeypatch.setitem(subject_server_currency_routes._cbu_rates_cache, "at", 0.0)
     return TestClient(api.app)
 
 
@@ -42,7 +44,7 @@ def test_serves_curated_currencies_in_order_with_numbers(client):
     assert data["ok"] is True
     assert data["date"] == "11.08.2026"
     ccys = [r["ccy"] for r in data["rates"]]
-    assert ccys == [c for c in api.CBU_RATES_CURRENCIES if c in {"USD", "EUR"}]
+    assert ccys == [c for c in subject_server_currency_routes.CBU_RATES_CURRENCIES if c in {"USD", "EUR"}]
     usd = data["rates"][0]
     assert usd["rate"] == pytest.approx(11934.61)
     assert usd["diff"] == pytest.approx(-17.49)
@@ -56,8 +58,8 @@ def test_failed_refresh_serves_last_good_answer(client, monkeypatch):
     def boom():
         raise RuntimeError("cbu unreachable")
 
-    monkeypatch.setattr(api, "_fetch_cbu_rates", boom)
-    monkeypatch.setitem(api._cbu_rates_cache, "at", 0.0)  # force a refresh
+    monkeypatch.setattr(subject_server_currency_routes, '_fetch_cbu_rates', boom)
+    monkeypatch.setitem(subject_server_currency_routes._cbu_rates_cache, "at", 0.0)  # force a refresh
     again = client.get("/api/currency/rates")
     assert again.status_code == 200
     assert again.json()["rates"] == first["rates"]
@@ -67,7 +69,7 @@ def test_nothing_cached_and_bank_down_is_honest(client, monkeypatch):
     def boom():
         raise RuntimeError("cbu unreachable")
 
-    monkeypatch.setattr(api, "_fetch_cbu_rates", boom)
+    monkeypatch.setattr(subject_server_currency_routes, '_fetch_cbu_rates', boom)
     resp = client.get("/api/currency/rates")
     assert resp.status_code == 200
     assert resp.json() == {"ok": False, "rates": []}

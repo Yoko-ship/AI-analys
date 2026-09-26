@@ -12,6 +12,8 @@ regression in the calculation layer fails the build rather than the market.
 """
 from __future__ import annotations
 
+import server.market.valuations as subject_server_market_valuations
+
 import ast
 import pathlib
 from datetime import date, timedelta
@@ -32,7 +34,13 @@ class TestIsolation:
     def test_the_auditor_does_not_import_the_calculation_layer(self):
         """§12.1: 'код аудитора не имеет права импортировать formulas.py'."""
         offences: list[str] = []
-        for path in sorted(AUDIT_DIR.rglob("*.py")):
+        # Inspect Python package modules, not archived evidence/checkouts stored
+        # below audit/. Those snapshots are not part of the running auditor.
+        package_dirs = [AUDIT_DIR]
+        for directory in package_dirs:
+            package_dirs.extend(p for p in directory.iterdir()
+                                if p.is_dir() and (p / "__init__.py").is_file())
+        for path in sorted(p for directory in package_dirs for p in directory.glob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -478,7 +486,7 @@ class TestBlockingSuppression:
                                    8.0, 42.0)])
         rows = [{"ticker": marker, "pe": {"value": 42.0, "status": "ok"},
                  "pb": {"value": 1.5, "status": "ok"}}]
-        withheld = api._apply_audit_blocks(rows)
+        withheld = subject_server_market_valuations._apply_audit_blocks(rows)
         assert withheld == 1
         assert rows[0]["pe"]["value"] is None
         assert rows[0]["pe"]["display_value"] == pytest.approx(42.0)
@@ -506,5 +514,5 @@ class TestBlockingSuppression:
 
         monkeypatch.setattr(audit, "blocking_index", boom)
         rows = [{"ticker": "A", "pe": {"value": 8.0, "status": "ok"}}]
-        assert api._apply_audit_blocks(rows) == 0
+        assert subject_server_market_valuations._apply_audit_blocks(rows) == 0
         assert rows[0]["pe"]["value"] == pytest.approx(8.0)

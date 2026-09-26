@@ -82,7 +82,7 @@ def coverage(c, doc):
 
 def refresh_catalog():
     import reports_catalog
-    from sector_report_service import special_type
+    from issuer_financials import special_type
     from sector_analysis import resolve_template
     conn = reports_catalog.get_catalog_conn()
     try:
@@ -117,20 +117,12 @@ def refresh_catalog():
     return {"documents": len(rows), "issuers": len(companies), "verified": False}
 
 
-def record_analysis(report):
+def record_analysis(report, *, current_version):
     """Project persisted domain output without upgrading missing lineage to verified."""
     issuer = report.get("issuer") or {}
     ticker = issuer.get("ticker")
     if not ticker or not report.get("version"):
         return
-    import analysis_monitor
-    domain = analysis_monitor.connect()
-    try:
-        pointer = domain.execute("SELECT version FROM sector_publications WHERE issuer_id=? AND language=? AND standard=?",
-                                 (str(issuer["id"]), report["language"], report["standard"])).fetchone()
-        current_version = pointer["version"] if pointer else None
-    finally:
-        domain.close()
     blockers = [r["code"] for r in report.get("data_quality", []) if r.get("severity") == "blocking"]
     warnings = [r["code"] for r in report.get("data_quality", []) if r.get("severity") != "blocking"]
     with s.connection(write=True) as c:
@@ -214,13 +206,13 @@ def record_analysis(report):
 
 
 def refresh_analyses():
-    import analysis_monitor
-    conn = analysis_monitor.connect()
+    from reporting import store as report_store
+    conn = report_store.connect()
     try:
         import json
         reports = [json.loads(r["payload"]) for r in conn.execute("SELECT payload FROM sector_runs ORDER BY created_at")]
     finally:
         conn.close()
     for report in reports:
-        record_analysis(report)
+        record_analysis(report, current_version=report_store.publication_version(report))
     return len(reports)

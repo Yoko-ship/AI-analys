@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 api = importlib.import_module("api")
+pytestmark = pytest.mark.usefixtures("authenticated_reader")
 
 
 @pytest.fixture()

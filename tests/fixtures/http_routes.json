@@ -1,0 +1,4264 @@
+[
+  {
+    "path": "/api/v1/issuers/{issuer_id}/profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_profile",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/report-freshness",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_report_freshness",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/financial-analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_financial_analysis",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/ai-report",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_ai_report",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/credit-profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_credit_profile",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/events",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_events",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/issuers/{issuer_id}/bonds",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_bonds",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_comparison",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}/table",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_table",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}/charts",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_charts",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_summary",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}/export.csv",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_comparison_csv",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v1/comparisons/{run_id}/report.pdf",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_comparison_pdf",
+    "dependencies": []
+  },
+  {
+    "path": "/api/track",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_track",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/metrics/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_overview",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/metrics/audience",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_audience",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/metrics/engagement",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_engagement",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/metrics/analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_analysis",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/users",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_users",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/users/funnel",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_users_funnel",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/audit-log",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_audit_log",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/feedback",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_feedback",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/feedback/{request_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_feedback_status",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/users/{user_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_user_detail",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/users/{user_id}/action",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_user_action",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/railway",
+    "methods": [
+      "GET"
+    ],
+    "name": "status",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/railway/services/{service_id}/deployments",
+    "methods": [
+      "GET"
+    ],
+    "name": "history",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/railway/services/{service_id}/deployments/{deployment_id}/logs",
+    "methods": [
+      "GET"
+    ],
+    "name": "logs",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/railway/services/{service_id}/recover",
+    "methods": [
+      "POST"
+    ],
+    "name": "recover",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/session",
+    "methods": [
+      "GET"
+    ],
+    "name": "session",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "overview",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "search",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/{collection}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/documents/{entity_id}/preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "preview",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/documents/{entity_id}/page/{page}",
+    "methods": [
+      "GET"
+    ],
+    "name": "page_image",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/documents/{entity_id}/original",
+    "methods": [
+      "GET"
+    ],
+    "name": "original",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/{collection}/{entity_id}/history",
+    "methods": [
+      "GET"
+    ],
+    "name": "history",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/{collection}/{entity_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "detail",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/{collection}",
+    "methods": [
+      "GET"
+    ],
+    "name": "registry",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/control/{collection}/{entity_id}/{action}",
+    "methods": [
+      "POST"
+    ],
+    "name": "mutate",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/openinfo/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "openinfo_scan",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/issuers/{issuer_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/documents/{document_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "document",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/documents/{document_id}/original",
+    "methods": [
+      "GET"
+    ],
+    "name": "document_original",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/documents/{document_id}/parse",
+    "methods": [
+      "POST"
+    ],
+    "name": "parse_document",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/documents/{document_id}/check",
+    "methods": [
+      "POST"
+    ],
+    "name": "check_document",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/incidents/{incident_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "incident",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/incidents/{incident_id}/evidence",
+    "methods": [
+      "GET"
+    ],
+    "name": "incident_evidence",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/incidents/{incident_id}/resolve",
+    "methods": [
+      "POST"
+    ],
+    "name": "resolve_incident",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/issuers/{issuer_id}/calculate",
+    "methods": [
+      "POST"
+    ],
+    "name": "calculate",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/formula-versions/{formula_id}/preview",
+    "methods": [
+      "POST"
+    ],
+    "name": "formula_preview",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/publications/{publication_id}/rollback",
+    "methods": [
+      "POST"
+    ],
+    "name": "publication_rollback",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/admin/audit",
+    "methods": [
+      "GET"
+    ],
+    "name": "audit",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/sector-analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "overview",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/sector-analysis/runs/{version}",
+    "methods": [
+      "GET"
+    ],
+    "name": "run",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/sector-analysis/jobs/{job_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/sector-analysis/overrides",
+    "methods": [
+      "POST"
+    ],
+    "name": "override",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/sector-analysis/runs/{version}/rollback",
+    "methods": [
+      "POST"
+    ],
+    "name": "rollback",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/health",
+    "methods": [
+      "GET"
+    ],
+    "name": "health",
+    "dependencies": []
+  },
+  {
+    "path": "/",
+    "methods": [
+      "GET"
+    ],
+    "name": "index",
+    "dependencies": []
+  },
+  {
+    "path": "/api/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_companies",
+    "dependencies": []
+  },
+  {
+    "path": "/api/periods",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_periods",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/stocks",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_stocks",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/audit",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_audit",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/trades",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_trades",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/financials",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_financials",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/ratios",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_ratios",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/multiples",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_multiples",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_summary",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/changes",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_changes",
+    "dependencies": []
+  },
+  {
+    "path": "/api/currency/rates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_currency_rates",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bank-fx",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bank_fx",
+    "dependencies": []
+  },
+  {
+    "path": "/api/heatmap",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_heatmap",
+    "dependencies": []
+  },
+  {
+    "path": "/api/instruments",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_instruments",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bonds",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bonds/curve",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds_curve",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bonds/calendar",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds_calendar",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bonds/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bond_detail",
+    "dependencies": []
+  },
+  {
+    "path": "/api/bonds/{ticker}/coupons",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bond_coupons",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/bonds/reference",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_bond_reference",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/gov-auctions",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_gov_auctions",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/bank-fx",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_bank_fx",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/catalog/reports/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_reports_summary",
+    "dependencies": []
+  },
+  {
+    "path": "/api/catalog/reports/{report_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_report",
+    "dependencies": []
+  },
+  {
+    "path": "/api/catalog/reports/queue",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_queue",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/ready",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_ready",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/migrate",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_migrate",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/config",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_config",
+    "dependencies": []
+  },
+  {
+    "path": "/api/audit/run",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_audit_run",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/runs",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_runs",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/runs/{run_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_run_detail",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/findings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_findings",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/findings/{finding_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_audit_update_finding",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/rules",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_rules",
+    "dependencies": []
+  },
+  {
+    "path": "/api/audit/diff",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_diff",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_export",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/audit/badge/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_badge",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_overview",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/reports",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_reports",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/rules",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_rules",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/source",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_source",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/issuer/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_issuer",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/invariants",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_invariants",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/trace/{trace_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_trace",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/traces",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_traces",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/coverage",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_coverage",
+    "dependencies": []
+  },
+  {
+    "path": "/api/facts/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_facts",
+    "dependencies": []
+  },
+  {
+    "path": "/api/market/trade-stats",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_trade_stats",
+    "dependencies": []
+  },
+  {
+    "path": "/api/listings/feed",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_listings_feed",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/feed",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_feed",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/calendar/meetings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_meetings",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/calendar/announcements",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_announcements",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/calendar/announcements/{announcement_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_announcement",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/calendar/dividends",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_dividends",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/item/{news_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_item",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/item/{news_id}/reaction",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_reaction",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/ticker/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_ticker",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/news",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/images",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_images",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/snippets",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_snippets",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/translations",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_translations",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/details",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_details",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/catalog/issuers",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_catalog_issuers",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/known",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_known",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/purge-failed",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_purge_failed",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/rejudge",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_rejudge",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/news/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_news_search",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/issues",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_issues",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_scan",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/companies/{ticker}/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_refresh_company_reporting",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/analysis/{ticker}/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_analysis_scan",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/corrections",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_corrections",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/publication-holds",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_publication_hold",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/issues/{issue_id}/suggestion",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_suggestion",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/issues/{issue_id}/apply",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_issue",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/issues/{issue_id}/apply-unit-scale",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_unit_scale",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/corrections",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_create_correction",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/corrections/apply",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_correction",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/data-quality/corrections/{correction_id}/review",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_review_correction",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_companies",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_companies_search",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/discover",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_companies_discover",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/{ticker}/preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_company_preview",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/{ticker}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_approve",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/{ticker}/reject",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_reject",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/{ticker}/visibility",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_company_visibility",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/companies/{ticker}/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_sync",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/news/agent-search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_agent_search",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/admin/trade-stats",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_trade_stats",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/quotes",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_quotes",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/financials",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_financials",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/facts",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_facts",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/listings",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_listings",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/openinfo-probe",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_openinfo_probe",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/pg/copy",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_pg_copy",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/logos/materialise",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_materialise_logos",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/logos/audit",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_logo_audit",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/catalog/register",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_register",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/catalog-sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_sync",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/catalog-watch",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_watch",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/securities",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_securities",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/financials/documents/{sha}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_document",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/financial-ingestion/status",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_ingestion_status",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/company/{ticker}/financials/passport",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_financial_passport",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/financials",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_financials",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/forecast",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_forecast",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/company/{ticker}/forecast/backtest",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_forecast_backtest",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/company/{ticker}/technical-backtest",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_technical_backtest",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/company/{ticker}/patterns",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_patterns",
+    "dependencies": []
+  },
+  {
+    "path": "/api/quotes/series",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_quotes_series",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/splits",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_splits",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/registry",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_registry",
+    "dependencies": []
+  },
+  {
+    "path": "/api/securities/{ticker}/info",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_securities_info",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/oauth/exchange",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_oauth_exchange",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/register",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_register",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/login",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_login",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/options",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_auth_options",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/email/verify",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_email_verify",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/email/resend",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_email_resend",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/password/forgot",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_password_forgot",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/password/reset",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_password_reset",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/me",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_me",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/admin/users/{user_id}/subscription",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_user_subscription",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/auth/logout",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_logout",
+    "dependencies": []
+  },
+  {
+    "path": "/api/profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_update",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/favorites",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_favorites",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/favorites/toggle",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_favorites_toggle",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/preferences",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_preferences",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/password",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_password",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/sessions",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_sessions",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/sessions/{session_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_session_delete",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/sessions/revoke-others",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_sessions_revoke_others",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/2fa/setup",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_setup",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/2fa/enable",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_enable",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/2fa/disable",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_disable",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/analyses/{analysis_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_analysis_update",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/analyses/{analysis_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_analysis_delete",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/analyses/{analysis_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_analysis_export",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/favorites/{ticker}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_favorite_update",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/portfolio",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_portfolio",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/portfolio/positions",
+    "methods": [
+      "PUT"
+    ],
+    "name": "api_portfolio_position_upsert",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/portfolio/positions/{ticker}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_portfolio_position_delete",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/profile/notes",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_note_create",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/notes/{note_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_note_update",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/notes/{note_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_note_delete",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/support",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_support",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_export",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/history",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_history_clear",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/profile/account",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_account_delete",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/auth/oauth/google/start",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_oauth_google_start",
+    "dependencies": []
+  },
+  {
+    "path": "/api/auth/oauth/google/callback",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_oauth_google_callback",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company-data",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_company_data",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/compare",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/analyze/export/excel",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_export_excel",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/analyze/export/pdf",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_export_pdf",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/compare/export/excel",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare_export_excel",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/compare/export/pdf",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare_export_pdf",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/analyze",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_analyze",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/catalog/status",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_status",
+    "dependencies": []
+  },
+  {
+    "path": "/api/catalog/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_companies",
+    "dependencies": []
+  },
+  {
+    "path": "/api/catalog/index/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_index",
+    "dependencies": []
+  },
+  {
+    "path": "/api/catalog/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_catalog_sync",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/catalog/analyze",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_catalog_analyze",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/company/{ticker}/metrics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_metrics",
+    "dependencies": []
+  },
+  {
+    "path": "/api/price-history/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_price_history",
+    "dependencies": []
+  },
+  {
+    "path": "/api/intraday/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_intraday",
+    "dependencies": []
+  },
+  {
+    "path": "/api/dividends/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_dividends",
+    "dependencies": []
+  },
+  {
+    "path": "/api/admin/dividends/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_dividends_refresh",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/meetings/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_meetings_refresh",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/admin/dividends/state",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_dividends_state",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/catalog/company/{ticker}/reports",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_reports",
+    "dependencies": []
+  },
+  {
+    "path": "/api/notifications",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_notifications",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/notifications/read",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_notifications_read",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/notifications/clear",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_notifications_clear",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_profile__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/report-freshness",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_report_freshness__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/financial-analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_financial_analysis__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/ai-report",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_ai_report__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/credit-profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_credit_profile__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/events",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_events__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/issuers/{issuer_id}/bonds",
+    "methods": [
+      "GET"
+    ],
+    "name": "issuer_bonds__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_comparison__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}/table",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_table__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}/charts",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_charts__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "get_comparison_summary__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}/export.csv",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_comparison_csv__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/v1/comparisons/{run_id}/report.pdf",
+    "methods": [
+      "GET"
+    ],
+    "name": "export_comparison_pdf__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/track",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_track__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/metrics/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_overview__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/audience",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_audience__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/engagement",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_engagement__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_analysis__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/users",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_users__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/users/funnel",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_users_funnel__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/audit-log",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_audit_log__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/feedback",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_feedback__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/feedback/{request_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_feedback_status__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/users/{user_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_user_detail__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/users/{user_id}/action",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_user_action__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/railway",
+    "methods": [
+      "GET"
+    ],
+    "name": "status__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/railway/services/{service_id}/deployments",
+    "methods": [
+      "GET"
+    ],
+    "name": "history__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/railway/services/{service_id}/deployments/{deployment_id}/logs",
+    "methods": [
+      "GET"
+    ],
+    "name": "logs__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/railway/services/{service_id}/recover",
+    "methods": [
+      "POST"
+    ],
+    "name": "recover__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/session",
+    "methods": [
+      "GET"
+    ],
+    "name": "session__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "overview__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "search__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/{collection}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "export__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/documents/{entity_id}/preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "preview__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/documents/{entity_id}/page/{page}",
+    "methods": [
+      "GET"
+    ],
+    "name": "page_image__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/documents/{entity_id}/original",
+    "methods": [
+      "GET"
+    ],
+    "name": "original__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/{collection}/{entity_id}/history",
+    "methods": [
+      "GET"
+    ],
+    "name": "history__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/{collection}/{entity_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "detail__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/{collection}",
+    "methods": [
+      "GET"
+    ],
+    "name": "registry__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/control/{collection}/{entity_id}/{action}",
+    "methods": [
+      "POST"
+    ],
+    "name": "mutate__v2",
+    "dependencies": [
+      "_control_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/sector-analysis",
+    "methods": [
+      "GET"
+    ],
+    "name": "overview__v2",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/sector-analysis/runs/{version}",
+    "methods": [
+      "GET"
+    ],
+    "name": "run__v2",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/sector-analysis/jobs/{job_id}/retry",
+    "methods": [
+      "POST"
+    ],
+    "name": "retry__v2",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/sector-analysis/overrides",
+    "methods": [
+      "POST"
+    ],
+    "name": "override__v2",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/sector-analysis/runs/{version}/rollback",
+    "methods": [
+      "POST"
+    ],
+    "name": "rollback__v2",
+    "dependencies": [
+      "_sector_analysis_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_companies__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/periods",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_periods__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/stocks",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_stocks__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/audit",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_audit__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/trades",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_trades__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/financials",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_financials__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/ratios",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_ratios__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/multiples",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_multiples__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_summary__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/changes",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_changes__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/currency/rates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_currency_rates__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bank-fx",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bank_fx__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/heatmap",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_heatmap__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/instruments",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_instruments__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bonds",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bonds/curve",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds_curve__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bonds/calendar",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bonds_calendar__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bonds/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bond_detail__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/bonds/{ticker}/coupons",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_bond_coupons__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/bonds/reference",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_bond_reference__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/gov-auctions",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_gov_auctions__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/bank-fx",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_bank_fx__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/catalog/reports/summary",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_reports_summary__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/catalog/reports/{report_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_report__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/catalog/reports/queue",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_queue__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/migrate",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_migrate__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/config",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_config__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/audit/run",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_audit_run__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/runs",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_runs__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/runs/{run_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_run_detail__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/findings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_findings__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/findings/{finding_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_audit_update_finding__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/rules",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_rules__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/audit/diff",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_diff__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_export__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/audit/badge/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_audit_badge__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/overview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_overview__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/reports",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_reports__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/rules",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_rules__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/source",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_source__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/issuer/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_issuer__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/invariants",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_invariants__v2",
+    "dependencies": [
+      "_admin_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/trace/{trace_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_trace__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/traces",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_traces__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/coverage",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_coverage__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/facts/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_facts__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/market/trade-stats",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_trade_stats__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/listings/feed",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_listings_feed__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/feed",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_feed__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/calendar/meetings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_meetings__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/calendar/announcements",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_announcements__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/calendar/announcements/{announcement_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_announcement__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/calendar/dividends",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_dividends__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/item/{news_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_item__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/item/{news_id}/reaction",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_reaction__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/ticker/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_ticker__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/news",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/images",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_images__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/snippets",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_snippets__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/translations",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_translations__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/details",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_details__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/catalog/issuers",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_catalog_issuers__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/known",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_known__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/purge-failed",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_purge_failed__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/rejudge",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_news_rejudge__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/news/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_news_search__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/issues",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_issues__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_scan__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/companies/{ticker}/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_refresh_company_reporting__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/analysis/{ticker}/scan",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_analysis_scan__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/corrections",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_corrections__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/publication-holds",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_publication_hold__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/issues/{issue_id}/suggestion",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_data_quality_suggestion__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/issues/{issue_id}/apply",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_issue__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/issues/{issue_id}/apply-unit-scale",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_unit_scale__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/corrections",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_create_correction__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/corrections/apply",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_apply_correction__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/data-quality/corrections/{correction_id}/review",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_data_quality_review_correction__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_companies__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_companies_search__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/discover",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_companies_discover__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/{ticker}/preview",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_company_preview__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/{ticker}/approve",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_approve__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/{ticker}/reject",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_reject__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/{ticker}/visibility",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_company_visibility__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/companies/{ticker}/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_company_sync__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/news/agent-search",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_agent_search__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/trade-stats",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_trade_stats__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/quotes",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_quotes__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/financials",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_financials__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/facts",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_facts__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/listings",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_listings__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/openinfo-probe",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_openinfo_probe__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/pg/copy",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_pg_copy__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/logos/materialise",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_materialise_logos__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/logos/audit",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_logo_audit__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/catalog/register",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_register__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/catalog-sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_sync__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/catalog-watch",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_catalog_watch__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/securities",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_securities__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/financials/documents/{sha}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_document__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/financial-ingestion/status",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_ingestion_status__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/company/{ticker}/financials/passport",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_financial_passport__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/financials",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_financials__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/forecast",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_forecast__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/company/{ticker}/forecast/backtest",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_forecast_backtest__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/company/{ticker}/technical-backtest",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_technical_backtest__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/company/{ticker}/patterns",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_patterns__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/quotes/series",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_quotes_series__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/splits",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_splits__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/registry",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_registry__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/securities/{ticker}/info",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_securities_info__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/oauth/exchange",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_oauth_exchange__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/register",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_register__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/login",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_login__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/options",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_auth_options__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/email/verify",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_email_verify__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/email/resend",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_email_resend__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/password/forgot",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_password_forgot__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/password/reset",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_password_reset__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/me",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_me__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/users/{user_id}/subscription",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_admin_user_subscription__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/auth/logout",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_logout__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/profile",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_update__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/favorites",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_favorites__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/favorites/toggle",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_favorites_toggle__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/preferences",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_preferences__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/password",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_password__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/sessions",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_sessions__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/sessions/{session_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_session_delete__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/sessions/revoke-others",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_sessions_revoke_others__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/2fa/setup",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_setup__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/2fa/enable",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_enable__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/2fa/disable",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_two_factor_disable__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/analyses/{analysis_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_analysis_update__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/analyses/{analysis_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_analysis_delete__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/analyses/{analysis_id}/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_analysis_export__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/favorites/{ticker}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_favorite_update__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_portfolio__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio/positions",
+    "methods": [
+      "PUT"
+    ],
+    "name": "api_portfolio_position_upsert__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio/positions/{ticker}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_portfolio_position_delete__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/notes",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_note_create__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/notes/{note_id}",
+    "methods": [
+      "PATCH"
+    ],
+    "name": "api_profile_note_update__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/notes/{note_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_note_delete__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/support",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_profile_support__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_profile_export__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/history",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_history_clear__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/profile/account",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_profile_account_delete__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/auth/oauth/google/start",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_oauth_google_start__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/oauth/google/callback",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_oauth_google_callback__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company-data",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_company_data__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/compare",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/analyze/export/excel",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_export_excel__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/analyze/export/pdf",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_export_pdf__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/compare/export/excel",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare_export_excel__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/compare/export/pdf",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_compare_export_pdf__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/analyze",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_analyze__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/catalog/status",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_status__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/catalog/companies",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_companies__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/catalog/index/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_index__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/catalog/sync",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_catalog_sync__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/catalog/analyze",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_catalog_analyze__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/company/{ticker}/metrics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_metrics__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/price-history/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_price_history__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/intraday/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_intraday__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/dividends/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_dividends__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/dividends/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_dividends_refresh__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/meetings/refresh",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_meetings_refresh__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/dividends/state",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_dividends_state__v2",
+    "dependencies": [
+      "_require_admin"
+    ]
+  },
+  {
+    "path": "/api/v2/catalog/company/{ticker}/reports",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_reports__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/notifications",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_notifications__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/notifications/read",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_notifications_read__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/notifications/clear",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_notifications_clear__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/{full_path:path}",
+    "methods": [
+      "GET"
+    ],
+    "name": "spa_fallback",
+    "dependencies": []
+  }
+]

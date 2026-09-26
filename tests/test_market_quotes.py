@@ -14,6 +14,18 @@ row.
 """
 from __future__ import annotations
 
+import reports_catalog as subject_reports_catalog
+import requests as subject_requests
+import securities_catalog as subject_securities_catalog
+import server.market.board as subject_server_market_board
+import server.settings as subject_server_settings
+
+import reports_catalog as subject_reports_catalog
+import requests as subject_requests
+import securities_catalog as subject_securities_catalog
+import server.market.board as subject_server_market_board
+import server.settings as subject_server_settings
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -27,7 +39,7 @@ def _configured_mirror(monkeypatch):
     Production runs without a mirror (the former one is gone); that path is
     covered by test_no_configured_mirror_builds_the_board_without_a_request.
     """
-    monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "https://uzse-mirror.test")
+    monkeypatch.setattr(subject_server_settings, 'UZSE_STOCK_API_BASE', "https://uzse-mirror.test")
 
 
 def _quote(**over) -> dict:
@@ -51,7 +63,7 @@ class TestAQuoteOverlaysABoardRow:
                "close_price": 32000.0, "last_trade_date": "2026-07-24",
                "close_date": "2026-07-24", "inactive": True}
 
-        api._apply_quote(row, _quote())
+        subject_server_market_board._apply_quote(row, _quote())
 
         assert row["last_price"] == pytest.approx(30720.0)
         assert row["close_price"] == pytest.approx(25600.0)
@@ -63,7 +75,7 @@ class TestAQuoteOverlaysABoardRow:
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": 32000.0,
                "close_price": 32000.0, "last_trade_date": "2026-07-24", "inactive": True}
 
-        api._apply_quote(row, _quote())
+        subject_server_market_board._apply_quote(row, _quote())
 
         assert not row["inactive"]
 
@@ -71,7 +83,7 @@ class TestAQuoteOverlaysABoardRow:
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "volume": 4283999.17,
                "last_trade_date": "2026-07-31"}
 
-        api._apply_quote(row, _quote())
+        subject_server_market_board._apply_quote(row, _quote())
 
         assert row["volume"] == pytest.approx(30720.0)
         assert row["quantity"] == pytest.approx(1.0)
@@ -83,7 +95,7 @@ class TestAQuoteOverlaysABoardRow:
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": 31000.0,
                "close_price": 30720.0, "last_trade_date": "2026-08-03"}
 
-        api._apply_quote(row, _quote())
+        subject_server_market_board._apply_quote(row, _quote())
 
         assert row["last_price"] == pytest.approx(31000.0)
         assert row["last_trade_date"] == "2026-08-03"
@@ -94,7 +106,7 @@ class TestAQuoteOverlaysABoardRow:
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": None,
                "close_price": 26000.0, "last_trade_date": None, "close_date": "30.07.2026"}
 
-        api._apply_quote(row, _quote(trade_date="20260724", close_price=32000.0,
+        subject_server_market_board._apply_quote(row, _quote(trade_date="20260724", close_price=32000.0,
                                      prev_close=33000.0, prev_close_date="20260723"))
 
         assert row["close_price"] == pytest.approx(26000.0)
@@ -109,7 +121,7 @@ class TestAQuoteOverlaysABoardRow:
                "close_price": 116000.0, "last_trade_date": None,
                "close_date": "03.08.2026", "quantity": None, "volume": None}
 
-        api._apply_quote(row, _quote(
+        subject_server_market_board._apply_quote(row, _quote(
             ticker="UTGA", isin="UZ7043380003", trade_date="20260729",
             close_price=116000.0, prev_close=116000.0, prev_close_date="20260728",
             change_value=0.0, change_percent=0.0, quantity=3.0, turnover=348000.0,
@@ -135,8 +147,8 @@ class TestTheDaysTurnover:
                 mirror_calls.append(a)
             raise AssertionError("the mirror must not be consulted when we hold statistics")
 
-        monkeypatch.setattr(api, "get_all_trade_stats", lambda: stats)
-        monkeypatch.setattr(api.requests, "get", _mirror)
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: stats)
+        monkeypatch.setattr(subject_requests, "get", _mirror)
         with TestClient(api.app) as client:
             return client.get("/api/market/trades").json()
 
@@ -164,8 +176,8 @@ class TestTheDaysTurnover:
             def json(self):
                 return {"trades": [{"volume": 7.8e6, "quantity": 10, "trade_count": 73}]}
 
-        monkeypatch.setattr(api, "get_all_trade_stats", dict)
-        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', dict)
+        monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
         with TestClient(api.app) as client:
             body = client.get("/api/market/trades").json()
 
@@ -187,20 +199,20 @@ class TestTheBoardIsCompleted:
             def json(self):
                 return self._payload
 
-        monkeypatch.setattr(api.requests, "get",
+        monkeypatch.setattr(subject_requests, "get",
                             lambda *a, **kw: _Resp({"stocks": list(mirror),
                                                     "updated_at": "2026-07-31T14:00:00"}))
-        monkeypatch.setattr(api, "get_all_quotes", lambda: quotes)
-        monkeypatch.setattr(api, "get_all_listings", lambda: listings or {})
-        monkeypatch.setattr(api, "get_securities_map", lambda: {})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: quotes)
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: listings or {})
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
         def _sync(rows, logos):
             if synced is not None:
                 synced.extend(str(r.get("ticker") or "") for r in rows)
             return len(rows)
 
-        monkeypatch.setattr(api, "sync_securities", _sync)
-        monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
-        monkeypatch.setattr(api, "_load_logos", lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'sync_securities', _sync)
+        monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *a, **kw: 0)
+        monkeypatch.setattr(subject_server_settings, '_load_logos', lambda: {})
         with TestClient(api.app) as client:
             url = "/api/market/stocks" + (f"?type={kind}" if kind else "")
             return client.get(url).json()
@@ -216,15 +228,15 @@ class TestTheBoardIsCompleted:
 
     def test_an_unavailable_mirror_falls_back_to_stored_rows(self, monkeypatch) -> None:
         def unavailable(*args, **kwargs):
-            raise api.requests.ConnectionError("mirror unavailable")
+            raise subject_requests.ConnectionError("mirror unavailable")
 
-        monkeypatch.setattr(api.requests, "get", unavailable)
-        monkeypatch.setattr(api, "get_all_quotes", lambda: {"UZ7042540003": _quote()})
-        monkeypatch.setattr(api, "get_all_listings", lambda: {})
-        monkeypatch.setattr(api, "get_securities_map", lambda: {})
-        monkeypatch.setattr(api, "sync_securities", lambda *args, **kwargs: 0)
-        monkeypatch.setattr(api, "record_volume", lambda *args, **kwargs: 0)
-        monkeypatch.setattr(api, "_load_logos", lambda: {})
+        monkeypatch.setattr(subject_requests, "get", unavailable)
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda *args, **kwargs: 0)
+        monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *args, **kwargs: 0)
+        monkeypatch.setattr(subject_server_settings, '_load_logos', lambda: {})
 
         with TestClient(api.app) as client:
             response = client.get("/api/market/stocks?type=stock")
@@ -237,7 +249,7 @@ class TestTheBoardIsCompleted:
     def test_kafolats_preferred_share_is_not_dormant(self, monkeypatch) -> None:
         """KFSKP was suppressed as a dormant registry line; it traded 39 times
         on 31.07 and closed +17.27%, third on the exchange's gainers board."""
-        assert "KFSKP" not in api.BOARD_DENYLIST
+        assert "KFSKP" not in subject_server_settings.BOARD_DENYLIST
 
         body = self._board(monkeypatch, {"UZ700110K018": _quote(
             isin="UZ700110K018", ticker="KFSKP", share_type="preferred",
@@ -305,16 +317,16 @@ class TestTheBoardIsCompleted:
             def json(self):
                 return {"stocks": [], "updated_at": "2026-07-31T14:00:00"}
 
-        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
-        monkeypatch.setattr(api, "get_all_quotes", lambda: {"UZ7042540003": _quote()})
-        monkeypatch.setattr(api, "get_all_trade_stats", lambda: {
+        monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: {
             "UZ7042540003": {"trade_date": "20260731", "total_value": 30720.0,
                              "total_qty": 1.0, "trade_count": 1}})
-        monkeypatch.setattr(api, "get_all_listings", lambda: {})
-        monkeypatch.setattr(api, "get_securities_map", lambda: {})
-        monkeypatch.setattr(api, "sync_securities", lambda *a, **kw: 0)
-        monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
-        monkeypatch.setattr(api, "_load_logos", lambda: {})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda *a, **kw: 0)
+        monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *a, **kw: 0)
+        monkeypatch.setattr(subject_server_settings, '_load_logos', lambda: {})
 
         with TestClient(api.app) as client:
             body = client.get("/api/market/audit").json()
@@ -326,7 +338,7 @@ class TestTheBoardIsCompleted:
 
     def test_a_delisted_ticker_still_cannot_come_back_through_a_quote(self, monkeypatch) -> None:
         body = self._board(monkeypatch, {"UZ7000000001": _quote(
-            isin="UZ7000000001", ticker=sorted(api.BOARD_DENYLIST)[0])})
+            isin="UZ7000000001", ticker=sorted(subject_server_settings.BOARD_DENYLIST)[0])})
 
         assert body["stocks"] == []
 
@@ -348,14 +360,14 @@ class TestABondIsNotAShare:
             def json(self):
                 return {"stocks": list(mirror), "updated_at": "2026-08-20T14:00:00"}
 
-        monkeypatch.setattr(api.requests, "get", lambda *a, **kw: _Resp())
-        monkeypatch.setattr(api, "get_all_quotes", lambda: {})
-        monkeypatch.setattr(api, "get_all_listings", lambda: {})
-        monkeypatch.setattr(api, "get_securities_map", lambda: {})
-        monkeypatch.setattr(api, "sync_securities", lambda rows, logos: len(rows))
-        monkeypatch.setattr(api, "record_volume", lambda *a, **kw: 0)
-        monkeypatch.setattr(api, "_load_logos", lambda: {})
-        monkeypatch.setattr(api, "_registered_bond_isins", lambda: frozenset(register))
+        monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {})
+        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
+        monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda rows, logos: len(rows))
+        monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *a, **kw: 0)
+        monkeypatch.setattr(subject_server_settings, '_load_logos', lambda: {})
+        monkeypatch.setattr(subject_server_market_board, '_registered_bond_isins', lambda: frozenset(register))
         with TestClient(api.app) as client:
             url = "/api/market/stocks" + (f"?type={kind}" if kind else "")
             return client.get(url).json()
@@ -415,14 +427,14 @@ class TestEveryRowIsNamed:
     def test_the_issuer_catalog_names_what_the_feed_does_not(self) -> None:
         rows = [{"ticker": "UZTL", "name": None}, {"ticker": "ACMT1B2", "name": ""}]
 
-        assert api._fill_names(rows, self.NAMES) == 2
+        assert subject_server_market_board._fill_names(rows, self.NAMES) == 2
         assert [r["name"] for r in rows] == ["«O'zbektelekom» AJ", "«AGAT CREDIT» AJ MMT"]
 
     def test_a_name_the_feed_does_carry_wins(self) -> None:
         """The exchange's own name for a security is never overwritten."""
         rows = [{"ticker": "UZTL", "name": "Uzbektelecom JSC"}]
 
-        assert api._fill_names(rows, self.NAMES) == 0
+        assert subject_server_market_board._fill_names(rows, self.NAMES) == 0
         assert rows[0]["name"] == "Uzbektelecom JSC"
 
     def test_a_preferred_share_borrows_its_common_siblings_name(self) -> None:
@@ -430,18 +442,18 @@ class TestEveryRowIsNamed:
         cell already says "привилегированные" — the issuer is the same one."""
         rows = [{"ticker": "UPOSP", "name": None}]
 
-        assert api._fill_names(rows, self.NAMES) == 1
+        assert subject_server_market_board._fill_names(rows, self.NAMES) == 1
         assert rows[0]["name"] == "«O'zbekiston pochtasi» AJ"
 
     def test_an_unknown_ticker_is_left_unnamed(self) -> None:
         """No catalog, no name — the column says "—" rather than inventing one."""
         rows = [{"ticker": "ZZZZ", "name": None}, {"ticker": None, "name": None}]
 
-        assert api._fill_names(rows, self.NAMES) == 0
+        assert subject_server_market_board._fill_names(rows, self.NAMES) == 0
         assert [r["name"] for r in rows] == [None, None]
 
     def test_the_board_serves_the_name(self, monkeypatch) -> None:
-        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: self.NAMES)
         board = TestTheBoardIsCompleted()
         body = board._board(monkeypatch, {}, mirror=[
             {"ticker": "UZTL", "isin": "UZ7038030001", "name": None,
@@ -453,7 +465,7 @@ class TestEveryRowIsNamed:
     def test_every_row_links_to_its_page_on_the_exchange(self, monkeypatch) -> None:
         """The mirror sends url=null for all 78 of its securities, so the source
         column was «—» for every live row while registry rows linked fine."""
-        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: self.NAMES)
         board = TestTheBoardIsCompleted()
         body = board._board(monkeypatch, {}, mirror=[
             {"ticker": "UZTL", "isin": "UZ7038030001", "type": "stock", "url": None},
@@ -465,7 +477,7 @@ class TestEveryRowIsNamed:
         assert urls["ACMT1B2"] == "https://uzse.uz/isu_infos/BND?isu_cd=UZ6058977AB6"
 
     def test_a_link_the_feed_carries_is_kept(self, monkeypatch) -> None:
-        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: self.NAMES)
         board = TestTheBoardIsCompleted()
         body = board._board(monkeypatch, {}, mirror=[
             {"ticker": "UZTL", "isin": "UZ7038030001", "url": "https://uzse.uz/elsewhere"},
@@ -476,13 +488,13 @@ class TestEveryRowIsNamed:
     def test_a_row_with_no_isin_gets_no_link(self, monkeypatch) -> None:
         """A registry line for an issuer with no tradable security has no page
         on the exchange — the column says «—» rather than link to a 404."""
-        assert api._exchange_url(None, False) is None
-        assert api._exchange_url("  ", True) is None
+        assert subject_server_market_board._exchange_url(None, False) is None
+        assert subject_server_market_board._exchange_url("  ", True) is None
 
     def test_a_row_that_joined_from_the_quote_cache_is_named_too(self, monkeypatch) -> None:
         """The quote-cache rows are appended after the mirror pass, and they are
         the ones with no name of their own at all."""
-        monkeypatch.setattr(api, "_issuer_names", lambda: self.NAMES)
+        monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: self.NAMES)
         board = TestTheBoardIsCompleted()
         body = board._board(monkeypatch, {"UZ6058977AB6": _quote(
             isin="UZ6058977AB6", ticker="ACMT1B2", name=None, market="BND")}, kind="bond")
@@ -493,13 +505,13 @@ class TestEveryRowIsNamed:
 def test_no_configured_mirror_builds_the_board_without_a_request(monkeypatch):
     import asyncio
 
-    monkeypatch.setattr(api, "UZSE_STOCK_API_BASE", "")
+    monkeypatch.setattr(subject_server_settings, 'UZSE_STOCK_API_BASE', "")
 
     def _no_network(*a, **kw):
         raise AssertionError("no request may be made without a configured mirror")
 
-    monkeypatch.setattr(api.requests, "get", _no_network)
-    board = asyncio.run(api._build_board("stock"))
+    monkeypatch.setattr(subject_requests, "get", _no_network)
+    board = asyncio.run(subject_server_market_board._build_board("stock"))
     assert board["ok"] is True
     assert board["source"] == "stored-openinfo-listings+uzse-quotes"
     assert board["source_url"] is None
