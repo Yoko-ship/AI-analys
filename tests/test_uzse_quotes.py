@@ -37,6 +37,70 @@ def uqeq() -> dict:
     return uq.parse_quote(_page("uqeq_carried_forward"), isin="UZ7042540003")
 
 
+class TestSeptemberCards:
+    @pytest.mark.parametrize("fixture,isin,ticker,market,day,close,previous,quantity,turnover", [
+        ("kfsk_cards", "UZ7001100005", "KFSK", "STK", "20260925", 89.5, 89.96, 2955, 261254.53),
+        ("uqeq_cards", "UZ7042540003", "UQEQ", "STK", "20260924", 75000, 67500, 98, 6895000),
+        ("ctfb3b2_cards", "UZ6059057AB6", "CTFB3B2", "BND", "20260925", 112800, 112979, 7, 775595),
+    ])
+    def test_real_stock_and_bond_pages_after_the_session_rolls_over(
+            self, fixture, isin, ticker, market, day, close, previous, quantity, turnover):
+        quote = uq.parse_quote(_page(fixture), isin=isin, market=market)
+        assert quote is not None
+        assert (quote["isin"], quote["ticker"], quote["market"]) == (isin, ticker, market)
+        assert quote["name"]
+        assert quote["traded"] is False
+        assert quote["trade_date"] is None
+        settled = uq.settled_quote(quote)
+        assert settled["trade_date"] == day
+        assert settled["close_price"] == pytest.approx(close)
+        assert settled["prev_close"] == pytest.approx(previous)
+        assert settled["quantity"] == quantity
+        assert settled["turnover"] == pytest.approx(turnover)
+        assert settled["change_percent"] == pytest.approx((close / previous - 1) * 100, abs=0.0001)
+        assert settled["open_price"] is None  # today's zero must not overwrite yesterday's OHLC
+
+    def test_a_current_session_reads_totals_and_ohlc_by_label(self):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(_page("kfsk_cards"), "html.parser")
+        values = {"Кол-во ЦБ за день": "2,955", "Объём торгов, UZS": "261,254.53",
+                  "Стартовая цена": "89.96", "Максимальная цена": "90", "Минимальная цена": "86"}
+        for stat in soup.select(".stats .st"):
+            label = stat.span.get_text(strip=True)
+            if label in values:
+                stat.b.string = values[label]
+        soup.select_one(".pprice .d").string = "▼ 0.46"
+        quote = uq.parse_quote(str(soup), isin="UZ7001100005")
+        assert quote["trade_date"] == "20260925"
+        assert quote["traded"] is True
+        assert (quote["open_price"], quote["high_price"], quote["low_price"]) == (89.96, 90, 86)
+        assert quote["quantity"] == 2955
+        assert quote["turnover"] == pytest.approx(261254.53)
+        assert quote["change_value"] == pytest.approx(-0.46)
+
+    def test_another_security_cannot_be_published_under_the_requested_isin(self):
+        assert uq.parse_quote(_page("kfsk_cards"), isin="UZ7042540003") is None
+
+    @pytest.mark.parametrize("selector", [".pid .isin", ".stats .st:nth-child(2)", ".stats .st:nth-child(3)"])
+    def test_a_partial_card_is_not_mistaken_for_an_idle_session(self, selector):
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(_page("kfsk_cards"), "html.parser")
+        soup.select_one(selector).decompose()
+        assert uq.parse_quote(str(soup), isin="UZ7001100005") is None
+
+    def test_the_collector_delivers_the_settled_card_quote(self, monkeypatch):
+        monkeypatch.setattr(uq, "fetch_quote", lambda isin, market="STK", session=None:
+                            uq.parse_quote(_page("ctfb3b2_cards"), isin=isin, market=market))
+        outcome = {}
+        quotes = uq.fetch_session_quotes([("UZ6059057AB6", "BND")], pace=0,
+                                         with_detail=False, settle=True, outcome=outcome)
+        assert len(quotes) == 1
+        assert quotes[0]["close_price"] == 112800
+        assert quotes[0]["trade_date"] == "20260925"
+        assert outcome["settled"] == 1
+        assert not outcome["unread"]
+
+
 class TestTheExchangesOwnNumbers:
     """Each assertion is a cell of the exchange's 31.07.2026 bulletin."""
 

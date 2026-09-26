@@ -7,6 +7,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      refresh_market_now:
+        description: Check UZSE access from production and run one market refresh after deployment
+        required: false
+        type: boolean
+        default: false
       run_news_now:
         description: Run the production Codex news collector after deployment
         required: false
@@ -1215,6 +1220,69 @@ jobs:
               ),
           }, ensure_ascii=False))
           PY
+          REMOTE
+
+  refresh-market:
+    name: Verify UZSE access and refresh market data
+    needs: deploy-production
+    # Explicit repair only; ordinary deployments must not add another full crawl.
+    if: github.ref == 'refs/heads/API' && ((github.event_name == 'workflow_dispatch' && inputs.refresh_market_now) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[refresh-market]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Check source access and run the existing collector service
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          git rev-parse HEAD
+          docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
+          systemctl show uzstock-quotes-2130.service -p FragmentPath -p ActiveState
+          docker exec -i uzstock-web python - <<'PY'
+          import json
+          import requests
+          import uzse_quotes
+          import trade_stats
+
+          with requests.Session() as session:
+              response = session.get(trade_stats.UZSE_TRADE_URL,
+                  headers={"User-Agent": trade_stats._UA, "Accept": "application/json"},
+                  params={"page": 1}, timeout=20)
+              print("UZSE_FEED_HTTP=" + str(response.status_code), flush=True)
+              response.raise_for_status()
+              payload = response.json()
+              assert isinstance(payload.get("results"), list), "UZSE trade feed schema changed"
+              print("UZSE_FEED_META=" + json.dumps(payload.get("meta")), flush=True)
+              quote = uzse_quotes.fetch_quote("UZ7001100005", session=session)
+              assert quote is not None, "Production cannot read the UZSE quote page"
+              print("UZSE_QUOTE=" + json.dumps({key: quote[key]
+                    for key in ("ticker", "last_trade_date", "last_price")}), flush=True)
+          PY
+          if systemctl is-active --quiet uzstock-quotes-1610.service; then
+            echo 'The post-close collector is already running; no duplicate crawl started.'
+            exit 1
+          fi
+          result=0
+          systemctl start uzstock-quotes-2130.service || result=$?
+          journalctl -u uzstock-quotes-2130.service -n 100 --no-pager
+          exit "$result"
           REMOTE
 
   compact-admin-control:

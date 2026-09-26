@@ -100,6 +100,40 @@ def _find_table(tables: list, *, first_label: str, contains: str | None = None):
     return None
 
 
+def _card_session(paper) -> dict[str, Any] | None:
+    """Read the security card introduced by UZSE in September 2026.
+
+    Labels identify totals independently of their position. Missing totals are
+    unreadable, whereas explicit zeroes describe a session with no trades yet.
+    """
+    def text(selector: str) -> str:
+        node = paper.select_one(selector)
+        return node.get_text(" ", strip=True) if node else ""
+
+    values = {}
+    for stat in paper.select(".stats .st"):
+        label, value = stat.find("span"), stat.find("b")
+        if label is not None and value is not None:
+            values[label.get_text(" ", strip=True)] = value.get_text(" ", strip=True)
+    quantity = _num(values.get("Кол-во ЦБ за день"))
+    turnover = _num(values.get("Объём торгов, UZS"))
+    if quantity is None or turnover is None:
+        return None
+    return {
+        "isin": text(".pid .isin").upper(),
+        "ticker": text(".pid .tick").upper(),
+        "name": text(".pid .pname"),
+        "last_price": _num(text(".pprice > b")),
+        "last_trade_date": _iso_day(values.get("Дата последней сделки", "")),
+        "change_value": _signed(text(".pprice .d")),
+        "quantity": quantity,
+        "turnover": turnover,
+        "open_price": _num(values.get("Стартовая цена")),
+        "high_price": _num(values.get("Максимальная цена")),
+        "low_price": _num(values.get("Минимальная цена")),
+    }
+
+
 def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict[str, Any] | None:
     """One security's session quote from its uzse.uz page.
 
@@ -120,12 +154,6 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
     parts = link.get_text("\n", strip=True).split("\n") if link else []
     page_isin = (parts[0].strip().upper() if parts else "")
     ticker = (parts[1].strip().upper() if len(parts) > 1 else "")
-    if isin and page_isin and page_isin != isin.upper():
-        # uzse.uz falls back to the first security of the market for an unknown
-        # ISIN instead of answering 404 — that page must not be stored as ours.
-        logger.warning("uzse quote: asked for %s, page says %s", isin, page_isin)
-        return None
-
     # The issuer name is the one heading that is neither the security link
     # ("UZ7001100005 KFSK") nor a field label ("Номинал (UZS)").
     name = next((text for text in (h.get_text(" ", strip=True) for h in header.find_all("h4")
@@ -139,11 +167,12 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
     session = _find_table(tables, first_label="Изменение")
     ohlc = _find_table(tables, first_label="Стартовая цена")
     history = _find_table(tables, first_label="Дата", contains="Цена закрытия")
-    if session is None or history is None:
+    paper = soup.select_one(".paper")
+    if (session is None and paper is None) or history is None:
         logger.warning("uzse quote: %s page has no session/history table", page_isin or isin)
         return None
 
-    session_rows = session.find_all("tr")
+    session_rows = session.find_all("tr") if session is not None else []
     session_cells = _cells(session_rows[1]) if len(session_rows) > 1 else []
     change_value = _signed(session_cells[0]) if session_cells else None
     quantity = _num(session_cells[1]) if len(session_cells) > 1 else None
@@ -156,6 +185,25 @@ def parse_quote(html: str, isin: str | None = None, market: str = "STK") -> dict
         open_price = _num(values[0]) if values else None
         high_price = _num(values[1]) if len(values) > 1 else None
         low_price = _num(values[2]) if len(values) > 2 else None
+
+    if paper is not None:
+        card = _card_session(paper)
+        if card is None:
+            logger.warning("uzse quote: %s card has no readable session totals", isin)
+            return None
+        page_isin, ticker, name = card["isin"], card["ticker"], card["name"]
+        last_price, last_trade_day = card["last_price"], card["last_trade_date"]
+        change_value, quantity, turnover = card["change_value"], card["quantity"], card["turnover"]
+        open_price, high_price, low_price = card["open_price"], card["high_price"], card["low_price"]
+
+    # Both layouts must identify the security actually served. UZSE can return
+    # another security's page for an unknown ISIN instead of answering 404.
+    if not re.fullmatch(r"[A-Z]{2}[A-Z0-9]{10}", page_isin) or (isin and page_isin != isin.upper()):
+        logger.warning("uzse quote: asked for %s, page identifies %s", isin, page_isin or "no ISIN")
+        return None
+    if quantity and (last_price is None or last_trade_day is None):
+        logger.warning("uzse quote: %s session lacks a dated price", page_isin)
+        return None
 
     # "Дата | Цена закрытия | Изменение | Кол-во ЦБ | Объём торгов" — the exchange's
     # own settled row for each of the last ~21 sessions. It is the only place a

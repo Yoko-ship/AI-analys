@@ -69,7 +69,9 @@ def _is_block(trade: dict) -> bool:
 # «Время» column). Matched anywhere in the header and validated against the
 # record's own trade_date, so a member number that happens to read like a date
 # cannot stamp a trade.
-_HEADER_MOMENT_RE = re.compile(r"(20\d{6})(\d{2})(\d{2})(\d{2})")
+# Look ahead at every position: a protocol number can start with "20" and
+# overlap the real timestamp. A consuming match silently skipped valid trades.
+_HEADER_MOMENT_RE = re.compile(r"(?=(20\d{6})(\d{2})(\d{2})(\d{2}))")
 
 
 def trade_moment(trade: dict) -> tuple[str, int, tuple] | None:
@@ -78,7 +80,7 @@ def trade_moment(trade: dict) -> tuple[str, int, tuple] | None:
     for m in _HEADER_MOMENT_RE.finditer(str(trade.get("header") or "")):
         if m.group(1) == day and int(m.group(2)) <= 23 \
                 and int(m.group(3)) <= 59 and int(m.group(4)) <= 59:
-            return day, int(m.group(2)), (m.group(0), _f(trade.get("trade_number")),
+            return day, int(m.group(2)), ("".join(m.groups()), _f(trade.get("trade_number")),
                                           _f(trade.get("id")))
     return None
 

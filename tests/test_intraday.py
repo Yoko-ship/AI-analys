@@ -52,6 +52,18 @@ def _trade(hhmmss: str, price, qty, value, *, day="20260817", board="G1",
 
 
 class TestTheFeedRollUp:
+    def test_real_protocol_numbers_do_not_hide_overlapping_timestamps(self):
+        import json
+        from pathlib import Path
+        rows = json.loads((Path(__file__).parent / "fixtures" / "uzse_executions_20260925.json")
+                          .read_text(encoding="utf-8"))
+        assert len(rows) == 50
+        assert all(ts.trade_moment(row)[:2] == ("20260925", 16) for row in rows)
+        bars = ts.hourly_bars(rows)
+        assert sum(bar["quantity"] for bar in bars) == sum(row["trade_quantity"] for row in rows)
+        assert sum(bar["turnover"] for bar in bars) == pytest.approx(
+            sum(float(row["trading_value"]) for row in rows))
+
     def test_rolls_executions_up_into_hourly_bars(self):
         # Newest first, as the feed pages them. 10:xx traded 100→104→101.
         bars = ts.hourly_bars([
