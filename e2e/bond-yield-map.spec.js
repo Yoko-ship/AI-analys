@@ -109,3 +109,45 @@ test("the bond card leads with a full-width market chart that stays readable aft
   await expect(section.locator(".bondmap-tip")).toContainText("+614 б.п.");
   expect(errors).toEqual([]);
 });
+
+for (const language of [
+  { code: "ru", known: "данные о купоне требуют уточнения", unknown: "данных пока недостаточно" },
+  { code: "uz", known: "kupon ma’lumotlarini aniqlashtirish kerak", unknown: "hozircha ma’lumot yetarli emas" },
+  { code: "en", known: "the coupon details need clarification", unknown: "there is not enough information yet" },
+]) {
+  for (const reason of ["COUPON_RATE_IMPLAUSIBLE", "NEW_INTERNAL_REASON"]) {
+    test(`bond explanations hide internal diagnostics in ${language.code}: ${reason}`, async ({ page }) => {
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.route("**/api/**", (route) => {
+        const p = new URL(route.request().url()).pathname;
+        const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+        if (p === "/api/bonds") return json(payload);
+        if (p === "/api/bonds/ANBK3B") return json({
+          ...payload.items[4], ok: true,
+          issuer_link_status: "not_verified",
+          yield: { blocked_reason: reason },
+          ytm: { value: null, status: "unavailable", blocked_reason: reason, note: "internal solver details" },
+          duration: { value: null, status: "no_bond_reference", missing: ["coupon_freq", "private_reference_field"] },
+          quality: { data_tier: "full" },
+          assessments: { issuer_financials: { status: "NEW_INTERNAL_STATUS" } },
+          monitoring_points: [{ metric_code: "next_payment", date: today, current_baseline: "due_unconfirmed" }],
+        });
+        if (p === "/api/auth/me") return json({ user: null }, 401);
+        return json({ ok: true });
+      });
+      await page.goto("/bond/ANBK3B");
+      await page.getByRole("combobox").first().selectOption(language.code);
+      const expected = reason === "COUPON_RATE_IMPLAUSIBLE" ? language.known : language.unknown;
+      await expect(page.locator(".bondsec-summary")).toContainText(expected);
+      const publicCopy = await page.locator("main").evaluate((node) => [
+        node.textContent, ...[...node.querySelectorAll("[title]")].map((element) => element.title),
+      ].join("\n"));
+      for (const internal of [reason, "NEW_INTERNAL_STATUS", "not_verified", "due_unconfirmed", "no_bond_reference", "coupon_freq", "private_reference_field", "internal solver details"]) {
+        expect(publicCopy).not.toContain(internal);
+      }
+      await expect(page.locator(".bondsec-kv .cell-status").filter({ hasText: "—" }).first()).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
+}

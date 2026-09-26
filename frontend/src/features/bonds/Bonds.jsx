@@ -5,6 +5,7 @@ import React from "react";
 import { TermInfo } from "../../shared/TermInfo.jsx";
 
 import { marketTone } from "../../lib/marketData.js";
+import { bondBlockedText, bondMetricText, bondMissingTerms, bondStatusText } from "./publicText.js";
 
 // ---------------------------------------------------------------------------
 // Company detail page components
@@ -152,21 +153,13 @@ function BondsView({ language, onOpenBond, embedded = false }) {
   const govPoints = data.gov_curve || [];
   const keyRate = data.key_rate || null;
 
-  const missingLabel = {
-    nominal: t("номинал", "nominal", "the par value"),
-    coupon_rate: t("купонная ставка", "kupon stavkasi", "the coupon rate"),
-    maturity_date: t("дата погашения", "to'lov sanasi", "the maturity date"),
-  };
   const metricCell = (m, formatter) => {
-    if (m?.value != null) return <span title={m.calculation_status || m.status}>
+    if (m?.value != null) return <span title={bondMetricText(m, lang)}>
       {["indicative", "stale_indicative"].includes(m.status) && "≈ "}{formatter ? formatter(m.value) : fmtMetric(m, lang)}
       {m.status === "stale_indicative" && <small className="bondsec-issuer">{t("устар.", "eskirgan", "stale")}</small>}
     </span>;
-    if (m?.status === "matured") return <span className="cell-status" title={m.note || ""}>{t("погашен", "so‘ndirilgan", "redeemed")}</span>;
-    const miss = (m?.missing || []).map((f) => missingLabel[f] || f).join(", ");
-    const title = [m?.note, miss && `${t("эмитент не подал", "emitent topshirmagan", "the issuer has not filed")}: ${miss}`]
-      .filter(Boolean).join(" · ");
-    return <span className="cell-status" title={m?.blocked_reason || title || m?.status || ""}>—</span>;
+    if (m?.status === "matured") return <span className="cell-status" title={bondMetricText(m, lang)}>{t("погашен", "so‘ndirilgan", "redeemed")}</span>;
+    return <span className="cell-status" title={bondMetricText(m, lang)}>—</span>;
   };
 
   const rows = (data.items || []).map((b) => ({
@@ -822,14 +815,6 @@ const BOND_SEGMENTS = [
 
 const bondSegment = (key) => BOND_SEGMENTS.find((sg) => sg.key === key) || BOND_SEGMENTS[4];
 
-const BOND_BLOCK_TEXT = {
-  NO_VERIFIED_TRADE: ["нет сделок", "bitim yo'q", "no trades"],
-  COUPON_RATE_IMPLAUSIBLE: ["купон вне правдоподобных границ — проверяется", "kupon ishonchli chegaradan tashqarida", "coupon outside plausible bounds — under review"],
-  YIELD_OUT_OF_RANGE: ["доходность вне правдоподобных границ — вероятна ошибка данных", "daromadlilik ishonchli chegaradan tashqarida", "yield outside plausible bounds — likely a data fault"],
-  UNKNOWN_FUTURE_COUPONS: ["плавающий купон без будущих ставок", "suzuvchi kupon", "floating coupon, future rates unknown"],
-  AMORTIZATION_OR_OPTIONS_NOT_VERIFIED: ["амортизация или оферта не подтверждены", "amortizatsiya yoki oferta tasdiqlanmagan", "amortisation or option not verified"],
-};
-
 const PRICE_METHOD_TEXT = {
   vwap: ["средневзвешенная по объёму", "hajm bo'yicha o'rtacha", "volume-weighted"],
   median_close: ["медиана закрытий", "yopilishlar medianasi", "median close"],
@@ -987,7 +972,7 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
   const hp = hover?.fromMap ? priced.find((p) => p.ticker === hover.ticker) : null;
   const priceBasis = (p) => {
     const pr = p.b.pricing || {};
-    const how = (PRICE_METHOD_TEXT[pr.method] || [pr.method, pr.method, pr.method])[li];
+    const how = (PRICE_METHOD_TEXT[pr.method] || ["цена для расчёта", "hisob narxi", "price used"])[li];
     const span = pr.from && pr.to && pr.from !== pr.to ? `${fmtBondDay(pr.from)} — ${fmtBondDay(pr.to)}` : fmtBondDay(pr.to || pr.from);
     return `${how}${pr.sessions > 1 ? `, ${pr.sessions} ${t("сесс.", "sess.", "sess.")}` : ""} · ${span}`;
   };
@@ -1165,10 +1150,10 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
                           `${noTrade} tasida bitim yo'q. `, `${noTrade} have never traded — no price, no yield. `)}
         {faults.length > 0 && (
           <>
-            {t("Исключены проверкой данных: ", "Ma'lumotlar tekshiruvi bilan chiqarilgan: ", "Excluded by data checks: ")}
+            {t("Доходность пока недоступна: ", "Daromadlilik hozircha mavjud emas: ", "Yield is not yet available: ")}
             {faults.map((f, i) => {
               const code = (f.b.data_quality || []).find((q) => ["COUPON_RATE_IMPLAUSIBLE", "YIELD_OUT_OF_RANGE"].includes(q.code))?.code;
-              return <React.Fragment key={f.ticker}>{i > 0 && "; "}<b>{f.ticker}</b> — {(BOND_BLOCK_TEXT[code] || [code, code, code])[li]}</React.Fragment>;
+              return <React.Fragment key={f.ticker}>{i > 0 && "; "}<b>{f.ticker}</b> — {bondBlockedText(code, lang)}</React.Fragment>;
             })}.
           </>
         )}
@@ -1418,17 +1403,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
   const num2 = (v, d = 2) => fmtNumber(v, lang, d);
   const m = (mm, formatter) => (mm?.value != null
     ? (formatter ? formatter(mm.value) : num2(mm.value))
-    : dash(mm?.note || (mm?.missing || []).join(", ") || mm?.status));
-  const assessmentStatus = (status) => ({
-    verified: t("проверено", "tekshirilgan", "verified"),
-    limited: t("ограничено данными", "ma’lumotlar bilan cheklangan", "data-limited"),
-    calculation_verified: t("расчёт проверен", "hisob tekshirilgan", "calculation verified"),
-    insufficient_data: t("недостаточно данных", "ma’lumot yetarli emas", "insufficient data"),
-    fresh: t("актуальная котировка", "dolzarb kotirovka", "current quote"),
-    stale: t("устаревающая котировка", "eskirayotgan kotirovka", "aging quote"),
-    very_stale: t("устаревшая котировка", "eskirgan kotirovka", "stale quote"),
-    never_traded: t("нет подтверждённой сделки", "tasdiqlangan bitim yo‘q", "no verified trade"),
-  }[status] || status || "—");
+    : dash(bondMetricText(mm, lang)));
+  const assessmentStatus = (status) => bondStatusText(status, lang);
   const monitorCopy = (point, field) => {
     const market = point.metric_code === "market_liquidity";
     const copy = market ? {
@@ -1472,8 +1448,10 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           {bond.days_since_trade != null && <> · {bond.days_since_trade} {t("дней назад", "kun oldin", "days ago")}</>}
           {". "}{["stale", "very_stale"].includes(bond.freshness.status) && t("Цена устарела; текущего рыночного вердикта нет. ", "Narx eskirgan; joriy bozor xulosasi yo‘q. ", "The price is stale; no current market verdict is available. ")}
           {bond.freshness.status === "never_traded" && t("Нет подтверждённой сделки. ", "Tasdiqlangan bitim yo‘q. ", "No verified trade. ")}
-          {bond.schedule?.source === "inferred" && t("График восстановлен; расчёты индикативные.", "Jadval tiklangan; hisoblar indikativ.", "The schedule is inferred; calculations are indicative.")}
-          {bond.yield?.blocked_reason && <> {t("Причина недоступности", "Mavjud emasligi sababi", "Unavailable reason")}: {bond.yield.blocked_reason}.</>}
+          {bond.schedule?.source === "inferred" && t("Даты выплат и расчёты приблизительные.", "To‘lov sanalari va hisoblar taxminiy.", "Payment dates and calculations are estimates.")}
+        </p>}
+        {bond.yield?.blocked_reason && <p className="verified-note">
+          {t("Доходность пока недоступна", "Daromadlilik hozircha mavjud emas", "Yield is not yet available")}: {bondBlockedText(bond.yield.blocked_reason, lang)}.
         </p>}
         {bond.price != null && ref.nominal != null ? (
           <>
@@ -1509,11 +1487,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
             {ref.coupon_rate != null && <> — {t("ставка купона", "kupon stavkasi", "the coupon rate of")} {num2(ref.coupon_rate)}%</>}
             {". "}
             {t("Отсутствуют:", "Yo'q:", "Missing:")}{" "}
-            {(bond.ytm?.missing || ref.missing || []).map((f) => ({
-              nominal: t("номинал", "nominal", "par"),
-              coupon_rate: t("ставка купона", "kupon stavkasi", "coupon rate"),
-              maturity_date: t("дата погашения", "to'lov sanasi", "maturity date"),
-            }[f] || f)).join(", ") || t("цена сделки", "bitim narxi", "a traded price")}
+            {bondMissingTerms(bond.ytm?.missing || ref.missing, lang) || t("цена сделки", "bitim narxi", "a traded price")}
             {". "}
             {t("Метрики появятся сами, как только источники раскроют недостающее.", "Manbalar yetishmayotganini e'lon qilishi bilan ko'rsatkichlar o'zi paydo bo'ladi.", "The metrics appear by themselves once the sources disclose what is missing.")}
           </>
@@ -1534,7 +1508,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           <table className="bondsec-kv">
             <tbody>
               <tr><td>{t("Котировка", "Kotirovka", "Quote")}<TermInfo termId="parPercent" lang={lang} /></td><td>{m(bond.price_pct, (v) => `${num2(v)}%`)}</td></tr>
-              <tr><td>{t("Цена", "Narx", "Price")}</td><td>{bond.price != null ? fmtPrice(bond.price, lang) : dash(bond.reason)}</td></tr>
+              <tr><td>{t("Цена", "Narx", "Price")}</td><td>{bond.price != null ? fmtPrice(bond.price, lang) : dash(bondStatusText(bond.status || "no_price", lang))}</td></tr>
               <tr><td>{t("Изменение за сессию", "Sessiya o'zgarishi", "Session change")}</td><td className={`tone-${marketTone(bond.change_pct)}`}>{fmtPct(bond.change_pct, lang)}</td></tr>
               <tr><td>{t("Сессия", "Sessiya", "Session")}</td><td>{fmtBondDay(bond.last_trade_date)}</td></tr>
               <tr><td>{t("Оборот за сессию", "Sessiya aylanmasi", "Session turnover")}</td><td>{fmtCompact(bond.turnover, lang)}</td></tr>
@@ -1603,8 +1577,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
               {bond.state === "matured" && bond.realized && (
                 <tr>
                   <td>{t("Реализованная доходность", "Amalga oshgan daromadlilik", "Realised return")}</td>
-                  <td className="bondsec-strong" title={bond.realized.note || ""}>
-                    {bond.realized.value != null ? `${num2(bond.realized.value)}%` : dash(bond.realized.note)}
+                  <td className="bondsec-strong" title={bondMetricText(bond.realized, lang)}>
+                    {bond.realized.value != null ? `${num2(bond.realized.value)}%` : dash(bondMetricText(bond.realized, lang))}
                   </td>
                 </tr>
               )}
@@ -1622,7 +1596,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
               <tr><td>{t("Выпуклость", "Qavariqlik", "Convexity")}<TermInfo termId="convexity" lang={lang} /></td><td>{m(bond.convexity)}</td></tr>
               <tr><td>{t("DV01 (BPV)", "DV01 (BPV)", "DV01 (BPV)")}<TermInfo termId="bpv" lang={lang} /></td><td>{m(bond.dv01 || bond.bpv, (v) => `${num2(v, 2)} ${t("сум", "so'm", "UZS")}`)}</td></tr>
               <tr><td>{t("Стоимость выпуска", "Chiqarilish qiymati", "Issue value")}</td><td>{fmtCompact(bond.issue_value, lang)}</td></tr>
-              <tr><td>{t("Качество истории", "Tarix sifati", "History quality")}</td><td>{bond.quality?.data_tier || "—"}</td></tr>
+              <tr><td>{t("Качество истории", "Tarix sifati", "History quality")}</td><td>{bondStatusText(bond.quality?.data_tier, lang)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -1641,7 +1615,7 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
         <h3>{t("Два пункта наблюдения", "Ikki kuzatuv bandi", "Two monitoring points")}</h3>
         <div className="verified-watch-grid">{bond.monitoring_points.slice(0, 2).map((point) => <article key={point.metric_code}>
           <h4>{point.metric_code === "market_liquidity" ? t("Ликвидность рынка", "Bozor likvidligi", "Market liquidity") : t("Ближайшая или неподтверждённая выплата", "Yaqin yoki tasdiqlanmagan to‘lov", "Next or unconfirmed payment")}</h4>
-          {point.date && <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {fmtBondDay(point.date)} · {point.current_baseline}</p>}
+          {point.date && <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {fmtBondDay(point.date)} · {bondStatusText(point.current_baseline, lang)}</p>}
           {point.metric_code === "market_liquidity" && <p><strong>{t("Текущая база", "Joriy baza", "Current baseline")}:</strong> {point.current_baseline?.quote_as_of || "—"} · {t("сделки", "bitimlar", "trades")}: {point.current_baseline?.trades ?? "—"} · {t("оборот", "aylanma", "turnover")}: {fmtCompact(point.current_baseline?.turnover, lang)}</p>}
           <p><strong>{t("Признак улучшения", "Yaxshilanish belgisi", "Improvement signal")}:</strong> {monitorCopy(point, "improvement_signal")}</p>
           <p><strong>{t("Признак риска", "Xavf belgisi", "Risk signal")}:</strong> {monitorCopy(point, "risk_signal")}</p>
@@ -1681,10 +1655,10 @@ function BondGovCurvePanel({ curveData, keyRate, lang }) {
   if (!auctions.length) {
     return (
       <div className="bondsec-empty">
-        <b>{t("Аукционы ещё не собраны", "Auksionlar hali yig'ilmagan", "No auctions collected yet")}</b>
-        {t("Коллектор читает страницу фискального агента ЦБ РУз; данные появятся после его первого запуска.",
-           "Kollektor MB fiskal agenti sahifasini o'qiydi; ma'lumot birinchi ishga tushirishdan keyin paydo bo'ladi.",
-           "The collector reads the Central Bank fiscal-agent page; data appears after its first run.")}
+        <b>{t("Данные об аукционах пока недоступны", "Auksion ma’lumotlari hozircha mavjud emas", "Auction data is not yet available")}</b>
+        {t("Доходность государственных облигаций появится, когда будут доступны данные аукционов.",
+           "Auksion ma’lumotlari mavjud bo‘lganda davlat obligatsiyalari daromadliligi ko‘rsatiladi.",
+           "Government bond yields will appear when auction data is available.")}
       </div>
     );
   }
