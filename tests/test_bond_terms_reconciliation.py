@@ -59,7 +59,10 @@ def test_irregular_accrual_does_not_reclassify_fixed_contract_as_floating():
     assert {**row, **filed} == row
 
 
-def test_collection_keeps_placement_date_and_coupon_evidence(monkeypatch):
+def test_collection_keeps_placement_date_and_coupon_evidence(monkeypatch, tmp_path):
+    import provenance
+
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "collected.db"))
     row = {"ticker": "BOND", "nominal": 100_000, "issue_volume": 500_000,
            "coupon_freq": 4, "coupon_rate": 22, "issue_date": "2026-04-29"}
     facts = [{"id": 3, "fact_number": 32}, {"id": 2, "fact_number": 32},
@@ -85,7 +88,11 @@ def test_collection_keeps_placement_date_and_coupon_evidence(monkeypatch):
     coupon = result["coupons"][0]
     assert coupon["amount"] == 5424.66
     assert coupon["source_url"].endswith("/facts/3/")
-    assert coupon["is_paid"] is None  # elapsed payment window is not proof of payment
+    assert coupon["is_paid"] == 0  # elapsed payment window is not proof of payment
+    provenance.upsert_bond_reference([ref])
+    assert provenance.upsert_bond_coupons(result["coupons"]) == 1
+    saved = provenance.bond_coupons()["BOND"][0]
+    assert saved["source_url"] == coupon["source_url"] and saved["is_paid"] == 0
 
 
 def test_refresh_replaces_bad_persisted_rate_and_restores_yield(monkeypatch, tmp_path):

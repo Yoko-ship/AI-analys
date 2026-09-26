@@ -452,7 +452,7 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                     "period_from": None,
                     "period_to": None,
                     # Fact 32 announces accrual, not proof that cash was paid.
-                    "is_paid": None,
+                    "is_paid": 0,
                     "source_url": f"{OPENINFO_API_BASE}/disclosure/facts/{accrual['fact_id']}/",
                 })
             log.info("bond %s: coupon %s%% every %s days, %d filed, maturity %s",
