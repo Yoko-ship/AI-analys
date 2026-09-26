@@ -6,6 +6,8 @@ import { BondsView } from "../bonds/index.js";
 import { blocksMarketContent } from "../../lib/marketLoading.js";
 import { MarketHeatmap } from "./Heatmap.jsx";
 export function MarketTable({
+  stats,
+  windowed,
   viewMode,
   type,
   lang,
@@ -54,10 +56,11 @@ export function MarketTable({
     securitiesMap={smap}
     language={lang}
     onAnalyze={onAnalyze}
-    onOpenCompany={onOpenCompany}
+    onOpenCompany={type === "bond" ? onOpenBond || onOpenCompany : onOpenCompany}
     type={type}
     mapData={mapData}
-    period={changePeriod}
+    period={windowed ? changePeriod : "1d"}
+    stats={stats}
   /> : <>
           {/* What the reader is now looking at, and why these rows do not
               behave like the rest of the board: the price is a close from

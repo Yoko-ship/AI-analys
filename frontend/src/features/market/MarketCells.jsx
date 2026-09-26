@@ -3,7 +3,8 @@ import { avgSharePrice, avgTradeValue, finValue, marketDisplayPrice, sessionCoun
 import { mt } from "../../shared/marketCopy.jsx";
 import { RangeHelpIcon, incompleteIssuerCapAvailability, lossLabel, lossTitle, multipleStatusText, notApplicableTitle, outlierLabel, outlierTitle } from "../../shared/valuationLabels.jsx";
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
-import { finFieldCoverage, finFieldPeriod, finPeriodCoverage, marketRowDay } from "../../lib/valuation.js";
+import { finFieldCoverage, finFieldPeriod, finPeriodCoverage } from "../../lib/valuation.js";
+import { marketVolumeShare } from "../../lib/marketVolume.js";
 import { MarketChangeBadge } from "../../shared/MarketChangeBadge.jsx";
 export function createMarketCells({
   lang,
@@ -275,8 +276,8 @@ export function createMarketCells({
         // Over a window there is no such session — `stats.boardDay` is null — and
         // the share is of the window's own total, which is the same statement one
         // period longer.
-        if (stats.boardDay && marketRowDay(row) !== stats.boardDay) return `0%`;
-        return Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? `${formatRatio(row.stockVolume / stats.totalVolume * 100, 2, lang)}%` : "—";
+        const share = marketVolumeShare(row, stats);
+        return share === null ? "—" : share === 0 ? "0%" : `${formatRatio(share, 2, lang)}%`;
       })()}</td>,
     finRevenue: row => finCell(row, "revenue"),
     // Bank/insurer/fund filings have no gross-profit or operating-income

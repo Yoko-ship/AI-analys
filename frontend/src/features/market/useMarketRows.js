@@ -73,6 +73,8 @@ export function useMarketRows({
     // negotiated row. Same for the session VWAP column.
     avgPrice: undefined,
     vwap: null,
+    // The auction's largest execution cannot describe negotiated trades.
+    ts: r.ts ? { ...r.ts, largest_value: null, largest_qty: null, largest_pct_value: null } : null,
     // The date column must name the day the DEAL was struck. A negotiated deal is
     // not a session and is routinely weeks old — the ones on this market in
     // August 2026 were dated 02.07, 10.07, 07.08 and 13.08 — so showing the

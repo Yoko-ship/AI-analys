@@ -1,6 +1,7 @@
 import { roundedDisplayValue } from "../lib/format.js";
 import { formatCompactNumber, formatRatio, safeNumber } from "./format.jsx";
 import { marketRowDay, normalizeMarketDay, previousClose, tradeStatsApply } from "../lib/valuation.js";
+import { avgSharePrice, avgTradeValue } from "../lib/marketVolume.js";
 
 function profileMarketQuote(ticker, rows, securities) {
   const normalized = String(ticker || "").trim().toUpperCase();
@@ -125,18 +126,6 @@ function marketStampTitle(meta, language) {
 // two-days-in-one-day defect `previousClose` exists to prevent — so a security
 // the board showed flat could lead the company page at +20 %.
 
-
-// Average execution price per share = turnover (sums) / shares traded.
-function avgSharePrice(row) {
-  const vol = row?.stockVolume, qty = row?.stockQuantity;
-  return Number.isFinite(vol) && Number.isFinite(qty) && qty > 0 ? vol / qty : null;
-}
-
-// Average value per trade = turnover (sums) / number of trades.
-function avgTradeValue(row) {
-  const vol = row?.stockVolume, n = row?.stockTradeCount;
-  return Number.isFinite(vol) && Number.isFinite(n) && n > 0 ? vol / n : null;
-}
 
 // Price to show in the quote column. UZSE sometimes reports last_price=null even
 // for a security that traded today (e.g. UZAS: null price but real turnover), and

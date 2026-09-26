@@ -437,6 +437,8 @@ function MarketView({
             no earnings for a multiple to divide by. The «Облигации» segment IS
             the bond section: screener + yield map, a row opens /bond/{T}. */}
         <MarketTable
+          stats={stats}
+          windowed={windowed}
           viewMode={viewMode}
           type={type}
           lang={lang}

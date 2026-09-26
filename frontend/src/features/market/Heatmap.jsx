@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { orderSectors, sectorOf } from "../../lib/sectors.js";
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
-import { formatCompactVolume, marketDisplayPrice } from "../../shared/marketModel.jsx";
+import { marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
+import { marketVolumeMetrics } from "../../lib/marketVolume.js";
+import { formatMapMetric, HeatmapMetricPicker, mapMetricCoverage, useHeatmapMetrics } from "./HeatmapMetrics.jsx";
 
 // How far a move has to go before the tile is fully saturated, per period. A
 // session's 5 % is a big day; six months' 5 % is nothing, and drawing a half-year
@@ -99,7 +101,7 @@ function squarifyTreemap(items, x, y, width, height) {
   return output;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, period = "1d" }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d" }) {
   // Which question the map is drawing. Over a window every cell's colour is the
   // change over it and its bottom meter is the turnover over it — the caller
   // has already restated the rows (see `mapRows`), so the board arithmetic
@@ -133,7 +135,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // of sessions is not low-confidence because this morning was thin.
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
-  const [hover, setHover] = useState(null); // { ticker, row } — reflected in the focus strip
+  const [hover, setHover] = useState(null);
+  const [selectedTicker, setSelectedTicker] = useState("");
+  const metricSelection = useHeatmapMetrics(lang, type);
+  const selectedMetrics = metricSelection.selected;
   const treeRef = React.useRef(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
 
@@ -281,7 +286,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const mainMover = signalRows.reduce((best, row) => (
     !best || Math.abs(row.changePercent) > Math.abs(best.changePercent) ? row : best
   ), null);
-  const focusRow = hover?.row || mainMover || tradedRows[0] || null;
+  // Resolve from current rows so changing the period never leaves stale values.
+  const focusRow = tradedRows.find((row) => row.ticker === hover?.ticker)
+    || tradedRows.find((row) => row.ticker === selectedTicker) || mainMover || tradedRows[0] || null;
+  const focusMetrics = marketVolumeMetrics(focusRow, stats);
   const focusStatus = focusRow ? tileStatus(focusRow) : null;
   const focusPrice = focusRow ? marketDisplayPrice(focusRow) : null;
   const focusName = focusRow
@@ -332,6 +340,16 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>
       </div>
 
+      <div className="heatmap-metrics-toolbar">
+        <HeatmapMetricPicker lang={lang} {...metricSelection} />
+        <label className="heatmap-security-picker">
+          {lang === "ru" ? "Бумага на карте" : lang === "uz" ? "Xaritadagi qog'oz" : "Security on map"}
+          <select value={focusRow?.ticker || ""} onChange={(event) => { setSelectedTicker(event.target.value); setHover(null); }}>
+            {tradedRows.map((row) => <option key={row.ticker} value={row.ticker}>{row.ticker}</option>)}
+          </select>
+        </label>
+      </div>
+
       {focusRow && (
         <button
           className="heatmap-focus-strip"
@@ -341,7 +359,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         >
           <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
           <span className="heatmap-focus-identity">
-            <small>{hover ? mapCopy.focus : mapCopy.mainMove}</small>
+            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
             <span>
               <strong>{focusRow.ticker}</strong>
               <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
@@ -352,12 +370,20 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
           </span>
           <span className="heatmap-focus-facts">
             <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
-            <span><small>{mapCopy.turnover}</small><strong>{Number.isFinite(focusRow.stockVolume) && focusRow.stockVolume > 0 ? `${formatCompactVolume(focusRow.stockVolume, lang)} UZS` : "—"}</strong></span>
             <span><small>{mapCopy.sectors}</small><strong>{sectorLabel(lang, sectorKeyOf(focusRow.ticker))}</strong></span>
           </span>
-          <span className="heatmap-focus-open">{mapCopy.open}<b>↗</b></span>
+          <span className="heatmap-focus-open">{type === "bond"
+            ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
+            : mapCopy.open}<b>↗</b></span>
         </button>
       )}
+
+      {focusRow && selectedMetrics.length > 0 && <div className="heatmap-metric-details" aria-live="polite" data-ticker={focusRow.ticker}>
+        {selectedMetrics.map(({ key, label }) => <div key={key} data-metric={key}>
+          <small>{label}</small><strong>{formatMapMetric(key, focusMetrics[key], lang)}</strong>
+          {windowed && mapMetricCoverage(focusRow, key, lang) && <small className="heatmap-metric-note">{mapMetricCoverage(focusRow, key, lang)}</small>}
+        </div>)}
+      </div>}
 
       <div className="heatmap-tree" ref={treeRef} role="group" aria-label={mapCopy.board}>
         {sectorLayout.map((sector) => {
@@ -395,7 +421,13 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const showTicker = width >= tickerMinWidth && height >= 24;
                 const showPercent = width >= 58 && height >= 40;
                 const showName = width > 105 && height > 62;
-                const showVolume = width > 118 && height > 86 && Number.isFinite(row.stockVolume);
+                const values = marketVolumeMetrics(row, stats);
+                const metricSlots = width >= 180 ? Math.max(0, Math.floor((height - 80) / 17)) : 0;
+                const tileMetrics = selectedMetrics.slice(0, metricSlots);
+                const metricTitle = selectedMetrics.map(({ key, label }) => [
+                  `${label}: ${formatMapMetric(key, values[key], lang)}`,
+                  windowed ? mapMetricCoverage(row, key, lang) : "",
+                ].filter(Boolean).join(" · ")).join("\n");
                 const preferred = isPreferredRow(row);
                 const showPreferredBadge = preferred && width >= 84 && height >= 44;
                 const microTile = !showTicker;
@@ -413,6 +445,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                       "--tile-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined,
                     }}
                     aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                    title={metricTitle}
+                    data-ticker={row.ticker}
                     onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
                     onMouseEnter={() => setHover({ ticker: row.ticker, row })}
                     onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
@@ -426,7 +460,11 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     )}
                     {showPercent && <span className="htt-pct" style={{ fontSize: tickerSize * 0.78 }}>{status === "ok" ? formatPct(row.changePercent) : "—"}</span>}
                     {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
-                    {showVolume && <span className="htt-volume">{formatCompactVolume(row.stockVolume, lang)} UZS</span>}
+                    {tileMetrics.length > 0 && <span className="htt-metrics">
+                      {tileMetrics.map(({ key, label }) => <span key={key} data-metric={key}>
+                        <span>{label}</span><b>{formatMapMetric(key, values[key], lang, true)}</b>
+                      </span>)}
+                    </span>}
                   </button>
                 );
               })}

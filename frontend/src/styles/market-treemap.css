@@ -1,6 +1,21 @@
 /* ── Modern financial treemap ───────────────────────────────────
    The familiar finance model: sector nesting, area by turnover, colour by move.
    The focus strip keeps exact values available without covering the map. */
+.heatmap-metrics-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 0 0; }
+.heatmap-metric-picker .market-cols-btn { gap: 8px; min-height: 38px; }
+.heatmap-security-picker { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.heatmap-security-picker select { max-width: 150px; min-height: 38px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-1); color: var(--text); font: inherit; }
+.heatmap-metric-details { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; padding: 14px 0 18px; }
+.heatmap-metric-details > div { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+.heatmap-metric-details small { display: block; margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+.heatmap-metric-details strong { display: block; font-size: 13px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.heatmap-metric-details .heatmap-metric-note { margin: 6px 0 0; font-size: 10px; }
+.htt-metrics { display: grid; gap: 4px; margin-top: 6px; width: min(100%, 300px); font-size: 10px; line-height: 13px; }
+.htt-metrics > span { display: flex; justify-content: space-between; gap: 8px; }
+.htt-metrics > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.htt-metrics b { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .heatmap-metric-details { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .heatmap-metric-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
 .heatmap-focus-strip {
   display: grid;
   grid-template-columns: 8px minmax(240px, 1fr) auto auto;
