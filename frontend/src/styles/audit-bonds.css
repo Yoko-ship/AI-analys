@@ -276,6 +276,41 @@
    before it the only future payment anyone could name was the one an issuer had
    already announced.
    --------------------------------------------------------------------------- */
+.bondsec-period {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  padding: 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+.bondsec-period-heading { display: grid; gap: 4px; flex: 1 1 100%; }
+.bondsec-period-heading span { font-size: 0.75rem; }
+.bondsec-period-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.bondsec-period-presets button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.bondsec-period-dates { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+.bondsec-period-dates label { display: grid; gap: 5px; font-size: 0.75rem; color: var(--muted); }
+.bondsec-period-dates input, .bondsec-month-nav select {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 6px);
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+}
+.bondsec-period button { min-height: 38px; }
+.bondsec-period :focus-visible, .bondsec-month-nav :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bondsec-period-error { flex-basis: 100%; margin: 0; color: var(--negative, #c73737); font-size: 0.8rem; }
+.bondsec-month-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bondsec-month-nav select { flex: 1; font-weight: 600; }
+.bondsec-month-nav button { min-width: 38px; min-height: 38px; font-size: 1.25rem; }
+.bondsec-month-nav button:disabled { opacity: 0.4; cursor: default; }
+.bondsec-month-chart-scroll { max-width: 100%; overflow-x: auto; }
 .bondsec-tiles {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -347,9 +382,10 @@
   white-space: nowrap;
 }
 
-.bondsec-dow, .bondsec-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.bondsec-dow, .bondsec-cells { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
 .bondsec-dow { font-size: 0.72rem; color: var(--muted); text-align: center; margin-bottom: 5px; }
 .bondsec-cell {
+  min-width: 0;
   aspect-ratio: 1 / 1;
   min-height: 52px;
   border: 1px solid var(--border);
@@ -375,6 +411,7 @@
 /* Four steps, not a continuous ramp: a reader compares "darker than that one",
    never "12% more saturated". */
 .bondsec-cell.level-0 { color: var(--muted); }
+.bondsec-cell.outside-period { opacity: 0.35; background: var(--surface-2); }
 .bondsec-cell.level-1 { background: color-mix(in srgb, var(--chart-primary) 14%, transparent); }
 .bondsec-cell.level-2 { background: color-mix(in srgb, var(--chart-primary) 34%, transparent); }
 .bondsec-cell.level-3 { background: color-mix(in srgb, var(--chart-primary) 60%, transparent); }
@@ -385,6 +422,16 @@
    one of the two by construction. */
 .bondsec-cell.level-4 { background: var(--chart-primary); color: #fff; }
 html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
+@media (max-width: 640px) {
+  .bondsec-period-dates { width: 100%; margin-left: 0; }
+  .bondsec-period-dates label { flex: 1 1 120px; min-width: 0; }
+  .bondsec-period-dates input { width: 100%; box-sizing: border-box; }
+  .bondsec-period-dates button { flex: 1 1 100%; }
+  .bondsec-calendar-cols > * { min-width: 0; }
+  .bondsec-day { grid-template-columns: 1fr; gap: 4px; }
+  .bondsec-cell { aspect-ratio: auto; min-height: 70px; padding: 4px 2px; }
+  .bondsec-cell-v { font-size: 0.6rem; overflow-wrap: anywhere; }
+}
 
 /* A reconstructed date wears a mark. The plan is not the diary. */
 .bondsec-recon { color: var(--muted); margin-left: 2px; }
