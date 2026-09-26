@@ -1,11 +1,10 @@
 import { roundedDisplayValue } from "../../lib/format.js";
 import { compact as fmtCompact, metric as fmtMetric, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "../../lib/format.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
-import React, { Suspense } from "react";
+import React from "react";
 import { TermInfo } from "../../shared/TermInfo.jsx";
 
 import { marketTone } from "../../lib/marketData.js";
-import { VerifiedReport } from "../../shared/VerifiedReport.jsx";
 
 // ---------------------------------------------------------------------------
 // Company detail page components
@@ -1467,11 +1466,6 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
 
       <BondMarketPosition bond={bond} board={board} keyRate={keyRate} lang={lang} />
 
-      {bond.issuer_report && <details className="verified-block">
-        <summary>{t("Финансовый профиль эмитента", "Emitentning moliyaviy profili", "Issuer financial profile")} · {bond.financial_as_of || "—"}</summary>
-        <div className="verified-note"><Suspense fallback={null}><VerifiedReport report={bond.issuer_report} lang={lang} narrative /></Suspense></div>
-      </details>}
-      {!bond.issuer_report && bond.issuer_link_status && <p className="verified-note">{t("Финансовый профиль эмитента пока не подтверждён.", "Emitent moliyaviy profili hali tasdiqlanmagan.", "Issuer fundamentals are not yet verified.")} ({bond.issuer_link_status})</p>}
       <div className="bondsec-summary">
         {bond.freshness && <p className="verified-note">
           {t("Последняя сделка", "So‘nggi bitim", "Last trade")}: {bond.quote_as_of || "—"}
