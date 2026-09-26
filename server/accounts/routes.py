@@ -15,16 +15,18 @@ from pydantic import BaseModel
 from pydantic import Field
 from typing import Any
 from typing import Literal
-import analysis_service as analysis_service
+import reporting.exports as report_exports
 import asyncio
 import json
 import re
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 import securities_catalog as securities_store
 import server.auth.access as auth_access
 import server.auth.limits as auth_limits
 import server.http as http
 import web_auth as identity
+import identity.users as identity_users
 
 
 router = APIRouter()
@@ -124,7 +126,7 @@ async def api_admin_user_subscription(
     user_id: int,
     payload: SubscriptionUpdateRequest,
     request: Request,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Record a manual subscription entitlement with a durable audit entry.
 
@@ -162,10 +164,10 @@ async def api_admin_user_subscription(
 
 
 @router.get("/api/profile")
-async def api_profile(current_user: identity.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
+async def api_profile(current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
     try:
         profile = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.get_profile, current_user.id))
+            None, partial(identity.web_auth_store.profile.get_profile, current_user.id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
@@ -176,11 +178,11 @@ async def api_profile(current_user: identity.WebUser = Depends(auth_access._requ
 @router.patch("/api/profile")
 async def api_profile_update(
     payload: ProfileUpdateRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         updated_user = await asyncio.get_running_loop().run_in_executor(None, partial(
-            identity.web_auth_store.update_profile,
+            identity.web_auth_store.profile.update_profile,
             current_user.id,
             full_name=payload.full_name,
             avatar_data_url=payload.avatar_data_url,
@@ -196,10 +198,10 @@ async def api_profile_update(
 
 
 @router.get("/api/favorites")
-async def api_favorites(current_user: identity.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
+async def api_favorites(current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
     try:
         favorites = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.list_favorites, current_user.id))
+            None, partial(identity.web_auth_store.favorites.list_favorites, current_user.id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "count": len(favorites), "favorites": http._json_safe(favorites)}
@@ -208,18 +210,18 @@ async def api_favorites(current_user: identity.WebUser = Depends(auth_access._re
 @router.post("/api/favorites/toggle")
 async def api_favorites_toggle(
     payload: FavoriteToggleRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, partial(
-            identity.web_auth_store.toggle_favorite,
+            identity.web_auth_store.favorites.toggle_favorite,
             current_user.id,
             payload.ticker,
             payload.company_name,
         ))
         favorites = await loop.run_in_executor(
-            None, partial(identity.web_auth_store.list_favorites, current_user.id))
+            None, partial(identity.web_auth_store.favorites.list_favorites, current_user.id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -230,13 +232,13 @@ async def api_favorites_toggle(
 @router.patch("/api/profile/preferences")
 async def api_profile_preferences(
     payload: ProfilePreferencesRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         preferences = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.update_preferences,
+                identity.web_auth_store.profile.update_preferences,
                 current_user.id,
                 payload.model_dump(exclude_unset=True),
             ),
@@ -251,7 +253,7 @@ async def api_profile_preferences(
 @router.post("/api/profile/password")
 async def api_profile_password(
     payload: PasswordChangeRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     try:
@@ -259,7 +261,7 @@ async def api_profile_password(
         revoked = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.change_password,
+                identity.web_auth_store.security.change_password,
                 current_user.id,
                 payload.current_password,
                 payload.new_password,
@@ -275,13 +277,13 @@ async def api_profile_password(
 
 @router.get("/api/profile/sessions")
 async def api_profile_sessions(
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     try:
         token = auth_access._extract_bearer_token(authorization)
         sessions = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.list_sessions, current_user.id, token))
+            None, partial(identity.web_auth_store.sessions.list_sessions, current_user.id, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "sessions": http._json_safe(sessions)}
@@ -290,13 +292,13 @@ async def api_profile_sessions(
 @router.delete("/api/profile/sessions/{session_id}")
 async def api_profile_session_delete(
     session_id: int,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     try:
         token = auth_access._extract_bearer_token(authorization)
         revoked = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.revoke_session, current_user.id, session_id, token))
+            None, partial(identity.web_auth_store.sessions.revoke_session, current_user.id, session_id, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if not revoked:
@@ -306,13 +308,13 @@ async def api_profile_session_delete(
 
 @router.post("/api/profile/sessions/revoke-others")
 async def api_profile_sessions_revoke_others(
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     try:
         token = auth_access._extract_bearer_token(authorization)
         count = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.revoke_other_sessions, current_user.id, token))
+            None, partial(identity.web_auth_store.sessions.revoke_other_sessions, current_user.id, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "revoked_sessions": count}
@@ -320,11 +322,11 @@ async def api_profile_sessions_revoke_others(
 
 @router.post("/api/profile/2fa/setup")
 async def api_profile_two_factor_setup(
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         setup = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.begin_two_factor, current_user.id))
+            None, partial(identity.web_auth_store.security.begin_two_factor, current_user.id))
     except (ValueError, RuntimeError) as exc:
         status = 400 if isinstance(exc, ValueError) else 503
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -334,11 +336,11 @@ async def api_profile_two_factor_setup(
 @router.post("/api/profile/2fa/enable")
 async def api_profile_two_factor_enable(
     payload: TwoFactorCodeRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.enable_two_factor, current_user.id, payload.code))
+            None, partial(identity.web_auth_store.security.enable_two_factor, current_user.id, payload.code))
     except (ValueError, RuntimeError) as exc:
         status = 400 if isinstance(exc, ValueError) else 503
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -348,11 +350,11 @@ async def api_profile_two_factor_enable(
 @router.post("/api/profile/2fa/disable")
 async def api_profile_two_factor_disable(
     payload: TwoFactorCodeRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.disable_two_factor, current_user.id, payload.code))
+            None, partial(identity.web_auth_store.security.disable_two_factor, current_user.id, payload.code))
     except (ValueError, RuntimeError) as exc:
         status = 400 if isinstance(exc, ValueError) else 503
         raise HTTPException(status_code=status, detail=str(exc)) from exc
@@ -363,13 +365,13 @@ async def api_profile_two_factor_disable(
 async def api_profile_analysis_update(
     analysis_id: int,
     payload: AnalysisUpdateRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         analysis = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.update_analysis,
+                identity.web_auth_store.research.update_analysis,
                 current_user.id,
                 analysis_id,
                 payload.model_dump(exclude_unset=True),
@@ -385,11 +387,11 @@ async def api_profile_analysis_update(
 @router.delete("/api/profile/analyses/{analysis_id}")
 async def api_profile_analysis_delete(
     analysis_id: int,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         deleted = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.delete_analysis, current_user.id, analysis_id))
+            None, partial(identity.web_auth_store.research.delete_analysis, current_user.id, analysis_id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if not deleted:
@@ -402,11 +404,11 @@ async def api_profile_analysis_export(
     analysis_id: int,
     format: Literal["pdf", "csv"] = "pdf",
     language: Literal["ru", "en", "uz"] = "ru",
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> Response:
     try:
         analysis = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.get_analysis, current_user.id, analysis_id))
+            None, partial(identity.web_auth_store.research.get_analysis, current_user.id, analysis_id))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     ticker = re.sub(r"[^A-Za-z0-9_-]+", "-", analysis.get("ticker") or f"analysis-{analysis_id}")
@@ -440,7 +442,7 @@ async def api_profile_analysis_export(
         },
     }
     content = await asyncio.get_running_loop().run_in_executor(
-        None, partial(analysis_service.build_analysis_pdf, export_result, language, datetime.now()))
+        None, partial(report_exports.build_analysis_pdf, export_result, language, datetime.now()))
     return Response(
         content=content,
         media_type="application/pdf",
@@ -452,13 +454,13 @@ async def api_profile_analysis_export(
 async def api_favorite_update(
     ticker: str,
     payload: FavoriteUpdateRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         favorite = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.update_favorite,
+                identity.web_auth_store.favorites.update_favorite,
                 current_user.id,
                 ticker,
                 payload.model_dump(exclude_unset=True),
@@ -472,7 +474,7 @@ async def api_favorite_update(
 
 
 @router.get("/api/portfolio")
-async def api_portfolio(current_user: identity.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
+async def api_portfolio(current_user: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
     """Value explicitly entered holdings against the last confirmed UZSE price.
 
     A missing or stale quote remains a missing valuation; it is never filled
@@ -480,8 +482,8 @@ async def api_portfolio(current_user: identity.WebUser = Depends(auth_access._re
     """
     loop = asyncio.get_running_loop()
     positions, listings, securities = await asyncio.gather(
-        loop.run_in_executor(None, partial(identity.web_auth_store.list_portfolio_positions, current_user.id)),
-        loop.run_in_executor(None, catalog_store.get_all_listings),
+        loop.run_in_executor(None, partial(identity.web_auth_store.portfolio.list_portfolio_positions, current_user.id)),
+        loop.run_in_executor(None, catalogue_market_store.get_all_listings),
         loop.run_in_executor(None, securities_store.get_securities_map),
     )
     items: list[dict[str, Any]] = []
@@ -521,7 +523,7 @@ async def api_portfolio(current_user: identity.WebUser = Depends(auth_access._re
 @router.put("/api/portfolio/positions")
 async def api_portfolio_position_upsert(
     payload: PortfolioPositionRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     ticker = payload.ticker.strip().upper()
     securities = await asyncio.get_running_loop().run_in_executor(None, securities_store.get_securities_map)
@@ -529,7 +531,7 @@ async def api_portfolio_position_upsert(
         raise HTTPException(status_code=404, detail="Unknown security ticker")
     try:
         position = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.upsert_portfolio_position, current_user.id, ticker,
+            None, partial(identity.web_auth_store.portfolio.upsert_portfolio_position, current_user.id, ticker,
                           quantity=payload.quantity, average_cost=payload.average_cost,
                           currency=payload.currency, note=payload.note))
     except ValueError as exc:
@@ -539,10 +541,10 @@ async def api_portfolio_position_upsert(
 
 @router.delete("/api/portfolio/positions/{ticker}")
 async def api_portfolio_position_delete(
-    ticker: str, current_user: identity.WebUser = Depends(auth_access._require_pro),
+    ticker: str, current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     deleted = await asyncio.get_running_loop().run_in_executor(
-        None, partial(identity.web_auth_store.delete_portfolio_position, current_user.id, ticker))
+        None, partial(identity.web_auth_store.portfolio.delete_portfolio_position, current_user.id, ticker))
     if not deleted:
         raise HTTPException(status_code=404, detail="Portfolio position not found")
     return {"ok": True, "ticker": ticker.strip().upper(), "deleted": True}
@@ -551,11 +553,11 @@ async def api_portfolio_position_delete(
 @router.post("/api/profile/notes")
 async def api_profile_note_create(
     payload: NoteWriteRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         note = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.save_note, current_user.id, None, payload.model_dump()))
+            None, partial(identity.web_auth_store.notes.save_note, current_user.id, None, payload.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -567,11 +569,11 @@ async def api_profile_note_create(
 async def api_profile_note_update(
     note_id: int,
     payload: NoteWriteRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         note = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.save_note, current_user.id, note_id, payload.model_dump()))
+            None, partial(identity.web_auth_store.notes.save_note, current_user.id, note_id, payload.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -582,11 +584,11 @@ async def api_profile_note_update(
 @router.delete("/api/profile/notes/{note_id}")
 async def api_profile_note_delete(
     note_id: int,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         deleted = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.delete_note, current_user.id, note_id))
+            None, partial(identity.web_auth_store.notes.delete_note, current_user.id, note_id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if not deleted:
@@ -597,13 +599,13 @@ async def api_profile_note_delete(
 @router.post("/api/profile/support")
 async def api_profile_support(
     payload: SupportRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         request = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.create_support_request,
+                identity.web_auth_store.support.create_support_request,
                 current_user.id,
                 payload.subject,
                 payload.message,
@@ -618,13 +620,13 @@ async def api_profile_support(
 
 @router.get("/api/profile/export")
 async def api_profile_export(
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     authorization: str | None = Header(default=None),
 ) -> Response:
     try:
         token = auth_access._extract_bearer_token(authorization)
         exported = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.export_user_data, current_user.id, token))
+            None, partial(identity.web_auth_store.profile.export_user_data, current_user.id, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return Response(
@@ -637,13 +639,13 @@ async def api_profile_export(
 @router.delete("/api/profile/history")
 async def api_profile_history_clear(
     payload: ConfirmationRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     if payload.confirmation.strip() != "CLEAR":
         raise HTTPException(status_code=400, detail='Enter "CLEAR" to confirm history deletion')
     try:
         count = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.clear_analysis_history, current_user.id))
+            None, partial(identity.web_auth_store.research.clear_analysis_history, current_user.id))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"ok": True, "deleted_analyses": count}
@@ -652,11 +654,11 @@ async def api_profile_history_clear(
 @router.delete("/api/profile/account")
 async def api_profile_account_delete(
     payload: ConfirmationRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         deleted = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.delete_account, current_user.id, payload.confirmation))
+            None, partial(identity.web_auth_store.profile.delete_account, current_user.id, payload.confirmation))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

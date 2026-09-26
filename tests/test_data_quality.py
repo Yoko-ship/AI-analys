@@ -3,6 +3,13 @@ from __future__ import annotations
 
 import data_quality as dq
 import reports_catalog as rc
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.refresh as catalogue_refresh
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync
 
 
 def _draft(**overrides):
@@ -18,7 +25,7 @@ def _draft(**overrides):
 
 def test_scan_persists_missing_field_issue_without_changing_source(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+    catalogue_financial_store.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
         "revenue": 10, "net_income": None, "total_assets": None, "total_equity": None,
     })
 
@@ -28,7 +35,7 @@ def test_scan_persists_missing_field_issue_without_changing_source(monkeypatch, 
     issues = dq.list_issues()["items"]
     assert {issue["field"] for issue in issues} == {"net_income", "total_assets", "total_equity"}
 
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         row = conn.execute("SELECT total_assets FROM catalog_financials WHERE ticker='TSTQ'").fetchone()
         assert row["total_assets"] is None
@@ -38,7 +45,7 @@ def test_scan_persists_missing_field_issue_without_changing_source(monkeypatch, 
 
 def test_approved_correction_overlays_reader_and_revert_restores_source(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+    catalogue_financial_store.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
         "revenue": 10, "net_income": 2, "total_assets": 100, "total_equity": 40,
         "total_liabilities": 60,
     })
@@ -51,13 +58,13 @@ def test_approved_correction_overlays_reader_and_revert_restores_source(monkeypa
 
     row = {"year": 2024, "quarter": 3, "form": "NSBU", "total_assets": 100,
            "balance": {"assets_end": 100}}
-    served = rc._apply_registered_financial_corrections("TSTQ", "2024Q3", row)
+    served = catalogue_snapshots._apply_registered_financial_corrections("TSTQ", "2024Q3", row)
     assert served["total_assets"] == 321.5
     assert served["balance"]["assets_end"] == 321.5
 
     dq.review_correction(correction["id"], "reverted", "reviewer@example.test")
     row = {"year": 2024, "quarter": 3, "form": "NSBU", "total_assets": 100}
-    assert rc._apply_registered_financial_corrections("TSTQ", "2024Q3", row)["total_assets"] == 100
+    assert catalogue_snapshots._apply_registered_financial_corrections("TSTQ", "2024Q3", row)["total_assets"] == 100
 
 
 def test_correction_requires_evidence_and_supported_field(monkeypatch, tmp_path):
@@ -78,14 +85,14 @@ def test_correction_requires_evidence_and_supported_field(monkeypatch, tmp_path)
 
 def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+    catalogue_financial_store.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
         "revenue": 10, "net_income": 2, "total_assets": 100, "total_equity": 30,
         "total_liabilities": 50,
     })
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
-            rc._upsert_report(conn, "TSTQ", report_form="NSBU", period_type="quarter", year=2024,
+            catalogue_filings._upsert_report(conn, "TSTQ", report_form="NSBU", period_type="quarter", year=2024,
                               quarter=3, title="NSBU report", published_at="2024-11-01",
                               pdf_url="https://example.test/report.pdf", excel_url=None,
                               excel_url_form1=None, openinfo_report_id="123", object_id=None)
@@ -117,7 +124,7 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
 
 def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    rc.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
+    catalogue_financial_store.upsert_financials_cache("TSTQ", "NSBU", 2024, 3, {
         "revenue": 10, "net_income": 2, "total_assets": None, "total_equity": 40,
         "total_liabilities": 60,
     })
@@ -134,7 +141,7 @@ def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
 def test_admin_official_refresh_reparses_one_company_and_records_outcome(monkeypatch, tmp_path):
     """The quality-panel action is a source refresh, never a guessed correction."""
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
             conn.execute("""INSERT INTO catalog_companies
@@ -142,19 +149,19 @@ def test_admin_official_refresh_reparses_one_company_and_records_outcome(monkeyp
                          VALUES ('TSTQ', 'Test issuer', '42', '2026-01-01')""")
     finally:
         conn.close()
-    rc.upsert_financials_cache("TSTQ", "NSBU", 2026, 2, {
+    catalogue_financial_store.upsert_financials_cache("TSTQ", "NSBU", 2026, 2, {
         "revenue": 100, "net_income": 10, "total_assets": 80,
         "total_equity": 50, "total_liabilities": 30,
     })
 
     calls = []
-    monkeypatch.setattr(rc, "sync_company", lambda *args, **kwargs: (
+    monkeypatch.setattr(catalogue_sync, "sync_company", lambda *args, **kwargs: (
         calls.append((args, kwargs)) or {"ticker": "TSTQ", "org_id": "42", "added": 2, "errors": []}
     ))
-    monkeypatch.setattr(rc, "refresh_financials_cache", lambda *args, **kwargs: {
+    monkeypatch.setattr(catalogue_refresh, "refresh_financials_cache", lambda *args, **kwargs: {
         "ok": True, "processed": 1, "filled": 1, "candidates": 1,
     })
-    monkeypatch.setattr(rc, "invalidate_ratios_cache", lambda: None)
+    monkeypatch.setattr(catalogue_ratios, "invalidate_ratios_cache", lambda: None)
 
     result = dq.refresh_company_reporting("tstq", "admin@example.test")
 
@@ -164,7 +171,7 @@ def test_admin_official_refresh_reparses_one_company_and_records_outcome(monkeyp
     assert result["financials_updated"] == 1
     assert calls and calls[0][1]["force"] is True
     assert dq.list_corrections()["items"] == []
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         row = conn.execute("SELECT status, latest_period, requested_by FROM data_quality_refreshes").fetchone()
         assert (row["status"], row["latest_period"], row["requested_by"]) == (

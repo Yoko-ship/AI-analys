@@ -92,7 +92,7 @@ def main():
     elif args.command == "status":
         org = None
         if args.ticker:
-            from reports_catalog import get_company_index
+            from catalogue.filings import get_company_index
             org = (get_company_index(args.ticker) or {}).get("org_id")
             if not org:
                 parser.error("Unknown issuer")

@@ -1,0 +1,569 @@
+/* ── Term explanations (lib/glossary.js) ──────────────────────────────────────
+   The ⓘ that says what an economic label means. Deliberately always visible
+   rather than hover-only: a marker nobody can see teaches nobody, which is the
+   same mistake the multi-sort modifier made. Subdued until approached. */
+.term-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  opacity: 0.45;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.term-info-btn:hover,
+.term-info-btn:focus-visible,
+.term-info-btn.open {
+  opacity: 1;
+  color: var(--accent);
+  background: rgba(146, 165, 152, 0.2);
+}
+.market-table th.market-th-sortable .term-info-btn { text-transform: none; letter-spacing: 0; }
+/* In the column picker the marker sits at the row's right edge rather than beside
+   the label: the ⓘ line up into one scannable column instead of a ragged one, and
+   the tap target stays clear of the label text, which toggles the column. */
+.market-cols-row .term-info-btn { margin-left: auto; flex-shrink: 0; }
+/* The locked rows are dimmed as a whole, and a subdued marker inside a dimmed row
+   fades to nothing — so it is carried back up to the row's own weight. */
+.market-cols-row-locked .term-info-btn:not(:hover):not(.open) { opacity: 0.85; }
+/* On the phone sheet the rows are 42px and the pointer is a thumb. */
+.market-cols-sheet .market-cols-row .term-info-btn { width: 24px; height: 24px; font-size: 13px; }
+
+/* Portaled to <body>: inside the board's horizontal scrollport it would be
+   clipped, and z-index inside .app-shell cannot climb over the nav drawer. */
+.term-tooltip {
+  position: fixed;
+  z-index: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(146, 165, 152, 0.28));
+  border-radius: 10px;
+  background: var(--panel, #17181d);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  pointer-events: none;
+  animation: term-tooltip-in 0.12s ease-out;
+}
+.term-tooltip-term {
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+.term-tooltip-def {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+/* Pinned by a click: it takes the pointer, so its text can be selected, and it
+   carries the copy button. Hovered, it stays `pointer-events: none` — a tooltip
+   that reacts to the pointer chasing it is a tooltip that flickers. */
+.term-tooltip.is-pinned {
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+  border-color: var(--accent);
+}
+.term-tooltip-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border, rgba(146, 165, 152, 0.28));
+}
+.term-tooltip-copy {
+  padding: 3px 9px;
+  border: 1px solid var(--border, rgba(146, 165, 152, 0.28));
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.term-tooltip-copy:hover { background: rgba(146, 165, 152, 0.18); }
+.term-tooltip-copy.is-done { color: var(--accent); border-color: var(--accent); }
+.term-tooltip-hint,
+.term-tooltip-teach {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted, #94a3b8);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.term-tooltip-teach { margin-top: 7px; opacity: 0.75; }
+@keyframes term-tooltip-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Rank inside a multi-key order. Only rendered when the chain has more than one
+   key, so it never appears as a lone "1" beside a single sorted column. */
+.market-sort-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg, #0b1220);
+  background: var(--accent);
+}
+
+/* The order spelled out, because the carets that built it scroll away sideways. */
+.market-sort-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+.market-sort-chain-label {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* The scope caption over the four summary cards: same chip idiom as the sort
+   chain, because it is the same kind of statement — "this row is narrowed, and
+   here is the way back". */
+.market-stats-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.market-stats-scope-label {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+.market-stats-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--accent, rgba(146, 165, 152, 0.28));
+  border-radius: 999px;
+  background: rgba(146, 165, 152, 0.12);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-stats-scope-chip:hover {
+  background: rgba(146, 165, 152, 0.22);
+}
+.market-stats-scope-chip span {
+  color: var(--text-muted, #94a3b8);
+  font-size: 13px;
+  line-height: 1;
+}
+.market-sort-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border, rgba(146, 165, 152, 0.28));
+  border-radius: 999px;
+  background: rgba(146, 165, 152, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-sort-chain-chip:hover {
+  background: rgba(146, 165, 152, 0.2);
+  border-color: var(--accent);
+}
+.market-sort-chain-chip .market-sort-caret { opacity: 1; color: var(--accent); }
+.market-sort-chain-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg, #0b1220);
+  background: var(--accent);
+}
+/* Teaches the modifier at the one moment it is actionable: one column sorted,
+   a second waiting to be added. Retires itself once used or dismissed. */
+.market-sort-teach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px 3px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.market-sort-teach b { font-weight: 700; }
+.market-sort-teach kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--border, rgba(146, 165, 152, 0.4));
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel, rgba(146, 165, 152, 0.14));
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+.market-sort-teach-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.market-sort-teach-close:hover { background: rgba(146, 165, 152, 0.22); color: var(--text); }
+
+.market-sort-chain-reset {
+  padding: 3px 8px;
+  border: 0;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.market-sort-chain-reset:hover { color: var(--text); }
+
+/* Drag-to-reorder headers */
+.market-table th.market-th-movable { cursor: grab; }
+.market-table th.market-th-movable:active { cursor: grabbing; }
+.market-th-grip {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: -3px;
+  opacity: 0;
+  color: var(--text-muted, #94a3b8);
+  transition: opacity 0.15s;
+  cursor: grab;
+}
+.market-table th.market-th-movable:hover .market-th-grip { opacity: 0.55; }
+.market-table th.market-th-sortable.dragging { opacity: 0.4; }
+.market-table th.market-th-sortable.drag-over {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: rgba(146, 165, 152, 0.22);
+}
+
+/* ── Per-column controls ──────────────────────────────────────────────────────
+   The chevron that opens a column's own toolbar (sort / move / freeze / hide).
+   Subdued until the header is approached — a mark on all thirteen headers at
+   full strength would compete with the labels — but always present on a coarse
+   pointer, where there is no hover to reveal it and no drag to replace it. */
+.market-th-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  margin-left: 1px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.market-table th.market-th-sortable:hover .market-th-menu-btn,
+.market-table th.market-th-sortable:focus-within .market-th-menu-btn,
+.market-th-menu-btn.is-open,
+.market-th-menu-btn:focus-visible { opacity: 1; }
+.market-th-menu-btn:hover,
+.market-th-menu-btn.is-open {
+  color: var(--accent);
+  background: rgba(146, 165, 152, 0.24);
+}
+@media (pointer: coarse) {
+  .market-th-menu-btn { opacity: 0.65; }
+}
+/* Which column the open toolbar is talking about. An outline rather than an
+   inset shadow: a frozen column already spends its box-shadow on the edge
+   separator, and the two must be able to show at once. */
+.market-table th.market-th-sortable.menu-open {
+  color: var(--text);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.market-colmenu {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  /* Eight thumb-sized buttons are wider than a small phone. Wrapping to a second
+     row keeps every one of them reachable instead of hanging off the screen. */
+  flex-wrap: wrap;
+  max-width: calc(100vw - 16px);
+  gap: 2px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-elevated, var(--panel));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32);
+}
+.market-colmenu-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--border);
+}
+.market-colmenu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+.market-colmenu-btn:hover:not(:disabled) { color: var(--text); background: rgba(146, 165, 152, 0.2); }
+.market-colmenu-btn:disabled { opacity: 0.28; cursor: default; }
+.market-colmenu-btn.is-active { color: var(--accent); background: rgba(63, 224, 143, 0.16); }
+.market-colmenu-btn.is-danger:hover:not(:disabled) { color: var(--danger, #ee6a60); background: rgba(239, 68, 68, 0.14); }
+@media (pointer: coarse) {
+  .market-colmenu-btn { width: 38px; height: 36px; }
+}
+
+/* ── Frozen columns ───────────────────────────────────────────────────────────
+   A pinned column, and with it the identity cells to its left, stop at the edge
+   of the wrap while the rest of the board slides underneath. Nothing here
+   applies until something is actually pinned: the offsets are inline, and a
+   column without one never gets the class. The background must be opaque —
+   `.market-table th` is translucent by design, and rows would read through. */
+.market-table-wrap > .market-table th.market-col-pinned,
+.market-table-wrap > .market-table td.market-col-pinned {
+  position: sticky;
+  z-index: 2;
+}
+.market-table-wrap > .market-table td.market-col-pinned { background: var(--panel); }
+.market-table-wrap > .market-table th.market-col-pinned {
+  z-index: 3;
+  background: var(--bg-2, var(--panel));
+}
+.market-table-wrap > .market-table th.market-col-pinned-edge,
+.market-table-wrap > .market-table td.market-col-pinned-edge {
+  box-shadow: 1px 0 0 var(--border), 10px 0 14px -10px rgba(0, 0, 0, 0.5);
+}
+/* The mirrored header bar scrolls in its own (overflow:hidden) box, so the same
+   inline offsets stick there too — the two headers have to agree. */
+.market-sticky-head .market-sticky-head__table th.market-col-pinned {
+  position: sticky;
+  z-index: 3;
+  background: var(--bg-2, var(--panel));
+}
+.market-sticky-head .market-sticky-head__table th.market-col-pinned-edge {
+  box-shadow: 1px 0 0 var(--border), 10px 0 14px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Floating horizontal scrollbar, clung to the bottom of the table's visible area.
+   A custom thumb (not the OS scrollbar) so it looks identical across browsers/OSes
+   and is always visible. Portaled to <body>, so position:fixed is relative to the
+   viewport (the table's ancestors have overflow:hidden + backdrop-filter, which
+   would otherwise clip/mis-anchor it). */
+.market-float-scroll {
+  position: fixed;
+  height: 14px;
+  z-index: 60;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+}
+.market-float-thumb {
+  position: absolute;
+  top: 3px;
+  height: 8px;
+  border-radius: 5px;
+  background: rgba(146, 165, 152, 0.55);
+  cursor: grab;
+  transition: background 0.15s;
+}
+.market-float-thumb:hover { background: rgba(146, 165, 152, 0.85); }
+body.market-float-dragging { user-select: none; cursor: grabbing; }
+body.market-float-dragging .market-float-thumb { background: var(--accent); cursor: grabbing; }
+body[data-theme="light"] .market-float-scroll {
+  box-shadow: 0 -2px 12px rgba(13, 22, 17, 0.12);
+}
+body[data-theme="light"] .market-float-thumb { background: rgba(100, 116, 139, 0.5); }
+body[data-theme="light"] .market-float-thumb:hover { background: rgba(100, 116, 139, 0.8); }
+
+/* Column headers pinned under the topbar while the rows scroll past (see
+   MarketStickyHead). A mirrored copy of the header row, not the real <thead>,
+   which cannot stick — its scrollport is .market-table-wrap, and that box never
+   scrolls vertically. Portaled to <body>, hence position:fixed; the geometry
+   (left/width/top) is set inline from the live table. Below the topbar (100) and
+   the mobile nav drawer (60/55) in the stack, above the board. */
+.market-sticky-head {
+  position: fixed;
+  z-index: 50;
+  overflow: hidden;
+  /* The th background is translucent — an opaque bar behind it keeps the rows
+     from showing through as they pass underneath. */
+  background: var(--panel);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+body[data-theme="light"] .market-sticky-head {
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(13, 22, 17, 0.12);
+}
+
+/* Both floating bars are portaled to <body>, while everything the drawer is
+   drawn inside sits under `.app-shell`, which caps its whole subtree at
+   z-index 1 — so no z-index the drawer gives itself can lift it over a
+   body-level bar. Hide them for as long as the drawer is open. */
+body:has(.topbar.is-nav-open) .market-sticky-head,
+body:has(.topbar.is-nav-open) .market-float-scroll {
+  display: none;
+}
+
+.market-sticky-head__scroller {
+  overflow: hidden;
+}
+
+/* Widths come from the <colgroup>, measured off the live table, so the mirrored
+   labels sit exactly over their columns. */
+.market-sticky-head__table {
+  table-layout: fixed;
+  min-width: 0;
+}
+
+.market-cols-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(146, 165, 152, 0.16);
+}
+.market-cols-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted, #94a3b8);
+}
+.market-cols-reset {
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid rgba(146, 165, 152, 0.28);
+  border-radius: 7px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-cols-reset:hover { background: rgba(146, 165, 152, 0.14); border-color: var(--accent); }
+
+.market-table td strong,
+.market-table td span {
+  display: block;
+}
+
+.market-table td span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.market-ticker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Don't stretch to the column width (set by the share-type label below), so
+     every badge is the same size whether the label is "обыкновенный" or the
+     longer "привилегированный". 88px fits every ≤5-char ticker uniformly. */
+  align-self: flex-start;
+  min-width: 88px;
+  padding: 7px 10px;
+  border: 1px solid rgba(63, 224, 143, 0.28);
+  border-radius: 8px;
+  background: rgba(63, 224, 143, 0.1);
+  color: var(--accent);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.market-ticker-btn:hover {
+  border-color: var(--accent);
+  background: rgba(63, 224, 143, 0.16);
+}
+
+.market-change-badge {
+  display: inline-flex;
+  justify-content: flex-end;
+  min-width: 120px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(146, 165, 152, 0.1);
+  font-weight: 700;
+}
+
+.market-change-badge.tone-good {
+  color: var(--success);
+  background: var(--success-light);
+}
+
+.market-change-badge.tone-danger {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.market-source-link {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.market-empty-cell {
+  padding: 34px 16px !important;
+  color: var(--muted);
+  text-align: center !important;
+}

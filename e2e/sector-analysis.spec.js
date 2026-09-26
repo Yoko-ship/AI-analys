@@ -19,6 +19,7 @@ const PUBLIC_REPORT = {
 const SEC = { ticker: "UZMK", name: "Узметкомбинат", type: "stock", isin: "QA-UZMK", last_price: 4000, sector: "manufacturing" };
 
 async function api(page, report = PUBLIC_REPORT, admin = false) {
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "local-qa-token"));
   await page.route("**/api/**", (route) => {
     const path = new URL(route.request().url()).pathname;
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -29,7 +30,7 @@ async function api(page, report = PUBLIC_REPORT, admin = false) {
     if (path === "/api/market/stocks") return json({ stocks: [SEC] });
     if (path === "/api/market/financials") return json({ ok: true, financials: {} });
     if (path === "/api/market/ratios") return json({ ok: true, ratios: {} });
-    if (path === "/api/auth/me") return admin ? json({ user: { id: 1, email: "qa@example.org", is_admin: true } }) : json({ user: null }, 401);
+    if (path === "/api/auth/me") return json({ user: { id: 1, email: "qa@example.org", is_admin: admin, pro_access: true } });
     if (path === "/api/notifications") return json({ count: 0, notifications: [] });
     if (path === "/api/admin/sector-analysis") return json({
       ok: true, role: "administrator", capabilities: ["read", "retry", "activate", "rollback"], counts: { available: 1 }, regression: { status: "passed", checks: [{ code: "P1", status: "passed" }] },
@@ -72,9 +73,12 @@ test("sector report opens from the company card and exposes sourced formulas", a
   await roa.getByText("Как рассчитано", { exact: true }).click();
   await expect(roa.getByText(/form2:c270/)).toBeVisible();
   await expect(dialog.getByText(/quick_ratio:/)).toHaveCount(0);
-  await expect(dialog.getByText("Два показателя для следующего отчёта", { exact: true })).toBeVisible();
+  for (const issue of PUBLIC_REPORT.analytical_issues || []) {
+    const card = dialog.locator(".verified-issues article").filter({ has: page.getByRole("heading", { name: issue.title, exact: true }) });
+    await expect(card.getByText(issue.next_trigger, { exact: true })).toBeVisible();
+  }
   await expect(dialog.getByText(/^Проверено:/)).toBeVisible();
-  await dialog.getByText("Два показателя для следующего отчёта", { exact: true }).scrollIntoViewIfNeeded();
+  await dialog.locator(".verified-checks").scrollIntoViewIfNeeded();
   await page.screenshot({ path: "audit/sector-v2.3/report-monitoring.png" });
   await dialog.getByText("Финансовый результат", { exact: true }).click();
   await expect(dialog.locator("table").first()).toContainText("315");

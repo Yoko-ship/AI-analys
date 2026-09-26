@@ -1,3 +1,4 @@
+import { snapPixel } from "../lib/geometry.js";
 import { useEffect, useRef, useState } from "react";
 import { rootZoom, zoomedViewport } from "../shared/viewport.jsx";
 import { BrandIcon } from "../shared/BrandIcon.jsx";
@@ -47,7 +48,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     let raf = 0;
     const apply = () => {
       raf = 0;
-      const h = Math.round(bar.getBoundingClientRect().height);
+      const h = snapPixel(bar.getBoundingClientRect().height);
       if (h > 0) document.documentElement.style.setProperty("--topbar-h", `${h}px`);
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };

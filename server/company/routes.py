@@ -19,12 +19,20 @@ import company_imports
 import corporate_actions
 import public_contract
 import reports_catalog as catalog_store
+import catalogue.filings as catalogue_filings
+import catalogue.ratios as catalogue_ratios
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.market_store as catalogue_market_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
 import securities_catalog as securities_store
 import server.auth.access as auth_access
 import server.http as http
 import server.market.history as market_history
 import soliq_company
 import web_auth as identity
+import identity.users as identity_users
 
 
 router = APIRouter()
@@ -44,16 +52,16 @@ async def api_securities() -> dict[str, Any]:
 
 @router.get("/api/company/{ticker}/forecast")
 async def api_company_forecast(ticker: str, form: str = "NSBU",
-                               _: identity.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
+                               _: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
     """Three transparent business scenarios and a comparable-multiple range."""
     ticker, form = ticker.strip().upper(), str(form or "NSBU").strip().upper()
     if form not in {"NSBU", "MSFO"}:
         raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
     loop = asyncio.get_running_loop()
     annual, all_fin, listings = await asyncio.gather(
-        loop.run_in_executor(None, partial(catalog_store.get_financials_series, ticker, form)),
-        loop.run_in_executor(None, partial(catalog_store.get_all_financials, form)),
-        loop.run_in_executor(None, catalog_store.get_all_listings),
+        loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, form)),
+        loop.run_in_executor(None, partial(catalogue_snapshots.get_all_financials, form)),
+        loop.run_in_executor(None, catalogue_market_store.get_all_listings),
     )
     listing = listings.get(ticker) or {}
     target_sector = COMPANY_SECTORS.get(ticker)
@@ -64,7 +72,7 @@ async def api_company_forecast(ticker: str, form: str = "NSBU",
         peer_listing = listings.get(peer_ticker) or {}
         price, shares, income = peer_listing.get("last_price"), peer_listing.get("shares_outstanding"), fin.get("net_income")
         try:
-            pe = float(price) * float(shares) / (float(income) * catalog_store.NSBU_THOUSANDS_UZS)
+            pe = float(price) * float(shares) / (float(income) * catalogue_fields.NSBU_THOUSANDS_UZS)
         except (TypeError, ValueError, ZeroDivisionError):
             continue
         if 0 < pe <= 80:
@@ -83,15 +91,15 @@ async def api_company_forecast(ticker: str, form: str = "NSBU",
 
 @router.get("/api/company/{ticker}/forecast/backtest")
 async def api_company_forecast_backtest(ticker: str, form: str = "NSBU",
-                                        _: identity.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
+                                        _: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
     form = str(form or "NSBU").strip().upper()
     if form not in {"NSBU", "MSFO"}:
         raise HTTPException(status_code=422, detail="form must be NSBU or MSFO")
     ticker = ticker.strip().upper()
     loop = asyncio.get_running_loop()
     annual, reports = await asyncio.gather(
-        loop.run_in_executor(None, partial(catalog_store.get_financials_series, ticker, form)),
-        loop.run_in_executor(None, partial(catalog_store.get_company_reports, ticker)),
+        loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, form)),
+        loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker)),
     )
     published_by_year = {
         str(row.get("year")): row.get("published_at")
@@ -107,7 +115,7 @@ async def api_company_forecast_backtest(ticker: str, form: str = "NSBU",
 
 @router.get("/api/company/{ticker}/technical-backtest")
 async def api_company_technical_backtest(
-    ticker: str, _: identity.WebUser = Depends(auth_access._require_pro),
+    ticker: str, _: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     """Run the disclosed technical rule against stored confirmed sessions only."""
     ticker = ticker.strip().upper()
@@ -116,7 +124,7 @@ async def api_company_technical_backtest(
         raise HTTPException(status_code=404, detail="ISIN not found")
     isin = str(isin).upper()
     history = await asyncio.get_running_loop().run_in_executor(
-        None, partial(catalog_store.get_quote_history, [isin], 3650))
+        None, partial(catalogue_market_store.get_quote_history, [isin], 3650))
     result = await asyncio.get_running_loop().run_in_executor(
         None, partial(run_sma20_backtest, history.get(isin, [])))
     return http._json_safe({"ok": True, "ticker": ticker, "isin": isin,
@@ -146,7 +154,7 @@ async def api_quotes_series(request: Request, tickers: str = "", days: int = 30)
         smap = await loop.run_in_executor(None, securities_store.get_securities_map)
         isin_of = {t: (smap.get(t) or {}).get("isin") for t in wanted}
         codes = [i for i in isin_of.values() if i]
-        history = await loop.run_in_executor(None, partial(catalog_store.get_quote_history, codes, days))
+        history = await loop.run_in_executor(None, partial(catalogue_market_store.get_quote_history, codes, days))
         series = {}
         for ticker, isin in isin_of.items():
             rows = history.get(str(isin or "").upper()) or []
@@ -230,7 +238,7 @@ async def api_securities_info(ticker: str, language: str = "ru") -> dict[str, An
         smap, approved, listings = await asyncio.gather(
             loop.run_in_executor(None, securities_store.get_securities_map),
             loop.run_in_executor(None, company_imports.approved_metadata_map),
-            loop.run_in_executor(None, catalog_store.get_all_listings),
+            loop.run_in_executor(None, catalogue_market_store.get_all_listings),
         )
         sec = dict(smap[ticker]) if smap.get(ticker) else None
         listing = (listings or {}).get(ticker) or {}
@@ -288,7 +296,7 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
     """Return all catalog reports and cached ratios for a ticker."""
     ticker = ticker.upper()
     loop = asyncio.get_running_loop()
-    reports = await loop.run_in_executor(None, partial(catalog_store.get_company_reports, ticker))
+    reports = await loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker))
     import data_quality
     held_by_form = {
         form: await loop.run_in_executor(None, partial(data_quality.held_public_periods, ticker, form))
@@ -297,7 +305,7 @@ async def api_company_reports(ticker: str) -> dict[str, Any]:
     reports = [report for report in reports if (
         f"{report.get('year')}Q{report.get('quarter')}" if report.get("quarter") else str(report.get("year"))
     ) not in held_by_form.get(str(report.get("report_form") or "NSBU").upper(), set())]
-    ratios = await loop.run_in_executor(None, partial(catalog_store.get_company_ratios_cached, ticker))
+    ratios = await loop.run_in_executor(None, partial(catalogue_ratios.get_company_ratios_cached, ticker))
     reports = public_contract.catalog_report_contract(reports)
     return http._json_safe({"ok": True, "ticker": ticker,
                        "contract_version": public_contract.CONTRACT_VERSION,

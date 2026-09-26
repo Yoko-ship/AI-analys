@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
 import securities_catalog as subject_securities_catalog
 import server.lifecycle as subject_server_lifecycle
 import server.market.board as subject_server_market_board
@@ -87,10 +90,10 @@ def test_market_inputs_reuse_the_coalesced_boards(monkeypatch) -> None:
 
     monkeypatch.setattr(subject_server_market_board, '_cached_market_board', cached)
     monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_financials', lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_ratios', lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: {})
+    monkeypatch.setattr(catalogue_snapshots, 'get_all_financials', lambda: {})
+    monkeypatch.setattr(catalogue_ratios, 'get_all_ratios', lambda: {})
+    monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {})
+    monkeypatch.setattr(catalogue_market_store, 'get_all_trade_stats', lambda: {})
 
     result = asyncio.run(subject_server_market_valuations._market_inputs())
 

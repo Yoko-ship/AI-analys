@@ -20,6 +20,9 @@ import server.auth.limits as auth_limits
 import server.auth.oauth as auth_oauth
 import server.http as http
 import web_auth as identity
+import identity.settings as identity_settings
+import identity.users as identity_users
+import identity.users as identity_users
 
 
 router = APIRouter()
@@ -39,7 +42,7 @@ class LoginRequest(BaseModel):
     language: str = Field("ru", max_length=8)
 
 
-def _auth_payload(user: identity.WebUser, token: str) -> dict[str, Any]:
+def _auth_payload(user: identity_users.WebUser, token: str) -> dict[str, Any]:
     return {
         "ok": True,
         "user": user.to_public_dict(),
@@ -76,8 +79,8 @@ async def api_register(payload: RegisterRequest, request: Request) -> dict[str, 
         # sent; the session is issued only by /api/auth/email/verify.
         try:
             code = await loop.run_in_executor(None, partial(
-                identity.web_auth_store.start_registration, payload.email, payload.password, payload.full_name))
-        except identity.EmailCodeThrottled as exc:
+                identity.web_auth_store.accounts.start_registration, payload.email, payload.password, payload.full_name))
+        except identity_users.EmailCodeThrottled as exc:
             return _verification_pending(payload.email, exc.retry_after)
         except ValueError as exc:
             message = str(exc)
@@ -85,14 +88,14 @@ async def api_register(payload: RegisterRequest, request: Request) -> dict[str, 
             raise HTTPException(status_code=status, detail=message) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        await _send_code(identity._normalize_email(payload.email), "verify", code, payload.language)
+        await _send_code(identity_users._normalize_email(payload.email), "verify", code, payload.language)
         return _verification_pending(payload.email)
 
     try:
         # Executor-wrapped: PBKDF2 (~100ms CPU) + a sync Postgres roundtrip
         # would otherwise run on the event loop.
         user, token = await loop.run_in_executor(None, partial(
-            identity.web_auth_store.register_user,
+            identity.web_auth_store.accounts.register_user,
             payload.email,
             payload.password,
             payload.full_name,
@@ -116,7 +119,7 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
     try:
         user, token = await loop.run_in_executor(
             None, partial(
-                identity.web_auth_store.login_user,
+                identity.web_auth_store.accounts.login_user,
                 payload.email,
                 payload.password,
                 payload.otp,
@@ -124,12 +127,12 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
                 auth_limits._client_ip(request),
                 require_verified_email=email_delivery.verification_enabled(),
             ))
-    except identity.AccountLocked as exc:
+    except identity_users.AccountLocked as exc:
         if exc.newly_locked and email_delivery.verification_enabled():
             try:
                 await loop.run_in_executor(None, partial(
                     email_delivery.send_notice, exc.email, "login_locked", exc.language,
-                    limit=identity.LOGIN_FAILURE_LIMIT, minutes=identity.LOGIN_LOCK_MINUTES))
+                    limit=identity_settings.LOGIN_FAILURE_LIMIT, minutes=identity_settings.LOGIN_LOCK_MINUTES))
             except Exception:  # noqa: BLE001 - the refusal must not depend on mail
                 http.logger.exception("login lock notice could not be sent")
         minutes = max(1, -(-exc.retry_after // 60))
@@ -138,13 +141,13 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
             detail=f"Too many failed sign-in attempts. Try again in {minutes} min or reset your password.",
             headers={"Retry-After": str(exc.retry_after)},
         ) from exc
-    except identity.EmailNotVerified as exc:
+    except identity_users.EmailNotVerified as exc:
         # The password was right, so this is the owner (or someone who knows
         # it): send a code to the inbox rather than refusing outright.
         try:
             code = await loop.run_in_executor(None, partial(
-                identity.web_auth_store.issue_email_code, exc.email, "verify"))
-        except identity.EmailCodeThrottled as throttled:
+                identity.web_auth_store.accounts.issue_email_code, exc.email, "verify"))
+        except identity_users.EmailCodeThrottled as throttled:
             return _verification_pending(exc.email, throttled.retry_after)
         if code:
             await _send_code(exc.email, "verify", code, payload.language)
@@ -158,7 +161,7 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
 
 
 @router.get("/api/auth/me")
-async def api_me(current_user: identity.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
+async def api_me(current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
     return {"ok": True, "user": current_user.to_public_dict()}
 
 
@@ -167,7 +170,7 @@ async def api_logout(authorization: str | None = Header(default=None)) -> dict[s
     try:
         token = auth_access._extract_bearer_token(authorization)
         revoked = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.revoke_token, token))
+            None, partial(identity.web_auth_store.sessions.revoke_token, token))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -212,7 +215,7 @@ async def api_oauth_google_callback(
         loop = asyncio.get_running_loop()
         profile = await loop.run_in_executor(None, partial(auth_oauth._exchange_google_code, code, request))
         user, token = await loop.run_in_executor(None, partial(
-            identity.web_auth_store.oauth_login,
+            identity.web_auth_store.oauth.oauth_login,
             "google",
             profile["provider_user_id"],
             profile.get("email"),
@@ -269,7 +272,7 @@ async def _send_code(email: str, purpose: str, code: str, language: str | None) 
 def _verification_pending(email: str, retry_after: int | None = None) -> dict[str, Any]:
     """Credentials accepted, no session yet: the client shows the code screen."""
     body: dict[str, Any] = {"ok": True, "verification_required": True,
-                            "email": identity._normalize_email(email)}
+                            "email": identity_users._normalize_email(email)}
     if retry_after:
         body["retry_after"] = retry_after
     return body
@@ -291,7 +294,7 @@ async def api_email_verify(payload: EmailVerifyRequest, request: Request) -> dic
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
-            identity.web_auth_store.verify_email_code,
+            identity.web_auth_store.accounts.verify_email_code,
             payload.email,
             payload.code,
             password=payload.password,
@@ -315,11 +318,11 @@ async def api_email_resend(payload: EmailAddressRequest, request: Request) -> di
     auth_limits._enforce_auth_rate_limit(request, "email-resend")
     if not email_delivery.verification_enabled():
         return {"ok": True}
-    email = identity._normalize_email(payload.email)
+    email = identity_users._normalize_email(payload.email)
     try:
         code = await asyncio.get_running_loop().run_in_executor(None, partial(
-            identity.web_auth_store.issue_email_code, email, "verify"))
-    except identity.EmailCodeThrottled:
+            identity.web_auth_store.accounts.issue_email_code, email, "verify"))
+    except identity_users.EmailCodeThrottled:
         return {"ok": True}
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -334,11 +337,11 @@ async def api_password_forgot(payload: EmailAddressRequest, request: Request) ->
     auth_limits._enforce_auth_rate_limit(request, "password-forgot")
     if not email_delivery.verification_enabled():
         raise HTTPException(status_code=503, detail="Password reset by email is not available")
-    email = identity._normalize_email(payload.email)
+    email = identity_users._normalize_email(payload.email)
     try:
         code = await asyncio.get_running_loop().run_in_executor(None, partial(
-            identity.web_auth_store.issue_email_code, email, "reset"))
-    except identity.EmailCodeThrottled:
+            identity.web_auth_store.accounts.issue_email_code, email, "reset"))
+    except identity_users.EmailCodeThrottled:
         return {"ok": True}
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -356,7 +359,7 @@ async def api_password_reset(payload: PasswordResetRequest, request: Request) ->
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     try:
         user, token = await asyncio.get_running_loop().run_in_executor(None, partial(
-            identity.web_auth_store.reset_password_with_code,
+            identity.web_auth_store.accounts.reset_password_with_code,
             payload.email,
             payload.code,
             payload.new_password,

@@ -1,0 +1,374 @@
+/* ── Company info panel (slide-in drawer) ─────────────────────── */
+.company-panel-overlay {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  isolation: isolate;
+}
+
+.company-info-panel {
+  position: relative;
+  width: min(420px, 96vw);
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: var(--bg-2);
+  border-left: 1px solid var(--border);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: -20px 0 52px rgba(0, 0, 0, 0.24);
+  animation: panel-slide-in 0.22s ease;
+}
+
+@keyframes panel-slide-in {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.company-panel-close {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+  border: 1px solid transparent;
+  font-size: 1.5rem;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  border-radius: 12px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.company-panel-close:hover {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.company-panel-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.company-panel-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding-right: 32px;
+}
+
+.company-panel-header .chip-logo,
+.company-panel-header .chip-logo-fallback {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.company-panel-title h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.company-panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.company-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.company-panel-wiki {
+  font-size: 0.93rem;
+  line-height: 1.65;
+  color: var(--text);
+  margin: 0;
+}
+
+.company-panel-wiki.muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.company-panel-wiki-link {
+  font-size: 0.87rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.company-panel-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.company-panel-price-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.company-panel-price-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Market view toggle ──────────────────────────────────────── */
+.market-board-head {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.market-board-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.market-view-toggle {
+  display: flex;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+  background: rgba(146, 165, 152, 0.06);
+}
+
+.market-view-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.market-view-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+body[data-theme="dark"] .market-view-toggle button.active {
+  color: #071410;
+}
+
+.market-view-toggle button:hover:not(.active) {
+  background: rgba(146, 165, 152, 0.15);
+  color: var(--text);
+}
+
+/* ── Heatmap ─────────────────────────────────────────────────── */
+.heatmap-wrap {
+  padding: 18px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* At-a-glance context: market pulse, breadth and the colour/area key. */
+.heatmap-overview {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.72fr) minmax(300px, 1.4fr) minmax(230px, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 4px 2px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.heatmap-overview-kicker,
+.heatmap-legend-head > span {
+  display: block;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.heatmap-pulse-main {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 4px;
+}
+
+.heatmap-pulse-main strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(22px, 2vw, 29px);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-pulse-main span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.heatmap-breadth {
+  min-width: 0;
+}
+
+.heatmap-breadth-track {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  gap: 2px;
+  padding: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.heatmap-breadth-track span {
+  display: block;
+  min-width: 0;
+  border-radius: 999px;
+}
+
+.heatmap-breadth-track .is-up { background: #28b58d; }
+.heatmap-breadth-track .is-flat { background: #667085; }
+.heatmap-breadth-track .is-down { background: #e05d65; }
+.heatmap-breadth-track .is-missing { background: rgba(138, 148, 166, 0.32); }
+
+.heatmap-breadth-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.heatmap-breadth-values > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.heatmap-breadth-values i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.heatmap-breadth-values b {
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 700;
+}
+
+.heatmap-breadth-values .is-up { color: #28b58d; }
+.heatmap-breadth-values .is-down { color: #e05d65; }
+.heatmap-breadth-values .is-flat { color: #8a94a6; }
+.heatmap-breadth-values .is-missing { color: var(--muted); }
+
+.heatmap-legend {
+  min-width: 0;
+}
+
+.heatmap-legend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.heatmap-legend-head small {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.heatmap-area-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.heatmap-area-note small {
+  margin-right: 1px;
+}
+
+.heatmap-area-note b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 27px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font: 750 10px/1 var(--mono);
+}
+
+.heatmap-area-note > span {
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.heatmap-legend-gradient {
+  height: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    hsl(7 72% 39%) 0%,
+    hsl(350 54% 26%) 34%,
+    #343a42 50%,
+    hsl(171 54% 25%) 66%,
+    hsl(158 68% 39%) 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.26);
+}
+
+.heatmap-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}

@@ -12,6 +12,8 @@ three languages of prose for 200 items.
 """
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import json
 from pathlib import Path
 
@@ -19,6 +21,12 @@ import pytest
 
 import news_classifier
 import news_collector as nc
+import collectors.news.articles as collectors_news_articles
+import collectors.news.enrichment as collectors_news_enrichment
+import collectors.news.articles as collectors_news_articles
+import collectors.news.backfill as collectors_news_backfill
+import collectors.news.delivery as collectors_news_delivery
+import collectors.news.enrichment as collectors_news_enrichment
 import news_store
 
 
@@ -84,7 +92,7 @@ def served(monkeypatch):
 class TestExtraction:
     def test_it_takes_the_article_and_leaves_the_furniture(self, served):
         served(_ARTICLE)
-        text = nc._article_text(nc.requests.Session(), "https://uza.uz/en/posts/x")
+        text = collectors_news_articles._article_text(nc.requests.Session(), "https://uza.uz/en/posts/x")
 
         assert "Minister of Agriculture" in text
         assert "agricultural mechanization" in text
@@ -98,11 +106,11 @@ class TestExtraction:
 
     def test_a_short_stub_yields_nothing_rather_than_a_headline(self, served):
         served("<html><body><article><p>Sign in to continue.</p></article></body></html>")
-        assert nc._article_text(nc.requests.Session(), "https://x.uz/a") == ""
+        assert collectors_news_articles._article_text(nc.requests.Session(), "https://x.uz/a") == ""
 
     def test_a_non_200_is_not_an_article(self, served):
         served(_ARTICLE, status=403)
-        assert nc._article_text(nc.requests.Session(), "https://x.uz/a") == ""
+        assert collectors_news_articles._article_text(nc.requests.Session(), "https://x.uz/a") == ""
 
     def test_fitch_reads_public_api_paragraphs(self, monkeypatch):
         calls = []
@@ -114,12 +122,12 @@ class TestExtraction:
         monkeypatch.setattr(nc.requests.Session, "post", _post)
         monkeypatch.setattr(nc.requests.Session, "get",
                             lambda *a, **k: pytest.fail("do not fetch Fitch's empty HTML shell"))
-        text = nc._article_text(
+        text = collectors_news_articles._article_text(
             nc.requests.Session(),
             "https://www.fitchratings.com/research/banks/ipak-yuli-15-09-2026",
         )
 
-        assert calls[0][0] == nc._FITCH_API_URL
+        assert calls[0][0] == collectors_news_articles._FITCH_API_URL
         assert calls[0][1]["json"]["variables"]["slug"] == "banks/ipak-yuli-15-09-2026"
         assert "Impaired loans decreased to 2.9%" in text
         assert "Factors that Could Lead to a Downgrade\n" in text
@@ -129,7 +137,7 @@ class TestExtraction:
         monkeypatch.setattr(nc.requests.Session, "post", lambda *a, **k: _Resp(
             payload={"data": {"getResearchItem": {"abstract": abstract, "paragraphs": []}}}
         ))
-        assert nc._article_text(
+        assert collectors_news_articles._article_text(
             nc.requests.Session(),
             "https://www.fitchratings.com/research/banks/ipak-yuli-ratings-navigator",
         ) == abstract
@@ -139,7 +147,7 @@ class TestWhatIsNeverAsked:
     def test_a_source_with_no_article_page_is_never_fetched(self, monkeypatch):
         """The rating agencies ship a headline and an SPA shell; openinfo has no page at all."""
         called = []
-        monkeypatch.setattr(nc, "_article_text",
+        monkeypatch.setattr(collectors_news_articles, "_article_text",
                             lambda *a, **k: called.append(a[1]) or "")
         registry = {
             "fitch": {"id": "fitch", "content": "none", "article_body": False},
@@ -150,7 +158,7 @@ class TestWhatIsNeverAsked:
                  {"url": "https://openinfo.uz/b?fact=1", "source_id": "openinfo_facts"},
                  {"url": "https://uza.uz/c", "source_id": "uza"}]
 
-        nc.enrich_details(items, registry)
+        collectors_news_enrichment.enrich_details(items, registry)
 
         assert called == ["https://uza.uz/c"]
 
@@ -158,10 +166,10 @@ class TestWhatIsNeverAsked:
         """`content` describes the LISTING, `article_body` the page — conflating them wrote
         off every napp.uz item, whose articles run to 1400 characters of prose."""
         called = []
-        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: called.append(a[1]) or "x" * 400)
-        monkeypatch.setattr(nc, "write_detail", lambda *a, **k: {"ru": "p", "en": "p", "uz": "p"})
+        monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: called.append(a[1]) or "x" * 400)
+        monkeypatch.setattr(collectors_news_enrichment, "write_detail", lambda *a, **k: {"ru": "p", "en": "p", "uz": "p"})
 
-        nc.enrich_details([{"url": "https://napp.uz/ru/n/1", "source_id": "napp"}],
+        collectors_news_enrichment.enrich_details([{"url": "https://napp.uz/ru/n/1", "source_id": "napp"}],
                           {"napp": {"id": "napp", "content": "none"}})
 
         assert called == ["https://napp.uz/ru/n/1"]
@@ -175,22 +183,22 @@ class TestWhatIsNeverAsked:
 
     def test_an_unreadable_page_is_never_sent_as_an_article(self, monkeypatch):
         """No body means no article call — the fallback below is a different prompt."""
-        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "")
-        monkeypatch.setattr(nc, "write_detail",
+        monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "")
+        monkeypatch.setattr(collectors_news_enrichment, "write_detail",
                             lambda *a, **k: pytest.fail("model called on an empty article"))
-        monkeypatch.setattr(nc, "write_brief_detail", lambda *a, **k: {"ru": "", "en": "", "uz": ""})
+        monkeypatch.setattr(collectors_news_enrichment, "write_brief_detail", lambda *a, **k: {"ru": "", "en": "", "uz": ""})
 
-        assert nc.enrich_details([{"url": "https://uza.uz/c", "source_id": "uza"}],
+        assert collectors_news_enrichment.enrich_details([{"url": "https://uza.uz/c", "source_id": "uza"}],
                                  {"uza": {"id": "uza"}}) == {}
 
     def test_the_per_run_cap_is_honoured(self, monkeypatch):
         seen = []
-        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "x" * 400)
-        monkeypatch.setattr(nc, "write_detail",
+        monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "x" * 400)
+        monkeypatch.setattr(collectors_news_enrichment, "write_detail",
                             lambda it, text, **k: seen.append(it["url"]) or {"ru": "p", "en": "p", "uz": "p"})
         items = [{"url": f"https://uza.uz/{i}", "source_id": "uza"} for i in range(10)]
 
-        out = nc.enrich_details(items, {"uza": {"id": "uza"}}, max_fetch=3)
+        out = collectors_news_enrichment.enrich_details(items, {"uza": {"id": "uza"}}, max_fetch=3)
 
         assert len(seen) == 3 and len(out) == 3
 
@@ -269,25 +277,25 @@ class TestEveryItemCanHaveABody:
     """
     def test_a_filing_is_written_from_its_own_figures(self, monkeypatch):
         seen = []
-        monkeypatch.setattr(nc, "_article_text",
+        monkeypatch.setattr(collectors_news_articles, "_article_text",
                             lambda *a, **k: pytest.fail("an openinfo filing has no page"))
-        monkeypatch.setattr(nc, "write_brief_detail",
+        monkeypatch.setattr(collectors_news_enrichment, "write_brief_detail",
                             lambda it, **k: seen.append(it["url"]) or {"ru": "p", "en": "p", "uz": "p"})
         items = [{"url": "https://openinfo.uz/b?fact=1", "source_id": "openinfo_facts",
                   "snippet": "Начислены доходы: 612,1253 сум на облигацию."}]
 
-        out = nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}})
+        out = collectors_news_enrichment.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}})
 
         assert seen == ["https://openinfo.uz/b?fact=1"]
         assert out["https://openinfo.uz/b?fact=1"]["ru"] == "p"
 
     def test_a_page_that_would_not_read_falls_back_instead_of_giving_up(self, monkeypatch):
         """Otherwise the item is retried every run and stays bare every run."""
-        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "")
-        monkeypatch.setattr(nc, "write_brief_detail",
+        monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "")
+        monkeypatch.setattr(collectors_news_enrichment, "write_brief_detail",
                             lambda it, **k: {"ru": "p", "en": "p", "uz": "p"})
 
-        out = nc.enrich_details([{"url": "https://timesca.com/x", "source_id": "timesca",
+        out = collectors_news_enrichment.enrich_details([{"url": "https://timesca.com/x", "source_id": "timesca",
                                   "summary_ru": "x" * 300}], {"timesca": {"id": "timesca"}})
 
         assert out["https://timesca.com/x"]["ru"] == "p"
@@ -343,10 +351,10 @@ class TestTheBacklogDrains:
     every one of them from the last two days.
     """
     def test_the_cap_clears_a_normal_day(self):
-        assert nc._DETAIL_CAP >= 30
+        assert collectors_news_enrichment._DETAIL_CAP >= 30
 
     def test_part_of_every_run_is_reserved_for_the_oldest(self):
-        assert 0 < nc._DETAIL_TAIL_SHARE < 1
+        assert 0 < collectors_news_enrichment._DETAIL_TAIL_SHARE < 1
 
     def test_the_work_list_can_be_read_from_the_old_end(self, monkeypatch):
         seen = {}
@@ -362,7 +370,7 @@ class TestTheBacklogDrains:
             def close(self):
                 return None
 
-        monkeypatch.setattr(news_store.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
 
         news_store.rows_without_detail(oldest_first=True)
         assert "ASC LIMIT" in seen["sql"]
@@ -384,30 +392,30 @@ class TestTheBacklogDrains:
             def close(self):
                 return None
 
-        monkeypatch.setattr(news_store.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(news_store.catalogue_storage, "get_catalog_conn", lambda: _Conn())
         news_store.rows_without_detail(source_ids=["fitch"], include_existing=True)
         assert "COALESCE(n.detail_ru" not in seen["sql"]
         assert "fitch" in seen["params"]
 
     def test_refresh_requires_an_explicit_source(self):
         with pytest.raises(ValueError, match="source_id"):
-            nc.backfill_details(limit=1, push=False, replace=True)
+            collectors_news_backfill.backfill_details(limit=1, push=False, replace=True)
 
     def test_one_budget_covers_both_routes(self, monkeypatch):
         """A cap of N must not mean N fetched articles PLUS N written filings."""
         calls = {"brief": 0, "article": 0}
-        monkeypatch.setattr(nc, "_article_text", lambda *a, **k: "x" * 400)
-        monkeypatch.setattr(nc, "write_brief_detail",
+        monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "x" * 400)
+        monkeypatch.setattr(collectors_news_enrichment, "write_brief_detail",
                             lambda it, **k: calls.__setitem__("brief", calls["brief"] + 1)
                             or {"ru": "p", "en": "p", "uz": "p"})
-        monkeypatch.setattr(nc, "write_detail",
+        monkeypatch.setattr(collectors_news_enrichment, "write_detail",
                             lambda it, text, **k: calls.__setitem__("article", calls["article"] + 1)
                             or {"ru": "p", "en": "p", "uz": "p"})
         items = ([{"url": f"https://openinfo.uz/{i}", "source_id": "openinfo_facts",
                    "snippet": "s" * 300} for i in range(10)]
                  + [{"url": f"https://uza.uz/{i}", "source_id": "uza"} for i in range(10)])
 
-        nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}, "uza": {"id": "uza"}},
+        collectors_news_enrichment.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}, "uza": {"id": "uza"}},
                           max_fetch=6)
 
         assert calls["brief"] + calls["article"] == 6
@@ -415,12 +423,12 @@ class TestTheBacklogDrains:
 
     def test_an_unused_half_is_left_to_the_other_route(self, monkeypatch):
         calls = {"brief": 0}
-        monkeypatch.setattr(nc, "write_brief_detail",
+        monkeypatch.setattr(collectors_news_enrichment, "write_brief_detail",
                             lambda it, **k: calls.__setitem__("brief", calls["brief"] + 1)
                             or {"ru": "p", "en": "p", "uz": "p"})
         items = [{"url": f"https://openinfo.uz/{i}", "source_id": "openinfo_facts",
                   "snippet": "s" * 300} for i in range(10)]
 
-        nc.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}}, max_fetch=6)
+        collectors_news_enrichment.enrich_details(items, {"openinfo_facts": {"type": "openinfo"}}, max_fetch=6)
 
         assert calls["brief"] == 6

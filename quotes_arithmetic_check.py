@@ -32,7 +32,7 @@ import time
 
 import requests
 
-from openinfo_collector import fetch_price_history
+from collectors.openinfo.market import fetch_price_history
 from uzse_quotes import fetch_quote
 
 APP = os.environ.get("APP_URL", "https://uzstock.uz").rstrip("/")

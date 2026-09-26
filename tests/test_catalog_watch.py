@@ -15,6 +15,9 @@ opinions, whose endpoint has no per-issuer filter.
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.filings as catalogue_filings
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync
 import server.catalog.jobs as subject_server_catalog_jobs
 
 import sys
@@ -26,7 +29,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import api  # noqa: E402
-import reports_catalog as rc  # noqa: E402
+import reports_catalog as rc
+import catalogue.filings as catalogue_filings
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync  # noqa: E402
 
 
 COMPANIES = [
@@ -49,8 +55,8 @@ def catalog(tmp_path, monkeypatch):
     """A catalog whose entries were all synced a week ago."""
     stale = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     db = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(db))
-    conn = rc.get_catalog_conn()
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(db))
+    conn = catalogue_storage.get_catalog_conn()
     with conn:
         for ticker, name, org in COMPANIES:
             conn.execute(
@@ -69,7 +75,7 @@ def synced(monkeypatch):
         calls.append({"ticker": ticker, "name": company_name, "force": force, "org_id": org_id})
         return {"ticker": ticker, "added": 1}
 
-    monkeypatch.setattr(rc, "sync_company", _sync)
+    monkeypatch.setattr(catalogue_sync, "sync_company", _sync)
     return calls
 
 
@@ -82,7 +88,7 @@ class TestOnlyWhoFiled:
     def test_an_issuer_that_filed_is_re_synced(self, catalog, synced, monkeypatch) -> None:
         feed(monkeypatch, [filing(8)])
 
-        result = rc.sync_recent_filings(hours=12)
+        result = catalogue_sync.sync_recent_filings(hours=12)
 
         assert [c["ticker"] for c in synced] == ["HMKB"]
         assert synced[0]["org_id"] == "8"
@@ -93,7 +99,7 @@ class TestOnlyWhoFiled:
         makes running this every hour affordable at all."""
         feed(monkeypatch, [])
 
-        result = rc.sync_recent_filings(hours=12)
+        result = catalogue_sync.sync_recent_filings(hours=12)
 
         assert synced == []
         assert result["synced"] == 0
@@ -102,7 +108,7 @@ class TestOnlyWhoFiled:
         """AGAT CREDIT holds four bond tickers and files once."""
         feed(monkeypatch, [filing(1058), filing(1058, form="MSFO")])
 
-        rc.sync_recent_filings(hours=12)
+        catalogue_sync.sync_recent_filings(hours=12)
 
         assert [c["ticker"] for c in synced] == ["ACMT1B2"]
 
@@ -111,7 +117,7 @@ class TestOnlyWhoFiled:
         so the filing lands where the page reads it."""
         feed(monkeypatch, [filing(8)])
 
-        rc.sync_recent_filings(hours=12)
+        catalogue_sync.sync_recent_filings(hours=12)
 
         assert synced[0]["ticker"] == "HMKB"
 
@@ -120,7 +126,7 @@ class TestOnlyWhoFiled:
         of which we track 50. An org with no catalog row has no ticker to sync."""
         feed(monkeypatch, [filing(99999), filing(8)])
 
-        result = rc.sync_recent_filings(hours=12)
+        result = catalogue_sync.sync_recent_filings(hours=12)
 
         assert [c["ticker"] for c in synced] == ["HMKB"]
         assert result["orgs"] == 2
@@ -131,10 +137,10 @@ class TestOnlyWhoFiled:
                 raise RuntimeError("openinfo timed out")
             return {"ticker": ticker, "added": 1}
 
-        monkeypatch.setattr(rc, "sync_company", _sync)
+        monkeypatch.setattr(catalogue_sync, "sync_company", _sync)
         feed(monkeypatch, [filing(8), filing(1058)])
 
-        result = rc.sync_recent_filings(hours=12)
+        result = catalogue_sync.sync_recent_filings(hours=12)
 
         assert result["synced"] == 1
         assert result["errors"][0]["ticker"] == "HMKB"
@@ -146,7 +152,7 @@ class TestWhoeverHasWaitedLongest:
     way back, or it waits for the next full sweep and possibly past it."""
 
     def test_the_stalest_issuers_are_refreshed(self, catalog, synced) -> None:
-        result = rc.sync_stale_companies(limit=2, older_than_hours=24)
+        result = catalogue_sync.sync_stale_companies(limit=2, older_than_hours=24)
 
         assert len(synced) == 2
         assert result["synced"] == 2
@@ -154,19 +160,19 @@ class TestWhoeverHasWaitedLongest:
     def test_one_issuer_not_one_ticker(self, catalog, synced) -> None:
         """Three issuers behind five tickers — HMKB/HMKBP and ACMT1B2/ACMT2B5
         are one company each, and syncing both halves would be the same fetch."""
-        rc.sync_stale_companies(limit=10, older_than_hours=24)
+        catalogue_sync.sync_stale_companies(limit=10, older_than_hours=24)
 
         assert sorted(c["ticker"] for c in synced) == ["ACMT1B2", "HMKB", "KVTS"]
 
     def test_the_batch_is_bounded(self, catalog, synced) -> None:
         """A pass that runs for minutes is a pass a deploy can interrupt."""
-        result = rc.sync_stale_companies(limit=1, older_than_hours=24)
+        result = catalogue_sync.sync_stale_companies(limit=1, older_than_hours=24)
 
         assert len(synced) == 1
         assert result["remaining"] == 2
 
     def test_an_issuer_synced_recently_is_left_alone(self, catalog, synced) -> None:
-        rc.sync_stale_companies(limit=10, older_than_hours=24 * 30)
+        catalogue_sync.sync_stale_companies(limit=10, older_than_hours=24 * 30)
 
         assert synced == []
 
@@ -174,22 +180,22 @@ class TestWhoeverHasWaitedLongest:
 class TestTheSweepClockIsRecorded:
     def test_a_catalog_that_has_never_swept_sweeps(self, catalog, monkeypatch) -> None:
         calls = []
-        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: calls.append("full") or {"total": 1})
+        monkeypatch.setattr(catalogue_sync, 'sync_all', lambda **kw: calls.append("full") or {"total": 1})
 
         assert subject_server_catalog_jobs._catalog_watch_once()["mode"] == "full"
         assert calls == ["full"]
 
     def test_a_completed_sweep_is_written_down(self, catalog, monkeypatch) -> None:
-        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: {"total": 1})
+        monkeypatch.setattr(catalogue_sync, 'sync_all', lambda **kw: {"total": 1})
 
         subject_server_catalog_jobs._catalog_watch_once()
 
-        assert rc.full_sweep_age_hours() < 0.1
+        assert catalogue_filings.full_sweep_age_hours() < 0.1
 
     def test_a_sweep_that_finished_is_not_repeated(self, catalog, monkeypatch) -> None:
-        monkeypatch.setattr(subject_reports_catalog, 'sync_all', lambda **kw: {"total": 1})
-        monkeypatch.setattr(rc, "sync_recent_filings", lambda **kw: {"synced": 0})
-        monkeypatch.setattr(rc, "sync_stale_companies", lambda **kw: {"synced": 0})
+        monkeypatch.setattr(catalogue_sync, 'sync_all', lambda **kw: {"total": 1})
+        monkeypatch.setattr(catalogue_sync, "sync_recent_filings", lambda **kw: {"synced": 0})
+        monkeypatch.setattr(catalogue_sync, "sync_stale_companies", lambda **kw: {"synced": 0})
         subject_server_catalog_jobs._catalog_watch_once()
 
         assert subject_server_catalog_jobs._catalog_watch_once()["mode"] == "filings"
@@ -201,11 +207,11 @@ class TestTheSweepClockIsRecorded:
         def _die(**kw):
             raise RuntimeError("container went away")
 
-        monkeypatch.setattr(subject_reports_catalog, 'sync_all', _die)
+        monkeypatch.setattr(catalogue_sync, 'sync_all', _die)
         with pytest.raises(RuntimeError):
             subject_server_catalog_jobs._catalog_watch_once()
 
-        assert rc.full_sweep_age_hours() is None
+        assert catalogue_filings.full_sweep_age_hours() is None
 
     def test_the_window_is_wider_than_the_interval(self) -> None:
         """A missed tick — a deploy, a restart, one failed request — has to heal

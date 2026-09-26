@@ -10,13 +10,17 @@ from pydantic import Field
 from typing import Any
 from typing import Literal
 import analysis_service as analysis_service
+import reporting.exports as report_exports
+from reporting.disclaimer import report_disclaimer
 import asyncio
 import openinfo_collector as openinfo_collector
+import collectors.openinfo.runner as collectors_openinfo_runner
 import requests
 import server.auth.access as auth_access
 import server.auth.limits as auth_limits
 import server.http as http
 import web_auth as identity
+import identity.users as identity_users
 
 
 router = APIRouter()
@@ -58,14 +62,14 @@ class CompareRequest(BaseModel):
 @router.post("/api/company-data")
 async def api_company_data(
     payload: CompanyDataRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     try:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
             partial(
-                openinfo_collector.collect_company_data,
+                collectors_openinfo_runner.collect_company_data,
                 payload.company,
                 history_months=payload.history_months,
                 include_raw_reports=payload.include_raw_reports,
@@ -93,7 +97,7 @@ async def api_company_data(
 @router.post("/api/compare")
 async def api_compare(
     payload: CompareRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     auth_limits._enforce_llm_quota(current_user)
     try:
@@ -129,7 +133,7 @@ class ExcelExportRequest(BaseModel):
 @router.post("/api/analyze/export/excel")
 async def api_export_excel(
     payload: ExcelExportRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> Response:
     """Export a completed analysis result to .xlsx (ТЗ §3.13)."""
     from datetime import datetime
@@ -138,7 +142,7 @@ async def api_export_excel(
         loop = asyncio.get_running_loop()
         data = await loop.run_in_executor(
             None,
-            partial(analysis_service.build_analysis_excel, payload.result, payload.language, datetime.now()),
+            partial(report_exports.build_analysis_excel, payload.result, payload.language, datetime.now()),
         )
     except Exception as exc:
         http.logger.exception("excel export failed")
@@ -156,7 +160,7 @@ async def api_export_excel(
 @router.post("/api/analyze/export/pdf")
 async def api_export_pdf(
     payload: ExcelExportRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> Response:
     """Export a completed analysis result to PDF (ТЗ §3.13 / C5)."""
     from datetime import datetime
@@ -165,7 +169,7 @@ async def api_export_pdf(
         loop = asyncio.get_running_loop()
         data = await loop.run_in_executor(
             None,
-            partial(analysis_service.build_analysis_pdf, payload.result, payload.language, datetime.now()),
+            partial(report_exports.build_analysis_pdf, payload.result, payload.language, datetime.now()),
         )
     except Exception as exc:
         http.logger.exception("pdf export failed")
@@ -183,7 +187,7 @@ async def api_export_pdf(
 @router.post("/api/compare/export/excel")
 async def api_compare_export_excel(
     payload: ExcelExportRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> Response:
     """Export a completed comparison result to .xlsx (ТЗ §3.6 / §3.13)."""
     from datetime import datetime
@@ -192,7 +196,7 @@ async def api_compare_export_excel(
         loop = asyncio.get_running_loop()
         data = await loop.run_in_executor(
             None,
-            partial(analysis_service.build_comparison_excel, payload.result, payload.language, datetime.now()),
+            partial(report_exports.build_comparison_excel, payload.result, payload.language, datetime.now()),
         )
     except Exception as exc:
         http.logger.exception("compare excel export failed")
@@ -208,7 +212,7 @@ async def api_compare_export_excel(
 @router.post("/api/compare/export/pdf")
 async def api_compare_export_pdf(
     payload: ExcelExportRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> Response:
     """Export a completed comparison result to PDF (ТЗ §3.6 / §3.13)."""
     from datetime import datetime
@@ -217,7 +221,7 @@ async def api_compare_export_pdf(
         loop = asyncio.get_running_loop()
         data = await loop.run_in_executor(
             None,
-            partial(analysis_service.build_comparison_pdf, payload.result, payload.language, datetime.now()),
+            partial(report_exports.build_comparison_pdf, payload.result, payload.language, datetime.now()),
         )
     except Exception as exc:
         http.logger.exception("compare pdf export failed")
@@ -233,7 +237,7 @@ async def api_compare_export_pdf(
 @router.post("/api/analyze")
 async def api_analyze(
     payload: AnalyzeRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
     # The regular analysis path is now deterministic and NSBU-first; it does not
     # spend LLM tokens, so an LLM quota must not block access to the report.
@@ -299,7 +303,7 @@ async def api_analyze(
         "data_quality": result.get("data_quality"),
         "balance_check": result.get("balance_check"),
         # ТЗ §3.3: mandatory, non-removable disclaimer travels inside every report payload.
-        "disclaimer": analysis_service.report_disclaimer(result.get("language", payload.language)),
+        "disclaimer": report_disclaimer(result.get("language", payload.language)),
         "requested_by": current_user.to_public_dict(),
     }
 
@@ -310,7 +314,7 @@ async def api_analyze(
 
     try:
         await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.record_analysis, current_user.id, payload.model_dump(), result))
+            None, partial(identity.web_auth_store.research.record_analysis, current_user.id, payload.model_dump(), result))
     except Exception as exc:
         http.logger.warning("Failed to record analysis history for user %s: %s", current_user.id, exc)
 

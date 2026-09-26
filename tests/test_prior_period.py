@@ -33,6 +33,10 @@ import pytest
 
 import openinfo_reconcile as orc
 import reports_catalog as rc
+import catalogue.codecs as catalogue_codecs
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 
 # URTS, object 18622, filed 2026-07-30, in openinfo thousands.
 URTS_PL = [
@@ -142,8 +146,8 @@ class TestItIsLabelledWithItsOwnPeriod:
 @pytest.fixture()
 def catalog_db(tmp_path, monkeypatch):
     path = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(path))
-    rc.get_catalog_conn().close()
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(path))
+    catalogue_storage.get_catalog_conn().close()
     return str(path)
 
 
@@ -157,32 +161,32 @@ class TestItSurvivesStorage:
         return row
 
     def test_it_is_stored_and_served_with_the_row(self, catalog_db) -> None:
-        rc.bulk_replace_financials([self._row()])
+        catalogue_financial_store.bulk_replace_financials([self._row()])
 
-        served = rc.get_all_financials()["URTS"]
+        served = catalogue_snapshots.get_all_financials()["URTS"]
         assert served["revenue"] == pytest.approx(237_634_918.0)
         assert served["prior"]["year"] == 2025
         assert served["prior"]["revenue"] == pytest.approx(264_737_847.0)
         assert served["prior"]["period_months"] == 6
 
     def test_it_never_becomes_a_period_of_its_own(self, catalog_db) -> None:
-        rc.bulk_replace_financials([self._row()])
+        catalogue_financial_store.bulk_replace_financials([self._row()])
 
-        stored = rc.get_catalog_conn().execute(
+        stored = catalogue_storage.get_catalog_conn().execute(
             "SELECT year, quarter FROM catalog_financials ORDER BY year").fetchall()
         assert [(r["year"], r["quarter"]) for r in stored] == [(2026, 2)]
 
     def test_a_row_with_no_comparative_stores_nothing(self, catalog_db) -> None:
-        rc.bulk_replace_financials([self._row(prior=None)])
+        catalogue_financial_store.bulk_replace_financials([self._row(prior=None)])
 
-        assert rc.get_all_financials()["URTS"]["prior"] is None
+        assert catalogue_snapshots.get_all_financials()["URTS"]["prior"] is None
 
     def test_an_all_empty_comparative_is_not_stored(self, catalog_db) -> None:
-        rc.bulk_replace_financials([self._row(prior={"year": 2025, "quarter": 2})])
+        catalogue_financial_store.bulk_replace_financials([self._row(prior={"year": 2025, "quarter": 2})])
 
-        assert rc.get_all_financials()["URTS"]["prior"] is None
+        assert catalogue_snapshots.get_all_financials()["URTS"]["prior"] is None
 
     def test_a_legacy_row_written_before_the_column_still_reads(self, catalog_db) -> None:
-        assert rc._decode_prior_period(None) is None
-        assert rc._decode_prior_period("not json") is None
-        assert rc._decode_prior_period(json.dumps({"revenue": 1.0})) is None
+        assert catalogue_codecs._decode_prior_period(None) is None
+        assert catalogue_codecs._decode_prior_period("not json") is None
+        assert catalogue_codecs._decode_prior_period(json.dumps({"revenue": 1.0})) is None

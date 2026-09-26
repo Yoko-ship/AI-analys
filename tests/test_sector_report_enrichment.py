@@ -7,6 +7,8 @@ from copy import deepcopy
 
 import issuer_analysis_api as api
 import reports_catalog
+import catalogue.filings as catalogue_filings
+import catalogue.sources as catalogue_sources
 import sector_report_service as service
 
 
@@ -41,20 +43,20 @@ def test_combined_workbook_url_is_downloaded_only_once(monkeypatch):
     parsed = {"ok": True, "sheets": []}
     calls = []
 
-    monkeypatch.setattr(reports_catalog, "get_report_urls", lambda *args: {
+    monkeypatch.setattr(catalogue_filings, "get_report_urls", lambda *args: {
         "excel_url": url,
         "excel_url_form1": url,
         "period_type": "quarter",
     })
-    monkeypatch.setattr(reports_catalog, "_make_session", lambda: object())
+    monkeypatch.setattr(catalogue_sources, "_make_session", lambda: object())
 
     def parse(_session, document):
         calls.append(document["excel_url"])
         return parsed
 
-    monkeypatch.setattr(reports_catalog, "parse_excel_report_document", parse)
+    monkeypatch.setattr(catalogue_sources, "parse_excel_report_document", parse)
 
-    result = reports_catalog.fetch_report_excel_data("UTGAP", "NSBU", 2025, 1)
+    result = catalogue_sources.fetch_report_excel_data("UTGAP", "NSBU", 2025, 1)
 
     assert result["ok"] is True
     assert result["income"] is parsed

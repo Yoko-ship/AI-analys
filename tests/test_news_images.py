@@ -7,9 +7,13 @@ silently: the log still reads "0 of 0 fetched".
 """
 from __future__ import annotations
 
+import news_store
 import pytest
 
 import news_collector as nc
+import collectors.news.backfill as collectors_news_backfill
+import collectors.news.delivery as collectors_news_delivery
+import collectors.news.images as collectors_news_images
 
 FILING = "openinfo_facts"   # no image exists, ever — no page_image flag
 OUTLET = "kun"              # publishes an og:image on the article page
@@ -24,7 +28,7 @@ def no_network(monkeypatch):
         fetched.append(url)
         return f"{url}/preview.jpg"
 
-    monkeypatch.setattr(nc, "_og_image", fake_og)
+    monkeypatch.setattr(collectors_news_images, "_og_image", fake_og)
     monkeypatch.setattr(nc.time, "sleep", lambda *_: None)  # crawl delay, not tested here
     return fetched
 
@@ -46,19 +50,19 @@ class TestTheFetchBudget:
         do publish a picture were never reached.
         """
         items = _candidates(filings=28, outlet=8)
-        found = nc.enrich_images(items, nc._source_registry(), max_fetch=12)
+        found = collectors_news_images.enrich_images(items, collectors_news_backfill._source_registry(), max_fetch=12)
         assert found == 8
         assert no_network == [it["url"] for it in items if it["source_id"] == OUTLET]
 
     def test_the_cap_still_binds(self, no_network):
         items = _candidates(filings=0, outlet=30)
-        assert nc.enrich_images(items, nc._source_registry(), max_fetch=12) == 12
+        assert collectors_news_images.enrich_images(items, collectors_news_backfill._source_registry(), max_fetch=12) == 12
         assert len(no_network) == 12
 
     def test_an_item_that_already_has_one_is_left_alone(self, no_network):
         items = _candidates(filings=0, outlet=2)
         items[0]["image_url"] = "https://kun.uz/existing.jpg"
-        nc.enrich_images(items, nc._source_registry(), max_fetch=12)
+        collectors_news_images.enrich_images(items, collectors_news_backfill._source_registry(), max_fetch=12)
         assert no_network == [items[1]["url"]]
         assert items[0]["image_url"] == "https://kun.uz/existing.jpg"
 
@@ -68,14 +72,14 @@ class TestTheBackfillPass:
 
     def test_it_spends_its_budget_on_pages_that_can_answer(self, no_network, monkeypatch):
         pushed: dict[str, str] = {}
-        monkeypatch.setattr(nc, "_prod_items_without_image",
+        monkeypatch.setattr(collectors_news_backfill, "_prod_items_without_image",
                             lambda days: _candidates(filings=28, outlet=8))
-        monkeypatch.setattr(nc.news_store, "rows_without_image", lambda **_: [])
-        monkeypatch.setattr(nc.news_store, "image_urls_for", lambda urls: {})
-        monkeypatch.setattr(nc.news_store, "set_image_urls", lambda images: len(images))
-        monkeypatch.setattr(nc, "push_images", lambda images: pushed.update(images) or len(images))
+        monkeypatch.setattr(news_store, "rows_without_image", lambda **_: [])
+        monkeypatch.setattr(news_store, "image_urls_for", lambda urls: {})
+        monkeypatch.setattr(news_store, "set_image_urls", lambda images: len(images))
+        monkeypatch.setattr(collectors_news_delivery, "push_images", lambda images: pushed.update(images) or len(images))
 
-        result = nc.backfill_images(limit=12, days=30, push=True)
+        result = collectors_news_backfill.backfill_images(limit=12, days=30, push=True)
         assert result["found"] == 8
         assert result["updated_prod"] == 8
         assert all("kun.uz" in url for url in pushed)
@@ -83,14 +87,14 @@ class TestTheBackfillPass:
     def test_an_image_already_known_costs_no_request(self, no_network, monkeypatch):
         """A re-run after a failed push must push what it has, not re-fetch it."""
         known = {"https://kun.uz/ru/news/0": "https://storage.kun.uz/a.jpg"}
-        monkeypatch.setattr(nc, "_prod_items_without_image",
+        monkeypatch.setattr(collectors_news_backfill, "_prod_items_without_image",
                             lambda days: _candidates(filings=0, outlet=1))
-        monkeypatch.setattr(nc.news_store, "rows_without_image", lambda **_: [])
-        monkeypatch.setattr(nc.news_store, "image_urls_for", lambda urls: known)
-        monkeypatch.setattr(nc.news_store, "set_image_urls", lambda images: len(images))
-        monkeypatch.setattr(nc, "push_images", lambda images: len(images))
+        monkeypatch.setattr(news_store, "rows_without_image", lambda **_: [])
+        monkeypatch.setattr(news_store, "image_urls_for", lambda urls: known)
+        monkeypatch.setattr(news_store, "set_image_urls", lambda images: len(images))
+        monkeypatch.setattr(collectors_news_delivery, "push_images", lambda images: len(images))
 
-        result = nc.backfill_images(limit=12, days=30, push=True)
+        result = collectors_news_backfill.backfill_images(limit=12, days=30, push=True)
         assert no_network == []
         assert result["updated_prod"] == 1
 
@@ -99,9 +103,9 @@ class TestWhatCountsAsAnImage:
     def test_a_site_wide_share_card_is_not_one(self):
         """One social.jpg repeated down the whole feed is worse than no picture."""
         for path in ("/img/social.jpg", "/assets/default-image.png", "/static/logo.svg"):
-            assert nc._GENERIC_IMAGE_RE.search(path), path
+            assert collectors_news_images._GENERIC_IMAGE_RE.search(path), path
 
     def test_an_article_photo_is(self):
         for path in ("/source/1/nH2ag_n9qBhQpB3gTaiJJFD0oEo8-0mj.webp",
                      "/wp-content/uploads/2026/07/33a8c98f0cc1cd7fb6b9.jpg"):
-            assert not nc._GENERIC_IMAGE_RE.search(path), path
+            assert not collectors_news_images._GENERIC_IMAGE_RE.search(path), path

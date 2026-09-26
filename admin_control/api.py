@@ -194,7 +194,7 @@ def verify_mfa(request, person):
                       (s.environment(), person["email"], since)).fetchone()["n"]
     if n >= 5:
         raise s.ControlError("RATE_LIMITED", "Too many verification attempts. Try again in a minute.", 429)
-    if not web_auth_store.verify_admin_two_factor(person["id"], request.headers.get("X-Admin-OTP", "")):
+    if not web_auth_store.security.verify_admin_two_factor(person["id"], request.headers.get("X-Admin-OTP", "")):
         raise s.ControlError("MFA_REQUIRED", "Enter a current authenticator code. Enable two-factor authentication in your account settings first.", 403)
 
 

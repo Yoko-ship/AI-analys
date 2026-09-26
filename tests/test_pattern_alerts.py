@@ -8,6 +8,7 @@ facts, so it keeps its read state between polls.
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
 import server.auth.access as subject_server_auth_access
 import server.market.history as subject_server_market_history
 import server.market.patterns as subject_server_market_patterns
@@ -19,7 +20,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api
-from web_auth import DEFAULT_PROFILE_PREFERENCES, WebUser
+from identity.settings import DEFAULT_PROFILE_PREFERENCES
+from identity.users import WebUser
 
 
 def _pro() -> WebUser:
@@ -52,12 +54,12 @@ def bell(monkeypatch):
         ]}
 
     import formulas
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: _pro())
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "list_favorites", lambda uid: state["favorites"])
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_preferences", lambda uid: state["preferences"])
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "notification_states", lambda uid: state["read"])
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: _pro())
+    monkeypatch.setattr(subject_web_auth.web_auth_store.favorites, "list_favorites", lambda uid: state["favorites"])
+    monkeypatch.setattr(subject_web_auth.web_auth_store.profile, "get_preferences", lambda uid: state["preferences"])
+    monkeypatch.setattr(subject_web_auth.web_auth_store.notifications, "notification_states", lambda uid: state["read"])
     monkeypatch.setattr(subject_server_auth_access, '_admin_role', lambda user: None)
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+    monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {})
     monkeypatch.setattr(subject_server_market_history, '_resolve_isin', fake_resolve)
     monkeypatch.setattr(subject_server_market_history, '_full_history', fake_history)
     monkeypatch.setattr(subject_server_market_patterns, '_pattern_analysis', fake_analysis)
@@ -100,4 +102,4 @@ def test_the_item_id_is_stable_between_polls(bell):
 def test_preference_validation_rejects_unknown_pattern_types():
     # Rejected before any database work: the check is on the values alone.
     with pytest.raises(ValueError, match="pattern type"):
-        subject_web_auth.web_auth_store.update_preferences(7, {"pattern_alert_types": ["not_a_pattern"]})
+        subject_web_auth.web_auth_store.profile.update_preferences(7, {"pattern_alert_types": ["not_a_pattern"]})

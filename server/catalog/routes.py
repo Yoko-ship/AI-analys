@@ -20,8 +20,22 @@ import asyncio
 import company_imports
 import functools
 import openinfo_collector as openinfo_collector
+import collectors.openinfo.documents as collectors_openinfo_documents
 import provenance
 import reports_catalog as catalog_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.settings as catalogue_settings
+import catalogue.dynamics as catalogue_dynamics
+import catalogue.facts as catalogue_facts
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.market_store as catalogue_market_store
+import catalogue.parsing as catalogue_parsing
+import catalogue.ratios as catalogue_ratios
+import catalogue.settings as catalogue_settings
+import catalogue.sources as catalogue_sources
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync
 import requests
 import securities_catalog as securities_store
 import server.auth.access as auth_access
@@ -32,6 +46,8 @@ import server.market.board as market_board
 import server.market.dates as market_dates
 import server.settings as settings
 import web_auth as identity
+import identity.users as identity_users
+import identity.users as identity_users
 
 
 router = APIRouter()
@@ -120,7 +136,7 @@ async def api_periods(company: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="company is required")
     try:
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, partial(openinfo_collector.get_company_periods, company.strip()))
+        result = await loop.run_in_executor(None, partial(collectors_openinfo_documents.get_company_periods, company.strip()))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except requests.RequestException as exc:
@@ -184,7 +200,7 @@ async def api_coverage() -> dict[str, Any]:
         http.logger.exception("coverage: board build failed")
         raise HTTPException(status_code=502, detail="Could not load the securities feed") from exc
 
-    coverage = await loop.run_in_executor(None, catalog_store.get_catalog_coverage)
+    coverage = await loop.run_in_executor(None, catalogue_facts.get_catalog_coverage)
 
     items: list[dict[str, Any]] = []
     counts = {"price": 0, "volume": 0, "financials": 0, "financial_history": 0, "reports": 0, "resolved": 0}
@@ -224,7 +240,7 @@ async def api_coverage() -> dict[str, Any]:
     items.sort(key=lambda r: (r["has_financials"], r["resolved"], r["ticker"]))
     # Consistency guard: net_income that disagrees with openinfo's own net_profit.
     try:
-        flags = await loop.run_in_executor(None, catalog_store.audit_financials_consistency)
+        flags = await loop.run_in_executor(None, catalogue_facts.audit_financials_consistency)
     except Exception:
         http.logger.exception("financials consistency audit failed")
         flags = []
@@ -232,7 +248,7 @@ async def api_coverage() -> dict[str, Any]:
     # fact) — a silently dead collector shows up here as growing data age.
     collector: dict[str, Any] = {"last_run": None, "age_hours": None, "stale": None}
     try:
-        meta = await loop.run_in_executor(None, partial(catalog_store.get_facts, "_collector", "meta"))
+        meta = await loop.run_in_executor(None, partial(catalogue_facts.get_facts, "_collector", "meta"))
         fields = {f.get("field"): f.get("value_text") for f in meta}
         last_run = fields.get("last_run")
         status = fields.get("last_run_status")
@@ -285,11 +301,11 @@ async def api_facts(ticker: str, dataset: str | None = None) -> dict[str, Any]:
     """
     ticker = ticker.strip().upper()
     loop = asyncio.get_running_loop()
-    index = await loop.run_in_executor(None, partial(catalog_store.get_company_index, ticker))
+    index = await loop.run_in_executor(None, partial(catalogue_filings.get_company_index, ticker))
     org_id = (index or {}).get("org_id")
     if not org_id:
         return {"ok": True, "ticker": ticker, "org_id": None, "facts": []}
-    facts = await loop.run_in_executor(None, partial(catalog_store.get_facts, org_id, dataset))
+    facts = await loop.run_in_executor(None, partial(catalogue_facts.get_facts, org_id, dataset))
     grouped: dict[str, dict[str, list]] = {}
     for f in facts:
         grouped.setdefault(f["dataset"], {}).setdefault(f["field"], []).append(
@@ -315,9 +331,9 @@ async def api_listings_feed(inactive_days: int = 30) -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     try:
         listings, live_dates, stats = await asyncio.gather(
-            loop.run_in_executor(None, catalog_store.get_all_listings),
+            loop.run_in_executor(None, catalogue_market_store.get_all_listings),
             loop.run_in_executor(None, market_dates._live_last_trade_dates),
-            loop.run_in_executor(None, catalog_store.get_all_trade_stats),
+            loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats),
         )
     except Exception as exc:
         http.logger.exception("listings feed read failed")
@@ -366,9 +382,22 @@ async def api_admin_catalog_issuers(
     to a ticker. Read-only.
     """
     import reports_catalog as rc
+    import catalogue.ratios as catalogue_ratios
+    import catalogue.settings as catalogue_settings
+    import catalogue.dynamics as catalogue_dynamics
+    import catalogue.facts as catalogue_facts
+    import catalogue.filings as catalogue_filings
+    import catalogue.financial_store as catalogue_financial_store
+    import catalogue.market_store as catalogue_market_store
+    import catalogue.parsing as catalogue_parsing
+    import catalogue.ratios as catalogue_ratios
+    import catalogue.settings as catalogue_settings
+    import catalogue.sources as catalogue_sources
+    import catalogue.storage as catalogue_storage
+    import catalogue.sync as catalogue_sync
 
     def _read() -> list[dict[str, Any]]:
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         rows = conn.execute(
             "SELECT ticker, company_name, org_id FROM catalog_companies ORDER BY ticker"
         ).fetchall()
@@ -389,7 +418,7 @@ async def api_admin_catalog_issuers(
 @router.get("/api/admin/companies")
 async def api_admin_companies(
     status: str | None = None,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Review queue for securities discovered from UZSE and OpenInfo."""
     try:
@@ -401,7 +430,7 @@ async def api_admin_companies(
 @router.post("/api/admin/companies/discover")
 async def api_admin_companies_discover(
     force: bool = False,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Refresh the queue from the authoritative exchange/OpenInfo sources."""
     try:
@@ -418,7 +447,7 @@ async def api_admin_companies_discover(
 async def api_admin_company_preview(
     ticker: str,
     refresh: bool = True,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Resolve one ticker and return the exact facts an admin will approve."""
     try:
@@ -440,7 +469,7 @@ async def api_admin_company_preview(
 async def api_admin_company_approve(
     ticker: str,
     payload: AdminCompanyApproveRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Publish a reviewed candidate and optionally start its first sync."""
     try:
@@ -467,7 +496,7 @@ async def api_admin_company_approve(
 async def api_admin_company_reject(
     ticker: str,
     payload: AdminCompanyRejectRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     try:
         company = await asyncio.get_running_loop().run_in_executor(
@@ -484,7 +513,7 @@ async def api_admin_company_reject(
 async def api_admin_company_visibility(
     ticker: str,
     payload: AdminCompanyVisibilityRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Reversibly include or exclude an approved issuer from the public catalog."""
     try:
@@ -503,7 +532,7 @@ async def api_admin_company_visibility(
 @router.post("/api/admin/companies/{ticker}/sync")
 async def api_admin_company_sync(
     ticker: str,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     metadata = company_imports.approved_metadata_map().get(ticker.upper())
     if not metadata:
@@ -519,7 +548,7 @@ async def api_admin_catalog_register(_: None = Depends(auth_access._require_admi
     Idempotent, and safe to run at any time: a report already registered keeps
     the state it reached, so this never resets something already parsed.
     """
-    from reports_catalog import backfill_report_links
+    from catalogue.refresh import backfill_report_links
 
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, provenance.sync_from_catalog)
@@ -552,7 +581,7 @@ async def api_admin_catalog_sync(
     def _run() -> None:
         catalog_jobs._admin_catalog_sync_running.set()
         try:
-            res = catalog_store.sync_all(force=force)
+            res = catalogue_sync.sync_all(force=force)
             http.logger.info("admin catalog sync done: %s",
                         {k: res.get(k) for k in ("total", "synced", "skipped") if isinstance(res, dict)})
         except Exception:
@@ -578,7 +607,7 @@ async def api_admin_catalog_watch(
     NOT the full sweep — that one runs for minutes and belongs behind
     /api/admin/catalog-sync, which returns immediately and reports to the log.
     """
-    from reports_catalog import sync_recent_filings, sync_stale_companies
+    from catalogue.sync import sync_recent_filings, sync_stale_companies
 
     hours = max(1, min(int(hours), 24 * 30))
     stale = max(0, min(int(stale), 100))
@@ -602,7 +631,7 @@ async def api_admin_catalog_watch(
 @router.get("/api/catalog/status")
 async def api_catalog_status() -> dict[str, Any]:
     try:
-        return {"ok": True, **catalog_store.get_catalog_stats()}
+        return {"ok": True, **catalogue_filings.get_catalog_stats()}
     except Exception as exc:
         http.logger.exception("Catalog status failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -611,7 +640,7 @@ async def api_catalog_status() -> dict[str, Any]:
 @router.get("/api/catalog/companies")
 async def api_catalog_companies() -> dict[str, Any]:
     try:
-        companies = catalog_store.list_companies_with_stats()
+        companies = catalogue_filings.list_companies_with_stats()
         approved = company_imports.approved_metadata_map()
         visible_companies = []
         for c in companies:
@@ -636,7 +665,7 @@ async def api_catalog_companies() -> dict[str, Any]:
 @router.get("/api/catalog/index/{ticker}")
 async def api_catalog_index(ticker: str) -> dict[str, Any]:
     try:
-        index = catalog_store.get_company_index(ticker.upper())
+        index = catalogue_filings.get_company_index(ticker.upper())
         return {"ok": True, **index}
     except Exception as exc:
         http.logger.exception("Catalog index failed for %s", ticker)
@@ -646,7 +675,7 @@ async def api_catalog_index(ticker: str) -> dict[str, Any]:
 @router.post("/api/catalog/sync")
 async def api_catalog_sync(
     payload: CatalogSyncRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
     x_admin_secret: str | None = Header(default=None),
 ) -> dict[str, Any]:
     # A single-ticker sync is a bounded refresh any signed-in user may run; the
@@ -659,17 +688,17 @@ async def api_catalog_sync(
         if payload.ticker:
             ticker = payload.ticker.upper()
             imported = company_imports.approved_metadata_map().get(ticker) or {}
-            company_name = (catalog_store._TICKER_TO_NAME.get(ticker)
+            company_name = (catalogue_settings._TICKER_TO_NAME.get(ticker)
                             or imported.get("company_name"))
             if not company_name:
                 raise HTTPException(status_code=404, detail=f"Unknown ticker: {ticker}")
             result = await loop.run_in_executor(
-                None, partial(catalog_store.sync_company, ticker, company_name, force=payload.force,
+                None, partial(catalogue_sync.sync_company, ticker, company_name, force=payload.force,
                               org_id=imported.get("org_id"))
             )
         else:
             result = await loop.run_in_executor(
-                None, partial(catalog_store.sync_all, force=payload.force)
+                None, partial(catalogue_sync.sync_all, force=payload.force)
             )
         return {"ok": True, **http._json_safe(result)}
     except HTTPException:
@@ -682,12 +711,12 @@ async def api_catalog_sync(
 @router.post("/api/catalog/analyze")
 async def api_catalog_analyze(
     payload: CatalogAnalyzeRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     ticker = payload.ticker.upper()
     loop = asyncio.get_running_loop()
     approved = await loop.run_in_executor(None, company_imports.approved_metadata_map)
-    company_name = catalog_store._TICKER_TO_NAME.get(ticker) or (approved.get(ticker) or {}).get("company_name") or ticker
+    company_name = catalogue_settings._TICKER_TO_NAME.get(ticker) or (approved.get(ticker) or {}).get("company_name") or ticker
     form_map = {"NSBU": "NAS", "MSFO": "IFRS", "Audition": "Audit"}
     sectors = {**COMPANY_SECTORS,
                **{t: item.get("sector") for t, item in approved.items()
@@ -705,7 +734,7 @@ async def api_catalog_analyze(
 
             if payload.analysis_type == "dynamics":
                 dynamics = await loop.run_in_executor(
-                    None, partial(catalog_store.build_cached_catalog_dynamics, ticker, payload.form)
+                    None, partial(catalogue_ratios.build_cached_catalog_dynamics, ticker, payload.form)
                 )
                 if not dynamics.get("years") and not dynamics.get("quarterly"):
                     raise HTTPException(
@@ -720,7 +749,7 @@ async def api_catalog_analyze(
                 })
 
             current = await loop.run_in_executor(
-                None, partial(catalog_store.get_cached_catalog_period, ticker, payload.form,
+                None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
                               payload.year, payload.quarter)
             )
             if not current.get("has_data"):
@@ -731,7 +760,7 @@ async def api_catalog_analyze(
 
             if payload.analysis_type == "ratio":
                 previous = await loop.run_in_executor(
-                    None, partial(catalog_store.get_cached_catalog_period, ticker, payload.form,
+                    None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
                                   payload.year - 1, payload.quarter)
                 )
                 sector_peers = [t for t, peer_sector in sectors.items()
@@ -740,7 +769,7 @@ async def api_catalog_analyze(
                 if sector_peers:
                     try:
                         sector_avg = await loop.run_in_executor(
-                            None, partial(catalog_store.get_sector_averages, sector_peers,
+                            None, partial(catalogue_ratios.get_sector_averages, sector_peers,
                                           payload.form, payload.year)
                         )
                     except Exception:
@@ -762,7 +791,7 @@ async def api_catalog_analyze(
                 compare_quarter = (payload.compare_quarter
                                    if payload.compare_quarter is not None else payload.quarter)
                 compared = await loop.run_in_executor(
-                    None, partial(catalog_store.get_cached_catalog_period, ticker, payload.form,
+                    None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
                                   compare_year, compare_quarter)
                 )
                 compare_period = (f"{compare_year}Q{compare_quarter}"
@@ -787,7 +816,7 @@ async def api_catalog_analyze(
                 })
 
             previous = await loop.run_in_executor(
-                None, partial(catalog_store.get_cached_catalog_period, ticker, payload.form,
+                None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
                               payload.year - 1, payload.quarter)
             )
             compare_name = None
@@ -805,11 +834,11 @@ async def api_catalog_analyze(
                                 if payload.language == "uz" else
                                 "Select a non-financial company for comparison."),
                     )
-                compare_name = (catalog_store._TICKER_TO_NAME.get(compare_ticker)
+                compare_name = (catalogue_settings._TICKER_TO_NAME.get(compare_ticker)
                                 or (approved.get(compare_ticker) or {}).get("company_name")
                                 or compare_ticker)
                 compared = await loop.run_in_executor(
-                    None, partial(catalog_store.get_cached_catalog_period, compare_ticker, payload.form,
+                    None, partial(catalogue_ratios.get_cached_catalog_period, compare_ticker, payload.form,
                                   payload.year, payload.quarter)
                 )
                 if not compared.get("has_data"):
@@ -837,17 +866,17 @@ async def api_catalog_analyze(
         if payload.analysis_type == "ratio":
             prev_year = payload.year - 1
             excel, excel_prev = await asyncio.gather(
-                loop.run_in_executor(None, partial(catalog_store.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
-                loop.run_in_executor(None, partial(catalog_store.fetch_report_excel_data, ticker, payload.form, prev_year, payload.quarter)),
+                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
+                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, prev_year, payload.quarter)),
             )
             if not excel.get("ok"):
                 raise HTTPException(status_code=400, detail=excel.get("error") or "Could not fetch report")
-            ratios = catalog_store.compute_financial_ratios(excel.get("income"), excel.get("balance"))
-            ratios_prev = catalog_store.compute_financial_ratios(excel_prev.get("income"), excel_prev.get("balance")) if excel_prev.get("ok") else {}
+            ratios = catalogue_parsing.compute_financial_ratios(excel.get("income"), excel.get("balance"))
+            ratios_prev = catalogue_parsing.compute_financial_ratios(excel_prev.get("income"), excel_prev.get("balance")) if excel_prev.get("ok") else {}
             # Cache ratios for sector averaging
             if ratios.get("metrics"):
                 try:
-                    await loop.run_in_executor(None, partial(catalog_store.upsert_ratio_cache, ticker, payload.form, payload.year, payload.quarter, ratios["metrics"]))
+                    await loop.run_in_executor(None, partial(catalogue_financial_store.upsert_ratio_cache, ticker, payload.form, payload.year, payload.quarter, ratios["metrics"]))
                 except Exception:
                     pass
             # Approved imports extend the legacy static sector map immediately.
@@ -855,7 +884,7 @@ async def api_catalog_analyze(
             sector_avg: dict = {}
             if sector_peers:
                 try:
-                    sector_avg = await loop.run_in_executor(None, partial(catalog_store.get_sector_averages, sector_peers, payload.form, payload.year))
+                    sector_avg = await loop.run_in_executor(None, partial(catalogue_ratios.get_sector_averages, sector_peers, payload.form, payload.year))
                 except Exception:
                     pass
             return http._json_safe({
@@ -870,7 +899,7 @@ async def api_catalog_analyze(
 
         if payload.analysis_type == "dynamics":
             dynamics = await loop.run_in_executor(
-                None, partial(catalog_store.build_dynamics_data, ticker, payload.form)
+                None, partial(catalogue_dynamics.build_dynamics_data, ticker, payload.form)
             )
             return http._json_safe({"ok": True, "analysis_type": "dynamics", "ticker": ticker, **dynamics})
 
@@ -878,11 +907,11 @@ async def api_catalog_analyze(
             q2 = payload.compare_quarter if payload.compare_quarter is not None else payload.quarter
             y2 = payload.compare_year or (payload.year - 1)
             excel1, excel2 = await asyncio.gather(
-                loop.run_in_executor(None, partial(catalog_store.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
-                loop.run_in_executor(None, partial(catalog_store.fetch_report_excel_data, ticker, payload.form, y2, q2)),
+                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
+                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, y2, q2)),
             )
-            ratios1 = catalog_store.compute_financial_ratios(excel1.get("income"), excel1.get("balance")) if excel1.get("ok") else {}
-            ratios2 = catalog_store.compute_financial_ratios(excel2.get("income"), excel2.get("balance")) if excel2.get("ok") else {}
+            ratios1 = catalogue_parsing.compute_financial_ratios(excel1.get("income"), excel1.get("balance")) if excel1.get("ok") else {}
+            ratios2 = catalogue_parsing.compute_financial_ratios(excel2.get("income"), excel2.get("balance")) if excel2.get("ok") else {}
             return http._json_safe({
                 "ok": True, "analysis_type": payload.analysis_type, "ticker": ticker,
                 "period1": {"year": payload.year, "quarter": payload.quarter, "form": payload.form, **ratios1},
@@ -892,7 +921,7 @@ async def api_catalog_analyze(
         if payload.analysis_type == "multi_company":
             auth_limits._enforce_llm_quota(current_user)
             compare_ticker = (payload.compare_ticker or "").upper()
-            compare_name = (catalog_store._TICKER_TO_NAME.get(compare_ticker)
+            compare_name = (catalogue_settings._TICKER_TO_NAME.get(compare_ticker)
                             or (approved.get(compare_ticker) or {}).get("company_name")
                             or compare_ticker)
             if not compare_name:
@@ -936,7 +965,7 @@ async def api_catalog_analyze(
 async def api_admin_companies_search(
     q: str,
     limit: int = 12,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Small, live issuer lookup used by operational admin controls."""
     return http._json_safe({"ok": True, "items": await asyncio.get_running_loop().run_in_executor(

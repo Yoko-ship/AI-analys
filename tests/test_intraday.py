@@ -22,6 +22,8 @@ Pinned here:
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 import server.market.history as subject_server_market_history
 
 import datetime as dt
@@ -31,6 +33,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import reports_catalog as rc
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 import trade_stats as ts
 
 api = importlib.import_module("api")
@@ -104,8 +108,8 @@ def store(tmp_path, monkeypatch):
     import db
 
     monkeypatch.setattr(db, "APP_DATA_DIR", tmp_path, raising=False)
-    monkeypatch.setattr(rc, "APP_DATA_DIR", tmp_path, raising=False)
-    rc.get_catalog_conn().close()
+    monkeypatch.setattr(catalogue_storage, "APP_DATA_DIR", tmp_path, raising=False)
+    catalogue_storage.get_catalog_conn().close()
     return tmp_path
 
 
@@ -128,39 +132,39 @@ class TestTheStore:
         # The same hour arrives twice when a page is read twice in a run; PG
         # refuses one statement touching a key twice, so the batch dedupes.
         rows = _bars() + [{"isin": ISIN, "trade_date": _day(), "hour": 10, "close": 101.5}]
-        assert rc.bulk_upsert_intraday_history(rows) == 3
-        series = rc.get_intraday_history(ISIN, days=7)
+        assert catalogue_market_store.bulk_upsert_intraday_history(rows) == 3
+        series = catalogue_market_store.get_intraday_history(ISIN, days=7)
         assert len(series) == 3
         # Last write wins: the log only grows through the day.
         assert series[-2]["close_price"] == pytest.approx(101.5)
 
     def test_rerunning_the_collector_does_not_duplicate_a_bar(self, store):
-        rc.bulk_upsert_intraday_history(_bars())
-        rc.bulk_upsert_intraday_history(_bars())
-        assert len(rc.get_intraday_history(ISIN, days=7)) == 3
+        catalogue_market_store.bulk_upsert_intraday_history(_bars())
+        catalogue_market_store.bulk_upsert_intraday_history(_bars())
+        assert len(catalogue_market_store.get_intraday_history(ISIN, days=7)) == 3
 
     def test_bars_older_than_the_keep_window_are_pruned(self, store):
-        old = (dt.date.today() - dt.timedelta(days=rc.INTRADAY_KEEP_DAYS + 5)).strftime("%Y%m%d")
-        rc.bulk_upsert_intraday_history(
+        old = (dt.date.today() - dt.timedelta(days=catalogue_market_store.INTRADAY_KEEP_DAYS + 5)).strftime("%Y%m%d")
+        catalogue_market_store.bulk_upsert_intraday_history(
             [{"isin": ISIN, "trade_date": old, "hour": 12, "close": 1}])
-        rc.bulk_upsert_intraday_history(_bars())
-        days = {r["trade_date"] for r in rc.get_intraday_history(ISIN, days=rc.INTRADAY_KEEP_DAYS)}
+        catalogue_market_store.bulk_upsert_intraday_history(_bars())
+        days = {r["trade_date"] for r in catalogue_market_store.get_intraday_history(ISIN, days=catalogue_market_store.INTRADAY_KEEP_DAYS)}
         assert old not in days
 
     def test_a_row_with_no_key_is_dropped_not_stored(self, store):
-        assert rc.bulk_upsert_intraday_history([
+        assert catalogue_market_store.bulk_upsert_intraday_history([
             {"isin": "", "trade_date": _day(), "hour": 10, "close": 1},
             {"isin": ISIN, "trade_date": "not a date", "hour": 10, "close": 1},
             {"isin": ISIN, "trade_date": _day(), "hour": 99, "close": 1},
             {"isin": ISIN, "trade_date": _day(), "hour": "x", "close": 1},
         ]) == 0
-        assert rc.get_intraday_history(ISIN) == []
+        assert catalogue_market_store.get_intraday_history(ISIN) == []
 
     def test_the_window_is_calendar_days(self, store):
         """1Н means THIS week — stretching a quiet security's old bars under
         that label would date the chart wrong; the chart falls back to closes."""
-        rc.bulk_upsert_intraday_history(_bars())
-        assert len(rc.get_intraday_history(ISIN, days=1)) == 2
+        catalogue_market_store.bulk_upsert_intraday_history(_bars())
+        assert len(catalogue_market_store.get_intraday_history(ISIN, days=1)) == 2
 
 
 class TestTheEndpoint:
@@ -170,7 +174,7 @@ class TestTheEndpoint:
             return ISIN
 
         monkeypatch.setattr(subject_server_market_history, '_resolve_isin', _isin)
-        monkeypatch.setattr(subject_reports_catalog, 'get_intraday_history', lambda isin, days: [
+        monkeypatch.setattr(catalogue_market_store, 'get_intraday_history', lambda isin, days: [
             {"trade_date": "20260817", "hour": 10, "open_price": 100.0, "high_price": 104.0,
              "low_price": 100.0, "close_price": 101.0, "quantity": 15.0, "turnover": 1518.0},
         ])

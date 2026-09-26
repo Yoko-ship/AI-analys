@@ -10,6 +10,8 @@ the predecessor filing is missing.
 """
 from __future__ import annotations
 
+import catalogue.snapshots as catalogue_snapshots
+
 import server.company.financials as subject_server_company_financials
 
 import server.company.financials as subject_server_company_financials
@@ -157,24 +159,26 @@ class TestBalancePeriodFallback:
         columns existed carry the same figures in balance_period; the series
         reader serves them rather than a dash on the newest quarters."""
         import reports_catalog as rc
+        import catalogue.snapshots as catalogue_snapshots
 
         row = {"revenue": 100.0, "gross_profit": None, "cash": 5.0,
                "total_liabilities": 600.0, "net_income": 10.0,
                "operating_income": None, "total_assets": None, "total_equity": None,
                "balance_period": '{"assets_end": 1000.0, "assets_start": 900.0, '
                                  '"equity_end": 400.0, "equity_start": 380.0}'}
-        fields = rc._fin_row_fields(row)
+        fields = catalogue_snapshots._fin_row_fields(row)
         assert fields["total_assets"] == 1000.0
         assert fields["total_equity"] == 400.0
 
     def test_the_columns_win_over_the_balance_block(self):
         import reports_catalog as rc
+        import catalogue.snapshots as catalogue_snapshots
 
         row = {"revenue": None, "gross_profit": None, "cash": None,
                "total_liabilities": None, "net_income": None,
                "operating_income": None, "total_assets": 1234.0, "total_equity": None,
                "balance_period": '{"assets_end": 1000.0, "equity_end": 400.0}'}
-        fields = rc._fin_row_fields(row)
+        fields = catalogue_snapshots._fin_row_fields(row)
         assert fields["total_assets"] == 1234.0
         assert fields["total_equity"] == 400.0
 

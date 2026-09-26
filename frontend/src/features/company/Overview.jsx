@@ -102,15 +102,14 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
 }
 
 function CompanyReportsTab({ reports, lang }) {
-  const forms = [...new Set((reports || []).map((r) => r.report_form))];
+  const forms = React.useMemo(() => [...new Set((reports || []).map((r) => r.report_form))], [reports]);
   const [form, setForm] = React.useState(forms[0] || null);
   // Keyed on the actual form set, not reports.length: two companies with the
   // same report count but different form types used to keep a stale filter
   // and show "no reports" even though reports existed.
-  const formsKey = forms.join("|");
   React.useEffect(() => {
     if (forms.length > 0 && !forms.includes(form)) setForm(forms[0]);
-  }, [formsKey]);
+  }, [forms, form]);
   const visible = form ? reports.filter((r) => r.report_form === form) : reports;
   return (
     <div>

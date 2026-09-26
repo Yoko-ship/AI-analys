@@ -163,6 +163,7 @@ async function mockApi(page) {
     if (p === "/api/securities") return j(SECURITIES);
     if (p.startsWith("/api/v1/issuers/") && p.endsWith("/ai-report")) return j(COMPANY_AI_REPORT);
     if (p === "/api/market/financials") return j(FINANCIALS);
+    if (p === "/api/market/multiples") return j({ ok: true, items: [] });
     if (p === "/api/market/ratios") return j(RATIOS);
     if (p === "/api/analyze") return j(ANALYZE);
     if (p === "/api/analyze/export/pdf") return route.fulfill({ status: 200, headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF" });
@@ -276,6 +277,37 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
   expect(errors, errors.join("\n")).toHaveLength(0);
 });
 
+test("deferred market code shows a readable loading state and leaves navigation usable", async ({ page }, testInfo) => {
+  let release;
+  const ready = new Promise(resolve => { release = resolve; });
+  await page.route("**/assets/MarketView-*.js", async route => {
+    await ready;
+    await route.continue();
+  });
+  await page.goto("/market", { waitUntil: "domcontentloaded" });
+  try {
+    await expect(page.getByRole("status")).toHaveText("Загрузка...");
+    await expect(page.locator("header.topbar")).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("feature-loading.png") });
+  } finally {
+    release();
+  }
+  await expect(page.locator(".market-table-wrap")).toBeVisible();
+});
+
+test("a failed feature download offers reload and recovers without losing the shell", async ({ page }, testInfo) => {
+  const chunk = "**/assets/MarketView-*.js";
+  await page.route(chunk, route => route.abort("failed"));
+  await page.goto("/market");
+  const message = page.getByRole("alert");
+  await expect(message).toContainText("Не удалось открыть страницу");
+  await expect(page.locator("header.topbar")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("feature-error.png") });
+  await page.unroute(chunk);
+  await message.getByRole("button", { name: "Обновить страницу" }).click();
+  await expect(page.locator(".market-table-wrap")).toBeVisible();
+});
+
 test("module navigation preserves market filters through browser back and forward", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -369,9 +401,9 @@ test("workspace routes inherit one shared application palette", async ({ page })
 
 test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".hero-copy-block h1")).toContainText(/\S/);
+  await expect(page.locator(".lv-h1")).toContainText(/\S/);
   await page.locator("#languageSelect").selectOption("en");
-  await expect(page.locator(".hero-copy-block h1")).not.toContainText("Современный");
+  await expect(page.locator(".lv-h1")).toHaveText(/The open\s*market/);
 });
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
@@ -424,14 +456,12 @@ test("an open calendar refetches when the tab regains focus", async ({ page }) =
   await refreshed;
 });
 
-test("calendar rows show company logos and a fallback icon", async ({ page }) => {
+test("calendar rows identify the issuer on a phone without overflowing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/news?tab=calendar");
-  const issuers = page.locator(".newscal-row-issuer");
-
-  await expect(issuers.nth(0).locator("img.chip-logo")).toBeVisible();
-  await expect(issuers.nth(0).locator("img.chip-logo")).toHaveAttribute("src", SECURITIES.securities.AGBA.logo_url);
-  await expect(issuers.nth(1).locator(".chip-logo-fallback")).toBeVisible();
+  const issuers = page.locator(".newscal-row-org");
+  await expect(issuers.nth(0)).toHaveText(CALENDAR_MEETINGS[0].organization);
+  await expect(issuers.nth(1)).toHaveText(CALENDAR_MEETINGS[1].organization);
 
   const widths = await page.evaluate(() => ({
     client: document.documentElement.clientWidth,
@@ -506,7 +536,7 @@ test("a slow quote refresh keeps the existing market rows visible", async ({ pag
   await expect(table.getByText("AGBA Bank")).toBeVisible();
 
   await page.getByRole("button", { name: "Обновить", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Загружаем котировки...", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Обновляем|Загружаем котировки/, exact: false })).toBeDisabled();
   await expect(table.getByText("AGBA Bank")).toBeVisible();
   await expect(table.locator(".market-empty-cell")).toHaveCount(0);
 
@@ -583,7 +613,7 @@ test("saved optional market columns request only their supporting datasets", asy
   expect(new Set(requested)).toEqual(optional);
 });
 
-test("market financial cells show numeric candidates instead of status prose", async ({ page }) => {
+test("market cells distinguish published, provisional, out-of-range and blocked values", async ({ page }) => {
   await page.setViewportSize({ width: 1900, height: 1000 });
   await page.addInitScript(() => {
     localStorage.setItem("uz_market_cols_v3", JSON.stringify([
@@ -597,13 +627,13 @@ test("market financial cells show numeric candidates instead of status prose", a
       ok: true,
       items: [{
         ticker: "AGBA",
-        pe: { value: null, display_value: 12.34, display_warning: true, status: "unverified", limitation_reason: "statement check" },
+        pe: { value: null, computed: 12.34, status: "unverified", reasons: ["statement check"] },
         pb: { value: 73.86, display_value: 73.86, display_warning: true, status: "out_of_range", limitation_reason: "outside range" },
         ps: { value: null, display_value: null, status: "not_applicable", limitation_reason: "bank form" },
-        roe: { value: null, display_value: 18.2, display_warning: true, status: "unverified" },
+        roe: { value: 18.2, status: "ok" },
         roa: { value: null, display_value: 6.1, display_warning: true, status: "stale_period" },
         net_margin: { value: null, display_value: 22, display_warning: true, status: "audit_blocked" },
-        equity_assets: { value: null, display_value: 40, display_warning: true, status: "unverified" },
+        equity_assets: { value: 0, status: "ok" },
       }],
     }),
   }));
@@ -611,10 +641,14 @@ test("market financial cells show numeric candidates instead of status prose", a
   await page.goto("/market");
   const row = page.locator(".market-table-wrap tbody tr").filter({ hasText: "AGBA" }).first();
   await expect(row).toContainText("12,34×");
-  await expect(row).toContainText("73,86×");
+  await expect(row).toContainText("вне диапазона");
   await expect(row).toContainText("18,2%");
-  await expect(row).not.toContainText(/проверяется|нет свежего отчёта|н\/п|н\/зн/);
-  await expect(row.locator(".metric-value-warning")).toHaveCount(6);
+  await expect(row).toContainText("нет свежего отчёта");
+  await expect(row).toContainText("снято аудитом");
+  await expect(row).not.toContainText("6,1%");
+  await expect(row).not.toContainText("22%");
+  await expect(row.locator(".metric-warning--out_of_range")).toHaveCount(1);
+  await expect(row.locator("td").last()).toContainText("0%");
 });
 
 test("company details stay fixed to the viewport when opened from a scrolled market row", async ({ page }) => {
@@ -778,30 +812,13 @@ test("company AI insight exposes a retry state when its report is unavailable", 
   await expect(card.getByRole("button", { name: "Повторить" })).toBeVisible();
 });
 
-test("navigating to Анализ shows the analysis form", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Анализ", exact: true }).click();
-  await expect(page.locator(".analysis-form-modern").first()).toBeVisible();
-});
-
-test("analysis setup uses labeled controls and honest progressive disclosure", async ({ page }) => {
-  await page.goto("/analysis");
-  await expect(page.getByRole("heading", { name: "Анализ компании", level: 1 })).toBeVisible();
-  await expect(page.locator(".analysis-workspace-snapshot .workspace-snapshot-grid strong").first()).toHaveText("3");
-  await expect(page.locator(".analysis-builder-grid")).toBeVisible();
-  await expect(page.getByLabel("Компания", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Тип анализа", { exact: true })).toBeVisible();
-  await expect(page.getByText("Дополнительные параметры", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Обновить из источника (обойти кэш)")).not.toBeVisible();
-  await expect(page.getByText("Режим", { exact: true })).toHaveCount(0);
-
-  await page.getByText("Дополнительные параметры", { exact: true }).click();
-  await expect(page.getByLabel("Обновить из источника (обойти кэш)")).toBeVisible();
-
-  const companyButton = page.getByRole("button", { name: /AGBA.*AGBA Bank/ });
-  await companyButton.click();
-  await expect(companyButton).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("Компания", { exact: true })).toHaveValue("AGBA");
+test("hidden research routes stay out of public navigation", async ({ page }) => {
+  for (const route of ["/analysis", "/compare"]) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator(".topbar-nav").getByRole("button", { name: "Анализ", exact: true })).toHaveCount(0);
+    await expect(page.locator(".analysis-form-modern")).toHaveCount(0);
+  }
 });
 
 test("profile workspace exposes account state, watchlist alerts, and notes without analysis", async ({ page }) => {
@@ -946,13 +963,14 @@ test("profile and analysis workspaces do not overflow a phone viewport", async (
   }
 });
 
-test("Новости renders the editorial feed (§3.11)", async ({ page }) => {
+test("Новости renders the editorial feed (§3.11)", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
   await expect(page.locator(".newsdesk-head")).toContainText("Новости рынка");
   await expect(page.locator(".newsdesk-priority-story--lead")).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".newsdesk-priority-story--secondary").first()).toContainText("ЦБ уточнил требования");
   await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("news-desktop.png"), fullPage: true });
 });
 
 // Source imagery is part of the newsroom when it exists; filings without an image stay
@@ -965,7 +983,7 @@ test("the newsroom uses source imagery without inventing placeholders (§3.11)",
   await expect(page.locator(".newsdesk-priority-story--secondary .newsdesk-priority-picture img")).toHaveCount(0);
 });
 
-test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }) => {
+test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
   // The card is a real link to our own route, not to the outlet.
@@ -986,6 +1004,15 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await expect(page.locator(".led-iss-stats")).toContainText("1 500");
   await expect(page.locator(".led-iss-stats dd.pos").first()).toContainText("+4.2%");
   await expect(page.locator(".led-iss-basis")).toContainText("4");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/news/11");
+  await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
+  if (await page.locator("html").getAttribute("data-theme") !== "light") {
+    await page.locator(".theme-toggle").click();
+  }
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.screenshot({ path: testInfo.outputPath("news-article-mobile.png"), fullPage: true, animations: "disabled" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   // Related stories stay in-app; the back link returns to the feed.
   await page.locator(".led-art-related .led-story").first().click();
   await expect(page).toHaveURL(/\/news\/12$/);
@@ -1050,7 +1077,7 @@ test("an unknown /news/{id} shows a not-found notice, not a blank page (§3.11)"
 
 test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page }) => {
   await page.addInitScript(() =>
-    localStorage.setItem("uz_market_cols", JSON.stringify(["change", "mktCap", "pe", "pb", "roe"]))
+    localStorage.setItem("uz_market_cols_v3", JSON.stringify(["change", "mktCap", "pe", "pb", "roe"]))
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
@@ -1067,7 +1094,7 @@ test("Рынок shows §3.8 multiplier columns and exports CSV", async ({ page 
 // full-precision floats and a comma delimiter Russian Excel cannot split — which read as
 // somebody else's file rather than our report. What makes it ours is the issuer reporting
 // beside the quote, so that is what this pins.
-test("the market CSV is our report, not a board dump (§3.8)", async ({ page }) => {
+test("market CSV waits for hidden financial data and exports issuer reporting (§3.8)", async ({ page }) => {
   await mockApi(page);
   // Registered after mockApi, so these win: the shared fixtures carry no reporting period
   // and no OHLC, and both are columns under test.
@@ -1129,6 +1156,31 @@ test("the market CSV is our report, not a board dump (§3.8)", async ({ page }) 
   expect(row[header.split(";").indexOf("Изм., %")]).toBe("4,17");
 });
 
+test("market CSV fails visibly and retries without downloading incomplete data", async ({ page }, testInfo) => {
+  let calls = 0;
+  const downloads = [];
+  page.on("download", download => downloads.push(download));
+  await page.route("**/api/market/financials**", route => {
+    calls += 1;
+    return route.fulfill({ status: calls === 1 ? 503 : 200, contentType: "application/json",
+      body: JSON.stringify(calls === 1 ? { detail: "temporarily unavailable" } : FINANCIALS) });
+  });
+  await page.goto("/market");
+  await expect(page.locator(".market-table tbody tr").first()).toBeVisible();
+  expect(calls).toBe(0);
+  await page.locator(".market-export-btn").click();
+  await expect(page.getByRole("alert").filter({ hasText: "Не удалось подготовить CSV" })).toBeVisible();
+  expect(downloads).toHaveLength(0);
+  expect(calls).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath("export-error.png"), fullPage: true });
+  const [download] = await Promise.all([
+    page.waitForEvent("download"), page.locator(".market-export-btn").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.csv$/);
+  expect(calls).toBe(2);
+  await expect(page.getByRole("alert").filter({ hasText: "Не удалось подготовить CSV" })).toHaveCount(0);
+});
+
 // The site is served in three languages but every stored summary used to be Russian, so
 // the English and Uzbek versions served a Russian feed. The classifier now writes all three
 // and the read path ships one headline per language; this pins that each reader gets theirs.
@@ -1171,34 +1223,6 @@ for (const [lang, expected] of [
   });
 }
 
-test("analysis renders the §3.4 risk profile", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "e2e-token"));
-  await page.route("**/api/auth/me", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: { full_name: "E2E", email: "e2e@test.uz" } }) }));
-  await page.goto("/");
-  await page.getByRole("button", { name: "Анализ", exact: true }).click();
-  await page.locator(".analysis-input-wrapper input").first().fill("AGBA");
-  await page.waitForTimeout(600);
-  await page.getByRole("button", { name: /Анализировать/ }).click();
-  await expect(page.locator(".risk-profile-panel")).toBeVisible({ timeout: 12000 });
-  await expect(page.locator(".risk-profile-panel")).toContainText("Финансовый риск");
-  await expect(page.locator(".risk-profile-panel")).toContainText("§3.11");
-  // §3.3 4-tier debt-load indicator (Low/Moderate/High/Critical)
-  await expect(page.locator(".debt-load-badge")).toContainText("Умеренная");
-  // §3.3 EBITDA margin surfaced as a factual metric ring
-  await expect(page.locator(".metric-rings-grid")).toContainText("Маржа EBITDA");
-  // §3.5 statistical observations
-  await expect(page.locator(".observations-panel")).toBeVisible();
-  await expect(page.locator(".observations-panel")).toContainText("Одновременное ухудшение");
-  // C1 EBITDA row + C4 stacked structure chart + C5 server PDF
-  await expect(page.locator(".financial-bars")).toContainText("EBITDA");
-  await expect(page.locator(".structure-panel")).toBeVisible();
-  const [pdf] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByRole("button", { name: /Скачать PDF/ }).first().click(),
-  ]);
-  expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
-});
-
 test("mobile: hamburger opens the nav drawer (§3.12)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto("/");
@@ -1222,6 +1246,10 @@ test("mobile: hamburger opens the nav drawer (§3.12)", async ({ page }) => {
 // The filter bar scrolls with the page: it was pinned under the topbar for a
 // while and that is deliberately undone. Only the column headers stay.
 test("the filter bar scrolls away, the column headers do not (§3.8)", async ({ page }) => {
+  await page.route("**/api/market/stocks**", route => route.fulfill({ json: {
+    stocks: Array.from({ length: 60 }, (_, i) => ({ ticker: `QA${i}`, name: `Issuer ${i}`,
+      isin: `QA${i}`, last_price: 100, close_price: 90, last_trade_date: "2026-09-25" })),
+  } }));
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
@@ -1252,7 +1280,9 @@ test("the column picker follows its button while the page scrolls (§3.8)", asyn
   await page.waitForTimeout(400);
   const after = await menu.boundingBox();
   const btn = await button.boundingBox();
-  expect(Math.abs(after.y - (btn.y + btn.height + 8))).toBeLessThan(3);
+  const viewportHeight = await page.evaluate(() => window.innerHeight);
+  const expectedTop = Math.max(8, Math.min(btn.y + btn.height + 8, viewportHeight - 200));
+  expect(Math.abs(after.y - expectedTop)).toBeLessThan(3);
   expect(after.y).toBeGreaterThan(0);
   expect(after.y).toBeLessThan(await page.evaluate(() => window.innerHeight));
 });
@@ -1295,6 +1325,9 @@ test.describe("the market timestamp", () => {
   test.use({ timezoneId: "Asia/Tashkent" });
 
   test("reports our own refresh, in the reader's timezone (§3.8)", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "admin-fixture"));
+    await page.route("**/api/auth/me", route => route.fulfill({ contentType: "application/json",
+      body: JSON.stringify({ user: { id: 1, email: "admin@example.test", is_admin: true } }) }));
     await page.goto("/");
     await page.getByRole("button", { name: "Рынок", exact: true }).click();
     const badge = page.locator(".market-hero-panel .status-badge").first();
@@ -1354,8 +1387,10 @@ async function sortBoard(page) {
   await expect(tickers.first()).toBeVisible();
   return {
     tickers,
-    dateTh: page.locator('.market-table thead th[data-sort-key="date"]'),
-    volTh: page.locator('.market-table thead th[data-sort-key="volume"]'),
+    // The label is the sort target. Term-help and column-menu controls inside
+    // the same header deliberately consume clicks without sorting.
+    dateTh: page.locator('.market-table thead th[data-sort-key="date"] .market-th-inner > span:not([class])'),
+    volTh: page.locator('.market-table thead th[data-sort-key="volume"] .market-th-inner > span:not([class])'),
     chips: page.locator(".market-sort-chain-chip"),
   };
 }
@@ -1556,18 +1591,19 @@ test("the sector row is drawn only where it can actually choose", async ({ page 
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
 
-  const chips = page.locator(".market-sector-filter .sector-chip");
-  await expect(chips).toHaveText(["Все", "Финансы", "Производство", "Прочее"]);
+  const sector = page.locator(".market-sector-select select");
+  await expect(sector.locator("option")).toHaveCount(4);
+  await expect(sector.locator("option").nth(1)).toHaveText("Финансы");
 
   const tickers = page.locator(".market-table tbody .market-ticker-btn");
-  await page.getByRole("button", { name: "Финансы", exact: true }).click();
+  await sector.selectOption("finance");
   await expect(tickers).toHaveText(["AGBA"]);
 
   // Bonds: one sector between them, so no row — and the choice made on the shares
   // side must not be left applying invisibly, with no control left to undo it.
   await page.getByRole("button", { name: "Облигации", exact: true }).click();
   await expect(page.locator(".bonds-table tbody tr")).toHaveCount(1);
-  await expect(page.locator(".market-sector-filter")).toHaveCount(0);
+  await expect(page.locator(".market-sector-select")).toHaveCount(0);
 
   // It is suspended, not thrown away.
   await page.getByRole("button", { name: "Акции", exact: true }).click();
@@ -1705,7 +1741,7 @@ test("a column header explains its own term without sorting the board", async ({
 // explanation there is none of.
 test("only economic columns carry a term marker", async ({ page }) => {
   await page.addInitScript(() =>
-    localStorage.setItem("uz_market_cols", JSON.stringify(["volume", "source", "pe"]))
+    localStorage.setItem("uz_market_cols_v3", JSON.stringify(["volume", "source", "pe"]))
   );
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();

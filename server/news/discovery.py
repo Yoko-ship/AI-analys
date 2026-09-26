@@ -11,9 +11,11 @@ import server.http as http
 def _issuer_universe() -> dict[str, str]:
     """ticker → name, to constrain the classifier's ticker tags (mirrors the collector)."""
     import reports_catalog as rc
+    import catalogue.settings as catalogue_settings
+    import catalogue.storage as catalogue_storage
     universe: dict[str, str] = {}
     try:
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         for r in conn.execute("SELECT ticker, company_name FROM catalog_companies").fetchall():
             if r["ticker"]:
                 universe[r["ticker"].upper()] = r["company_name"] or r["ticker"]
@@ -22,7 +24,7 @@ def _issuer_universe() -> dict[str, str]:
         http.logger.exception("issuer universe query failed; classifier will infer sectors only")
     if not universe:
         try:
-            universe = {t.upper(): n for t, n in rc._TICKER_TO_NAME.items()}
+            universe = {t.upper(): n for t, n in catalogue_settings._TICKER_TO_NAME.items()}
         except Exception:  # noqa: BLE001
             pass
     return universe

@@ -7,6 +7,7 @@ import server.http as http
 import threading
 import time
 import web_auth as identity
+import identity.users as identity_users
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +107,7 @@ def _enforce_auth_rate_limit(request: Request, scope: str) -> None:
         raise HTTPException(status_code=429, detail="Too many attempts — try again in a minute")
 
 
-def _enforce_llm_quota(user: identity.WebUser) -> None:
+def _enforce_llm_quota(user: identity_users.WebUser) -> None:
     """Per-user pacing + daily cap, and a deployment-wide daily ceiling.
 
     A per-user cap alone does not bound spend: registration is open and

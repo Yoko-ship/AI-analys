@@ -235,7 +235,7 @@ def fetch_calendar(
     feed: the endpoint is ordered by publication date, so the crawl stops at
     the first page whose every row is older than the horizon.
     """
-    from openinfo_collector import _json_get, _make_session
+    from collectors.openinfo.transport import _json_get, _make_session
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=horizon_days)).strftime("%Y-%m-%d")
     client = session or _make_session()
@@ -322,7 +322,7 @@ def replace_snapshot(records: list[dict[str, Any]]) -> int:
     """Swap the stored window for a fresh one — one transaction, chunked inserts
     (row-at-a-time on PostgreSQL is the round-trip cost model this codebase has
     already paid for once)."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     row_sql = "(" + ",".join("?" * len(_COLUMNS)) + ", datetime('now'))"
     conn = get_catalog_conn()
@@ -346,7 +346,7 @@ def replace_snapshot(records: list[dict[str, Any]]) -> int:
 
 def read_window(start: str, end: str) -> list[dict[str, Any]]:
     """Stored announcements whose meeting date falls in [start, end)."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:
@@ -365,7 +365,7 @@ def read_recent(limit: int = 1000) -> list[dict[str, Any]]:
     """The stored window as a publication feed, newest notice first — the shape
     of the source's «Объявления» table, where the pub date is the row's identity
     and the meeting date is what the reader came for."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:
@@ -398,7 +398,7 @@ def announcements(limit: int = 1000) -> dict[str, Any]:
 
 
 def snapshot_state() -> dict[str, Any]:
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:

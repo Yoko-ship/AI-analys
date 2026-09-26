@@ -13,6 +13,8 @@ import pytest
 
 import main
 import openinfo_collector as oc
+import collectors.openinfo.transport as collectors_openinfo_transport
+import collectors.openinfo.documents as collectors_openinfo_documents
 
 
 class _FakeResponse:
@@ -102,9 +104,9 @@ class TestSecondaryIndexFloor:
 
 class TestReportDocumentsOrgFilter:
     def _fetch(self, results: list[dict], org_id: str | None):
-        with patch.object(oc, "_json_get", return_value={"results": results}), \
-             patch.object(oc, "_make_session", return_value=object()):
-            return oc.fetch_report_documents("some company", org_id=org_id)
+        with patch.object(collectors_openinfo_transport, "_json_get", return_value={"results": results}), \
+             patch.object(collectors_openinfo_transport, "_make_session", return_value=object()):
+            return collectors_openinfo_documents.fetch_report_documents("some company", org_id=org_id)
 
     def test_no_match_for_the_org_returns_nothing(self) -> None:
         # The regression: `if filtered:` fell through to the UNFILTERED page, so a

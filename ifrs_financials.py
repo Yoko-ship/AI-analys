@@ -156,17 +156,19 @@ def reviewed_catalog_year(conn, org_id, pdf_url: str | None, fallback: int) -> i
 
 def import_reviewed(ticker: str, *, apply: bool = False, entries=None, fetch=download_pdf) -> dict:
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
     import provenance
 
     ticker = ticker.strip().upper()
-    company = rc.get_company_index(ticker) or {}
+    company = catalogue_filings.get_company_index(ticker) or {}
     org_id = str(company.get("org_id") or "")
     selected = [e for e in (reviews() if entries is None else entries) if str(e["org_id"]) == org_id]
     result = {"ticker": ticker, "verified": [], "published": [], "errors": []}
     for entry in selected:
         year = entry["year"]
         try:
-            conn = rc.get_catalog_conn()
+            conn = catalogue_storage.get_catalog_conn()
             try:
                 source = conn.execute(
                     "SELECT r.* FROM catalog_reports r JOIN catalog_companies c ON c.ticker=r.ticker "
@@ -201,7 +203,7 @@ def import_reviewed(ticker: str, *, apply: bool = False, entries=None, fetch=dow
                 for field, figure in entry["figures"].items()])
             # Publication is last: failed validation cannot replace live values.
             # This writer never touches NSBU rows or generic indicator facts.
-            conn = rc.get_catalog_conn()
+            conn = catalogue_storage.get_catalog_conn()
             try:
                 with conn:
                     conflict = conn.execute(

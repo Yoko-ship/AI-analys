@@ -122,7 +122,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     if (Number.isNaN(d.getTime())) return chartRangeMonths(range);
     return Math.max(1, Math.min(360,
       (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()) + 2));
-  }, [custom, span.from, range, type]);
+  }, [custom, span.from, range]);
 
   React.useEffect(() => {
     if (!up) return undefined;
@@ -700,7 +700,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     }
     return { series, main: "price", panes, hourly: hasHourly, labels };
   }, [n, points, baseVals, cmpOn, cmp, drawType, synthetic, stepLine, priceColor, isUp, rangeWindow, adjustments,
-      drawPoints, ind, toScale, subPanes, finPanes, hasHourly, lang, shownPatterns, patternLabels, selectedPattern]);
+      drawPoints, ind, toScale, subPanes, hasHourly, lang, shownPatterns, patternLabels, selectedPattern]);
 
   const initialView = React.useMemo(() => {
     if (synthetic || !historyNavigation || range === "max" || n < 2) return null;

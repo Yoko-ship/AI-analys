@@ -13,6 +13,37 @@ const trades = (overrides = {}) => ({
 });
 
 describe("market data shared by the board, company, chart and landing", () => {
+  for (const missing of [null, undefined, "", "   "]) {
+    it(`preserves missing prices and activity instead of inventing zeroes (${JSON.stringify(missing)})`, () => {
+      const [row] = prepareMarketRows([quote({ last_price: missing, close_price: missing,
+        volume: missing, quantity: missing, trade_count: missing })]);
+      for (const field of ["lastPrice", "closePrice", "stockVolume", "stockQuantity", "stockTradeCount",
+        "changeValue", "changePercent"]) assert.equal(row[field], null, field);
+      assert.equal(row.tradedToday, false);
+    });
+  }
+
+  it("preserves genuine zero activity and a flat session", () => {
+    const [row] = prepareMarketRows([quote({ last_price: 100, close_price: 100,
+      volume: 0, quantity: 0, trade_count: 0 })]);
+    assert.equal(row.stockVolume, 0);
+    assert.equal(row.stockQuantity, 0);
+    assert.equal(row.stockTradeCount, 0);
+    assert.equal(row.changePercent, 0);
+    assert.equal(row.tradedToday, false);
+  });
+
+  it("recovers a missing quote from a valid close in the same trading session", () => {
+    const [row] = prepareMarketRows([quote({ last_price: null })], {
+      UZ0001: trades({ close_price: 120 }),
+    });
+    assert.equal(row.lastPrice, 120);
+    assert.equal(row.closePrice, 100);
+    assert.equal(row.changeValue, 20);
+    assert.equal(row.changePercent, 20);
+    assert.equal(row.last_trade_date, "2026-08-14");
+  });
+
   it("preserves quote changes while using matching session totals", () => {
     const [row] = prepareMarketRows([quote()], { UZ0001: trades() });
     assert.equal(row.lastPrice, 120);

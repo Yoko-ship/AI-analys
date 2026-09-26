@@ -1,0 +1,294 @@
+/* Navigation Tabs - Clean Minimal Style */
+.topbar-nav-btn {
+  position: relative;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topbar-nav-btn:hover {
+  color: var(--text);
+  background: var(--accent-light);
+}
+
+.topbar-nav-btn.active {
+  color: var(--accent);
+  background: var(--accent-light);
+  font-weight: 600;
+}
+
+/* ── «Рынок» drop-down: sections with their own headers ─────────────────── */
+
+.nav-dd-wrap {
+  position: relative;
+}
+
+.nav-dd-caret {
+  margin-left: 6px;
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+/* Portaled to <body> and fixed at the trigger's measured rect — an in-place
+   absolute panel is clipped by the nav once mobile.css turns it into a
+   horizontal scrollport (≤1700px). Flush anchoring (top = rect.bottom, no
+   margin) keeps the pointer path continuous; z-index above the portaled
+   market-sticky-head (50) and the cols dropdown (121)'s layer, below the
+   bankfx modal (200). */
+.nav-dd-panel {
+  position: fixed;
+  z-index: 130;
+  display: flex;
+  gap: 36px;
+  padding: 16px 24px 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.nav-dd-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.nav-dd-head {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+  padding-left: 9px;
+  border-left: 3px solid var(--accent);
+  margin-bottom: 8px;
+}
+
+.nav-dd-item {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 7px 12px 7px 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.nav-dd-item:hover {
+  color: var(--accent);
+}
+
+/* Desktop only: the drawer shows the extra destination as its own row. */
+.nav-dd-mobile-item {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  /* In the drawer the wrap dissolves: the «Рынок» button and the indented
+     bank-rates row flow as ordinary drawer rows. */
+  .nav-dd-wrap {
+    display: contents;
+  }
+
+  .nav-dd-panel,
+  .nav-dd-caret {
+    display: none;
+  }
+
+  /* Outweighs theme.css's `.topbar .topbar-nav .topbar-nav-btn` drawer rule
+     (equal class count, later stylesheet) by carrying one class more. */
+  .topbar .topbar-nav .topbar-nav-btn.nav-dd-mobile-item {
+    display: block;
+    padding-left: 30px;
+    font-size: 0.95rem;
+  }
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.topbar-status {
+  display: none;
+  justify-items: end;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Never squeezed and never squeezed OUT: the nav beside it scrolls when the
+     row runs short (see mobile.css), and these are the controls a reader needs
+     to still be able to reach — the theme toggle spent a release pushed past the
+     right edge of the viewport because this block could be overrun. */
+  flex: 0 0 auto;
+}
+
+.topbar-language {
+  min-width: auto;
+}
+
+.topbar-language .field-label {
+  display: none;
+}
+
+.topbar-language .select-field {
+  min-width: 80px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.topbar-auth-chip {
+  display: none;
+}
+
+/* ── Курсы валют в шапке ──────────────────────────────────────────────────
+   CBU's daily fixes, hoisted out of the market page's strip into the sticky
+   header (customer, 2026-08-19) and cycling one currency at a time. It is a
+   button, not a badge: it opens «Где выгоднее обменять». Quiet until hovered —
+   the header already carries the brand, the nav and three controls, and this
+   must not shout over them. */
+.topbar-fx {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--duration-fast, 120ms) var(--ease-out, ease),
+    border-color var(--duration-fast, 120ms) var(--ease-out, ease);
+}
+
+.topbar-fx:hover {
+  border-color: var(--border);
+  background: var(--panel);
+}
+
+/* One turn of the cycle. The width is FIXED rather than fitted: «Доллар США
+   11 820,4» and «Российский рубль 147,61» differ by ~30px, and a header that
+   re-flows every six seconds would nudge the language select and the theme
+   toggle sideways under the reader's cursor. Sized to the longest of the
+   three, left-aligned so the number does not wander either. */
+.topbar-fx-slide {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* 144 = flag 21 + gap 8 + the widest measured pair, «13 788,05 ▲8,47». */
+  width: 144px;
+  animation: topbar-fx-in var(--duration-normal, 220ms) var(--ease-out, ease);
+}
+
+@keyframes topbar-fx-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* A reader who asked not to be moved gets the change without the motion —
+   the number still swaps, it just does not slide in. */
+@media (prefers-reduced-motion: reduce) {
+  .topbar-fx-slide {
+    animation: none;
+  }
+}
+
+.topbar-fx-flag {
+  flex: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Fallback for a currency with no drawn flag: its code, in the flag's slot. */
+.topbar-fx-code {
+  flex: none;
+  width: 21px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.topbar-fx-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+/* Where the cycle stands. Deliberately tiny: it is an answer to "will this
+   change again?", not a control. */
+.topbar-fx-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.topbar-fx-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background var(--duration-fast, 120ms) var(--ease-out, ease);
+}
+
+.topbar-fx-dots i.is-on {
+  background: var(--muted);
+}
+
+/* The name is the part that can outgrow the fixed slide («Российский рубль»);
+   it truncates rather than pushing the numbers around. */
+.topbar-fx-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.topbar-fx-nums {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.topbar-fx-rate {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.topbar-fx-diff {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+}
+
+.topbar-fx-diff.is-up {
+  color: var(--success);
+}
+
+.topbar-fx-diff.is-down {
+  color: var(--danger);
+}

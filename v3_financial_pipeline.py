@@ -91,7 +91,7 @@ def resolve_period(*, explicit: tuple[str, str] | None = None,
 
 
 def _connection() -> sqlite3.Connection:
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
     conn = get_catalog_conn()
     conn.row_factory = sqlite3.Row
     return conn

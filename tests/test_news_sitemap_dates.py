@@ -16,6 +16,7 @@ from __future__ import annotations
 import pytest
 
 import news_collector as nc
+import collectors.news.sources as collectors_news_sources
 
 
 FITCH = {
@@ -65,7 +66,7 @@ def served(monkeypatch):
 
 def test_slug_date_wins_over_the_sitemap_build_time(served):
     served(_sitemap_xml(_URLS))
-    items = nc.fetch_sitemap(FITCH, 40)
+    items = collectors_news_sources.fetch_sitemap(FITCH, 40)
 
     dates = {i["title"]: i["published_at"] for i in items}
     assert dates["fitch affirms uzbekistan at bb outlook stable"] == "2026-07-23"
@@ -76,7 +77,7 @@ def test_slug_date_wins_over_the_sitemap_build_time(served):
 
 def test_url_filter_drops_global_research_before_any_model_call(served):
     served(_sitemap_xml(_URLS))
-    items = nc.fetch_sitemap(FITCH, 40)
+    items = collectors_news_sources.fetch_sitemap(FITCH, 40)
 
     assert len(items) == 2, [i["title"] for i in items]
     joined = " ".join(i["title"] for i in items)
@@ -86,7 +87,7 @@ def test_url_filter_drops_global_research_before_any_model_call(served):
 def test_lastmod_is_the_fallback_when_a_slug_carries_no_date(served):
     served(_sitemap_xml(
         ["https://www.fitchratings.com/research/sovereigns/fitch-affirms-uzbekistan-at-bb"]))
-    items = nc.fetch_sitemap(FITCH, 40)
+    items = collectors_news_sources.fetch_sitemap(FITCH, 40)
 
     assert [i["published_at"] for i in items] == ["2026-07-28"]
 
@@ -97,9 +98,9 @@ def test_a_source_without_slug_date_is_unchanged(served):
                         lastmod=None))
     moodys = {"id": "moodys", "type": "sitemap", "url": "x", "lang": ["en"],
               "url_filter": "uzbek", "title_from": "slug", "slug_strip": r"-{1,2}PR_\d+$"}
-    items = nc.fetch_sitemap(moodys, 40)
+    items = collectors_news_sources.fetch_sitemap(moodys, 40)
 
     assert len(items) == 1
     assert items[0]["published_at"] is None
     assert items[0]["title"] == "Moodys affirms Uzbekistan"
-    assert nc._is_recent(items[0]["published_at"], 30) is True
+    assert collectors_news_sources._is_recent(items[0]["published_at"], 30) is True

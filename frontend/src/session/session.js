@@ -48,8 +48,10 @@ export function createSession({ persistentStorage, temporaryStorage, fetcher }) 
     if (!snapshot.token) return null;
     const current = generation;
     const version = ++validationVersion;
+    let rejected = false;
     try {
       const response = await snapshot.apiFetch("/api/auth/me");
+      rejected = response.status === 401;
       const data = await response.json();
       if (current !== generation || version !== validationVersion) return null;
       if (!response.ok) throw new Error(data.detail || "Session is invalid");
@@ -57,7 +59,8 @@ export function createSession({ persistentStorage, temporaryStorage, fetcher }) 
       return data.user;
     } catch (error) {
       if (current !== generation || version !== validationVersion) return null;
-      clear();
+      // Transport and server failures do not revoke a valid credential.
+      if (rejected) clear();
       throw error;
     }
   }

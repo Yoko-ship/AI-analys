@@ -8,6 +8,10 @@ from datetime import date
 from pathlib import Path
 
 import sector_analysis as core
+import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+import financial_analysis.sector_report as financial_analysis_sector_report
+import financial_analysis.sector_templates as financial_analysis_sector_templates
 
 
 def code_fingerprint():
@@ -15,7 +19,7 @@ def code_fingerprint():
              "bond_quality.py", "sector_regressions.py", "reporting/store.py",
              "reporting/publication.py", "config/verified_fund_reports.json",
              "config/verified_sector_classifications.json")
-    return core.digest({name: (Path(__file__).parent / name).read_bytes().hex() for name in paths})
+    return financial_analysis_sector_numbers.digest({name: (Path(__file__).parent / name).read_bytes().hex() for name in paths})
 
 
 @lru_cache(maxsize=4)
@@ -25,27 +29,27 @@ def _run(fingerprint):
     def check(code, condition):
         checks.append({"code": code, "status": "passed" if condition else "failed"})
 
-    check("null_is_not_zero", core.total(1, None) is None and core.ratio(1, 0) is None)
-    check("balance_absolute_and_relative", core.balance_gate({"total_assets": 1000000, "total_equity": 400000, "total_liabilities": 599998})["status"] == "failed")
-    check("bank_routing", core.resolve_template({"oked_code": "64190"}, "bank")["selected_template"] == "bank")
-    check("trade_oked_routing", core.resolve_template({"oked_code": "47110"})["selected_template"] == "trade")
-    check("transport_oked_routing", core.resolve_template({"oked_code": "49410"})["selected_template"] == "transport")
-    check("telecom_oked_routing", core.resolve_template({"oked_code": "61100"})["selected_template"] == "telecom")
-    check("catalog_sector_fallback", core.resolve_template({"sector": "mining"})["selected_template"] == "extractive")
-    check("unknown_oked", core.resolve_template({})["selected_template"] == "generic_nsbu")
-    check("bank_no_enterprise_ratios", not core.enterprise_ratios({}, "bank", "nsbu", "2026Q1"))
-    check("sign_change", core.change(-10, 20)["change_value"] == -30 and core.change(-10, 20)["base_effect"])
+    check("null_is_not_zero", financial_analysis_sector_numbers.total(1, None) is None and financial_analysis_sector_numbers.ratio(1, 0) is None)
+    check("balance_absolute_and_relative", financial_analysis_sector_calculations.balance_gate({"total_assets": 1000000, "total_equity": 400000, "total_liabilities": 599998})["status"] == "failed")
+    check("bank_routing", financial_analysis_sector_templates.resolve_template({"oked_code": "64190"}, "bank")["selected_template"] == "bank")
+    check("trade_oked_routing", financial_analysis_sector_templates.resolve_template({"oked_code": "47110"})["selected_template"] == "trade")
+    check("transport_oked_routing", financial_analysis_sector_templates.resolve_template({"oked_code": "49410"})["selected_template"] == "transport")
+    check("telecom_oked_routing", financial_analysis_sector_templates.resolve_template({"oked_code": "61100"})["selected_template"] == "telecom")
+    check("catalog_sector_fallback", financial_analysis_sector_templates.resolve_template({"sector": "mining"})["selected_template"] == "extractive")
+    check("unknown_oked", financial_analysis_sector_templates.resolve_template({})["selected_template"] == "generic_nsbu")
+    check("bank_no_enterprise_ratios", not financial_analysis_sector_calculations.enterprise_ratios({}, "bank", "nsbu", "2026Q1"))
+    check("sign_change", financial_analysis_sector_numbers.change(-10, 20)["change_value"] == -30 and financial_analysis_sector_numbers.change(-10, 20)["base_effect"])
     lines = {k: {"raw_current": v} for k, v in {
         "form2:c270": "80", "form2:c240": "100", "form1:c400": "1000",
         "form1:c480": "400", "form1:c570": "50", "form1:c580": "50",
         "form1:c320": "50", "form1:c370": "25", "form1:c210": "129", "form1:c600": "200",
     }.items()}
-    ratios = {r["metric"]: r["value"] for r in core.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q1")}
+    ratios = {r["metric"]: r["value"] for r in financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q1")}
     check("P1", ratios["P1"] == 8)
     check("P3", ratios["P3"] == 20)
     check("P4", ratios["P4"] == 25)
     check("quick_liquidity", ratios["quick_ratio"] == 1.02)
-    bank = core.make_report(
+    bank = financial_analysis_sector_report.make_report(
         {
             "organization_type": "bank", "standard": "nsbu", "period": "2026Q1",
             "period_basis": "quarter", "scope": "standalone", "display_divisor": 1000,
@@ -69,7 +73,7 @@ def _run(fingerprint):
     check("bank_html_structure", [item.get("id") for item in bank.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
     check("bank_interest_expense_share", "доля расходов в доходах, а не стоимость фондирования" in bank_text and "Стоимость фондирования =" not in bank_text)
     check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
-    company = core.make_report(
+    company = financial_analysis_sector_report.make_report(
         {
             "organization_type": "non_financial", "standard": "nsbu", "period": "2026Q1",
             "period_basis": "quarter", "scope": "standalone", "display_divisor": 1000,

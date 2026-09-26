@@ -6,9 +6,9 @@ the uzstock.uz server. This refactor does not introduce separate services.
 
 ## Composition and ownership
 
-`frontend/src/App.jsx` composes the application in 259 lines.
+`frontend/src/App.jsx` composes the application and loads feature bundles on demand.
 `api.py` loads configuration, composes routers and lifecycle handlers, and serves
-the frontend in 236 lines. Neither owns business calculations.
+the frontend. Neither owns business calculations.
 
 | Area | Owner and interface |
 | --- | --- |
@@ -97,8 +97,8 @@ python -m pytest tests -q
 python scripts/check_server_requirements.py
 ```
 
-CI requires the complete backend suite, frontend architecture/unit checks,
-lint/build, and selected browser integration scenarios. The former
+CI requires the complete backend suite on Python 3.12 and 3.14 with PostgreSQL,
+frontend architecture/unit checks, lint/build, and the full local browser suite. The former
 `continue-on-error` exception on the backend suite has been removed. Backend CI
 disables `.env` loading and collectors, and uses isolated SQLite paths.
 
@@ -106,7 +106,7 @@ disables `.env` loading and collectors, and uses isolated SQLite paths.
 ingestion and market reads, route contracts, versioned errors, queue leases and
 shutdown. Only the external exchange mirror is replaced in the persistence test.
 
-## Verification record — 2026-09-26
+## Initial architecture verification — 2026-09-26
 
 Outcome: **PASS WITH LIMITATIONS** for the architecture refactor.
 
@@ -141,3 +141,34 @@ Outcome: **PASS WITH LIMITATIONS** for the architecture refactor.
 
 Detailed local logs and the baseline comparison are in
 `D:/projects/output/architecture-full-20260926/release/`, outside the release checkout.
+
+## Refactor completion and API integration — 2026-09-26
+
+The remaining large modules now delegate to explicit owners: `catalogue/` for
+filings and financial series, `collectors/` for acquisition jobs,
+`financial_analysis/` for calculations and sector assessments, `reporting/` for
+rendering and publication, and `identity/` for account persistence. Existing entry
+points remain available. Market, news, research and admin screens separate state
+management from rendering. Shared styles are composed from 33 ordered sections.
+
+This completion was integrated on API commit `630608d`, preserving its email
+verification, login lockout, financial ingestion, data-quality administration,
+public issuer reports and current chart implementation.
+
+Local verification: **PASS WITH LIMITATIONS**.
+
+- Complete Python suite: **2,201 passed, 1 skipped**, including all 44 real
+  PostgreSQL integration tests on a disposable database.
+- Frontend unit suite: **155 passed**; lint clean and production build passed.
+- Browser suite: **122 passed, 1 failed, 1 skipped** on the integration build;
+  the final slow-refresh failure was fixed and its targeted rerun passed.
+  These tests use mocked application APIs. Mobile comparison screens in both
+  themes, mobile charts and the desktop market screen were visually inspected.
+- All **15,322 ordered CSS syntax nodes** match the current API stylesheet.
+- The live OpenAI test remains deferred by the user. The deployed-calendar
+  browser check is skipped locally. Docker and Python 3.12 run in CI rather
+  than this Windows environment; this record does not claim CI or deployment
+  success before their remote runs complete.
+
+Detailed integration evidence is under
+`D:/projects/output/refactor-push-20260926/`, outside the release checkout.

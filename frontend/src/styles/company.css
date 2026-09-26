@@ -1,0 +1,760 @@
+/* ── Company detail page ─────────────────────────────────────────────────── */
+/* Measured against the quote page this layout follows, both at a 1900px
+   viewport: its body text is 14px and its headline price 32px, while ours ran
+   11–12.5px with a 20px price, and our column stopped at 1560px where its left
+   rail runs to the window edge. Same screen, ~15 % smaller type and 340px of
+   unused margin — which is the whole of why this page read as the smaller one.
+   The scale below is company-page only; the market table is dense by design and
+   its 12px stays. */
+.company-page { width: 100%; max-width: 1800px; margin: 0 auto; padding: 0 0 48px; }
+.company-page-header { border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.company-page-back { font-size: 12px; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 12px 0 8px; display: block; }
+.company-page-back:hover { color: var(--text-primary); }
+.company-page-hero { display: flex; align-items: center; gap: 18px; padding: 4px 0 18px; flex-wrap: wrap; }
+.company-page-hero .chip-logo, .company-page-hero .chip-logo-fallback { width: 72px; height: 72px; border-radius: 16px; flex-shrink: 0; }
+.company-page-hero .chip-logo { background: #fff; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.company-page-hero .chip-logo--float { background: transparent; padding: 0; box-shadow: none; }
+.company-page-hero .chip-logo-fallback { font-size: 1.9rem; }
+.company-page-title { flex: 1; min-width: 180px; }
+.company-page-title h1 { margin: 0 0 6px; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.company-page-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.company-page-ticker { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--accent); }
+.company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 2px 8px; font-size: 12px; color: var(--text-muted); }
+.company-page-price { text-align: right; }
+.company-page-price-val { font-size: 30px; font-weight: 700; line-height: 1.2; }
+.company-page-price-change { font-size: 15px; margin-top: 2px; }
+.company-page-price-change.pos { color: #2fc584; }
+.company-page-price-change.neg { color: #ee6a60; }
+.company-page-price .primary-btn { margin-top: 8px; padding: 6px 14px; font-size: 13px; }
+.company-page-tabs { display: flex; gap: 0; margin-top: 2px; }
+.company-tab-btn { background: none; border: none; padding: 11px 18px; font-size: 15px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.company-tab-btn:hover { color: var(--text-primary); }
+.company-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* Company AI report: the compact profile insight opens the same traceable
+   report response in a focused dialog. */
+.company-insight-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg-2));
+  box-shadow: var(--shadow-xs);
+  transition: margin-right .2s ease, border-color .15s;
+}
+/* The sponsor is portaled and appears after the page settles.  Reserve its
+   actual 220px footprint only while it exists so the report action is never
+   hidden underneath it, then reclaim the space when the unit closes. */
+@media (min-width: 761px) {
+  body:has(.sponsor-overlay) .company-insight-card { margin-right: 236px; }
+}
+.company-insight-card.tone-positive { border-color: color-mix(in srgb, var(--success) 24%, var(--border)); }
+.company-insight-card.tone-warning { border-color: color-mix(in srgb, var(--warning) 26%, var(--border)); }
+.company-insight-card.tone-danger { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); }
+.company-insight-icon { width: 28px; height: 28px; flex: 0 0 28px; overflow: visible; }
+.company-insight-icon.small { width: 17px; height: 17px; flex-basis: 17px; }
+.company-insight-card-copy { flex: 1; min-width: 0; }
+.company-insight-card-copy p { margin: 0; color: var(--text); font-size: 15.5px; line-height: 1.55; }
+.company-insight-action {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-hover);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.company-insight-action:hover { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+.company-insight-loading { display: flex; flex-direction: column; gap: 8px; width: min(680px, 86%); }
+.company-insight-loading span { height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border-hover) 42%, var(--surface-2) 63%); background-size: 300% 100%; animation: co-shimmer 1.4s ease infinite; }
+.company-insight-loading span:last-child { width: 62%; }
+
+.company-insight-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+  background: rgba(4, 6, 10, .48);
+  animation: company-insight-fade .16s ease-out;
+}
+.company-insight-dialog {
+  position: relative;
+  width: clamp(430px, 38vw, 610px);
+  height: 100dvh;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px 28px 28px;
+  border: 1px solid var(--border-hover);
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: var(--bg-2);
+  box-shadow: var(--shadow-xl);
+  color: var(--text);
+  animation: company-insight-slide-in .22s ease-out;
+}
+@keyframes company-insight-fade { from { opacity: 0; } }
+@keyframes company-insight-slide-in { from { opacity: .5; transform: translateX(36px); } }
+.company-insight-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+.company-insight-close:hover { color: var(--text); border-color: var(--border); background: var(--panel); }
+.company-insight-dialog-head { position:sticky; top:-24px; z-index:2; background:var(--bg-2); display: flex; align-items: flex-start; gap: 14px; padding: 12px 54px 20px 0; border-bottom: 1px solid var(--border); }
+.company-insight-dialog-head .company-insight-close { top:4px; right:0; background:var(--bg-2); }
+.company-insight-dialog-head > div { min-width: 0; }
+.company-insight-dialog-head h2 { margin: 3px 0 4px; font-size: clamp(21px, 3vw, 27px); line-height: 1.2; letter-spacing: -.015em; }
+.company-insight-dialog-head p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+.company-insight-eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.company-insight-status { display: inline-flex; margin: 16px 0 0; padding: 5px 10px; border-radius: 999px; background: var(--warning-light); color: var(--warning); font-size: 12px; font-weight: 600; }
+.company-insight-sources { padding: 18px 0 2px; }
+.company-insight-sources h3 { margin: 0 0 9px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.company-insight-sources > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.company-insight-sources a,
+.company-insight-sources span { display: inline-flex; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--text-secondary); font-size: 12.5px; line-height: 1.35; text-decoration: none; }
+.company-insight-sources a:hover { border-color: var(--accent); color: var(--accent); }
+.company-insight-report-copy { padding: 16px 0 4px; }
+.company-insight-report-copy p { margin: 0 0 16px; color: var(--text-secondary); font-size: 15px; line-height: 1.75; }
+.company-insight-report-copy p:last-child { margin-bottom: 0; }
+.company-insight-abstract { margin: 0 0 24px; padding: 16px 18px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-light); }
+.company-insight-abstract > span { display: block; margin-bottom: 7px; color: var(--accent); font-size: 11px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+.company-insight-abstract p { margin: 0; color: var(--text); font-weight: 550; }
+.company-insight-report-section { padding: 20px 0; border-top: 1px solid var(--border); }
+.company-insight-report-section > header { display: grid; grid-template-columns: 34px 1fr; align-items: baseline; gap: 9px; margin-bottom: 10px; }
+.company-insight-report-section > header span { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .08em; }
+.company-insight-report-section > header h3 { margin: 0; color: var(--text); font-size: 17px; line-height: 1.35; }
+.company-insight-report-section > p { margin-left: 43px; }
+.company-insight-report-section > p strong { color: var(--text); font-weight: 700; }
+.company-insight-dialog-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+.company-insight-dialog-foot > span { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 600; }
+.company-insight-dialog-foot p { max-width: 56ch; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; text-align: right; }
+
+/* A financial number is an entry point to its evidence, not decorative text.
+   The table keeps its numeric alignment; the button supplies the affordance and
+   remains usable with keyboard focus. */
+.fin-passport-cell > button {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dotted color-mix(in srgb, var(--muted) 60%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.fin-passport-cell > button:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.fin-passport-cell > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.financial-passport-copy { display: grid; gap: 18px; padding: 20px 0 4px; }
+.financial-passport-status { width: fit-content; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 700; }
+.financial-passport-status.SOURCED { background: var(--positive-light); color: var(--positive); }
+.financial-passport-status.DERIVED { background: var(--accent-light); color: var(--accent); }
+.financial-passport-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; margin: 0; }
+.financial-passport-grid > div { min-width: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.financial-passport-grid dt { margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.financial-passport-grid dd { margin: 0; color: var(--text); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.financial-passport-hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px !important; }
+.financial-passport-formula { padding: 16px; border-left: 3px solid var(--accent); border-radius: 0 9px 9px 0; background: var(--accent-light); }
+.financial-passport-formula > span { display: block; margin-bottom: 8px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.financial-passport-formula code { color: var(--text); font-size: 13px; }
+.financial-passport-formula p,
+.financial-passport-reason { margin: 10px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.financial-passport-copy > .company-insight-action { width: fit-content; }
+
+/* A closed feature keeps its name and outcome in view.  The boundary is also
+   enforced by the API; this panel is the explanatory half of that contract. */
+.pro-gate { max-width: 720px; margin: 40px auto; padding: 36px; text-align: center; }
+.pro-gate-icon { display: grid; place-items: center; width: 46px; height: 46px; margin: 10px auto 14px; border-radius: 50%; color: var(--accent); background: var(--accent-light); }
+.pro-gate-icon svg { width: 22px; height: 22px; }
+.pro-gate h1 { margin: 0 0 10px; font-size: 24px; }
+.pro-gate p { max-width: 550px; margin: 0 auto 10px; line-height: 1.6; }
+.pro-gate .primary-btn { margin-top: 12px; }
+
+@media (max-width: 760px) {
+  .company-insight-card { align-items: flex-start; gap: 11px; padding: 14px; }
+  .company-insight-card-copy p { font-size: 14px; line-height: 1.5; }
+  .company-insight-action { min-height: 44px; padding: 9px 12px; }
+  .company-insight-dialog { width: 100%; height: 100dvh; max-height: none; padding: 24px 18px 20px; border-left: 0; }
+  .company-insight-dialog-head { top:-24px; padding-right: 42px; }
+  .company-insight-dialog-head .company-insight-icon { display: none; }
+  .company-insight-report-section > p { margin-left: 0; }
+  .company-insight-dialog-foot { flex-direction: column; gap: 10px; }
+  .company-insight-dialog-foot p { text-align: left; }
+  .financial-passport-grid { grid-template-columns: 1fr; gap: 11px; }
+  .pro-gate { margin: 22px auto; padding: 24px 18px; }
+}
+
+@media (max-width: 480px) {
+  .company-insight-card { flex-wrap: wrap; }
+  .company-insight-card-copy { flex-basis: calc(100% - 42px); }
+  .company-insight-card .company-insight-action { width: 100%; }
+}
+
+/* Overview layout */
+.company-overview-layout { display: flex; flex-direction: column; gap: 18px; }
+.company-chart-panel { padding: 16px 20px 12px; }
+/* Chart and key-stats rail share the first screen. The chart SVG scales to its
+   container (viewBox + width:100%), so narrowing the column is what shortens it
+   — there is no height to set. Below 1100px the rail drops under the chart
+   rather than squeezing both into unreadable columns. */
+/* Watchlist | security | its numbers. Below 1480px there is no room for three
+   readable columns, so the watchlist drops under the chart and keeps the stats
+   rail beside it; below 1100px everything stacks and the watchlist goes last —
+   it is context, and context does not come before the thing it contextualises. */
+.company-hero-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 330px;
+  grid-template-areas: "watch main stats";
+  gap: 18px; align-items: start;
+}
+@media (max-width: 1480px) {
+  .company-hero-grid {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-areas: "main stats" "watch stats";
+  }
+}
+@media (max-width: 1100px) {
+  .company-hero-grid { grid-template-columns: 1fr; grid-template-areas: "main" "stats" "watch"; }
+}
+.company-hero-watch { grid-area: watch; min-width: 0; }
+.company-hero-main { grid-area: main; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.company-overview-sidebar { grid-area: stats; }
+
+/* Watch rail */
+.company-watch-rail { display: flex; flex-direction: column; gap: 14px; }
+.rail-block { padding: 14px 14px 10px; }
+/* A column while the rail is a column; once it drops under the chart it is as
+   wide as the chart, and a single file of rows stretched across 1040px puts the
+   ticker and its price at opposite ends of the screen. Wrapping into as many
+   ~250px columns as fit keeps a row readable at every width this rail lives at. */
+/* `min(100%, …)` and not a bare 232px: inside the 260px rail the padded track is
+   narrower than the minimum, and a grid minimum wider than its container does
+   not wrap — it overflows, which put the ☆ outside the card. */
+.rail-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 232px), 1fr)); column-gap: 22px; }
+.rail-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px auto 18px; align-items: center; gap: 7px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rail-row:last-child { border-bottom: none; }
+.rail-row.is-current { opacity: 0.55; }
+.rail-row-name { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rail-row-ticker { font-size: 14px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.02em; }
+.rail-row-name:hover .rail-row-ticker { color: var(--accent); }
+.rail-row-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail-row-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
+.rail-row-price { font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.rail-row-change { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+/* The same two colours the catalog sparkline and the ratio deltas already use —
+   this page should not introduce a third green. */
+.rail-row-change.pos { color: #6ef0c1; }
+.rail-row-change.neg { color: #f87171; }
+.rail-spark { width: 56px; height: 22px; }
+.rail-spark path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.rail-spark.tone-pos path { stroke: #6ef0c1; }
+.rail-spark.tone-neg path { stroke: #f87171; }
+.rail-fav { background: none; border: 0; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; color: var(--text-muted); }
+.rail-fav.on { color: #f5c451; }
+.rail-empty { font-size: 12.5px; margin: 2px 0 4px; line-height: 1.5; }
+.company-keystats { display: flex; flex-direction: column; gap: 14px; }
+.company-keystats .company-metric-row { font-size: 14px; padding: 7px 0; gap: 10px; }
+/* The house label is 12px mono, ALL CAPS, tracked at 0.14em. That is a lot of
+   treatment for a word like «Оборот»: the tracking widens the label until it
+   crowds the number it belongs to, and all-caps mono at 12px reads smaller than
+   the 14px sentence case the reference page uses. Scoped to this page — the
+   label is right where it came from, on dense admin panels. */
+.company-page .panel-label { font-size: 13px; letter-spacing: 0.06em; }
+.company-keystats .panel-label { white-space: nowrap; }
+.company-keystats .company-metric-val { text-align: right; }
+.company-keystats .cell-status { font-size: 11.5px; color: var(--text-muted); font-weight: 500; border-bottom: 1px dotted var(--border); cursor: help; }
+.company-keystats .company-metric-warning { color: var(--warn, #f59e0b); font-size: 11px; font-weight: 700; }
+.keystat-note { font-size: 12px; margin-top: 8px; line-height: 1.5; }
+/* The rows sit between the range bar and the note in the period block, so the
+   bar needs the gap the note already has on its other side. */
+.co-sidebar-block .keystat-range + .company-metrics-list { margin-top: 4px; }
+/* 52-week range: the track is the year, the dot is today. */
+.keystat-range { display: flex; flex-direction: column; gap: 7px; }
+.keystat-range-track { position: relative; height: 4px; border-radius: 3px; background: linear-gradient(90deg, var(--border), var(--accent)); }
+.keystat-range-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--text-primary); border: 2px solid var(--surface-2); transform: translate(-50%, -50%); }
+.keystat-range-ends { display: flex; justify-content: space-between; font-size: 13.5px; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.company-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+@media (max-width: 920px) { .company-overview-grid { grid-template-columns: 1fr; } }
+.company-overview-main { padding: 26px 30px; background: var(--surface-1); border-radius: 14px; border: 1px solid var(--border); }
+.company-overview-sidebar { display: flex; flex-direction: column; gap: 14px; }
+.co-sidebar-block { background: var(--surface-2); border-radius: 12px; padding: 16px 18px; border: 1px solid var(--border); }
+.co-heading { font-size: 12px; font-weight: 700; margin: 0 0 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.company-overview-main .co-heading { font-size: 12px; margin-bottom: 16px; }
+.company-description-text { font-size: 15.5px; line-height: 1.85; color: var(--text-secondary); margin: 0; max-width: 78ch; }
+.wiki-link { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; margin-top: 18px; display: inline-flex; align-items: center; gap: 4px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
+.wiki-link:hover { border-color: var(--accent); background: var(--accent-light); }
+/* About description skeleton (while loading) */
+.company-desc-skeleton { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.company-desc-skeleton span { height: 13px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: co-shimmer 1.4s ease infinite; }
+@keyframes co-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.company-registry { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.company-registry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.company-registry-head > div { min-width: 0; }
+.company-registry-head .co-heading { margin-bottom: 5px; color: var(--text-primary); font-size: 14px; }
+.company-registry-head > div > span,
+.company-registry-head > span:not(.company-registry-status) { color: var(--text-muted); font-size: 12px; }
+.company-registry-status { max-width: 46%; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); font-size: 11.5px; line-height: 1.35; text-align: center; }
+.company-registry-status.is-active { color: var(--positive, #35b98a); border-color: color-mix(in srgb, var(--positive, #35b98a) 42%, transparent); background: color-mix(in srgb, var(--positive, #35b98a) 9%, transparent); }
+.company-registry-section + .company-registry-section { margin-top: 22px; }
+.company-registry-section h4 { margin: 0 0 10px; color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .075em; text-transform: uppercase; }
+.company-registry-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.company-registry-field { min-width: 0; padding: 11px 13px; border-bottom: 1px solid var(--border); }
+.company-registry-field:nth-child(odd):not(.is-wide) { border-right: 1px solid var(--border); }
+.company-registry-field.is-wide { grid-column: 1 / -1; }
+.company-registry-field:last-child { border-bottom: 0; }
+.company-registry-field span { display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 11.5px; line-height: 1.35; }
+.company-registry-field strong { display: block; color: var(--text-primary); font-size: 13px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.company-registry-skeleton { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.company-registry-skeleton span { height: 54px; border-radius: 8px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: co-shimmer 1.4s ease infinite; }
+.company-registry-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, #dc5050 45%, transparent); border-radius: 9px; color: var(--text-secondary); font-size: 13px; }
+.company-registry-error button { flex: 0 0 auto; padding: 6px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
+.company-registry-map { height: 320px; margin-top: 12px; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.company-registry-map iframe { display: block; width: 100%; height: 100%; border: 0; }
+@media (max-width: 620px) {
+  .company-registry-head { flex-direction: column; gap: 9px; }
+  .company-registry-status { max-width: 100%; text-align: left; }
+  .company-registry-grid, .company-registry-skeleton { grid-template-columns: 1fr; }
+  .company-registry-field, .company-registry-field.is-wide { grid-column: 1; border-right: 0; }
+  .company-registry-error { align-items: flex-start; flex-direction: column; }
+  .company-registry-map { height: 260px; }
+}
+.company-metrics-list { display: flex; flex-direction: column; gap: 0; }
+.company-metric-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.company-metric-row:last-child { border-bottom: none; }
+.company-metric-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The earnings period P/E divides by. It can be an earlier filing than the rest
+   of the page (the last complete year, when the latest one is a part-year
+   quarter), so the multiple states its own basis. */
+.co-metric-period { font-size: 10px; opacity: 0.75; letter-spacing: 0.02em; }
+.isin-mono { font-family: monospace; font-size: 12px; }
+.section-heading { font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+
+/* Price chart */
+/* ── Финансы tab ─────────────────────────────────────────────────────────── */
+/* Statement sub-tabs: an underline row, deliberately NOT the pill language the
+   range buttons use — these switch a document, the pills switch a span. */
+.fin-subtabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+.fin-subtab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 0; font-size: 14px; cursor: pointer; color: var(--text-muted); transition: color .12s, border-color .12s; }
+.fin-subtab:hover { color: var(--text-primary); }
+.fin-subtab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+/* Годовые | Квартальные. A pill pair on the right of the sub-tab row — a
+   different control language from the sub-tabs on purpose: the sub-tabs choose
+   WHAT statement, this chooses the period every statement is cut by. */
+.fin-freq { display: inline-flex; margin-left: auto; align-self: center; border: 1px solid var(--border); border-radius: 999px; padding: 2px; gap: 2px; }
+.fin-freq-btn { background: none; border: none; border-radius: 999px; padding: 4px 12px; font-size: 12.5px; line-height: 1.2; cursor: pointer; color: var(--text-muted); transition: all .12s; }
+.fin-freq-btn:hover { color: var(--text-primary); }
+.fin-freq-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+.fin-panel { padding: 18px 20px; }
+.fin-chart { margin-bottom: 18px; position: relative; }
+/* Mirrors the price chart's readout so one hover language runs across the
+   page; the dot ties each row to its line. */
+.fin-tt-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+.fin-chart .cpc-tooltip { min-width: 150px; }
+.fin-legend { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-top: 6px; }
+/* The view switch sits beside the period switch, not pushed to the far edge —
+   only the FIRST auto margin wins, so a second `margin-left: auto` would leave
+   the two controls at opposite ends of the row. */
+.fin-dash { margin-left: 8px; }
+
+/* Which indicators the chart draws. Only in a chart view: with the table on
+   screen its row headers are the picker. */
+.fin-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.fin-picker-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; font-size: 12.5px; line-height: 1.3;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: none; color: var(--text-muted); cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.fin-picker-chip:hover { color: var(--text-primary); }
+/* An unselected chip keeps a hollow dot: the space is reserved so selecting one
+   does not shift the row, and the colour appears exactly where the line's colour
+   will be. */
+.fin-picker-chip i {
+  width: 9px; height: 9px; border-radius: 50%; display: inline-block;
+  border: 1px solid currentColor;
+}
+.fin-picker-chip.on { color: var(--text-primary); border-color: var(--text-muted); }
+.fin-picker-chip.on i { border-color: transparent; }
+
+.fin-legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary, var(--text-muted)); }
+.fin-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.fin-legend-item.clickable { background: none; border: none; padding: 0; font: inherit; cursor: pointer; }
+.fin-legend-item.clickable:hover { color: var(--text-primary); }
+/* A table row IS the chart's switch: the dot carries the line's colour when it
+   is drawn and sits hollow when it is not, so every row reads as clickable. */
+.fin-row-toggle { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-align: left; }
+.fin-row-toggle .fin-row-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-sizing: border-box; border: 1.5px solid var(--text-muted); opacity: .4; transition: opacity .12s, border-color .12s; }
+.fin-row-toggle:hover .fin-row-dot { opacity: .75; }
+.fin-row-toggle.on .fin-row-dot { border-color: transparent; opacity: 1; }
+/* The year columns can outrun a phone; the table scrolls inside its own box so
+   the PAGE never gains a horizontal scrollbar. */
+.fin-table-wrap { overflow-x: auto; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.fin-table th, .fin-table td { padding: 9px 12px; text-align: left; white-space: nowrap; }
+.fin-table td.num, .fin-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fin-table thead th { font-size: 12px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
+.fin-table tbody th[scope="row"] { font-weight: 600; color: var(--text-primary); }
+/* The ⓘ sits beside the row's label, in the label's own line box — the header
+   cell is `white-space: nowrap`, so it never wraps under the term. */
+.fin-table tbody th[scope="row"] .term-info-btn { margin-left: 6px; vertical-align: middle; }
+.fin-table tbody tr { border-bottom: 1px solid var(--border); }
+/* The growth line belongs to the row above it, so it carries no border of its
+   own and sits in the muted register. */
+.fin-table tr.fin-growth { border-bottom: none; }
+.fin-table tr.fin-growth th, .fin-table tr.fin-growth td { padding-top: 0; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.fin-table tr.fin-growth td.pos { color: #6ef0c1; }
+.fin-table tr.fin-growth td.neg { color: #f87171; }
+.fin-table tr.fin-section-row th { padding-top: 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
+.fin-note { font-size: 12px; margin: 14px 0 0; line-height: 1.55; }
+
+/* ── «Сплиты»: four short facts and a sentence per row. Without berths the
+   width:100% table scatters the columns across the panel and the tab reads
+   as unfinished; the sentence column takes the leftover width and is the
+   only one allowed to wrap. ── */
+.splits-table { min-width: 640px; }
+.splits-table .splits-col-date { width: 130px; }
+.splits-table .splits-col-kind { width: 175px; }
+.splits-table .splits-col-ratio { width: 120px; }
+.splits-table .splits-col-src { width: 110px; }
+.splits-table td.splits-effect { white-space: normal; line-height: 1.5; color: var(--text-muted); }
+.splits-kind { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+.splits-kind--split { color: var(--accent); background: var(--accent-light); }
+.splits-kind--bonus { color: var(--accent-2); background: color-mix(in srgb, currentColor 9%, transparent); }
+.splits-src a { color: var(--accent); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.splits-src a:hover { text-decoration: underline; }
+
+/* Nine chips now (1Н…Макс), so it wraps on the desktop rule too and not only in
+   mobile.css — the narrow end of the three-column layout leaves the chart about
+   560px, which is not quite a row. */
+.company-chart-ranges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+/* Pills, as in the reference: fully rounded, outlined when idle, filled with the
+   accent and WHITE text when active. The old chips were 6px-radius with black
+   text on the accent, which read as a different control language. */
+.range-btn { padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border); background: none; font-size: 13px; line-height: 1.2; cursor: pointer; color: var(--text-secondary, var(--text-muted)); transition: all 0.12s; }
+.range-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.range-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+/* The price charts are Lightweight Charts canvases (charts/LwCanvas.jsx). A
+   finger dragging up or down still scrolls the page; sideways it pans history. */
+.lw-canvas { touch-action: pan-y; }
+.lw-canvas.is-drawing { cursor: crosshair; }
+.cpc-plot { position: relative; }
+.chart-loading { padding: 48px 0; text-align: center; }
+
+/* Interactive price chart */
+.company-chart-wrap { position: relative; }
+.company-chart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.company-chart-opts { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.cpc-tool-strip { display: flex; align-items: center; gap: 4px; }
+.cpc-tool-slot { position: relative; }
+.cpc-tool-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: var(--surface-2, rgba(127,127,127,.09)); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
+.cpc-tool-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-hover); background: color-mix(in srgb, var(--surface-2) 72%, var(--accent-light)); }
+.cpc-tool-btn.active { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: var(--accent-light); }
+.cpc-tool-btn.has-value::after { content: ""; position: absolute; right: 3px; top: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.cpc-tool-btn:disabled { opacity: .38; cursor: not-allowed; }
+.cpc-tool-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cpc-tool-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; display: flex; flex-direction: column; gap: 3px; min-width: 176px; max-height: min(430px, calc(100vh - 120px)); overflow-y: auto; padding: 7px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 34px rgba(0,0,0,.34); color: var(--text-primary); }
+.cpc-tool-menu-right { left: auto; right: 0; }
+.cpc-tool-menu-wide { width: min(280px, calc(100vw - 36px)); }
+.cpc-tool-menu > strong { padding: 5px 7px 7px; color: var(--text-muted); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+.cpc-tool-menu > button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-primary); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.cpc-tool-menu > button:hover:not(:disabled), .cpc-tool-menu > button.active { background: var(--accent-light); color: var(--accent); }
+.cpc-tool-menu > button:disabled { opacity: .4; cursor: not-allowed; }
+.cpc-tool-menu > button span, .cpc-tool-menu > button b { color: inherit; font-size: 10.5px; font-weight: 700; }
+.cpc-tool-menu-wide > button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpc-tool-empty { padding: 8px; color: var(--text-muted); font-size: 12px; }
+.cpc-settings-menu { min-width: 190px; }
+.cpc-settings-menu label { display: flex; align-items: center; gap: 9px; min-height: 31px; padding: 5px 7px; border-radius: 7px; color: var(--text-primary); font-size: 12px; cursor: pointer; }
+.cpc-settings-menu label:hover { background: var(--surface-2, rgba(127,127,127,.08)); }
+.cpc-settings-menu input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.cpc-draw-status { display: flex; align-items: center; gap: 12px; margin: 6px 0 0; color: var(--accent); font-size: 11.5px; font-weight: 600; }
+.cpc-draw-status button { appearance: none; border: 0; padding: 0; background: none; color: var(--text-muted); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.cpc-draw-status button.cpc-clear-all { color: var(--accent); font-weight: 700; }
+.cpc-draw-status button.cpc-clear-all:hover { color: var(--text-primary); }
+.chart-opt-btn { padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: none; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
+.chart-opt-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.chart-opt-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chart-opt-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+.chart-opt-btn.chart-ma-ma20.active { background: #f59e0b; border-color: #f59e0b; color: #000; }
+.chart-opt-btn.chart-ma-ma50.active { background: #a855f7; border-color: #a855f7; color: #fff; }
+.chart-opt-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+.chart-interval-tag { align-self: center; font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 2px 7px; border-radius: 999px; background: var(--surface-2, rgba(127,127,127,0.1)); white-space: nowrap; cursor: default; }
+.cpc-tooltip { position: absolute; z-index: 5; min-width: 132px; padding: 8px 10px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 22px rgba(0,0,0,0.35); font-size: 11px; pointer-events: none; backdrop-filter: blur(6px); }
+.cpc-tt-date { font-weight: 700; font-size: 11px; margin-bottom: 5px; color: var(--text-primary); }
+.cpc-tt-row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.55; }
+.cpc-tt-row span { color: var(--text-muted); }
+.cpc-tt-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.cpc-history-help { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; margin: 8px 0 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.5; }
+.cpc-history-dates { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cpc-history-reset { appearance: none; border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
+.cpc-history-reset:hover { color: var(--text-primary); }
+.cpc-adjust-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-muted); }
+.cpc-tt-cmp { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border); }
+.cpc-tt-cmp-price { font-weight: 500; opacity: 0.75; }
+/* A peer's volume line sits under its own row, quieter than the move it
+   belongs to — the «×N» multiple is the comparable part, the сумы are context. */
+.cpc-tt-volrow, .ac-tt-volrow { font-size: 10.5px; line-height: 1.3; margin: -2px 0 4px; padding-left: 10px; }
+.cpc-tt-volrow b, .ac-tt-volrow b { font-weight: 600; opacity: 0.8; }
+
+/* Быстрое сравнение — the peer strip under the chart. Cards, not rows: a card
+   holds a logo, a name, a price and a move without any of them queueing behind
+   a column width, and the strip scrolls sideways instead of growing down the
+   page, which is what keeps «О компании» on the first screen. */
+.quick-compare { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.qc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+.qc-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; color: var(--text-primary); }
+.qc-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.qc-loading { font-size: 11px; }
+/* A chip is the line's own legend AND its remove button — the colour is the
+   only thing tying a chip to a curve, so it is stated twice: the dot and the
+   border. */
+.qc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--text-primary); background: none; border: 1px solid var(--qc-color, var(--border)); transition: background 0.12s; }
+.qc-chip:hover { background: color-mix(in srgb, var(--qc-color, var(--accent)) 16%, transparent); }
+.qc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--qc-color, var(--accent)); }
+.qc-chip-x { font-size: 10px; color: var(--text-muted); }
+.qc-chip:hover .qc-chip-x { color: var(--text-primary); }
+
+.qc-scroll { position: relative; }
+.qc-cards { display: flex; gap: 8px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; padding-bottom: 2px; }
+.qc-cards::-webkit-scrollbar { display: none; }
+.qc-card { flex: 0 0 auto; width: 152px; display: flex; flex-direction: column; gap: 6px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2, rgba(127,127,127,0.06)); cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
+.qc-card:hover:not(:disabled) { border-color: var(--accent); }
+.qc-card:disabled { opacity: 0.45; cursor: not-allowed; }
+.qc-card.on { border-color: var(--qc-color); background: color-mix(in srgb, var(--qc-color) 12%, transparent); }
+.qc-card-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.qc-card-head .chip-logo, .qc-card-head .chip-logo-fallback { width: 18px; height: 18px; flex: 0 0 18px; font-size: 8px; }
+.qc-card-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qc-card-figures { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.qc-card-price { font-size: 14px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.qc-card-change { font-size: 12px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.qc-card-change.pos { color: #2fc584; }
+.qc-card-change.neg { color: #ee6a60; }
+/* Only rendered while there is something to scroll to, so the arrow is never a
+   dead control sitting over the first card. */
+.qc-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 15px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+.qc-arrow:hover { border-color: var(--accent); }
+.qc-arrow-left { left: -6px; }
+.qc-arrow-right { right: -6px; }
+/* Sits above the table, not inside it: it describes the whole view, and a row
+   of the table would be read as a security. */
+.market-dormant-note { margin: 0 0 10px; padding: 9px 13px; border-radius: 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); background: var(--surface-2, rgba(127,127,127,0.06)); font-size: 12.5px; line-height: 1.55; color: var(--text-secondary, var(--text-muted)); }
+.chart-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; margin-left: 6px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--text-muted); cursor: pointer; transition: all 0.12s; }
+.chart-expand-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+
+/* ============================================================================
+   Расширенный график — the advanced chart page (/chart/{TICKER}).
+   A page, not a panel: the toolbar, the rail and the plot each own a row of
+   the grid so the drawing takes every pixel the window can spare, which is
+   the whole reason somebody left the company page for it.
+   ========================================================================== */
+.advanced-chart { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.advanced-chart.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  padding: 14px;
+  overflow: hidden;
+  background: var(--bg);
+}
+body.advanced-chart-fullscreen .topbar { visibility: hidden; }
+.ac-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ac-back { background: none; border: none; color: var(--text-muted); font-size: 13px; cursor: pointer; padding: 4px 0; }
+.ac-back:hover { color: var(--text-primary); }
+.ac-head .chip-logo, .ac-head .chip-logo-fallback { width: 34px; height: 34px; flex: 0 0 34px; font-size: 12px; }
+.ac-title { min-width: 0; }
+.ac-title h1 { margin: 0; font-size: 19px; line-height: 1.2; color: var(--text-primary); }
+.ac-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; margin-top: 3px; }
+.ac-tk { font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
+.ac-quote { margin-left: auto; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ac-price { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.ac-change, .ac-window-change { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-change.pos, .ac-window-change.pos { color: #2fc584; }
+.ac-change.neg, .ac-window-change.neg { color: #ee6a60; }
+.ac-window-change { font-weight: 500; opacity: 0.85; }
+.ac-open-company { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 12px; color: var(--text-secondary, var(--text-muted)); cursor: pointer; }
+.ac-open-company:hover { border-color: var(--accent); color: var(--text-primary); }
+
+.ac-toolbar { position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2, rgba(127,127,127,0.05)); }
+/* Fullscreen is the working mode of the chart, so its controls must never be
+   squeezed out by the flexible plot. The groups stay intact and the row wraps
+   on narrow screens, while dropdowns remain free to open outside the row. */
+.advanced-chart.is-fullscreen .ac-toolbar {
+  z-index: 8;
+  flex: 0 0 auto;
+  background: var(--panel);
+}
+.advanced-chart.is-fullscreen .ac-ranges,
+.advanced-chart.is-fullscreen .ac-toolbar-group { flex-wrap: nowrap; flex: 0 0 auto; }
+.advanced-chart.is-fullscreen .ac-range-btn,
+.advanced-chart.is-fullscreen .ac-type-btn,
+.advanced-chart.is-fullscreen .ac-menu-btn,
+.advanced-chart.is-fullscreen .ac-fullscreen-btn { flex: 0 0 auto; }
+.advanced-chart.is-fullscreen .ac-menus { margin-left: auto; }
+.ac-company-tools { flex: 0 0 auto; }
+.ac-company-tools .ac-menu { right: auto; left: 0; }
+.ac-company-tools .ac-menu-item { justify-content: space-between; white-space: nowrap; }
+.ac-ranges, .ac-toolbar-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ac-range-btn, .ac-type-btn, .ac-menu-btn { padding: 4px 11px; border-radius: 999px; border: 1px solid transparent; background: none; font-size: 12.5px; line-height: 1.3; color: var(--text-secondary, var(--text-muted)); cursor: pointer; transition: all 0.12s; }
+.ac-range-btn:hover, .ac-type-btn:hover:not(:disabled), .ac-menu-btn:hover { color: var(--text-primary); border-color: var(--border); }
+.ac-range-btn.active, .ac-type-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.ac-type-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+/* Icon pills, as on the reference: each button draws the shape it produces.
+   The outline is always there — a bare icon on a bare toolbar reads as a
+   decoration rather than as something to press. */
+.ac-types { gap: 6px; }
+.ac-type-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 28px; padding: 0; border-color: var(--border); }
+.ac-range-custom { border-color: var(--border); }
+.ac-menu-btn.on { border-color: var(--accent); color: var(--text-primary); }
+.ac-menus { margin-left: auto; }
+.ac-fullscreen-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; min-width: 34px; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: none; color: var(--text-secondary, var(--text-muted)); font-size: 12px; cursor: pointer; transition: color 0.12s, border-color 0.12s, background 0.12s; }
+.ac-fullscreen-label { white-space: nowrap; }
+.ac-fullscreen-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.ac-fullscreen-btn[aria-pressed="true"] { color: #fff; border-color: var(--accent); background: var(--accent); }
+.ac-menu-wrap { position: relative; }
+/* Anchored to its button rather than to the toolbar: three menus sharing one
+   absolute origin would stack on top of each other. */
+.ac-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; min-width: 230px; padding: 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); box-shadow: 0 12px 34px rgba(0,0,0,0.4); }
+.ac-menu-scroll { max-height: 320px; overflow-y: auto; }
+.ac-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px; border: none; border-radius: 8px; background: none; font-size: 12.5px; text-align: left; color: var(--text-primary); cursor: pointer; }
+.ac-menu-item:hover:not(:disabled) { background: var(--surface-2, rgba(127,127,127,0.12)); }
+.ac-menu-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.ac-menu-item.on { color: var(--accent); font-weight: 600; }
+.ac-menu-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+.ac-menu-tk { font-weight: 700; }
+.ac-menu-name { color: var(--text-muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-span-menu { right: auto; left: 0; display: flex; align-items: flex-end; gap: 10px; }
+.ac-span-menu label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); }
+.ac-span-menu input { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 12.5px; }
+.ac-menu-clear { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: none; color: var(--text-muted); font-size: 12px; cursor: pointer; }
+
+/* «Сравнить с» — a row of peer cards, not a dropdown. The card carries the
+   price and the day's move so the choice is informed before the click; the
+   strip scrolls sideways so a long peer list costs one row, not ten. */
+.ac-compare { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2, rgba(127,127,127,0.05)); }
+.ac-compare-btn { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 5px 11px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--accent); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.ac-compare-btn:hover, .ac-compare-btn.on { border-color: var(--accent); }
+.ac-compare-input { flex: 0 0 auto; width: 178px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 12.5px; }
+.ac-compare-scroll { position: relative; flex: 1 1 auto; min-width: 0; }
+.ac-compare-cards { display: flex; gap: 8px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
+.ac-compare-cards::-webkit-scrollbar { display: none; }
+.ac-compare-empty { font-size: 12px; padding: 7px 2px; }
+.ac-cmp-card { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); font-size: 12.5px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.ac-cmp-card:hover:not(:disabled) { border-color: var(--accent); }
+.ac-cmp-card:disabled { opacity: 0.4; cursor: not-allowed; }
+.ac-cmp-card.on { border-color: var(--ac-color); background: color-mix(in srgb, var(--ac-color) 14%, transparent); }
+.ac-cmp-card .chip-logo, .ac-cmp-card .chip-logo-fallback { width: 17px; height: 17px; flex: 0 0 17px; font-size: 7.5px; }
+.ac-cmp-tk { font-weight: 700; color: var(--text-primary); }
+.ac-cmp-price { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.ac-cmp-chg { color: var(--text-muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-cmp-chg.pos { color: #2fc584; }
+.ac-cmp-chg.neg { color: #ee6a60; }
+.ac-compare-arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 14px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.28); }
+.ac-compare-arrow.left { left: -4px; }
+.ac-compare-arrow.right { right: -4px; }
+
+.ac-body { position: relative; display: grid; grid-template-columns: 0 1fr; gap: 0; min-height: 0; }
+.advanced-chart.rail-open .ac-body { grid-template-columns: 232px 1fr; gap: 14px; }
+.advanced-chart.is-fullscreen .ac-body { flex: 1 1 auto; min-height: 0; }
+/* Outside full screen the body is as tall as its plot. Allowed to shrink, it
+   did on a 720px-high window and the notes (and «Сбросить») slid under the chart. */
+.advanced-chart:not(.is-fullscreen) .ac-body { flex-shrink: 0; }
+.ac-rail-wrap { overflow: hidden; min-width: 0; }
+.advanced-chart:not(.rail-open) .ac-rail-wrap { visibility: hidden; }
+.ac-rail { display: flex; flex-direction: column; gap: 12px; max-height: 100%; overflow-y: auto; padding-right: 4px; }
+.ac-rail-search { width: 100%; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel); color: var(--text-primary); font-size: 12.5px; }
+.ac-rail-block { border: 1px solid var(--border); border-radius: 12px; padding: 8px 8px 4px; }
+.ac-rail-head { margin: 0 0 4px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.ac-rail-empty { font-size: 11.5px; margin: 4px 2px 8px; }
+.ac-rail-row { display: flex; align-items: center; gap: 6px; padding: 5px 2px; border-radius: 8px; }
+.ac-rail-row:hover { background: var(--surface-2, rgba(127,127,127,0.1)); }
+.ac-rail-row.is-current { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ac-rail-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.ac-rail-tk { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.ac-rail-sub { font-size: 10.5px; color: var(--text-muted); max-width: 108px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-rail-figures { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-variant-numeric: tabular-nums; }
+.ac-rail-price { font-size: 12px; color: var(--text-primary); }
+.ac-rail-chg { font-size: 10.5px; color: var(--text-muted); }
+.ac-rail-chg.pos { color: #2fc584; }
+.ac-rail-chg.neg { color: #ee6a60; }
+/* The reference puts this half off the edge of the rail; so does ours, which
+   is what keeps it from eating a row of the list. */
+.ac-rail-toggle { position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%); z-index: 4; width: 18px; height: 44px; border-radius: 6px; border: 1px solid var(--border); background: var(--accent); color: #fff; font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+.advanced-chart.rail-open .ac-rail-toggle { left: 232px; transform: translate(-2px, -50%); }
+
+/* The height is set inline and grows with the panes on the chart — see plotH
+   in AdvancedChart. This only floors it for the frame before the first
+   measurement lands. */
+.ac-plot { position: relative; min-width: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.advanced-chart.is-fullscreen .ac-plot { height: 100% !important; min-height: 0; }
+.ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
+.ac-legend { position: absolute; z-index: 3; top: 8px; left: 10px; display: flex; flex-wrap: wrap; gap: 5px; max-width: calc(100% - 90px); }
+.ac-legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--text-primary); background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--ac-color, var(--border)); cursor: pointer; }
+.ac-legend-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ac-color, var(--accent)); }
+.ac-legend-x { font-size: 9px; color: var(--text-muted); }
+.ac-legend-chip:hover .ac-legend-x { color: var(--text-primary); }
+.ac-tooltip { position: absolute; z-index: 5; min-width: 168px; padding: 9px 11px; border-radius: 10px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 8px 26px rgba(0,0,0,0.4); font-size: 11.5px; pointer-events: none; }
+.ac-tt-date { font-weight: 700; margin-bottom: 5px; color: var(--text-primary); }
+.ac-tt-row { display: flex; justify-content: space-between; gap: 16px; line-height: 1.6; }
+.ac-tt-row span { color: var(--text-muted); }
+.ac-tt-row b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.ac-tt-block { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--border); }
+.ac-notes p { margin: 0 0 4px; font-size: 11.5px; line-height: 1.55; }
+.ac-notes .ac-history-help { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; color: var(--text-muted); }
+.ac-history-dates { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ac-history-reset { appearance: none; border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; cursor: pointer; }
+.ac-history-reset:hover { color: var(--text-primary); }
+
+/* Dividend center */
+.company-dividends { display: flex; flex-direction: column; gap: 14px; }
+.dividend-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.dividend-card { padding: 16px 18px; border-radius: 14px; }
+.dividend-card-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.dividend-card-val { font-size: 24px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.dividend-card-unit { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.dividend-table-wrap { padding: 4px 4px; overflow-x: auto; }
+.dividend-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dividend-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.dividend-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+.dividend-table tbody tr:last-child td { border-bottom: none; }
+.dividend-table tbody tr:hover { background: var(--surface-2); }
+.dividend-table .dividend-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Reports list */
+.company-reports-list { display: flex; flex-direction: column; gap: 8px; }
+.company-report-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; gap: 12px; }
+.company-report-description { margin-top: 5px; max-width: 720px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+/* Market company name as clickable button */
+.market-company-name-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--text-primary); font-size: inherit; font-weight: 600; text-align: left; font-family: inherit; display: block; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.market-company-name-btn:hover { color: var(--accent); }

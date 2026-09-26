@@ -7,6 +7,8 @@ Russian cases are the ones that must never regress.
 """
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import sys
 from pathlib import Path
 
@@ -216,11 +218,12 @@ def test_a_translation_only_update_cannot_overwrite_or_reclassify(tmp_path, monk
     drop the item out of the feed (the reason images and snippets have their own routes too).
     """
     import reports_catalog as rc
+    import catalogue.storage as catalogue_storage
     import news_store
 
     # Patch the path function, not an env var: _catalog_db_path builds it from APP_DATA_DIR
     # and reads no environment, so anything else writes to the developer's real catalog.
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
 
     news_store.upsert_news([{
         "url": "https://example.test/x", "source": "S", "source_id": "napp", "lang": "ru",

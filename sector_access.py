@@ -11,7 +11,7 @@ CAPABILITIES = {
 
 
 def configured_role_for(email):
-    from web_auth import is_admin_email
+    from identity.users import is_admin_email
     email = str(email or "").strip().lower()
     if not email:
         return None

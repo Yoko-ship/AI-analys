@@ -1,2 +1,3 @@
 // Public interface for this feature.
-export { FeedbackPage } from "./FeedbackPage.jsx";
+import { lazy } from "react";
+export const FeedbackPage = lazy(() => import("./FeedbackPage.jsx").then(module => ({ default: module.FeedbackPage })));

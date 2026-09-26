@@ -39,6 +39,8 @@ def write_report(path, report):
 
 def issuers(tickers=None):
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.sync as catalogue_sync
     c = store.connect()
     try:
         rows = [dict(r) for r in c.execute("SELECT ticker,company_name,org_id FROM catalog_companies ORDER BY ticker")]
@@ -60,7 +62,7 @@ def issuers(tickers=None):
         groups.setdefault(str(row["org_id"]), []).append(row)
     selected = []
     for group in groups.values():
-        ticker = rc._canonical_ticker(r["ticker"] for r in group)
+        ticker = catalogue_filings._canonical_ticker(r["ticker"] for r in group)
         selected.append(next(r for r in group if r["ticker"] == ticker))
     return selected, unresolved
 
@@ -215,6 +217,8 @@ def main(argv=None):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     from .bulk_report import build_report
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.sync as catalogue_sync
     tickers = sorted({t.upper().strip() for t in args.ticker}) if args.ticker else None
     started = time.monotonic()
     deadline = started + args.max_seconds if args.max_seconds else None
@@ -222,7 +226,7 @@ def main(argv=None):
     try:
         if not args.report_only and not args.skip_sync:
             log.info("Refreshing issuer and report listings")
-            run["catalog_sync"] = rc.sync_all(tickers=tickers, force=args.force_sync)
+            run["catalog_sync"] = catalogue_sync.sync_all(tickers=tickers, force=args.force_sync)
             run["errors"].extend(run["catalog_sync"].get("errors", []))
         targets, unresolved = issuers(tickers)
         if not targets and not args.report_only:

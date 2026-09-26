@@ -8,6 +8,7 @@ from functools import partial
 from typing import Any
 import asyncio
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 import securities_catalog as securities_store
 import time
 
@@ -181,7 +182,7 @@ async def _resolve_isin(ticker: str) -> str | None:
     except Exception:  # noqa: BLE001
         pass
     try:
-        listings = await loop.run_in_executor(None, catalog_store.get_all_listings)
+        listings = await loop.run_in_executor(None, catalogue_market_store.get_all_listings)
         isin = str(((listings or {}).get(ticker) or {}).get("isin") or "").strip() or None
         if isin:
             return isin
@@ -212,7 +213,7 @@ _HISTORY_CACHE_MAX = 256
 
 async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
     """Full price history for an ISIN, memoised for _HISTORY_CACHE_TTL seconds."""
-    from openinfo_collector import fetch_price_history
+    from collectors.openinfo.market import fetch_price_history
 
     # Requests for the same archive can arrive together (the company chart and
     # metrics do this on first paint). Let the first fetch populate the cache

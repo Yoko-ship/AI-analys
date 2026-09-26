@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-
-
+from contextlib import asynccontextmanager
 from typing import Any
 import asyncio
 import migrations
 import os
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 import server.catalog.jobs as catalog_jobs
 import server.http as http
 import server.market.board as market_board
@@ -14,6 +14,15 @@ import server.market.history as market_history
 import server.market.patterns as market_patterns
 import server.news.jobs as news_jobs
 import server.bonds.quality as bond_quality
+
+
+@asynccontextmanager
+async def lifespan(app):
+    try:
+        await _on_startup(app)
+        yield
+    finally:
+        await _stop_sector_analysis_worker(app)
 
 
 async def _populate_securities_on_startup() -> None:
@@ -53,7 +62,7 @@ async def _on_startup(app) -> None:
     # with nothing pending costs one query; a failure leaves /ready answering 503
     # rather than a request answering wrongly.
     try:
-        from reports_catalog import get_catalog_conn
+        from catalogue.storage import get_catalog_conn
 
         def _migrate() -> dict[str, Any]:
             conn = get_catalog_conn()
@@ -74,7 +83,7 @@ async def _on_startup(app) -> None:
     # survive a redeploy. Purge on boot — idempotent, and it makes deleting a
     # ticker a code change rather than a manual DB step.
     try:
-        removed = await asyncio.get_running_loop().run_in_executor(None, catalog_store.purge_delisted)
+        removed = await asyncio.get_running_loop().run_in_executor(None, catalogue_market_store.purge_delisted)
         if removed:
             http.logger.info("startup purge of delisted securities: %s", removed)
     except Exception:

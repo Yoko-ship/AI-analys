@@ -39,8 +39,8 @@ class _Recorder:
 def recorder(monkeypatch):
     rec = _Recorder()
     monkeypatch.setattr(ds, "registry", lambda: {"probe": rec})
-    monkeypatch.setattr(ds.rc, "purge_premature_annual_facts", lambda: None)
-    monkeypatch.setattr(ds.rc, "upsert_facts", lambda facts: 0)
+    monkeypatch.setattr(ds.catalogue_facts, "purge_premature_annual_facts", lambda: None)
+    monkeypatch.setattr(ds.catalogue_facts, "upsert_facts", lambda facts: 0)
     return rec
 
 
@@ -50,7 +50,7 @@ def _feed_unavailable(session=None):
 
 def test_unavailable_feed_collects_the_catalog_issuers(monkeypatch, recorder):
     monkeypatch.setattr(ds, "resolve_all", _feed_unavailable)
-    monkeypatch.setattr(ds.rc, "get_catalog_conn", lambda: _Conn(["29", "27"]))
+    monkeypatch.setattr(ds.catalogue_storage, "get_catalog_conn", lambda: _Conn(["29", "27"]))
 
     result = ds.run_all(session=object())
 
@@ -60,7 +60,7 @@ def test_unavailable_feed_collects_the_catalog_issuers(monkeypatch, recorder):
 
 def test_no_issuers_at_all_is_an_error_not_an_empty_success(monkeypatch, recorder):
     monkeypatch.setattr(ds, "resolve_all", _feed_unavailable)
-    monkeypatch.setattr(ds.rc, "get_catalog_conn", lambda: _Conn([]))
+    monkeypatch.setattr(ds.catalogue_storage, "get_catalog_conn", lambda: _Conn([]))
 
     with pytest.raises(RuntimeError, match="no issuers"):
         ds.run_all(session=object())

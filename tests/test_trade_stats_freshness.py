@@ -18,13 +18,15 @@ from __future__ import annotations
 import pytest
 
 import reports_catalog as rc
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 
 
 @pytest.fixture()
 def catalog_db(tmp_path, monkeypatch):
     path = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(path))
-    conn = rc.get_catalog_conn()
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(path))
+    conn = catalogue_storage.get_catalog_conn()
     conn.close()
     return str(path)
 
@@ -37,13 +39,13 @@ def _row(day: str, value: float, trades: int) -> dict:
 
 
 def _stored() -> dict:
-    return rc.get_all_trade_stats()["UZ7042650000"]
+    return catalogue_market_store.get_all_trade_stats()["UZ7042650000"]
 
 
 class TestTradeStatsAreMonotonic:
     def test_a_newer_session_replaces_the_stored_one(self, catalog_db) -> None:
-        rc.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)])
-        assert rc.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)]) == 1
+        catalogue_market_store.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)])
+        assert catalogue_market_store.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)]) == 1
 
         stored = _stored()
         assert stored["trade_date"] == "20260724"
@@ -51,9 +53,9 @@ class TestTradeStatsAreMonotonic:
         assert stored["trade_count"] == 4
 
     def test_an_older_session_is_refused(self, catalog_db) -> None:
-        rc.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)])
+        catalogue_market_store.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)])
         # A backfill for a stale board date must not undo the live session.
-        assert rc.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)]) == 0
+        assert catalogue_market_store.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)]) == 0
 
         stored = _stored()
         assert stored["trade_date"] == "20260724"
@@ -62,15 +64,15 @@ class TestTradeStatsAreMonotonic:
     def test_the_same_session_still_corrects_itself(self, catalog_db) -> None:
         # A re-run later in the day sees more executions of the same session; that
         # correction has to land, so the guard is >=, not >.
-        rc.bulk_upsert_trade_stats([_row("20260724", 54000.0, 1)])
-        assert rc.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)]) == 1
+        catalogue_market_store.bulk_upsert_trade_stats([_row("20260724", 54000.0, 1)])
+        assert catalogue_market_store.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)]) == 1
         assert _stored()["total_value"] == pytest.approx(287900.0)
 
     def test_a_dateless_row_cannot_wipe_a_stored_session(self, catalog_db) -> None:
-        rc.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)])
-        assert rc.bulk_upsert_trade_stats([_row("", 0.0, 0)]) == 0
+        catalogue_market_store.bulk_upsert_trade_stats([_row("20260724", 287900.0, 4)])
+        assert catalogue_market_store.bulk_upsert_trade_stats([_row("", 0.0, 0)]) == 0
         assert _stored()["trade_date"] == "20260724"
 
     def test_a_first_sighting_is_always_written(self, catalog_db) -> None:
-        assert rc.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)]) == 1
+        assert catalogue_market_store.bulk_upsert_trade_stats([_row("20260716", 251245.59, 6)]) == 1
         assert _stored()["trade_date"] == "20260716"

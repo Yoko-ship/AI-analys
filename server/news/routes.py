@@ -13,7 +13,11 @@ import asyncio
 import formulas
 import news_store
 import web_auth as identity
+import identity.users as identity_users
 import reports_catalog as catalog_store
+import catalogue.filings as catalogue_filings
+import catalogue.market_store as catalogue_market_store
+import catalogue.settings as catalogue_settings
 import securities_catalog as securities_store
 import server.auth.access as auth_access
 import server.http as http
@@ -89,8 +93,8 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
         # pg_migrate mistranslated), which sorted above every real date and could
         # never age out — so the timeline was 195 undated items deep.
         filings, listings = await asyncio.gather(
-            loop.run_in_executor(None, partial(catalog_store.get_recent_filings, max(1, days), max(1, limit))),
-            loop.run_in_executor(None, catalog_store.get_all_listings),
+            loop.run_in_executor(None, partial(catalogue_filings.get_recent_filings, max(1, days), max(1, limit))),
+            loop.run_in_executor(None, catalogue_market_store.get_all_listings),
         )
     except Exception as exc:
         http.logger.exception("news feed read failed")
@@ -102,7 +106,7 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
         items.append({
             "type": "report",
             "ticker": tk,
-            "company": catalog_store._TICKER_TO_NAME.get(tk, tk),
+            "company": catalogue_settings._TICKER_TO_NAME.get(tk, tk),
             "report_form": r.get("report_form"),
             "period_type": r.get("period_type"),
             "year": r.get("year"),
@@ -196,7 +200,7 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
         # The feed's own `type` is layered on top and wins, which is how all
         # fifteen bonds stay bonds.
         listings, smap = await asyncio.gather(
-            loop.run_in_executor(None, catalog_store.get_all_listings),
+            loop.run_in_executor(None, catalogue_market_store.get_all_listings),
             loop.run_in_executor(None, securities_store.get_securities_map),
         )
         ticker_types = {}
@@ -651,7 +655,7 @@ async def api_news_agent_search(
     q: str,
     days: int = 7,
     store: bool = True,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Admin-only news-agent search for the web UI (§3.11). Same engine as
     ``/api/admin/news/search`` (Grok finds → grok-4.3 classifies → upsert into the

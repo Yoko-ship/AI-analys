@@ -1,0 +1,166 @@
+/* ── one story on its own page (/news/{id}) ──────────────────────────────── */
+.led .led-back { display: inline-block; margin-bottom: 22px; font-size: 12.5px; letter-spacing: .06em;
+  text-transform: uppercase; font-weight: 700; color: var(--accent); text-decoration: none; }
+.led .led-back:hover { color: var(--accent-hover); }
+
+.led .led-art-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(28px, 4.2vw, 44px);
+  line-height: 1.14; letter-spacing: -.02em; margin: 0; color: var(--text); text-wrap: balance; max-width: 24ch; }
+.led .led-art-byline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;
+  margin-top: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--muted); }
+.led .led-art-byline b { color: var(--text); font-weight: 600; }
+.led .led-art-rel { color: var(--muted-light); }
+.led .led-art-figure { margin: 22px 0 0; height: clamp(200px, 38vw, 380px); }
+/* A picture with no full-size original behind it is shown at its own scale rather than blown
+   up to the column width — a 320px photo across 950px is soft enough to read as broken. */
+.led .led-art-figure.is-small { max-width: 560px; height: clamp(180px, 28vw, 300px); }
+.led .led-art-lead { font-family: var(--led-serif); font-size: clamp(17px, 1.5vw, 19.5px); line-height: 1.65;
+  color: var(--text); margin: 22px 0 0; max-width: 66ch; }
+
+/* The long read: our own account of the source's article, in paragraphs. Reads as the body
+   of the page, so it is set in the serif the lead uses, one step down — the lead stays the
+   opening sentence, not a heading competing with it. 66ch is the same measure. */
+.led .led-art-body { margin: 18px 0 0; max-width: 66ch; }
+.led .led-art-body p { font-family: var(--led-serif); font-size: clamp(15.5px, 1.3vw, 17px);
+  line-height: 1.75; color: var(--text); margin: 0 0 14px; }
+.led .led-art-body p:last-child { margin-bottom: 0; }
+
+/* OpenInfo notices stay on our domain at /news/announcement/{id}.  The source
+   HTML is parsed server-side, so this page owns both its typography and layout. */
+.led .announcement-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 290px);
+  gap: 42px; align-items: start; }
+.led .announcement-main { min-width: 0; }
+.led .announcement-company { margin: 14px 0 0; color: var(--muted); font-size: 15px;
+  line-height: 1.5; font-weight: 600; }
+.led .announcement-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px; margin: 24px 0 0; padding: 1px; border-radius: 10px; overflow: hidden;
+  background: var(--border); }
+.led .announcement-meta > div { min-width: 0; padding: 13px 15px; background: var(--panel); }
+.led .announcement-meta dt { color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+.led .announcement-meta dd { margin: 4px 0 0; color: var(--text); font-size: 13.5px;
+  line-height: 1.45; overflow-wrap: anywhere; }
+.led .announcement-body { margin-top: 30px; max-width: 72ch; }
+.led .announcement-body > .led-panel-h { margin-bottom: 18px; }
+.led .announcement-body h3 { margin: 24px 0 10px; color: var(--text); font-family: var(--led-serif);
+  font-size: 19px; line-height: 1.4; }
+.led .announcement-body p { margin: 0 0 15px; color: var(--text); font-family: var(--led-serif);
+  font-size: clamp(15.5px, 1.3vw, 17px); line-height: 1.75; white-space: pre-line; }
+.led .announcement-body p.is-list-item { position: relative; padding-left: 20px; }
+.led .announcement-body p.is-list-item::before { content: "•"; position: absolute; left: 2px; color: var(--accent); }
+.led .announcement-actions > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.led .announcement-secondary { display: inline-flex; align-items: center; padding: 9px 15px;
+  border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;
+  font-weight: 600; text-decoration: none; }
+.led .announcement-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.led .announcement-rail { position: sticky; top: calc(var(--topbar-h, 80px) + 20px); }
+
+@media (max-width: 820px) {
+  .led .announcement-layout { grid-template-columns: 1fr; gap: 26px; }
+  .led .announcement-rail { position: static; }
+}
+
+@media (max-width: 540px) {
+  .led .announcement-meta { grid-template-columns: 1fr; }
+  .led .announcement-actions { align-items: stretch; }
+  .led .announcement-actions > div,
+  .led .announcement-actions a { width: 100%; justify-content: center; }
+}
+
+.led .led-art-quote { margin: 24px 0 0; padding-left: 18px; border-left: 3px solid var(--accent); }
+.led .led-art-quote .led-panel-h { margin-bottom: 8px; }
+.led .led-art-quote p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 62ch; }
+
+.led .led-art-source { margin: 26px 0 0; padding: 16px 18px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--panel); display: flex; flex-wrap: wrap; gap: 12px 18px;
+  align-items: center; justify-content: space-between; }
+.led .led-art-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); max-width: 52ch; }
+.led .led-art-cta { display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap;
+  padding: 10px 18px; border-radius: 8px; background: var(--accent); color: #fff;
+  font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.led .led-art-cta:hover { background: var(--accent-hover); }
+.led .led-art-host { font-size: 11.5px; font-weight: 500; opacity: .8; }
+
+.led .led-art-block { margin: 28px 0 0; }
+.led .led-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.led .led-chip { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+.led .led-chip--action { cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 700; }
+.led .led-chip--action:hover { border-color: var(--accent); color: var(--accent); }
+.led .led-art-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted-light); }
+
+/* issuer context: quote + coverage tone + that issuer's other stories */
+.led .led-iss-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.led .led-iss { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 14px 16px; }
+.led .led-iss-head { display: flex; align-items: center; gap: 9px; width: 100%; padding: 0 0 12px;
+  background: none; border: 0; border-bottom: 1px solid var(--border); cursor: pointer;
+  font: inherit; color: inherit; text-align: left; }
+.led .led-iss-head:hover .led-iss-name { color: var(--accent); }
+.led .led-iss-logo { width: 24px; height: 24px; border-radius: 5px; object-fit: contain; flex: none; background: var(--surface-2); }
+.led .led-iss-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .led-iss-tk { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
+  padding: 2px 7px; border-radius: 999px; background: var(--surface-2); flex: none; }
+.led .led-iss-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 0; }
+.led .led-iss-stats > div { display: grid; gap: 3px; min-width: 0; }
+/* One line per label keeps the three values on a shared baseline. */
+.led .led-iss-stats dt { font-size: 10.5px; letter-spacing: .04em; color: var(--muted-light);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.led .led-iss-stats dd { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-iss-stats dd.pos { color: var(--success); }
+.led .led-iss-stats dd.neg { color: var(--danger); }
+.led .led-iss-basis { margin-top: 8px; font-size: 11px; color: var(--muted-light); }
+.led .led-iss-news { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.led .led-iss-news .led-panel-h { margin-bottom: 4px; }
+.led .led-iss-news .led-lt:first-of-type { border-top: 0; padding-top: 0; }
+
+/* Quotes around the publication. The two dated closes are the whole point, so they
+   are the only thing at reading size; everything qualifying them sits below, smaller. */
+.led .led-rx-grid { display: grid; gap: 10px; }
+.led .led-rx-row { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 12px 16px; }
+.led .led-rx-tk { display: flex; align-items: baseline; gap: 9px; width: 100%; padding: 0;
+  background: none; border: 0; cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.led .led-rx-tk b { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted);
+  padding: 2px 7px; border-radius: 999px; background: var(--surface-2); flex: none; }
+.led .led-rx-tk span { font-size: 13px; color: var(--muted); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .led-rx-tk:hover span { color: var(--accent); }
+.led .led-rx-span { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px;
+  font-size: 17px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-rx-leg { display: inline-flex; align-items: baseline; gap: 6px; }
+/* The date is what makes the pair honest — it is small, but it is never optional. */
+.led .led-rx-leg i { font-style: normal; font-size: 11px; letter-spacing: .04em;
+  color: var(--muted-light); text-transform: lowercase; }
+.led .led-rx-arrow { color: var(--muted-light); font-size: 14px; }
+.led .led-rx-chg { margin-left: auto; font-weight: 700; }
+.led .led-rx-chg.pos { color: var(--success); }
+.led .led-rx-chg.neg { color: var(--danger); }
+.led .led-rx-meta { display: flex; flex-wrap: wrap; gap: 4px 22px; margin: 10px 0 0; }
+.led .led-rx-meta > div { display: grid; gap: 2px; }
+.led .led-rx-meta dt { font-size: 10.5px; letter-spacing: .04em; color: var(--muted-light); }
+.led .led-rx-meta dd { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .led-rx-meta dd.pos { color: var(--success); }
+.led .led-rx-meta dd.neg { color: var(--danger); }
+.led .led-rx-sessions { font-weight: 400; color: var(--muted-light); }
+.led .led-rx-none { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.led .led-rx-hedge { margin: 8px 0 0; font-size: 11.5px; color: var(--muted-light); }
+@media (max-width: 420px) {
+  .led .led-rx-chg { margin-left: 0; width: 100%; }
+}
+
+.led .led-art-related { margin-top: 34px; }
+.led .led-art-related .led-panel-h { margin-bottom: 18px; }
+
+.led .led-sig { margin: 0; display: grid; gap: 10px; }
+.led .led-sig > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.led .led-sig > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.led .led-sig dt { font-size: 12px; color: var(--muted); }
+.led .led-sig dd { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); text-align: right;
+  font-variant-numeric: tabular-nums; }
+.led .led-sig dd.pos { color: var(--success); }
+.led .led-sig dd.neg { color: var(--danger); }
+.led .led-sig-note { margin: 14px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted-light); }
+/* Dates need the full panel width, so this variant stacks label over value. */
+.led .led-sig--rows > div { flex-direction: column; align-items: flex-start; gap: 2px; }
+.led .led-sig--rows dd { text-align: left; font-weight: 500; }

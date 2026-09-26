@@ -8,6 +8,13 @@ import fundamentals
 import instruments
 import public_contract
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.fields as catalogue_fields
+import catalogue.market_store as catalogue_market_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
 import securities_catalog as securities_store
 import server.http as http
 import server.market.board as market_board
@@ -44,10 +51,10 @@ async def _market_inputs(ticker: str | None = None) -> dict[str, Any]:
         )
     securities, financials, ratios, listings, stats = await asyncio.gather(
         loop.run_in_executor(None, securities_store.get_securities_map),
-        loop.run_in_executor(None, catalog_store.get_all_financials),
-        loop.run_in_executor(None, catalog_store.get_all_ratios_cached),
-        loop.run_in_executor(None, catalog_store.get_all_listings),
-        loop.run_in_executor(None, catalog_store.get_all_trade_stats),
+        loop.run_in_executor(None, catalogue_snapshots.get_all_financials),
+        loop.run_in_executor(None, catalogue_ratios.get_all_ratios_cached),
+        loop.run_in_executor(None, catalogue_market_store.get_all_listings),
+        loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats),
     )
     board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
     # Statement sums are stored in thousands of UZS; scale at the boundary so
@@ -57,26 +64,26 @@ async def _market_inputs(ticker: str | None = None) -> dict[str, Any]:
     # P/B and ROE denominators) — carry the same thousands and must cross the
     # boundary together, or the TTM would subtract thousands from full UZS.
     def _scale(row: dict[str, Any], fields) -> dict[str, Any]:
-        out = {**row, **{k: row[k] * catalog_store.NSBU_THOUSANDS_UZS
+        out = {**row, **{k: row[k] * catalogue_fields.NSBU_THOUSANDS_UZS
                          for k in fields if isinstance(row.get(k), (int, float))}}
         prior = row.get("prior")
         if isinstance(prior, dict):
-            out["prior"] = {**prior, **{k: prior[k] * catalog_store.NSBU_THOUSANDS_UZS
+            out["prior"] = {**prior, **{k: prior[k] * catalogue_fields.NSBU_THOUSANDS_UZS
                                         for k in fields
                                         if isinstance(prior.get(k), (int, float))}}
         balance = row.get("balance")
         if isinstance(balance, dict):
-            out["balance"] = {k: (v * catalog_store.NSBU_THOUSANDS_UZS
+            out["balance"] = {k: (v * catalogue_fields.NSBU_THOUSANDS_UZS
                                   if isinstance(v, (int, float)) else v)
                               for k, v in balance.items()}
         return out
 
     financials = {
-        t: ({**_scale(r, catalog_store.FIN_MONEY_FIELDS), "annual": _scale(r["annual"], catalog_store.FIN_MONEY_FIELDS)}
-            if r.get("annual") else _scale(r, catalog_store.FIN_MONEY_FIELDS))
+        t: ({**_scale(r, catalogue_fields.FIN_MONEY_FIELDS), "annual": _scale(r["annual"], catalogue_fields.FIN_MONEY_FIELDS)}
+            if r.get("annual") else _scale(r, catalogue_fields.FIN_MONEY_FIELDS))
         for t, r in (financials or {}).items()
     }
-    ratios = {t: _scale(r, catalog_store.RATIO_MONEY_FIELDS) for t, r in (ratios or {}).items()}
+    ratios = {t: _scale(r, catalogue_fields.RATIO_MONEY_FIELDS) for t, r in (ratios or {}).items()}
     # The session the board describes: the latest day any row reports. The feed
     # writes DD.MM.YYYY and the day statistics YYYYMMDD, so compare normalised
     # values — ordering the raw strings put "31.01" above "05.02".
@@ -129,7 +136,7 @@ async def _heatmap_inputs() -> dict[str, Any]:
     )
     securities, stats = await asyncio.gather(
         loop.run_in_executor(None, securities_store.get_securities_map),
-        loop.run_in_executor(None, catalog_store.get_all_trade_stats),
+        loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats),
     )
     board = list(shares.get("stocks") or []) + list(bonds.get("stocks") or [])
     trade_date = None

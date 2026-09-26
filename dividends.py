@@ -67,7 +67,7 @@ def fetch_calendar(
     stored table, so publishing half a calendar would delete real payout history
     and call it "no dividends".
     """
-    from openinfo_collector import _json_get, _make_session
+    from collectors.openinfo.transport import _json_get, _make_session
 
     client = session or _make_session()
     rows: list[dict[str, Any]] = []
@@ -221,7 +221,7 @@ def build_universe() -> list[dict[str, Any]]:
         logger.warning("dividends: securities registry unavailable", exc_info=True)
 
     try:
-        from reports_catalog import get_catalog_conn
+        from catalogue.storage import get_catalog_conn
 
         conn = get_catalog_conn()
         try:
@@ -499,7 +499,7 @@ def replace_snapshot(records: list[dict[str, Any]]) -> int:
     unique on (ticker, filing_id) before they get here, so a chunk cannot
     conflict with itself.
     """
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     row_sql = "(" + ",".join("?" * len(_COLUMNS)) + ", datetime('now'))"
     conn = get_catalog_conn()
@@ -523,7 +523,7 @@ def replace_snapshot(records: list[dict[str, Any]]) -> int:
 
 def read_snapshot(ticker: str) -> list[dict[str, Any]]:
     """Stored filings for one security, newest decision first."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:
@@ -546,7 +546,7 @@ def read_all(limit: int = 400) -> list[dict[str, Any]]:
     filing here, keeping every ticker the filing landed on (the ordinary line
     first, so the issuer link points at the primary listing).
     """
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:
@@ -583,7 +583,7 @@ def read_all(limit: int = 400) -> list[dict[str, Any]]:
 
 def snapshot_state() -> dict[str, Any]:
     """How many filings and tickers the store holds, and when it was written."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:

@@ -18,8 +18,14 @@ from typing import Any, Protocol, runtime_checkable
 import requests
 
 import reports_catalog as rc
+import catalogue.facts as catalogue_facts
+import catalogue.parsing as catalogue_parsing
+import catalogue.periods as catalogue_periods
+import catalogue.refresh as catalogue_refresh
+import catalogue.sources as catalogue_sources
+import catalogue.storage as catalogue_storage
 from entity_resolver import resolve_all
-from openinfo_collector import _json_get, _make_session
+from collectors.openinfo.transport import _json_get, _make_session
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +205,7 @@ class NsbuDerivedIndicatorsCollector:
     dataset = "financial_indicators"
 
     def collect(self, orgs: list[str], session: Any) -> list[dict[str, Any]]:
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         try:
             covered = {
                 str(r["entity_id"])
@@ -226,13 +232,13 @@ class NsbuDerivedIndicatorsCollector:
                 # ROE/margin); fall back to the newest report of any period type.
                 # _latest_excel_report already excludes the current-year placeholder
                 # annual, so `latest` is a real report.
-                latest = rc._latest_excel_report(ticker, "NSBU")
+                latest = catalogue_refresh._latest_excel_report(ticker, "NSBU")
                 if not latest:
                     continue
                 candidates = [latest]
                 if latest.get("quarter"):
-                    last_fy = rc._latest_complete_fiscal_year()
-                    cconn = rc.get_catalog_conn()
+                    last_fy = catalogue_periods._latest_complete_fiscal_year()
+                    cconn = catalogue_storage.get_catalog_conn()
                     annual = cconn.execute(
                         "SELECT year, quarter FROM catalog_reports "
                         "WHERE ticker=? AND report_form='NSBU' AND quarter=0 "
@@ -255,10 +261,10 @@ class NsbuDerivedIndicatorsCollector:
                 report: dict[str, int] | None = None
                 for cand in candidates:
                     try:
-                        data = rc.fetch_report_excel_data(ticker, "NSBU", cand["year"], cand["quarter"])
+                        data = catalogue_sources.fetch_report_excel_data(ticker, "NSBU", cand["year"], cand["quarter"])
                         if not data.get("ok"):
                             continue
-                        computed = rc.compute_financial_ratios(data.get("income"), data.get("balance"))
+                        computed = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance"))
                     except Exception:  # noqa: BLE001 — best-effort per issuer
                         logger.exception("nsbu_derived %s (%s) failed", ticker, org)
                         continue
@@ -322,7 +328,7 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
     # their net-income showing the revenue figure. Union in every org from the
     # synced local catalog, whose ticker->org mapping is authoritative.
     try:
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         catalog_orgs = {
             str(row["org_id"])
             for row in conn.execute(
@@ -341,7 +347,7 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
     # BEFORE the collectors run: this frees issuers whose sole fact was the
     # placeholder so the NSBU-derived collector re-covers them in this same pass.
     try:
-        rc.purge_premature_annual_facts()
+        catalogue_facts.purge_premature_annual_facts()
     except Exception:  # noqa: BLE001 — hygiene step is best-effort
         logger.exception("premature-fact purge failed")
     result: dict[str, Any] = {}
@@ -350,7 +356,7 @@ def run_all(collectors: list[str] | None = None, session: Any = None) -> dict[st
             continue
         try:
             facts = collector.collect(orgs, session)
-            written = rc.upsert_facts(facts)
+            written = catalogue_facts.upsert_facts(facts)
             result[name] = {"facts": len(facts), "written": written}
             logger.info("collector %s: %d facts", name, written)
         except Exception as exc:  # noqa: BLE001

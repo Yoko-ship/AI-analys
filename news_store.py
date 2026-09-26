@@ -19,6 +19,8 @@ from typing import Any
 
 import news_lang
 import reports_catalog as rc
+import catalogue.storage as catalogue_storage
+import catalogue.storage as catalogue_storage
 from delisted import DELISTED_TICKERS
 
 logger = logging.getLogger(__name__)
@@ -46,7 +48,7 @@ def record_news_usage(record: dict[str, Any]) -> int:
         "codex_resets_at", "fetched", "classified", "relevant", "pushed", "status",
     )
     values = [record.get(field) for field in fields]
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
             conn.execute(
@@ -186,7 +188,7 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
     """
     if not items:
         return 0
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     written = 0
     with conn:
         for it in items:
@@ -261,7 +263,7 @@ def existing_urls(urls: list[str]) -> set[str]:
     urls = [u for u in urls if u]
     if not urls:
         return set()
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     found: set[str] = set()
     # Chunk to stay under SQLite's variable limit.
     for i in range(0, len(urls), 400):
@@ -281,7 +283,7 @@ def rows_without_image(*, limit: int = 40, days: int = 90) -> list[dict[str, Any
     Feed-visible items first (``relevant``, then newest): the per-run fetch cap should
     be spent on the cards users actually see, not on items filtered out as off-topic.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.id, n.url, n.source_id FROM news n
@@ -303,7 +305,7 @@ def image_urls_for(urls: list[str]) -> dict[str, str]:
     urls = [u for u in urls if u]
     if not urls:
         return {}
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     found: dict[str, str] = {}
     for i in range(0, len(urls), 400):
         chunk = urls[i:i + 400]
@@ -333,7 +335,7 @@ def set_image_urls(images: dict[str, str], *, replace: bool = False) -> int:
     """
     if not images:
         return 0
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     changed = 0
     where = "" if replace else " AND (image_url IS NULL OR image_url = '')"
     with conn:
@@ -356,7 +358,7 @@ def rows_with_upgradable_image(*, days: int = 90, limit: int = 500) -> list[dict
     Which of them can actually be upgraded is the collector's business (the rules live in the
     source registry); this only supplies the rows and their current image.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.url, n.source_id, n.image_url FROM news n
@@ -378,7 +380,7 @@ def rows_missing_translations(*, limit: int = 60, days: int = 90) -> list[dict[s
     (``relevant``, then newest), for the same reason the image backfill orders that way: the
     per-run budget should be spent on cards users actually see.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.url, n.title, n.summary_ru, n.summary_en, n.summary_uz
@@ -405,7 +407,7 @@ def set_translations(translations: dict[str, dict[str, str]]) -> int:
     """
     if not translations:
         return 0
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     changed = 0
     with conn:
         for url, langs in translations.items():
@@ -442,7 +444,7 @@ def rows_without_detail(*, limit: int = 20, days: int = 30,
     days — three weeks of stories that would never have been reached. The caller spends part
     of each run from this end so the tail drains.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     q = ["SELECT n.url, n.title, n.source_id, n.snippet, n.summary_ru",
          "FROM news n JOIN news_nlp p ON p.news_id = n.id",
          "WHERE p.relevant = 1"]
@@ -471,7 +473,7 @@ def set_details(details: dict[str, dict[str, str]], *, replace: bool = False) ->
     """
     if not details:
         return 0
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     changed = 0
     with conn:
         for url, langs in details.items():
@@ -513,7 +515,7 @@ def set_snippets(snippets: dict[str, str]) -> int:
     """
     if not snippets:
         return 0
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     changed = 0
     with conn:
         for url, text in snippets.items():
@@ -539,7 +541,7 @@ def delete_failed_classifications(*, limit: int = 1000) -> dict[str, Any]:
     ``classification_failed`` are touched; a genuine "not market-relevant" verdict carries
     a real reason string and is left alone.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.id, n.source_id FROM news n JOIN news_nlp p ON p.news_id = n.id
@@ -579,7 +581,7 @@ def delete_rejected_from_source(source_id: str, *, days: int = 60,
     an item that stays uninteresting simply gets the same verdict again next run (one
     classification, once). Bounded by ``days`` so it cannot walk the whole archive.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.id FROM news n JOIN news_nlp p ON p.news_id = n.id
@@ -1129,7 +1131,7 @@ def get_news_feed(
         # Rank over more rows than we return, or a high-impact filing from yesterday could
         # never outrank today's currency-rate note simply for being one row too far down.
         fetch = max(1, min(max(limit * 3, 60), 300))
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     q = [
         "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,",
         "       p.relevant, p.relevance_score,",
@@ -1218,7 +1220,7 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
         news_id = int(news_id)
     except (TypeError, ValueError):
         return None
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     row = conn.execute(
         """
         SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
@@ -1271,7 +1273,7 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
     # de-duplication can still fill it with genuinely different stories.
     fetch_cap = min(100, max(cap * 4, cap + 1))
     window = f"-{int(days)} days"
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     base = conn.execute(
         """
         SELECT n.id, n.source_id, n.title, n.summary_ru, n.published_at, p.type,
@@ -1343,7 +1345,7 @@ def get_news_for_ticker(
 ) -> list[dict[str, Any]]:
     cap = max(1, min(limit, 100))
     fetch_cap = min(100, max(cap * 4, cap + 1))
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
@@ -1370,7 +1372,7 @@ def get_news_sentiment(ticker: str, *, days: int = 30) -> dict[str, Any]:
 
     Returns a weighted mean tone_score plus counts. A statistical aggregate, not a verdict.
     """
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
         SELECT p.type, p.tone, p.tone_score, n.coverage_weight, n.source_id

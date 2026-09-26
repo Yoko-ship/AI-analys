@@ -55,7 +55,7 @@ async def api_track(request: Request) -> Response:
         if scheme.lower() == "bearer" and token.strip():
             try:
                 user = await asyncio.get_running_loop().run_in_executor(
-                    None, web_auth_store.get_user_by_token, token.strip())
+                    None, web_auth_store.sessions.get_user_by_token, token.strip())
                 trusted_user_id = user.id if user else None
             except Exception:
                 # Authentication availability must not turn a best-effort
@@ -122,7 +122,7 @@ async def api_admin_audit_log(limit: int = 50, offset: int = 0) -> dict[str, Any
 async def api_admin_feedback(status: str = "", limit: int = 100) -> dict[str, Any]:
     """Human-admin inbox for account-linked feedback and support messages."""
     try:
-        return await _run(web_auth_store.list_support_requests, status=status, limit=limit)
+        return await _run(web_auth_store.support.list_support_requests, status=status, limit=limit)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -133,7 +133,7 @@ async def api_admin_feedback(status: str = "", limit: int = 100) -> dict[str, An
 async def api_admin_feedback_status(request_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     try:
         item = await _run(
-            web_auth_store.update_support_request_status,
+            web_auth_store.support.update_support_request_status,
             request_id,
             (payload or {}).get("status"),
         )

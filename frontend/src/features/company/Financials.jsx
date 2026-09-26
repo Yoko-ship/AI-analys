@@ -1,3 +1,5 @@
+import { roundedDisplayValue } from "../../lib/format.js";
+import { nearestPointIndex } from "../../lib/geometry.js";
 import React from "react";
 import { formatCompactVolume } from "../../shared/marketModel.jsx";
 import { formatRatio } from "../../shared/format.jsx";
@@ -164,7 +166,7 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
     if (!r.width) return;
     const relX = ((e.clientX - r.left) / r.width) * W;
     const i = Math.max(0, Math.min(cols.length - 1,
-      Math.round(((relX - PAD.l) / (W - PAD.l - PAD.r)) * (cols.length - 1))));
+      nearestPointIndex((relX - PAD.l) / (W - PAD.l - PAD.r), cols.length)));
     setHover(i);
     const wrap = e.currentTarget.parentElement;
     setHoverY(e.clientY - (wrap ? wrap.getBoundingClientRect().top : r.top));
@@ -399,7 +401,7 @@ const FIN_DASHBOARD_KEY = "uz_fin_dashboard_v2";
 // honest content is «не зафиксировано», and that renders as a sentence, not
 // as an empty table.
 function CompanySplitsTable({ items, lang }) {
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   const locale = lang === "en" ? "en-US" : "ru-RU";
   if (items === null) return <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>;
   const rows = items || [];
@@ -419,7 +421,7 @@ function CompanySplitsTable({ items, lang }) {
   const effectLabel = (r) => {
     const n = Number(r.ratio) || 1;
     if (r.kind === "bonus") {
-      const per100 = Math.round((n - 1) * 100);
+      const per100 = roundedDisplayValue((n - 1) * 100);
       return t(`держателю начислено ${fmtN(per100)} новых акций на каждые 100`,
                `har 100 aksiyaga ${fmtN(per100)} ta yangi aksiya qo'shildi`,
                `${fmtN(per100)} new shares credited for every 100 held`);
@@ -477,7 +479,7 @@ function CompanySplitsTable({ items, lang }) {
 function FinancialPassportDialog({ passport, loading, field, period, lang, onClose }) {
   const dialogRef = React.useRef(null);
   const closeRef = React.useRef(null);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   const titleId = `financial-passport-${String(field || "value").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const source = passport?.source;
 
@@ -556,7 +558,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
 }
 
 function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange }) {
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   const [section, setSection] = React.useState("income");
   // Which lines the chart draws, per section (annual and quarterly sections
   // share a key space, which is fine — «income» means the same lines in both).
@@ -1055,7 +1057,7 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
   // that read like a broken table. They stay available behind the toggle, because
   // "the meeting resolved to pay nothing" is an answer to the question the tab asks.
   const [showSilent, setShowSilent] = React.useState(false);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   const locale = lang === "en" ? "en-US" : "ru-RU";
   const fmt = (v) => v == null ? "—" : Number(v).toLocaleString(locale, { maximumFractionDigits: 2 });
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }) : "—";

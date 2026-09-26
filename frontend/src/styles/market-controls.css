@@ -1,0 +1,390 @@
+/* ── Market sector filter ─────────────────────────────────────── */
+/* One dropdown in the control row, where the eleven chips used to take a band
+   of the filter bar to themselves. It sits with «Избранное» and «Экспорт CSV»
+   and is sized like them, because it is the same kind of control: which slice
+   of the board is on screen. */
+.market-sector-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.market-sector-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 42px;
+  padding: 0 34px 0 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 42px;
+  cursor: pointer;
+  outline: none;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.market-sector-select select:hover {
+  border-color: var(--accent);
+}
+.market-sector-select select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* The caret. `appearance: none` takes the native one away, and the dark theme
+   strips it globally anyway (see the `body[data-theme="dark"] select` block),
+   so the control has to draw its own or read as an unclickable pill. */
+.market-sector-select::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -5px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* A chosen sector is a filter that hides rows — it says so, the way the
+   «Неактивные» chip does. */
+.market-sector-select select:not([data-all="1"]) {
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+/* The global dark-theme input rule paints every select a near-black input with
+   `!important`; inside the toolbar this one is a pill among pills. */
+body[data-theme="dark"] .market-sector-select select {
+  background: var(--bg-2) !important;
+  background-color: var(--bg-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+body[data-theme="dark"] .market-sector-select select:not([data-all="1"]) {
+  border-color: var(--accent) !important;
+}
+
+/* ── Market table: logo + ticker cell ────────────────────────── */
+.market-ticker-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Watchlist star: toggles the company as a favorite straight from the quotes. */
+.market-fav-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+.market-fav-btn:hover { color: #f5b301; transform: scale(1.18); }
+.market-fav-btn.is-fav { color: #f5b301; }
+
+/* "Favorites only" filter toggle in the market toolbar — matches the segmented
+   control / search box (neutral pill); only the star carries the gold accent. */
+.market-fav-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+.market-fav-filter:hover { color: var(--text); }
+.market-fav-filter.active {
+  background: var(--panel-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.market-fav-filter .fav-star { color: #f5b301; font-size: 1.05rem; line-height: 1; }
+/* Louder than the shared .active, on purpose: «Избранное» carries a filled
+   star that says what it is doing, and this chip has nothing but its own
+   outline — while it REPLACES the whole table with eleven dormant listings.
+   On the light theme the shared style is a white pill against white pills. */
+.market-dormant-filter.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Column-settings (gear) menu in the market toolbar. */
+.market-cols-wrap { position: relative; display: inline-flex; }
+.market-cols-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* Sized to its label now, with the icon-only width as the floor so it keeps its
+     shape where mobile.css hides the label. */
+  min-width: 42px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.market-cols-btn .market-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.market-cols-count {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent-light);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.market-cols-btn:hover { color: var(--text); }
+.market-cols-btn.active { background: var(--panel-elevated); color: var(--text); box-shadow: var(--shadow-sm); }
+/* The picker is portaled to <body> (see MarketColsPopover), so both layers are
+   fixed and have to clear the topbar (100) rather than the board. */
+.market-cols-backdrop { position: fixed; inset: 0; z-index: 120; }
+.market-cols-dropdown {
+  position: fixed;
+  z-index: 121;
+  display: flex;
+  flex-direction: column;
+  min-width: 248px;
+  max-height: 70vh;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-elevated);
+  box-shadow: var(--shadow-lg);
+}
+/* Only the group list scrolls: the search box and the reset footer stay put,
+   and `overscroll-behavior: contain` keeps the page behind from taking over the
+   gesture when the list hits its end. */
+.market-cols-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Phone: the picker is a bottom sheet ──────────────────────────────────
+   A 248px popover hanging off a 42px button is a thumb-sized target list on a
+   phone, and the page used to scroll away underneath it. The sheet is anchored
+   to the bottom edge, sized to the content up to 78vh, and the body is frozen
+   while it is open. */
+.market-cols-sheet {
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  min-width: 0;
+  max-height: min(78vh, 620px);
+  padding: 0 10px calc(10px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  border-bottom: none;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35);
+}
+.market-cols-backdrop.is-sheet { background: rgba(7, 7, 9, 0.45); }
+.market-cols-sheet-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 40px 10px;
+  margin-bottom: 4px;
+}
+.market-cols-sheet-grip {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-hover);
+}
+.market-cols-sheet-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.market-cols-sheet-close {
+  position: absolute;
+  right: 2px;
+  top: 10px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.market-cols-sheet .market-cols-row { min-height: 42px; }
+.market-cols-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 6px 10px 8px;
+}
+.market-cols-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--muted);
+}
+.market-cols-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.market-cols-search input::placeholder { color: var(--muted); }
+.market-cols-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+}
+.market-cols-group-head:hover { background: var(--bg-2); }
+.market-cols-group-meta { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.market-cols-group-badge { font-variant-numeric: tabular-nums; font-weight: 600; }
+.market-cols-group-info { cursor: help; font-size: 13px; opacity: 0.7; }
+.market-cols-group-chevron { transition: transform 0.18s; font-size: 18px; line-height: 1; }
+.market-cols-group-chevron.open { transform: rotate(90deg); }
+.market-cols-group-body { margin-top: 2px; }
+.market-cols-row-locked { opacity: 0.55; cursor: default; }
+.market-cols-row-locked input { cursor: default; }
+.market-cols-empty { padding: 10px; font-size: 0.85rem; color: var(--muted); text-align: center; }
+.market-cols-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.market-cols-row:hover { background: var(--bg-2); }
+.market-cols-row input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+.market-cols-all { font-weight: 600; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; padding-bottom: 10px; }
+
+/* Company logo in the market table — same white-plate wordmark treatment as
+   the catalog (transparent icon-marks float, wordmarks get a light plate),
+   scaled down to keep row height uniform. The letter fallback fills empty
+   slots so every ticker column stays aligned. */
+.market-ticker-cell .chip-logo,
+.market-ticker-cell .chip-logo-fallback {
+  width: 70px;
+  height: 44px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.market-ticker-cell .chip-logo {
+  background: #fff;
+  border: 1px solid var(--border);
+  object-fit: contain;
+  object-position: center;
+  padding: 4px;
+}
+
+/* No-logo monogram in the market table: keep the gradient tile from the base
+   rule, just tune the type to the smaller 70×44 slot. The explicit color beats
+   the `.market-table td span { color: var(--muted) }` cell-muting rule. */
+.market-ticker-cell .chip-logo-fallback {
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+/* Self-hosted transparent icon-marks float: no plate, no shadow, no padding. */
+.market-ticker-cell .chip-logo--float {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.market-ticker-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.market-preferred-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: rgba(146, 165, 152, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.03em;
+}
+
+.market-info-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: auto;
+}
+
+.market-info-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}

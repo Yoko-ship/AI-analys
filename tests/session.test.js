@@ -95,6 +95,42 @@ test("an invalid current session clears its private data and credentials", async
   assert.equal(persistentStorage.getItem(TOKEN_KEY), null);
 });
 
+for (const [name, fail] of [
+  ["network outage", async () => { throw new TypeError("Failed to fetch"); }],
+  ["service unavailable", async () => json({ detail: "Temporarily unavailable" }, 503)],
+  ["rate limit", async () => json({ detail: "Try again later" }, 429)],
+  ["invalid response body", async () => new Response("upstream unavailable", { status: 502 })],
+  ["invalid success body", async () => new Response("not JSON", { status: 200 })],
+]) {
+  for (const remember of [true, false]) {
+    test(`${name} preserves a ${remember ? "remembered" : "temporary"} session and permits recovery`, async () => {
+      let failing = true;
+      const { session, persistentStorage, temporaryStorage } = setup(async () => {
+        if (failing) return fail();
+        return json({ user: { id: 1, full_name: "Recovered" } });
+      });
+      session.acceptSession({ token: "valid", user: { id: 1, full_name: "Original" } }, { remember });
+      const request = session.getSnapshot().apiFetch;
+      await assert.rejects(session.refreshSession());
+      assert.equal(session.getSnapshot().token, "valid");
+      assert.equal(session.getSnapshot().user.full_name, "Original");
+      assert.equal(session.getSnapshot().apiFetch, request);
+      assert.equal((remember ? persistentStorage : temporaryStorage).getItem(TOKEN_KEY), "valid");
+      failing = false;
+      assert.equal((await session.refreshSession()).full_name, "Recovered");
+    });
+  }
+}
+
+test("an explicit authentication rejection clears credentials even if its body is malformed", async () => {
+  const { session, persistentStorage } = setup(async () => new Response("Unauthorized", { status: 401 }));
+  session.acceptSession({ token: "expired", user: { id: 1 } });
+  await assert.rejects(session.refreshSession());
+  assert.equal(session.getSnapshot().token, "");
+  assert.equal(session.getSnapshot().user, null);
+  assert.equal(persistentStorage.getItem(TOKEN_KEY), null);
+});
+
 test("the newest profile refresh wins if responses arrive out of order", async () => {
   const first = deferred(), second = deferred();
   let calls = 0;

@@ -1,3 +1,4 @@
+import { roundedDisplayValue } from "../lib/format.js";
 import { formatCompactNumber, formatRatio, safeNumber } from "./format.jsx";
 import { marketRowDay, normalizeMarketDay, previousClose, tradeStatsApply } from "../lib/valuation.js";
 
@@ -51,7 +52,7 @@ function formatMarketTimestamp(value, language) {
 // seventy times at once. Uzbek takes no plural marker after a numeral, and
 // English needs only the two forms.
 function tradeCountLabel(n, language) {
-  const abs = Math.abs(Math.round(Number(n) || 0));
+  const abs = Math.abs(roundedDisplayValue(Number(n) || 0));
   if (language === "uz") return "savdo";
   if (language === "en") return abs === 1 ? "trade" : "trades";
   const mod10 = abs % 10;
@@ -63,7 +64,7 @@ function tradeCountLabel(n, language) {
 
 // Same three Russian forms, for the sessions counted since a story was published.
 function sessionCountLabel(n, language) {
-  const abs = Math.abs(Math.round(Number(n) || 0));
+  const abs = Math.abs(roundedDisplayValue(Number(n) || 0));
   if (language === "uz") return "sessiya";
   if (language === "en") return abs === 1 ? "session" : "sessions";
   const mod10 = abs % 10;

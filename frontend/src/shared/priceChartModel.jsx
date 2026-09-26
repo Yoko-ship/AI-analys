@@ -66,6 +66,7 @@ function chartRangeWindowQuery(key) {
   if (r.ytd) {
     const now = new Date();
     const jan1 = new Date(now.getFullYear(), 0, 1);
+    // eslint-disable-next-line no-restricted-properties -- Calendar-day count for a request, not a price.
     return `&days=${Math.max(1, Math.round((now - jan1) / 86400000))}&window=ytd`;
   }
   return r.days ? `&days=${r.days}&window=${r.key}` : "";

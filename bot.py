@@ -39,14 +39,9 @@ from telegram.ext import (
     filters,
 )
 
-from analyzer import (
-    df_to_annual,
-    df_to_quarterly,
-    research_company_online,
-    build_company_profile,
-    run_analysis,
-    build_html,
-)
+from financial_analysis.frames import df_to_annual, df_to_quarterly
+from analyzer import research_company_online, build_company_profile, run_analysis
+from financial_analysis.html import build_html
 from main import get_data
 from cache import cache as analysis_cache
 from company_catalog import COMPANY_CATALOG

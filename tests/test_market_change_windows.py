@@ -8,6 +8,7 @@ because on this market the earlier date is rarely the one the label implies.
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
 import securities_catalog as subject_securities_catalog
 import server.market.history as subject_server_market_history
 
@@ -254,7 +255,7 @@ class TestTheEndpointServesThePeriodsFigures:
 
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map',
                             lambda: {"ZZZZ": {"isin": "UZ7000000001"}})
-        monkeypatch.setattr(subject_reports_catalog, 'get_quote_history', lambda codes, days: {
+        monkeypatch.setattr(catalogue_market_store, 'get_quote_history', lambda codes, days: {
             "UZ7000000001": [
                 {"trade_date": "20260601", "close_price": 100.0, "quantity": 10.0,
                  "turnover": 1000.0, "open_price": 98.0, "high_price": 101.0,

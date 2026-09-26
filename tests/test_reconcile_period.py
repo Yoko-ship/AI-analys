@@ -15,6 +15,8 @@ July 2026), and the two-column NSBU form 2, whose loss column was read as profit
 """
 from __future__ import annotations
 
+import catalogue.periods as catalogue_periods
+
 import datetime as dt
 
 import pytest
@@ -87,10 +89,11 @@ class TestPeriodRank:
 
     def test_it_matches_the_read_paths_sql_ranking(self) -> None:
         import reports_catalog as rc
+        import catalogue.periods as catalogue_periods
 
         for year, quarter in ((2025, 0), (2025, 1), (2025, 4), (2026, 1), (2026, 3)):
             period = str(year) if not quarter else f"{year}Q{quarter}"
-            y, k = rc._period_key(period)
+            y, k = catalogue_periods._period_key(period)
             assert orc.period_rank(year, quarter) == y * 10 + k
 
     def test_an_underivable_period_ranks_below_everything(self) -> None:

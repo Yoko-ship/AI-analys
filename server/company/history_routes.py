@@ -9,6 +9,7 @@ from typing import Any
 import asyncio
 import obs
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 import server.http as http
 import server.market.history as market_history
 
@@ -149,7 +150,7 @@ async def api_intraday(ticker: str, days: int = 8) -> dict[str, Any]:
         if not isin:
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "points": []}, status_code=404)
-        rows = await loop.run_in_executor(None, partial(catalog_store.get_intraday_history, isin, days))
+        rows = await loop.run_in_executor(None, partial(catalogue_market_store.get_intraday_history, isin, days))
         points = [
             {
                 "date": f"{d[:4]}-{d[4:6]}-{d[6:8]}T{int(r['hour']):02d}:00",

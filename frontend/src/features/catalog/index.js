@@ -1,2 +1,3 @@
 // Public interface for this feature.
-export { CatalogView } from "./CatalogView.jsx";
+import { lazy } from "react";
+export const CatalogView = lazy(() => import("./CatalogView.jsx").then(module => ({ default: module.CatalogView })));

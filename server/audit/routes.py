@@ -10,6 +10,9 @@ from typing import Any
 import asyncio
 import obs
 import reports_catalog as catalog_store
+import catalogue.periods as catalogue_periods
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 import server.audit.jobs as audit_jobs
 import server.auth.access as auth_access
 import server.http as http
@@ -207,11 +210,14 @@ async def api_admin_reports(_: None = Depends(auth_access._admin_gate)) -> dict[
     """
     import admin_data
     import reports_catalog
+    import catalogue.periods as catalogue_periods
+    import catalogue.snapshots as catalogue_snapshots
+    import catalogue.storage as catalogue_storage
 
     def _stored() -> tuple[list[dict[str, Any]], int]:
         # The RAW table, not the read path's per-ticker pick: the records the
         # read path drops are exactly the ones nobody has been able to see.
-        conn = reports_catalog.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         try:
             rows = [dict(r) for r in conn.execute(
                 "SELECT ticker, form, year, quarter, revenue, net_income, "
@@ -220,7 +226,7 @@ async def api_admin_reports(_: None = Depends(auth_access._admin_gate)) -> dict[
                 "FROM catalog_financials")]
         finally:
             conn.close()
-        return rows, reports_catalog._latest_complete_fiscal_year()
+        return rows, catalogue_periods._latest_complete_fiscal_year()
 
     loop = asyncio.get_running_loop()
     (stored, last_fy), inputs = await asyncio.gather(
@@ -262,7 +268,7 @@ async def api_admin_source(_: None = Depends(auth_access._admin_gate)) -> dict[s
     # the probe answers "could we have read it if they had". Run together so a
     # screen never blames one for the other.
     financials, probe = await asyncio.gather(
-        loop.run_in_executor(None, catalog_store.get_all_financials),
+        loop.run_in_executor(None, catalogue_snapshots.get_all_financials),
         loop.run_in_executor(None, openinfo_probe.run_probe),
     )
     latest = {str(t).upper(): (int(r["year"]), int(r.get("quarter") or 0))

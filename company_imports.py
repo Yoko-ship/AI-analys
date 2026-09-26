@@ -49,8 +49,9 @@ class CompanyImportError(ValueError):
 
 def _conn():
     import reports_catalog
+    import catalogue.storage as catalogue_storage
 
-    return reports_catalog.get_catalog_conn()
+    return catalogue_storage.get_catalog_conn()
 
 
 def _static_logos() -> dict[str, str]:
@@ -261,7 +262,7 @@ def preview_import(ticker: str, *, refresh: bool = True, actor: str | None = Non
     # queue would turn one refresh into hundreds of upstream calls.
     if not row.get("logo_url") and row.get("org_id"):
         try:
-            from openinfo_collector import resolve_company
+            from collectors.openinfo.issuers import resolve_company
 
             profile = resolve_company(row["company_name"])
             if str(profile.get("org_id") or "") == str(row["org_id"]):

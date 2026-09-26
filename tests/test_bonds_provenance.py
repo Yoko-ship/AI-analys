@@ -12,6 +12,11 @@ defect group grew.
 """
 from __future__ import annotations
 
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.refresh as catalogue_refresh
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
+
 import cache_layer as subject_cache_layer
 import server.bonds.quality as subject_server_bonds_quality
 import server.market.history as subject_server_market_history
@@ -730,9 +735,13 @@ class TestProvenanceWiring:
     def seeded_catalog(self, monkeypatch, tmp_path):
         """Exercise the real registry with owned data, not a developer's cache."""
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.sqlite3"))
-        monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *args, **kwargs: None)
-        conn = rc.get_catalog_conn()
+        monkeypatch.setattr(catalogue_financial_store, "_maybe_seed_financials", lambda *args, **kwargs: None)
+        conn = catalogue_storage.get_catalog_conn()
         try:
             conn.execute("INSERT INTO catalog_companies (ticker, company_name, org_id) VALUES (?,?,?)",
                          ("ZZSEED", "Provenance test issuer", "TESTSEED"))
@@ -741,7 +750,7 @@ class TestProvenanceWiring:
             conn.commit()
         finally:
             conn.close()
-        rc.upsert_financials_cache("ZZSEED", "NSBU", 2025, 0, {"revenue": 1000, "net_income": 100})
+        catalogue_financial_store.upsert_financials_cache("ZZSEED", "NSBU", 2025, 0, {"revenue": 1000, "net_income": 100})
 
     def test_the_catalog_seeds_the_registry(self):
         result = provenance.sync_from_catalog()
@@ -769,6 +778,10 @@ class TestProvenanceWiring:
         against a different row. Each creates its own instead.
         """
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
         org = "TESTWIRE"
         conn = provenance._conn()
@@ -787,7 +800,7 @@ class TestProvenanceWiring:
 
     def test_a_parse_records_its_figures_and_returns_the_link(self):
         rc, ticker, report_id, year, quarter = self._own_report()
-        got = rc._register_parse(ticker, "NSBU", year, quarter, {"ok": True},
+        got = catalogue_refresh._register_parse(ticker, "NSBU", year, quarter, {"ok": True},
                                  {"revenue": 1000.0, "net_income": 100.0})
         assert got == report_id
         stored = provenance.report(report_id)
@@ -797,26 +810,34 @@ class TestProvenanceWiring:
 
     def test_a_report_that_yields_nothing_keeps_its_reason(self):
         rc, ticker, report_id, year, quarter = self._own_report(quarter=3)
-        rc._register_parse(ticker, "NSBU", year, quarter, {"ok": True}, {})
+        catalogue_refresh._register_parse(ticker, "NSBU", year, quarter, {"ok": True}, {})
         stored = provenance.report(report_id)
         assert stored["state"] == "parse_failed" and stored["state_reason"]
 
     def test_a_download_failure_is_a_state_not_a_silence(self):
         rc, ticker, report_id, year, quarter = self._own_report(quarter=4)
-        rc._register_parse(ticker, "NSBU", year, quarter, {"ok": False, "error": "404"}, {})
+        catalogue_refresh._register_parse(ticker, "NSBU", year, quarter, {"ok": False, "error": "404"}, {})
         assert provenance.report(report_id)["state"] == "download_failed"
 
     def test_an_unregistered_report_publishes_without_a_link(self):
         """A missing link is a finding (SRC-03), not something to paper over."""
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
-        assert rc._register_parse("NOSUCHTICKER", "NSBU", 1999, None,
+        assert catalogue_refresh._register_parse("NOSUCHTICKER", "NSBU", 1999, None,
                                   {"ok": True}, {"revenue": 1.0}) is None
 
     def test_published_figures_expose_their_source(self):
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
-        rows = rc.get_all_financials()
+        rows = catalogue_snapshots.get_all_financials()
         assert rows, "no financials in this environment"
         assert all("report_id" in row for row in rows.values())
 
@@ -825,10 +846,14 @@ class TestProvenanceWiring:
         mapping is deterministic, so the link is recovered without re-downloading.
         """
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
-        result = rc.backfill_report_links()
+        result = catalogue_refresh.backfill_report_links()
         assert set(result) == {"linked", "unresolved"}
-        rows = rc.get_all_financials()
+        rows = catalogue_snapshots.get_all_financials()
         if not rows:
             pytest.skip("no financials in this environment")
         linked = sum(1 for v in rows.values() if v.get("report_id"))
@@ -843,9 +868,13 @@ class TestProvenanceWiring:
 
     def test_the_backfill_is_idempotent(self):
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
-        rc.backfill_report_links()
-        second = rc.backfill_report_links()
+        catalogue_refresh.backfill_report_links()
+        second = catalogue_refresh.backfill_report_links()
         assert second["linked"] == 0
 
 
@@ -880,8 +909,12 @@ class TestRegisterCost:
 
     def test_registering_does_not_scale_with_the_catalog(self, monkeypatch):
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
 
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         try:
             catalogued = conn.execute(
                 "SELECT COUNT(*) AS n FROM catalog_reports WHERE year IS NOT NULL"
@@ -894,11 +927,11 @@ class TestRegisterCost:
         # Warm the pool first: schema DDL is applied once per physical
         # connection, and the steady state is what a running server pays.
         provenance.sync_from_catalog()
-        rc.backfill_report_links(seed=False)
+        catalogue_refresh.backfill_report_links(seed=False)
 
         counter = self._count_statements(monkeypatch)
         provenance.sync_from_catalog()
-        rc.backfill_report_links(seed=False)
+        catalogue_refresh.backfill_report_links(seed=False)
         # A constant, not one per filing. The bound is loose on purpose — the
         # order of magnitude is the assertion, not the exact count.
         assert counter["n"] < 50, f"{counter['n']} statements for {catalogued} filings"
@@ -979,9 +1012,10 @@ class TestFiledTermsAgainstTheRegister:
 
     def test_one_coupon_that_disagrees_leaves_the_register_standing(self):
         import collector_financials as cf
+        import collectors.financials.instruments as collectors_financials_instruments
 
         row = {"ticker": "ANBK3B", "coupon_rate": 22.0, "coupon_freq": 4}
-        filed = cf._filed_terms_for(row, {"coupon_rate": 66.0, "coupon_freq": 12, "coupon_evidence": 1,
+        filed = collectors_financials_instruments._filed_terms_for(row, {"coupon_rate": 66.0, "coupon_freq": 12, "coupon_evidence": 1,
                                           "maturity_date": "2029-04-27"})
         assert "coupon_rate" not in filed and "coupon_freq" not in filed
         assert "coupon_source" not in filed
@@ -989,8 +1023,9 @@ class TestFiledTermsAgainstTheRegister:
 
     def test_one_coupon_that_agrees_is_the_filed_rate(self):
         import collector_financials as cf
+        import collectors.financials.instruments as collectors_financials_instruments
 
-        filed = cf._filed_terms_for({"ticker": "ANBK3B", "coupon_rate": 22.0},
+        filed = collectors_financials_instruments._filed_terms_for({"ticker": "ANBK3B", "coupon_rate": 22.0},
                                     {"coupon_rate": 22.0, "coupon_freq": 4, "coupon_evidence": 1})
         assert filed["coupon_rate"] == 22.0 and filed["coupon_source"] == "openinfo_facts"
         assert "coupon_evidence" not in filed
@@ -998,7 +1033,8 @@ class TestFiledTermsAgainstTheRegister:
     def test_several_coupons_outrank_the_register(self):
         """BFMT3B4's accruals prove 28 % where prose said 27 %."""
         import collector_financials as cf
+        import collectors.financials.instruments as collectors_financials_instruments
 
-        filed = cf._filed_terms_for({"ticker": "BFMT3B4", "coupon_rate": 27.0},
+        filed = collectors_financials_instruments._filed_terms_for({"ticker": "BFMT3B4", "coupon_rate": 27.0},
                                     {"coupon_rate": 28.0, "coupon_freq": 12, "coupon_evidence": 8})
         assert filed["coupon_rate"] == 28.0 and filed["coupon_source"] == "openinfo_facts"

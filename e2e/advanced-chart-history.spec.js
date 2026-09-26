@@ -83,6 +83,7 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   expect(Math.abs(fullscreenBox.width - viewport.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(fullscreenBox.height - viewport.height)).toBeLessThanOrEqual(1);
   await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
   await expect(chartWorkspace).not.toHaveClass(/is-fullscreen/);
   await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
 

@@ -1,0 +1,711 @@
+/* Report-style analysis sectors */
+.analysis-sector {
+  margin: 22px 0;
+}
+
+.analysis-sector:first-child {
+  margin-top: 0;
+}
+
+.analysis-sector:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-sector__caption {
+  margin: 0 0 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.analysis-sector--detail {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
+  border-radius: 8px;
+}
+
+.analysis-sector--detail .analysis-para {
+  margin: 0;
+}
+
+body[data-theme="light"] .analysis-sector__caption {
+  color: var(--np-gold);
+}
+
+body[data-theme="light"] .analysis-sector--table {
+  padding-top: 8px;
+}
+
+body[data-theme="light"] .analysis-sector--detail {
+  background: #fffaf2;
+  border: 1px solid var(--np-rule-light);
+  color: var(--np-ink);
+}
+
+body[data-theme="light"] .analysis-sector--detail .analysis-para {
+  color: var(--np-ink);
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+body[data-theme="dark"] .analysis-sector__caption {
+  color: var(--accent-2);
+}
+
+body[data-theme="dark"] .analysis-sector--detail {
+  background: rgba(13, 22, 17, 0.64);
+  border: 1px solid rgba(146, 165, 152, 0.16);
+}
+
+body[data-theme="dark"] .analysis-sector--detail .analysis-para {
+  color: #eef4ef;
+  line-height: 1.78;
+}
+
+body[data-theme="dark"] .analysis-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(146, 165, 152, 0.18);
+  border-radius: 10px;
+}
+
+body[data-theme="dark"] .analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+body[data-theme="dark"] .analysis-table thead tr {
+  background: rgba(11, 11, 13, 0.96);
+}
+
+body[data-theme="dark"] .analysis-table th,
+body[data-theme="dark"] .analysis-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(146, 165, 152, 0.14);
+}
+
+body[data-theme="dark"] .analysis-table th {
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+body[data-theme="dark"] .analysis-table th:not(:first-child),
+body[data-theme="dark"] .analysis-table td.num {
+  text-align: right;
+}
+
+body[data-theme="dark"] .analysis-table td {
+  color: rgba(228, 234, 229, 0.86);
+}
+
+body[data-theme="dark"] .analysis-table tbody tr.total-row {
+  background: rgba(47, 123, 240, 0.08);
+  font-weight: 700;
+}
+
+body[data-theme="dark"] .analysis-table td.pos {
+  color: #34d399;
+  font-weight: 700;
+}
+
+body[data-theme="dark"] .analysis-table td.neg {
+  color: #f87171;
+  font-weight: 700;
+}
+
+/* Analysis tables */
+body[data-theme="light"] .analysis-table-wrap {
+  margin: 20px 0;
+  overflow-x: auto;
+  border: 1px solid var(--np-rule);
+}
+
+body[data-theme="light"] .analysis-sector--table .analysis-table-wrap {
+  margin: 0;
+}
+
+body[data-theme="light"] .analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--np-bg);
+}
+
+body[data-theme="light"] .analysis-table thead tr {
+  background: var(--np-ink);
+  color: #f5ede0;
+}
+
+body[data-theme="light"] .analysis-table thead th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 500;
+}
+
+body[data-theme="light"] .analysis-table thead th:not(:first-child) {
+  text-align: right;
+}
+
+body[data-theme="light"] .analysis-table tbody tr {
+  border-bottom: 1px solid var(--np-rule-light);
+}
+
+body[data-theme="light"] .analysis-table tbody tr:hover {
+  background: var(--np-bg-warm);
+}
+
+body[data-theme="light"] .analysis-table tbody tr.total-row {
+  background: var(--np-bg-warm);
+  border-top: 2px solid var(--np-rule);
+  border-bottom: 2px solid var(--np-rule);
+  font-weight: 700;
+}
+
+body[data-theme="light"] .analysis-table tbody td {
+  padding: 8px 12px;
+  color: var(--np-ink-mid);
+}
+
+body[data-theme="light"] .analysis-table tbody td:first-child {
+  color: var(--np-ink);
+}
+
+body[data-theme="light"] .analysis-table tbody td.num {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+body[data-theme="light"] .analysis-table tbody td.pos {
+  color: var(--np-green);
+  font-weight: 600;
+}
+
+body[data-theme="light"] .analysis-table tbody td.neg {
+  color: var(--np-red);
+  font-weight: 600;
+}
+
+/* Formula boxes */
+body[data-theme="light"] .formula-box {
+  border: 1px solid var(--np-rule);
+  border-left: 3px solid var(--np-gold);
+  background: #faf5ec;
+  padding: 12px 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--np-ink-mid);
+  margin: 12px 0;
+  line-height: 1.6;
+}
+
+/* Analysis subsections (2.1., 2.2., etc.) */
+body[data-theme="light"] .analysis-subsection {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--np-ink);
+  margin: 32px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--np-ink);
+}
+
+body[data-theme="light"] .analysis-subsection::first-letter {
+  color: var(--np-gold);
+}
+
+/* Analysis subheaders (ЛИКВИДНОСТЬ:, etc.) */
+body[data-theme="light"] .analysis-subheader {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--np-accent);
+  margin: 24px 0 12px;
+  padding: 10px 16px;
+  background: var(--np-bg-warm);
+  border-left: 3px solid var(--np-accent);
+}
+
+/* Bullet points */
+body[data-theme="light"] .analysis-bullet {
+  padding: 8px 0 8px 24px;
+  position: relative;
+  color: var(--np-ink-mid);
+  line-height: 1.75;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+}
+
+body[data-theme="light"] .analysis-bullet::before {
+  content: '›';
+  position: absolute;
+  left: 4px;
+  color: var(--np-gold);
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1.5;
+}
+
+/* Numbered items */
+body[data-theme="light"] .analysis-numbered {
+  padding: 10px 0 10px 8px;
+  color: var(--np-ink-mid);
+  line-height: 1.75;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  border-bottom: 1px solid var(--np-rule-light);
+  margin-bottom: 4px;
+}
+
+body[data-theme="light"] .analysis-numbered:last-child {
+  border-bottom: none;
+}
+
+/* Checkmarks and status indicators */
+body[data-theme="light"] .analysis-check {
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: var(--np-bg-warm);
+  border-left: 3px solid var(--np-gold);
+}
+
+body[data-theme="light"] .analysis-check.good {
+  border-left-color: var(--np-green);
+  background: rgba(26, 92, 46, 0.08);
+}
+
+body[data-theme="light"] .analysis-check.bad {
+  border-left-color: var(--np-red);
+  background: rgba(139, 26, 26, 0.08);
+}
+
+/* Key-value pairs */
+body[data-theme="light"] .analysis-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  padding: 10px 16px;
+  margin: 8px 0;
+  background: var(--np-bg-warm);
+  border-left: 3px solid var(--np-gold);
+  line-height: 1.6;
+}
+
+body[data-theme="light"] .analysis-kv-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--np-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+body[data-theme="light"] .analysis-kv-value {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  color: var(--np-ink-mid);
+}
+
+/* Paragraphs */
+body[data-theme="light"] .analysis-para {
+  margin: 0 0 16px;
+  text-align: justify;
+  hyphens: auto;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--np-ink-mid);
+}
+
+body[data-theme="light"] .analysis-para:last-child {
+  margin-bottom: 0;
+}
+
+/* First paragraph emphasis */
+body[data-theme="light"] .section-content > .analysis-para:first-child,
+body[data-theme="light"] .analysis-sector--detail:first-child .analysis-para:first-child {
+  font-size: 16px;
+  color: var(--np-ink);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {body[data-theme="light"] .score-strip {
+    grid-template-columns: 1fr;
+    text-align: center;
+    margin: 16px;
+    padding: 20px;
+  }body[data-theme="light"] .market-strip {
+    grid-template-columns: 1fr;
+    margin: 0 16px 16px;
+  }body[data-theme="light"] .chart-card {
+    margin: 0 16px 16px;
+  }body[data-theme="light"] .result-hero .panel-head {
+    padding: 16px;
+  }body[data-theme="light"] .analysis-table {
+    font-size: 11px;
+  }body[data-theme="light"] .analysis-table thead th, body[data-theme="light"] .analysis-table tbody td {
+    padding: 6px 8px;
+  }body[data-theme="light"] .section-card summary {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* ── Supplementary sections group (Приложение) ── */
+body[data-theme="light"] .section-card--supplementary {
+  margin-top: 24px !important;
+  border-top: 2px solid var(--np-rule) !important;
+  background: var(--np-bg-warm, #f5efe4) !important;
+}
+
+body[data-theme="light"] .section-card--supplementary > summary {
+  padding: 18px 0 !important;
+}
+
+body[data-theme="light"] .section-card--supplementary > summary .section-number {
+  color: var(--np-ink-light, #6b5e55) !important;
+  letter-spacing: 0.18em;
+}
+
+body[data-theme="light"] .sections-wrap--nested {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+body[data-theme="light"] .sections-wrap--nested .section-card {
+  background: transparent !important;
+}
+
+/* ============================================================
+   Catalog View
+   ============================================================ */
+
+.catalog-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  min-height: 0;
+}
+
+.catalog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+}
+
+.catalog-header-copy h1 { margin: 0 0 4px; font-size: 1.3rem; }
+.catalog-header-stats { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* 280px left twelve characters for a company name once the logo and the report
+   count had taken their share; the main area had the room to give. */
+.catalog-body {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  min-height: 600px;
+}
+
+@media (max-width: 900px) {
+  .catalog-body { grid-template-columns: 1fr; }
+}
+
+/* Sidebar */
+.catalog-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.catalog-company-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.catalog-company-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.catalog-company-item:hover { border-color: rgba(255,255,255,0.2); }
+.catalog-company-item.active { border-color: var(--accent); background: rgba(47,123,240,0.07); }
+
+.catalog-company-item-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Company logo badge in the catalog list. Source logos are wide
+   wordmarks (icon + company name), so a white rounded-rect badge with
+   the full logo contained reads far better than a tiny circle. */
+.catalog-company-item .chip-logo,
+.catalog-company-item .chip-logo-fallback {
+  width: 76px;
+  height: 50px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.catalog-company-item .chip-logo {
+  background: #fff;
+  border: 1px solid var(--border);
+  object-fit: contain;
+  object-position: center;
+  padding: 5px;
+}
+
+.catalog-company-item .chip-logo-fallback {
+  font-size: 1.3rem;
+}
+
+/* Self-hosted transparent icon-marks float on the surface: no plate, no
+   shadow, no padding, so the mark reads bigger and sits cleanly on dark. */
+.catalog-company-item .chip-logo--float,
+.analysis-company-chip .chip-logo--float {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* The company name leads the row and owns its own lines. Legal names run long
+   («AGAT CREDIT» Aksiyadorlik jamiyati mikromoliya tashkiloti), so it takes up
+   to two of them and then clips: one ellipsised line loses the part that tells
+   two issuers apart. */
+.catalog-company-title {
+  font-size: 0.92rem;
+  color: var(--accent);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
+  align-self: stretch;
+}
+.catalog-company-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+/* The count is the one thing that must never be squeezed away. */
+.catalog-company-meta em {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-style: normal;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.catalog-company-ticker {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catalog-company-badges { display: flex; gap: 4px; margin-top: 2px; flex-wrap: wrap; }
+.catalog-form-badge {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.catalog-list-empty, .catalog-list-loading {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+/* Main area */
+.catalog-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+}
+
+.catalog-company-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.catalog-company-header h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.catalog-company-header .status-badge { margin-right: 6px; }
+
+.catalog-form-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.catalog-year-row, .catalog-quarter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.catalog-year-btn, .catalog-period-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.catalog-year-btn:hover, .catalog-period-btn:hover { border-color: rgba(255,255,255,0.3); }
+.catalog-year-btn.active, .catalog-period-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.catalog-period-btn.unavailable { opacity: 0.35; cursor: default; }
+
+.catalog-no-form { color: var(--muted); font-size: 0.88rem; margin: 4px 0; }
+
+.catalog-avail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.avail-yes { background: rgba(110,240,193,0.1); border: 1px solid rgba(110,240,193,0.3); color: var(--accent-2); }
+.avail-no  { background: rgba(255,122,122,0.08); border: 1px solid rgba(255,122,122,0.25); color: var(--danger); }
+
+.catalog-pdf-btn { font-size: 0.78rem; padding: 3px 10px; }
+
+/* Analysis controls */
+.catalog-analysis-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--border);
+}
+
+.catalog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.catalog-field select {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+.catalog-compare-period { display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem; color: var(--muted); }
+.catalog-compare-period-row { display: flex; gap: 10px; }
+.catalog-compare-period-row select { flex: 1; background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 0.85rem; }
+
+/* Results */
+.catalog-result-panel { margin-top: 4px; }
+.catalog-result-body { padding: 0; }
+
+.catalog-ratio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 16px 0;
+}
+
+.catalog-ratio-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.catalog-ratio-card.tone-good { border-color: rgba(110,240,193,0.3); background: rgba(110,240,193,0.06); }
+.catalog-ratio-card.tone-danger { border-color: rgba(255,122,122,0.3); background: rgba(255,122,122,0.06); }
+.ratio-name { font-size: 0.72rem; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; }
+.ratio-value { font-size: 1.25rem; font-weight: 700; }
+
+.catalog-source-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.82rem; }
+.catalog-source-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.catalog-source-table td:first-child { color: var(--muted); }
+.catalog-source-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.catalog-table-wrap { overflow-x: auto; }
+
+.catalog-article-report { font-size: 0.88rem; line-height: 1.7; }
+.catalog-article-report h1, .catalog-article-report h2, .catalog-article-report h3 { font-size: 1rem; margin: 14px 0 6px; }
+
+.catalog-section { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.catalog-section:last-child { border-bottom: none; }
+.catalog-section-text { font-size: 0.88rem; line-height: 1.65; color: var(--text); white-space: pre-wrap; margin-top: 6px; }
+
+.catalog-loading { color: var(--muted); padding: 40px; text-align: center; }
+
+/* Light theme */
+body[data-theme="light"] .catalog-company-item { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .catalog-company-item.active { background: #fffbf0; border-color: var(--accent); }
+body[data-theme="light"] .catalog-main { background: #fff; border-color: #e5e7eb; }
+body[data-theme="light"] .catalog-year-btn, body[data-theme="light"] .catalog-period-btn { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }
+body[data-theme="light"] .catalog-year-btn.active, body[data-theme="light"] .catalog-period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+body[data-theme="light"] .catalog-ratio-card { background: #f8f9fa; border-color: #e5e7eb; }
+body[data-theme="light"] .catalog-field select, body[data-theme="light"] .catalog-compare-period-row select { background: #f8f9fa; border-color: #e5e7eb; color: #1a1a2e; }

@@ -12,6 +12,7 @@ import asyncio
 import server.auth.access as auth_access
 import server.http as http
 import web_auth as identity
+import identity.users as identity_users
 
 router = APIRouter()
 
@@ -47,7 +48,7 @@ class PublicationHoldRequest(BaseModel):
 @router.get("/api/admin/data-quality/issues")
 async def api_data_quality_issues(
     status: Literal["open", "resolved", "ignored"] | None = None,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Persisted review queue; reading it never alters source financial rows."""
     import data_quality
@@ -57,7 +58,7 @@ async def api_data_quality_issues(
 
 @router.post("/api/admin/data-quality/scan")
 async def api_data_quality_scan(
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Run the deterministic financial completeness/balance checks on demand."""
     import data_quality
@@ -68,7 +69,7 @@ async def api_data_quality_scan(
 @router.post("/api/admin/data-quality/companies/{ticker}/refresh")
 async def api_data_quality_refresh_company_reporting(
     ticker: str,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Re-import one issuer's official filings and re-parse its latest NSBU data."""
     import data_quality
@@ -83,7 +84,7 @@ async def api_data_quality_refresh_company_reporting(
 @router.post("/api/admin/data-quality/analysis/{ticker}/scan")
 async def api_data_quality_analysis_scan(
     ticker: str,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Run the public company analysis gate for one issuer and persist blockers."""
     import data_quality
@@ -97,7 +98,7 @@ async def api_data_quality_analysis_scan(
 @router.get("/api/admin/data-quality/corrections")
 async def api_data_quality_corrections(
     ticker: str | None = None,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     import data_quality
     return http._json_safe(await asyncio.get_running_loop().run_in_executor(
@@ -107,7 +108,7 @@ async def api_data_quality_corrections(
 @router.post("/api/admin/data-quality/publication-holds")
 async def api_data_quality_publication_hold(
     payload: PublicationHoldRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Temporarily hide a filing from public report and quarterly-finance tabs."""
     import data_quality
@@ -122,7 +123,7 @@ async def api_data_quality_publication_hold(
 @router.get("/api/admin/data-quality/issues/{issue_id}/suggestion")
 async def api_data_quality_suggestion(
     issue_id: str,
-    _: identity.WebUser = Depends(auth_access._require_admin_user),
+    _: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Calculate an editable proposal; it never writes or approves a correction."""
     import data_quality
@@ -137,7 +138,7 @@ async def api_data_quality_suggestion(
 @router.post("/api/admin/data-quality/issues/{issue_id}/apply")
 async def api_data_quality_apply_issue(
     issue_id: str,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Apply the calculated correction and its linked report evidence in one click."""
     import data_quality
@@ -152,7 +153,7 @@ async def api_data_quality_apply_issue(
 @router.post("/api/admin/data-quality/issues/{issue_id}/apply-unit-scale")
 async def api_data_quality_apply_unit_scale(
     issue_id: str,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Apply the verified 1,000× Form-2 unit conversion and recheck it."""
     import data_quality
@@ -167,7 +168,7 @@ async def api_data_quality_apply_unit_scale(
 @router.post("/api/admin/data-quality/corrections")
 async def api_data_quality_create_correction(
     payload: DataCorrectionRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     import data_quality
     try:
@@ -181,7 +182,7 @@ async def api_data_quality_create_correction(
 @router.post("/api/admin/data-quality/corrections/apply")
 async def api_data_quality_apply_correction(
     payload: DataCorrectionRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     """Apply a manually edited correction immediately, retaining the audit record."""
     import data_quality
@@ -197,7 +198,7 @@ async def api_data_quality_apply_correction(
 async def api_data_quality_review_correction(
     correction_id: str,
     payload: DataCorrectionReviewRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_admin_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_admin_user),
 ) -> dict[str, Any]:
     import data_quality
     try:

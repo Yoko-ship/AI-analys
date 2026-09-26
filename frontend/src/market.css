@@ -1308,3 +1308,7 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
   .market-layout .market-view-toggle button { width: 30px; padding: 0; }
   .market-layout .market-session-date { font-size: 10.5px; }
 }
+.market-export-error {
+  margin: 12px;
+  color: var(--danger);
+}

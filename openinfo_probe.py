@@ -22,13 +22,9 @@ from typing import Any, Callable
 
 import requests
 
-from openinfo_collector import (
-    OPENINFO_API_BASE,
-    OPENINFO_PROXY,
-    OPENINFO_WEB_BASE,
-    VERIFY_SSL,
-    _make_session,
-)
+from collectors.openinfo.settings import OPENINFO_API_BASE, OPENINFO_WEB_BASE
+from openinfo_collector import OPENINFO_PROXY, VERIFY_SSL
+from collectors.openinfo.transport import _make_session
 
 # Any large, long-listed issuer works; only used when autofill itself is down
 # so the org-scoped endpoints can still be probed.

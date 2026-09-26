@@ -6,6 +6,8 @@ import pytest
 from financial_ingestion import disclosures, documents, extract, store, publication, maintenance
 from tests.test_financial_ingestion import setup
 import reports_catalog as rc
+import catalogue.filings as catalogue_filings
+import catalogue.storage as catalogue_storage
 
 
 def listing(org=23, rid=7, kind='bank'):
@@ -40,9 +42,9 @@ def test_annual_attachments_found_without_financial_catalog_row_and_never_publis
 
 
 def test_catalog_bootstrap_is_part_of_normal_discovery(setup,monkeypatch):
-    c=rc.get_catalog_conn()
+    c=catalogue_storage.get_catalog_conn()
     with c:
-        rc._upsert_report(c,'BRBN',report_form='NSBU',period_type='annual',year=2020,quarter=0,
+        catalogue_filings._upsert_report(c,'BRBN',report_form='NSBU',period_type='annual',year=2020,quarter=0,
                           title='Annual',published_at=None,pdf_url=None,
                           excel_url='https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=bank&report_type=annual&report_id=7',
                           excel_url_form1=None,openinfo_report_id='7',object_id=None)

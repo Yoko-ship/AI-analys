@@ -36,7 +36,7 @@ test("admin Railway navigation, status, runtime/build logs, history, and confirm
   page.on("pageerror", (err) => errors.push(err.message));
   const state = await setup(page);
   await page.goto("/admin/system");
-  await page.getByRole("button", { name: "Railway", exact: true }).click();
+  await page.locator(".admin-subtabs").getByRole("button", { name: "Railway", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/railway$/);
   const crashed = page.getByRole("article", { name: "reports-watch" });
   await expect(crashed).toContainText("Crashed");
@@ -79,12 +79,12 @@ test("failed refresh marks old data stale and disables recovery; later refresh h
   const restart = page.getByRole("button", { name: "Restart", exact: true });
   await expect(restart).toBeEnabled();
   state.failStatus = true;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page.locator(".railway-panel").getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Current service state is unknown");
   await expect(restart).toBeDisabled();
   await expect(page.locator(".railway-toolbar")).toContainText("Data is stale");
   state.failStatus = false;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await page.locator(".railway-panel").getByRole("button", { name: "Refresh", exact: true }).click();
   await expect(restart).toBeEnabled();
 });
 

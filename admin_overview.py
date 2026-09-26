@@ -213,7 +213,7 @@ def build_overview(*, history: int = 14, decide: int = 8) -> dict[str, Any]:
     catalog counters down with it, because a panel that shows nothing is worse
     at diagnosing an outage than a panel that shows four of five blocks.
     """
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     now = _utcnow()
     conn = get_catalog_conn()

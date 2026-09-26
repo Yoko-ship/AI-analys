@@ -12,6 +12,10 @@ import sqlite3
 import pytest
 
 import reports_catalog as rc
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.codecs as catalogue_codecs
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
 
 
 @pytest.fixture()
@@ -63,7 +67,7 @@ class TestRowPeriod:
         (None, 0, None),
     ])
     def test_labels(self, year, quarter, expected) -> None:
-        assert rc._row_period({"year": year, "quarter": quarter}) == expected
+        assert catalogue_ratios._row_period({"year": year, "quarter": quarter}) == expected
 
 
 class TestCrossPeriodOverwrite:
@@ -84,7 +88,7 @@ class TestCrossPeriodOverwrite:
         _fact(conn, org, "net_revenue", "2026Q1", 400_000.0)
         out = {ticker: _row(2026, 1, revenue=900_000.0, org_type="insurance")}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out[ticker]["revenue"] == 400_000.0
 
@@ -94,7 +98,7 @@ class TestCrossPeriodOverwrite:
         _fact(conn, self.UZMK_ORG, "net_profit", "2024", 900_000.0)
         out = {"UZMK": _row(2026, 1, revenue=1_000_000.0, net_income=150_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["UZMK"]["revenue"] == 1_000_000.0, "FY2024 revenue clobbered a Q1 2026 figure"
         assert out["UZMK"]["net_income"] == 150_000.0
@@ -107,7 +111,7 @@ class TestCrossPeriodOverwrite:
         _fact(conn, self.UZMK_ORG, "net_revenue", "2024", 5_500_000.0)
         out = {"UZMK": _row(2026, 1, revenue=1_000_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         # Same period, cleaner source — this is the correction the pass exists for,
         # and it must still prefer the row's period over the newest on file.
@@ -119,7 +123,7 @@ class TestCrossPeriodOverwrite:
         _fact(conn, self.UZMK_ORG, "total_liabilities", "2024", 3_000_000.0)
         out = {"UZMK": _row(2026, 1, revenue=1_000_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["UZMK"]["total_liabilities"] == 3_000_000.0
         assert out["UZMK"]["field_periods"] == {"total_liabilities": "2024"}
@@ -131,7 +135,7 @@ class TestCrossPeriodOverwrite:
         _fact(conn, "900", "net_revenue", "2023", 9_000_000.0)
         out = {"PLAIN": _row(2025, 2, revenue=2_000_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["PLAIN"]["revenue"] == 2_000_000.0
         assert not out["PLAIN"].get("field_periods")
@@ -148,7 +152,7 @@ class TestBankCoverageIsPreserved:
         _fact(conn, "300", "net_profit", "2024", 800_000.0)
         out = {"BANK": _row(2024, 0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["BANK"]["revenue"] == 4_000_000.0
         assert out["BANK"]["net_income"] == 800_000.0
@@ -161,7 +165,7 @@ class TestBankCoverageIsPreserved:
         _fact(conn, "300", "net_revenue", "2024", 4_000_000.0)
         out = {"BANK": _row(2026, 1, net_income=90_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["BANK"]["revenue"] == 4_000_000.0
         assert out["BANK"]["field_periods"] == {"revenue": "2024"}
@@ -175,7 +179,7 @@ class TestSignFlip:
         _fact(conn, "400", "net_profit", "2024", -500_000.0)
         out = {"SIGN": _row(2024, 0, net_income=500_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         assert out["SIGN"]["net_income"] == -500_000.0
         assert not out["SIGN"].get("field_periods")
@@ -185,7 +189,7 @@ class TestSignFlip:
         _fact(conn, "400", "net_profit", "2024", -900_000.0)
         out = {"SIGN": _row(2024, 0, net_income=500_000.0)}
 
-        rc._enrich_financials_from_facts(conn, out)
+        catalogue_snapshots._enrich_financials_from_facts(conn, out)
 
         # Not the same number — flagged by the audit, never silently "corrected".
         assert out["SIGN"]["net_income"] == 500_000.0
@@ -203,12 +207,12 @@ class TestFieldPeriodsRoundTrip:
         ({"revenue": None}, {}),
     ])
     def test_decode(self, raw, expected) -> None:
-        assert rc._decode_field_periods(raw) == expected
+        assert catalogue_codecs._decode_field_periods(raw) == expected
 
     def test_encode_is_none_when_empty(self) -> None:
-        assert rc._encode_field_periods({}) is None
-        assert rc._encode_field_periods(None) is None
+        assert catalogue_codecs._encode_field_periods({}) is None
+        assert catalogue_codecs._encode_field_periods(None) is None
 
     def test_encode_round_trips(self) -> None:
-        encoded = rc._encode_field_periods({"revenue": "2024", "cash": "2023Q2"})
-        assert rc._decode_field_periods(encoded) == {"revenue": "2024", "cash": "2023Q2"}
+        encoded = catalogue_codecs._encode_field_periods({"revenue": "2024", "cash": "2023Q2"})
+        assert catalogue_codecs._decode_field_periods(encoded) == {"revenue": "2024", "cash": "2023Q2"}

@@ -1,6 +1,8 @@
 """Control-plane acceptance checks against isolated persistence and real handlers."""
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import web_auth as subject_web_auth
 
 import io
@@ -19,6 +21,7 @@ VIEWER = {"id": 3, "email": "viewer@example.test", "role": "viewer"}
 
 def test_catalog_refresh_preserves_special_issuer_classification(monkeypatch):
     import reports_catalog
+    import catalogue.storage as catalogue_storage
 
     def source_connection():
         conn = sqlite3.connect(":memory:")
@@ -28,7 +31,7 @@ def test_catalog_refresh_preserves_special_issuer_classification(monkeypatch):
         conn.execute("CREATE TABLE catalog_reports (id INTEGER)")
         return conn
 
-    monkeypatch.setattr(reports_catalog, "get_catalog_conn", source_connection)
+    monkeypatch.setattr(catalogue_storage, "get_catalog_conn", source_connection)
     assert adapters.refresh_catalog() == {"documents": 0, "issuers": 1, "verified": False}
     with s.connection() as conn:
         issuer = next(item for item in s.all_items(conn, "issuers") if item["ticker"] == "URTS")
@@ -134,12 +137,14 @@ def test_filter_full_dataset_cursor_ties_and_invalid_sort():
 
 def test_unknown_is_not_zero_and_percent_units():
     import sector_analysis as engine
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_report as financial_analysis_sector_report
     config = formula_config()
     config.update(percent=True)
-    output = engine.enterprise_ratios({"form1:c390": {"raw_current": "4.7"}, "form1:c600": {"raw_current": "100"}}, "non_financial", "nsbu", "2026Q1", methods={"current_ratio": (config["numerators"], config["denominators"], True)})[0]
+    output = financial_analysis_sector_calculations.enterprise_ratios({"form1:c390": {"raw_current": "4.7"}, "form1:c600": {"raw_current": "100"}}, "non_financial", "nsbu", "2026Q1", methods={"current_ratio": (config["numerators"], config["denominators"], True)})[0]
     assert output["value"] == 4.7 and output["unit"] == "percent"
-    assert engine.enterprise_ratios({}, "investment_fund_ifrs_annual", "ifrs", "2026H1") == []
-    assert engine.enterprise_ratios({}, "non_financial", "nsbu", "2026Q1")[0]["value"] is None
+    assert financial_analysis_sector_calculations.enterprise_ratios({}, "investment_fund_ifrs_annual", "ifrs", "2026H1") == []
+    assert financial_analysis_sector_calculations.enterprise_ratios({}, "non_financial", "nsbu", "2026Q1")[0]["value"] is None
 
 
 def test_rule_tests_four_eyes_and_optimistic_lock():
@@ -309,7 +314,7 @@ def test_api_access_validation_and_export(monkeypatch):
     assert client.get("/api/admin/control/documents/export?ticker=NOPE").json() == []
     person.update(ADMIN)
     from web_auth import web_auth_store
-    monkeypatch.setattr(web_auth_store, "verify_admin_two_factor", lambda *a: False)
+    monkeypatch.setattr(web_auth_store.security, "verify_admin_two_factor", lambda *a: False)
     denied = client.post("/api/admin/control/catalog/catalog/sync", json={"reason": "test"}, headers={"Idempotency-Key": "test-command"})
     assert denied.status_code == 403 and denied.json()["error"]["code"] == "MFA_REQUIRED"
 
@@ -320,8 +325,8 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
     from fastapi.testclient import TestClient
     user = type("User", (), {"id": 77, "email": "operator@example.test"})()
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "administrator"}))
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "verify_admin_two_factor", lambda user_id, code: user_id == 77 and code == "123456")
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.security, "verify_admin_two_factor", lambda user_id, code: user_id == 77 and code == "123456")
     monkeypatch.setattr(documents, "fetch_original", lambda url: workbook_bytes())
     doc = put("documents", {"id": "http-doc", "ticker": "UZNF", "standard": "IFRS", "period": "2026", "period_end": "2026-12-31",
                           "duration_months": 12, "published_at": "2026-08-01", "source_url": "https://openinfo.uz/test", "source": "openinfo.uz"})
@@ -463,6 +468,8 @@ def test_real_filing_fixture_projects_every_ratio_input_with_exact_rows():
     from datetime import date
     from pathlib import Path
     import sector_analysis as engine
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_report as financial_analysis_sector_report
     filing = json.loads((Path(__file__).parent / "fixtures/sector_v22_filings.json").read_text(encoding="utf8"))["UZMK"]
     for sheet in filing["workbook"].values():
         if isinstance(sheet, dict):
@@ -470,7 +477,7 @@ def test_real_filing_fixture_projects_every_ratio_input_with_exact_rows():
     snapshot = {"organization_type": "non_financial", "standard": "nsbu", "scope": "separate", "period": "2026Q2",
                 "period_basis": "cumulative_ytd", "current_values": {}, "previous_values": {}, "opening_values": {},
                 "source": filing["source"], "quality": {"data_quality": []}}
-    report = engine.make_report(snapshot, {**filing["issuer"], "oked_code": "24100"}, "en", date(2026, 8, 30), filing["workbook"])
+    report = financial_analysis_sector_report.make_report(snapshot, {**filing["issuer"], "oked_code": "24100"}, "en", date(2026, 8, 30), filing["workbook"])
     assert report["status"] == "available"
     adapters.record_analysis(report, current_version=None)
     with s.connection() as c:

@@ -27,6 +27,9 @@ from pathlib import Path
 import pytest
 
 import news_collector as nc
+import collectors.news.runner as collectors_news_runner
+import collectors.news.settings as collectors_news_settings
+import collectors.news.sources as collectors_news_sources
 
 
 REGISTRY = json.loads((Path(nc.__file__).resolve().parent / "news_sources.json")
@@ -49,22 +52,22 @@ class TestSlugTitlesGetTheirCapitalsBack:
         ("fitch rates ipoteka bank idr and esg", "Fitch Rates Ipoteka Bank IDR and ESG"),
     ])
     def test_a_lower_cased_slug_is_recased(self, slug_title, expected) -> None:
-        assert nc._recase_title(slug_title, "title") == expected
+        assert collectors_news_sources._recase_title(slug_title, "title") == expected
 
     def test_a_bare_letter_is_a_rating_only_where_fitch_writes_one(self) -> None:
         # 'a' after 'to' is a grade; the article 'a' anywhere else is an ordinary word and
         # must survive as one, or every headline would grow a stray capital.
-        assert nc._recase_title("fitch downgrades asaka bank to a", "title") == \
+        assert collectors_news_sources._recase_title("fitch downgrades asaka bank to a", "title") == \
             "Fitch Downgrades Asaka Bank to A"
-        assert nc._recase_title("uzbekistan opens a mining zone", "title") == \
+        assert collectors_news_sources._recase_title("uzbekistan opens a mining zone", "title") == \
             "Uzbekistan Opens a Mining Zone"
 
     def test_a_title_that_already_has_capitals_is_never_touched(self) -> None:
         moodys = "Moodys Ratings affirms Uzbekistan Ba3 rating outlook stable"
-        assert nc._recase_title(moodys, "title") == moodys
+        assert collectors_news_sources._recase_title(moodys, "title") == moodys
 
     def test_a_source_that_does_not_ask_for_recasing_keeps_its_slug_verbatim(self) -> None:
-        assert nc._recase_title("jsc uzbek metallurgical plant", None) == \
+        assert collectors_news_sources._recase_title("jsc uzbek metallurgical plant", None) == \
             "jsc uzbek metallurgical plant"
 
     def test_the_registry_entry_produces_a_cased_headline_end_to_end(self, monkeypatch) -> None:
@@ -78,7 +81,7 @@ class TestSlugTitlesGetTheirCapitalsBack:
                 return None
 
         monkeypatch.setattr(nc.requests, "get", lambda *a, **k: _Resp())
-        items = nc.fetch_sitemap(_source("fitch"), 40)
+        items = collectors_news_sources.fetch_sitemap(_source("fitch"), 40)
 
         assert [i["title"] for i in items] == ["JSC Uzbek Metallurgical Plant"]
         assert items[0]["published_at"] == "2026-07-29"
@@ -92,7 +95,7 @@ class TestWhoSkipsTheTriageGate:
             {"id": 3, "source_id": "spot", "skip_triage": False},   # a whole-site feed
             {"id": 4, "source_id": "kun"},                          # flag absent entirely
         ]
-        filings, pre_gated, to_screen = nc._split_for_triage(items)
+        filings, pre_gated, to_screen = collectors_news_runner._split_for_triage(items)
 
         assert [i["id"] for i in filings] == [1]
         assert [i["id"] for i in pre_gated] == [2]
@@ -101,7 +104,7 @@ class TestWhoSkipsTheTriageGate:
         assert [i["id"] for i in to_screen] == [3, 4]
 
     def test_a_filing_never_lands_in_the_pre_gated_bucket(self) -> None:
-        _, pre_gated, to_screen = nc._split_for_triage(
+        _, pre_gated, to_screen = collectors_news_runner._split_for_triage(
             [{"id": 1, "always_relevant": True, "skip_triage": True}])
         assert pre_gated == [] and to_screen == []
 
@@ -125,7 +128,7 @@ class TestWhenTheGateIsPerItem:
     """``skip_triage_filter`` — a source whose stream is mostly other countries' news."""
 
     def _diplomat(self, title, snippet="") -> bool:
-        return nc._skip_triage(_source("thediplomat"),
+        return collectors_news_runner._skip_triage(_source("thediplomat"),
                                {"title": title, "snippet": snippet, "url": ""})
 
     def test_the_uzbekistan_items_bypass_the_cheap_gate(self) -> None:
@@ -142,11 +145,11 @@ class TestWhenTheGateIsPerItem:
         assert not self._diplomat("Far More Than Ruins: Life in Engilcheck, Kyrgyzstan")
 
     def test_a_source_level_flag_still_covers_every_item(self) -> None:
-        assert nc._skip_triage(_source("fitch"), {"title": "jsc uzbek metallurgical plant"})
-        assert nc._skip_triage({"skip_triage": True}, {"title": "anything at all"})
+        assert collectors_news_runner._skip_triage(_source("fitch"), {"title": "jsc uzbek metallurgical plant"})
+        assert collectors_news_runner._skip_triage({"skip_triage": True}, {"title": "anything at all"})
 
     def test_a_source_with_neither_knob_gates_everything(self) -> None:
-        assert not nc._skip_triage(_source("spot"), {"title": "Uzbekistan launches something"})
+        assert not collectors_news_runner._skip_triage(_source("spot"), {"title": "Uzbekistan launches something"})
 
 
 class TestHiddenSourcesAreNotPublished:
@@ -186,12 +189,12 @@ class TestHiddenSourcesAreNotPublished:
         ]}
         path = tmp_path / "news_sources.json"
         path.write_text(json.dumps(registry), encoding="utf-8")
-        monkeypatch.setattr(nc, "SOURCES_FILE", path)
+        monkeypatch.setattr(collectors_news_settings, "SOURCES_FILE", path)
 
-        assert [s["id"] for s in nc.load_sources()] == ["open"]
+        assert [s["id"] for s in collectors_news_sources.load_sources()] == ["open"]
         # Naming it explicitly still works — that is how you re-check one.
-        assert [s["id"] for s in nc.load_sources(only="walled")] == ["walled"]
-        assert [s["id"] for s in nc.load_sources(only="dropped")] == ["dropped"]
+        assert [s["id"] for s in collectors_news_sources.load_sources(only="walled")] == ["walled"]
+        assert [s["id"] for s in collectors_news_sources.load_sources(only="dropped")] == ["dropped"]
 
     def test_items_from_a_hidden_source_are_dropped_from_a_list(self):
         import news_store

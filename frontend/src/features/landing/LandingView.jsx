@@ -1,3 +1,4 @@
+import { snapPixel } from "../../lib/geometry.js";
 import { prepareMarketRows } from "../../lib/marketData.js";
 import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
@@ -153,8 +154,8 @@ function LandingSky({ theme }) {
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = cv.clientWidth, h = cv.clientHeight;
-      cv.width = Math.round(w * dpr);
-      cv.height = Math.round(h * dpr);
+      cv.width = snapPixel(w * dpr);
+      cv.height = snapPixel(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       stars = [];
       for (let i = 0; i < 90; i++) {
@@ -473,7 +474,6 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
     }, { threshold: 0.15 });
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealKey]);
 
   const sesLabel = stats.boardDay
@@ -659,7 +659,7 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
                       {fin.years.map((y, i) => (
                         <div className="lv-bar" key={y}>
                           <span className="v">{fmtCompact(fin.values[i], lang)}</span>
-                          <i style={{ "--h": `${Math.max(6, Math.round((fin.values[i] / finMax) * 88))}%` }} />
+                          <i style={{ "--h": `${Math.max(6, ((fin.values[i] / finMax) * 88))}%` }} />
                           <span className="y">{y}</span>
                         </div>
                       ))}

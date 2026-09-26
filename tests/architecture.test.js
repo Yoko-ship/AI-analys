@@ -54,3 +54,27 @@ test("frontend imports respect feature interfaces and have no dependency cycles"
   }
   for (const name of graph.keys()) visit(name);
 });
+
+test("the landing entry does not eagerly load large feature views", () => {
+  const graph = new Map();
+  for (const file of sourceFiles(root)) {
+    const ast = parse(fs.readFileSync(file, "utf8"), { sourceType: "module", plugins: ["jsx"] });
+    graph.set(file, ast.program.body
+      .filter(node => ["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].includes(node.type))
+      .map(node => node.source?.value)
+      .filter(specifier => specifier?.startsWith("."))
+      .map(specifier => path.resolve(path.dirname(file), specifier)));
+  }
+  const loaded = new Set();
+  function visit(file) {
+    if (loaded.has(file)) return;
+    loaded.add(file);
+    for (const dependency of graph.get(file) || []) visit(dependency);
+  }
+  visit(path.join(root, "App.jsx"));
+  for (const view of ["market/MarketView", "news/News", "company/CompanyPage",
+    "catalog/CatalogView", "charts/AdvancedChart", "bonds/Bonds", "portfolio/PortfolioView",
+    "research/AnalysisWorkspace", "research/ComparisonWorkspace"]) {
+    assert.ok(!loaded.has(path.join(root, `features/${view}.jsx`)), `${view} should load when opened`);
+  }
+});

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
 import requests as subject_requests
 import securities_catalog as subject_securities_catalog
 import server.market.board as subject_server_market_board
@@ -121,8 +122,8 @@ def test_drbk_registry_row_reaches_stock_board_before_mirror_updates(monkeypatch
     monkeypatch.setattr(subject_requests, "get", lambda *_args, **_kwargs: _MirrorResponse())
     monkeypatch.setattr(subject_server_market_board, '_issuer_names', lambda: {"DRBK": listing["name"]})
     monkeypatch.setattr(subject_server_market_board, '_registered_bond_isins', lambda: frozenset())
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {"DRBK": listing})
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', dict)
+    monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {"DRBK": listing})
+    monkeypatch.setattr(catalogue_market_store, 'get_all_quotes', dict)
     monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', dict)
     synced = []
 
@@ -159,7 +160,7 @@ def test_drbk_info_combines_catalog_and_listing_metadata(monkeypatch) -> None:
             "logo_url": "/logos/DRBK.png",
         },
     })
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {
+    monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {
         "DRBK": {
             "ticker": "DRBK",
             "name": name,

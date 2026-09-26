@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 import sector_analysis as core
+import financial_analysis.sector_report as financial_analysis_sector_report
 from sector_report_service import map_special_lines
 
 TODAY = date(2026, 8, 30)
@@ -32,7 +33,7 @@ def _report(ticker: str, lang: str = "ru") -> dict:
         "source": filing["source"], "quality": {"data_quality": []},
     }
     map_special_lines(data, filing["workbook"], filing["organization_type"])
-    report = core.make_report(data, filing["issuer"], lang, TODAY, filing["workbook"])
+    report = financial_analysis_sector_report.make_report(data, filing["issuer"], lang, TODAY, filing["workbook"])
     assert report["status"] == "available", report["data_quality"]
     assert report["content_status"] == "complete"
     return report
@@ -189,7 +190,7 @@ def test_negative_conclusion_never_claims_insolvency():
         "quality": {"data_quality": []},
     }
     bank_issuer = {"id": "BANK", "ticker": "BANK", "name": "Bank", "special_legal_type": "bank"}
-    report = core.make_report(data, bank_issuer, "ru", TODAY)
+    report = financial_analysis_sector_report.make_report(data, bank_issuer, "ru", TODAY)
     assert report["verdict"]["status"] == "negative"
     text = report["text"]
     assert "За период ухудшился показатель «чистая прибыль», что оказало давление на прибыльность." in text

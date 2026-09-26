@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 import news_collector as nc
+import collectors.news.images as collectors_news_images
 
 
 UZA = {"id": "uza", "image_upgrade": {"from": r"_small(\.[a-z]{3,4})$", "to": r"_normal\1"}}
@@ -48,32 +49,32 @@ def head(monkeypatch):
 
 def test_the_thumbnail_is_replaced_by_the_original(head):
     asked = head(_Resp())
-    assert nc._upgrade_image(nc.requests.Session(), SMALL, UZA) == BIG
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, UZA) == BIG
     assert asked == [BIG]
 
 
 def test_a_missing_original_leaves_the_thumbnail_alone(head):
     head(_Resp(status=404, ctype="text/html"))
-    assert nc._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
 
 
 def test_an_html_error_page_answering_200_is_not_an_image(head):
     """A CMS that serves its 'not found' page at 200 must not become the article's picture."""
     head(_Resp(status=200, ctype="text/html; charset=utf-8"))
-    assert nc._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
 
 
 def test_a_url_the_rule_does_not_match_is_never_verified(head):
     asked = head(_Resp())
     other = "https://cdn.uza.uz/2026/08/07/x_normal.jpg"
 
-    assert nc._upgrade_image(nc.requests.Session(), other, UZA) == other
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), other, UZA) == other
     assert asked == [], "no request should be made when the rewrite is a no-op"
 
 
 def test_a_source_with_no_rule_is_left_alone(head):
     asked = head(_Resp())
-    assert nc._upgrade_image(nc.requests.Session(), SMALL, {"id": "kursiv"}) == SMALL
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, {"id": "kursiv"}) == SMALL
     assert asked == []
 
 
@@ -82,18 +83,18 @@ def test_a_network_failure_keeps_the_thumbnail(monkeypatch):
         raise nc.requests.ConnectionError("down")
 
     monkeypatch.setattr(nc.requests.Session, "head", _boom)
-    assert nc._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
+    assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
 
 
 def test_the_pass_rewrites_in_place_and_counts(monkeypatch):
-    monkeypatch.setattr(nc, "_upgrade_image",
+    monkeypatch.setattr(collectors_news_images, "_upgrade_image",
                         lambda s, url, src: url.replace("_small.", "_normal."))
     items = [{"source_id": "uza", "image_url": SMALL},
              {"source_id": "uza", "image_url": BIG},          # already upgraded
              {"source_id": "kursiv", "image_url": SMALL},     # no rule for this source
              {"source_id": "uza", "image_url": None}]         # nothing to upgrade
 
-    n = nc.upgrade_images(items, {"uza": UZA, "kursiv": {"id": "kursiv"}})
+    n = collectors_news_images.upgrade_images(items, {"uza": UZA, "kursiv": {"id": "kursiv"}})
 
     assert n == 1
     assert items[0]["image_url"] == BIG

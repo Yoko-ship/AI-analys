@@ -15,12 +15,15 @@ row.
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
+import catalogue.market_store as catalogue_market_store
 import requests as subject_requests
 import securities_catalog as subject_securities_catalog
 import server.market.board as subject_server_market_board
 import server.settings as subject_server_settings
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
 import requests as subject_requests
 import securities_catalog as subject_securities_catalog
 import server.market.board as subject_server_market_board
@@ -147,7 +150,7 @@ class TestTheDaysTurnover:
                 mirror_calls.append(a)
             raise AssertionError("the mirror must not be consulted when we hold statistics")
 
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: stats)
+        monkeypatch.setattr(catalogue_market_store, 'get_all_trade_stats', lambda: stats)
         monkeypatch.setattr(subject_requests, "get", _mirror)
         with TestClient(api.app) as client:
             return client.get("/api/market/trades").json()
@@ -176,7 +179,7 @@ class TestTheDaysTurnover:
             def json(self):
                 return {"trades": [{"volume": 7.8e6, "quantity": 10, "trade_count": 73}]}
 
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', dict)
+        monkeypatch.setattr(catalogue_market_store, 'get_all_trade_stats', dict)
         monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
         with TestClient(api.app) as client:
             body = client.get("/api/market/trades").json()
@@ -202,8 +205,8 @@ class TestTheBoardIsCompleted:
         monkeypatch.setattr(subject_requests, "get",
                             lambda *a, **kw: _Resp({"stocks": list(mirror),
                                                     "updated_at": "2026-07-31T14:00:00"}))
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: quotes)
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: listings or {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_quotes', lambda: quotes)
+        monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: listings or {})
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
         def _sync(rows, logos):
             if synced is not None:
@@ -231,8 +234,8 @@ class TestTheBoardIsCompleted:
             raise subject_requests.ConnectionError("mirror unavailable")
 
         monkeypatch.setattr(subject_requests, "get", unavailable)
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda *args, **kwargs: 0)
         monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *args, **kwargs: 0)
@@ -318,11 +321,11 @@ class TestTheBoardIsCompleted:
                 return {"stocks": [], "updated_at": "2026-07-31T14:00:00"}
 
         monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: {
+        monkeypatch.setattr(catalogue_market_store, 'get_all_quotes', lambda: {"UZ7042540003": _quote()})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_trade_stats', lambda: {
             "UZ7042540003": {"trade_date": "20260731", "total_value": 30720.0,
                              "total_qty": 1.0, "trade_count": 1}})
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda *a, **kw: 0)
         monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *a, **kw: 0)
@@ -361,8 +364,8 @@ class TestABondIsNotAShare:
                 return {"stocks": list(mirror), "updated_at": "2026-08-20T14:00:00"}
 
         monkeypatch.setattr(subject_requests, "get", lambda *a, **kw: _Resp())
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_quotes', lambda: {})
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_quotes', lambda: {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map', lambda: {})
         monkeypatch.setattr(subject_securities_catalog, 'sync_securities', lambda rows, logos: len(rows))
         monkeypatch.setattr(subject_securities_catalog, 'record_volume', lambda *a, **kw: 0)

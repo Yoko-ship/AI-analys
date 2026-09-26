@@ -15,6 +15,9 @@ from __future__ import annotations
 import server.settings as subject_server_settings
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
+import catalogue.schema as catalogue_schema
+import catalogue.storage as catalogue_storage
 import requests as subject_requests
 import server.market.dates as subject_server_market_dates
 import server.settings as subject_server_settings
@@ -24,6 +27,9 @@ import sqlite3
 import pytest
 
 import reports_catalog as rc
+import catalogue.market_store as catalogue_market_store
+import catalogue.schema as catalogue_schema
+import catalogue.storage as catalogue_storage
 from delisted import DELISTED_TICKERS, is_delisted, is_delisted_isin
 
 # Lines that are demonstrably alive: they printed a trade the same week the
@@ -123,9 +129,9 @@ class TestCatalogRemoval:
 def catalog_db(tmp_path, monkeypatch):
     """A catalog DB seeded with one delisted and one live ticker per table."""
     path = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(path))
-    conn = rc.get_catalog_conn()
-    rc._init_schema(conn)
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(path))
+    conn = catalogue_storage.get_catalog_conn()
+    catalogue_schema._init_schema(conn)
     with conn:
         for ticker in ("SQB2", "SQBN"):
             conn.execute(
@@ -148,7 +154,7 @@ def catalog_db(tmp_path, monkeypatch):
 
 class TestPurge:
     def test_removes_every_trace_but_spares_the_live_ticker(self, catalog_db) -> None:
-        removed = rc.purge_delisted()
+        removed = catalogue_market_store.purge_delisted()
         assert removed["catalog_listings"] == 1
         assert removed["catalog_companies"] == 1
         assert removed["catalog_financials"] == 1
@@ -166,7 +172,7 @@ class TestPurge:
 
     def test_the_price_series_of_a_deleted_isin_goes_too(self, catalog_db) -> None:
         """`catalog_quote_history` is keyed by ISIN, so no ticker purge reaches it."""
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         with conn:
             for isin in ("UZ7047440001", "UZ7SQBN"):
                 conn.execute(
@@ -174,7 +180,7 @@ class TestPurge:
                     "VALUES (?,?,?)", (isin, "2024-02-23", 5284.8))
         conn.close()
 
-        rc.purge_delisted()
+        catalogue_market_store.purge_delisted()
 
         conn = sqlite3.connect(catalog_db)
         rows = [r[0] for r in conn.execute("SELECT isin FROM catalog_quote_history")]
@@ -182,8 +188,8 @@ class TestPurge:
         assert rows == ["UZ7SQBN"]
 
     def test_is_idempotent(self, catalog_db) -> None:
-        assert rc.purge_delisted()
-        assert rc.purge_delisted() == {}
+        assert catalogue_market_store.purge_delisted()
+        assert catalogue_market_store.purge_delisted() == {}
 
     def test_the_table_list_does_not_come_from_sqlites_own_catalog(self) -> None:
         """The purge runs on PostgreSQL too, where `sqlite_master` does not exist.
@@ -201,17 +207,17 @@ class TestPurge:
 
     def test_ingest_cannot_resurrect_a_deleted_row(self, catalog_db) -> None:
         """An older collector build still pushes these; the upsert must refuse."""
-        rc.purge_delisted()
-        written = rc.bulk_upsert_listings([
+        catalogue_market_store.purge_delisted()
+        written = catalogue_market_store.bulk_upsert_listings([
             {"ticker": "SQB2", "isin": "UZ7SQB2", "name": "resurrected"},
             {"ticker": "SQBN", "isin": "UZ7SQBN", "name": "live"},
         ])
         assert written == 1
-        assert set(rc.get_all_listings()) == {"SQBN"}
+        assert set(catalogue_market_store.get_all_listings()) == {"SQBN"}
 
     def test_read_path_filters_a_row_that_predates_the_deletion(self, catalog_db) -> None:
         """A ticker delisted after its row was written must not leak on read."""
-        assert "SQB2" not in rc.get_all_listings()
+        assert "SQB2" not in catalogue_market_store.get_all_listings()
 
 
 class TestCollector:
@@ -274,9 +280,9 @@ class TestInactiveFlag:
     def _feed(self, monkeypatch, listings, live, stats=None):
         import api
 
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_listings', lambda: listings)
+        monkeypatch.setattr(catalogue_market_store, 'get_all_listings', lambda: listings)
         monkeypatch.setattr(subject_server_market_dates, '_live_last_trade_dates', lambda: live)
-        monkeypatch.setattr(subject_reports_catalog, 'get_all_trade_stats', lambda: stats or {})
+        monkeypatch.setattr(catalogue_market_store, 'get_all_trade_stats', lambda: stats or {})
         from fastapi.testclient import TestClient
 
         with TestClient(api.app) as client:

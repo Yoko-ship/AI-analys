@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINAM AI DARK THEME - Professional Finance Dashboard
+   ═══════════════════════════════════════════════════════════════════════════ */
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0e11;
+  --bg-2: #131418;
+  --bg-glass: rgba(17, 17, 19, 0.88);
+  --panel: rgba(16, 19, 17, 0.95);
+  --panel-strong: rgba(25, 25, 27, 0.98);
+  --panel-elevated: #191a1f;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(63, 224, 143, 0.5);
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --muted: #8b95a5;
+  --muted-light: #5a6577;
+  --accent: #3fe08f;
+  --accent-hover: #63e8a6;
+  --accent-light: rgba(63, 224, 143, 0.12);
+  --accent-glow: rgba(63, 224, 143, 0.2);
+  --success: #10b981;
+  --success-light: rgba(16, 185, 129, 0.15);
+  --success-glow: rgba(16, 185, 129, 0.2);
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.15);
+  --danger: #ee6a60;
+  --danger-light: rgba(239, 68, 68, 0.15);
+  --chart-primary: #3fe08f;
+  --chart-secondary: #10b981;
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --shadow-accent-glow: 0 8px 24px rgba(63, 224, 143, 0.25);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+body[data-theme="dark"] .score-value {
+  background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body[data-theme="dark"] .hero-panel::before,
+body[data-theme="dark"] .hero-panel::after {
+  opacity: 0.3;
+}
+
+body[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+body[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--muted-light);
+  border-color: var(--bg);
+}
+
+/* Print Styles */
+@media print {
+  .topbar,
+  .toast-stack,
+  .primary-btn,
+  .ghost-btn {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .panel,
+  .hero-panel,
+  .chart-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

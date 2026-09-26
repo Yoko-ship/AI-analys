@@ -8,16 +8,28 @@
 //
 // Nothing here computes. It formats what a calculation already decided.
 
+import { safeNumber } from "./numbers.js";
+
 const LOCALES = { ru: "ru-RU", uz: "ru-RU", en: "en-US" };
 
 export function localeOf(lang) {
   return LOCALES[lang] || LOCALES.ru;
 }
 
+/** Final display/export rounding. Never feed this value back into calculations. */
+export function roundedDisplayValue(value, digits = 0) {
+  const n = safeNumber(value);
+  if (n === null) return null;
+  const scale = 10 ** digits;
+  // eslint-disable-next-line no-restricted-properties -- This is the shared output boundary.
+  return Math.round(n * scale) / scale + 0;
+}
+
 /** A number for display. `null` becomes an em-dash, never a zero. */
 export function num(value, lang, digits = 2) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  return Number(value).toLocaleString(localeOf(lang), {
+  const n = safeNumber(value);
+  if (n === null) return "—";
+  return n.toLocaleString(localeOf(lang), {
     minimumFractionDigits: 0, maximumFractionDigits: digits,
   });
 }
@@ -29,8 +41,8 @@ export function num(value, lang, digits = 2) {
  * function is the last step, not part of the arithmetic.
  */
 export function pct(value, lang, digits = 2) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  const n = Number(value);
+  const n = safeNumber(value);
+  if (n === null) return "—";
   return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`;
 }
 
@@ -42,8 +54,8 @@ export function pct(value, lang, digits = 2) {
  * information, so ordinary prices stay readable.
  */
 export function price(value, lang) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  const n = Number(value);
+  const n = safeNumber(value);
+  if (n === null) return "—";
   const digits = Math.abs(n) < 1 ? 4 : 2;
   return n.toLocaleString(localeOf(lang), {
     minimumFractionDigits: digits > 2 ? digits : 0, maximumFractionDigits: digits,
@@ -52,8 +64,8 @@ export function price(value, lang) {
 
 /** Large sums abbreviated for a cell: 1 234 567 -> "1,23 млн". */
 export function compact(value, lang) {
-  if (value == null || !Number.isFinite(Number(value))) return "—";
-  const n = Number(value);
+  const n = safeNumber(value);
+  if (n === null) return "—";
   const abs = Math.abs(n);
   const units = lang === "en"
     ? [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]]

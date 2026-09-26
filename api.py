@@ -55,6 +55,7 @@ _EXPOSE_SCHEMA = os.getenv("APP_ENV", "production").strip().lower() in {"local",
 
 app = FastAPI(
     title="UZ Stock Analyzer API", version="1.2.0",
+    lifespan=lifecycle.lifespan,
     docs_url="/docs" if _EXPOSE_SCHEMA else None,
     redoc_url="/redoc" if _EXPOSE_SCHEMA else None,
     openapi_url="/openapi.json" if _EXPOSE_SCHEMA else None,
@@ -200,16 +201,6 @@ app.include_router(company_financial_routes.router)
 app.include_router(company_history_routes.router)
 app.include_router(accounts_notifications.router)
 app.include_router(data_quality_routes.router)
-
-@app.on_event("startup")
-async def _on_startup():
-    await lifecycle._on_startup(app)
-
-
-@app.on_event("shutdown")
-async def _on_shutdown():
-    await lifecycle._stop_sector_analysis_worker(app)
-
 
 API_V2_ROUTES = _mount_v2_alias()
 

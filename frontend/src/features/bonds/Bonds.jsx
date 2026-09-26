@@ -1,3 +1,4 @@
+import { roundedDisplayValue } from "../../lib/format.js";
 import { compact as fmtCompact, metric as fmtMetric, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "../../lib/format.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import React, { Suspense } from "react";
@@ -56,7 +57,7 @@ function bondYearsLeft(b, asOf) {
  * rather than at the top of an ascending sort. */
 function bondStaleDays(b, asOf) {
   if (!b.last_trade_date) return null;
-  const days = Math.round(((asOf ? new Date(asOf) : new Date()) - new Date(b.last_trade_date)) / 864e5);
+  const days = roundedDisplayValue(((asOf ? new Date(asOf) : new Date()) - new Date(b.last_trade_date)) / 864e5);
   return days >= 0 ? days : 0;
 }
 
@@ -514,7 +515,7 @@ function BondCoveragePanel({ items, lang }) {
           return (
             <g key={i}>
               <line x1={x} x2={x} y1={T} y2={T + ph} className="bondsec-grid" />
-              <text x={x} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{Math.round(v)}</text>
+              <text x={x} y={T + ph + 18} textAnchor="middle" className="bondsec-tick">{roundedDisplayValue(v)}</text>
             </g>
           );
         })}
@@ -731,7 +732,7 @@ function BondPaymentCalendar({ lang, onOpenBond }) {
           <div className="bondsec-days">
             {feedDays.map((day) => {
               const total = day.items.reduce((s, f) => s + (f.coupon || 0) + (f.principal || 0), 0);
-              const inDays = Math.round((new Date(day.date) - today) / 864e5);
+              const inDays = roundedDisplayValue((new Date(day.date) - today) / 864e5);
               return (
                 <div className="bondsec-day" key={day.date}>
                   <div className="bondsec-day-when">

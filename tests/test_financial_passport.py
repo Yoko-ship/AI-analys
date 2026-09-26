@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import reports_catalog as rc
+import catalogue.evidence as catalogue_evidence
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.storage as catalogue_storage
 import provenance
 
 
 def test_direct_financial_value_returns_its_filing_line(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
             conn.execute(
@@ -29,10 +32,10 @@ def test_direct_financial_value_returns_its_filing_line(tmp_path, monkeypatch):
         "page": 4, "raw_label": "Выручка от реализации",
     }])
     provenance.set_state(report_id, "validated")
-    rc.upsert_financials_cache("TRACE", "NSBU", 2025, 0,
+    catalogue_financial_store.upsert_financials_cache("TRACE", "NSBU", 2025, 0,
                                {"revenue": 1234.0}, report_id=report_id)
 
-    got = rc.get_financial_value_passport("TRACE", "2025", "net_revenue")
+    got = catalogue_evidence.get_financial_value_passport("TRACE", "2025", "net_revenue")
 
     assert got["status"] == "SOURCED"
     assert got["source_field"] == "revenue"
@@ -51,7 +54,7 @@ def test_direct_financial_value_returns_its_filing_line(tmp_path, monkeypatch):
 def test_derived_value_is_explicitly_a_formula_not_a_filed_line(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
 
-    got = rc.get_financial_value_passport("TRACE", "2025", "net_margin")
+    got = catalogue_evidence.get_financial_value_passport("TRACE", "2025", "net_margin")
 
     assert got == {
         "status": "DERIVED",
@@ -66,7 +69,7 @@ def test_derived_value_is_explicitly_a_formula_not_a_filed_line(tmp_path, monkey
 
 def test_legacy_value_without_report_link_is_not_given_a_guessed_source(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
             conn.execute(
@@ -75,9 +78,9 @@ def test_legacy_value_without_report_link_is_not_given_a_guessed_source(tmp_path
             )
     finally:
         conn.close()
-    rc.upsert_financials_cache("LEGACY", "NSBU", 2025, 0, {"revenue": 999.0})
+    catalogue_financial_store.upsert_financials_cache("LEGACY", "NSBU", 2025, 0, {"revenue": 999.0})
 
-    got = rc.get_financial_value_passport("LEGACY", "2025", "net_revenue")
+    got = catalogue_evidence.get_financial_value_passport("LEGACY", "2025", "net_revenue")
 
     assert got["status"] == "NO_SOURCE_PASSPORT"
     assert "cannot be attributed safely" in got["reason"]

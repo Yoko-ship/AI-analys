@@ -21,6 +21,11 @@ import pytest
 
 import openinfo_reconcile as orc
 import reports_catalog as rc
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.codecs as catalogue_codecs
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
 
 
 def _jsc_detail():
@@ -134,34 +139,34 @@ class TestBankBalance:
 class TestItSurvivesStorageAndThePush:
     def test_the_block_rides_the_row_through_the_admin_push(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_replace_financials([{
+        catalogue_financial_store.bulk_replace_financials([{
             "ticker": "TEST", "year": 2026, "quarter": 2,
             "revenue": 100.0, "net_income": 20.0, "org_type": "insurance",
             "noninterest_income": None,
             "balance": {"equity_start": 300.0, "equity_end": 500.0,
                         "assets_start": 900.0, "assets_end": 1100.0},
         }])
-        served = rc.get_all_financials()["TEST"]
+        served = catalogue_snapshots.get_all_financials()["TEST"]
         assert served["org_type"] == "insurance"
         assert served["balance"] == {"equity_start": 300.0, "equity_end": 500.0,
                                      "assets_start": 900.0, "assets_end": 1100.0}
 
     def test_a_legacy_row_written_before_the_columns_still_reads(self):
-        assert rc._decode_balance_period(None) is None
-        assert rc._decode_balance_period("not json") is None
-        assert rc._decode_balance_period("{}") is None
+        assert catalogue_codecs._decode_balance_period(None) is None
+        assert catalogue_codecs._decode_balance_period("not json") is None
+        assert catalogue_codecs._decode_balance_period("{}") is None
 
     def test_same_period_top_level_totals_restore_a_missing_balance_block(self, tmp_path, monkeypatch):
         """DRBK already had official assets/equity; the read path dropped them."""
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([{
+        catalogue_financial_store.bulk_upsert_financials([{
             "ticker": "DRBK", "year": 2026, "quarter": 2,
             "revenue": 1_852.0, "net_income": 368.0,
             "total_assets": 13_194.0, "total_equity": 2_394.0,
             "balance": None,
         }])
 
-        served = rc.get_all_financials()["DRBK"]
+        served = catalogue_snapshots.get_all_financials()["DRBK"]
 
         assert served["balance"] == {
             "equity_start": None, "equity_end": 2_394.0,
@@ -169,9 +174,9 @@ class TestItSurvivesStorageAndThePush:
         }
 
     def test_an_all_empty_block_is_not_stored(self):
-        assert rc._encode_balance_period({"equity_start": None, "equity_end": None,
+        assert catalogue_codecs._encode_balance_period({"equity_start": None, "equity_end": None,
                                           "assets_start": None, "assets_end": None}) is None
-        assert rc._encode_balance_period(None) is None
+        assert catalogue_codecs._encode_balance_period(None) is None
 
 
 class TestQ4StandsInForAMissingAnnual:
@@ -180,11 +185,11 @@ class TestQ4StandsInForAMissingAnnual:
 
     def test_the_companion_falls_back_to_the_q4_quarterly(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "KSCM", "year": 2025, "quarter": 4, "revenue": 900.0, "net_income": 80.0},
             {"ticker": "KSCM", "year": 2026, "quarter": 2, "revenue": 600.0, "net_income": 50.0},
         ])
-        served = rc.get_all_financials()["KSCM"]
+        served = catalogue_snapshots.get_all_financials()["KSCM"]
         assert served["quarter"] == 2 and served["year"] == 2026
         assert served["annual"]["year"] == 2025
         assert served["annual"]["quarter"] == 4
@@ -192,21 +197,21 @@ class TestQ4StandsInForAMissingAnnual:
 
     def test_a_real_annual_still_outranks_the_q4(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "X", "year": 2025, "quarter": 4, "net_income": 80.0},
             {"ticker": "X", "year": 2025, "quarter": 0, "net_income": 85.0},
             {"ticker": "X", "year": 2026, "quarter": 1, "net_income": 30.0},
         ])
-        served = rc.get_all_financials()["X"]
+        served = catalogue_snapshots.get_all_financials()["X"]
         assert served["annual"]["quarter"] == 0
         assert served["annual"]["net_income"] == pytest.approx(85.0)
 
     def test_a_q4_latest_row_is_not_its_own_companion(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "Y", "year": 2025, "quarter": 4, "net_income": 80.0},
         ])
-        served = rc.get_all_financials()["Y"]
+        served = catalogue_snapshots.get_all_financials()["Y"]
         assert served["annual"] is None
 
 
@@ -224,7 +229,7 @@ class TestThePriorInterimCompanion:
     def test_a_bank_gets_its_subtrahend_from_the_stored_quarter(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
         monkeypatch.setenv("FINANCIALS_ENRICH_ON_READ", "0")
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "ALKB", "year": 2025, "quarter": 2, "net_income": 40.0,
              "revenue": 300.0, "org_type": "bank"},
             {"ticker": "ALKB", "year": 2025, "quarter": 0, "net_income": 100.0,
@@ -232,7 +237,7 @@ class TestThePriorInterimCompanion:
             {"ticker": "ALKB", "year": 2026, "quarter": 2, "net_income": 60.0,
              "revenue": 400.0, "org_type": "bank"},
         ])
-        served = rc.get_all_financials()["ALKB"]
+        served = catalogue_snapshots.get_all_financials()["ALKB"]
         assert served["prior"]["year"] == 2025 and served["prior"]["quarter"] == 2
         assert served["prior"]["net_income"] == pytest.approx(40.0)
         assert served["prior"]["source"] == "catalog"
@@ -247,28 +252,28 @@ class TestThePriorInterimCompanion:
         """A separately filed report cannot net a restatement; the form's own
         comparative can, so it is never overwritten."""
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "UZTL", "year": 2025, "quarter": 2, "net_income": 40.0},
             {"ticker": "UZTL", "year": 2026, "quarter": 2, "net_income": 60.0,
              "prior": {"year": 2025, "quarter": 2, "net_income": 45.0}},
         ])
-        served = rc.get_all_financials()["UZTL"]
+        served = catalogue_snapshots.get_all_financials()["UZTL"]
         assert served["prior"]["net_income"] == pytest.approx(45.0)
         assert served["prior"].get("source") is None
 
     def test_no_stored_quarter_leaves_the_comparative_absent(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "NEW", "year": 2026, "quarter": 2, "net_income": 60.0},
         ])
-        assert rc.get_all_financials()["NEW"]["prior"] is None
+        assert catalogue_snapshots.get_all_financials()["NEW"]["prior"] is None
 
     def test_an_annual_latest_row_asks_for_no_subtrahend(self, tmp_path, monkeypatch):
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        rc.bulk_upsert_financials([
+        catalogue_financial_store.bulk_upsert_financials([
             {"ticker": "Z", "year": 2024, "quarter": 2, "net_income": 10.0},
             {"ticker": "Z", "year": 2025, "quarter": 0, "net_income": 90.0},
         ])
-        served = rc.get_all_financials()["Z"]
+        served = catalogue_snapshots.get_all_financials()["Z"]
         assert served["quarter"] == 0
         assert served["prior"] is None

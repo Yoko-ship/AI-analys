@@ -1396,3 +1396,10 @@ iframe {
     left: auto;
   }
 }
+
+@media (max-width: 600px) {
+  .compare-overview-panel .panel-head { flex-direction: column; align-items: stretch; }
+  .compare-overview-panel .panel-head > div:first-child { width: 100%; min-width: 0; }
+  .compare-overview-panel .compare-export-actions { width: 100%; flex-direction: column; }
+  .compare-overview-panel .compare-export-actions > button { flex: 0 0 auto; min-height: 44px; padding: 10px 14px; }
+}

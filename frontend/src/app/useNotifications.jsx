@@ -24,7 +24,7 @@ export function useNotifications({ session: sessionModule, toasts: toastsModule,
     // message promptly, while investment alerts keep their lighter cadence.
     const id = setInterval(fetchNotifs, isAdmin ? 60 * 1000 : 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [token, profile?.user?.pro_access, user?.pro_access, user?.is_admin, user?.admin_role]);
+  }, [token, profile?.user?.pro_access, user?.pro_access, user?.is_admin, user?.admin_role, apiFetch]);
 
   const updateNotificationState = async (ids, dismissed = false) => {
     const cleanIds = (ids || []).filter(Boolean);

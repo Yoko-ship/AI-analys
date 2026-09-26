@@ -1,6 +1,13 @@
 """IFRS PDFs have their own units, years, signed amounts and source passports."""
 
 import reports_catalog as subject_reports_catalog
+import catalogue.evidence as catalogue_evidence
+import catalogue.facts as catalogue_facts
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.history as catalogue_history
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 from copy import deepcopy
 import hashlib
 import io
@@ -13,6 +20,13 @@ import api
 import ifrs_financials as ifrs
 import provenance
 import reports_catalog as rc
+import catalogue.evidence as catalogue_evidence
+import catalogue.facts as catalogue_facts
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.history as catalogue_history
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 
 
 @pytest.mark.parametrize("url", [
@@ -70,7 +84,7 @@ def test_download_reviewed_issuer_source_and_limits(monkeypatch, url):
 @pytest.fixture
 def review(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "ifrs.db"))
-    monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *a: None)
+    monkeypatch.setattr(catalogue_financial_store, "_maybe_seed_financials", lambda *a: None)
     stream = io.BytesIO()
     doc = canvas.Canvas(stream)
     doc.drawString(20, 20, "Synthetic test PDF, not a production filing")
@@ -81,12 +95,12 @@ def review(tmp_path, monkeypatch):
     entry["sha256"] = hashlib.sha256(payload).hexdigest()
     for f in entry["figures"].values():
         f["page"] = 1
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     with conn:
         for ticker in ("BRBN", "BRBNP"):
             conn.execute("INSERT INTO catalog_companies (ticker,company_name,org_id) VALUES (?,?,?)",
                          (ticker, "Test bank", "23"))
-        rc._upsert_report(conn, "BRBN", report_form="MSFO", period_type="annual", year=2024,
+        catalogue_filings._upsert_report(conn, "BRBN", report_form="MSFO", period_type="annual", year=2024,
                           quarter=0, title="Test", published_at="2025-07-17", pdf_url=entry["pdf_url"],
                           excel_url=None, excel_url_form1=None, openinfo_report_id="3054", object_id=None)
     conn.close()
@@ -102,20 +116,20 @@ def test_dry_run_checks_source_without_publishing(review):
     result = run(review, apply=False)
     assert result["verified"] == [2024]
     assert result["published"] == []
-    assert rc.get_financials_series("BRBN", "MSFO") == {}
+    assert catalogue_snapshots.get_financials_series("BRBN", "MSFO") == {}
 
 
 def test_import_converts_millions_once_keeps_losses_and_source_pages(review):
     result = run(review)
     assert result["published"] == [2024]
     assert not result["errors"]
-    values = rc.get_financials_series("BRBNP", "MSFO")["2024"]
+    values = catalogue_snapshots.get_financials_series("BRBNP", "MSFO")["2024"]
     assert values["total_assets"] == 31_596_795_000  # stored THOUSANDS
     assert values["net_income"] == -1_367_921_000
     assert values["interest_income"] == 4_473_647_000
     assert values["interest_expense"] == -2_417_950_000
     assert "revenue" not in values and "gross_profit" not in values
-    passport = rc.get_financial_value_passport("BRBN", "2024", "net_profit", "MSFO")
+    passport = catalogue_evidence.get_financial_value_passport("BRBN", "2024", "net_profit", "MSFO")
     assert passport["status"] == "SOURCED"
     source = passport["source"]
     assert source["page"] == 1
@@ -124,14 +138,14 @@ def test_import_converts_millions_once_keeps_losses_and_source_pages(review):
     assert source["normalized_value"] == -1_367_921_000_000
     assert source["file_hash"] == review[0]["sha256"]
     assert source["extraction_version"] == ifrs.VERSION
-    assert rc.get_financial_value_passport("BRBN", "2024", "interest_income", "MSFO")["status"] == "SOURCED"
-    assert rc.get_financial_history_coverage("MSFO")["BRBN"]["status"] == "COLLECTED"
+    assert catalogue_evidence.get_financial_value_passport("BRBN", "2024", "interest_income", "MSFO")["status"] == "SOURCED"
+    assert catalogue_history.get_financial_history_coverage("MSFO")["BRBN"]["status"] == "COLLECTED"
 
 
 def test_api_uses_bank_lines_without_fabricating_revenue_or_nsbu_ratios(review, monkeypatch):
     run(review)
-    rc.upsert_financials_cache("BRBN", "NSBU", 2024, 0, {"revenue": 99})
-    monkeypatch.setattr(subject_reports_catalog, 'get_facts', lambda *a, **kw: [
+    catalogue_financial_store.upsert_financials_cache("BRBN", "NSBU", 2024, 0, {"revenue": 99})
+    monkeypatch.setattr(catalogue_facts, 'get_facts', lambda *a, **kw: [
         {"field": "roe", "period": "2024", "value_num": 99, "dataset": "financial_indicators"}])
     got = TestClient(api.app).get("/api/company/BRBN/financials?form=MSFO").json()
     assert got["availability"] == "AVAILABLE"
@@ -140,13 +154,13 @@ def test_api_uses_bank_lines_without_fabricating_revenue_or_nsbu_ratios(review, 
     assert got["series"]["interest_income"]["values"]["2024"] == 4_473_647_000_000
     assert got["series"]["operating_expenses"]["values"]["2024"] == -1_110_514_000_000
     assert not ({"net_revenue", "gross_profit", "roe", "net_margin"} & got["series"].keys())
-    assert rc.get_financials_series("BRBN", "NSBU")["2024"]["revenue"] == 99
+    assert catalogue_snapshots.get_financials_series("BRBN", "NSBU")["2024"]["revenue"] == 99
 
 
 def test_idempotent_and_preferred_share_import_does_not_duplicate_rows(review):
     run(review)
     run(review, ticker="BRBNP")
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     assert conn.execute("SELECT COUNT(*) FROM catalog_financials WHERE form='MSFO'").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM report_figures").fetchone()[0] == 9
     conn.close()
@@ -154,24 +168,24 @@ def test_idempotent_and_preferred_share_import_does_not_duplicate_rows(review):
 
 def test_changed_pdf_is_rejected_without_overwriting_existing_figures(review):
     run(review)
-    before = rc.get_financials_series("BRBN", "MSFO")
+    before = catalogue_snapshots.get_financials_series("BRBN", "MSFO")
     entry, payload = review
     result = ifrs.import_reviewed("BRBN", apply=True, entries=[entry], fetch=lambda url: payload + b"changed")
     assert "changed" in result["errors"][0]["reason"]
     assert not result["published"]
-    assert rc.get_financials_series("BRBN", "MSFO") == before
+    assert catalogue_snapshots.get_financials_series("BRBN", "MSFO") == before
 
 
 def test_year_correction_is_verified_and_survives_future_syncs(review, monkeypatch):
     entry, _ = review
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     with conn:
         conn.execute("UPDATE catalog_reports SET year=2025")
     monkeypatch.setattr(ifrs, "reviews", lambda: [entry])
     assert ifrs.reviewed_catalog_year(conn, "23", entry["pdf_url"], 2025) == 2025
     conn.close()
     assert run(review)["published"] == [2024]
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     assert conn.execute("SELECT year FROM catalog_reports").fetchone()[0] == 2024
     assert ifrs.reviewed_catalog_year(conn, "23", entry["pdf_url"], 2025) == 2024
     assert ifrs.reviewed_catalog_year(conn, "24", entry["pdf_url"], 2025) == 2025

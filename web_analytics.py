@@ -877,7 +877,7 @@ def users_list(query: str = "", limit: int = 50, offset: int = 0,
     # The allowlist is configuration rather than a database role. Return the
     # effective permission so the UI can mark protected accounts, but enforce
     # the protection again in ``user_action``; UI state is never authority.
-    from web_auth import is_admin_email
+    from identity.users import is_admin_email
 
     return {
         "ok": True,
@@ -981,7 +981,7 @@ def user_detail(user_id: int) -> dict[str, Any]:
             "SELECT provider, provider_email, created_at FROM web_oauth_accounts WHERE user_id = %s",
             (user_id,),
         ).fetchall()
-    from web_auth import is_admin_email
+    from identity.users import is_admin_email
 
     return {
         "ok": True,
@@ -1079,7 +1079,7 @@ def user_action(user_id: int, action: str, *, actor_user_id: int,
     if not _available():
         return {"ok": False, "reason": "no database"}
     action = (action or "").strip()
-    from web_auth import is_admin_email
+    from identity.users import is_admin_email
 
     with _conn() as conn:
         exists = conn.execute("SELECT id, email FROM web_users WHERE id = %s", (user_id,)).fetchone()

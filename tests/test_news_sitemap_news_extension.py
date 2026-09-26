@@ -17,6 +17,7 @@ from __future__ import annotations
 import pytest
 
 import news_collector as nc
+import collectors.news.sources as collectors_news_sources
 
 
 SPGLOBAL = {
@@ -66,7 +67,7 @@ def served(monkeypatch):
 
 def test_title_filter_gates_a_sitemap_whose_urls_are_numbers(served):
     served(_news_sitemap(_ENTRIES))
-    items = nc.fetch_sitemap(SPGLOBAL, 40)
+    items = collectors_news_sources.fetch_sitemap(SPGLOBAL, 40)
 
     titles = [i["title"] for i in items]
     assert len(items) == 2, titles
@@ -76,7 +77,7 @@ def test_title_filter_gates_a_sitemap_whose_urls_are_numbers(served):
 
 def test_the_publishers_own_headline_and_date_are_used(served):
     served(_news_sitemap(_ENTRIES))
-    items = nc.fetch_sitemap(SPGLOBAL, 40)
+    items = collectors_news_sources.fetch_sitemap(SPGLOBAL, 40)
 
     dated = {i["title"]: i["published_at"] for i in items}
     # Its own publication_date, not the sitemap-wide <lastmod> of 2026-08-07T21:00Z.
@@ -90,7 +91,7 @@ def test_a_publisher_dated_item_is_never_redated_from_its_url(served):
     source = {**SPGLOBAL,
               "slug_date": {"pattern": r"(\d{2}-\d{2}-\d{4})$", "format": "%d-%m-%Y"}}
     served(_news_sitemap([_ENTRIES[0]]))
-    items = nc.fetch_sitemap(source, 40)
+    items = collectors_news_sources.fetch_sitemap(source, 40)
 
     assert items[0]["published_at"] == "2026-08-05"
 
@@ -99,7 +100,7 @@ def test_a_sitemap_with_neither_filter_is_refused(served):
     served(_news_sitemap(_ENTRIES))
     naked = {k: v for k, v in SPGLOBAL.items() if k != "title_filter"}
 
-    assert nc.fetch_sitemap(naked, 40) == []
+    assert collectors_news_sources.fetch_sitemap(naked, 40) == []
 
 
 def test_slug_sources_are_unaffected_by_the_news_extension(served):
@@ -113,7 +114,7 @@ def test_slug_sources_are_unaffected_by_the_news_extension(served):
            'sovereigns/fitch-affirms-uzbekistan-at-bb-outlook-stable-23-07-2026</loc>'
            "<lastmod>2026-08-07</lastmod></url></urlset>")
     served(xml)
-    items = nc.fetch_sitemap(fitch, 40)
+    items = collectors_news_sources.fetch_sitemap(fitch, 40)
 
     assert items[0]["published_at"] == "2026-07-23"
     assert items[0]["title"] == "Fitch Affirms Uzbekistan at BB Outlook Stable"
@@ -134,7 +135,7 @@ def test_headers_from_the_registry_reach_the_request(monkeypatch):
         return _Resp()
 
     monkeypatch.setattr(nc.requests, "get", _get)
-    nc.fetch_sitemap({**SPGLOBAL, "user_agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/139",
+    collectors_news_sources.fetch_sitemap({**SPGLOBAL, "user_agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/139",
                       "headers": {"Sec-Fetch-Mode": "navigate", "Accept-Language": "en-US"}}, 5)
 
     assert seen["User-Agent"].startswith("Mozilla/5.0 (Windows NT 10.0)")

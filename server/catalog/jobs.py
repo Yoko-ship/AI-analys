@@ -5,6 +5,7 @@ import asyncio
 import company_imports
 import os
 import reports_catalog as catalog_store
+import catalogue.sync as catalogue_sync
 import server.http as http
 import threading
 
@@ -51,12 +52,12 @@ def _catalog_watch_once() -> dict[str, Any]:
     """
     from datetime import datetime, timezone
 
-    from reports_catalog import (FULL_SWEEP_KEY, full_sweep_age_hours, set_state,
-                                 sync_recent_filings, sync_stale_companies)
+    from catalogue.filings import FULL_SWEEP_KEY, full_sweep_age_hours, set_state
+    from catalogue.sync import sync_recent_filings, sync_stale_companies
 
     age = full_sweep_age_hours()
     if age is None or age >= CATALOG_FULL_SYNC_HOURS:
-        result = catalog_store.sync_all()
+        result = catalogue_sync.sync_all()
         set_state(FULL_SWEEP_KEY, datetime.now(timezone.utc).isoformat())
         http.logger.info("catalog watch: full sweep (last %s h ago) %s",
                     None if age is None else round(age, 1),
@@ -107,7 +108,7 @@ def _sync_approved_company(ticker: str) -> None:
         metadata = company_imports.approved_metadata_map().get(ticker) or {}
         if not metadata:
             raise RuntimeError("company is not approved")
-        result = catalog_store.sync_company(
+        result = catalogue_sync.sync_company(
             ticker,
             str(metadata.get("company_name") or ticker),
             force=True,

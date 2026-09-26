@@ -1,0 +1,851 @@
+/* ── Modern financial treemap ───────────────────────────────────
+   The familiar finance model: sector nesting, area by turnover, colour by move.
+   The focus strip keeps exact values available without covering the map. */
+.heatmap-focus-strip {
+  display: grid;
+  grid-template-columns: 8px minmax(240px, 1fr) auto auto;
+  gap: clamp(20px, 2vw, 34px);
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 18px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.heatmap-focus-strip:hover {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 5%, transparent), transparent);
+}
+
+.heatmap-focus-strip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.heatmap-focus-signal {
+  width: 8px;
+  height: 58px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.heatmap-focus-identity {
+  display: block;
+  min-width: 0;
+}
+
+.heatmap-focus-identity > small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.heatmap-focus-identity > span {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.heatmap-focus-identity strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(24px, 1.45vw, 28px);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
+
+.heatmap-focus-identity b {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: clamp(16px, 1vw, 18px);
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-focus-identity em {
+  display: block;
+  max-width: 420px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap-focus-facts {
+  display: flex;
+  gap: clamp(22px, 2.8vw, 42px);
+}
+
+.heatmap-focus-facts > span {
+  display: block;
+  min-width: 104px;
+}
+
+.heatmap-focus-facts small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.heatmap-focus-facts strong {
+  display: block;
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.heatmap-focus-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.heatmap-focus-open b {
+  color: var(--accent);
+  font-size: 19px;
+}
+
+.heatmap-tree {
+  position: relative;
+  width: 100%;
+  height: clamp(610px, 72vh, 790px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 14px;
+  background: #090e14;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 18px 38px rgba(0, 0, 0, 0.12);
+}
+
+.heatmap-empty-state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 28px;
+  text-align: center;
+}
+
+.heatmap-tree-label {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 2px solid #090e14;
+  border-bottom-width: 1px;
+  background: rgba(17, 23, 31, 0.96);
+  color: rgba(238, 243, 249, 0.88);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.heatmap-tree-label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heatmap-tree-label strong {
+  margin-left: auto;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.heatmap-tree-label small {
+  color: rgba(208, 217, 228, 0.52);
+  font-size: 8px;
+}
+
+.heatmap-tree-tile {
+  --tile-fill: #46505d;
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+  padding: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: var(--tile-fill);
+  color: #fff;
+  line-height: 1.05;
+  text-align: center;
+  cursor: pointer;
+  isolation: isolate;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.07);
+  transition: filter 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
+}
+
+.heatmap-tree-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent 44%, rgba(0, 0, 0, 0.08));
+}
+
+.heatmap-tree-tile:hover,
+.heatmap-tree-tile.is-active {
+  z-index: 6;
+  border-color: rgba(255, 255, 255, 0.78);
+  filter: brightness(1.13) saturate(1.06);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12), 0 7px 18px rgba(0, 0, 0, 0.28);
+}
+
+.heatmap-tree-tile:focus-visible {
+  z-index: 7;
+  outline: 3px solid color-mix(in srgb, var(--accent) 76%, #fff);
+  outline-offset: -3px;
+}
+
+.heatmap-tree-tile.is-preferred {
+  border-color: rgba(238, 177, 75, 0.74);
+  box-shadow: inset 0 2px rgba(244, 185, 83, 0.48);
+}
+
+.heatmap-tree-tile.is-low-confidence {
+  border-style: dashed;
+}
+
+.heatmap-tree-tile.is-unavailable {
+  --tile-fill: #343c47;
+  color: rgba(235, 240, 247, 0.7);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.045) 0 4px, transparent 4px 10px),
+    var(--tile-fill);
+}
+
+/* Movement-sized cells can legitimately collapse to a few pixels. At that
+   scale, labels and confidence/preferred markers turn into visual noise. Keep
+   the cell itself hoverable, but render it as an undecorated colour sample. */
+.heatmap-tree-tile.is-micro,
+.heatmap-tree-tile.is-micro.is-preferred,
+.heatmap-tree-tile.is-micro.is-low-confidence {
+  gap: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.heatmap-tree-tile.is-micro::before,
+.heatmap-tree-tile.is-micro.is-low-confidence::before {
+  content: none;
+  display: none;
+}
+
+.heatmap-tree-tile.is-micro:hover,
+.heatmap-tree-tile.is-micro.is-active {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.htt-ticker,
+.htt-name,
+.htt-pct,
+.htt-volume {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+
+.htt-ticker {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 820;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+.htt-ticker em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-left: 4px;
+  border: 1px solid rgba(255, 218, 146, 0.76);
+  border-radius: 50%;
+  color: #ffdc96;
+  font-size: 7px;
+  font-style: normal;
+  vertical-align: 2px;
+}
+
+.htt-pct {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.htt-name {
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.htt-volume {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.57);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+body[data-theme="light"] .heatmap-tree {
+  border-color: rgba(15, 28, 48, 0.1);
+  background: #dfe5ec;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.72), 0 18px 38px rgba(15, 28, 48, 0.08);
+}
+
+body[data-theme="light"] .heatmap-tree-label {
+  border-color: #dfe5ec;
+  background: rgba(28, 36, 46, 0.96);
+  color: rgba(245, 248, 252, 0.94);
+}
+
+body[data-theme="light"] .heatmap-tree-tile {
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.14), 0 2px 7px rgba(15, 28, 48, 0.08);
+}
+
+body[data-theme="light"] .heatmap-tree-tile.is-unavailable {
+  --tile-fill: #c8d0da;
+  color: #566273;
+  border-color: rgba(15, 28, 48, 0.1);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.32) 0 4px, transparent 4px 10px),
+    var(--tile-fill);
+}
+
+body[data-theme="light"] .heatmap-tree-tile.is-unavailable .htt-name,
+body[data-theme="light"] .heatmap-tree-tile.is-unavailable .htt-volume {
+  color: #647184;
+}
+
+body[data-theme="light"] .heatmap-legend-gradient {
+  border-color: rgba(15, 28, 48, 0.12);
+}
+
+@media (max-width: 1040px) {
+  .heatmap-focus-strip {
+    grid-template-columns: 8px minmax(210px, 1fr) auto;
+  }
+
+  .heatmap-focus-open { display: none; }
+}
+
+@media (max-width: 980px) {
+  .heatmap-overview {
+    grid-template-columns: minmax(140px, 0.65fr) minmax(280px, 1.35fr);
+    gap: 16px 22px;
+  }
+
+  .heatmap-legend { grid-column: 1 / -1; }
+  .heatmap-tree { height: clamp(590px, 78vh, 740px); }
+}
+
+@media (max-width: 760px) {
+  .heatmap-focus-strip {
+    grid-template-columns: 8px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .heatmap-focus-facts {
+    grid-column: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .heatmap-focus-facts > span { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .heatmap-wrap { padding: 14px 12px 18px; }
+  .heatmap-overview { grid-template-columns: 1fr; gap: 14px; padding-bottom: 13px; }
+  .heatmap-legend { grid-column: auto; }
+  .heatmap-tree { height: 690px; border-radius: 10px; }
+  .heatmap-breadth-values { gap: 5px 10px; }
+}
+
+@media (max-width: 520px) {
+  .heatmap-focus-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .heatmap-focus-facts > span:last-child { display: none; }
+}
+body[data-theme="dark"] .market-search input {
+  background: rgba(17, 17, 19, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="dark"] .market-table th {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="light"] .market-hero-panel,
+body[data-theme="light"] .market-stat-card,
+body[data-theme="light"] .market-board {
+  background: #fff;
+}
+
+body[data-theme="light"] .market-controls {
+  background: #f8fafc;
+}
+
+@media (max-width: 1000px) {
+  .market-hero-panel,
+  .market-board-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  /* The controls wrap instead of stacking: a column of five full-width rows is
+     ~250px of pinned toolbar, which would leave a tablet almost no table. */
+  .market-controls {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .market-controls .market-type-levels { flex: 1 0 100%; }
+  .market-controls .market-search { flex: 1 1 160px; min-width: 0; }
+
+  .market-hero-actions {
+    justify-content: flex-start;
+  }
+
+  .market-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .market-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-hero-panel {
+    padding: 22px;
+  }
+}
+
+/* Newspaper color palette */
+:root {
+  --np-ink: #1a1612;
+  --np-ink-mid: #3d3530;
+  --np-ink-light: #6b5e55;
+  --np-rule: #c9b99a;
+  --np-rule-light: #e8ddd0;
+  --np-accent: #8b1a1a;
+  --np-gold: #7a5a1f;  /* darkened from #9a7b3a so panel-labels pass WCAG AA on cream/white surfaces (~5.5:1 vs #faf7f2) */
+  --np-bg: #faf7f2;
+  --np-bg-warm: #f3ede3;
+  --np-green: #1a5c2e;
+  --np-red: #8b1a1a;
+  --np-amber: #7a5200;
+}
+
+/* Apply newspaper styling to result sections */
+body[data-theme="light"] .result-hero {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+body[data-theme="light"] .result-hero .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 20px 32px;
+  background: var(--np-bg);
+}
+
+body[data-theme="light"] .result-hero .panel-head .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--np-gold);
+}
+
+body[data-theme="light"] .result-hero .panel-head h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  color: var(--np-ink) !important;
+  letter-spacing: -0.01em;
+}
+
+/* Score strip - newspaper style */
+body[data-theme="light"] .score-strip {
+  background: var(--np-bg-warm);
+  border: 1px solid var(--np-rule);
+  padding: 24px 32px;
+  margin: 24px 32px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+body[data-theme="light"] .score-card {
+  background: var(--np-bg) !important;
+  border: 2px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+  min-height: 120px;
+}
+
+body[data-theme="light"] .score-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 2.5rem !important;
+  color: var(--np-accent) !important;
+}
+
+body[data-theme="light"] .score-caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--np-ink-light);
+}
+
+body[data-theme="light"] .grade-pill {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-gold) !important;
+  border-radius: 0 !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--np-gold) !important;
+  padding: 6px 14px;
+}
+
+body[data-theme="light"] .verdict-text {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  color: var(--np-ink) !important;
+  font-style: italic;
+}
+
+body[data-theme="light"] .summary-text {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--np-ink-mid);
+}
+
+/* Chart card - newspaper style */
+body[data-theme="light"] .chart-card {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  margin: 0 32px 24px;
+  padding: 20px;
+}
+
+body[data-theme="light"] .chart-head h3 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  font-style: italic;
+  color: var(--np-accent) !important;
+}
+
+body[data-theme="light"] .analysis-chart {
+  background: var(--np-bg) !important;
+  border: 1px solid var(--np-rule-light) !important;
+  border-radius: 0 !important;
+}
+
+/* Signal cards - newspaper callout style */
+body[data-theme="light"] .market-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 0 32px 24px;
+}
+
+body[data-theme="light"] .signal-card {
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  padding: 16px 20px !important;
+}
+
+body[data-theme="light"] .signal-card.tone-good {
+  border-left: 4px solid var(--np-green) !important;
+}
+
+body[data-theme="light"] .signal-card.tone-warning {
+  border-left: 4px solid var(--np-amber) !important;
+}
+
+body[data-theme="light"] .signal-card.tone-danger {
+  border-left: 4px solid var(--np-red) !important;
+}
+
+body[data-theme="light"] .signal-label {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 9px !important;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--np-ink-light) !important;
+}
+
+body[data-theme="light"] .signal-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: var(--np-ink) !important;
+}
+
+body[data-theme="light"] .signal-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--np-ink-light);
+}
+
+/* Metrics panel - newspaper style */
+body[data-theme="light"] .metrics-panel {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+}
+
+body[data-theme="light"] .metrics-panel .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 16px 24px;
+}
+
+body[data-theme="light"] .metrics-panel .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--np-gold);
+}
+
+body[data-theme="light"] .metrics-panel h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 20px !important;
+  color: var(--np-ink) !important;
+}
+
+body[data-theme="light"] .metrics-grid {
+  padding: 20px 24px;
+  gap: 12px;
+}
+
+body[data-theme="light"] .metric-card {
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  padding: 16px !important;
+}
+
+body[data-theme="light"] .metric-label {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 9px !important;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--np-ink-light) !important;
+}
+
+body[data-theme="light"] .metric-value {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+}
+
+body[data-theme="light"] .metric-card.tone-good .metric-value {
+  color: var(--np-green) !important;
+}
+
+body[data-theme="light"] .metric-card.tone-warning .metric-value {
+  color: var(--np-amber) !important;
+}
+
+body[data-theme="light"] .metric-card.tone-danger .metric-value {
+  color: var(--np-red) !important;
+}
+
+body[data-theme="light"] .metric-verdict {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 12px;
+  color: var(--np-ink-light);
+  line-height: 1.5;
+}
+
+/* Sections panel - newspaper style */
+body[data-theme="light"] .sections-panel {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-top: 3px solid var(--np-ink) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+body[data-theme="light"] .sections-panel .panel-head {
+  border-bottom: 2px solid var(--np-ink);
+  padding: 20px 28px;
+  background: var(--np-bg) !important;
+}
+
+body[data-theme="light"] .sections-panel .panel-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--np-gold);
+  text-transform: uppercase;
+}
+
+body[data-theme="light"] .sections-panel h2 {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 22px !important;
+  color: var(--np-ink) !important;
+  margin-top: 4px;
+}
+
+body[data-theme="light"] .sections-wrap {
+  padding: 12px 28px 28px;
+  background: var(--np-bg);
+}
+
+/* Section cards - newspaper article style */
+body[data-theme="light"] .section-card {
+  background: var(--np-bg) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body[data-theme="light"] .section-card:last-child {
+  border-bottom: none !important;
+}
+
+body[data-theme="light"] .section-header {
+  padding: 16px 0 !important;
+  background: transparent !important;
+}
+
+body[data-theme="light"] .section-title {
+  font-family: 'Playfair Display', serif !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--np-ink) !important;
+}
+
+body[data-theme="light"] .section-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--np-gold);
+  letter-spacing: 0.1em;
+  margin-right: 12px;
+}
+
+body[data-theme="light"] .section-body {
+  font-family: 'Source Serif 4', Georgia, serif !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+  color: var(--np-ink-mid) !important;
+  padding: 0 0 20px !important;
+  text-align: justify;
+}
+
+/* Status badges - newspaper style */
+body[data-theme="light"] .status-badge {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--np-bg-warm) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  color: var(--np-ink-light) !important;
+  padding: 4px 10px !important;
+}
+
+/* Results grid layout */
+body[data-theme="light"] .results-grid {
+  background: var(--np-bg);
+}
+
+/* Analysis layout background */
+body[data-theme="light"] .analysis-layout {
+  background: var(--np-bg);
+}
+
+/* Footer note style */
+body[data-theme="light"] .result-hero .meta-grid {
+  border-top: 1px solid var(--np-rule);
+  padding: 16px 32px;
+  margin-top: 0;
+}
+
+body[data-theme="light"] .result-favorite-btn {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.1em;
+  color: var(--np-gold) !important;
+  border: 1px solid var(--np-rule) !important;
+  border-radius: 0 !important;
+  background: var(--np-bg-warm) !important;
+}
+
+body[data-theme="light"] .result-favorite-btn:hover {
+  background: var(--np-bg) !important;
+  border-color: var(--np-gold) !important;
+}
+
+/* Empty states - newspaper style */
+body[data-theme="light"] .sections-panel .empty-state, body[data-theme="light"] .metrics-panel .empty-state {
+  background: var(--np-bg-warm) !important;
+  border: 1px dashed var(--np-rule) !important;
+  border-radius: 0 !important;
+}
+
+body[data-theme="light"] .empty-copy {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-style: italic;
+  color: var(--np-ink-light);
+}

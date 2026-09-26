@@ -8,6 +8,7 @@ import importlib
 import time
 
 import openinfo_collector
+import collectors.openinfo.market as collectors_openinfo_market
 
 api = importlib.import_module("api")
 
@@ -21,7 +22,7 @@ def test_concurrent_requests_for_the_same_archive_fetch_once(monkeypatch):
         time.sleep(0.05)
         return payload
 
-    monkeypatch.setattr(openinfo_collector, "fetch_price_history", fake_fetch)
+    monkeypatch.setattr(collectors_openinfo_market, "fetch_price_history", fake_fetch)
     subject_server_market_history._HISTORY_CACHE.clear()
     subject_server_market_history._HISTORY_LOCKS.clear()
 

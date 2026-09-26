@@ -2,6 +2,14 @@
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.fields as catalogue_fields
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.facts as catalogue_facts
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
 
 import importlib
 
@@ -10,6 +18,14 @@ from fastapi.testclient import TestClient
 
 import financial_corrections as fc
 import reports_catalog as rc
+import catalogue.fields as catalogue_fields
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.facts as catalogue_facts
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.snapshots as catalogue_snapshots
 
 api = importlib.import_module("api")
 
@@ -41,31 +57,31 @@ def test_unknown_ticker_or_period_has_no_overlay():
 def test_catalog_readers_apply_registered_values_after_cached_values(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "corrections.db"))
 
-    rc.upsert_financials_cache("AGBA", "NSBU", 2016, 0, {
+    catalogue_financial_store.upsert_financials_cache("AGBA", "NSBU", 2016, 0, {
         "total_assets": 1.0,
         "total_equity": 2.0,
     })
-    rc.upsert_financials_cache("AGBA", "NSBU", 2023, 3, {
+    catalogue_financial_store.upsert_financials_cache("AGBA", "NSBU", 2023, 3, {
         "total_assets": 100.0,
         "total_equity": 3.0,
     })
 
-    annual = rc.get_financials_series("AGBA")
+    annual = catalogue_snapshots.get_financials_series("AGBA")
     assert annual["2016"]["total_assets"] == 3_949_374_649.0
     assert annual["2016"]["total_equity"] == 531_834_075.0
     # No 2017 row was cached, but the register's Add rows must still surface it.
     assert annual["2017"]["total_assets"] == 4_981_542_046.0
 
-    quarterly = rc.get_financials_series_quarterly("AGBA")
+    quarterly = catalogue_snapshots.get_financials_series_quarterly("AGBA")
     assert quarterly["2023Q3"]["total_equity"] == 9_785_156_539.0
 
     # OCBK's production cache currently has no 2023Q2 row at all.  The reviewed
     # register is sufficient to create the missing balance snapshot.
-    correction_only = rc.get_financials_series_quarterly("OCBK")
+    correction_only = catalogue_snapshots.get_financials_series_quarterly("OCBK")
     assert correction_only["2023Q2"]["cash"] == 35_094_315.0
     assert correction_only["2023Q2"]["total_assets"] == 778_235_028.0
 
-    latest = rc.get_all_financials()["AGBA"]
+    latest = catalogue_snapshots.get_all_financials()["AGBA"]
     assert latest["total_equity"] == 9_785_156_539.0
     assert latest["balance"]["equity_end"] == 9_785_156_539.0
     assert latest["annual"]["total_assets"] == 3_949_374_649.0
@@ -75,8 +91,8 @@ def test_catalog_readers_apply_registered_values_after_cached_values(monkeypatch
 def test_every_registered_row_is_available_even_with_an_empty_cache(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "empty-corrections.db"))
     tickers = sorted({row.ticker for row in fc.financial_corrections()})
-    annual = {ticker: rc.get_financials_series(ticker) for ticker in tickers}
-    quarterly = {ticker: rc.get_financials_series_quarterly(ticker) for ticker in tickers}
+    annual = {ticker: catalogue_snapshots.get_financials_series(ticker) for ticker in tickers}
+    quarterly = {ticker: catalogue_snapshots.get_financials_series_quarterly(ticker) for ticker in tickers}
 
     for correction in fc.financial_corrections():
         if correction.period.endswith("Q4"):
@@ -92,24 +108,24 @@ def test_every_registered_row_is_available_even_with_an_empty_cache(monkeypatch,
 
 def test_nsbu_corrections_cannot_create_ifrs_years_or_overwrite_ifrs(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "standards.db"))
-    monkeypatch.setattr(rc, "_financials_enrich_enabled", lambda: True)
-    monkeypatch.setattr(rc, "_enrich_financials_from_facts", lambda *args: pytest.fail(
+    monkeypatch.setattr(catalogue_snapshots, "_financials_enrich_enabled", lambda: True)
+    monkeypatch.setattr(catalogue_snapshots, "_enrich_financials_from_facts", lambda *args: pytest.fail(
         "Unspecified-standard indicators must not enrich IFRS"))
-    assert rc.get_financials_series("IPTB", "MSFO") == {}
-    assert rc.get_financials_series_quarterly("IPTB", "MSFO") == {}
-    rc.upsert_financials_cache("IPTB", "MSFO", 2022, 0, {
+    assert catalogue_snapshots.get_financials_series("IPTB", "MSFO") == {}
+    assert catalogue_snapshots.get_financials_series_quarterly("IPTB", "MSFO") == {}
+    catalogue_financial_store.upsert_financials_cache("IPTB", "MSFO", 2022, 0, {
         "total_assets": 100.0, "total_equity": 20.0,
     })
-    rc.upsert_financials_cache("IPTB", "MSFO", 2023, 1, {
+    catalogue_financial_store.upsert_financials_cache("IPTB", "MSFO", 2023, 1, {
         "total_assets": 110.0, "total_equity": 22.0,
     })
-    annual = rc.get_financials_series("IPTB", "MSFO")
+    annual = catalogue_snapshots.get_financials_series("IPTB", "MSFO")
     assert list(annual) == ["2022"]
     assert annual["2022"]["total_assets"] == 100.0
     assert annual["2022"]["total_equity"] == 20.0
-    quarterly = rc.get_financials_series_quarterly("IPTB", "MSFO")
+    quarterly = catalogue_snapshots.get_financials_series_quarterly("IPTB", "MSFO")
     assert list(quarterly) == ["2023Q1"]
-    latest = rc.get_all_financials("MSFO")["IPTB"]
+    latest = catalogue_snapshots.get_all_financials("MSFO")["IPTB"]
     assert latest["annual"]["total_assets"] == 100.0
     assert latest["annual"]["total_equity"] == 20.0
 
@@ -124,16 +140,16 @@ def test_approved_corrections_use_the_requested_standard_and_quarter(monkeypatch
         return {"total_assets": 123.0} if form == "MSFO" else {"total_assets": 999.0}
 
     monkeypatch.setattr(data_quality, "approved_corrections_for", approved)
-    rc.upsert_financials_cache("BANK", "MSFO", 2024, 4, {"total_assets": 100.0})
-    rc.upsert_financials_cache("BANK", "MSFO", 2024, 0, {"total_assets": 100.0})
-    assert rc.get_financials_series("BANK", "MSFO")["2024"]["total_assets"] == 123.0
-    assert rc.get_financials_series_quarterly("BANK", "MSFO")["2024Q4"]["total_assets"] == 123.0
+    catalogue_financial_store.upsert_financials_cache("BANK", "MSFO", 2024, 4, {"total_assets": 100.0})
+    catalogue_financial_store.upsert_financials_cache("BANK", "MSFO", 2024, 0, {"total_assets": 100.0})
+    assert catalogue_snapshots.get_financials_series("BANK", "MSFO")["2024"]["total_assets"] == 123.0
+    assert catalogue_snapshots.get_financials_series_quarterly("BANK", "MSFO")["2024Q4"]["total_assets"] == 123.0
     assert calls == [("BANK", "MSFO", 2024, 0), ("BANK", "MSFO", 2024, 4)]
 
 
 def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_path):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "api-corrections.db"))
-    monkeypatch.setattr(subject_reports_catalog, 'get_company_index', lambda ticker: {"org_id": ticker})
+    monkeypatch.setattr(catalogue_filings, 'get_company_index', lambda ticker: {"org_id": ticker})
 
     def facts(org_id, dataset=None):
         if org_id != "UZAS":
@@ -145,8 +161,8 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
             for field in ("total_assets", "total_equity", "total_liabilities", "cash")
         ]
 
-    monkeypatch.setattr(subject_reports_catalog, 'get_facts', facts)
-    monkeypatch.setattr(subject_reports_catalog, 'get_company_reports', lambda ticker: [])
+    monkeypatch.setattr(catalogue_facts, 'get_facts', facts)
+    monkeypatch.setattr(catalogue_filings, 'get_company_reports', lambda ticker: [])
 
     client = TestClient(api.app)
     responses = {}
@@ -172,5 +188,5 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
             expected -= prior["operating_expenses"].value_thousands_uzs
         public_field = "net_revenue" if correction.field == "revenue" else correction.field
         assert body["series"][public_field]["values"][period] == pytest.approx(
-            expected * rc.NSBU_THOUSANDS_UZS
+            expected * catalogue_fields.NSBU_THOUSANDS_UZS
         ), (correction.ticker, correction.period, correction.field)

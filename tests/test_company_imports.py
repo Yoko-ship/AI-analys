@@ -11,7 +11,11 @@ import api
 import company_imports
 import entity_resolver
 import openinfo_collector
+import collectors.openinfo.issuers as collectors_openinfo_issuers
 import reports_catalog
+import catalogue.sources as catalogue_sources
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync
 
 
 @pytest.fixture(autouse=True)
@@ -92,7 +96,7 @@ class _PostgresStrictCandidateConnection:
 
 def _as_user(monkeypatch, email: str | None) -> None:
     monkeypatch.setattr(
-        subject_web_auth.web_auth_store,
+        subject_web_auth.web_auth_store.sessions,
         "get_user_by_token",
         lambda token: _User(email) if token and email else None,
     )
@@ -115,7 +119,7 @@ def test_discovery_creates_a_pending_candidate_and_approval_publishes_it(monkeyp
     assert approved["sector"] == "manufacturing"
     assert approved["reviewed_by"] == "admin@example.com"
 
-    conn = reports_catalog.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         company = conn.execute(
             "SELECT company_name, org_id FROM catalog_companies WHERE ticker='ZZCO'"
@@ -153,10 +157,10 @@ def test_candidate_insert_is_postgres_safe(monkeypatch):
 
 
 def test_regular_catalog_discovery_also_fills_the_admin_review_queue(monkeypatch):
-    monkeypatch.setattr(reports_catalog, "_make_session", object)
+    monkeypatch.setattr(catalogue_sources, "_make_session", object)
     monkeypatch.setattr(entity_resolver, "resolve_all", lambda session=None: [_record()])
 
-    result = reports_catalog.discover_and_upsert_securities()
+    result = catalogue_sync.discover_and_upsert_securities()
 
     assert result["queued"] == 1
     queued = company_imports.list_imports("pending")
@@ -166,7 +170,7 @@ def test_regular_catalog_discovery_also_fills_the_admin_review_queue(monkeypatch
 def test_preview_reads_source_logo_and_allows_an_explicit_mapping_correction(monkeypatch):
     monkeypatch.setattr(entity_resolver, "resolve_all", lambda: [_record(org_id="wrong")])
     monkeypatch.setattr(
-        openinfo_collector,
+        collectors_openinfo_issuers,
         "resolve_company",
         lambda _name: {"org_id": "wrong", "logo": "https://openinfo.uz/media/zz.png"},
     )
@@ -213,7 +217,7 @@ def test_admin_can_hide_and_restore_an_approved_company_in_public_catalog(monkey
         "/api/catalog/companies"
     ).json()["companies"])
 
-    conn = reports_catalog.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     try:
         events = [row["action"] for row in conn.execute(
             "SELECT action FROM catalog_company_import_events WHERE ticker='ZZCO' ORDER BY id"
@@ -245,7 +249,7 @@ def test_admin_can_preview_and_approve_without_starting_external_sync(monkeypatc
     _as_user(monkeypatch, "admin@example.com")
     monkeypatch.setattr(entity_resolver, "resolve_all", lambda: [_record()])
     monkeypatch.setattr(
-        openinfo_collector,
+        collectors_openinfo_issuers,
         "resolve_company",
         lambda _name: {"org_id": "777", "logo": None},
     )

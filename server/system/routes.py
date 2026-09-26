@@ -27,7 +27,7 @@ async def api_ready() -> Response:
     503 while the database is behind the code: serving from a shape the code
     does not expect is not an honest 200. /health stays a liveness probe.
     """
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     conn = get_catalog_conn()
     try:
@@ -41,7 +41,7 @@ async def api_ready() -> Response:
 @router.post("/api/admin/migrate")
 async def api_admin_migrate(_: None = Depends(auth_access._require_admin)) -> dict[str, Any]:
     """Apply pending migrations. Additive only, ordered, recorded, idempotent."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
 
     loop = asyncio.get_running_loop()
 

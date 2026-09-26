@@ -6,6 +6,10 @@ import json
 import pytest
 
 import reports_catalog as rc
+import catalogue.filings as catalogue_filings
+import catalogue.history as catalogue_history
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.sources as catalogue_sources
 from financial_ingestion import documents, extract, maintenance, publication, store, validation
 from test_financial_ingestion import setup, stage, candidates
 
@@ -116,17 +120,17 @@ def test_interim_snapshot_never_becomes_an_annual_or_standalone_quarter(setup):
     assert publication.series("BRBN") == {}
     interim = publication.series("BRBNP", quarterly=True)
     assert set(interim) == {"2024Q2"}
-    latest = rc.get_all_financials("MSFO")["BRBNP"]
+    latest = catalogue_snapshots.get_all_financials("MSFO")["BRBNP"]
     assert latest["period_months"] == 6 and latest["is_ytd"]
     assert latest["balance"]["assets_end"] == interim["2024Q2"]["total_assets"]
     assert "annual" not in latest
     passport = publication.passport("BRBN", "2024Q2", "net_profit")
     assert passport["source"]["period_basis"] == "cumulative_ytd"
     assert publication.catalog_labels("BRBN")[setup[0]["pdf_url"]]["quarter"] == 2
-    index = rc.get_company_index("BRBN")
+    index = catalogue_filings.get_company_index("BRBN")
     assert index["availability"]["MSFO"]["annual"] == []
     assert index["availability"]["MSFO"]["quarter"][0]["quarter"] == 2
-    coverage = rc.get_financial_history_coverage("MSFO")["BRBN"]
+    coverage = catalogue_history.get_financial_history_coverage("MSFO")["BRBN"]
     assert coverage["complete_periods"] == 1
     assert coverage["missing_periods"] == []
     import api
@@ -169,7 +173,7 @@ def test_latest_annual_and_prior_are_snapshot_only(setup):
     prior = publication.propose(base["id"], payload, actor="reviewer", reason="test")
     publication.approve(prior, actor="reviewer", reason="test")
     publication.publish("BRBN", actor="publisher", candidate_ids=[base["id"], prior])
-    result = rc.get_all_financials("MSFO")["BRBN"]
+    result = catalogue_snapshots.get_all_financials("MSFO")["BRBN"]
     assert result["year"] == 2024 and result["prior"]["year"] == 2023
     assert result["prior"]["snapshot_id"]
     assert result["balance"]["equity_end"] == publication.series("BRBN")["2024"]["total_equity"]
@@ -237,15 +241,15 @@ def test_unified_discovery_reads_later_pages(monkeypatch):
     def fetch(session, url, params):
         calls.append(params["page"])
         return {"results": first if params["page"] == 1 else second, "next": params["page"] == 1}
-    monkeypatch.setattr(rc, "_json_get", fetch)
-    rows, kind = rc._fetch_main_results(None, "Bank", 23)
+    monkeypatch.setattr(catalogue_sources, "_json_get", fetch)
+    rows, kind = catalogue_sources._fetch_main_results(None, "Bank", 23)
     assert calls == [1, 2] and len(rows) == 201 and kind == "bank"
 
 
 def test_repeated_discovery_page_is_an_explicit_failure(monkeypatch):
-    monkeypatch.setattr(rc, "_json_get", lambda *a: {"results": [{"id": n, "organization": 23} for n in range(200)], "next": True})
+    monkeypatch.setattr(catalogue_sources, "_json_get", lambda *a: {"results": [{"id": n, "organization": 23} for n in range(200)], "next": True})
     with pytest.raises(RuntimeError, match="repeated"):
-        rc._fetch_main_results(None, "Bank", 23)
+        catalogue_sources._fetch_main_results(None, "Bank", 23)
 
 
 def test_next_link_takes_precedence_over_requested_page_size(monkeypatch):
@@ -253,8 +257,8 @@ def test_next_link_takes_precedence_over_requested_page_size(monkeypatch):
     def fetch(session, url, params):
         calls.append(params["page"])
         return {"results": [{"id": params["page"], "organization": 23}], "next": params["page"] == 1}
-    monkeypatch.setattr(rc, "_json_get", fetch)
-    assert len(rc._fetch_main_results(None, "Bank", 23)[0]) == 2
+    monkeypatch.setattr(catalogue_sources, "_json_get", fetch)
+    assert len(catalogue_sources._fetch_main_results(None, "Bank", 23)[0]) == 2
     assert calls == [1, 2]
 
 
@@ -265,9 +269,9 @@ def test_admin_dashboard_and_bell_access(setup, monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_ENVIRONMENT", "test")
     user = type("User", (), {"id": 77, "email": "operator@example.test", "has_pro_access": False})()
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "administrator"}))
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "list_support_requests", lambda **kw: {"items": []})
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "notification_states", lambda *a: {})
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.support, "list_support_requests", lambda **kw: {"items": []})
+    monkeypatch.setattr(subject_web_auth.web_auth_store.notifications, "notification_states", lambda *a: {})
     maintenance.monitor()
     client = TestClient(api.app)
     assert client.get("/api/admin/control/overview").status_code == 401

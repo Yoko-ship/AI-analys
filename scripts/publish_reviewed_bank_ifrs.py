@@ -15,6 +15,7 @@ from uuid import uuid4
 from financial_ingestion import documents, extract, maintenance, publication, store, validation
 from ifrs_financials import download_pdf
 import reports_catalog as rc
+import catalogue.filings as catalogue_filings
 
 def claim_selected(source_id, stage, processor_filter=None):
     with store.transaction() as c:
@@ -56,7 +57,7 @@ def _release(*, fetch, scratch, allow_reviewed_corrections):
     before = {t: {**(publication.series(t) or {}), **(publication.series(t, quarterly=True) or {})} for t in tickers}
     for ticker in tickers:
         expected_org = next(str(e['org_id']) for e in entries if e['ticker'] == ticker)
-        if str((rc.get_company_index(ticker) or {}).get('org_id')) != expected_org:
+        if str((catalogue_filings.get_company_index(ticker) or {}).get('org_id')) != expected_org:
             raise ValueError('Issuer identity mismatch: ' + ticker)
         documents.discover(ticker=ticker, processor=processor)
 
@@ -97,7 +98,7 @@ def _release(*, fetch, scratch, allow_reviewed_corrections):
         c = store.connect()
         rows = c.execute("SELECT x.* FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id JOIN ingest_sources s ON s.latest_version=v.id "
                          "WHERE s.org_id=? AND x.processor=? AND EXISTS (SELECT 1 FROM ingest_reviews r WHERE r.candidate_id=x.id AND r.decision='APPROVED')",
-                         (str(rc.get_company_index(ticker)['org_id']), processor)).fetchall()
+                         (str(catalogue_filings.get_company_index(ticker)['org_id']), processor)).fetchall()
         c.close()
         if len(rows) != sum(e['ticker'] == ticker for e in entries):
             raise ValueError('Approved candidate count mismatch: ' + ticker)

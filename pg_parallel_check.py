@@ -95,7 +95,8 @@ def explain(subject: str, before, after) -> str | None:
 def main() -> int:
     os.environ["DATABASE_BACKEND"] = "postgres"
     # Imported AFTER the switch so every module binds to the right backend.
-    from reports_catalog import get_all_financials, get_all_ratios      # noqa: E402
+    from catalogue.snapshots import get_all_financials
+    from catalogue.ratios import get_all_ratios      # noqa: E402
     from securities_catalog import get_securities_map                   # noqa: E402
 
     live_fin = live("/api/market/financials")["financials"]
@@ -108,7 +109,7 @@ def main() -> int:
     pg_fin, pg_rat, pg_sec = get_all_financials(), get_all_ratios(), get_securities_map()
     # The API scales NSBU thousands at the response boundary; do the same here
     # so the two sides are the same units, not the same numbers by luck.
-    from reports_catalog import FIN_MONEY_FIELDS, NSBU_THOUSANDS_UZS, RATIO_MONEY_FIELDS
+    from catalogue.fields import FIN_MONEY_FIELDS, NSBU_THOUSANDS_UZS, RATIO_MONEY_FIELDS
 
     def scale(row, fields):
         return {**row, **{k: row[k] * NSBU_THOUSANDS_UZS

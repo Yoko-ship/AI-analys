@@ -75,7 +75,7 @@ async function mockAdminApi(page, state) {
         sync_requested: true,
       });
     }
-    if (path === "/api/admin/companies/ZZCO/catalog-visibility" && request.method() === "PATCH") {
+    if (path === "/api/admin/companies/ZZCO/visibility" && request.method() === "PATCH") {
       state.catalogVisible = Boolean(JSON.parse(request.postData() || "{}").visible);
       return send({
         ok: true,
@@ -108,14 +108,14 @@ test("admin imports an OpenInfo company and publishes it without leaving the pan
   expect(state.approved).toBe(true);
   expect(state.sector).toBe("manufacturing");
   await page.getByRole("button", { name: /Published/ }).click();
-  const catalogCheckbox = page.getByRole("checkbox", { name: "Show ZZCO in the catalog" });
-  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "true");
+  const catalogCheckbox = page.locator(".admin-company-table tr").filter({ hasText: "ZZCO" }).getByRole("checkbox");
+  await expect(catalogCheckbox).toBeChecked();
   await catalogCheckbox.click();
-  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "false");
-  await expect(page.getByText("Company hidden from the catalog; its data was kept.")).toBeVisible();
+  await expect(catalogCheckbox).not.toBeChecked();
+  await expect(page.getByText("Company hidden from the catalog.")).toBeVisible();
   expect(state.catalogVisible).toBe(false);
   await catalogCheckbox.click();
-  await expect(catalogCheckbox).toHaveAttribute("aria-checked", "true");
+  await expect(catalogCheckbox).toBeChecked();
   await expect(page.getByText("Company restored to the catalog.")).toBeVisible();
   expect(state.catalogVisible).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("admin-company-import-desktop.png"), fullPage: true });

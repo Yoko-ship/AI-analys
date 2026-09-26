@@ -3,7 +3,8 @@ import json
 from datetime import date
 from pathlib import Path
 
-from sector_analysis import decimal, difference, number, ratio, tr, format_number
+from financial_analysis.sector_numbers import decimal, difference, number, ratio
+from financial_analysis.sector_language import tr, format_number
 
 
 def audited_snapshot(issuer, period=None):

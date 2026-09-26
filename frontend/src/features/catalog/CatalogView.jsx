@@ -1,3 +1,4 @@
+import { roundedDisplayValue } from "../../lib/format.js";
 import React, { useEffect, useState } from "react";
 import { formatCatalogDate } from "../../shared/format.jsx";
 import { TEXTS, clg, normalizeLanguage } from "../../shared/i18n.jsx";
@@ -522,7 +523,7 @@ function CatalogCompareTable({ result, language }) {
   };
   const diff = (a, b) => {
     if (a === null || b === null || a === undefined || b === undefined) return null;
-    return Math.round((a - b) * 100) / 100;
+    return roundedDisplayValue(a - b, 2);
   };
   const valueKeys = Object.keys({ ...v1, ...v2 }).filter((key) => (
     result.data_source !== "verified_cache"
@@ -602,20 +603,20 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
   const [chartMonths, setChartMonths] = useState(3);
   const [reportPage, setReportPage] = useState(0);
 
-  const apiFetch = (path, options = {}) => {
+  const apiFetch = React.useCallback((path, options = {}) => {
     const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || "";
     return fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(stored ? { Authorization: `Bearer ${stored}` } : {}), ...(options.headers || {}) } });
-  };
+  }, []);
 
-  const loadStatus = async () => {
+  const loadStatus = React.useCallback(async () => {
     try {
       const res = await apiFetch("/api/catalog/status");
       const data = await res.json();
       if (res.ok) setStatus(data);
     } catch { /* optional */ }
-  };
+  }, [apiFetch]);
 
-  const loadCatalogComps = async () => {
+  const loadCatalogComps = React.useCallback(async () => {
     setCompsLoading(true);
     try {
       const res = await apiFetch("/api/catalog/companies");
@@ -623,9 +624,9 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
       if (res.ok) setCatalogComps(data.companies || []);
     } catch { /* ignore */ }
     finally { setCompsLoading(false); }
-  };
+  }, [apiFetch]);
 
-  const loadIndex = async (t) => {
+  const loadIndex = React.useCallback(async (t) => {
     setIndexLoading(true);
     setIndex(null);
     setYear("");
@@ -637,16 +638,16 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
       if (res.ok) setIndex(data);
     } catch { /* ignore */ }
     finally { setIndexLoading(false); }
-  };
+  }, [apiFetch]);
 
-  useEffect(() => { loadStatus(); loadCatalogComps(); }, []);
+  useEffect(() => { loadStatus(); loadCatalogComps(); }, [loadStatus, loadCatalogComps]);
   useEffect(() => {
     if (ticker || !catalogComps.length) return;
     // Open on a useful, data-rich issuer instead of an empty instruction panel.
     const first = catalogComps.slice().sort((a, b) => (b.total_count || 0) - (a.total_count || 0))[0];
     if (first?.ticker) setTicker(first.ticker);
   }, [catalogComps, ticker]);
-  useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker]);
+  useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker, loadIndex]);
   useEffect(() => {
     if (!ticker) { setSparkline(null); return; }
     setSparklineLoading(true);
@@ -656,7 +657,7 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
       .then((d) => { if (d.ok && d.points?.length >= 2) setSparkline(d.points); })
       .catch(() => {})
       .finally(() => setSparklineLoading(false));
-  }, [ticker, chartMonths]);
+  }, [ticker, chartMonths, apiFetch]);
 
   const handleSync = async (specificTicker = null) => {
     if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }

@@ -17,6 +17,8 @@ Two properties matter more than the rest and are pinned here:
 from __future__ import annotations
 
 import reports_catalog as subject_reports_catalog
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 import securities_catalog as subject_securities_catalog
 
 import importlib
@@ -25,6 +27,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import reports_catalog as rc
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 
 api = importlib.import_module("api")
 
@@ -38,9 +42,9 @@ def store(tmp_path, monkeypatch):
     import db
 
     monkeypatch.setattr(db, "APP_DATA_DIR", tmp_path, raising=False)
-    monkeypatch.setattr(rc, "APP_DATA_DIR", tmp_path, raising=False)
+    monkeypatch.setattr(catalogue_storage, "APP_DATA_DIR", tmp_path, raising=False)
     monkeypatch.setattr(rc, "CATALOG_DB", str(tmp_path / "catalog.db"), raising=False)
-    rc.get_catalog_conn().close()
+    catalogue_storage.get_catalog_conn().close()
     return tmp_path
 
 
@@ -55,29 +59,29 @@ def _rows():
 
 class TestTheStore:
     def test_normalises_every_date_form_the_two_sources_use(self, store):
-        rc.bulk_upsert_quote_history(_rows())
-        days = [r["trade_date"] for r in rc.get_quote_history([ISIN_A])[ISIN_A]]
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        days = [r["trade_date"] for r in catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A]]
         # Chronological, which it can only be if all three parsed to one form.
         assert days == ["20260805", "20260806", "20260807"]
 
     def test_a_repeated_session_in_one_batch_is_written_once(self, store):
         rows = _rows() + [{"isin": ISIN_A, "trade_date": "20260807", "close_price": 12345}]
-        n = rc.bulk_upsert_quote_history(rows)
+        n = catalogue_market_store.bulk_upsert_quote_history(rows)
         assert n == 4
-        series = rc.get_quote_history([ISIN_A])[ISIN_A]
+        series = catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A]
         assert len(series) == 3
         # Last write wins: a later read of the same day is more settled.
         assert series[-1]["close_price"] == 12345
 
     def test_rerunning_the_collector_does_not_duplicate_a_session(self, store):
-        rc.bulk_upsert_quote_history(_rows())
-        rc.bulk_upsert_quote_history(_rows())
-        assert len(rc.get_quote_history([ISIN_A])[ISIN_A]) == 3
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        assert len(catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A]) == 3
 
     def test_keeps_the_sessions_the_exchange_carried_forward(self, store):
         """A flat day IS what the security did; dropping it compresses time."""
-        rc.bulk_upsert_quote_history(_rows())
-        series = rc.get_quote_history([ISIN_A])[ISIN_A]
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        series = catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A]
         assert [r["quantity"] for r in series] == [12, 0, 79740]
 
     def test_a_source_that_cannot_see_a_column_never_erases_it(self, store):
@@ -87,17 +91,17 @@ class TestTheStore:
         has the OHLC. Under plain last-write-wins whichever landed last blanked
         the rest — the day statistics arriving after the page push would have
         wiped every close on the board."""
-        rc.bulk_upsert_quote_history([
+        catalogue_market_store.bulk_upsert_quote_history([
             {"isin": ISIN_A, "trade_date": "20260807", "close_price": 12000,
              "quantity": 79740, "turnover": 956_880_000},
         ])
-        rc.bulk_upsert_quote_history([
+        catalogue_market_store.bulk_upsert_quote_history([
             {"isin": ISIN_A, "trade_date": "20260807", "trade_count": 14,
              "largest_value": 400_000_000, "largest_qty": 33_000,
              "open_price": 11800, "high_price": 12100, "low_price": 11750},
         ])
 
-        row = rc.get_quote_history([ISIN_A])[ISIN_A][-1]
+        row = catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A][-1]
 
         assert row["close_price"] == 12000, "the second push could not see it"
         assert row["turnover"] == 956_880_000
@@ -109,7 +113,7 @@ class TestTheStore:
         """`catalog_trade_stats` holds one row per security, so every session's
         open, deal count and largest deal used to be discarded when the next
         session replaced it. Banking them is what lets a PERIOD carry them."""
-        banked = rc.trade_stats_as_history([{
+        banked = catalogue_market_store.trade_stats_as_history([{
             "isin": ISIN_B, "trade_date": "20260818", "close_price": 88500,
             "total_value": 12_000_000, "total_qty": 136, "trade_count": 7,
             "open_price": 88000, "high_price": 89000, "low_price": 87500,
@@ -117,9 +121,9 @@ class TestTheStore:
             # Negotiated deals ride beside the session and must not enter it.
             "block_value": 900_000_000, "block_qty": 10_000,
         }])
-        rc.bulk_upsert_quote_history(banked)
+        catalogue_market_store.bulk_upsert_quote_history(banked)
 
-        row = rc.get_quote_history([ISIN_B])[ISIN_B][-1]
+        row = catalogue_market_store.get_quote_history([ISIN_B])[ISIN_B][-1]
 
         assert row["turnover"] == 12_000_000, "the SESSION's turnover, not the blocks'"
         assert row["quantity"] == 136
@@ -128,27 +132,27 @@ class TestTheStore:
         assert row["open_price"] == 88000
 
     def test_drops_a_row_with_no_isin_or_no_readable_day(self, store):
-        n = rc.bulk_upsert_quote_history([
+        n = catalogue_market_store.bulk_upsert_quote_history([
             {"isin": "", "trade_date": "20260807", "close_price": 1},
             {"isin": ISIN_A, "trade_date": "not a date", "close_price": 1},
             {"isin": ISIN_A, "close_price": 1},
         ])
         assert n == 0
-        assert rc.get_quote_history([ISIN_A]) == {}
+        assert catalogue_market_store.get_quote_history([ISIN_A]) == {}
 
     def test_the_window_counts_sessions_not_calendar_days(self, store):
         """A quiet security must not come back empty and read as 'no data'."""
-        rc.bulk_upsert_quote_history(_rows())
-        assert len(rc.get_quote_history([ISIN_A], days=2)[ISIN_A]) == 2
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        assert len(catalogue_market_store.get_quote_history([ISIN_A], days=2)[ISIN_A]) == 2
 
     def test_asks_for_many_securities_at_once(self, store):
-        rc.bulk_upsert_quote_history(_rows())
-        got = rc.get_quote_history([ISIN_A, ISIN_B, "UZ0000000000"])
+        catalogue_market_store.bulk_upsert_quote_history(_rows())
+        got = catalogue_market_store.get_quote_history([ISIN_A, ISIN_B, "UZ0000000000"])
         assert set(got) == {ISIN_A, ISIN_B}
 
     def test_an_empty_request_touches_nothing(self, store):
-        assert rc.bulk_upsert_quote_history([]) == 0
-        assert rc.get_quote_history([]) == {}
+        assert catalogue_market_store.bulk_upsert_quote_history([]) == 0
+        assert catalogue_market_store.get_quote_history([]) == {}
 
 
 class TestTheEndpoint:
@@ -156,7 +160,7 @@ class TestTheEndpoint:
     def client(self, monkeypatch):
         monkeypatch.setattr(subject_securities_catalog, 'get_securities_map',
                             lambda: {"UZTL": {"isin": ISIN_A}, "TGPG": {"isin": ISIN_B}})
-        monkeypatch.setattr(subject_reports_catalog, 'get_quote_history', lambda isins, days: {
+        monkeypatch.setattr(catalogue_market_store, 'get_quote_history', lambda isins, days: {
             ISIN_A: [{"trade_date": "20260806", "close_price": 10000},
                      {"trade_date": "20260807", "close_price": 12000, "turnover": 154900.4}],
         })

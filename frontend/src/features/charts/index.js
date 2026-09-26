@@ -1,2 +1,3 @@
 // Public interface for this feature.
-export { AdvancedChart } from "./AdvancedChart.jsx";
+import { lazy } from "react";
+export const AdvancedChart = lazy(() => import("./AdvancedChart.jsx").then(module => ({ default: module.AdvancedChart })));

@@ -41,7 +41,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       .then((r) => r.json())
       .then((d) => { if (d.ok) setCatalogStatus(d); })
       .catch(() => {});
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     // "main": the landing's ticker tape, board preview and movers are the real
@@ -60,7 +60,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.securities) setSecuritiesMap(d.securities); })
       .catch(() => {});
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     // "main" for the same reason as the stocks load above: the landing must

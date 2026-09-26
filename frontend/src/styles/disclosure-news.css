@@ -1,0 +1,279 @@
+/* ── Legal disclaimer (ТЗ §3.2) ─────────────────────────────── */
+.app-footer { margin-top: 32px; padding: 20px 0 8px; }
+.disclaimer-note { border: 1px solid rgba(245, 166, 35, 0.45); border-left: 5px solid var(--accent, #f5a623); border-radius: 12px; padding: 18px 20px; background: rgba(245, 166, 35, 0.09); }
+.disclaimer-note--footer { max-width: 1180px; margin: 0 auto; }
+.disclaimer-note--report { margin: 16px 0 4px; }
+.disclaimer-note__label { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent, #f5a623); font-weight: 800; margin-bottom: 9px; }
+.disclaimer-note__label::before { content: "⚠"; font-size: 15px; }
+.disclaimer-note__text { margin: 0; font-size: 14px; line-height: 1.62; color: var(--text-secondary, var(--text, #eef3ff)); }
+
+/* History repeat button (ТЗ Блок 5) */
+.history-repeat-btn { background: transparent; border: 1px solid var(--border, rgba(255,255,255,0.14)); color: var(--accent, #f5a623); border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.history-repeat-btn:hover:not(:disabled) { background: var(--accent, #f5a623); color: #1a1200; }
+.history-repeat-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Compare table: sortable headers + average row (ТЗ §3.6) */
+.compare-th-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.compare-th-sortable:hover { color: var(--accent, #f5a623); }
+.compare-sort-arrow { font-size: 10px; color: var(--accent, #f5a623); }
+.compare-avg-row { background: var(--panel); }
+.compare-avg-row td { border-top: 2px solid var(--accent, rgba(245,166,35,0.4)); }
+.compare-avg-row td strong { color: var(--accent, #f5a623); }
+
+/* ТЗ v1.2 §8/§9 — a withheld number states its reason instead of vanishing.
+   The dotted underline marks a cell that is deliberately not a figure: "убыток"
+   is a fact about the issuer, "проверяется" is a fact about the statement. */
+.cell-status { font-size: 12px; color: var(--muted); border-bottom: 1px dotted currentColor; cursor: help; }
+
+/* How many tiles entered a sector's number ("12 из 21"). Without it a
+   turnover-weighted move looks like it describes every security shown. */
+.htl-count { font-size: 10px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+
+/* Tiles that are NOT a price move. Grey alone read as "unchanged", which is how
+   ten securities with no price at all came to sit in the sector averages. */
+.heatmap-tree-tile.is-no-price,
+.heatmap-tree-tile.is-not-traded,
+.heatmap-tree-tile.is-inactive {
+  background: repeating-linear-gradient(135deg,
+      rgba(255, 255, 255, 0.055) 0 3px, transparent 3px 8px),
+    linear-gradient(145deg, #252a31, #1b2026);
+  border: 1px solid rgba(146, 165, 152, 0.45);
+}
+.heatmap-tree-tile.is-no-price { border-style: solid; border-color: rgba(251, 191, 36, 0.65); }
+.heatmap-tree-tile.is-inactive { opacity: 0.55; }
+/* Below the confidence thresholds one trade is deciding the colour. */
+.heatmap-tree-tile.is-low-confidence { border-color: rgba(251, 191, 36, 0.46); }
+.heatmap-tree-tile.is-low-confidence::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 2;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.14);
+}
+
+body[data-theme="light"] .heatmap-tree-tile.is-no-price,
+body[data-theme="light"] .heatmap-tree-tile.is-not-traded,
+body[data-theme="light"] .heatmap-tree-tile.is-inactive {
+  background: repeating-linear-gradient(135deg,
+      rgba(15, 28, 48, 0.055) 0 3px, transparent 3px 8px),
+    linear-gradient(145deg, #d8dee5, #cbd3dc);
+}
+
+/* Why the candles are gone. A chart that silently changes shape is worse than
+   one that explains itself. */
+.cpc-tier-note { font-size: 12px; margin: 6px 0 0; line-height: 1.5; }
+
+
+/* ============================================================================
+   Editorial news feed — "Ledger" direction (§3.11). Serif headlines, a lead-
+   dominant layout, calm whitespace, and a market-sentiment rail. Token-driven,
+   so it inherits the app's light/dark theme; the editorial character comes from
+   the serif face + hierarchy, not a separate palette.
+   ========================================================================== */
+.led { --led-serif: Georgia, "Times New Roman", "Iowan Old Style", serif; }
+
+.led .led-head { padding: 6px 0 22px; border-bottom: 2px solid var(--text); margin-bottom: 30px; }
+.led .led-kicker { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.led .led-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(32px, 5vw, 50px); letter-spacing: -.02em; margin: .1em 0 0; color: var(--text); text-wrap: balance; }
+.led .led-sub { color: var(--muted); font-size: 14.5px; max-width: 58ch; margin: 8px 0 0; line-height: 1.55; }
+
+/* Section menu: одна лента / экономика / корпоративные. A masthead rule rather
+   than pills — the head already carries the section's weight, and buttons under
+   it would compete with the lead headline. */
+.led .news-tabs { display: flex; gap: 26px; flex-wrap: wrap; margin: -18px 0 26px; }
+.led .news-tab { appearance: none; background: none; border: 0; padding: 0 0 8px;
+  font: inherit; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+  font-weight: 700; color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-top: -2px; transition: color .12s ease; }
+.led .news-tab:hover { color: var(--text); }
+.led .news-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.led .news-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+/* Pills, not a second row of underlined tabs: the masthead's tabs are the
+   section, and a filter INSIDE one of them has to look subordinate to it or
+   the page reads as six equal sections. */
+.led .news-subtabs { display: flex; gap: 8px; flex-wrap: wrap; margin: -14px 0 26px; }
+.led .news-subtab { appearance: none; font: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 5px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: none; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+.led .news-subtab:hover { color: var(--text); border-color: var(--accent); }
+.led .news-subtab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.led .news-subtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* «Календарь» tab: month grid of announced meetings + market dividend table.
+   Token-driven like the rest of the news page; the grid borrows the calendar
+   idiom openinfo's readers already know — cells, day chips, a «+N» overflow. */
+.led .newscal-hint { font-size: 12.5px; margin: -16px 0 18px; }
+.led .newscal-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
+.led .newscal-nav { display: flex; align-items: center; gap: 8px; }
+.led .newscal-month { font-family: var(--led-serif); font-size: 19px; color: var(--text); min-width: 168px; text-align: center; text-transform: capitalize; }
+.led .newscal-arrow { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; transition: all .12s ease; }
+.led .newscal-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.led .newscal-select { appearance: auto; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; text-transform: capitalize; }
+.led .newscal-select:hover { border-color: var(--accent); }
+.led .newscal-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.led .newscal-toggle-btn { appearance: none; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 14px; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+.led .newscal-toggle-btn.active { background: var(--accent); color: #fff; }
+.led .newscal-search { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 200px; }
+.led .newscal-search:focus { outline: none; border-color: var(--accent); }
+.led .newscal-search::placeholder { color: var(--muted); }
+.led .newscal-mh { font-family: var(--led-serif); font-size: 17px; color: var(--text); text-transform: capitalize; padding: 16px 4px 6px; border-bottom: 2px solid var(--text); }
+.led .newscal-pager { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; }
+.led .newscal-psize { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.led .newscal-pnums { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.led .newscal-pnum { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; min-width: 30px; height: 30px; padding: 0 6px; cursor: pointer; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; transition: all .12s ease; }
+.led .newscal-pnum:hover { border-color: var(--accent); color: var(--accent); }
+.led .newscal-pnum.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.led .newscal-sortth { cursor: pointer; user-select: none; white-space: nowrap; }
+.led .newscal-sortth:hover { color: var(--accent); }
+.led .newscal-anntitle { font-size: 12.5px; line-height: 1.45; max-width: 48ch; }
+/* minmax(0,1fr), not 1fr: a bare 1fr track's min-size is the content, so one
+   long nowrap issuer chip widened its column until the weekend fell out of the
+   clipped container — seven equal tracks require the min to be 0. */
+.led .newscal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.led .newscal-dow { background: var(--surface-2, var(--panel)); padding: 7px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.led .newscal-cell { appearance: none; border: 0; font: inherit; text-align: left; background: var(--panel); min-height: 84px; padding: 6px 8px; color: var(--text); position: relative; display: block; width: 100%; }
+.led .newscal-cell.has-events { cursor: pointer; }
+.led .newscal-cell.has-events:hover { background: var(--surface-2, rgba(127,127,127,.08)); }
+.led .newscal-cell.selected { box-shadow: inset 0 0 0 2px var(--accent); }
+.led .newscal-daynum { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.led .newscal-cell.today .newscal-daynum { color: var(--accent); font-weight: 800; }
+.led .newscal-count { display: none; position: absolute; top: 6px; right: 7px; font-size: 10px; font-weight: 700; color: var(--accent); }
+.led .newscal-chip { display: block; font-size: 11px; line-height: 1.35; margin-top: 4px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.led .newscal-chip::before { content: "•"; color: var(--accent); margin-right: 4px; }
+.led .newscal-more { display: block; font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 600; }
+.led .newscal-list { margin-top: 20px; display: flex; flex-direction: column; }
+.led .newscal-row { display: flex; gap: 14px; padding: 11px 4px; border-bottom: 1px solid var(--border); align-items: baseline; }
+.led .newscal-row:last-child { border-bottom: none; }
+.led a.newscal-news-row { color: inherit; text-decoration: none; cursor: pointer; }
+.led a.newscal-news-row:hover .newscal-row-org,
+.led a.newscal-news-row:hover .newscal-row-title { color: var(--accent); }
+.led a.newscal-news-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.led .newscal-row-date { flex: 0 0 96px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.led .newscal-row-body { min-width: 0; }
+.led .newscal-row-org { font-weight: 600; }
+.led .newscal-org-btn { appearance: none; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; text-align: left; }
+.led .newscal-org-btn:hover { color: var(--accent); }
+.led .newscal-tk { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.led .newscal-row-title { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
+.led .newscal-news-link { color: inherit; text-decoration-color: transparent; text-underline-offset: 3px; }
+.led .newscal-news-link:hover { color: var(--accent); text-decoration-color: currentColor; }
+.led .newscal-news-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+@media (max-width: 700px) {
+  /* Issuer names cannot fit a phone-width cell — the grid keeps the day count
+     badge, the list below carries the names. */
+  .led .newscal-cell { min-height: 46px; padding: 4px 6px; }
+  .led .newscal-chip, .led .newscal-more { display: none; }
+  .led .newscal-count { display: block; }
+  .led .newscal-row { flex-direction: column; gap: 2px; }
+}
+
+.led .led-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 44px; align-items: start; }
+@media (max-width: 900px) { .led .led-cols { grid-template-columns: 1fr; gap: 30px; } }
+
+.led .led-eyebrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-light); margin-bottom: 8px; }
+.led .led-cat { color: var(--accent); font-weight: 700; }
+.led .led-sep { opacity: .45; }
+.led .led-tone { font-weight: 700; }
+.led .led-tone.pos { color: var(--success); }
+.led .led-tone.neg { color: var(--danger); }
+.led .led-tone.neu { color: var(--muted); }
+.led .led-imp { color: var(--muted); }
+
+/* lead story */
+.led .led-lead { display: block; cursor: pointer; }
+/* The background shows only while a lazy image decodes, so it is a quiet surface tone
+   rather than a colour: an item with no picture renders no figure at all (`EdNewsCard`). */
+.led .led-figure { height: clamp(190px, 33vw, 320px); border-radius: 6px; overflow: hidden; margin-bottom: 20px;
+  background: var(--panel); }
+.led .led-figure img, .led .led-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.led .led-lead-title { font-family: var(--led-serif); font-weight: 400; font-size: clamp(26px, 3.6vw, 38px); line-height: 1.16; letter-spacing: -.02em; margin: 0; color: var(--text); text-wrap: balance; max-width: 22ch; }
+.led .led-lead:hover .led-lead-title { color: var(--accent-hover); }
+.led .led-dek { font-size: 16.5px; color: var(--muted); margin: 14px 0 0; max-width: 62ch; line-height: 1.6; }
+.led .led-byline { margin-top: 14px; font-size: 12.5px; color: var(--muted-light); letter-spacing: .01em; }
+.led .led-byline b { color: var(--text); font-weight: 600; }
+
+.led .led-rule { height: 1px; background: var(--border); margin: 34px 0; }
+
+/* Stacked stories. Because a story without a picture spans the full width while one with
+   a picture is indented past its thumb, the left edge alone no longer reads as a list —
+   a hairline between entries does that job instead. */
+.led .led-stack { display: grid; }
+.led .led-story { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 20px; align-items: start; cursor: pointer;
+  padding: 24px 0; border-top: 1px solid var(--border); }
+.led .led-stack .led-story:first-child { padding-top: 0; border-top: 0; }
+@media (max-width: 540px) { .led .led-story { grid-template-columns: 1fr; } }
+.led .led-thumb { height: 96px; border-radius: 4px; overflow: hidden; background: var(--panel); }
+/* No picture, no column for one: the headline takes the whole card width. */
+.led .led-story.led-noart { grid-template-columns: minmax(0, 1fr); }
+.led .led-story-title { font-family: var(--led-serif); font-weight: 400; font-size: 20px; line-height: 1.24; letter-spacing: -.01em; margin: .3em 0 0; color: var(--text); text-wrap: balance; }
+.led .led-story:hover .led-story-title { color: var(--accent-hover); }
+.led .led-story-dek { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; max-width: 60ch; line-height: 1.5; }
+
+/* The source's own headline, shown under a Russian one we substituted for it (see
+   `edHeadline`). Attribution, not the story: quieter than a dek, and prefixed with the
+   language code so the reader can see at a glance why a second line is there at all. */
+.led .led-orig { color: var(--muted-light); font-style: italic; }
+/* Marks a headline the visitor's own browser translated, so a machine rendering is never
+   mistaken for the publisher's words. */
+.led .led-mt { margin-left: 8px; font-style: normal; font-size: .85em; opacity: .75; }
+.led .led-mt::before { content: "· "; }
+.led .led-mt-offer { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.led .led-mt-btn { font: inherit; font-size: 13px; font-style: normal; cursor: pointer;
+  padding: 5px 11px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); }
+.led .led-mt-btn:hover { border-color: var(--accent); color: var(--accent-hover); }
+.led .led-mt-hint { font-size: 12px; font-style: normal; color: var(--muted-light); max-width: 46ch; }
+.led .led-lang { display: inline-block; margin-right: 7px; padding: 1px 5px; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-style: normal;
+  font-size: .82em; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; vertical-align: 1px; }
+
+.led .led-lead:focus-visible, .led .led-story:focus-visible, .led .led-lt:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* market-sentiment rail */
+.led .led-rail { position: sticky; top: 16px; display: grid; gap: 16px; }
+@media (max-width: 900px) { .led .led-rail { position: static; } }
+.led .led-panel { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); padding: 18px; }
+.led .led-panel-h { font-size: 11px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted-light); margin: 0 0 14px; font-weight: 700; }
+.led .led-gauge { display: flex; align-items: baseline; gap: 8px; }
+.led .led-gauge b { font-family: var(--led-serif); font-size: 36px; line-height: 1; font-variant-numeric: tabular-nums; }
+.led .led-gauge b.pos { color: var(--success); }
+.led .led-gauge b.neg { color: var(--danger); }
+.led .led-gauge b.neu { color: var(--muted); }
+.led .led-gauge span { font-size: 13px; color: var(--muted); }
+.led .led-bar { height: 7px; border-radius: 4px; background: var(--border); overflow: hidden; margin: 13px 0; position: relative; }
+.led .led-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--danger), var(--muted-light), var(--success)); border-radius: 4px; }
+.led .led-counts { display: flex; gap: 14px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.led .led-counts .pos { color: var(--success); }
+.led .led-counts .neu { color: var(--muted); }
+.led .led-counts .neg { color: var(--danger); }
+
+.led .led-lt { display: grid; grid-template-columns: auto 1fr; gap: 3px 9px; padding: 10px 0; border-top: 1px solid var(--border); text-decoration: none; }
+.led .led-latest .led-lt:first-of-type { border-top: 0; padding-top: 0; }
+.led .led-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; grid-row: span 2; }
+.led .led-dot.pos { background: var(--success); }
+.led .led-dot.neg { background: var(--danger); }
+.led .led-dot.neu { background: var(--muted-light); }
+.led .led-lt-t { font-size: 13px; line-height: 1.3; color: var(--text); }
+.led .led-lt-s { font-size: 11px; color: var(--muted-light); }
+.led .led-lt:hover .led-lt-t { color: var(--accent); }
+
+.led .led-empty { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 15px; }
+
+/* skeletons */
+.led .led-skel-lead, .led .led-skel-row, .led .led-skel-panel { border-radius: 6px;
+  background: linear-gradient(90deg, var(--panel), var(--surface-2), var(--panel)); background-size: 200% 100%; animation: led-shim 1.4s infinite; }
+.led .led-skel-lead { height: 300px; margin-bottom: 24px; }
+.led .led-skel-row { height: 96px; margin-bottom: 20px; }
+.led .led-skel-panel { height: 200px; }
+@keyframes led-shim { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .led .led-skel-lead, .led .led-skel-row, .led .led-skel-panel { animation: none; } }
+
+/* Cards are real links to /news/{id} (open-in-new-tab works), styled as cards. */
+.led a.led-lead, .led a.led-story { text-decoration: none; color: inherit; }

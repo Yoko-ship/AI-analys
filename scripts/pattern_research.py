@@ -28,7 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import formulas  # noqa: E402
 import pattern_engine  # noqa: E402
 from listings_collector import _uzse_screener_isins  # noqa: E402
-from openinfo_collector import _make_session, fetch_price_history  # noqa: E402
+from collectors.openinfo.transport import _make_session
+from collectors.openinfo.market import fetch_price_history  # noqa: E402
 
 
 def _pool(rows: list[dict]) -> dict:

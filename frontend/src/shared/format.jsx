@@ -1,9 +1,7 @@
 import { t } from "./i18n.jsx";
 
-function safeNumber(value) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
+export { safeNumber, formatCompactNumber, formatSignedPercent, formatRatio,
+  formatMarketNumber, signedFixed } from "../lib/numberFormat.js";
 
 function formatDateLabel(value, language) {
   if (!value) return t(language, "analysis.noData");
@@ -13,39 +11,18 @@ function formatDateLabel(value, language) {
   return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "long", year: "numeric" }).format(date);
 }
 
-function formatCompactNumber(value, language, digits = 1) {
-  if (value === null || value === undefined || value === "") return "—";
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
-  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
-  return new Intl.NumberFormat(locale, {
-    notation: Math.abs(num) >= 1000 ? "compact" : "standard",
-    maximumFractionDigits: digits,
-  }).format(num);
-}
-
-function formatSignedPercent(value, digits = 1) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
-  const fixed = Number(num.toFixed(digits));
-  return `${fixed > 0 ? "+" : ""}${fixed}%`;
-}
-
-function formatRatio(value, digits = 2, language = "ru") {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
-  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
-  return new Intl.NumberFormat(locale, { maximumFractionDigits: digits }).format(num);
-}
-
-function formatMarketNumber(value, language, digits = 2) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
-  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: Math.abs(num) < 10 ? 2 : 0,
-    maximumFractionDigits: digits,
-  }).format(num);
+function formatRelativeTime(value, language) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  const seconds = Number(((date.getTime() - Date.now()) / 1000).toFixed(0));
+  const absolute = Math.abs(seconds);
+  const locale = language === "en" ? "en" : language === "uz" ? "uz" : "ru";
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (absolute < 60) return formatter.format(seconds, "second");
+  if (absolute < 3600) return formatter.format(Number((seconds / 60).toFixed(0)), "minute");
+  if (absolute < 86400) return formatter.format(Number((seconds / 3600).toFixed(0)), "hour");
+  if (absolute < 604800) return formatter.format(Number((seconds / 86400).toFixed(0)), "day");
+  return formatDateLabel(value, language);
 }
 
 function formatCatalogDate(value, language) {
@@ -57,9 +34,4 @@ function formatCatalogDate(value, language) {
   return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
-export { formatCatalogDate, formatCompactNumber, formatDateLabel, formatMarketNumber, formatRatio, formatSignedPercent, safeNumber };
-
-export function signedFixed(v, dp = 2) {
-  const r = Number(Number(v).toFixed(dp)) + 0; // +0 folds -0 into 0
-  return `${r > 0 ? "+" : ""}${r.toFixed(dp)}`;
-}
+export { formatCatalogDate, formatDateLabel, formatRelativeTime };

@@ -61,8 +61,10 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
     cannot automatically supersede facts just because a PDF or review changed.
     """
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
     ticker = ticker.strip().upper()
-    company = rc.get_company_index(ticker) or {}
+    company = catalogue_filings.get_company_index(ticker) or {}
     org = str(company.get("org_id") or "")
     if not org or not actor.strip():
         raise ValueError("Known issuer and publication actor are required")
@@ -157,9 +159,11 @@ def snapshots(ticker, *, scope=None):
     if scope not in {None, "separate", "consolidated"}:
         raise ValueError("Unknown accounting scope")
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
     # No schema creation/read takeover until the worker has initialized it.
     import dbx
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         if "ingest_heads" not in dbx.tables(c):
             return []

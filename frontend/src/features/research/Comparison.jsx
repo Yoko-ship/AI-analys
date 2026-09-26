@@ -290,8 +290,8 @@ function compareCellSortValue(raw) {
 }
 
 function CompareTable({ table, title, language }) {
-  const columns = Array.isArray(table?.columns) ? table.columns : [];
-  const rows = Array.isArray(table?.rows) ? table.rows : [];
+  const columns = React.useMemo(() => Array.isArray(table?.columns) ? table.columns : [], [table?.columns]);
+  const rows = React.useMemo(() => Array.isArray(table?.rows) ? table.rows : [], [table?.rows]);
   const [sort, setSort] = React.useState({ key: null, dir: 1 });
   const [transposed, setTransposed] = React.useState(false);
 

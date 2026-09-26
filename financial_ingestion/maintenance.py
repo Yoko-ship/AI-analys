@@ -28,7 +28,7 @@ def backup():
     Local copies protect recovery from logical errors, not loss of the VPS.
     """
     import dbx
-    from reports_catalog import _catalog_db_path
+    from catalogue.storage import _catalog_db_path
     if dbx.backend() != dbx.SQLITE:
         raise ValueError("Use a PostgreSQL-native backup for this backend")
     store.connect().close()
@@ -142,7 +142,7 @@ def monitor():
 
 def incidents():
     import dbx
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
     try:
         if "ingest_incidents" not in dbx.tables(c):

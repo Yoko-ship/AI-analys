@@ -1,3 +1,4 @@
+import { roundedDisplayValue } from "../../lib/format.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useEffect, useState } from "react";
 import { formatRatio } from "../../shared/format.jsx";
@@ -450,7 +451,7 @@ function BankFxPage({ language }) {
           {cbuComparable !== null && (
             <p className="bankfx-calc-note">
               {lang === "en" ? "CBU rate" : lang === "uz" ? "MB kursi" : "Курс ЦБ"}: <b>{formatRatio(cbuComparable, 2, lang)}</b>
-              {avg !== null && Math.round(Math.abs(cbuComparable - avg)) > 0 && (
+              {avg !== null && roundedDisplayValue(Math.abs(cbuComparable - avg)) > 0 && (
                 mode === "sell"
                   ? (lang === "en"
                       ? ` · banks buy on average ${formatRatio(Math.abs(cbuComparable - avg), 0, lang)} UZS ${avg < cbuComparable ? "below" : "above"} it`
@@ -485,7 +486,7 @@ function BankFxPage({ language }) {
           <div className="bankfx-rank">
             {visible.map((r, i) => {
               const isLead = !r.flag && bestVal !== null && r.value === bestVal;
-              const diff = bestVal === null ? null : Math.round((r.value - bestVal) * amount);
+              const diff = bestVal === null ? null : roundedDisplayValue((r.value - bestVal) * amount);
               return (
                 <div key={r.code} className={`bankfx-rank-row${isLead ? " is-lead" : ""}`}>
                   <span className="bankfx-rank-pos">{i + 1}</span>
@@ -510,7 +511,7 @@ function BankFxPage({ language }) {
                       ? (lang === "en" ? "You receive" : lang === "uz" ? "Siz olasiz" : "Вы получите")
                       : (lang === "en" ? "You pay" : lang === "uz" ? "Siz to'laysiz" : "Вы заплатите")}
                   >
-                    {formatRatio(Math.round(r.value * amount), 0, lang)} {sumWord}
+                    {formatRatio(roundedDisplayValue(r.value * amount), 0, lang)} {sumWord}
                   </span>
                   {r.flag ? (
                     <span className="bankfx-rank-diff is-flagged" title={flagTitle}>⚠</span>

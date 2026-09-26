@@ -9,12 +9,19 @@ import json
 import pytest
 
 import sector_analysis as core
+import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+import financial_analysis.sector_report as financial_analysis_sector_report
+import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+import financial_analysis.sector_report as financial_analysis_sector_report
+import financial_analysis.sector_templates as financial_analysis_sector_templates
 import fund_analysis
 from reporting import store as report_store
 from reporting import publication, worker as report_worker
 import bonds
 from bond_quality import freshness
-from reports_catalog import extract_insurance_balance
+from catalogue.parsing import extract_insurance_balance
 
 
 TODAY = date(2026, 8, 30)
@@ -54,12 +61,12 @@ def snapshot(**updates):
 
 
 def test_routing_special_types_and_conflicts():
-    assert core.resolve_template({"oked_code": "64190"}, "bank")["selected_template"] == "bank"
-    assert core.resolve_template({"oked_code": "64190"}, "microfinance_bank")["selected_template"] == "microfinance_bank"
-    assert core.resolve_template({})["selected_template"] == "generic_nsbu"
-    conflict = core.resolve_template({**ISSUER, "verified_activity_template": "telecom"})
+    assert financial_analysis_sector_templates.resolve_template({"oked_code": "64190"}, "bank")["selected_template"] == "bank"
+    assert financial_analysis_sector_templates.resolve_template({"oked_code": "64190"}, "microfinance_bank")["selected_template"] == "microfinance_bank"
+    assert financial_analysis_sector_templates.resolve_template({})["selected_template"] == "generic_nsbu"
+    conflict = financial_analysis_sector_templates.resolve_template({**ISSUER, "verified_activity_template": "telecom"})
     assert conflict["resolution_status"] == "classification_conflict"
-    report = core.make_report(snapshot(template_resolution=conflict), ISSUER, today=TODAY)
+    report = financial_analysis_sector_report.make_report(snapshot(template_resolution=conflict), ISSUER, today=TODAY)
     assert report["status"] == "quality_blocked"
     assert not report["verified_facts"] and not report["ratios"]
 
@@ -69,14 +76,14 @@ def test_missing_zero_and_source_columns_are_not_interchangeable():
         {"label": "Assets", "source_cells": ["Assets", 400.0, "120", None], "numeric_values": [400, 120]},
         {"label": "Cash", "source_cells": ["Cash", "320", "22", "0"]},
     ]}]}
-    rows = core.source_line_pairs(parsed, "form1")
+    rows = financial_analysis_sector_inputs.source_line_pairs(parsed, "form1")
     assert rows["c400"]["current"] is None
     assert rows["c400"]["previous"] == 120
     assert rows["c320"]["current"] == 0
-    assert core.total(1, None) is None
-    assert core.ratio(12, 0) is None
-    assert core.decimal("1 234,56") == Decimal("1234.56")
-    assert core.decimal("NaN") is None
+    assert financial_analysis_sector_numbers.total(1, None) is None
+    assert financial_analysis_sector_numbers.ratio(12, 0) is None
+    assert financial_analysis_sector_numbers.decimal("1 234,56") == Decimal("1234.56")
+    assert financial_analysis_sector_numbers.decimal("NaN") is None
 
 
 def test_form2_loss_and_structurally_crossed_out_cells():
@@ -84,7 +91,7 @@ def test_form2_loss_and_structurally_crossed_out_cells():
         {"source_cells": ["Net income", "270", 10, 0, 0, 7]},
         {"source_cells": ["Revenue", "010", 50, "X", None, "X"]},
     ]}]}
-    rows = core.source_line_pairs(parsed, "form2")
+    rows = financial_analysis_sector_inputs.source_line_pairs(parsed, "form2")
     assert rows["c270"]["current"] == -7
     assert rows["c010"]["previous"] == 50
     assert rows["c010"]["current"] is None
@@ -104,7 +111,7 @@ def ratio_lines():
 
 def test_exact_nsbu_methods_and_sector_exclusions():
     lines = ratio_lines()
-    ratios = {r["metric"]: r for r in core.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q2")}
+    ratios = {r["metric"]: r for r in financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q2")}
     assert ratios["P1"]["value"] == 8
     assert ratios["P3"]["value"] == 20
     assert ratios["P4"]["value"] == 25
@@ -113,17 +120,17 @@ def test_exact_nsbu_methods_and_sector_exclusions():
     assert ratios["absolute_liquidity"]["value"] == .375
     assert ratios["P6"]["raw_result"].startswith("66.666666666666")
     del lines["form1:c580"]
-    assert next(r for r in core.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q2") if r["metric"] == "P3")["value"] is None
+    assert next(r for r in financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q2") if r["metric"] == "P3")["value"] is None
     for organization in ("bank", "insurance", "microfinance", "microfinance_bank"):
-        assert core.enterprise_ratios(lines, organization, "nsbu", "2026Q2") == []
-    assert core.enterprise_ratios(lines, "non_financial", "ifrs", "2025") == []
+        assert financial_analysis_sector_calculations.enterprise_ratios(lines, organization, "nsbu", "2026Q2") == []
+    assert financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "ifrs", "2025") == []
 
 
 def test_balance_requires_both_tolerances_and_percentage_reconciliation():
-    assert core.balance_gate({"total_assets": 1000000, "total_equity": 400000, "total_liabilities": 599998})["status"] == "failed"
-    assert core.balance_gate({"total_assets": 10, "total_equity": 4, "total_liabilities": 5.99})["status"] == "failed"
-    assert core.balance_gate({"total_assets": 0, "total_equity": 5, "total_liabilities": 5})["status"] == "failed"
-    report = core.make_report(snapshot(source_lines=ratio_lines(), reported_ratios={"P1": "8.11"}), ISSUER, today=TODAY)
+    assert financial_analysis_sector_calculations.balance_gate({"total_assets": 1000000, "total_equity": 400000, "total_liabilities": 599998})["status"] == "failed"
+    assert financial_analysis_sector_calculations.balance_gate({"total_assets": 10, "total_equity": 4, "total_liabilities": 5.99})["status"] == "failed"
+    assert financial_analysis_sector_calculations.balance_gate({"total_assets": 0, "total_equity": 5, "total_liabilities": 5})["status"] == "failed"
+    report = financial_analysis_sector_report.make_report(snapshot(source_lines=ratio_lines(), reported_ratios={"P1": "8.11"}), ISSUER, today=TODAY)
     assert report["status"] == "quality_blocked"
     assert any(q["code"] == "PERCENTAGE_RECONCILIATION_FAILED" for q in report["data_quality"])
 
@@ -132,7 +139,7 @@ def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
     data = snapshot()
     data["current_values"].update(net_income=149.4, operating_income=91.1, fx_income=80, fx_expenses=10)
     data["previous_values"].update(net_income=10, operating_income=100, fx_income=10, fx_expenses=100)
-    report = core.make_report(data, ISSUER, today=TODAY, lang="en")
+    report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY, lang="en")
     assert report["profit_quality"]["net_fx_result_change"] == 160
     assert report["verdict"]["status"] == "mixed"
     assert report["profit_quality"]["driver"] == "FX-driven"
@@ -146,10 +153,10 @@ def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
 
 def test_no_signal_does_not_invent_an_issue():
     data = snapshot(previous_values={"net_income": 100}, opening_values={})
-    report = core.make_report(data, ISSUER, today=TODAY)
+    report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY)
     assert report["verdict"]["status"] == "no_signal"
     assert not report["analytical_issues"] and not report["risks"]
-    generic = core.make_report(snapshot(), {**ISSUER, "oked_code": None}, today=TODAY)
+    generic = financial_analysis_sector_report.make_report(snapshot(), {**ISSUER, "oked_code": None}, today=TODAY)
     assert generic["verdict"]["status"] == "no_signal"
 
 
@@ -165,7 +172,7 @@ def test_vertical_analysis_explains_comparison_and_implication_instead_of_listin
             "fixed_assets": 360, "inventories": 135, "receivables": 180, "cash": 45,
         },
     )
-    report = core.make_report(data, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
+    report = financial_analysis_sector_report.make_report(data, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
     vertical = next(section["text"] for section in report["sections"] if section["id"] == "vertical_balance")
 
     assert "доминирует статья «Основные средства» — 48.00%" in vertical
@@ -181,7 +188,7 @@ def test_vertical_analysis_explains_comparison_and_implication_instead_of_listin
         opening_values={"total_assets": 900, "total_equity": 630, "total_liabilities": 270,
                         "receivables": 450, "fixed_assets": 180, "cash": 27},
     )
-    falling_report = core.make_report(falling, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
+    falling_report = financial_analysis_sector_report.make_report(falling, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
     falling_vertical = next(section["text"] for section in falling_report["sections"] if section["id"] == "vertical_balance")
     assert "Снижение доли дебиторской задолженности уменьшает объём средств" in falling_vertical
     assert "Рост доли дебиторской задолженности" not in falling_vertical
@@ -194,13 +201,13 @@ def test_trend_requires_comparable_points_and_four_points_for_three_declines():
         {"period": "2025Q2", "value": 12, **context},
         {"period": "2026Q2", "value": 10, **context},
     ]
-    assert core.trend_state(two)["status"] == "comparison_only"
+    assert financial_analysis_sector_calculations.trend_state(two)["status"] == "comparison_only"
     three = two + [{"period": "2027Q2", "value": 8, **context}]
-    assert core.trend_state(three)["status"] == "trend"
+    assert financial_analysis_sector_calculations.trend_state(three)["status"] == "trend"
     four = three + [{"period": "2028Q2", "value": 7, **context}]
-    assert core.trend_state(four)["status"] == "three_consecutive_declines"
+    assert financial_analysis_sector_calculations.trend_state(four)["status"] == "three_consecutive_declines"
     mixed_basis = [two[0], {**two[1], "period_basis": "standalone_quarter"}]
-    assert core.trend_state(mixed_basis)["status"] == "not_comparable"
+    assert financial_analysis_sector_calculations.trend_state(mixed_basis)["status"] == "not_comparable"
 
 
 def test_bank_without_prior_income_uses_required_comparison_limit():
@@ -213,7 +220,7 @@ def test_bank_without_prior_income_uses_required_comparison_limit():
                     previous_values={}, opening_values={"total_assets": 900, "total_equity": 380,
                                                        "total_liabilities": 520})
     bank = {"id": "BANK", "ticker": "BANK", "name": "Bank", "special_legal_type": "bank"}
-    report = core.make_report(data, bank, today=TODAY, lang="ru")
+    report = financial_analysis_sector_report.make_report(data, bank, today=TODAY, lang="ru")
     assert report["content_status"] == "complete"
     assert "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается" in report["text"]
 
@@ -230,7 +237,7 @@ def test_zero_insurance_assets_are_not_replaced_by_previous_year():
     assert result["total_assets"] == 0
     assert result["net_insurance_reserves"] == 60
     assert result["total_liabilities"] == 100
-    assert core.balance_gate(result)["status"] == "failed"
+    assert financial_analysis_sector_calculations.balance_gate(result)["status"] == "failed"
     rows[0]["source_cells"] = ["Assets", "490", 9999, None]
     assert extract_insurance_balance({"sheets": [{"table_rows": rows}]})["total_assets"] is None
 
@@ -238,7 +245,7 @@ def test_zero_insurance_assets_are_not_replaced_by_previous_year():
 def test_fund_audited_nav_lineage_and_share_reconciliation():
     issuer = {"id": "UZNF", "ticker": "UZNF", "name": "National Fund"}
     data = fund_analysis.audited_snapshot(issuer)
-    report = fund_analysis.enrich(core.make_report(data, issuer, today=TODAY), data)
+    report = fund_analysis.enrich(financial_analysis_sector_report.make_report(data, issuer, today=TODAY), data)
     assert report["sector_template_code"] == "investment_fund_ifrs_annual"
     assert report["nav"]["value_mln_uzs"] == 29861539
     assert report["portfolio"]["portfolio_to_assets_pct"] == pytest.approx(99.45, abs=.01)
@@ -262,7 +269,7 @@ def test_fund_audited_nav_lineage_and_share_reconciliation():
 def test_fund_task1_uses_portfolio_not_corporate_editorial_logic():
     issuer = {"id": "UZNF", "ticker": "UZNF", "name": "National Fund"}
     data = fund_analysis.audited_snapshot(issuer)
-    report = core.make_report(data, issuer, today=TODAY)
+    report = financial_analysis_sector_report.make_report(data, issuer, today=TODAY)
     sections = {section["id"]: section for section in report["task1_sections"]}
     assert [block["lead"] for block in sections["overview"]["blocks"]] == [
         "Инвестиционный портфель", "Качество прибыли", "Концентрация портфеля", "Качество оценки",
@@ -282,7 +289,7 @@ def test_fund_task1_uses_portfolio_not_corporate_editorial_logic():
 def test_fund_valuation_requires_valid_share_date_and_recent_positive_quote(market_date, price, effective, reason):
     issuer = {"id": "UZNF", "ticker": "UZNF"}
     data = fund_analysis.audited_snapshot(issuer)
-    report = fund_analysis.enrich(core.make_report(data, issuer, today=TODAY), data)
+    report = fund_analysis.enrich(financial_analysis_sector_report.make_report(data, issuer, today=TODAY), data)
     report["market_as_of"] = market_date
     fund_analysis.reconcile_share_basis(report, {
         "exchange_shares": "5054262531127", "exchange_nominal_uzs": "5",
@@ -400,12 +407,12 @@ def test_due_date_and_accrual_filing_do_not_claim_payment_execution():
 
 def test_monitor_idempotency_retains_last_good_and_audits_retries(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "monitor.sqlite3"))
-    good = core.make_report(snapshot(), ISSUER, today=TODAY)
+    good = financial_analysis_sector_report.make_report(snapshot(), ISSUER, today=TODAY)
     publication.publish_report(deepcopy(good))
     publication.publish_report(deepcopy(good))
     bad = snapshot()
     bad["current_values"]["total_assets"] = 0
-    blocked = publication.publish_report(core.make_report(bad, ISSUER, today=TODAY))
+    blocked = publication.publish_report(financial_analysis_sector_report.make_report(bad, ISSUER, today=TODAY))
     assert blocked["last_successful_report"]["version"] == good["version"]
     assert len(report_store.overview()["runs"]) == 2
     job = report_store.enqueue("FACT", "source-1")
@@ -424,24 +431,24 @@ def test_override_versions_impact_queue_and_publication_rollback(monkeypatch, tm
     assert report_store.active_override("1", "2026-08-30")["version"] == saved["version"]
     assert report_store.active_override("1", "2027-01-01") is None
     assert len(report_store.overview()["jobs"]) == 1
-    good = publication.publish_report(core.make_report(snapshot(), ISSUER, today=TODAY))
+    good = publication.publish_report(financial_analysis_sector_report.make_report(snapshot(), ISSUER, today=TODAY))
     newer_input = snapshot()
     newer_input["current_values"]["revenue"] = 550
-    newer = publication.publish_report(core.make_report(newer_input, ISSUER, today=TODAY))
+    newer = publication.publish_report(financial_analysis_sector_report.make_report(newer_input, ISSUER, today=TODAY))
     assert report_store.rollback(good["version"], "admin@example.org", "Review source correction")
     restored = publication.publish_report(deepcopy(newer))
     assert restored["version"] == good["version"]
     assert restored["publication_restored"]
     newer_input["current_values"]["revenue"] = 600
-    released = publication.publish_report(core.make_report(newer_input, ISSUER, today=TODAY))
+    released = publication.publish_report(financial_analysis_sector_report.make_report(newer_input, ISSUER, today=TODAY))
     assert released["version"] != good["version"]
     assert not released.get("publication_restored")
 
 
 def test_rollback_does_not_make_an_old_filing_current(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "stale-rollback.sqlite3"))
-    old = publication.publish_report(core.make_report(snapshot(period="2025Q2"), ISSUER, today=date(2025, 8, 30)))
-    current = publication.publish_report(core.make_report(snapshot(), ISSUER, today=TODAY))
+    old = publication.publish_report(financial_analysis_sector_report.make_report(snapshot(period="2025Q2"), ISSUER, today=date(2025, 8, 30)))
+    current = publication.publish_report(financial_analysis_sector_report.make_report(snapshot(), ISSUER, today=TODAY))
     assert report_store.rollback(old["version"], "admin@example.org", "Review source change")
     current["generated_at"] = "2026-08-30T10:00:00+00:00"
     restored = publication.publish_report(current)
@@ -450,7 +457,7 @@ def test_rollback_does_not_make_an_old_filing_current(monkeypatch, tmp_path):
 
 
 def test_stale_but_traceable_filing_keeps_its_analysis_visible():
-    report = core.make_report(snapshot(period="2025Q2"), ISSUER, today=TODAY)
+    report = financial_analysis_sector_report.make_report(snapshot(period="2025Q2"), ISSUER, today=TODAY)
 
     assert report["status"] == "stale"
     assert report["sections"]
@@ -488,7 +495,7 @@ def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp
     monkeypatch.setenv("ADMIN_EMAILS", "allowed@example.org")
     monkeypatch.setenv("ADMIN_API_SECRET", "collector-test-secret")
     user = type("User", (), {"email": "allowed@example.org", "id": 12})()
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda token: user if token == "test-token" else None)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: user if token == "test-token" else None)
     client = TestClient(api.app)
     path = "/api/admin/sector-analysis"
     assert client.get(path).status_code == 401
@@ -512,7 +519,7 @@ def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_pat
     monkeypatch.setenv("ADMIN_CONTROL_DB", str(tmp_path / "access.sqlite3"))
     monkeypatch.setenv("ADMIN_EMAILS", "scoped@example.org")
     user = type("User", (), {"email": "scoped@example.org", "id": 3})()
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda _: user)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda _: user)
     monkeypatch.setattr(issuer_financials, "resolve_issuer", lambda _: ISSUER)
     client = TestClient(api.app)
     headers = {"Authorization": "Bearer role-test"}
@@ -545,7 +552,7 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
             issuer = {**issuer, "oked_code": "24100"}
         if filing["organization_type"] != "non_financial":
             map_special_lines(data, filing["workbook"], filing["organization_type"])
-        result = core.make_report(data, issuer, "en", TODAY, filing["workbook"])
+        result = financial_analysis_sector_report.make_report(data, issuer, "en", TODAY, filing["workbook"])
         assert result["status"] == "available", (ticker, result["data_quality"])
         results[ticker] = result
     steel = results["UZMK"]
@@ -556,7 +563,7 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert steel["capital_analysis"]["reconciliation_status"] == "passed"
     assert steel["key_changes"][1]["code"] == "profit_bridge"
     assert any(change["code"] == "asset_concentration" and "62.06%" in change["text"] for change in steel["key_changes"])
-    assert "Незавершённые вложения" in core.make_report(
+    assert "Незавершённые вложения" in financial_analysis_sector_report.make_report(
         snapshot(current_values={}, previous_values={}, opening_values={},
                  organization_type="non_financial", source=filings["UZMK"]["source"]),
         {**filings["UZMK"]["issuer"], "oked_code": "24100"}, "ru", TODAY,
@@ -619,7 +626,7 @@ def test_bank_mapper_preserves_reconciled_catalog_totals():
     assert data["opening_values"]["total_assets"] == 900
     assert data["opening_values"]["total_equity"] == 180
     assert data["opening_values"]["total_liabilities"] == 720
-    assert core.balance_gate(data["current_values"])["status"] == "passed"
+    assert financial_analysis_sector_calculations.balance_gate(data["current_values"])["status"] == "passed"
 
 
 def test_two_bonds_share_issuer_calculation_but_not_instrument_results(monkeypatch, tmp_path):
@@ -633,11 +640,11 @@ def test_two_bonds_share_issuer_calculation_but_not_instrument_results(monkeypat
     monkeypatch.setattr(api, "report_rows", lambda *_: [])
     monkeypatch.setattr(api, "quote_and_trade", lambda *_: ({"trade_date": "2026-08-28", "close_price": 123}, {}))
     calls = []
-    make = core.make_report
+    make = financial_analysis_sector_report.make_report
     def counted(*args, **kwargs):
         calls.append(1)
         return make(*args, **kwargs)
-    monkeypatch.setattr(core, "make_report", counted)
+    monkeypatch.setattr(financial_analysis_sector_report, "make_report", counted)
     first = service.bond_issuer_context({"issuer_id": "1", "isin": "ISSUE-1"})
     second = service.bond_issuer_context({"issuer_id": "1", "isin": "ISSUE-2"})
     assert first["issuer_id"] == second["issuer_id"] == "1"

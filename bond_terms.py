@@ -140,8 +140,9 @@ def resolve_org_id(ticker: str, issuer_name: str | None) -> Any | None:
     """
     try:
         import reports_catalog as rc
+        import catalogue.storage as catalogue_storage
 
-        conn = rc.get_catalog_conn()
+        conn = catalogue_storage.get_catalog_conn()
         try:
             row = conn.execute(
                 "SELECT org_id FROM catalog_companies WHERE ticker = ? AND org_id IS NOT NULL",

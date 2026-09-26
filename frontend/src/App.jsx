@@ -24,6 +24,7 @@ import { useProfile } from "./features/profile/index.js";
 import { useNotifications } from "./app/useNotifications.jsx";
 import { useShell } from "./app/useShell.jsx";
 import { useFavorites } from "./features/profile/index.js";
+import { FeatureBoundary } from "./app/FeatureBoundary.jsx";
 
 function App() {
   useEffect(() => { loadConfig(); }, []);
@@ -53,7 +54,7 @@ function App() {
   const { addToast } = toasts;
   const { setAnalysisCompany } = research;
   const { handleToggleFavorite } = favorites;
-  return shell.render(<>
+  return shell.render(<FeatureBoundary key={activeView} language={language}>
           {activeView === "main" && (
             <LandingView
               language={language}
@@ -253,7 +254,20 @@ function App() {
               onOpenCompany={openCompanyPage} />
           )}
 
-        {auth.view}{account.view}{research.view}</>);
+
+
+
+
+
+
+
+
+
+
+
+
+
+        {auth.view}{account.view}{research.view}</FeatureBoundary>);
 }
 
 export default App;

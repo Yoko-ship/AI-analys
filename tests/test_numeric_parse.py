@@ -137,7 +137,7 @@ class TestCallerContracts:
     """The two production callers keep the behaviour their sources need."""
 
     def test_openinfo_report_cells(self) -> None:
-        from openinfo_collector import _safe_report_number
+        from collectors.openinfo.cells import _safe_report_number
 
         assert _safe_report_number("1,234,567") == 1_234_567.0
         assert _safe_report_number("1 234 567,89") == pytest.approx(1_234_567.89)

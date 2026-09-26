@@ -8,14 +8,20 @@ invariant period_year_quarter already applies on the unified-feed path.
 """
 
 import reports_catalog as rc
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.sources as catalogue_sources
+import catalogue.storage as catalogue_storage
+import catalogue.sync as catalogue_sync
+import catalogue.periods as catalogue_periods
+import catalogue.sources as catalogue_sources
 
 
 def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path, monkeypatch):
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
-    monkeypatch.setattr(rc, '_maybe_seed_financials', lambda *args: None)
-    monkeypatch.setattr(rc, '_make_session', lambda: object())
-    monkeypatch.setattr(rc, '_fetch_main_results', lambda *args: ([], 'jsc'))
-    monkeypatch.setattr(rc, '_unified_pdf_id_map', lambda *args: {
+    monkeypatch.setattr(catalogue_financial_store, '_maybe_seed_financials', lambda *args: None)
+    monkeypatch.setattr(catalogue_sources, '_make_session', lambda: object())
+    monkeypatch.setattr(catalogue_sources, '_fetch_main_results', lambda *args: ([], 'jsc'))
+    monkeypatch.setattr(catalogue_sources, '_unified_pdf_id_map', lambda *args: {
         '3109': {'pdf_id': 13652, 'pub_date': '2020-09-30T17:17:00'},
         '3110': {'pdf_id': 13653, 'pub_date': '2020-10-02T10:50:10'},
     })
@@ -23,10 +29,10 @@ def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path
         if (params or {}).get('report_type') == 'annual':
             return [{'id': 3109, 'reporting_year': 2018}, {'id': 3110, 'reporting_year': 2019}]
         return []
-    monkeypatch.setattr(rc, '_json_get', fetch)
-    result = rc.sync_company('TEST', 'Test issuer', force=True, org_id='374')
+    monkeypatch.setattr(catalogue_sources, '_json_get', fetch)
+    result = catalogue_sync.sync_company('TEST', 'Test issuer', force=True, org_id='374')
     assert not result['errors']
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         rows = c.execute("SELECT year,excel_url,excel_url_form1,openinfo_report_id FROM catalog_reports WHERE ticker='TEST' ORDER BY year").fetchall()
         assert [(r['year'], r['openinfo_report_id']) for r in rows] == [(2017, '3109'), (2018, '3110')]
@@ -40,32 +46,32 @@ def test_reviewed_late_annuals_keep_balance_and_income_in_verified_year(tmp_path
 class TestEffectiveAnnualYear:
     def test_an_upload_season_label_clamps_to_the_prior_fiscal_year(self):
         # TRSB's FY2022 annual: labeled 2023, published 2023-05-23.
-        assert rc._effective_annual_year(2023, "2023-05-23T15:54:34") == 2022
+        assert catalogue_periods._effective_annual_year(2023, "2023-05-23T15:54:34") == 2022
 
     def test_the_universal_fy2019_mislabel_clamps(self):
         # HMKB record 189: labeled 2020, published 2020-10-13 → FY2019.
-        assert rc._effective_annual_year(2020, "2020-10-13T18:09:49") == 2019
+        assert catalogue_periods._effective_annual_year(2020, "2020-10-13T18:09:49") == 2019
 
     def test_an_impossible_future_label_clamps(self):
         # BIOK record 6007: labeled 2026, published 2026-07-07 → FY2025.
-        assert rc._effective_annual_year(2026, "2026-07-07T11:07:17") == 2025
+        assert catalogue_periods._effective_annual_year(2026, "2026-07-07T11:07:17") == 2025
 
     def test_a_late_filing_keeps_its_earlier_label(self):
         # AGMKP filed its FY2021 annual in 2023; the label is correct and a
         # clamp that moved years FORWARD would corrupt it.
-        assert rc._effective_annual_year(2021, "2023-05-16T08:28:06") == 2021
+        assert catalogue_periods._effective_annual_year(2021, "2023-05-16T08:28:06") == 2021
 
     def test_a_correct_label_in_season_is_untouched(self):
-        assert rc._effective_annual_year(2024, "2025-06-09T09:45:57") == 2024
+        assert catalogue_periods._effective_annual_year(2024, "2025-06-09T09:45:57") == 2024
 
     def test_no_publication_date_keeps_the_label(self):
-        assert rc._effective_annual_year(2018, None) == 2018
-        assert rc._effective_annual_year(2018, "") == 2018
+        assert catalogue_periods._effective_annual_year(2018, None) == 2018
+        assert catalogue_periods._effective_annual_year(2018, "") == 2018
 
     def test_garbage_publication_date_keeps_the_label(self):
-        assert rc._effective_annual_year(2018, "n/a") == 2018
+        assert catalogue_periods._effective_annual_year(2018, "n/a") == 2018
 
     def test_the_corrupted_grbk_upload_is_excluded_from_ingestion(self):
         # Record 261's income statement is a copy of the 2016 filing under a
         # 2022 label — no relabel makes it true, it must not be ingested.
-        assert ("11", "261") in rc._ANNUAL_RECORD_EXCLUSIONS
+        assert ("11", "261") in catalogue_sources._ANNUAL_RECORD_EXCLUSIONS

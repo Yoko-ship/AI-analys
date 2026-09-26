@@ -270,7 +270,7 @@ def archive_executions(isin: str, start: str, end: str,
     are the same trade and are folded together, exactly as the last-trading-day
     backfill does.
     """
-    from openinfo_collector import _json_get, _make_session
+    from collectors.openinfo.transport import _json_get, _make_session
 
     client = session or _make_session()
     rows: list[dict] = []
@@ -326,7 +326,7 @@ def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, An
     YYYYMMDD. openinfo duplicates execution records — identical
     (datetime, price, qty) triples are the same trade and are deduped.
     """
-    from openinfo_collector import _json_get, _make_session
+    from collectors.openinfo.transport import _json_get, _make_session
     session = _make_session()
     out: list[dict[str, Any]] = []
     for isin, day in targets:

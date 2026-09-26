@@ -13,6 +13,7 @@ import corporate_actions
 import os
 import provenance
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 import requests
 import securities_catalog as securities_store
 import server.http as http
@@ -82,7 +83,7 @@ def _issuer_names() -> dict[str, str]:
         return _ISSUER_NAMES["map"]
     names: dict[str, str] = {t.upper(): n for n, t in COMPANY_CATALOG.items()}
     try:
-        from reports_catalog import get_catalog_conn
+        from catalogue.storage import get_catalog_conn
 
         conn = get_catalog_conn()
         try:
@@ -379,7 +380,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         # These are SQLite-backed cache reads. Never perform them on the
         # event-loop thread: a collector holding the database lock otherwise
         # freezes every route (including /health), not just the market page.
-        listings = await loop.run_in_executor(None, catalog_store.get_all_listings)
+        listings = await loop.run_in_executor(None, catalogue_market_store.get_all_listings)
     except Exception:
         http.logger.exception("market/stocks: listings merge read failed")
         listings = {}
@@ -476,7 +477,7 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
     # missing (KFSKP, EQQU) or priced from a week-old registry row (UQEQ shown at
     # 32 000 from 24.07 while the exchange closed it at 30 720, +20%).
     try:
-        quotes = await loop.run_in_executor(None, catalog_store.get_all_quotes)
+        quotes = await loop.run_in_executor(None, catalogue_market_store.get_all_quotes)
     except Exception:
         http.logger.exception("market/stocks: quote cache read failed")
         quotes = {}

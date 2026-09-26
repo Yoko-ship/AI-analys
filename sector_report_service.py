@@ -9,18 +9,28 @@ from copy import deepcopy
 from threading import RLock
 
 import sector_analysis as engine
+import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+import financial_analysis.sector_language as financial_analysis_sector_language
+import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+import financial_analysis.sector_templates as financial_analysis_sector_templates
+import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+import financial_analysis.sector_language as financial_analysis_sector_language
+import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+import financial_analysis.sector_report as financial_analysis_sector_report
+import financial_analysis.sector_templates as financial_analysis_sector_templates
 import issuer_financials as financials
 
 logger = logging.getLogger(__name__)
 _REPORT_CACHE = {}
 _CACHE_LOCK = RLock()
 
-_FLOW_FIELDS = frozenset(engine.FORM2.values())
+_FLOW_FIELDS = frozenset(financial_analysis_sector_inputs.FORM2.values())
 
 
 def _scale_gap(left, right):
     """Return the absolute multiplicative gap, ignoring unusable values."""
-    left, right = engine.decimal(left), engine.decimal(right)
+    left, right = financial_analysis_sector_numbers.decimal(left), financial_analysis_sector_numbers.decimal(right)
     if left is None or right is None or left == 0 or right == 0:
         return None
     ratio = abs(left / right)
@@ -40,12 +50,12 @@ def _has_comparative_unit_conflict(snapshot, workbook):
     reviewed = set(snapshot.get("reviewed_correction_fields") or ()) & _FLOW_FIELDS
     if not reviewed or not isinstance(workbook, dict):
         return False
-    source_lines = engine.source_line_pairs(workbook.get("income") or {}, "form2")
+    source_lines = financial_analysis_sector_inputs.source_line_pairs(workbook.get("income") or {}, "form2")
     values = snapshot.get("current_values") or {}
     previous = snapshot.get("previous_values") or {}
     has_unit_scale = False
     has_comparative_conflict = False
-    for code, field in engine.FORM2.items():
+    for code, field in financial_analysis_sector_inputs.FORM2.items():
         if field not in reviewed:
             continue
         line = source_lines.get(code) or {}
@@ -53,8 +63,8 @@ def _has_comparative_unit_conflict(snapshot, workbook):
         if current_gap is not None and current_gap >= 100:
             has_unit_scale = True
         previous_gap = _scale_gap(line.get("raw_previous"), previous.get(field))
-        raw_previous = engine.decimal(line.get("raw_previous"))
-        verified_previous = engine.decimal(previous.get(field))
+        raw_previous = financial_analysis_sector_numbers.decimal(line.get("raw_previous"))
+        verified_previous = financial_analysis_sector_numbers.decimal(previous.get(field))
         if (previous_gap is not None and previous_gap >= 10) or (
             raw_previous is not None and verified_previous is not None
             and raw_previous * verified_previous < 0
@@ -78,8 +88,8 @@ def _verified_catalog_fallback(snapshot):
         quality.get("traceable") is True
         and quality.get("verification_status") == "verified"
         and bool(source.get("url"))
-        and all(engine.decimal(values.get(key)) is not None for key in core)
-        and engine.balance_gate(values, snapshot.get("rounding_unit", 1)).get("status") == "passed"
+        and all(financial_analysis_sector_numbers.decimal(values.get(key)) is not None for key in core)
+        and financial_analysis_sector_calculations.balance_gate(values, snapshot.get("rounding_unit", 1)).get("status") == "passed"
     )
 
 
@@ -110,8 +120,8 @@ def special_type(issuer):
         return "commodity_exchange"
     for obj in (issuer, issuer.get("index") or {}, issuer.get("security") or {}):
         kind = obj.get("special_legal_type") or obj.get("organization_type")
-        if kind in engine.SPECIAL_TYPES:
-            return engine.SPECIAL_TYPES[kind]
+        if kind in financial_analysis_sector_templates.SPECIAL_TYPES:
+            return financial_analysis_sector_templates.SPECIAL_TYPES[kind]
     return None
 
 
@@ -122,7 +132,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         if override:
             issuer = {**issuer, "template_override": override}
     org = financials.classify_organization(issuer, standard)
-    resolution = engine.resolve_template(issuer, org, financials.now().date())
+    resolution = financial_analysis_sector_templates.resolve_template(issuer, org, financials.now().date())
     classifications = json.loads((Path(__file__).parent / "config" / "verified_sector_classifications.json").read_text(encoding="utf-8"))
     verified_activity = next((r for r in classifications["records"] if r["issuer_id"] == str(issuer["id"])), None)
     if verified_activity and resolution["resolution_status"] == "generic_fallback":
@@ -144,14 +154,14 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     if snapshot.get("fund_record") and scope != snapshot.get("scope"):
         snapshot["quality"]["data_quality"].append({
             "code": "SCOPE_NOT_VERIFIED", "severity": "blocking",
-            "message": engine.tr(lang, "Аудированный источник не подтверждает запрошенный периметр.",
+            "message": financial_analysis_sector_language.tr(lang, "Аудированный источник не подтверждает запрошенный периметр.",
                                  "Audit manbasi so‘ralgan hisobot doirasini tasdiqlamaydi.",
                                  "The audited source does not verify the requested reporting scope."),
         })
     snapshot["template_resolution"] = resolution
     source = snapshot.get("source") or {}
     if source.get("url"):
-        source["document_id"] = "filing:" + engine.digest([issuer["id"], standard, snapshot.get("period"), source["url"]])[:24]
+        source["document_id"] = "filing:" + financial_analysis_sector_numbers.digest([issuer["id"], standard, snapshot.get("period"), source["url"]])[:24]
     if org == "commodity_exchange":
         snapshot["organization_type"] = "non_financial"
     workbook = None
@@ -179,7 +189,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                 source_issuer = {**issuer, "oked_code": next(iter(source_codes))}
                 if verified_activity:
                     source_issuer["verified_activity_template"] = verified_activity["template"]
-                source_resolution = engine.resolve_template(source_issuer, org, financials.now().date())
+                source_resolution = financial_analysis_sector_templates.resolve_template(source_issuer, org, financials.now().date())
                 if source_resolution["resolution_status"] == "classification_conflict":
                     snapshot["quality"]["data_quality"].append({"code": "CLASSIFICATION_CONFLICT", "severity": "blocking",
                                                                "message": "Source OKED conflicts with the evidenced principal activity."})
@@ -202,7 +212,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             if _verified_catalog_fallback(snapshot):
                 snapshot["quality"]["data_quality"].append({
                     "code": "SOURCE_ENRICHMENT_UNAVAILABLE", "severity": "warning",
-                    "message": engine.tr(
+                    "message": financial_analysis_sector_language.tr(
                         lang,
                         "Детализация строк источника временно недоступна; анализ построен по проверенным показателям каталога.",
                         "Manba satrlari tafsiloti vaqtincha mavjud emas; tahlil katalogdagi tekshirilgan ko‘rsatkichlarga asoslangan.",
@@ -212,13 +222,13 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             else:
                 snapshot["quality"]["data_quality"].append({
                     "code": "SOURCE_MAPPING_FAILED", "severity": "blocking",
-                    "message": engine.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
+                    "message": financial_analysis_sector_language.tr(lang, "Данные найдены, но их пока не удалось подготовить для анализа.", "Ma’lumotlar topildi, ammo hozircha tahlil uchun tayyorlanmadi.", "The data was found but is not ready for analysis yet."),
                 })
     if _has_comparative_unit_conflict(snapshot, workbook):
         snapshot["quality"]["data_quality"].append({
             "code": "COMPARATIVE_VALUES_UNIT_MISMATCH",
             "severity": "blocking",
-            "message": engine.tr(
+            "message": financial_analysis_sector_language.tr(
                 lang,
                 "Данные требуют подтверждения: расхождение сравнительных значений и единиц измерения",
                 "Ma’lumotlar tasdiqlanishi kerak: taqqoslama qiymatlar va o‘lchov birliklari mos emas",
@@ -234,11 +244,11 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         snapshot["quality"]["data_quality"].append({"code": "REGRESSION_GATE_FAILED", "severity": "blocking",
                                                    "message": "Calculation release did not pass its regression gate."})
     # Same issuer, filing and rules share the fundamentals across share classes.
-    cache_key = engine.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, workbook, lang, financials.now().date(), engine.VERSION])
+    cache_key = financial_analysis_sector_numbers.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, workbook, lang, financials.now().date(), financial_analysis_sector_templates.VERSION])
     with _CACHE_LOCK:
         report = deepcopy(_REPORT_CACHE.get(cache_key))
     if report is None:
-        report = engine.make_report(snapshot, issuer, lang, financials.now().date(), workbook,
+        report = financial_analysis_sector_report.make_report(snapshot, issuer, lang, financials.now().date(), workbook,
                                     financials.period_label(selected, lang))
         if snapshot.get("fund_record"):
             from fund_analysis import enrich
@@ -260,7 +270,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         "ticker": issuer["ticker"], "isin": issuer.get("isin"),
         "instrument_type": "bond" if security.get("type") == "bond" else "preferred_share" if security.get("is_preferred") or security.get("share_type") == "preferred" else "ordinary_share",
         "verdict": "insufficient_data", "market_as_of": report["market_as_of"],
-        "last_price": engine.number(quote.get("close_price")), "freshness": market,
+        "last_price": financial_analysis_sector_numbers.number(quote.get("close_price")), "freshness": market,
         "dividend_rights": security.get("dividend_rights"), "share_class": security.get("share_type"),
     }
     report["credit_profile"] = {
@@ -274,13 +284,10 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         from fund_analysis import reconcile_share_basis
         reconcile_share_basis(report, security.get("share_reconciliation"), report["instrument"]["last_price"], financials.now().date())
     # Financial version is independent of a quote or share-class event.
-    report["instrument_version"] = engine.digest([report["instrument"], report["version"]])
+    report["instrument_version"] = financial_analysis_sector_numbers.digest([report["instrument"], report["version"]])
     if persist:
-        try:
-            from reporting import publication
-            report = publication.publish_report(report)
-        except Exception:
-            logger.exception("Could not record sector-analysis run")
+        from reporting import publication
+        report = publication.publish_report(report)
     return report
 
 
@@ -293,7 +300,7 @@ def source_oked_codes(workbook):
                 if not re.search(r"ок[эе]д|oked|ifut", label, re.I):
                     continue
                 for cell in row.get("source_cells") or row.get("values") or row.get("numeric_values") or []:
-                    value = engine.decimal(cell)
+                    value = financial_analysis_sector_numbers.decimal(cell)
                     if value is not None and value == int(value) and 1000 <= value <= 99999:
                         codes.add(f"{int(value):05d}")
     return codes
@@ -377,7 +384,7 @@ def map_special_lines(snapshot, workbook, org):
     snapshot["current_values"].pop("operating_income", None) if org != "insurance" else None
     for form in ("balance", "income"):
         for sheet in (workbook.get(form) or {}).get("sheets") or []:
-            for row in engine.statement_rows(sheet, "form1" if form == "balance" else "form2"):
+            for row in financial_analysis_sector_inputs.statement_rows(sheet, "form1" if form == "balance" else "form2"):
                 label = str(row.get("label") or "").lower().replace("ё", "е").replace("| nan", "").strip()
                 label = re.sub(r"^(?:\d+|[а-яa-z])\.\s*", "", label).rstrip(".")
                 matched = next((key for key, patterns in SPECIAL_LABELS.items() if any(re.search(p, label) for p in patterns)), None)
@@ -386,7 +393,7 @@ def map_special_lines(snapshot, workbook, org):
                 nums = row.get("numeric_values") or []
                 original = row.get("source_cells")
                 if original:
-                    code_index = next((i for i, v in enumerate(original) if engine.decimal(v) is not None), None)
+                    code_index = next((i for i, v in enumerate(original) if financial_analysis_sector_numbers.decimal(v) is not None), None)
                     if code_index is not None:
                         nums = original[code_index:]
                 # The bank income form discloses one current cumulative column.
@@ -405,17 +412,17 @@ def map_special_lines(snapshot, workbook, org):
                 # the bank-specific detail lines around them.
                 preserve_current = False
                 if matched in {"total_assets", "total_equity", "total_liabilities"}:
-                    existing = engine.decimal(snapshot["current_values"].get(matched))
+                    existing = financial_analysis_sector_numbers.decimal(snapshot["current_values"].get(matched))
                     if existing is not None and existing > 0:
                         preserve_current = True
                 if not preserve_current:
-                    snapshot["current_values"][matched] = engine.number(current)
+                    snapshot["current_values"][matched] = financial_analysis_sector_numbers.number(current)
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
-                    snapshot[target][matched] = engine.number(prior)
+                    snapshot[target][matched] = financial_analysis_sector_numbers.number(prior)
                 snapshot.setdefault("field_sources", {})[matched] = {
                     "source_line_id": f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}",
-                    "raw_current": str(current) if engine.decimal(current) is not None else None,
+                    "raw_current": str(current) if financial_analysis_sector_numbers.decimal(current) is not None else None,
                 }
 
     # The statutory bank form exposes customer deposits as three adjacent
@@ -423,9 +430,9 @@ def map_special_lines(snapshot, workbook, org):
     # component is present; a missing line must never be treated as zero.
     deposit_keys = ("demand_deposits", "savings_deposits", "term_deposits")
     for target in ("current_values", "opening_values"):
-        deposit_total = engine.total(*(snapshot[target].get(key) for key in deposit_keys))
+        deposit_total = financial_analysis_sector_numbers.total(*(snapshot[target].get(key) for key in deposit_keys))
         if deposit_total is not None:
-            snapshot[target]["customer_funds"] = engine.number(deposit_total)
+            snapshot[target]["customer_funds"] = financial_analysis_sector_numbers.number(deposit_total)
     if snapshot["current_values"].get("customer_funds") is not None:
         snapshot.setdefault("field_sources", {})["customer_funds"] = {
             "source_line_id": "balance:demand_deposits+savings_deposits+term_deposits",
@@ -448,13 +455,13 @@ def map_insurance_lines(snapshot, workbook):
                    "c580": "gross_insurance_reserves", "c670": "reinsurer_share_in_reserves",
                    "c720": "net_insurance_reserves", "c1190": "other_liabilities"}
     for form, mapping, target in (("income", income_map, "previous_values"), ("balance", balance_map, "opening_values")):
-        lines = engine.source_line_pairs(workbook.get(form), "form2" if form == "income" else "form1", set(mapping))
+        lines = financial_analysis_sector_inputs.source_line_pairs(workbook.get(form), "form2" if form == "income" else "form1", set(mapping))
         for code, field in mapping.items():
             if code not in lines:
                 continue
             row = lines[code]
             for key, source_key in (("current_values", "raw_current"), (target, "raw_previous")):
-                value = engine.decimal(row[source_key])
+                value = financial_analysis_sector_numbers.decimal(row[source_key])
                 if field in {"insurance_service_cost", "ceded_premiums", "expenses", "financial_expenses", "fx_expenses"} and value is not None:
                     value = abs(value)
                 snapshot[key][field] = str(value) if value is not None else None
@@ -462,12 +469,12 @@ def map_insurance_lines(snapshot, workbook):
     for target in ("current_values", "previous_values", "opening_values"):
         values = snapshot[target]
         if target != "previous_values":
-            net = engine.difference(values.get("gross_insurance_reserves"), values.get("reinsurer_share_in_reserves"))
-            values["net_insurance_reserves"] = engine.number(net)
-            values["total_liabilities"] = engine.number(engine.total(net, values.get("other_liabilities")))
+            net = financial_analysis_sector_numbers.difference(values.get("gross_insurance_reserves"), values.get("reinsurer_share_in_reserves"))
+            values["net_insurance_reserves"] = financial_analysis_sector_numbers.number(net)
+            values["total_liabilities"] = financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.total(net, values.get("other_liabilities")))
         else:
             continue
     for target in ("current_values", "previous_values"):
         values = snapshot[target]
-        values["insurance_premiums"] = engine.number(engine.total(values.get("direct_insurance_premiums"), values.get("accepted_reinsurance_premiums")))
+        values["insurance_premiums"] = financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.total(values.get("direct_insurance_premiums"), values.get("accepted_reinsurance_premiums")))
     snapshot.setdefault("field_sources", {})["insurance_premiums"] = {"source_line_id": "insurance:income:c011+c013"}

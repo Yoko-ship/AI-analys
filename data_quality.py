@@ -33,7 +33,13 @@ class DataQualityError(ValueError):
 
 def _conn():
     import reports_catalog
-    return reports_catalog.get_catalog_conn()
+    import catalogue.history as catalogue_history
+    import catalogue.ratios as catalogue_ratios
+    import catalogue.refresh as catalogue_refresh
+    import catalogue.snapshots as catalogue_snapshots
+    import catalogue.storage as catalogue_storage
+    import catalogue.sync as catalogue_sync
+    return catalogue_storage.get_catalog_conn()
 
 
 def _now() -> str:
@@ -309,6 +315,12 @@ def refresh_company_reporting(ticker: str, actor: str) -> dict[str, Any]:
     _record_reporting_refresh(refresh_id, ticker, actor, status="running")
     try:
         import reports_catalog
+        import catalogue.history as catalogue_history
+        import catalogue.ratios as catalogue_ratios
+        import catalogue.refresh as catalogue_refresh
+        import catalogue.snapshots as catalogue_snapshots
+        import catalogue.storage as catalogue_storage
+        import catalogue.sync as catalogue_sync
 
         conn = _conn()
         try:
@@ -320,7 +332,7 @@ def refresh_company_reporting(ticker: str, actor: str) -> dict[str, Any]:
         if not company:
             raise DataQualityError("Company is not catalogued; approve or map the issuer first")
 
-        sync = reports_catalog.sync_company(
+        sync = catalogue_sync.sync_company(
             ticker, str(company["company_name"] or ticker), force=True,
             org_id=str(company["org_id"] or "") or None,
         )
@@ -330,11 +342,11 @@ def refresh_company_reporting(ticker: str, actor: str) -> dict[str, Any]:
 
         # ttl_days=0 deliberately makes this an explicit re-parse even when a
         # scheduled collector filled the cache earlier today.
-        refreshed = reports_catalog.refresh_financials_cache(
+        refreshed = catalogue_refresh.refresh_financials_cache(
             [ticker], form="NSBU", limit=1, ttl_days=0, sync_missing=False,
         )
-        reports_catalog.invalidate_ratios_cache()
-        latest = reports_catalog.get_all_financials().get(ticker) or {}
+        catalogue_ratios.invalidate_ratios_cache()
+        latest = catalogue_snapshots.get_all_financials().get(ticker) or {}
         year, quarter = latest.get("year"), latest.get("quarter")
         latest_period = (f"{year}Q{quarter}" if year and quarter else str(year) if year else None)
         resolved = _resolve_rechecked_issues(ticker, actor)
@@ -774,7 +786,13 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
         if evidence.get("available"):
             try:
                 import reports_catalog
-                parsed_values = reports_catalog.parse_catalogued_report(
+                import catalogue.history as catalogue_history
+                import catalogue.ratios as catalogue_ratios
+                import catalogue.refresh as catalogue_refresh
+                import catalogue.snapshots as catalogue_snapshots
+                import catalogue.storage as catalogue_storage
+                import catalogue.sync as catalogue_sync
+                parsed_values = catalogue_history.parse_catalogued_report(
                     issue["ticker"], issue["form"], int(issue["year"]), int(issue["quarter"] or 0))
                 parsed_value = parsed_values.get(field)
                 if parsed_value is not None and math.isfinite(float(parsed_value)):

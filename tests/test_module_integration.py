@@ -3,6 +3,7 @@ import asyncio
 import json
 from pathlib import Path
 from types import SimpleNamespace
+import pytest
 
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ from fastapi.testclient import TestClient
 import api
 import issuer_financials
 import reports_catalog
+import catalogue.market_store as catalogue_market_store
 import securities_catalog
 from reporting import store as report_store
 from server import lifecycle
@@ -64,6 +66,33 @@ def test_shutdown_drains_watchers_and_market_refresh_tasks():
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("startup_fails", [False, True])
+def test_application_lifetime_cleans_up_even_when_startup_fails(monkeypatch, startup_fails):
+    events = []
+
+    async def start(application):
+        assert application is api.app
+        events.append("start")
+        if startup_fails:
+            raise RuntimeError("partial startup failed")
+
+    async def stop(application):
+        assert application is api.app
+        events.append("stop")
+
+    monkeypatch.setattr(lifecycle, "_on_startup", start)
+    monkeypatch.setattr(lifecycle, "_stop_sector_analysis_worker", stop)
+    if startup_fails:
+        with pytest.raises(RuntimeError, match="partial startup failed"):
+            with TestClient(api.app):
+                pytest.fail("failed startup must not accept traffic")
+    else:
+        with TestClient(api.app) as client:
+            assert events == ["start"]
+            assert client.get("/api/missing").status_code == 404
+    assert events == ["start", "stop"]
+
+
 def test_report_queue_claim_and_expired_lease_use_real_storage(monkeypatch, tmp_path):
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "reports.sqlite3"))
     job = report_store.enqueue("QA", "source-v1")
@@ -104,7 +133,7 @@ def test_ingested_quotes_reach_market_board_and_persist_across_requests(monkeypa
     assert row["last_price"] == 120
     assert row["close_price"] == 100
     assert row["last_trade_date"] == "2026-09-25"
-    assert reports_catalog.get_all_quotes()["UZTEST000001"]["close_price"] == 120
+    assert catalogue_market_store.get_all_quotes()["UZTEST000001"]["close_price"] == 120
     # A new client and an emptied response cache must still see the persisted quote.
     board._reset_market_board_cache()
     second = TestClient(api.app).get("/api/v2/market/stocks?type=stock&refresh=true")

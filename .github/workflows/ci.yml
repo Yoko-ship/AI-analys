@@ -67,12 +67,26 @@ jobs:
   # ---------------------------------------------------------------------------
   backend:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa-local-test
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: |
             requirements-server.txt
@@ -113,6 +127,8 @@ jobs:
 
       - name: Required full backend suite and architecture boundaries
         env:
+          TEST_POSTGRES_URL: postgresql://qa:qa-local-test@127.0.0.1:5432/postgres
+          TEST_DATABASE_URL: postgresql://qa:qa-local-test@127.0.0.1:5432/postgres
           PYTHON_DOTENV_DISABLED: "1"
           DATABASE_BACKEND: sqlite
           DATABASE_URL: ""
@@ -157,20 +173,8 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: E2E production smoke suite
-        # Include module integration, login/edit/logout on desktop and mobile,
-        # public report access and report error recovery.
-        run: >-
-          npx playwright test e2e/smoke.spec.js e2e/company-chart-history.spec.js
-          e2e/auth-design.spec.js e2e/company-registry.spec.js
-          --grep="module navigation|module routing|session module|shared market data|profile workspace exposes|navigating to Рынок|company overview opens|company report preserves|company AI insight|Новости renders|company overview chart|auth controls|phone viewport|Soliq registry"
-
-      - name: Current authentication, charts and financial views
-        run: >-
-          npx playwright test e2e/account-menu.spec.js e2e/auth-email-code.spec.js
-          e2e/password-strength.spec.js e2e/chart-patterns.spec.js
-          e2e/pattern-alerts.spec.js e2e/bond-yield-map.spec.js
-          e2e/financial-scope.spec.js e2e/bank-interim.spec.js
+      - name: Complete local browser regression suite
+        run: npx playwright test
 
       - name: Upload Playwright artifacts on failure
         if: failure()

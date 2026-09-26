@@ -5,6 +5,8 @@ from __future__ import annotations
 import cache_layer as subject_cache_layer
 import public_contract as subject_public_contract
 import reports_catalog as subject_reports_catalog
+import catalogue.refresh as catalogue_refresh
+import catalogue.snapshots as catalogue_snapshots
 import server.market.routes as subject_server_market_routes
 import server.market.valuations as subject_server_market_valuations
 
@@ -27,12 +29,12 @@ def _request(path: str) -> Request:
 
 
 def test_market_financials_can_return_one_share_family(monkeypatch) -> None:
-    monkeypatch.setattr(subject_reports_catalog, 'get_all_financials', lambda: {
+    monkeypatch.setattr(catalogue_snapshots, 'get_all_financials', lambda: {
         "ACME": {"year": 2026, "revenue": 2},
         "ACMEP": {"year": 2026, "revenue": 2},
         "OTHER": {"year": 2026, "revenue": 9},
     })
-    monkeypatch.setattr(subject_reports_catalog, 'refresh_financials_cache', lambda: None)
+    monkeypatch.setattr(catalogue_refresh, 'refresh_financials_cache', lambda: None)
 
     body = asyncio.run(subject_server_market_routes.api_market_financials(ticker="ACME"))
 

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 import api
-from web_auth import WebUser
+from identity.users import WebUser
 
 
 def _user(*, tier: str = "free", until: datetime | None = None) -> WebUser:
@@ -32,7 +32,7 @@ def test_pro_access_respects_active_and_expired_entitlements() -> None:
 
 
 def test_paid_analysis_is_rejected_before_the_engine_runs(monkeypatch) -> None:
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", lambda _: _user())
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda _: _user())
     monkeypatch.setattr(subject_analysis_service, 'run_company_analysis', lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("must not run")))
     client = TestClient(api.app)
 

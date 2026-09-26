@@ -1,0 +1,492 @@
+/* ── The board's filters ──────────────────────────────────────────────────
+   Instrument class, share class, favourites, search, the column picker and the
+   sector chips are one block so they read as one control surface. They scroll
+   with the page by request — this bar was pinned under the topbar for a while
+   and is deliberately not any more. */
+.market-filterbar {
+  position: static;
+}
+
+/* `.segmented-control` carries a 16px bottom margin for the forms it was built
+   for; inside a toolbar it is 16px of table the reader does not get to see. */
+.market-filterbar .segmented-control {
+  margin-bottom: 0;
+}
+
+.market-board-head,
+.market-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.market-board-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* ── Лента событий по бумагам ──────────────────────────────────────────────
+   A dated list, not a table: every row is one event and reads left to right —
+   when, which security, what happened, and the document it happened in. */
+.market-events {
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.market-events-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.market-events-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.market-events-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.market-events-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.market-events-row {
+  display: grid;
+  /* date · ticker · what happened · document */
+  grid-template-columns: 5.6em 5.5em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 11px 22px;
+  border-bottom: 1px solid var(--border-soft, var(--border));
+}
+
+.market-events-row:last-child { border-bottom: none; }
+.market-events-row:hover { background: var(--accent-light); }
+
+/* The whole row is the target — it opens the filing (or the company, when the
+   event has no paper). The inner ticker button and the PDF/XLS links keep their
+   own destinations and stop the row's click. */
+.market-events-row.is-openable { cursor: pointer; }
+.market-events-row.is-openable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The event's KIND is carried by a rule down the left edge, so the three types
+   separate at a glance without a badge on every row. */
+.market-events-row { border-left: 3px solid transparent; }
+.market-events-row.ev-report { border-left-color: var(--accent); }
+.market-events-row.ev-listing { border-left-color: var(--success); }
+.market-events-row.ev-delisting { border-left-color: var(--danger); }
+
+.ev-date {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.84rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ev-ticker {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 650;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+.ev-ticker:hover { color: var(--accent); text-decoration: underline; }
+
+.ev-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.ev-headline { font-size: 0.92rem; }
+
+.ev-period {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.ev-company {
+  flex: 1 1 100%;
+  font-size: 0.82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev-links {
+  display: flex;
+  gap: 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+.ev-links a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.ev-links a:hover { color: var(--accent); border-bottom-color: currentColor; }
+
+.market-events-more {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.market-events-more:hover { background: var(--accent-light); }
+
+.market-events .fin-note { padding: 12px 22px 16px; margin: 0; }
+
+/* ── Одно событие, на нашей стороне ────────────────────────────────────────
+   A centred dialog: the row's own detail, read without leaving the timeline. */
+.ev-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ev-detail {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: min(86vh, 780px);
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px 20px;
+}
+.ev-detail.ev-report { border-left-color: var(--accent); }
+.ev-detail.ev-listing { border-left-color: var(--success); }
+.ev-detail.ev-delisting { border-left-color: var(--danger); }
+
+.ev-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ev-detail-close:hover { color: var(--text); }
+
+.ev-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.ev-detail-kind {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.ev-detail-kind.ev-report { color: var(--accent); }
+.ev-detail-kind.ev-listing { color: var(--success); }
+.ev-detail-kind.ev-delisting { color: var(--danger); }
+
+.ev-detail-title { margin: 6px 0 12px; font-size: 1.18rem; }
+
+.ev-detail-issuer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ev-detail-issuer span { color: var(--muted); font-size: 0.86rem; min-width: 0; }
+.ev-detail-issuer:hover b { color: var(--accent); }
+
+.ev-detail-facts { padding: 12px 0; display: grid; gap: 7px; }
+.ev-detail-line { display: flex; justify-content: space-between; gap: 16px; font-size: 0.88rem; }
+.ev-detail-k { color: var(--muted); }
+.ev-detail-v { font-variant-numeric: tabular-nums; text-align: right; }
+
+.ev-detail-fin { border-top: 1px solid var(--border); padding-top: 14px; }
+.ev-detail-fin h4 { margin: 0 0 10px; font-size: 0.9rem; }
+
+.ev-detail-table { width: 100%; border-collapse: collapse; }
+.ev-detail-table th {
+  font-weight: 400;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.86rem;
+  padding: 5px 0;
+}
+.ev-detail-table td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  padding: 5px 0;
+}
+
+.ev-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ev-detail-primary {
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.ev-detail-primary:hover { background: var(--accent-light); }
+
+.ev-detail-src { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
+.ev-detail-src a { color: var(--muted); text-decoration: none; border-bottom: 1px solid transparent; }
+.ev-detail-src a:hover { color: var(--accent); border-bottom-color: currentColor; }
+
+@media (max-width: 760px) {
+  /* On a phone the date and the ticker share the first line and the event drops
+     under them: four columns in 360px would truncate the one thing worth reading. */
+  .market-events-row {
+    grid-template-columns: 5.6em minmax(0, 1fr) auto;
+    padding: 11px 14px;
+  }
+  .ev-what { grid-column: 1 / -1; }
+}
+
+.market-controls {
+  align-items: stretch;
+  background: rgba(146, 165, 152, 0.06);
+}
+
+.market-type-control {
+  width: auto;
+}
+
+/* Two-level instrument taxonomy: class (stocks|bonds) over share-class subtypes. */
+.market-type-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.market-subtype-control button {
+  padding: 8px 14px;
+  font-size: 0.86rem;
+}
+
+/* MAIN | NEGO. Sized like the share-class control below it: both are "which
+   market", and the instrument class above stays the loudest of the three. */
+.market-segment-control {
+  width: auto;
+}
+.market-segment-control button {
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+/* The period every change on the screen is measured over. Seven buttons do not
+   fit in the slot beside the instrument-class control — wrapped inside the
+   segmented pill they made a three-row blob with a rounded background around it —
+   so the row takes a line of its own and states what it is choosing. */
+/* Its own row under the control bar, not an item inside it: .market-controls is
+   `flex-wrap: nowrap`, so a `flex-basis: 100%` child does not start a new line —
+   it takes 1392px ON that line and pushes itself 1100px past the right edge,
+   where nothing but a horizontal scroll can reach it. Measured on prod. */
+.market-period-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  /* The same gutter the sector chips below it use, so the three bands of the
+     filter bar line up on one left edge. */
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.market-period-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.market-period-control {
+  width: auto;
+  flex-wrap: nowrap;
+  /* One line, always: on a narrow window it pans sideways rather than folding,
+     the same choice the FX strip and the sector chips make. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.market-period-control::-webkit-scrollbar { display: none; }
+.market-period-control button {
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.market-search {
+  flex: 1;
+  min-width: 220px;
+}
+
+.market-search input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.market-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(63, 224, 143, 0.14);
+}
+
+.market-table-wrap {
+  overflow-x: auto;
+  /* Native horizontal scrollbar hidden — MarketFloatScroll renders the only bar,
+     fixed to the viewport bottom while the table runs below the fold. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.market-table-wrap::-webkit-scrollbar { display: none; }
+
+.market-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.market-table th,
+.market-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.market-table th {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: rgba(146, 165, 152, 0.08);
+}
+
+.market-table td {
+  font-size: 14px;
+}
+
+.market-table td.num,
+.market-table th.market-th-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reporting period under a financials figure. These columns mix completed
+   annuals with cumulative quarters across issuers, so the period is part of the
+   number's meaning, not a decoration. `.borrowed` marks a figure whose only
+   source is a different filing than the row's own period. */
+.market-table td.num .fin-cell-period {
+  display: block;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+.market-table td.num .fin-cell-period.borrowed {
+  color: var(--warn, #d97706);
+  opacity: 0.95;
+}
+.market-table td.num .fin-cell-period.metric-warning { color: var(--warn, #f59e0b); font-weight: 700; }
+.market-table td.num .fin-cell-period.metric-warning--loss_making { color: var(--danger, #ef4444); }
+.range-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin-inline-start: 3px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -1px;
+  cursor: help;
+  opacity: 0.72;
+}
+.range-help-icon:hover,
+.range-help-icon:focus-visible { opacity: 1; outline: 1px solid currentColor; outline-offset: 2px; }
+
+.market-table th.market-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+.market-table th.market-th-sortable:hover { color: var(--text); background: rgba(146, 165, 152, 0.16); }
+.market-table th.market-th-sortable.sorted { color: var(--accent); }
+.market-th-inner { display: inline-flex; align-items: center; gap: 5px; }
+.market-sort-caret { font-size: 9px; opacity: 0.35; }
+.market-table th.market-th-sortable.sorted .market-sort-caret { opacity: 1; }
+.market-table th.market-th-sortable:hover .market-sort-caret { opacity: 0.7; }

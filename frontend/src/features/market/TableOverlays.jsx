@@ -1,3 +1,4 @@
+import { snapPixel } from "../../lib/geometry.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { rootZoom, zoomedViewport } from "../../shared/viewport.jsx";
 import { createPortal } from "react-dom";
@@ -251,7 +252,7 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
       const { zoom, vw } = zoomedViewport();
       const topbar = document.querySelector(".topbar");
       const pin = topbar
-        ? Math.max(0, Math.round(topbar.getBoundingClientRect().bottom / zoom)) : 0;
+        ? Math.max(0, snapPixel(topbar.getBoundingClientRect().bottom / zoom)) : 0;
       const headRect = headRow.getBoundingClientRect();
       const tableRect = table.getBoundingClientRect();
       const wrapRect = el.getBoundingClientRect();
@@ -264,7 +265,7 @@ function MarketStickyHead({ wrapRef, cells, colSignature, rowCount, loading }) {
           || width < 60) { hide(); return; }
       // Half-pixel rounding: enough to keep the labels over their columns, coarse
       // enough that sub-pixel noise doesn't re-render the bar on every frame.
-      const round = (v) => Math.round(v * 2) / 2;
+      const round = (v) => snapPixel(v, 0.5);
       const cols = Array.from(headRow.children)
         .map((th) => round(th.getBoundingClientRect().width / zoom));
       const tableWidth = round(tableRect.width / zoom);
@@ -373,8 +374,8 @@ function MarketColMenu({ colKey, fromSticky, lang, state, actions, onClose }) {
       const thLeft = r.left / zoom, thBottom = r.bottom / zoom, thTop = r.top / zoom;
       if (thBottom < 0 || thTop > vh) { onClose(); return; }
       const w = (ref.current && ref.current.offsetWidth) || 300;
-      const left = Math.round(Math.max(8, Math.min(thLeft, vw - w - 8)));
-      const top = Math.round(thBottom + 6);
+      const left = snapPixel(Math.max(8, Math.min(thLeft, vw - w - 8)));
+      const top = snapPixel(thBottom + 6);
       // Re-placed after every render, so a position that did not change must not
       // reach state: a fresh object each time is an infinite render loop.
       setPos((prev) => (prev && prev.top === top && prev.left === left ? prev : { top, left }));

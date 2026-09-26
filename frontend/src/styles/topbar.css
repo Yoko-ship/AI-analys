@@ -1,0 +1,128 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOPBAR - Clean Edge-to-Edge Navigation Header
+   ═══════════════════════════════════════════════════════════════════════════ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 0 48px;
+  height: 80px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  backdrop-filter: none;
+  box-shadow: none;
+  transition: background var(--duration-normal) var(--ease-out);
+}
+
+.topbar:hover {
+  box-shadow: none;
+}
+
+/* Official CBU rates as a one-line strip (fx_mockups variant А), placed under
+   the market page's hero panel — a slim panel of its own, one row tall. On
+   narrow screens the row keeps its single line and pans sideways instead of
+   wrapping into a column. */
+.fx-bar {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.fx-bar-label {
+  flex: none;
+  padding: 9px 16px 9px 8px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.fx-bar-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 9px 16px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.fx-bar-ccy {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.fx-bar-rate {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.fx-bar-pct {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+}
+
+.fx-bar-pct.is-up {
+  color: var(--success);
+}
+
+.fx-bar-pct.is-down {
+  color: var(--danger);
+}
+
+.fx-bar-pct.is-flat {
+  color: var(--muted);
+}
+
+/* The last separator would double against the panel's own right border. */
+.fx-bar-item:last-child {
+  border-right: none;
+}
+
+body[data-theme="light"] .fx-bar {
+  background: #fff;
+}
+
+/* The way into the commercial-bank rates: one quiet action pinned to the
+   strip's right edge, styled like an item so the strip stays one line. */
+.fx-bar-banks {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 8px 9px 16px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fx-bar-banks:hover {
+  color: var(--accent-hover);
+}

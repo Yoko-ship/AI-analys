@@ -12,6 +12,10 @@ and then it reports its own bug while the real one goes on being published.
 """
 from __future__ import annotations
 
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.periods as catalogue_periods
+import catalogue.snapshots as catalogue_snapshots
+
 import admin_data
 import fundamentals
 
@@ -189,14 +193,17 @@ class TestTheVerdictIsPinnedToTheReadPath:
     def test_every_period_the_panel_rejects_is_one_the_read_path_never_serves(
             self, tmp_path, monkeypatch):
         import reports_catalog as rc
+        import catalogue.financial_store as catalogue_financial_store
+        import catalogue.periods as catalogue_periods
+        import catalogue.snapshots as catalogue_snapshots
 
         monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "cat.db"))
-        last_fy = rc._latest_complete_fiscal_year()
+        last_fy = catalogue_periods._latest_complete_fiscal_year()
         rows = [{"ticker": f"T{i}", "year": y, "quarter": q,
                  "revenue": 100.0, "net_income": 10.0}
                 for i, (y, q) in enumerate(self.PERIODS)]
-        rc.bulk_upsert_financials(rows)
-        served = rc.get_all_financials()
+        catalogue_financial_store.bulk_upsert_financials(rows)
+        served = catalogue_snapshots.get_all_financials()
 
         for i, (year, quarter) in enumerate(self.PERIODS):
             ticker = f"T{i}"

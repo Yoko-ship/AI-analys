@@ -9,6 +9,18 @@ import logging
 import asyncio
 import re
 import reports_catalog as catalog_store
+import catalogue.evidence as catalogue_evidence
+import catalogue.facts as catalogue_facts
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.periods as catalogue_periods
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.evidence as catalogue_evidence
+import catalogue.facts as catalogue_facts
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.periods as catalogue_periods
+import catalogue.snapshots as catalogue_snapshots
 
 
 
@@ -254,7 +266,7 @@ async def financial_passport(ticker: str, period: str, field: str, form: str='NS
         from financial_ingestion.publication import passport
         result = await loop.run_in_executor(None, partial(passport, ticker, period, field, scope=scope))
     else:
-        result = await loop.run_in_executor(None, partial(catalog_store.get_financial_value_passport, ticker, period, field, form))
+        result = await loop.run_in_executor(None, partial(catalogue_evidence.get_financial_value_passport, ticker, period, field, form))
     return {'ok': True, 'ticker': ticker.strip().upper(), 'contract_version': 'financial-passport-v1', **result}
 
 
@@ -322,16 +334,16 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             ingestion = await loop.run_in_executor(None, public_status, ticker)
             return {'ok': True, 'ticker': ticker, 'currency': 'UZS', 'standard': standard, 'freq': 'quarterly', 'periods': sorted(cumulative, reverse=True), **scope_info, 'series': entries, 'availability': 'NO_QUARTERLY_IFRS' if not entries else 'PARTIAL' if gaps or ingestion.get('status') == 'PARTIAL' else 'AVAILABLE', 'period_basis': 'cumulative_ytd', 'data_gaps': gaps, 'ingestion': ingestion, 'reason': 'Flows cover January through the stated period end; they are not standalone three-month figures.' if entries else 'No reviewed interim IFRS figures have been published.'}
         try:
-            cumulative = await loop.run_in_executor(None, partial(catalog_store.get_financials_series_quarterly, ticker, standard))
-            annual = await loop.run_in_executor(None, partial(catalog_store.get_financials_series, ticker, standard))
+            cumulative = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series_quarterly, ticker, standard))
+            annual = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, standard))
             sibling = ticker[:-1] if ticker.endswith('P') else f'{ticker}P'
             if sibling and sibling != ticker:
-                sib_cum = await loop.run_in_executor(None, partial(catalog_store.get_financials_series_quarterly, sibling, standard))
+                sib_cum = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series_quarterly, sibling, standard))
                 for period, fields in (sib_cum or {}).items():
                     merged = dict(fields)
                     merged.update(cumulative.get(period) or {})
                     cumulative[period] = merged
-                sib_annual = await loop.run_in_executor(None, partial(catalog_store.get_financials_series, sibling, standard))
+                sib_annual = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, sibling, standard))
                 for period, fields in (sib_annual or {}).items():
                     merged = dict(fields)
                     merged.update(annual.get(period) or {})
@@ -344,14 +356,14 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                 data_gaps.extend(({'period': p, 'code': 'UNDER_REVIEW'} for p in sorted(held_periods)))
                 q_periods = [period for period in q_periods if period not in held_periods]
                 raw = {name: {period: value for period, value in values.items() if period not in held_periods} for name, values in raw.items()}
-            series: dict[str, dict[str, Any]] = {name: {'unit': 'UZS', 'money': True, 'values': {p: v * catalog_store.NSBU_THOUSANDS_UZS for p, v in values.items()}} for name, values in raw.items()}
+            series: dict[str, dict[str, Any]] = {name: {'unit': 'UZS', 'money': True, 'values': {p: v * catalogue_fields.NSBU_THOUSANDS_UZS for p, v in values.items()}} for name, values in raw.items()}
             gp = raw.get('gross_profit') or {}
             oi = raw.get('operating_income') or {}
             reported_opex = raw.get('operating_expenses') or {}
             fallback_opex = {p: gp[p] - oi[p] for p in gp if p in oi}
             opex = {**fallback_opex, **reported_opex}
             if opex:
-                series['operating_expenses'] = {'unit': 'UZS', 'money': True, 'derived': bool(fallback_opex), 'filed': bool(reported_opex), 'values': {p: v * catalog_store.NSBU_THOUSANDS_UZS for p, v in opex.items()}}
+                series['operating_expenses'] = {'unit': 'UZS', 'money': True, 'derived': bool(fallback_opex), 'filed': bool(reported_opex), 'values': {p: v * catalogue_fields.NSBU_THOUSANDS_UZS for p, v in opex.items()}}
             rev = raw.get('net_revenue') or {}
             prof = raw.get('net_profit') or {}
             margin = {p: round(prof[p] / rev[p] * 100.0, 4) for p in rev if rev.get(p) and p in prof}
@@ -367,18 +379,18 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             logger.exception('company quarterly financials failed for %s', ticker)
             raise FinancialDataUnavailable(str(exc)) from exc
     try:
-        index = await loop.run_in_executor(None, partial(catalog_store.get_company_index, ticker))
+        index = await loop.run_in_executor(None, partial(catalogue_filings.get_company_index, ticker))
         org_id = (index or {}).get('org_id')
         sibling = ticker[:-1] if ticker.endswith('P') else f'{ticker}P'
         if not org_id and sibling and (sibling != ticker):
-            alt = await loop.run_in_executor(None, partial(catalog_store.get_company_index, sibling))
+            alt = await loop.run_in_executor(None, partial(catalogue_filings.get_company_index, sibling))
             org_id = (alt or {}).get('org_id')
         if not org_id:
             return {'ok': True, 'ticker': ticker, 'org_id': None, 'currency': 'UZS', 'standard': standard, 'periods': [], 'series': {}}
-        facts = await loop.run_in_executor(None, partial(catalog_store.get_facts, org_id, 'financial_indicators')) if standard == 'NSBU' else []
+        facts = await loop.run_in_executor(None, partial(catalogue_facts.get_facts, org_id, 'financial_indicators')) if standard == 'NSBU' else []
         series: dict[str, dict[str, Any]] = {}
         periods: set[str] = set()
-        last_fy = catalog_store._latest_complete_fiscal_year()
+        last_fy = catalogue_periods._latest_complete_fiscal_year()
         for f in facts:
             value = f.get('value_num')
             period = str(f.get('period') or '').strip()
@@ -387,11 +399,11 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             if int(period) > last_fy:
                 continue
             field = f['field']
-            money = field in catalog_store.FACT_MONEY_FIELDS
-            share = field in catalog_store.FACT_SHARE_FIELDS
-            unit = 'UZS' if money else '%' if share or field in catalog_store.FACT_PERCENT_FIELDS else None
+            money = field in catalogue_fields.FACT_MONEY_FIELDS
+            share = field in catalogue_fields.FACT_SHARE_FIELDS
+            unit = 'UZS' if money else '%' if share or field in catalogue_fields.FACT_PERCENT_FIELDS else None
             entry = series.setdefault(field, {'unit': unit, 'money': money, 'values': {}})
-            scaled = value * catalog_store.NSBU_THOUSANDS_UZS if money else round(value * 100.0, 6) if share else value
+            scaled = value * catalogue_fields.NSBU_THOUSANDS_UZS if money else round(value * 100.0, 6) if share else value
             entry['values'][period] = scaled
             periods.add(period)
         purged_empty: set[str] = set()
@@ -408,9 +420,9 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                     entry['values'].pop(period, None)
         series = {f: e for f, e in series.items() if e['values']}
         FILED = {'revenue': 'net_revenue', 'net_income': 'net_profit', 'interest_income': 'interest_income', 'interest_expense': 'interest_expense', 'gross_profit': 'gross_profit', 'operating_income': 'operating_income', 'operating_expenses': 'operating_expenses', 'total_liabilities': 'total_liabilities', 'cash': 'cash', 'total_assets': 'total_assets', 'total_equity': 'total_equity', 'roe': 'roe', 'roa': 'roa', 'debt_ratio': 'debt_ratio', 'debt_to_equity': 'debt_to_equity'}
-        filed = await loop.run_in_executor(None, partial(catalog_store.get_financials_series, ticker, standard))
+        filed = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, standard))
         if sibling and sibling != ticker:
-            filed_sib = await loop.run_in_executor(None, partial(catalog_store.get_financials_series, sibling, standard))
+            filed_sib = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, sibling, standard))
             filed = filed or {}
             for period, fields in (filed_sib or {}).items():
                 merged = dict(fields)
@@ -422,11 +434,11 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             for src, name in FILED.items():
                 if fields.get(src) is None:
                     continue
-                money = name in catalog_store.FACT_MONEY_FIELDS or src in catalog_store.FIN_MONEY_FIELDS
-                unit = 'UZS' if money else '%' if name in catalog_store.FACT_PERCENT_FIELDS else None
+                money = name in catalogue_fields.FACT_MONEY_FIELDS or src in catalogue_fields.FIN_MONEY_FIELDS
+                unit = 'UZS' if money else '%' if name in catalogue_fields.FACT_PERCENT_FIELDS else None
                 entry = series.setdefault(name, {'unit': unit, 'money': money, 'values': {}})
                 entry['unit'], entry['money'] = (unit, money)
-                entry['values'][period] = fields[src] * catalog_store.NSBU_THOUSANDS_UZS if money else fields[src]
+                entry['values'][period] = fields[src] * catalogue_fields.NSBU_THOUSANDS_UZS if money else fields[src]
                 entry['filed'] = True
                 periods.add(period)
         correction_tickers = {ticker}
@@ -438,7 +450,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             for entry in series.values():
                 entry['values'].pop(period, None)
         series = {f: e for f, e in series.items() if e['values']}
-        annual_years = {str(r.get('year')) for r in await loop.run_in_executor(None, partial(catalog_store.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year')}
+        annual_years = {str(r.get('year')) for r in await loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year')}
         data_gaps = [{'period': p, 'code': 'EMPTY_SOURCE_FILING'} for p in sorted(purged_empty - reviewed_annuals, reverse=True)]
         for ghost in duplicate_filed_years(series, periods, annual_years):
             data_gaps.append({'period': ghost, 'code': 'UNSUPPORTED_DUPLICATE_PERIOD'})

@@ -125,6 +125,43 @@ def _observation(body, metric):
     return next(item for item in body["observations"] if item["metric"] == metric)
 
 
+@pytest.mark.parametrize("failing_language", ["ru", "uz"])
+def test_failed_publication_retries_and_recovers_without_duplicate_reports(client, monkeypatch, failing_language):
+    """Use real report preparation and SQLite; fail only the publication write."""
+    from reporting import publication, store, worker
+
+    monkeypatch.setattr(publication, "record_analysis", lambda *args, **kwargs: None)
+    job_id = store.enqueue("INS", "publication-recovery-test")
+    record_report = store.record_report
+
+    def unavailable(report):
+        if report["language"] == failing_language:
+            raise OSError("simulated publication storage failure")
+        return record_report(report)
+
+    with monkeypatch.context() as failing:
+        failing.setattr(store, "record_report", unavailable)
+        assert worker.run_pending() == 1
+
+    with store.connect() as connection:
+        job = dict(connection.execute("SELECT * FROM sector_jobs WHERE id=?", (job_id,)).fetchone())
+        assert job["state"] == "retry", "Calculation success must not hide a failed publication"
+        assert job["attempts"] == 1
+        assert job["error_code"]
+        assert connection.execute("SELECT count(*) FROM sector_runs").fetchone()[0] == (0 if failing_language == "ru" else 1)
+        connection.execute("UPDATE sector_jobs SET next_attempt='2000-01-01' WHERE id=?", (job_id,))
+
+    assert worker.run_pending() == 1
+    assert worker.run_pending() == 0
+    with store.connect() as connection:
+        job = dict(connection.execute("SELECT * FROM sector_jobs WHERE id=?", (job_id,)).fetchone())
+        assert job["state"] == "completed"
+        assert job["attempts"] == 2
+        assert job["error_code"] is None
+        assert connection.execute("SELECT count(*) FROM sector_runs").fetchone()[0] == 2
+        assert {row["language"] for row in connection.execute("SELECT * FROM sector_publications")} == {"ru", "uz"}
+
+
 def test_financial_layers_are_separate_and_missing_is_not_zero(client):
     response = client.get("/api/v1/issuers/FACT/financial-analysis?standard=nsbu&period=2026Q2")
     assert response.status_code == 200

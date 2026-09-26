@@ -371,7 +371,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       .catch(() => {})
       .finally(() => { if (alive) setInfoLoading(false); });
     return () => { alive = false; };
-  }, [ticker, lang]);
+  }, [ticker, lang, securitiesMap]);
 
   React.useEffect(() => {
     if (!ticker) return undefined;

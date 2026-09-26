@@ -15,6 +15,9 @@ import hashlib
 import json
 import provenance
 import reports_catalog as catalog_store
+import catalogue.facts as catalogue_facts
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.market_store as catalogue_market_store
 import server.audit.jobs as audit_jobs
 import server.auth.access as auth_access
 import server.http as http
@@ -133,16 +136,16 @@ async def api_admin_trade_stats(
     loop = asyncio.get_running_loop()
     try:
         n = await loop.run_in_executor(
-            None, partial(catalog_store.bulk_upsert_trade_stats, payload.rows, payload.trade_date))
+            None, partial(catalogue_market_store.bulk_upsert_trade_stats, payload.rows, payload.trade_date))
     except Exception as exc:
         http.logger.exception("admin trade-stats upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     banked = 0
     try:
-        sessions = catalog_store.trade_stats_as_history(payload.rows, payload.trade_date)
+        sessions = catalogue_market_store.trade_stats_as_history(payload.rows, payload.trade_date)
         if sessions:
             banked = await loop.run_in_executor(
-                None, partial(catalog_store.bulk_upsert_quote_history, sessions))
+                None, partial(catalogue_market_store.bulk_upsert_quote_history, sessions))
     except Exception:  # noqa: BLE001 — the session's own numbers are already stored
         http.logger.exception("banking day statistics into quote history failed")
     audit_jobs._schedule_audit("ingest:trade-stats")
@@ -163,7 +166,7 @@ async def api_admin_quotes(
     """
     loop = asyncio.get_running_loop()
     try:
-        n = await loop.run_in_executor(None, partial(catalog_store.bulk_upsert_quotes, payload.rows))
+        n = await loop.run_in_executor(None, partial(catalogue_market_store.bulk_upsert_quotes, payload.rows))
     except Exception as exc:
         http.logger.exception("admin quotes upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -171,14 +174,14 @@ async def api_admin_quotes(
     if payload.history:
         try:
             days = await loop.run_in_executor(
-                None, partial(catalog_store.bulk_upsert_quote_history, payload.history))
+                None, partial(catalogue_market_store.bulk_upsert_quote_history, payload.history))
         except Exception:  # noqa: BLE001 — history is not worth the session
             http.logger.exception("admin quote-history upsert failed")
     bars = 0
     if payload.intraday:
         try:
             bars = await loop.run_in_executor(
-                None, partial(catalog_store.bulk_upsert_intraday_history, payload.intraday))
+                None, partial(catalogue_market_store.bulk_upsert_intraday_history, payload.intraday))
         except Exception:  # noqa: BLE001 — hourly bars are not worth the session either
             http.logger.exception("admin intraday-history upsert failed")
     audit_jobs._schedule_audit("ingest:quotes")
@@ -197,7 +200,7 @@ async def api_admin_financials(
     ADMIN_API_SECRET shared secret in the X-Admin-Secret header.
     """
     loop = asyncio.get_running_loop()
-    writer = catalog_store.bulk_replace_financials if payload.mode == "replace" else catalog_store.bulk_upsert_financials
+    writer = catalogue_financial_store.bulk_replace_financials if payload.mode == "replace" else catalogue_financial_store.bulk_upsert_financials
 
     def _write_ratios() -> int:
         written = 0
@@ -207,7 +210,7 @@ async def api_admin_financials(
                        if r.get(k) is not None}
             if not metrics or not r.get("ticker") or r.get("year") is None:
                 continue
-            catalog_store.upsert_ratio_cache(str(r["ticker"]).upper(), payload.form,
+            catalogue_financial_store.upsert_ratio_cache(str(r["ticker"]).upper(), payload.form,
                                int(r["year"]), int(r.get("quarter") or 0), metrics)
             written += 1
         return written
@@ -248,7 +251,7 @@ async def api_admin_facts(
     """
     loop = asyncio.get_running_loop()
     try:
-        n = await loop.run_in_executor(None, partial(catalog_store.upsert_facts, payload.rows))
+        n = await loop.run_in_executor(None, partial(catalogue_facts.upsert_facts, payload.rows))
     except Exception as exc:
         http.logger.exception("admin facts upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -268,7 +271,7 @@ async def api_admin_listings(
     """
     loop = asyncio.get_running_loop()
     try:
-        n = await loop.run_in_executor(None, partial(catalog_store.bulk_upsert_listings, payload.rows))
+        n = await loop.run_in_executor(None, partial(catalogue_market_store.bulk_upsert_listings, payload.rows))
     except Exception as exc:
         http.logger.exception("admin listings upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import partial
 import reports_catalog as catalog_store
+import catalogue.market_store as catalogue_market_store
 
 from typing import Any
 import asyncio
@@ -103,4 +104,4 @@ async def _bond_price_histories(inputs: dict[str, Any],
         return {}
     window = bonds.REFERENCE_PRICE_WINDOW_DAYS + 15
     return await asyncio.get_running_loop().run_in_executor(
-        None, partial(catalog_store.get_quote_history, sorted(isins), window))
+        None, partial(catalogue_market_store.get_quote_history, sorted(isins), window))

@@ -26,7 +26,8 @@ import requests
 
 from company_catalog import COMPANY_CATALOG
 from db import APP_DATA_DIR
-from openinfo_collector import _json_get, _make_session, resolve_company
+from collectors.openinfo.transport import _json_get, _make_session
+from collectors.openinfo.issuers import resolve_company
 
 logger = logging.getLogger(__name__)
 

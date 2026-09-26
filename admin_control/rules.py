@@ -10,6 +10,9 @@ from . import store as s
 
 def validate(category, config):
     import sector_analysis as engine
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    import financial_analysis.sector_templates as financial_analysis_sector_templates
     if not isinstance(config, dict) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{1,99}", str(config.get("code", ""))):
         raise s.ControlError("INVALID_RULE", "A rule needs a stable code of 2–100 characters.", 422)
     fields = {
@@ -23,14 +26,14 @@ def validate(category, config):
         raise s.ControlError("INVALID_RULE_SCHEMA", "Unsupported category or configuration fields.", 422)
     valid = True
     if category == "formula":
-        valid = config["code"] in engine.METHODS and isinstance(config.get("percent"), bool)
+        valid = config["code"] in financial_analysis_sector_calculations.METHODS and isinstance(config.get("percent"), bool)
         for field in ("numerators", "denominators"):
             values = config.get(field)
             valid = valid and isinstance(values, list) and 1 <= len(values) <= 20 and all(re.fullmatch(r"form[12]:c\d{3}", str(v)) for v in values)
     elif category == "mapping":
         valid = all(re.fullmatch(r"form[12]:c\d{3}", str(config.get(f, ""))) for f in ("source_line", "target_line")) and config.get("source_line") != config.get("target_line")
     elif category == "template":
-        valid = bool(re.fullmatch(r"\d{2,5}", str(config.get("oked_prefix", "")))) and config.get("template") in set(engine.OKED_MAP.values()) | {"generic_nsbu"}
+        valid = bool(re.fullmatch(r"\d{2,5}", str(config.get("oked_prefix", "")))) and config.get("template") in set(financial_analysis_sector_templates.OKED_MAP.values()) | {"generic_nsbu"}
     elif category == "signal":
         valid = config["code"] == "freshness" and isinstance(config.get("max_age_days"), int) and 1 <= config["max_age_days"] <= 550
     elif category == "parser":
@@ -56,12 +59,15 @@ def runtime_rules(override=None):
 
 def apply_snapshot(snapshot, issuer, workbook=None, rules=None):
     import sector_analysis as e
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    import financial_analysis.sector_templates as financial_analysis_sector_templates
     snapshot = deepcopy(snapshot)
     rules = runtime_rules() if rules is None else rules
     if not rules:
         return snapshot
-    values, previous, opening, lines = e.prepare_inputs(snapshot, workbook)
-    methods = deepcopy(e.METHODS)
+    values, previous, opening, lines = financial_analysis_sector_inputs.prepare_inputs(snapshot, workbook)
+    methods = deepcopy(financial_analysis_sector_calculations.METHODS)
     formula_versions = {}
     for rule in rules:
         config = rule["config"]
@@ -116,13 +122,16 @@ def impact_fingerprint(c, rule):
 def index_baseline(c):
     """Expose the actual engine method catalog; these records do not override it."""
     import sector_analysis as engine
-    for code, (numerators, denominators, percent) in engine.METHODS.items():
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    import financial_analysis.sector_templates as financial_analysis_sector_templates
+    for code, (numerators, denominators, percent) in financial_analysis_sector_calculations.METHODS.items():
         inputs = {key: "100" for key in set(numerators + denominators)}
         expected = str(Decimal(len(numerators)) / Decimal(len(denominators)) * (100 if percent else 1))
         config = {"code": code, "numerators": numerators, "denominators": denominators, "percent": percent,
                   "test_cases": [{"inputs": inputs, "expected": expected}, {"inputs": {}, "expected": None}]}
         s.put(c, "rules", {"id": "baseline_formula_" + code, "title": code, "category": "formula", "status": "BASELINE",
-                          "created_by": "domain-engine", "config": config, "engine_version": engine.CALCULATION_VERSION})
+                          "created_by": "domain-engine", "config": config, "engine_version": financial_analysis_sector_templates.CALCULATION_VERSION})
 
 
 def parser_shadow(rule, ticker):
@@ -155,6 +164,9 @@ def impact(c, rule):
 
 def test_rule(rule):
     import sector_analysis as e
+    import financial_analysis.sector_calculations as financial_analysis_sector_calculations
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    import financial_analysis.sector_templates as financial_analysis_sector_templates
     from sector_regressions import run
     config, category = rule["config"], rule["category"]
     validate(category, config)
@@ -164,7 +176,7 @@ def test_rule(rule):
             if category == "formula":
                 lines = {k: {"raw_current": v} for k, v in case["inputs"].items()}
                 method = {config["code"]: (config["numerators"], config["denominators"], config["percent"])}
-                actual = e.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q1", methods=method)[0]["raw_result"]
+                actual = financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q1", methods=method)[0]["raw_result"]
                 expected = case.get("expected")
                 passed = actual is None if expected is None else actual is not None and Decimal(str(actual)) == Decimal(str(expected))
             elif category == "parser":

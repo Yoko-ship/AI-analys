@@ -10,20 +10,14 @@ import math
 import re
 from datetime import date, datetime, timezone
 from typing import Any
-from sector_analysis import SPECIAL_TYPES
+from financial_analysis.sector_templates import SPECIAL_TYPES
 from securities_catalog import get_securities_map
-from reports_catalog import (
-    extract_insurance_balance,
-    fetch_report_excel_data,
-    get_all_financials,
-    get_all_quotes,
-    get_all_ratios,
-    get_all_trade_stats,
-    get_company_index,
-    get_company_reports,
-    get_financials_series,
-    get_financials_series_quarterly,
-)
+from catalogue.parsing import extract_insurance_balance
+from catalogue.sources import fetch_report_excel_data
+from catalogue.snapshots import get_all_financials, get_financials_series, get_financials_series_quarterly
+from catalogue.market_store import get_all_quotes, get_all_trade_stats
+from catalogue.ratios import get_all_ratios
+from catalogue.filings import get_company_index, get_company_reports
 
 
 class IssuerNotFoundError(ValueError):

@@ -20,7 +20,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import reports_catalog as rc  # noqa: E402
+import reports_catalog as rc
+import catalogue.filings as catalogue_filings
+import catalogue.storage as catalogue_storage  # noqa: E402
 
 
 COMPANIES = [
@@ -50,8 +52,8 @@ REPORTS = [
 @pytest.fixture
 def catalog(tmp_path, monkeypatch):
     db = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(db))
-    conn = rc.get_catalog_conn()  # creates the schema
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(db))
+    conn = catalogue_storage.get_catalog_conn()  # creates the schema
     with conn:
         for ticker, name, org in COMPANIES:
             conn.execute(
@@ -69,13 +71,13 @@ def catalog(tmp_path, monkeypatch):
 
 class TestOneEntryPerIssuer:
     def test_a_bond_issuer_is_listed_once_not_once_per_series(self, catalog) -> None:
-        rows = rc.list_companies_with_stats()
+        rows = catalogue_filings.list_companies_with_stats()
 
         tickers = [r["ticker"] for r in rows]
         assert tickers == ["ACMT1B2", "HMKB", "KVTS"]
 
     def test_the_entry_names_the_tickers_it_stands_for(self, catalog) -> None:
-        rows = {r["ticker"]: r for r in rc.list_companies_with_stats()}
+        rows = {r["ticker"]: r for r in catalogue_filings.list_companies_with_stats()}
 
         assert rows["ACMT1B2"]["tickers"] == ["ACMT1B2", "ACMT1B3", "ACMT2B4", "ACMT2B5"]
         assert rows["HMKB"]["tickers"] == ["HMKB", "HMKBP"]
@@ -83,14 +85,14 @@ class TestOneEntryPerIssuer:
 
     def test_a_common_share_outranks_its_own_preferred(self, catalog) -> None:
         """HMKB, not HMKBP — the P is the same company's second class."""
-        assert rc._canonical_ticker(["HMKBP", "HMKB"]) == "HMKB"
+        assert catalogue_filings._canonical_ticker(["HMKBP", "HMKB"]) == "HMKB"
         # No common share to defer to: the first alphabetically, and stable.
-        assert rc._canonical_ticker(["ACMT2B5", "ACMT1B2", "ACMT1B3"]) == "ACMT1B2"
-        assert rc._canonical_ticker(["AGMKP"]) == "AGMKP"
+        assert catalogue_filings._canonical_ticker(["ACMT2B5", "ACMT1B2", "ACMT1B3"]) == "ACMT1B2"
+        assert catalogue_filings._canonical_ticker(["AGMKP"]) == "AGMKP"
 
     def test_the_counts_are_the_issuers_whole_record(self, catalog) -> None:
         """Each series held a slice: 2 reports, 0, 0, 1. The company has 3."""
-        rows = {r["ticker"]: r for r in rc.list_companies_with_stats()}
+        rows = {r["ticker"]: r for r in catalogue_filings.list_companies_with_stats()}
 
         assert rows["ACMT1B2"]["total_count"] == 3
         assert (rows["ACMT1B2"]["nsbu_count"], rows["ACMT1B2"]["msfo_count"],
@@ -98,15 +100,15 @@ class TestOneEntryPerIssuer:
 
     def test_one_filing_under_two_tickers_is_counted_once(self, catalog) -> None:
         """Both HMKB and HMKBP carry the 2024 annual NSBU. It is one filing."""
-        rows = {r["ticker"]: r for r in rc.list_companies_with_stats()}
+        rows = {r["ticker"]: r for r in catalogue_filings.list_companies_with_stats()}
 
         assert rows["HMKB"]["total_count"] == 2
         assert rows["HMKB"]["nsbu_count"] == 1
 
     def test_the_header_counts_what_the_list_shows(self, catalog) -> None:
         """"85 companies" over a list of 73 is a page contradicting itself."""
-        rows = rc.list_companies_with_stats()
-        stats = rc.get_catalog_stats()
+        rows = catalogue_filings.list_companies_with_stats()
+        stats = catalogue_filings.get_catalog_stats()
 
         assert stats["companies_synced"] == len(rows)
         assert stats["total_reports"] == sum(r["total_count"] for r in rows)
@@ -115,7 +117,7 @@ class TestOneEntryPerIssuer:
 class TestTheIssuersWholeRecordIsReachable:
     def test_the_index_gathers_every_ticker_of_the_issuer(self, catalog) -> None:
         """HMKBP's 2015 audit opinion was invisible: the page only asked HMKB."""
-        index = rc.get_company_index("HMKB")
+        index = catalogue_filings.get_company_index("HMKB")
 
         assert index["report_count"] == 2
         years = {e["year"] for e in index["availability"]["Audition"]["annual"]}
@@ -123,36 +125,36 @@ class TestTheIssuersWholeRecordIsReachable:
 
     def test_a_sibling_ticker_answers_with_the_same_record(self, catalog) -> None:
         """Whichever ticker is asked for, the answer is the company's."""
-        assert (rc.get_company_index("ACMT2B5")["report_count"]
-                == rc.get_company_index("ACMT1B2")["report_count"] == 3)
+        assert (catalogue_filings.get_company_index("ACMT2B5")["report_count"]
+                == catalogue_filings.get_company_index("ACMT1B2")["report_count"] == 3)
 
     def test_a_report_filed_under_a_sibling_still_downloads(self, catalog) -> None:
         """The entry offers ACMT2B5's audit opinion under ACMT1B2 — the link has
         to resolve, or every merged row 404s the moment it is clicked."""
-        urls = rc.get_report_urls("ACMT1B2", "Audition", 2025, 0)
+        urls = catalogue_filings.get_report_urls("ACMT1B2", "Audition", 2025, 0)
 
         assert urls and urls["pdf_url"].endswith("ACMT2B5-Audition-2025-0.pdf")
 
     def test_the_tickers_own_report_still_wins(self, catalog) -> None:
         """Siblings are a fallback, not a substitute: HMKB's own copy answers."""
-        urls = rc.get_report_urls("HMKB", "NSBU", 2024, 0)
+        urls = catalogue_filings.get_report_urls("HMKB", "NSBU", 2024, 0)
 
         assert urls["pdf_url"].endswith("HMKB-NSBU-2024-0.pdf")
 
     def test_a_report_no_ticker_of_the_issuer_has_is_still_missing(self, catalog) -> None:
-        assert rc.get_report_urls("ACMT1B2", "NSBU", 1999, 0) is None
-        assert rc.get_report_urls("ZZZZ", "NSBU", 2024, 0) is None
+        assert catalogue_filings.get_report_urls("ACMT1B2", "NSBU", 1999, 0) is None
+        assert catalogue_filings.get_report_urls("ZZZZ", "NSBU", 2024, 0) is None
 
     def test_the_company_page_reads_the_same_record(self, catalog) -> None:
         """/catalog and the company page look at one thing; per-ticker reads made
         them disagree — 38 filings on one and 28 on the other for the same bank."""
-        page = rc.get_company_reports("HMKB")
+        page = catalogue_filings.get_company_reports("HMKB")
 
-        assert len(page) == rc.get_company_index("HMKB")["report_count"] == 2
+        assert len(page) == catalogue_filings.get_company_index("HMKB")["report_count"] == 2
         assert {(r["report_form"], r["year"]) for r in page} == {("NSBU", 2024), ("Audition", 2015)}
 
     def test_a_single_ticker_company_is_untouched(self, catalog) -> None:
-        assert rc._org_siblings(rc.get_catalog_conn(), "KVTS") == ["KVTS"]
-        assert rc.get_company_index("KVTS")["report_count"] == 1
-        assert rc.get_report_urls("KVTS", "NSBU", 2024, 0)["pdf_url"].endswith(
+        assert catalogue_filings._org_siblings(catalogue_storage.get_catalog_conn(), "KVTS") == ["KVTS"]
+        assert catalogue_filings.get_company_index("KVTS")["report_count"] == 1
+        assert catalogue_filings.get_report_urls("KVTS", "NSBU", 2024, 0)["pdf_url"].endswith(
             "KVTS-NSBU-2024-0.pdf")

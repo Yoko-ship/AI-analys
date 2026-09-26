@@ -2,11 +2,7 @@
 // Callers supply quote rows and the stored trade-statistics map; session
 // alignment, negotiated deals, and close-to-close changes stay inside here.
 import { normalizeMarketDay, previousClose, tradeStatsApply } from "./valuation.js";
-
-function safeNumber(value) {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
+import { safeNumber } from "./numbers.js";
 
 function marketChange(stock) {
   // last_price is null when no trade happened today; Number(null)=0 so we

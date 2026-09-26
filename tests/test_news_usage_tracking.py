@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import admin_overview
 import news_store
 
@@ -34,7 +36,7 @@ class _Conn:
 
 def test_usage_record_is_idempotent_and_keeps_exact_tokens(monkeypatch) -> None:
     conn = _Conn()
-    monkeypatch.setattr(news_store.rc, "get_catalog_conn", lambda: conn)
+    monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: conn)
     record = {
         "run_id": "run-1",
         "mode": "collect",

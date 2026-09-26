@@ -21,6 +21,8 @@ import pytest
 import dbx
 import news_store
 import reports_catalog as rc
+import catalogue.storage as catalogue_storage
+import catalogue.storage as catalogue_storage
 
 # Spellings PostgreSQL has no answer for. Checked against the TRANSLATED statement,
 # so a hit means the translation missed it, not that the source is wrong.
@@ -39,7 +41,7 @@ SQLITE_ONLY = (
 @pytest.fixture()
 def captured(tmp_path, monkeypatch):
     """Run the news module on a scratch SQLite catalog, recording every statement."""
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
     seen: list[str] = []
     original = dbx.Cursor.execute
 
@@ -169,7 +171,7 @@ def test_issuer_news_collapses_one_multilingual_rating_event(captured):
     )
     assert news_store.upsert_news([current, copy_one, copy_two, copy_three, distinct]) == 5
 
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     current_id = conn.execute(
         "SELECT id FROM news WHERE url = ?", (current["url"],)).fetchone()["id"]
     conn.close()

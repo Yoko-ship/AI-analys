@@ -12,13 +12,15 @@ from __future__ import annotations
 import pytest
 
 import reports_catalog as rc
+import catalogue.parsing as catalogue_parsing
+import catalogue.parsing as catalogue_parsing
 
 
 def test_commercial_period_expenses_use_filed_signed_current_column():
     def values(current):
         data = {'sheets': [{'table_rows': [{'label': 'Расходы периода, всего (стр.050+060+070+080)',
                                           'numeric_values': [40, 0, 900, 0, current]}]}]}
-        return rc.compute_financial_ratios(data, None)['source_values']
+        return catalogue_parsing.compute_financial_ratios(data, None)['source_values']
     assert values(300)['operating_expenses'] == -300
     assert values(0)['operating_expenses'] == 0
 
@@ -42,7 +44,7 @@ class TestCashLine:
             _row("340", "Денежные средства на расчетном счете (5100)", 48_214_510.0),
             _row("350", "Денежные средства в иностранной валюте (5200)", 608_537_783.0),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["cash"] == 48_214_510.0
 
     def test_an_account_emptied_by_the_reporting_date_reads_zero(self) -> None:
@@ -50,7 +52,7 @@ class TestCashLine:
         balance = _sheet([
             _row("340", "Денежные средства на расчетном счете (5100)", 0.0, 27_377_071.98),
         ])
-        assert rc.compute_financial_ratios(None, balance)["source_values"]["cash"] == 0.0
+        assert catalogue_parsing.compute_financial_ratios(None, balance)["source_values"]["cash"] == 0.0
 
     def test_a_zero_account_beside_a_filled_breakdown_stays_zero(self) -> None:
         # SANE 2026 Q2: the operating account is empty and the money sits in
@@ -61,7 +63,7 @@ class TestCashLine:
             _row("340", "Денежные средства на расчетном счете (5100)", 0.0, 103_006.0),
             _row("360", "Денежные средства и эквиваленты (5500, 5800, 5700)", 490_000.0),
         ])
-        assert rc.compute_financial_ratios(None, balance)["source_values"]["cash"] == 0.0
+        assert catalogue_parsing.compute_financial_ratios(None, balance)["source_values"]["cash"] == 0.0
 
     def test_a_roll_up_with_no_breakdown_at_all_stands_in(self) -> None:
         # AGMK 2026 Q2: 688 238 787 in cash and not one of the accounts under it
@@ -73,13 +75,13 @@ class TestCashLine:
             _row("350", "Денежные средства в иностранной валюте (5200)", 0.0),
             _row("360", "Денежные средства и эквиваленты (5500, 5800, 5700)", 0.0),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["cash"] == 688_238_787.0
 
     def test_a_bank_form_falls_back_to_its_own_cash_line(self) -> None:
         balance = _sheet([("Кассовая наличность и другие платежные документы",
                            [2_611_622_842.0, 2_455_155_322.0])])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["cash"] == 2_455_155_322.0
 
 
@@ -90,7 +92,7 @@ class TestObligationsLine:
             _row("600", "Текущие обязательства, всего (стр.610+630)", 21_324_562.0),
             _row("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", 21_324_562.0),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 21_324_562.0
 
     def test_the_insurance_subtotal_is_found_through_its_spacing(self) -> None:
@@ -99,7 +101,7 @@ class TestObligationsLine:
             _row("930", "Текущие обязательства, всего (стр. 940+950)", 55_560_337.20),
             _row("1190", "Итого по разделу III (стр. 730 + 930)", 56_149_257.14),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 56_149_257.14
 
     def test_insurance_reserves_are_added_to_ordinary_liabilities(self) -> None:
@@ -112,7 +114,7 @@ class TestObligationsLine:
             _row("1190", "Итого по разделу III (стр.730+930)", 70_633_251.8),
         ])
 
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         source = out["source_values"]
 
         assert source["gross_insurance_reserves"] == pytest.approx(301_088_114.6)
@@ -131,12 +133,12 @@ class TestObligationsLine:
             _row("600", "Текущие обязательства, всего (стр.610+630)", 2_896_064_498.0),
             _row("770", "ИТОГО ПО II РАЗДЕЛУ (стр. 490+600)", 8_364_471_166.0),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 8_364_471_166.0
 
     def test_a_form_stating_its_total_outright_still_wins(self) -> None:
         balance = _sheet([("Итого обязательств", [97_442_300_703.0, 104_560_786_862.0])])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 104_560_786_862.0
 
     def test_without_any_total_the_parts_are_added_up(self) -> None:
@@ -144,7 +146,7 @@ class TestObligationsLine:
             _row("490", "Долгосрочные обязательства, всего (стр.500+520)", 1000.0),
             _row("600", "Текущие обязательства, всего (стр.610+630)", 250.0),
         ])
-        out = rc.compute_financial_ratios(None, balance)
+        out = catalogue_parsing.compute_financial_ratios(None, balance)
         assert out["source_values"]["total_liabilities"] == 1250.0
 
 
@@ -157,12 +159,12 @@ class TestTheRowReaderItself:
         ([663_180.0, 560_655.0], 560_655.0),          # no line-code cell
     ])
     def test_strict_reads_the_reporting_column_only(self, cells, expected) -> None:
-        assert rc._row_value(cells, strict_period=True) == expected
+        assert catalogue_parsing._row_value(cells, strict_period=True) == expected
 
     def test_a_total_may_still_fall_back_to_the_opening_column(self) -> None:
         # Filings that leave the whole period-end column empty: a subtotal of zero
         # beside a non-zero opening is an unfilled cell, not a company with no debt.
-        assert rc._row_value([770.0, 1000.0, 0.0]) == 1000.0
+        assert catalogue_parsing._row_value([770.0, 1000.0, 0.0]) == 1000.0
 
 
 def test_english_legacy_bank_income_statement_maps_all_profit_tiers() -> None:
@@ -173,7 +175,7 @@ def test_english_legacy_bank_income_statement_maps_all_profit_tiers() -> None:
         _row("7", "Total Operating Expenses", 68_366_162.0),
         _row("9", "Net Profit Before Taxes and Other Adjustments", 37_427_706.0),
     ])
-    values = rc.compute_financial_ratios(income, None)["source_values"]
+    values = catalogue_parsing.compute_financial_ratios(income, None)["source_values"]
     assert values["revenue"] == 150_770_999.0
     assert values["gross_profit"] == 106_034_769.0
     assert values["operating_income"] == 37_427_706.0
@@ -187,7 +189,7 @@ def test_commercial_expenses_use_current_pair_with_the_structured_source_sign(in
     if include_source_cells:
         row["source_cells"] = [row["label"], *cells]
     parsed = {"sheets": [{"table_rows": [row]}]}
-    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == -161_900_000.0
+    assert catalogue_parsing.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == -161_900_000.0
 
 
 @pytest.mark.parametrize(("income", "expense", "expected"), [
@@ -201,14 +203,14 @@ def test_current_expense_pair_preserves_zeros_and_empty_cell_positions(income, e
     row = {"label": label, "source_cells": [label, 40, 0, 999, income, expense],
            "numeric_values": [40, 0, 999, *[v for v in (income, expense) if v is not None]]}
     parsed = {"sheets": [{"table_rows": [row]}]}
-    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == expected
+    assert catalogue_parsing.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == expected
 
 
 def test_legacy_current_zero_expenses_do_not_borrow_the_prior_year():
     parsed = _sheet([("Расходы периода, всего", [40, 0, 999, 0, 0])])
-    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == 0
+    assert catalogue_parsing.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] == 0
 
 
 def test_incomplete_legacy_expense_columns_remain_missing():
     parsed = _sheet([("Расходы периода, всего", [40, 0, 999])])
-    assert rc.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] is None
+    assert catalogue_parsing.compute_financial_ratios(parsed, None)["source_values"]["operating_expenses"] is None

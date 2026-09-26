@@ -84,7 +84,9 @@ def discover(*, ticker=None, processor):
     # NSBU continues through its established workbook collector. Only PDF
     # candidates enter this rollout; it does not take ownership of NSBU writes.
     import reports_catalog as rc
-    c = rc.get_catalog_conn()
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
+    c = catalogue_storage.get_catalog_conn()
     try:
         rows = c.execute("SELECT r.*,c.org_id FROM catalog_reports r JOIN catalog_companies c ON c.ticker=r.ticker "
                          "WHERE r.report_form IN ('MSFO','Audition') AND r.pdf_url IS NOT NULL "
@@ -144,9 +146,11 @@ def register_issuer_source(*, ticker, url, source_page, actor, reason, processor
     import ipaddress
     import socket
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
     if not actor.strip() or not reason.strip():
         raise ValueError("Source registration requires actor and reason")
-    company = rc.get_company_index(ticker.upper()) or {}
+    company = catalogue_filings.get_company_index(ticker.upper()) or {}
     if not company.get("org_id"):
         raise ValueError("Known catalog issuer required")
     parsed, origin = urlparse(url), urlparse(source_page)
@@ -223,8 +227,10 @@ def fetch_job(job, processor, fetch=None):
 def issuer_artifact(ticker, sha):
     """Only serve bytes linked to a published snapshot for this issuer."""
     import reports_catalog as rc
+    import catalogue.filings as catalogue_filings
+    import catalogue.storage as catalogue_storage
     import dbx
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         if "ingest_snapshots" not in dbx.tables(c):
             return None

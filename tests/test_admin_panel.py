@@ -40,7 +40,7 @@ def _as_user(monkeypatch, email: str | None) -> None:
     def _get_user_by_token(token: str):
         return _User(email) if (token and email) else None
 
-    monkeypatch.setattr(subject_web_auth.web_auth_store, "get_user_by_token", _get_user_by_token)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", _get_user_by_token)
 
 
 # ---------------------------------------------------------------------------

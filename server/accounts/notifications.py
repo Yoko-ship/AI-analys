@@ -11,17 +11,20 @@ import asyncio
 import hashlib
 import json
 import reports_catalog as catalog_store
+import catalogue.filings as catalogue_filings
+import catalogue.market_store as catalogue_market_store
 import server.accounts.routes as accounts_routes
 import server.auth.access as auth_access
 import server.http as http
 import web_auth as identity
+import identity.users as identity_users
 
 
 router = APIRouter()
 
 
 @router.get("/api/notifications")
-async def api_notifications(current_user: identity.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
+async def api_notifications(current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
     """Personal PRO alerts plus unread feedback alerts for human admins."""
     try:
         loop = asyncio.get_running_loop()
@@ -31,14 +34,14 @@ async def api_notifications(current_user: identity.WebUser = Depends(auth_access
         has_pro_access = bool(getattr(current_user, "has_pro_access", False))
         is_human_admin = auth_access._admin_role(current_user) == "administrator"
         favorites = await loop.run_in_executor(
-            None, partial(identity.web_auth_store.list_favorites, current_user.id)) if has_pro_access else []
+            None, partial(identity.web_auth_store.favorites.list_favorites, current_user.id)) if has_pro_access else []
         preferences = await loop.run_in_executor(
-            None, partial(identity.web_auth_store.get_preferences, current_user.id)) if has_pro_access else {}
+            None, partial(identity.web_auth_store.profile.get_preferences, current_user.id)) if has_pro_access else {}
         tickers = [f["ticker"] for f in favorites if f.get("report_alert_enabled", True)] \
             if preferences.get("notify_reports", True) else []
-        items = (await loop.run_in_executor(None, partial(catalog_store.get_new_reports_for_tickers, tickers, 7))) \
+        items = (await loop.run_in_executor(None, partial(catalogue_filings.get_new_reports_for_tickers, tickers, 7))) \
             if tickers else []
-        listings = await loop.run_in_executor(None, catalog_store.get_all_listings) if favorites else {}
+        listings = await loop.run_in_executor(None, catalogue_market_store.get_all_listings) if favorites else {}
         for favorite in favorites if preferences.get("notify_price", True) else []:
             ticker = str(favorite.get("ticker") or "").upper()
             if not ticker:
@@ -66,7 +69,7 @@ async def api_notifications(current_user: identity.WebUser = Depends(auth_access
                               "title": f"Bank data: {incident['code']} — {incident['detail']}",
                               "detected_at": incident["first_seen"], "kind": "data_pipeline", "href": "/admin"})
             feedback = await loop.run_in_executor(
-                None, partial(identity.web_auth_store.list_support_requests, status="open", limit=100))
+                None, partial(identity.web_auth_store.support.list_support_requests, status="open", limit=100))
             for request in feedback.get("items", []):
                 items.append({
                     "ticker": "ADMIN",
@@ -80,7 +83,7 @@ async def api_notifications(current_user: identity.WebUser = Depends(auth_access
                     "href": "/admin/feedback",
                 })
         states = await loop.run_in_executor(
-            None, partial(identity.web_auth_store.notification_states, current_user.id))
+            None, partial(identity.web_auth_store.notifications.notification_states, current_user.id))
         visible: list[dict[str, Any]] = []
         for raw_item in items:
             item = dict(http._json_safe(raw_item))
@@ -102,12 +105,12 @@ async def api_notifications(current_user: identity.WebUser = Depends(auth_access
 @router.post("/api/notifications/read")
 async def api_notifications_read(
     payload: accounts_routes.NotificationStateRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(
             None,
-            partial(identity.web_auth_store.set_notification_state, current_user.id, payload.ids),
+            partial(identity.web_auth_store.notifications.set_notification_state, current_user.id, payload.ids),
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -117,13 +120,13 @@ async def api_notifications_read(
 @router.post("/api/notifications/clear")
 async def api_notifications_clear(
     payload: accounts_routes.NotificationStateRequest,
-    current_user: identity.WebUser = Depends(auth_access._require_user),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         count = await asyncio.get_running_loop().run_in_executor(
             None,
             partial(
-                identity.web_auth_store.set_notification_state,
+                identity.web_auth_store.notifications.set_notification_state,
                 current_user.id,
                 payload.ids,
                 dismissed=True,

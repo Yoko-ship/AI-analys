@@ -10,9 +10,11 @@ import hmac
 import os
 import sector_access
 import web_auth as identity
+import identity.users as identity_users
+import identity.users as identity_users
 
 
-def _require_user(authorization: str | None = Header(default=None)) -> identity.WebUser:
+def _require_user(authorization: str | None = Header(default=None)) -> identity_users.WebUser:
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header is required")
 
@@ -21,7 +23,7 @@ def _require_user(authorization: str | None = Header(default=None)) -> identity.
         raise HTTPException(status_code=401, detail="Use Bearer token authentication")
 
     try:
-        user = identity.web_auth_store.get_user_by_token(token.strip())
+        user = identity.web_auth_store.sessions.get_user_by_token(token.strip())
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -30,7 +32,7 @@ def _require_user(authorization: str | None = Header(default=None)) -> identity.
     return user
 
 
-def _require_pro(current_user: identity.WebUser = Depends(_require_user)) -> identity.WebUser:
+def _require_pro(current_user: identity_users.WebUser = Depends(_require_user)) -> identity_users.WebUser:
     """Protect paid analytical work on the server, not just in the browser.
 
     A hidden button is not an entitlement boundary: a free user could otherwise
@@ -80,7 +82,7 @@ def _admin_gate(x_admin_secret: str | None = Header(default=None),
 
 
 def _admin_panel_gate(request: Request,
-                      authorization: str | None = Header(default=None)) -> identity.WebUser:
+                      authorization: str | None = Header(default=None)) -> identity_users.WebUser:
     """Human-only gate for product metrics, user data and account actions.
 
     The collector secret deliberately has no authority here.  Keeping it off
@@ -125,7 +127,7 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return token.strip()
 
 
-def _require_admin_user(current_user: identity.WebUser = Depends(_require_user)) -> identity.WebUser:
+def _require_admin_user(current_user: identity_users.WebUser = Depends(_require_user)) -> identity_users.WebUser:
     """Gate a route to admin web users (email in ADMIN_EMAILS). Unlike ``_require_admin``
     (machine X-Admin-Secret), this authorises a logged-in user via their Bearer token вЂ”
     so the frontend admin panel can call it without the shared secret ever reaching
@@ -135,7 +137,7 @@ def _require_admin_user(current_user: identity.WebUser = Depends(_require_user))
     return current_user
 
 
-def _admin_role(user: identity.WebUser, resolve=None) -> str | None:
+def _admin_role(user: identity_users.WebUser, resolve=None) -> str | None:
     """The account's administrative role, granted only to a proven inbox.
 
     Roles are assigned by email address (ADMIN_EMAILS / ADMIN_ROLES), so once

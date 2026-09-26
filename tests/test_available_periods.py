@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import openinfo_collector as collector
+import collectors.openinfo.documents as collectors_openinfo_documents
+import collectors.openinfo.issuers as collectors_openinfo_issuers
+import collectors.openinfo.transport as collectors_openinfo_transport
 
 
 def test_known_ticker_resolves_through_its_catalogue_name(monkeypatch):
@@ -16,9 +19,9 @@ def test_known_ticker_resolves_through_its_catalogue_name(monkeypatch):
             "logo": "https://openinfo.uz/logo.png",
         }]
 
-    monkeypatch.setattr(collector, "_json_get", fake_get)
+    monkeypatch.setattr(collectors_openinfo_transport, "_json_get", fake_get)
 
-    resolved = collector.resolve_company("YGSY", session=object())
+    resolved = collectors_openinfo_issuers.resolve_company("YGSY", session=object())
 
     assert seen == [{"path": "/home/autofill/", "params": {"name": '"Yuggazstroy" AJ'}}]
     assert resolved["input"] == "YGSY"
@@ -58,9 +61,9 @@ def test_available_periods_merges_quarters_older_than_structured_window(monkeypa
             "next": None,
         }
 
-    monkeypatch.setattr(collector, "_json_get", fake_get)
+    monkeypatch.setattr(collectors_openinfo_transport, "_json_get", fake_get)
 
-    periods = collector.fetch_available_periods("7", session=object())
+    periods = collectors_openinfo_documents.fetch_available_periods("7", session=object())
 
     assert periods["annual_years"] == [2025, 2016]
     assert periods["quarterly"] == [

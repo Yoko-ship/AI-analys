@@ -60,7 +60,7 @@ export function useNavigation() {
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [setActiveView]);
 
   const openCompanyPage = (ticker) => {
     setPrevView(activeView);

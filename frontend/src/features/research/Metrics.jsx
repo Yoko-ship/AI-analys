@@ -1,3 +1,4 @@
+import { roundedDisplayValue } from "../../lib/format.js";
 import { safeNumber } from "../../shared/format.jsx";
 import { scorePercent, scoreTone } from "../../shared/chartModel.jsx";
 import { t } from "../../shared/i18n.jsx";
@@ -50,7 +51,7 @@ function ScoreGauge({ score, language }) {
         />
       </svg>
       <div className="score-gauge-center">
-        <strong>{numeric === null ? "--" : Math.round(numeric)}</strong>
+        <strong>{numeric === null ? "--" : roundedDisplayValue(numeric)}</strong>
         <span>{t(language, "analysis.score")}</span>
       </div>
     </div>

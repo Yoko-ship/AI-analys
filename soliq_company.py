@@ -55,7 +55,7 @@ def _org_id_from_catalog(ticker: str) -> str | None:
     if ticker in ORG_OVERRIDES:
         return str(ORG_OVERRIDES[ticker])
     try:
-        from reports_catalog import get_company_index
+        from catalogue.filings import get_company_index
 
         value = get_company_index(ticker).get("org_id")
         return str(value).strip() if value else None

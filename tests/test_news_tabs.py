@@ -10,6 +10,8 @@ headings.
 """
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import typing
 
 import pytest
@@ -69,7 +71,7 @@ class TestTheQueryItBuilds:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         ns.get_news_feed(news_type=news_type, order="recent", days=0)
         return seen
 
@@ -102,7 +104,7 @@ class TestRegulatoryIsServedFromPrimarySources:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         ns.get_news_feed(news_type=news_type, order="recent", days=0)
         return seen
 
@@ -153,7 +155,7 @@ class TestCorporateIsServedFromTheFilings:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         ns.get_news_feed(news_type=news_type, order="recent", days=0)
         return seen
 
@@ -268,7 +270,7 @@ class TestTheInstrumentSplit:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         monkeypatch.setattr(ns, "_row_to_item", lambda r: dict(r))
         seen = {}
         monkeypatch.setattr(ns, "_drop_noise", lambda items, _m: seen.setdefault("ranked", items) or items)
@@ -331,7 +333,7 @@ class TestNothingFallsBetweenTheTwoTabs:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         monkeypatch.setattr(ns, "_row_to_item", lambda r: dict(r))
         notes: dict = {}
         got = ns.get_news_feed(instrument="stock", ticker_types={"HMKB": "stock"},
@@ -352,7 +354,7 @@ class TestNothingFallsBetweenTheTwoTabs:
             def close(self):
                 return None
 
-        monkeypatch.setattr(ns.rc, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
         monkeypatch.setattr(ns, "_row_to_item", lambda r: dict(r))
         notes: dict = {}
         got = ns.get_news_feed(ticker_types={}, notes=notes, order="recent", days=0)

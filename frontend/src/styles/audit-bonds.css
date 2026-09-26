@@ -1,0 +1,414 @@
+/* /admin/audit (ТЗ v1.3 §12.6). An internal tool: dense, monospaced where the
+   values matter, and expanded to the calculation INPUT on click — a finding you
+   cannot reproduce is a finding somebody will argue with instead of fixing. */
+.audit-page { display: flex; flex-direction: column; gap: 0; }
+.audit-controls { display: flex; gap: 8px; align-items: center; margin: 16px 0 8px; flex-wrap: wrap; }
+.audit-secret { min-width: 220px; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14)); background: transparent; color: var(--text); }
+.audit-error { color: #f87171; font-size: 13px; margin: 6px 0 0; }
+.audit-run { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 13px;
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
+.audit-chip { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; opacity: 0.85; }
+.audit-chip.is-failed { color: #f87171; }
+.audit-chip.is-warning { color: #fbbf24; }
+.audit-chip.is-ok { color: #34d399; }
+.audit-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.audit-filters select, .audit-filters input { padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.14)); background: transparent; color: var(--text); }
+.audit-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.audit-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.1)); }
+.audit-table td { padding: 7px 8px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.05)); vertical-align: top; }
+.audit-table td.num, .audit-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.audit-row { cursor: pointer; }
+.audit-row:hover { background: rgba(148,163,184,0.06); }
+.audit-row.is-blocking code { color: #f87171; }
+.audit-row.is-warning code { color: #fbbf24; }
+.audit-detail pre { font-size: 12px; margin: 0 0 10px; padding: 10px; overflow-x: auto;
+  background: rgba(148,163,184,0.08); border-radius: 8px; }
+.audit-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* Bonds (Дополнение 1 §А.2). */
+.bonds-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.bonds-note { font-size: 12px; line-height: 1.5; max-width: 760px; margin: 0 0 12px; }
+.bond-row { cursor: pointer; }
+.bond-row:hover { background: rgba(148,163,184,0.06); }
+/* A date is one token; wrapped after the year it reads as two numbers. */
+.bond-session { white-space: nowrap; }
+
+/* A session that is not the board's own. Marked on the date itself, because
+   that is the cell that answers "when" for the three numbers beside it — the
+   row is not wrong and must not read as a warning, it simply belongs to
+   another day. */
+.bond-stale {
+  color: var(--muted);
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}
+
+/* ---------------------------------------------------------------------------
+   The bond section: screener → issue card → yield map (/bonds, /bond/{T}).
+   Charts are inline SVG themed through the same tokens as the rest of the
+   site — a class per role, never a hard-coded colour on the element.
+--------------------------------------------------------------------------- */
+.bondsec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.bondsec-sub { margin: 4px 0 0; font-size: 0.85rem; line-height: 1.6; }
+.bondsec-mode { flex: none; }
+/* Inside the market panel the block inherits no inset from the slot it fills —
+   the same 22px the panel's own controls row uses. */
+.bondsec-embedded { padding: 14px 22px 18px; }
+.bondsec-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.bondsec-toolbar input[type="search"],
+.bondsec-toolbar select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+.bondsec-search { min-width: 220px; }
+.bondsec-shown { margin-left: auto; font-size: 0.8rem; }
+/* The bond tables sit in .market-table-scroll, which had NO rule at all: the
+   980px-min table just overflowed a non-scrolling div, and on the phone a
+   left/right swipe moved nothing — the columns past «Дата выплаты» were simply
+   unreachable. The wrapper is the scrollport, so it scrolls. */
+.market-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.bondsec-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+.bondsec-table th[data-sorted] { color: var(--text); }
+.bondsec-table td { white-space: nowrap; }
+.bondsec-name {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bondsec-issuer {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bondsec-strong { font-weight: 650; }
+.bondsec-note { font-size: 0.8rem; margin-top: 10px; line-height: 1.6; }
+.bondsec-h3 { margin: 22px 0 8px; font-size: 0.95rem; display: flex; align-items: center; gap: 4px; }
+
+/* Coverage bar: how much of the issue's reference the sources publish. */
+.bondsec-cov { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; cursor: help; }
+.bondsec-cov-track {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  display: inline-block;
+}
+.bondsec-cov-fill { display: block; height: 100%; border-radius: 3px; }
+.bondsec-cov-fill.tone-pos { background: var(--success); }
+.bondsec-cov-fill.tone-warn { background: var(--warning); }
+.bondsec-cov-fill.tone-neg { background: var(--danger); }
+.bondsec-cov-num { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Off-session negotiated deal beside the turnover — a footnote, not a number. */
+.bondsec-block-mark {
+  color: var(--warning);
+  font-size: 0.75rem;
+  margin-left: 3px;
+  cursor: help;
+  vertical-align: super;
+}
+
+/* Charts */
+.bondsec-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.bondsec-grid { stroke: var(--chart-grid); stroke-width: 1; }
+.bondsec-axis { stroke: var(--border-hover); stroke-width: 1; }
+.bondsec-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bondsec-label { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bondsec-label-strong { fill: var(--text); font-weight: 640; }
+.bondsec-curve { stroke: var(--muted-light); stroke-width: 2; stroke-linecap: round; }
+.bondsec-keyrate { stroke: var(--muted-light); stroke-width: 1; stroke-dasharray: 5 4; }
+.bondsec-bubble {
+  fill: var(--accent);
+  opacity: 0.75;
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+.bondsec-map-pt { cursor: pointer; }
+.bondsec-map-pt:hover .bondsec-bubble { opacity: 1; }
+.bondsec-series { stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.bondsec-series-a { stroke: var(--chart-primary); }
+.bondsec-series-b { stroke: var(--chart-secondary); }
+.bondsec-series-c { stroke: var(--chart-tertiary); }
+.bondsec-seriesdot.bondsec-series-a { fill: var(--chart-primary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-seriesdot.bondsec-series-b { fill: var(--chart-secondary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-seriesdot.bondsec-series-c { fill: var(--chart-tertiary); stroke: var(--panel); stroke-width: 1.5; }
+.bondsec-bar { fill: var(--accent); }
+.bondsec-bar-me { fill: var(--accent); }
+.bondsec-bar-principal { fill: var(--chart-tertiary); }
+.bondsec-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.bondsec-dot-principal { background: var(--chart-tertiary); }
+.bondsec-line {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+  flex: none;
+  background: var(--muted-light);
+}
+.bondsec-line-dash { background: repeating-linear-gradient(90deg, var(--muted-light) 0 4px, transparent 4px 7px); }
+.bondsec-line-a { background: var(--chart-primary); }
+.bondsec-line-b { background: var(--chart-secondary); }
+.bondsec-line-c { background: var(--chart-tertiary); }
+.bondsec-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 6px 0 10px;
+  font-size: 0.8rem;
+}
+.bondsec-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Empty states say WHY, like the rest of the site's dashes. */
+.bondsec-empty {
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-sm);
+  padding: 22px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.bondsec-empty b { display: block; color: var(--text); margin-bottom: 4px; }
+
+/* The issue card */
+.bondsec-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.bondsec-card-title { margin: 10px 0 0; }
+.bondsec-card-isin { font-size: 0.8em; font-weight: 400; }
+.bondsec-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bondsec-summary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  padding: 14px 16px;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.bondsec-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 1080px) { .bondsec-cols { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .bondsec-cols { grid-template-columns: 1fr; } }
+.bondsec-kv-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  overflow: hidden;
+}
+.bondsec-kv { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.bondsec-kv td { padding: 8px 12px; border-bottom: 1px solid var(--chart-grid); }
+.bondsec-kv tr:last-child td { border-bottom: 0; }
+.bondsec-kv td:first-child { color: var(--muted); }
+.bondsec-kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.bondsec-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.bondsec-tabs button {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 9px 13px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.bondsec-tabs button[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 620;
+  border-bottom-color: var(--accent);
+}
+.bondsec-panel { margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .bondsec-search { min-width: 140px; flex: 1; }
+  .bondsec-shown { margin-left: 0; width: 100%; }
+}
+
+/* ---------------------------------------------------------------------------
+   Bond payment calendar — what the market owes and when.
+   The screen exists because the exchange's register of circulating issues does:
+   before it the only future payment anyone could name was the one an issuer had
+   already announced.
+   --------------------------------------------------------------------------- */
+.bondsec-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.bondsec-tile { background: var(--surface-1); padding: 13px 15px; }
+.bondsec-tile-k { font-size: 0.72rem; color: var(--muted); margin-bottom: 5px; }
+.bondsec-tile-v { font-size: 1.35rem; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.bondsec-tile-d { font-size: 0.74rem; margin-top: 3px; }
+@media (max-width: 820px) { .bondsec-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+.bondsec-sq { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex: none; }
+.bondsec-sq-coupon { background: var(--chart-primary); }
+.bondsec-sq-principal { background: var(--chart-secondary); }
+.bondsec-bar-coupon { fill: var(--chart-primary); }
+.bondsec-bar-principal { fill: var(--chart-secondary); }
+
+.bondsec-calendar-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 20px;
+}
+@media (max-width: 900px) { .bondsec-calendar-cols { grid-template-columns: 1fr; } }
+.bondsec-sub { font-size: 0.8rem; margin: 0 0 8px; }
+
+.bondsec-days { max-height: 430px; overflow: auto; }
+.bondsec-day {
+  display: grid;
+  grid-template-columns: 158px 1fr;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.bondsec-day:last-child { border-bottom: 0; }
+.bondsec-day-when { font-variant-numeric: tabular-nums; font-size: 0.84rem; }
+.bondsec-day-when b { display: block; }
+.bondsec-day-when span { font-size: 0.75rem; display: block; }
+.bondsec-pay {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-xs, 5px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+}
+.bondsec-pay:hover { background: var(--surface-2); }
+.bondsec-pay-tk { font-weight: 620; }
+.bondsec-pay-amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; margin-left: auto; }
+.bondsec-pill-red {
+  font-size: 0.66rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--chart-secondary);
+  color: var(--chart-secondary);
+  white-space: nowrap;
+}
+
+.bondsec-dow, .bondsec-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.bondsec-dow { font-size: 0.72rem; color: var(--muted); text-align: center; margin-bottom: 5px; }
+.bondsec-cell {
+  aspect-ratio: 1 / 1;
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 6px);
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.bondsec-cell-n { font-size: 0.72rem; font-style: normal; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.bondsec-cell-v { font-size: 0.7rem; font-weight: 620; }
+/* Which issues pay that day — the tickers fit, the issuer names live in the
+   tooltip alongside each amount. */
+.bondsec-cell-tks {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Four steps, not a continuous ramp: a reader compares "darker than that one",
+   never "12% more saturated". */
+.bondsec-cell.level-0 { color: var(--muted); }
+.bondsec-cell.level-1 { background: color-mix(in srgb, var(--chart-primary) 14%, transparent); }
+.bondsec-cell.level-2 { background: color-mix(in srgb, var(--chart-primary) 34%, transparent); }
+.bondsec-cell.level-3 { background: color-mix(in srgb, var(--chart-primary) 60%, transparent); }
+/* `--on-accent` was never defined, so this fell back to white on the accent —
+   fine on the light theme's DEEP green (#0b9e5e) and 1,71:1 on the dark theme's
+   BRIGHT one (#3fe08f). The ink therefore follows the theme rather than the
+   token: the palette is inverted between them, so one fixed colour is wrong in
+   one of the two by construction. */
+.bondsec-cell.level-4 { background: var(--chart-primary); color: #fff; }
+html[data-theme="dark"] .bondsec-cell.level-4 { color: #071410; }
+
+/* A reconstructed date wears a mark. The plan is not the diary. */
+.bondsec-recon { color: var(--muted); margin-left: 2px; }
+.bondsec-liq { font-variant-numeric: tabular-nums; }
+
+/* The issue's life line: placement → coupon periods → today → redemption. */
+.bondsec-lifeline { max-height: 130px; }
+.bondsec-life-done { stroke: var(--chart-primary); }
+.bondsec-life-now { stroke: var(--text); stroke-width: 1.5; }
+.bondsec-life-tick line { stroke: var(--border-hover); }
+.bondsec-life-tick circle { fill: var(--border-hover); stroke: var(--surface-1); stroke-width: 2; }
+.bondsec-life-tick.done line { stroke: var(--chart-primary); }
+.bondsec-life-tick.done circle { fill: var(--chart-primary); }
+.bondsec-tick-strong { fill: var(--text); font-weight: 620; }
+.bondsec-state {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+/* Coverage: how much of each field the sources publish. */
+.bondsec-covbar.tone-pos { fill: var(--chart-primary); opacity: 0.85; }
+.bondsec-covbar.tone-warn { fill: var(--chart-secondary); opacity: 0.85; }
+.bondsec-covbar.tone-neg { fill: var(--danger, #d03b3b); opacity: 0.8; }
+.bondsec-coverage .bondsec-chart { margin-top: 8px; }

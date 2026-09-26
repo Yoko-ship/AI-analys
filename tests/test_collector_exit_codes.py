@@ -15,11 +15,19 @@ stops paginating halfway returns real ISINs with turnover short by however many
 pages it missed, and the board cannot tell that from a quiet day.
 """
 from __future__ import annotations
+import collectors.financials.delivery as collectors_financials_delivery
+import collectors.financials.backfill as collectors_financials_backfill
+import collectors.financials.market as collectors_financials_market
+import collectors.financials.trading as collectors_financials_trading
+import collectors.financials.retry as collectors_financials_retry
 
 import pytest
 
 import collector_financials as cf
 import reports_catalog as rc
+import catalogue.history as catalogue_history
+import catalogue.market_store as catalogue_market_store
+import catalogue.storage as catalogue_storage
 import trade_stats as ts
 import uzse_quotes as uq
 
@@ -27,7 +35,7 @@ import uzse_quotes as uq
 @pytest.fixture(autouse=True)
 def instant_retries(monkeypatch) -> None:
     """Retry the same number of times, without the five-minute wait."""
-    monkeypatch.setattr(cf, "RETRY_WAIT_SECONDS", 0)
+    monkeypatch.setattr(collectors_financials_retry, "RETRY_WAIT_SECONDS", 0)
 
 
 @pytest.fixture()
@@ -39,9 +47,9 @@ def pushed(monkeypatch) -> list[tuple[str, dict]]:
         calls.append((path, body))
         return 0
 
-    monkeypatch.setattr(cf, "_post", _post)
-    monkeypatch.setattr(cf, "audit_board", lambda: 0)
-    monkeypatch.setattr(cf, "board_securities", list)
+    monkeypatch.setattr(collectors_financials_delivery, "_post", _post)
+    monkeypatch.setattr(collectors_financials_market, "audit_board", lambda: 0)
+    monkeypatch.setattr(collectors_financials_market, "board_securities", list)
     return calls
 
 
@@ -68,9 +76,9 @@ def test_company_quarter_history_backfill_pushes_only_recovered_periods(monkeypa
             "errors": [],
         }
 
-    monkeypatch.setattr(rc, "harvest_historical_quarters", harvest)
+    monkeypatch.setattr(catalogue_history, "harvest_historical_quarters", harvest)
 
-    assert cf.backfill_company_quarter_history("ygsy") == 0
+    assert collectors_financials_backfill.backfill_company_quarter_history("ygsy") == 0
     assert called == {"ticker": "YGSY", "limit": 40}
     assert pushed == [("/api/admin/financials", {
         "form": "NSBU", "mode": "upsert", "rows": [
@@ -86,7 +94,7 @@ class TestAnEmptySessionIsNotAFailure:
         monkeypatch.setattr(ts, "fetch_trade_stats",
                             lambda *a, **k: _feed(trade_date=None, count=0, stats={}))
 
-        assert cf.push_trade_stats() == 0
+        assert collectors_financials_trading.push_trade_stats() == 0
         assert pushed == []  # nothing to publish, and nothing overwritten
 
     def test_pages_that_have_not_opened_yet(self, monkeypatch, pushed) -> None:
@@ -100,7 +108,7 @@ class TestAnEmptySessionIsNotAFailure:
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
 
-        assert cf.push_quotes(_feed()["stats"]) == 0
+        assert collectors_financials_market.push_quotes(_feed()["stats"]) == 0
         assert [p for p, _ in pushed] == []
 
 
@@ -112,14 +120,14 @@ class TestWhatIsStillAFailure:
                                 trade_date=None, count=0, stats={},
                                 reachable=False, complete=False))
 
-        assert cf.push_trade_stats() == 1
-        assert len(attempts) == cf.RETRY_ATTEMPTS  # waited and asked again first
+        assert collectors_financials_trading.push_trade_stats() == 1
+        assert len(attempts) == collectors_financials_retry.RETRY_ATTEMPTS  # waited and asked again first
 
     def test_a_feed_that_stopped_halfway(self, monkeypatch, pushed) -> None:
         """Real ISINs, understated turnover, and no way for the board to know."""
         monkeypatch.setattr(ts, "fetch_trade_stats", lambda *a, **k: _feed(complete=False))
 
-        assert cf.push_trade_stats() == 1
+        assert collectors_financials_trading.push_trade_stats() == 1
         assert pushed == []
 
     def test_not_one_page_could_be_read(self, monkeypatch, pushed) -> None:
@@ -132,7 +140,7 @@ class TestWhatIsStillAFailure:
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
 
-        assert cf.push_quotes(_feed()["stats"]) == 1
+        assert collectors_financials_market.push_quotes(_feed()["stats"]) == 1
 
 
 class TestWaitingForTheExchangeToComeBack:
@@ -146,14 +154,14 @@ class TestWaitingForTheExchangeToComeBack:
         answers = [_feed(trade_date=None, count=0, stats={}, reachable=False, complete=False),
                    _feed()]
         monkeypatch.setattr(ts, "fetch_trade_stats", lambda *a, **k: answers.pop(0))
-        monkeypatch.setattr(cf, "push_quotes", lambda stats: 0)
+        monkeypatch.setattr(collectors_financials_market, "push_quotes", lambda stats: 0)
 
-        assert cf.push_trade_stats() == 0
+        assert collectors_financials_trading.push_trade_stats() == 0
         assert answers == []
         assert "/api/admin/trade-stats" in [path for path, _ in pushed]
 
     def test_only_the_unread_pages_are_asked_again(self, monkeypatch, pushed) -> None:
-        monkeypatch.setattr(cf, "board_securities", lambda: [
+        monkeypatch.setattr(collectors_financials_market, "board_securities", lambda: [
             {"isin": "UZ7003040001", "_market": "STK"},
             {"isin": "UZ7043380003", "_market": "STK"},
         ])
@@ -174,9 +182,9 @@ class TestWaitingForTheExchangeToComeBack:
             return [{"isin": "UZ7043380003", "trade_date": "20260729", "close_price": 2.0}]
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
-        monkeypatch.setattr(cf, "quotes_from_archive", lambda targets: [])
+        monkeypatch.setattr(collectors_financials_market, "quotes_from_archive", lambda targets: [])
 
-        assert cf.push_quotes(_feed()["stats"]) == 0
+        assert collectors_financials_market.push_quotes(_feed()["stats"]) == 0
         # The second pass asks about the unreadable one only — a page that
         # answered "no session" answered.
         assert asked[1] == [("UZ7043380003", "STK")]
@@ -190,7 +198,7 @@ class TestTheQuotePassCoversTheWholeBoard:
         """The backfill list used to be read from the collector's own scratch
         database, which knows no securities at all — so on Railway it was always
         empty and a quiet security was never re-read."""
-        monkeypatch.setattr(cf, "board_securities", lambda: [
+        monkeypatch.setattr(collectors_financials_market, "board_securities", lambda: [
             {"isin": "UZ7003040001", "_market": "STK"},   # traded today
             {"isin": "UZ7043380003", "_market": "STK"},   # quiet since 29.07
             {"isin": "UZ6011507AA9", "_market": "BND"},
@@ -203,9 +211,9 @@ class TestTheQuotePassCoversTheWholeBoard:
             return [{"isin": "UZ7003040001", "trade_date": "20260804", "close_price": 1.0}]
 
         monkeypatch.setattr(uq, "fetch_session_quotes", _quotes)
-        monkeypatch.setattr(cf, "quotes_from_archive", lambda targets: [])
+        monkeypatch.setattr(collectors_financials_market, "quotes_from_archive", lambda targets: [])
 
-        assert cf.push_quotes(_feed()["stats"]) == 0
+        assert collectors_financials_market.push_quotes(_feed()["stats"]) == 0
         assert seen["targets"] == [("UZ6011507AA9", "BND"), ("UZ7003040001", "STK"),
                                    ("UZ7043380003", "STK")]
         assert seen["settle"] is True
@@ -213,7 +221,7 @@ class TestTheQuotePassCoversTheWholeBoard:
     def test_what_the_page_cannot_date_goes_to_the_execution_archive(
             self, monkeypatch, pushed) -> None:
         """KPBA last traded in February 2024, outside the page's ~21 sessions."""
-        monkeypatch.setattr(cf, "board_securities", lambda: [
+        monkeypatch.setattr(collectors_financials_market, "board_securities", lambda: [
             {"isin": "UZ7047440001", "_market": "STK"}])
         monkeypatch.setattr(uq, "fetch_session_quotes",
                             lambda targets, **kw: [{"isin": "UZ7003040001",
@@ -225,9 +233,9 @@ class TestTheQuotePassCoversTheWholeBoard:
             asked.extend(targets)
             return [{"isin": "UZ7047440001", "trade_date": "20240223", "close_price": 5284.8}]
 
-        monkeypatch.setattr(cf, "quotes_from_archive", _archive)
+        monkeypatch.setattr(collectors_financials_market, "quotes_from_archive", _archive)
 
-        assert cf.push_quotes(_feed()["stats"]) == 0
+        assert collectors_financials_market.push_quotes(_feed()["stats"]) == 0
         assert asked == [("UZ7047440001", "STK")]
         rows = next(body["rows"] for path, body in pushed if path == "/api/admin/quotes")
         assert {r["isin"] for r in rows} == {"UZ7003040001", "UZ7047440001"}
@@ -236,8 +244,8 @@ class TestTheQuotePassCoversTheWholeBoard:
 @pytest.fixture()
 def catalog_db(tmp_path, monkeypatch):
     path = tmp_path / "catalog.db"
-    monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(path))
-    rc.get_catalog_conn().close()
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(path))
+    catalogue_storage.get_catalog_conn().close()
     return str(path)
 
 
@@ -257,11 +265,11 @@ class TestASecondReadOfTheSameSessionOnlyAdds:
         return row
 
     def test_the_settled_row_keeps_the_ohlc_the_live_run_saw(self, catalog_db) -> None:
-        rc.bulk_upsert_quotes([self._quote()])
-        rc.bulk_upsert_quotes([self._quote(open_price=None, high_price=None, low_price=None,
+        catalogue_market_store.bulk_upsert_quotes([self._quote()])
+        catalogue_market_store.bulk_upsert_quotes([self._quote(open_price=None, high_price=None, low_price=None,
                                            quantity=86.0, turnover=4_403_867.95)])
 
-        stored = rc.get_all_quotes()["UZ7003040001"]
+        stored = catalogue_market_store.get_all_quotes()["UZ7003040001"]
         assert (stored["open_price"], stored["high_price"], stored["low_price"]) == (
             51950.0, 52000.0, 50900.0)
         # ...and takes the settled numbers where the exchange did state them.
@@ -269,17 +277,17 @@ class TestASecondReadOfTheSameSessionOnlyAdds:
         assert stored["turnover"] == pytest.approx(4_403_867.95)
 
     def test_a_later_session_replaces_the_row_outright(self, catalog_db) -> None:
-        rc.bulk_upsert_quotes([self._quote()])
-        rc.bulk_upsert_quotes([self._quote(trade_date="20260805", close_price=52000.0,
+        catalogue_market_store.bulk_upsert_quotes([self._quote()])
+        catalogue_market_store.bulk_upsert_quotes([self._quote(trade_date="20260805", close_price=52000.0,
                                            open_price=None, high_price=None, low_price=None)])
 
-        stored = rc.get_all_quotes()["UZ7003040001"]
+        stored = catalogue_market_store.get_all_quotes()["UZ7003040001"]
         assert stored["trade_date"] == "20260805"
         assert (stored["open_price"], stored["high_price"], stored["low_price"]) == (
             None, None, None)
 
     def test_an_older_session_is_still_refused(self, catalog_db) -> None:
-        rc.bulk_upsert_quotes([self._quote()])
-        rc.bulk_upsert_quotes([self._quote(trade_date="20260731", close_price=1.0)])
+        catalogue_market_store.bulk_upsert_quotes([self._quote()])
+        catalogue_market_store.bulk_upsert_quotes([self._quote(trade_date="20260731", close_price=1.0)])
 
-        assert rc.get_all_quotes()["UZ7003040001"]["close_price"] == 51850.0
+        assert catalogue_market_store.get_all_quotes()["UZ7003040001"]["close_price"] == 51850.0

@@ -11,6 +11,8 @@ dividends and gave BIOK the payouts of two other chemical plants.
 """
 from __future__ import annotations
 
+import catalogue.storage as catalogue_storage
+
 import re
 
 import pytest
@@ -188,7 +190,10 @@ class TestSource:
         """The snapshot REPLACES the stored table. Publishing half a calendar
         would delete real payout history and report it as no dividends."""
         pages = [{"count": 900, "next": None, "results": [filing(1, "9", "x")]}]
-        monkeypatch.setitem(__import__("sys").modules, "openinfo_collector", _FakeCollector(pages))
+        fake = _FakeCollector(pages)
+        from collectors.openinfo import transport
+        monkeypatch.setattr(transport, "_json_get", fake._json_get)
+        monkeypatch.setattr(transport, "_make_session", fake._make_session)
         with pytest.raises(RuntimeError, match="read short"):
             dividends.fetch_calendar()
 
@@ -197,7 +202,10 @@ class TestSource:
             {"count": 3, "next": "?page=2", "results": [filing(1, "9", "x"), filing(2, "9", "x")]},
             {"count": 3, "next": None, "results": [filing(3, "9", "x")]},
         ]
-        monkeypatch.setitem(__import__("sys").modules, "openinfo_collector", _FakeCollector(pages))
+        fake = _FakeCollector(pages)
+        from collectors.openinfo import transport
+        monkeypatch.setattr(transport, "_json_get", fake._json_get)
+        monkeypatch.setattr(transport, "_make_session", fake._make_session)
         assert len(dividends.fetch_calendar()) == 3
 
 
@@ -227,8 +235,9 @@ class TestStore:
     @pytest.fixture()
     def catalog(self, tmp_path, monkeypatch):
         import reports_catalog as rc
+        import catalogue.storage as catalogue_storage
 
-        monkeypatch.setattr(rc, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+        monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
         seen: list[str] = []
         original = dbx.Cursor.execute
 

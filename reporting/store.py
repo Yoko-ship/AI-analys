@@ -8,7 +8,9 @@ from pathlib import Path
 import dbx
 from db import APP_DATA_DIR
 
-from sector_analysis import VERSION, digest, tr
+from financial_analysis.sector_templates import VERSION
+from financial_analysis.sector_numbers import digest
+from financial_analysis.sector_language import tr
 
 
 def connect():

@@ -90,7 +90,7 @@ def _schema(c):
 
 
 def connect():
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
     dbx.ensure_schema(c, "financial-ingestion-v2", _schema)
     return c
@@ -249,7 +249,7 @@ def status(org_id=None):
 
 def public_status(ticker):
     """Read-only until ingestion has been initialized; omit internal errors."""
-    from reports_catalog import get_catalog_conn
+    from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
     try:
         if "ingest_sources" not in dbx.tables(c):

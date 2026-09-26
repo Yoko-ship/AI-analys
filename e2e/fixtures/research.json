@@ -1,0 +1,127 @@
+{
+  "company_name": "AGBA Bank",
+  "ticker": "AGBA",
+  "input": "AGBA",
+  "from_cache": false,
+  "summary": {
+    "score": 60,
+    "grade": "B"
+  },
+  "metrics": {
+    "total_score": {
+      "score": 60,
+      "grade": "B"
+    }
+  },
+  "sections": {},
+  "ifrs_snapshot": {
+    "series": {
+      "annual": [
+        {
+          "year": 2023,
+          "revenue": 8000000000,
+          "net_income": 1500000000,
+          "equity": 9000000000,
+          "total_assets": 30000000000,
+          "net_profit_margin": 18
+        },
+        {
+          "year": 2024,
+          "revenue": 9000000000,
+          "net_income": 2000000000,
+          "equity": 10000000000,
+          "total_assets": 40000000000,
+          "net_profit_margin": 22
+        }
+      ]
+    },
+    "income_statement": {
+      "revenue": 9000000000,
+      "net_income": 2000000000,
+      "ebit": 2400000000,
+      "ebitda": 2900000000,
+      "ebitda_margin_pct": 32.2,
+      "debt_to_ebitda": 1.8,
+      "net_margin_pct": 22
+    },
+    "balance_sheet": {
+      "total_assets": 40000000000,
+      "equity": 10000000000,
+      "debt_to_equity": 1.5,
+      "current_ratio": 1.2
+    },
+    "quality": {
+      "roe_pct": 20,
+      "roa_pct": 5,
+      "interest_coverage": 2.2,
+      "altman": {
+        "zone": "grey"
+      },
+      "piotroski": {
+        "score": 5,
+        "max": 9
+      }
+    }
+  },
+  "article_report": {
+    "meta": {
+      "company": "AGBA Bank",
+      "ticker": "AGBA"
+    },
+    "abstract": "Демо.",
+    "sections": []
+  },
+  "risk_profile": {
+    "version": 1,
+    "debt_load": {
+      "tier": 1,
+      "level": "moderate",
+      "label": "Умеренная",
+      "tone": "warning",
+      "debt_to_equity": 1.5,
+      "debt_to_ebitda": 1.8
+    },
+    "axes": [
+      {
+        "key": "financial",
+        "label": "Финансовый риск",
+        "level": "medium",
+        "level_label": "Средний",
+        "drivers": [
+          "Altman в серой зоне",
+          "Повышенный долг/капитал (1.5)"
+        ]
+      },
+      {
+        "key": "market",
+        "label": "Рыночный риск",
+        "level": "low",
+        "level_label": "Низкий",
+        "drivers": [
+          "Показатели ликвидности в норме"
+        ]
+      },
+      {
+        "key": "informational",
+        "label": "Информационный риск",
+        "level": "na",
+        "level_label": "Недостаточно данных",
+        "drivers": [
+          "Требуется модуль анализа новостей (§3.11)"
+        ]
+      }
+    ]
+  },
+  "observations": [
+    {
+      "type": "anomaly",
+      "tone": "warning",
+      "text": "Выручка на 2.3σ выше исторической нормы за 4 лет"
+    },
+    {
+      "type": "joint",
+      "tone": "danger",
+      "text": "Одновременное ухудшение показателей: прибыль, маржа, долг/капитал"
+    }
+  ]
+}

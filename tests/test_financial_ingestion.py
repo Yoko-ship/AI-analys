@@ -11,6 +11,12 @@ from reportlab.pdfgen import canvas
 
 import ifrs_financials
 import reports_catalog as rc
+import catalogue.evidence as catalogue_evidence
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.periods as catalogue_periods
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 from financial_ingestion import documents, extract, publication, store, validation, worker
 
 
@@ -18,7 +24,7 @@ from financial_ingestion import documents, extract, publication, store, validati
 def setup(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
     monkeypatch.setenv("FINANCIAL_ARTIFACT_DIR", str(tmp_path / "originals"))
-    monkeypatch.setattr(rc, "_maybe_seed_financials", lambda *a: None)
+    monkeypatch.setattr(catalogue_financial_store, "_maybe_seed_financials", lambda *a: None)
     stream = io.BytesIO()
     pdf = canvas.Canvas(stream)
     pdf.drawString(20, 20, "Synthetic test document, not a real filing")
@@ -30,11 +36,11 @@ def setup(tmp_path, monkeypatch):
         figure["page"] = 1
     monkeypatch.setattr(ifrs_financials, "reviews", lambda: [entry])
     monkeypatch.setattr(extract, "review_entries", lambda: ifrs_financials.reviews())
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     with c:
         for ticker, org in (("BRBN", "23"), ("BRBNP", "23"), ("OCBK", "99")):
             c.execute("INSERT INTO catalog_companies (ticker,company_name,org_id) VALUES (?,?,?)", (ticker, "Test bank", org))
-        rc._upsert_report(c, "BRBN", report_form="MSFO", period_type="annual", year=2024,
+        catalogue_filings._upsert_report(c, "BRBN", report_form="MSFO", period_type="annual", year=2024,
                           quarter=0, title="Test", published_at="2025-01-01", pdf_url=entry["pdf_url"],
                           excel_url=None, excel_url_form1=None, openinfo_report_id="test-1", object_id=None)
     c.close()
@@ -61,18 +67,18 @@ def test_shadow_never_publishes_and_marks_approved_unpublished(setup):
     assert result["processed"] == 2
     assert result["coverage"]["approved_unpublished"] == 1
     assert result["coverage"]["status"] == "PARTIAL"
-    assert rc.get_financials_series("BRBN", "MSFO") == {}
+    assert catalogue_snapshots.get_financials_series("BRBN", "MSFO") == {}
     assert publication.snapshots("BRBN") == []
 
 
 def test_atomic_publication_reader_units_passport_and_issuer_binding(setup):
     stage(setup)
-    rc.upsert_financials_cache("BRBN", "NSBU", 2024, 0, {"revenue": 99})
+    catalogue_financial_store.upsert_financials_cache("BRBN", "NSBU", 2024, 0, {"revenue": 99})
     result = publication.publish("brbn", actor="test-reviewer")
     assert result["published"] == 1
-    assert rc.get_financials_series("BRBNP", "MSFO")["2024"]["total_assets"] == 31_596_795_000
-    assert rc.get_financials_series("BRBN", "NSBU")["2024"]["revenue"] == 99
-    passport = rc.get_financial_value_passport("BRBNP", "2024", "net_profit", "MSFO")
+    assert catalogue_snapshots.get_financials_series("BRBNP", "MSFO")["2024"]["total_assets"] == 31_596_795_000
+    assert catalogue_snapshots.get_financials_series("BRBN", "NSBU")["2024"]["revenue"] == 99
+    passport = catalogue_evidence.get_financial_value_passport("BRBNP", "2024", "net_profit", "MSFO")
     assert passport["source"]["normalized_value"] == -1_367_921_000_000
     assert passport["source"]["file_hash"] == setup[0]["sha256"]
     assert documents.issuer_artifact("BRBNP", setup[0]["sha256"]) == setup[1]
@@ -169,11 +175,11 @@ def test_review_correction_is_immutable_and_requires_separate_approval(setup, mo
 
 def test_first_migration_cannot_hide_existing_ifrs_years(setup):
     stage(setup)
-    rc.upsert_financials_cache("BRBN", "MSFO", 2023, 0, {"net_income": 42})
+    catalogue_financial_store.upsert_financials_cache("BRBN", "MSFO", 2023, 0, {"net_income": 42})
     with pytest.raises(ValueError, match="every legacy"):
         publication.publish("BRBN", actor="reviewer")
     assert publication.snapshots("BRBN") == []
-    assert rc.get_financials_series("BRBN", "MSFO")["2023"]["net_income"] == 42
+    assert catalogue_snapshots.get_financials_series("BRBN", "MSFO")["2023"]["net_income"] == 42
 
 
 def test_transaction_rolls_back_all_heads_if_second_write_fails(setup, monkeypatch):
@@ -280,9 +286,9 @@ def test_partial_bank_ifrs_gap_requires_interest_not_industrial_revenue(setup):
     from fastapi.testclient import TestClient
     setup[0]["figures"].pop("interest_income")
     setup[0]["figures"].pop("interest_expense")
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     with c:
-        rc._upsert_report(c, "BRBN", report_form="NSBU", period_type="annual", year=2024,
+        catalogue_filings._upsert_report(c, "BRBN", report_form="NSBU", period_type="annual", year=2024,
                           quarter=0, title="Bank", published_at=None, pdf_url=None,
                           excel_url="https://new-api.openinfo.uz/export?org_type=bank", excel_url_form1=None,
                           openinfo_report_id="bank", object_id=None)
@@ -296,16 +302,16 @@ def test_partial_bank_ifrs_gap_requires_interest_not_industrial_revenue(setup):
 
 def test_pdf_publication_date_is_not_a_financial_year():
     for form in ("MSFO", "Audition"):
-        assert rc._extract_year({"report_type": form, "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) is None
-    assert rc._extract_year({"report_type": "NSBU", "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) == 2025
+        assert catalogue_periods._extract_year({"report_type": form, "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) is None
+    assert catalogue_periods._extract_year({"report_type": "NSBU", "pub_date": "2026-01-30", "properties": {"report_type": "annual"}}) == 2025
 
 
 def test_unknown_period_source_upsert_does_not_duplicate_or_merge_pdfs(setup):
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     with c:
         for url in ("https://openinfo.uz/media/a.pdf", "https://openinfo.uz/media/b.pdf"):
             for _ in range(2):
-                rc._upsert_report(c, "BRBN", report_form="Audition", period_type="annual", year=None,
+                catalogue_filings._upsert_report(c, "BRBN", report_form="Audition", period_type="annual", year=None,
                                   quarter=0, title="Unknown date", published_at="2026-01-30", pdf_url=url,
                                   excel_url=None, excel_url_form1=None, openinfo_report_id=url, object_id=None)
     assert c.execute("SELECT COUNT(*) FROM catalog_reports WHERE report_form='Audition'").fetchone()[0] == 2
@@ -389,7 +395,7 @@ def test_reviewed_mcba_original_resolves_misprinted_comparative():
 
 def test_unknown_dates_remain_distinct_in_public_library(setup):
     base = {"report_form": "MSFO", "period_type": "annual", "year": None, "quarter": 0}
-    assert rc._report_key({**base, "pdf_url": "a"}) != rc._report_key({**base, "pdf_url": "b"})
+    assert catalogue_filings._report_key({**base, "pdf_url": "a"}) != catalogue_filings._report_key({**base, "pdf_url": "b"})
 
 
 def test_vps_pdf_worker_is_persistent_bounded_and_shadow_only():

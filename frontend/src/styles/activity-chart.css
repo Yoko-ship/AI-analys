@@ -1,0 +1,686 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ACTIVITY CHART - Enhanced Timeline Visualization
+   ═══════════════════════════════════════════════════════════════════════════ */
+.activity-chart {
+  display: grid;
+  gap: 16px;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.5), transparent),
+    radial-gradient(ellipse at 50% 0%, var(--accent-light), transparent 60%);
+}
+
+body[data-theme="dark"] .activity-chart {
+  background:
+    linear-gradient(180deg, rgba(16, 19, 17, 0.5), transparent),
+    radial-gradient(ellipse at 50% 0%, var(--accent-light), transparent 60%);
+}
+
+.activity-chart-svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 2px 4px rgba(13, 22, 17, 0.05));
+}
+
+.activity-bar-track {
+  fill: rgba(146, 165, 152, 0.1);
+  rx: 4;
+}
+
+.activity-bar-track.has-activity {
+  fill: rgba(63, 224, 143, 0.15);
+}
+
+.activity-bar {
+  fill: var(--accent, #3fe08f);
+  rx: 4;
+  transition: opacity 0.2s ease;
+}
+
+.activity-bar:hover {
+  opacity: 0.85;
+  filter: brightness(1.1);
+}
+
+.activity-axis-label {
+  fill: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.activity-axis-label.has-activity {
+  fill: var(--accent, #3fe08f);
+}
+
+.activity-value {
+  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.activity-value.has-activity {
+  fill: var(--accent, #3fe08f);
+}
+
+.activity-footer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.activity-footer > div {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(248, 250, 252, 0.8);
+  transition: background 0.2s ease;
+}
+
+.activity-footer > div:hover {
+  background: rgba(37, 99, 235, 0.05);
+}
+
+body[data-theme="dark"] .activity-footer > div {
+  background: rgba(16, 19, 17, 0.8);
+}
+
+body[data-theme="dark"] .activity-footer > div:hover {
+  background: rgba(63, 224, 143, 0.1);
+}
+
+.activity-footer-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.activity-footer strong {
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 1.2rem;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .topbar-nav,
+  .topbar-meta {
+    justify-self: start;
+  }
+
+  .topbar-status {
+    justify-items: start;
+  }
+
+  .topbar-controls {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-overview,
+  .hero-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    padding: 16px;
+  }
+
+  .topbar-auth-chip,
+  .topbar-language,
+  .topbar-language .select-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topbar-meta,
+  .topbar-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions .primary-btn,
+  .hero-actions .ghost-btn {
+    width: 100%;
+  }
+
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-footer {
+    flex-direction: column;
+  }
+}
+
+/* Administrative entry point. Deliberately quiet: it sits with the controls and
+   not in the nav, because the panel is a tool for whoever maintains the data and
+   not a section of the product. The text collapses below 1360px — the inline nav
+   already fights for that space and the icon carries the meaning. */
+.topbar-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.topbar-admin:hover,
+.topbar-admin.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+
+@media (max-width: 1360px) {
+  .topbar-admin { width: 36px; padding: 0; justify-content: center; }
+  .topbar-admin span { display: none; }
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  background: var(--accent-light);
+}
+
+.theme-toggle .field-label {
+  display: none;
+}
+
+/* Text size: A− | 100% | A+, one bordered group so it reads as a single control. */
+.topbar-textsize {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.topbar-textsize button {
+  min-width: 32px;
+  height: 36px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.topbar-textsize button + button {
+  border-left: 1px solid var(--border);
+}
+
+.topbar-textsize button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--accent-light);
+}
+
+/* Disabled means "already there" — at 100 % the reset is not an error, it is the
+   state. So it dims rather than looking broken, and keeps the default cursor. */
+.topbar-textsize button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.topbar-textsize-now {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.theme-toggle strong {
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body[data-theme="dark"] {
+  background:
+    radial-gradient(circle at top left, rgba(63, 224, 143, 0.08), transparent 30%),
+    radial-gradient(circle at 90% 20%, rgba(16, 185, 129, 0.06), transparent 35%),
+    linear-gradient(180deg, #0d0e11 0%, #0a0b0d 100%);
+}
+
+body[data-theme="dark"] .topbar {
+  background: #0d0e11;
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .brand-title,
+body[data-theme="dark"] .brand-subtitle,
+body[data-theme="dark"] .panel-head h2,
+body[data-theme="dark"] .hero-copy-block h1,
+body[data-theme="dark"] .verdict-text,
+body[data-theme="dark"] .summary-text,
+body[data-theme="dark"] .profile-copy h3,
+body[data-theme="dark"] .profile-copy p,
+body[data-theme="dark"] .user-card strong,
+body[data-theme="dark"] .metric-card strong,
+body[data-theme="dark"] .profile-stat-card strong,
+body[data-theme="dark"] .activity-value,
+body[data-theme="dark"] .activity-footer strong,
+body[data-theme="dark"] .legend-value,
+body[data-theme="dark"] .legend-delta,
+body[data-theme="dark"] .history-title,
+body[data-theme="dark"] .favorite-main strong,
+body[data-theme="dark"] .analysis-chart .empty-copy,
+body[data-theme="dark"] .empty-copy {
+  color: #eef4ef;
+}
+
+body[data-theme="dark"] .muted,
+body[data-theme="dark"] .auth-chip-email,
+body[data-theme="dark"] .auth-chip-label,
+body[data-theme="dark"] .field-label,
+body[data-theme="dark"] .profile-stat-label,
+body[data-theme="dark"] .metric-label,
+body[data-theme="dark"] .mini-market-label,
+body[data-theme="dark"] .form-grid label,
+body[data-theme="dark"] .analysis-form label,
+body[data-theme="dark"] .profile-edit-form label,
+body[data-theme="dark"] .oauth-label,
+body[data-theme="dark"] .panel-copy,
+body[data-theme="dark"] .hero-copy-block p,
+body[data-theme="dark"] .history-sub,
+body[data-theme="dark"] .profile-stat-sub,
+body[data-theme="dark"] .metric-sub,
+body[data-theme="dark"] .chart-axis-label,
+body[data-theme="dark"] .activity-axis-label,
+body[data-theme="dark"] .activity-footer-label,
+body[data-theme="dark"] .legend-label,
+body[data-theme="dark"] .legend-delta,
+body[data-theme="dark"] .helper-text {
+  color: rgba(228, 234, 229, 0.7);
+}
+
+body[data-theme="dark"] .hero-panel,
+body[data-theme="dark"] .panel,
+body[data-theme="dark"] .profile-stat-card,
+body[data-theme="dark"] .metric-card,
+body[data-theme="dark"] .user-card,
+body[data-theme="dark"] .tile-card,
+body[data-theme="dark"] .note-card,
+body[data-theme="dark"] .section-card,
+body[data-theme="dark"] .mini-market-card,
+body[data-theme="dark"] .chart-card,
+body[data-theme="dark"] .analysis-chart,
+body[data-theme="dark"] .activity-footer,
+body[data-theme="dark"] .quick-chip,
+body[data-theme="dark"] .select-field,
+body[data-theme="dark"] .form-grid input,
+body[data-theme="dark"] .history-filters input,
+body[data-theme="dark"] .history-filters select,
+body[data-theme="dark"] .analysis-form input,
+body[data-theme="dark"] .analysis-form select,
+body[data-theme="dark"] .profile-edit-form input,
+body[data-theme="dark"] .topbar-auth-chip,
+body[data-theme="dark"] .theme-toggle,
+body[data-theme="dark"] .hero-badges span,
+body[data-theme="dark"] .segmented-control,
+body[data-theme="dark"] .oauth-btn,
+body[data-theme="dark"] .ghost-btn,
+body[data-theme="dark"] .primary-btn {
+  background: rgba(19, 19, 21, 0.88);
+  border-color: rgba(146, 165, 152, 0.14);
+  color: #eef4ef;
+}
+
+body[data-theme="dark"] .hero-panel {
+  background: rgba(16, 19, 17, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] .panel,
+body[data-theme="dark"] .profile-stat-card,
+body[data-theme="dark"] .metric-card,
+body[data-theme="dark"] .user-card,
+body[data-theme="dark"] .tile-card,
+body[data-theme="dark"] .note-card,
+body[data-theme="dark"] .section-card,
+body[data-theme="dark"] .mini-market-card,
+body[data-theme="dark"] .chart-card,
+body[data-theme="dark"] .analysis-chart,
+body[data-theme="dark"] .activity-footer {
+  background: rgba(16, 19, 17, 0.95);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+body[data-theme="dark"] .hero-kpi-tile,
+body[data-theme="dark"] .legend-chip {
+  background: rgba(13, 22, 17, 0.94);
+  border-color: rgba(146, 165, 152, 0.18);
+  color: #eef4ef;
+}
+
+body[data-theme="dark"] .hero-kpi-label,
+body[data-theme="dark"] .hero-kpi-foot,
+body[data-theme="dark"] .legend-label {
+  color: rgba(228, 234, 229, 0.72);
+}
+
+body[data-theme="dark"] .hero-kpi-value,
+body[data-theme="dark"] .legend-value {
+  color: #f8fafc;
+}
+
+body[data-theme="dark"] .hero-kpi-tile.tone-good { border-left-color: #10b981; }
+body[data-theme="dark"] .hero-kpi-tile.tone-warning { border-left-color: #f59e0b; }
+body[data-theme="dark"] .hero-kpi-tile.tone-danger { border-left-color: #ee6a60; }
+body[data-theme="dark"] .hero-kpi-tile.tone-neutral { border-left-color: #94a3b8; }
+
+body[data-theme="dark"] .legend-delta.is-up {
+  color: var(--accent-2);
+}
+
+body[data-theme="dark"] .legend-delta.is-down {
+  color: var(--danger);
+}
+
+body[data-theme="dark"] .panel:hover,
+body[data-theme="dark"] .tile-card:hover,
+body[data-theme="dark"] .profile-stat-card:hover,
+body[data-theme="dark"] .metric-card:hover {
+  border-color: rgba(63, 224, 143, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+body[data-theme="dark"] .topbar-nav-btn {
+  background: transparent;
+  color: #8b95a5;
+}
+
+body[data-theme="dark"] .topbar-nav-btn:hover {
+  background: rgba(63, 224, 143, 0.1);
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .topbar-nav-btn.active {
+  background: rgba(63, 224, 143, 0.15);
+  color: #3fe08f;
+}
+
+body[data-theme="dark"] .primary-btn {
+  background: linear-gradient(135deg, #3fe08f, #63e8a6);
+  color: #0d0e11;
+  box-shadow: 0 8px 24px rgba(63, 224, 143, 0.25);
+}
+
+body[data-theme="dark"] .primary-btn:hover {
+  box-shadow: 0 12px 32px rgba(63, 224, 143, 0.35);
+}
+
+body[data-theme="dark"] .ghost-btn,
+body[data-theme="dark"] .theme-toggle,
+body[data-theme="dark"] .select-field,
+body[data-theme="dark"] .form-grid input,
+body[data-theme="dark"] .history-filters input,
+body[data-theme="dark"] .history-filters select,
+body[data-theme="dark"] .analysis-form input,
+body[data-theme="dark"] .analysis-form select,
+body[data-theme="dark"] .profile-edit-form input,
+body[data-theme="dark"] .quick-chip {
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .sidebar {
+  background: linear-gradient(180deg, rgba(13, 13, 15, 0.96), rgba(17, 17, 19, 0.94));
+  border-color: rgba(146, 165, 152, 0.14);
+}
+
+body[data-theme="dark"] .bg-glow-a {
+  background: rgba(63, 224, 143, 0.08);
+}
+
+body[data-theme="dark"] .bg-glow-b {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+body[data-theme="dark"] .activity-bar-track {
+  fill: rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .activity-bar-track.has-activity {
+  fill: rgba(63, 224, 143, 0.12);
+}
+
+body[data-theme="dark"] .activity-bar {
+  fill: var(--accent, #3fe08f);
+}
+
+body[data-theme="dark"] .chart-grid-line {
+  stroke: rgba(255, 255, 255, 0.06);
+}
+
+body[data-theme="dark"] .chart-line-revenue {
+  stroke: #3fe08f;
+}
+
+body[data-theme="dark"] .chart-line-profit {
+  stroke: #10b981;
+}
+
+body[data-theme="dark"] .chart-line-debt {
+  stroke: #f87171;
+}
+
+body[data-theme="dark"] .chart-axis-label,
+body[data-theme="dark"] .activity-axis-label {
+  fill: rgba(228, 234, 229, 0.7);
+}
+
+body[data-theme="dark"] .chart-axis-note,
+body[data-theme="dark"] .status-badge.muted,
+body[data-theme="dark"] .score-caption {
+  color: rgba(228, 234, 229, 0.76);
+}
+
+body[data-theme="dark"] .theme-toggle strong {
+  color: #eef4ef;
+}
+
+/* Finance dashboard visuals */
+.dashboard-metric-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-height: 178px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(146, 165, 152, 0.18);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(37, 99, 235, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94));
+  box-shadow: 0 18px 42px rgba(13, 22, 17, 0.07);
+}
+
+.dashboard-metric-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(146, 165, 152, 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(146, 165, 152, 0.07) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 62%);
+}
+
+.dashboard-metric-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.metric-pulse {
+  width: 11px;
+  height: 11px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.1);
+}
+
+.dashboard-metric-card.tone-good .metric-pulse {
+  background: #10b981;
+  box-shadow: 0 0 0 7px rgba(16, 185, 129, 0.12);
+}
+
+.dashboard-metric-card.tone-warning .metric-pulse {
+  background: #f59e0b;
+  box-shadow: 0 0 0 7px rgba(245, 158, 11, 0.12);
+}
+
+.dashboard-metric-card.tone-danger .metric-pulse {
+  background: #ee6a60;
+  box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.12);
+}
+
+.dashboard-metric-card .profile-stat-value {
+  margin-top: 7px;
+  color: #101613;
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: clamp(1.8rem, 2.8vw, 2.6rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.dashboard-metric-card .profile-stat-sub {
+  position: relative;
+  z-index: 1;
+}
+
+.mini-sparkline {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: auto;
+  min-height: 58px;
+}
+
+.mini-sparkline-line,
+.mini-sparkline-area {
+  vector-effect: non-scaling-stroke;
+}
+
+.mini-sparkline-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mini-sparkline-area {
+  fill: rgba(37, 99, 235, 0.12);
+}
+
+.mini-sparkline-dot {
+  fill: #ffffff;
+  stroke: #2563eb;
+  stroke-width: 3;
+}
+
+.mini-sparkline.tone-good .mini-sparkline-line {
+  stroke: #10b981;
+}
+
+.mini-sparkline.tone-good .mini-sparkline-area {
+  fill: rgba(16, 185, 129, 0.13);
+}
+
+.mini-sparkline.tone-good .mini-sparkline-dot {
+  stroke: #10b981;
+}
+
+.mini-sparkline.tone-warning .mini-sparkline-line {
+  stroke: #f59e0b;
+}
+
+.mini-sparkline.tone-warning .mini-sparkline-area {
+  fill: rgba(245, 158, 11, 0.14);
+}
+
+.mini-sparkline.tone-warning .mini-sparkline-dot {
+  stroke: #f59e0b;
+}
+
+.mini-sparkline-empty {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 58px;
+  place-items: center;
+  border: 1px dashed rgba(146, 165, 152, 0.36);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, transparent, rgba(146, 165, 152, 0.16), transparent) center 44% / 70% 2px no-repeat,
+    linear-gradient(90deg, transparent, rgba(146, 165, 152, 0.1), transparent) center 62% / 48% 2px no-repeat;
+}
+
+.score-card {
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(37, 99, 235, 0.14), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.9));
+}

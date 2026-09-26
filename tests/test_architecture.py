@@ -55,3 +55,16 @@ def test_financial_and_persistence_modules_do_not_depend_on_http_or_workers():
     for module in ("issuer_financials.py", "server/company/financials.py", "reporting/store.py"):
         _, dependencies = imports(ROOT / module)
         assert not any(dep.startswith(("fastapi", "server.http", "reporting.worker", "reporting.publication", "admin_control")) for dep in dependencies), module
+
+
+def test_report_rendering_has_no_application_or_provider_dependencies():
+    """Rendering a completed report must work without collectors or AI setup."""
+    files = [*ROOT.joinpath("reporting/article").glob("*.py")]
+    files += [ROOT / "reporting/exports.py", ROOT / "reporting/report_tables.py"]
+    assert files and all(file.exists() for file in files)
+    forbidden = ("analysis_service", "analyzer", "openai", "main", "openinfo_collector",
+                 "reports_catalog", "fastapi", "server", "reporting.ai", "reporting.store")
+    for file in files:
+        _, dependencies = imports(file)
+        assert not any(dep == prefix or dep.startswith(prefix + ".")
+                       for dep in dependencies for prefix in forbidden), file

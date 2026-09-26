@@ -19,10 +19,13 @@ from typing import Any
 import requests
 
 import reports_catalog as rc
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.storage as catalogue_storage
 import corporate_actions
 from delisted import DELISTED_TICKERS
 from entity_resolver import ISIN_OVERRIDES, ORG_OVERRIDES
-from openinfo_collector import OPENINFO_API_BASE, _json_get, _make_session
+from collectors.openinfo.settings import OPENINFO_API_BASE
+from collectors.openinfo.transport import _json_get, _make_session
 from securities_catalog import get_securities_map
 
 log = logging.getLogger("listings")
@@ -363,7 +366,7 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
 
 def _org_ids() -> dict[str, str]:
     """ticker → org_id from the local catalog (already resolved by sync_all)."""
-    conn = rc.get_catalog_conn()
+    conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         "SELECT ticker, org_id FROM catalog_companies "
         "WHERE org_id IS NOT NULL AND org_id != ''"
@@ -645,7 +648,7 @@ def collect_financials_aliases() -> list[dict[str, Any]]:
     ticker that has them onto its siblings that don't.
     """
     session = _make_session()
-    fin = {t.upper(): f for t, f in rc.get_all_financials().items()}
+    fin = {t.upper(): f for t, f in catalogue_snapshots.get_all_financials().items()}
     rows: list[dict[str, Any]] = []
     for org_id, tickers in _org_to_tickers(session).items():
         source = next(

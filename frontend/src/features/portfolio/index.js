@@ -1,2 +1,3 @@
 // Public interface for this feature.
-export { PortfolioView } from "./PortfolioView.jsx";
+import { lazy } from "react";
+export const PortfolioView = lazy(() => import("./PortfolioView.jsx").then(module => ({ default: module.PortfolioView })));

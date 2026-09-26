@@ -13,6 +13,15 @@ import math
 from pathlib import Path
 
 import reports_catalog as rc
+import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
+import catalogue.financial_store as catalogue_financial_store
+import catalogue.history as catalogue_history
+import catalogue.parsing as catalogue_parsing
+import catalogue.periods as catalogue_periods
+import catalogue.refresh as catalogue_refresh
+import catalogue.sources as catalogue_sources
+import catalogue.storage as catalogue_storage
 from . import store
 
 log = logging.getLogger(__name__)
@@ -32,7 +41,7 @@ def implementation_digest():
 
 
 def _connect():
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     c.execute("""CREATE TABLE IF NOT EXISTS nsbu_history_checkpoints (
         id TEXT PRIMARY KEY, issuer TEXT NOT NULL, year INTEGER NOT NULL,
         quarter INTEGER NOT NULL, source_json TEXT NOT NULL,
@@ -60,7 +69,7 @@ def _issuers(tickers):
 
 
 def _periods(aliases):
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         rows = [dict(r) for r in c.execute(
             "SELECT * FROM catalog_reports WHERE ticker IN (" + ",".join("?" for _ in aliases) + ") "
@@ -69,7 +78,7 @@ def _periods(aliases):
         c.close()
     periods = {}
     for row in rows:
-        if row["year"] and not rc._is_future_period(row["year"], row["quarter"]):
+        if row["year"] and not catalogue_periods._is_future_period(row["year"], row["quarter"]):
             periods.setdefault((row["year"], row["quarter"]), []).append(row)
     return periods
 
@@ -87,11 +96,11 @@ def _source(rows):
 def _align_sources(aliases, source):
     fields = ("report_form", "period_type", "year", "quarter", "title", "published_at",
               "pdf_url", "excel_url", "excel_url_form1", "openinfo_report_id", "object_id")
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         with c:
             for alias in aliases:
-                rc._upsert_report(c, alias, **{k: source[k] for k in fields})
+                catalogue_filings._upsert_report(c, alias, **{k: source[k] for k in fields})
                 # The chosen source is known: remove obsolete sibling URLs too.
                 c.execute("UPDATE catalog_reports SET excel_url=?,excel_url_form1=?,pdf_url=?,"
                           "openinfo_report_id=?,object_id=?,published_at=? WHERE ticker=? "
@@ -104,17 +113,17 @@ def _align_sources(aliases, source):
 
 
 def _validate_replacement(aliases, year, quarter, values):
-    for field in rc.FIN_MONEY_FIELDS:
+    for field in catalogue_fields.FIN_MONEY_FIELDS:
         value = values.get(field)
         if value is not None and (not isinstance(value, (int, float)) or not math.isfinite(value)):
             raise ValueError("Invalid financial value: " + field)
-    c = rc.get_catalog_conn()
+    c = catalogue_storage.get_catalog_conn()
     try:
         for alias in aliases:
             row = c.execute("SELECT * FROM catalog_financials WHERE ticker=? AND form='NSBU' AND year=? AND quarter=?",
                             (alias, year, quarter)).fetchone()
             if row:
-                lost = [k for k in rc._FINANCIAL_KEYS + ("total_assets", "total_equity")
+                lost = [k for k in catalogue_financial_store._FINANCIAL_KEYS + ("total_assets", "total_equity")
                         if row[k] is not None and values.get(k) is None]
                 if lost:
                     raise ValueError("Incomplete parse would erase existing fields: " + ", ".join(lost))
@@ -133,11 +142,11 @@ def _checkpoint_matches(c, key, aliases, year, quarter):
         if not row or not row["report_id"] or row["report_id"] != payload["report_id"]:
             return False
         # A later seed/enrichment or lost cache row must not be hidden by a checkpoint.
-        for field in rc._FIN_FIELDS + rc._FIN_CURRENT_FIELDS:
+        for field in catalogue_fields._FIN_FIELDS + catalogue_fields._FIN_CURRENT_FIELDS:
             expected = payload["values"].get(field)
             # The existing cache writer deliberately preserves optional current
             # assets from another form when absent in a bank statement.
-            if expected is None and field in rc._FIN_CURRENT_FIELDS:
+            if expected is None and field in catalogue_fields._FIN_CURRENT_FIELDS:
                 continue
             if row[field] != expected:
                 return False
@@ -154,9 +163,9 @@ def run(tickers=None, force=False, max_periods=None):
         if max_periods is not None and result["processed"] >= max_periods:
             result["stopped_by_budget"] = True
             break
-        ticker = rc._canonical_ticker(aliases)
+        ticker = catalogue_filings._canonical_ticker(aliases)
         try:
-            discovery = rc.harvest_historical_quarters(ticker, limit=1000, publish=False)
+            discovery = catalogue_history.harvest_historical_quarters(ticker, limit=1000, publish=False)
             result["discovered"] += discovery.get("added", 0)
             result["errors"].extend({"ticker": ticker, "stage": "discovery", "error": str(e)}
                                     for e in discovery.get("errors", []))
@@ -179,26 +188,26 @@ def run(tickers=None, force=False, max_periods=None):
             result["processed"] += 1
             status, payload = "error", {}
             try:
-                data = rc.fetch_report_excel_data(source["ticker"], "NSBU", year, quarter,
+                data = catalogue_sources.fetch_report_excel_data(source["ticker"], "NSBU", year, quarter,
                                                  use_snapshot_cache=False)
-                ratios = rc.compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
+                ratios = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
                 values = ratios.get("source_values") or {}
                 values["total_equity"] = values.get("total_equity", values.get("equity"))
-                if not data.get("ok") or not any(values.get(k) is not None for k in rc.FIN_MONEY_FIELDS):
+                if not data.get("ok") or not any(values.get(k) is not None for k in catalogue_fields.FIN_MONEY_FIELDS):
                     raise ValueError(data.get("error") or "No usable financial indicators")
                 current = _periods(aliases).get((year, quarter), [])
                 if not current or _source(current)[1] != relationships:
                     raise ValueError("Source mapping changed during extraction; retry next run")
                 _validate_replacement(aliases, year, quarter, values)
                 _align_sources(aliases, source)
-                report_id = rc._register_parse(source["ticker"], "NSBU", year, quarter, data, values)
+                report_id = catalogue_refresh._register_parse(source["ticker"], "NSBU", year, quarter, data, values)
                 relationships = _source(_periods(aliases)[(year, quarter)])[1]
                 key = store.digest([issuer, year, quarter, relationships, implementation, aliases])
                 # Readers prefer the requested ticker over siblings. Refresh every
                 # alias so an old preferred-share row cannot override this repair.
                 for alias in aliases:
-                    rc.upsert_financials_cache(alias, "NSBU", year, quarter, values, report_id)
-                    rc.upsert_ratio_cache(alias, "NSBU", year, quarter, ratios.get("metrics") or {})
+                    catalogue_financial_store.upsert_financials_cache(alias, "NSBU", year, quarter, values, report_id)
+                    catalogue_financial_store.upsert_ratio_cache(alias, "NSBU", year, quarter, ratios.get("metrics") or {})
                 missing = [field for field in _REQUIRED if values.get(field) is None]
                 status = "complete" if not missing and not data.get("warnings") and report_id else "partial"
                 payload = {"values": values, "report_id": report_id, "missing": missing,

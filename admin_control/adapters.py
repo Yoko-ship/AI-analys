@@ -82,9 +82,10 @@ def coverage(c, doc):
 
 def refresh_catalog():
     import reports_catalog
+    import catalogue.storage as catalogue_storage
     from issuer_financials import special_type
-    from sector_analysis import resolve_template
-    conn = reports_catalog.get_catalog_conn()
+    from financial_analysis.sector_templates import resolve_template
+    conn = catalogue_storage.get_catalog_conn()
     try:
         companies = [dict(r) for r in conn.execute("SELECT ticker,company_name,org_id,last_synced_at FROM catalog_companies")]
         rows = [dict(r) for r in conn.execute("SELECT * FROM catalog_reports ORDER BY id")]

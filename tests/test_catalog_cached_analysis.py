@@ -2,17 +2,23 @@ from __future__ import annotations
 
 import company_imports as subject_company_imports
 import reports_catalog as subject_reports_catalog
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.sources as catalogue_sources
 import server.catalog.routes as subject_server_catalog_routes
 
 import asyncio
 
 import api
 import reports_catalog
+import catalogue.ratios as catalogue_ratios
+import catalogue.snapshots as catalogue_snapshots
+import catalogue.sources as catalogue_sources
 
 
 def test_cached_period_builds_ratios_from_verified_values(monkeypatch):
     monkeypatch.setattr(
-        reports_catalog,
+        catalogue_snapshots,
         "get_financials_series",
         lambda ticker, form: {
             "2025": {
@@ -25,7 +31,7 @@ def test_cached_period_builds_ratios_from_verified_values(monkeypatch):
         },
     )
 
-    result = reports_catalog.get_cached_catalog_period("BECM", "NSBU", 2025)
+    result = catalogue_ratios.get_cached_catalog_period("BECM", "NSBU", 2025)
 
     assert result["has_data"] is True
     assert result["source_values"]["equity"] == 800.0
@@ -40,7 +46,7 @@ def test_cached_period_builds_ratios_from_verified_values(monkeypatch):
 
 def test_cached_dynamics_decumulates_quarterly_flows(monkeypatch):
     monkeypatch.setattr(
-        reports_catalog,
+        catalogue_snapshots,
         "get_financials_series",
         lambda ticker, form: {
             "2024": {"revenue": 500.0, "net_income": 50.0},
@@ -48,7 +54,7 @@ def test_cached_dynamics_decumulates_quarterly_flows(monkeypatch):
         },
     )
     monkeypatch.setattr(
-        reports_catalog,
+        catalogue_snapshots,
         "get_financials_series_quarterly",
         lambda ticker, form: {
             "2025Q1": {"revenue": 100.0, "net_income": 10.0},
@@ -56,7 +62,7 @@ def test_cached_dynamics_decumulates_quarterly_flows(monkeypatch):
         },
     )
 
-    result = reports_catalog.build_cached_catalog_dynamics("BECM", "NSBU")
+    result = catalogue_ratios.build_cached_catalog_dynamics("BECM", "NSBU")
 
     assert result["years"] == [2024, 2025]
     assert result["quarterly"][0]["revenue"] == 100.0
@@ -87,8 +93,8 @@ def test_nonfinance_catalog_analysis_never_downloads_openinfo(monkeypatch):
         }
 
     monkeypatch.setattr(subject_company_imports, "approved_metadata_map", lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'fetch_report_excel_data', no_upstream)
-    monkeypatch.setattr(subject_reports_catalog, 'get_cached_catalog_period', cached_period)
+    monkeypatch.setattr(catalogue_sources, 'fetch_report_excel_data', no_upstream)
+    monkeypatch.setattr(catalogue_ratios, 'get_cached_catalog_period', cached_period)
     request = subject_server_catalog_routes.CatalogAnalyzeRequest(
         ticker="BECM", year=2025, form="NSBU", analysis_type="financial", language="ru"
     )
@@ -108,7 +114,7 @@ def test_finance_catalog_analysis_keeps_existing_upstream_path(monkeypatch):
         return {"ok": True, "income": None, "balance": None}
 
     monkeypatch.setattr(subject_company_imports, "approved_metadata_map", lambda: {})
-    monkeypatch.setattr(subject_reports_catalog, 'fetch_report_excel_data', upstream)
+    monkeypatch.setattr(catalogue_sources, 'fetch_report_excel_data', upstream)
     request = subject_server_catalog_routes.CatalogAnalyzeRequest(
         ticker="IPTB", year=2025, form="NSBU", analysis_type="ratio", language="ru"
     )

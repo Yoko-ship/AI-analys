@@ -10,6 +10,8 @@ describe("format", () => {
       assert.equal(fn(null, "ru"), "—");
       assert.equal(fn(undefined, "ru"), "—");
       assert.equal(fn(NaN, "ru"), "—");
+      assert.equal(fn("", "ru"), "—");
+      assert.equal(fn("   ", "ru"), "—");
     }
   });
 

@@ -22,6 +22,11 @@ import instruments
 import obs
 import public_contract
 import reports_catalog as catalog_store
+import catalogue.fields as catalogue_fields
+import catalogue.market_store as catalogue_market_store
+import catalogue.ratios as catalogue_ratios
+import catalogue.refresh as catalogue_refresh
+import catalogue.snapshots as catalogue_snapshots
 import requests
 import securities_catalog as securities_store
 import server.http as http
@@ -62,8 +67,8 @@ async def api_market_audit() -> dict[str, Any]:
     loop = asyncio.get_running_loop()
     try:
         stats, quotes = await asyncio.gather(
-            loop.run_in_executor(None, catalog_store.get_all_trade_stats),
-            loop.run_in_executor(None, catalog_store.get_all_quotes),
+            loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats),
+            loop.run_in_executor(None, catalogue_market_store.get_all_quotes),
         )
         shares, bonds = await asyncio.gather(market_board._build_board("stock"), market_board._build_board("bond"))
     except Exception as exc:
@@ -93,7 +98,7 @@ async def api_market_trades() -> dict[str, Any]:
     """
     loop = asyncio.get_running_loop()
     try:
-        stats = await loop.run_in_executor(None, catalog_store.get_all_trade_stats)
+        stats = await loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats)
     except Exception:
         http.logger.exception("market/trades: trade-stats read failed")
         stats = {}
@@ -150,12 +155,12 @@ async def api_market_financials(ticker: str | None = None) -> dict[str, Any]:
     """
     loop = asyncio.get_running_loop()
     try:
-        financials = await loop.run_in_executor(None, catalog_store.get_all_financials)
+        financials = await loop.run_in_executor(None, catalogue_snapshots.get_all_financials)
     except Exception as exc:
         http.logger.exception("financials cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     # Progressive background fill (non-blocking; self-throttled and lock-guarded).
-    loop.run_in_executor(None, catalog_store.refresh_financials_cache)
+    loop.run_in_executor(None, catalogue_refresh.refresh_financials_cache)
     # Stored NSBU sums are thousands of UZS; serve full UZS so the client can
     # relate them to market caps/prices without unit knowledge. The `annual`
     # companion carries the same money fields and must be scaled with the row —
@@ -164,8 +169,8 @@ async def api_market_financials(ticker: str | None = None) -> dict[str, Any]:
     def _scaled(row: dict[str, Any]) -> dict[str, Any]:
         return {
             **row,
-            **{k: row[k] * catalog_store.NSBU_THOUSANDS_UZS
-               for k in catalog_store.FIN_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
+            **{k: row[k] * catalogue_fields.NSBU_THOUSANDS_UZS
+               for k in catalogue_fields.FIN_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }
 
     def _with_companions(row: dict[str, Any]) -> dict[str, Any]:
@@ -214,7 +219,7 @@ async def api_market_ratios() -> dict[str, Any]:
     """
     loop = asyncio.get_running_loop()
     try:
-        ratios = await loop.run_in_executor(None, catalog_store.get_all_ratios)
+        ratios = await loop.run_in_executor(None, catalogue_ratios.get_all_ratios)
         securities = await loop.run_in_executor(None, securities_store.get_securities_map)
     except Exception as exc:
         http.logger.exception("ratios cache read failed")
@@ -229,8 +234,8 @@ async def api_market_ratios() -> dict[str, Any]:
             # The withheld field must not survive in the period map either.
             "periods": {k: v for k, v in (row.get("periods") or {}).items()
                         if k != "debt_to_equity"},
-            **{k: row[k] * catalog_store.NSBU_THOUSANDS_UZS
-               for k in catalog_store.RATIO_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
+            **{k: row[k] * catalogue_fields.NSBU_THOUSANDS_UZS
+               for k in catalogue_fields.RATIO_MONEY_FIELDS if isinstance(row.get(k), (int, float))},
         }
         for ticker, row in ratios.items()
         if str(ticker).upper() not in bonds
@@ -351,7 +356,7 @@ async def api_market_changes(request: Request) -> Response:
         # 400 sessions is over a year of trading for even the most liquid line,
         # and many more for a quiet one — get_quote_history counts sessions, not
         # days, precisely so a security that rarely trades still answers.
-        history = await loop.run_in_executor(None, partial(catalog_store.get_quote_history, codes, 400))
+        history = await loop.run_in_executor(None, partial(catalogue_market_store.get_quote_history, codes, 400))
     except Exception as exc:
         http.logger.exception("market changes failed")
         raise HTTPException(status_code=502, detail="changes unavailable") from exc
@@ -480,7 +485,7 @@ async def api_market_trade_stats() -> dict[str, Any]:
     """Per-ISIN latest-day trade statistics (turnover, avg price, largest trade)."""
     loop = asyncio.get_running_loop()
     try:
-        stats = await loop.run_in_executor(None, catalog_store.get_all_trade_stats)
+        stats = await loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats)
     except Exception as exc:
         http.logger.exception("trade-stats cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
