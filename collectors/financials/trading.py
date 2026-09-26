@@ -8,6 +8,7 @@ import collectors.financials.retry as collectors_financials_retry
 import collectors.financials.settings as collectors_financials_settings
 import time
 import trade_stats as ts
+from collectors.openinfo import market_fallback as archive_market
 
 
 def push_trade_stats() -> int:
@@ -15,6 +16,9 @@ def push_trade_stats() -> int:
     for attempt in range(1, collectors_financials_retry.RETRY_ATTEMPTS + 1):
         collectors_financials_settings.log.info("fetching UZSE trade stats (latest day) ...")
         data = ts.fetch_trade_stats()
+        if not (data.get("reachable") and data.get("complete")):
+            collectors_financials_settings.log.warning("UZSE unavailable/incomplete; trying OpenInfo")
+            data = archive_market.fetch_latest_trade_stats(min_day=data.get("trade_date"))
         stats = data.get("stats") or {}
         rows = list(stats.values())
         collectors_financials_settings.log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
@@ -92,7 +96,11 @@ def push_trade_stats() -> int:
             collectors_financials_settings.log.exception("intraday bars push failed")
     if not collectors_financials_market.SKIP_QUOTES:
         try:
-            status = collectors_financials_market.push_quotes(stats) or status
+            if data.get("source") == "openinfo":
+                status = collectors_financials_market.push_quotes(
+                    stats, source="openinfo", archive_quotes=data.get("quotes")) or status
+            else:
+                status = collectors_financials_market.push_quotes(stats) or status
         except Exception:
             collectors_financials_settings.log.exception("quotes step failed")
             status = status or 1

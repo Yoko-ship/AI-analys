@@ -36,6 +36,8 @@ import uzse_quotes as uq
 def instant_retries(monkeypatch) -> None:
     """Retry the same number of times, without the five-minute wait."""
     monkeypatch.setattr(collectors_financials_retry, "RETRY_WAIT_SECONDS", 0)
+    monkeypatch.setattr(collectors_financials_trading.archive_market, "fetch_latest_trade_stats",
+                        lambda **kw: _feed(reachable=False, complete=False, stats={}))
 
 
 @pytest.fixture()

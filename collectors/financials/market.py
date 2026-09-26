@@ -100,7 +100,8 @@ def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
     return rows
 
 
-def push_quotes(stats: dict[str, dict]) -> int:
+def push_quotes(stats: dict[str, dict], *, source: str = "uzse",
+                archive_quotes: list[dict] | None = None) -> int:
     """Read the exchange's own quote for each security that traded, and push it.
 
     The board's change % is close-to-close against the exchange's previous close,
@@ -142,7 +143,21 @@ def push_quotes(stats: dict[str, dict]) -> int:
              len(targets), len(traded))
     quotes: list[dict] = []
     pending, settled, idle = list(targets), 0, 0
-    for attempt in range(1, collectors_financials_retry.RETRY_ATTEMPTS + 1):
+    if source == "openinfo":
+        from collectors.openinfo.market_fallback import fetch_quotes
+        quotes = list(archive_quotes or [])
+        cached = {q["isin"] for q in quotes}
+        quotes.extend(fetch_quotes([t for t in targets if t[0] not in cached]))
+        # A delayed archive quote must not leave today's statistics beside an
+        # older close while claiming the refresh completed successfully.
+        dated = {q["isin"]: q["trade_date"] for q in quotes}
+        missing = [isin for isin, row in stats.items()
+                   if row.get("trade_count", 0) and dated.get(isin) != row.get("trade_date")]
+        if missing:
+            collectors_financials_settings.log.error("OpenInfo quotes lag executions for %s", ", ".join(missing))
+            return 1
+        pending = []
+    for attempt in range(1, (collectors_financials_retry.RETRY_ATTEMPTS if source == "uzse" else 0) + 1):
         outcome: dict[str, Any] = {}
         answered = uq.fetch_session_quotes(pending, settle=True, outcome=outcome)
         quotes.extend(answered)
@@ -172,7 +187,7 @@ def push_quotes(stats: dict[str, dict]) -> int:
         return audit_board()
     quoted = {str(q.get("isin") or "").upper() for q in quotes}
     unquoted = [t for t in targets if t[0] not in quoted]
-    if unquoted:
+    if unquoted and source == "uzse":
         try:
             archived = quotes_from_archive(unquoted)
             collectors_financials_settings.log.info("quotes: %d of %d unquoted securities recovered from the "

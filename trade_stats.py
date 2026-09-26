@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from typing import Any
 
@@ -75,8 +76,19 @@ _HEADER_MOMENT_RE = re.compile(r"(?=(20\d{6})(\d{2})(\d{2})(\d{2}))")
 
 
 def trade_moment(trade: dict) -> tuple[str, int, tuple] | None:
-    """One execution's (day, hour, sortable within-day stamp), from its header."""
+    """Execution moment from the exchange header or OpenInfo's explicit date."""
     day = str(trade.get("trade_date") or "")
+    if trade.get("trade_datetime"):
+        try:
+            stamp = datetime.fromisoformat(str(trade["trade_datetime"]))
+            if stamp.tzinfo is not None:
+                stamp = stamp.astimezone(timezone(timedelta(hours=5)))
+            if stamp.strftime("%Y%m%d") == day:
+                return day, stamp.hour, (stamp.strftime("%Y%m%d%H%M%S%f"),
+                                         _f(trade.get("trade_number")), _f(trade.get("id")))
+        except ValueError:
+            pass
+        return None
     for m in _HEADER_MOMENT_RE.finditer(str(trade.get("header") or "")):
         if m.group(1) == day and int(m.group(2)) <= 23 \
                 and int(m.group(3)) <= 59 and int(m.group(4)) <= 59:
@@ -401,7 +413,10 @@ def fetch_trade_stats(max_pages: int = 400, session: requests.Session | None = N
                 payload = resp.json()
                 if not isinstance(payload, dict):
                     raise ValueError("trade feed returned a non-object payload")
-                res = payload.get("results") or []
+                records = payload.get("results")
+                if not isinstance(records, list):
+                    raise ValueError("trade feed returned no execution list")
+                res = records
                 reachable = True
                 break
             except Exception:

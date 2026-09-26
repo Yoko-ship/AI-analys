@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       refresh_market_now:
-        description: Check UZSE access from production and run one market refresh after deployment
+        description: Run one market refresh on production after deployment
         required: false
         type: boolean
         default: false
@@ -1223,7 +1223,7 @@ jobs:
           REMOTE
 
   refresh-market:
-    name: Verify UZSE access and refresh market data
+    name: Refresh market data on production
     needs: deploy-production
     # Explicit repair only; ordinary deployments must not add another full crawl.
     if: github.ref == 'refs/heads/API' && ((github.event_name == 'workflow_dispatch' && inputs.refresh_market_now) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[refresh-market]')))
@@ -1255,30 +1255,15 @@ jobs:
           git rev-parse HEAD
           docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
           systemctl show uzstock-quotes-2130.service -p FragmentPath -p ActiveState
-          docker exec -i uzstock-web python - <<'PY'
-          import json
-          import requests
-          import uzse_quotes
-          import trade_stats
-
-          with requests.Session() as session:
-              response = session.get(trade_stats.UZSE_TRADE_URL,
-                  headers={"User-Agent": trade_stats._UA, "Accept": "application/json"},
-                  params={"page": 1}, timeout=20)
-              print("UZSE_FEED_HTTP=" + str(response.status_code), flush=True)
-              response.raise_for_status()
-              payload = response.json()
-              assert isinstance(payload.get("results"), list), "UZSE trade feed schema changed"
-              print("UZSE_FEED_META=" + json.dumps(payload.get("meta")), flush=True)
-              quote = uzse_quotes.fetch_quote("UZ7001100005", session=session)
-              assert quote is not None, "Production cannot read the UZSE quote page"
-              print("UZSE_QUOTE=" + json.dumps({key: quote[key]
-                    for key in ("ticker", "last_trade_date", "last_price")}), flush=True)
-          PY
-          if systemctl is-active --quiet uzstock-quotes-1610.service; then
-            echo 'The post-close collector is already running; no duplicate crawl started.'
-            exit 1
-          fi
+          # The collector validates its selected source, including the automatic
+          # OpenInfo fallback. Requiring UZSE here would prevent outage recovery.
+          for unit in uzstock-quotes-1610.service uzstock-quotes-2130.service; do
+            state=$(systemctl show "$unit" -p ActiveState --value)
+            if [ "$state" = active ] || [ "$state" = activating ]; then
+              echo 'A market collector is already running; no duplicate crawl started.'
+              exit 1
+            fi
+          done
           result=0
           systemctl start uzstock-quotes-2130.service || result=$?
           journalctl -u uzstock-quotes-2130.service -n 100 --no-pager

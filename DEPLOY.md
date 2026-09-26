@@ -403,6 +403,20 @@ Schedule it on any host that can reach openinfo:
   The lag varies (20:57 on Fri 07.08, at least 19:19 on Thu 06.08), so 21:30 carries
   deliberate margin.
 
+  **Automatic source recovery.** If the UZSE execution feed cannot be read
+  completely, the existing server collector uses OpenInfo's UZSE archive.
+  It pins one session, verifies pagination and the full execution count, then
+  checks each traded security against the official daily conclusion before
+  publishing. Identical auction executions remain separate. Quote dates stay
+  attached to their actual trading session, including quiet stocks and bonds.
+  Both sources failing still fails the run and preserves the stored data.
+  The log identifies `OpenInfo fallback` when this route succeeds; the normal
+  collector heartbeat reflects the result. No new service or schedule is needed.
+
+  OpenInfo does not expose execution IDs to order simultaneous trades, so this
+  fallback updates daily statistics, OHLC, quotes and daily history, preserving
+  existing hourly bars. New hourly bars resume when the direct UZSE feed recovers.
+
   **Two crawls a day, not more.** Until 2026-09-25 an hourly, round-the-clock
   `uzstock-intraday` job (plus one extra walk after every deploy) and a mid-session
   `quotes-1300` run added up to ~30 full walks of the trade feed a day — a busy session
