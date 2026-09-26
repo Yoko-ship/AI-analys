@@ -576,7 +576,7 @@ function CatalogCompareTable({ result, language }) {
   );
 }
 
-function CatalogView({ language, companies, token, addToast, onNavigateToAnalysis, initialStatus, user }) {
+function CatalogView({ language, companies, token, addToast, initialStatus, user }) {
   const lang = normalizeLanguage(language);
   const [status, setStatus] = useState(initialStatus || null);
   const [catalogComps, setCatalogComps] = useState([]);
@@ -667,10 +667,12 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
       const res = await apiFetch("/api/catalog/sync", { method: "POST", body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Sync failed");
-      addToast(clg(lang, "syncDone"), "success");
-      loadStatus();
-      loadCatalogComps();
-      if (ticker) loadIndex(ticker);
+      await Promise.all([loadStatus(), loadCatalogComps(), ...(ticker ? [loadIndex(ticker)] : [])]);
+      if (Array.isArray(data.errors) && data.errors.length) {
+        addToast(clg(lang, "syncSourceError"), "error");
+      } else {
+        addToast(clg(lang, "syncDone"), "success");
+      }
     } catch (err) { addToast(err.message, "error"); }
     finally { setSyncing(false); }
   };
@@ -963,11 +965,6 @@ function CatalogView({ language, companies, token, addToast, onNavigateToAnalysi
                       <button className="ghost-btn" type="button" onClick={() => handleSync(ticker)} disabled={syncing}>
                         {syncing ? clg(lang, "syncing") : clg(lang, "syncCompany")}
                       </button>
-                      {onNavigateToAnalysis && (
-                        <button className="primary-btn" type="button" onClick={() => onNavigateToAnalysis(ticker)}>
-                          {lang === "ru" ? "Открыть в Анализе" : lang === "uz" ? "Tahlilda ochish" : "Open in Analysis"}
-                        </button>
-                      )}
                     </div>
                   </div>
 

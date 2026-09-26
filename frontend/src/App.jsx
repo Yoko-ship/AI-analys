@@ -75,7 +75,6 @@ function App() {
               companies={companies}
               token={token}
               addToast={addToast}
-              onNavigateToAnalysis={(t) => { setAnalysisCompany(t); setActiveView("analysis"); }}
               initialStatus={catalogStatus}
               user={user}
             />
