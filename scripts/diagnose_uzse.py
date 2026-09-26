@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import socket
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -58,6 +59,10 @@ def probe(name: str, url: str, *, direct: bool = False) -> dict:
             result["security_present"] = b"UZ7001100005" in body
             result["history_present"] = "Цена закрытия".encode() in body
         elif status != 200:
+            if len(body) <= 512:
+                message = re.sub(r"<[^>]*>", " ", body.decode("utf-8", "replace"))
+                result["gateway_message"] = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[address]",
+                                                    " ".join(message.split()))[:300]
             title = re.search(rb"<title[^>]*>([^<]*)</title>", body, re.I)
             if title:
                 result["error_title"] = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[address]",
@@ -84,6 +89,14 @@ def main() -> None:
     print(json.dumps({"proxy_setting_names": proxy_keys, "source_dns": dns,
                       "source_hosts_override": bool(hosts.exists() and
                                                      re.search(r"\buzse\.uz\b", hosts.read_text()))}), flush=True)
+    try:
+        with socket.create_connection(("uzse.uz", 443), timeout=15) as connection:
+            with ssl.create_default_context().wrap_socket(connection, server_hostname="uzse.uz") as secure:
+                cert = secure.getpeercert()
+                print(json.dumps({"source_tls_sha256": hashlib.sha256(secure.getpeercert(binary_form=True)).hexdigest(),
+                                  "source_tls_issuer": cert.get("issuer"), "expires": cert.get("notAfter")}), flush=True)
+    except Exception as error:
+        print(json.dumps({"source_tls_error": type(error).__name__}), flush=True)
     feed = probe("configured_feed", BASE + FEED)
     probe("configured_quote", BASE + QUOTE)
     if not feed.get("feed_valid"):

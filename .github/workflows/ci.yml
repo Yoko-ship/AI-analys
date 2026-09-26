@@ -222,7 +222,7 @@ jobs:
     needs: [secret-scan, backend, frontend, docker]
     # Production is updated only from the deployment branch, and only after the
     # full test/build suite above has passed.
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/API'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/API' && !contains(github.event.head_commit.message, '[diagnose-uzse]')
     runs-on: ubuntu-latest
     concurrency:
       group: production-deploy
