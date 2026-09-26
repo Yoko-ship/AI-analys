@@ -1001,6 +1001,32 @@ jobs:
           done
           REMOTE
 
+  verify-production-market:
+    name: Verify public market after deployment
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Load public market with real assets and real data
+        env:
+          E2E_BASE_URL: https://uzstock.uz
+          E2E_PRODUCTION_SMOKE: "1"
+        run: npx playwright test e2e/production-market.spec.js --workers=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-market-verification
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   publish-reviewed-bank-ifrs:
     name: Publish and verify reviewed bank IFRS
     needs: deploy-production

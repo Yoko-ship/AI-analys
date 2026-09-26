@@ -280,7 +280,7 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
 test("deferred market code shows a readable loading state and leaves navigation usable", async ({ page }, testInfo) => {
   let release;
   const ready = new Promise(resolve => { release = resolve; });
-  await page.route("**/assets/MarketView-*.js", async route => {
+  await page.route(/\/assets\/MarketView-[^/]+\.m?js$/, async route => {
     await ready;
     await route.continue();
   });
@@ -296,7 +296,7 @@ test("deferred market code shows a readable loading state and leaves navigation 
 });
 
 test("a failed feature download offers reload and recovers without losing the shell", async ({ page }, testInfo) => {
-  const chunk = "**/assets/MarketView-*.js";
+  const chunk = /\/assets\/MarketView-[^/]+\.m?js$/;
   await page.route(chunk, route => route.abort("failed"));
   await page.goto("/market");
   const message = page.getByRole("alert");
