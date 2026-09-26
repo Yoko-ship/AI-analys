@@ -7,12 +7,19 @@ import { test, expect } from "@playwright/test";
 const TICKER = "UNVB";
 const SECURITY = { name: "Universal Bank", company_name: "Universal Bank", security_type: "stock",
   last_price: 8200, close_price: 8200, industry: "Banks" };
+const CHART_SECURITIES = {
+  UNVB: SECURITY,
+  UZTL: { name: "Uzbektelecom", company_name: "Uzbektelecom", security_type: "stock",
+    last_price: 17207, close_price: 17207, industry: "Telecommunications" },
+  SQBN: { name: "SQB", company_name: "SQB", security_type: "stock",
+    last_price: 40.95, close_price: 40.95, industry: "Banks" },
+};
 
-function priceHistory() {
+function priceHistory(startPrice = 6100) {
   const out = [];
   const end = new Date();
   end.setUTCHours(0, 0, 0, 0);
-  let price = 6100;
+  let price = startPrice;
   for (let offset = 900; offset >= 0; offset -= 1) {
     const day = new Date(end.getTime() - offset * 864e5);
     if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue;
@@ -24,11 +31,11 @@ function priceHistory() {
   return out;
 }
 
-function patternsBody(history, status = "AVAILABLE", sensitivity = "medium") {
+function patternsBody(history, status = "AVAILABLE", sensitivity = "medium", ticker = TICKER) {
   const at = (i) => history[history.length - i];
   const top = at(60), neck = at(50), signal = at(40);
   return {
-    ok: true, ticker: TICKER, status, tier: status === "AVAILABLE" ? "full" : "sparse", sensitivity,
+    ok: true, ticker, status, tier: status === "AVAILABLE" ? "full" : "sparse", sensitivity,
     reason: status === "AVAILABLE" ? null : "59% свечей без внутридневного диапазона",
     market_stats: {
       double_top: { signals: 500, decided: 400, hit_rate_pct: 20, chance_pct: 30, avg_return_pct: -4, securities: 50 },
@@ -55,20 +62,21 @@ function patternsBody(history, status = "AVAILABLE", sensitivity = "medium") {
   };
 }
 
-async function mock(page, status, asked = []) {
-  const history = priceHistory();
+async function mock(page, status, asked = [], ticker = TICKER) {
+  const security = CHART_SECURITIES[ticker];
+  const history = priceHistory(security.last_price * 6100 / SECURITY.last_price);
   await page.route("**/api/**", (route) => {
     const p = new URL(route.request().url()).pathname;
     const json = (body, code = 200) => route.fulfill({ status: code, contentType: "application/json", body: JSON.stringify(body) });
-    if (p === "/api/securities") return json({ ok: true, securities: { [TICKER]: SECURITY } });
-    if (p === `/api/price-history/${TICKER}`) return json({ ok: true, points: history, adjustments: [] });
-    if (p === `/api/company/${TICKER}/patterns`) {
+    if (p === "/api/securities") return json({ ok: true, securities: { [ticker]: security } });
+    if (p === `/api/price-history/${ticker}`) return json({ ok: true, points: history, adjustments: [] });
+    if (p === `/api/company/${ticker}/patterns`) {
       const level = new URL(route.request().url()).searchParams.get("sensitivity") || "medium";
       asked.push(level);
-      return json(patternsBody(history, status, level));
+      return json(patternsBody(history, status, level, ticker));
     }
-    if (p === `/api/company/${TICKER}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
-    if (p === `/api/securities/${TICKER}/info`) return json({ ok: true, security: SECURITY });
+    if (p === `/api/company/${ticker}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
+    if (p === `/api/securities/${ticker}/info`) return json({ ok: true, security });
     if (p === "/api/auth/me") return json({ user: null }, 401);
     return json({});
   });
@@ -141,3 +149,72 @@ test("a thin security gets no patterns and is told why", async ({ page }) => {
   await expect(list).toContainText("59% свечей без внутридневного диапазона");
   await expect(page.locator(".company-price-chart")).toHaveAttribute("data-patterns", "0");
 });
+
+const FULLSCREEN_ENTRY_POINTS = [
+  { ticker: "UZTL", entry: "direct" },
+  { ticker: "UNVB", entry: "company overview" },
+  { ticker: "SQBN", entry: "company price history" },
+];
+for (const { ticker, entry } of FULLSCREEN_ENTRY_POINTS) {
+  for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+    test(`${ticker} patterns survive fullscreen from ${entry} at ${viewport.width}px`, async ({ page }, testInfo) => {
+      await page.setViewportSize(viewport);
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      const asked = [];
+      await mock(page, "AVAILABLE", asked, ticker);
+      if (entry === "direct") {
+        await page.goto(`/chart/${ticker}`);
+      } else {
+        await page.goto(`/company/${ticker}`);
+        if (entry === "company price history") {
+          await page.getByRole("button", { name: "История цен", exact: true }).click();
+        }
+        await page.getByRole("button", { name: "Развернуть в расширенный график", exact: true }).click();
+      }
+      await expect(page).toHaveURL(new RegExp(`/chart/${ticker}(?:\\?|$)`));
+      const chart = page.locator(".ac-canvas");
+      const workspace = page.locator(".advanced-chart");
+      const range = page.getByTestId("ac-visible-range");
+      await expect(chart).toBeVisible();
+      await page.getByTestId("ac-patterns").click();
+      await page.getByRole("button", { name: "Фигуры", exact: true }).click();
+      await page.getByRole("button", { name: "Свечные модели", exact: true }).click();
+      await page.getByTestId("ac-patterns").click();
+      await expect(chart).toHaveAttribute("data-patterns", "2");
+      const selected = page.getByTestId("pattern-list").getByRole("button", { name: /Двойная вершина/ });
+      await selected.click();
+      await expect(selected).toHaveAttribute("aria-pressed", "true");
+      const focusedRange = await range.evaluate((el) => ({ from: el.dataset.from, to: el.dataset.to }));
+
+      await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();
+      await expect(workspace).toHaveClass(/is-fullscreen/);
+      await page.screenshot({ path: testInfo.outputPath("patterns-fullscreen.png"), fullPage: true });
+
+      // Every drawing pane and the time axis must fit inside the visible plot.
+      await expect.poll(async () => chart.evaluate((el) => {
+        const plot = el.closest(".ac-plot");
+        return Math.abs(el.clientHeight - plot.clientHeight);
+      })).toBeLessThanOrEqual(2);
+      expect(await page.locator(".ac-plot").evaluate((el) => el.clientHeight)).toBeGreaterThanOrEqual(238);
+      await expect(chart).toHaveAttribute("data-patterns", "2");
+      await expect(range).toHaveAttribute("data-from", focusedRange.from);
+      await expect(range).toHaveAttribute("data-to", focusedRange.to);
+      await expect(selected).toHaveAttribute("aria-pressed", "true");
+
+      // The lower panel remains reachable instead of shrinking or clipping the chart.
+      await page.getByRole("button", { name: "Сбросить", exact: true }).click();
+      const hammer = page.getByTestId("pattern-list").getByRole("button", { name: /Молот/ });
+      await hammer.click();
+      await expect(hammer).toHaveAttribute("aria-pressed", "true");
+      await expect.poll(() => range.getAttribute("data-from")).not.toBe(focusedRange.from);
+      await page.getByRole("button", { name: "Выйти из полноэкранного режима" }).click();
+      await expect(workspace).not.toHaveClass(/is-fullscreen/);
+      await expect(hammer).toHaveAttribute("aria-pressed", "true");
+      await expect(chart).toHaveAttribute("data-patterns", "2");
+      await page.screenshot({ path: testInfo.outputPath("patterns-restored.png"), fullPage: true });
+      expect(asked).toEqual(["medium"]);
+      expect(errors).toEqual([]);
+    });
+  }
+}

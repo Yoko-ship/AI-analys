@@ -584,10 +584,20 @@
   height: 100vh;
   height: 100dvh;
   padding: 14px;
-  overflow: hidden;
+  overflow: auto;
   background: var(--bg);
 }
 body.advanced-chart-fullscreen .topbar { visibility: hidden; }
+.advanced-chart.is-fullscreen > :not(.ac-body) { flex-shrink: 0; }
+.ac-details { display: flex; flex-direction: column; gap: 10px; }
+.ac-details > * { flex-shrink: 0; }
+.advanced-chart.is-fullscreen .ac-details {
+  min-height: 0;
+  max-height: min(30dvh, 280px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .ac-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ac-back { background: none; border: none; color: var(--text-muted); font-size: 13px; cursor: pointer; padding: 4px 0; }
 .ac-back:hover { color: var(--text-primary); }
@@ -685,7 +695,7 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
 
 .ac-body { position: relative; display: grid; grid-template-columns: 0 1fr; gap: 0; min-height: 0; }
 .advanced-chart.rail-open .ac-body { grid-template-columns: 232px 1fr; gap: 14px; }
-.advanced-chart.is-fullscreen .ac-body { flex: 1 1 auto; min-height: 0; }
+.advanced-chart.is-fullscreen .ac-body { flex: 1 0 240px; min-height: 240px; }
 /* Outside full screen the body is as tall as its plot. Allowed to shrink, it
    did on a 720px-high window and the notes (and «Сбросить») slid under the chart. */
 .advanced-chart:not(.is-fullscreen) .ac-body { flex-shrink: 0; }

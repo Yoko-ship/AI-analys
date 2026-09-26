@@ -860,11 +860,6 @@ body[data-theme="light"] .profile-page .dashboard-metric-card {
 .bond-spread-badge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 6px 0 10px; font-size: 13px; }
 .bond-spread-badge b { font-size: 18px; font-variant-numeric: tabular-nums; }
 
-/* The TradingView credit the chart licence asks for, in place of the logo on
-   the plot: quiet, but a real link on the same page as the chart. */
-.lw-credit { display: block; margin: 4px 2px 0 auto; width: max-content; font-size: 11px; color: var(--muted); text-decoration: none; }
-.lw-credit:hover { color: var(--text-secondary); text-decoration: underline; }
-
 /* «Паттерны» menu: switches carry a tick box, the sensitivity a radio dot,
    under their own headings, so what is on reads at a glance. */
 .pattern-menu { display: grid; gap: 1px; min-width: 230px; }

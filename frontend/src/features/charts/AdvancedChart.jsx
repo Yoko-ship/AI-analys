@@ -521,6 +521,20 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // oscillator's ninety pixels out of the price pane, which is the one pane
   // that was the reason to open this page.
   const plotH = Math.max(420, Math.floor(viewH * 0.62)) + subPanes.length * (SUB_H + GAP);
+  const plotRef = React.useRef(null);
+  const [measuredPlotH, setMeasuredPlotH] = React.useState(null);
+  React.useLayoutEffect(() => {
+    const plot = plotRef.current;
+    if (!plot) return undefined;
+    // Full screen allocates space between the toolbar, plot and details.
+    // Its canvas must follow that allocation, not the page's preferred height.
+    const measure = () => setMeasuredPlotH(Math.max(1, plot.clientHeight));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(plot);
+    return () => observer.disconnect();
+  }, []);
+  const canvasH = measuredPlotH ?? plotH;
 
   const isUp = n >= 2 && baseVals[n - 1] >= (cmpOn ? 0 : (rangeWindow[0]?.close ?? baseVals[0]));
   const priceColor = cmpOn ? LW_UP : isUp ? LW_UP : LW_DOWN;
@@ -971,7 +985,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           {railOpen ? "‹" : "›"}
         </button>
 
-        <div className="ac-plot" style={{ height: plotH }}>
+        <div ref={plotRef} className="ac-plot" style={{ height: plotH }}>
           {busy && <div className="ac-state muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>}
           {failed && (
             <div className="ac-state">
@@ -1010,9 +1024,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 </div>
               )}
 
-              {/* 22px under the canvas for the TradingView credit: the plot box
-                  clips at its own height. */}
-              <LwCanvas spec={spec} height={plotH - 22} lang={lang} crosshair={cursorOn} pan={!drawMode}
+              <LwCanvas spec={spec} height={canvasH} lang={lang} crosshair={cursorOn} pan={!drawMode}
                 viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
                 onHover={setHover} onClick={onChartClick}
                 onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}
@@ -1029,7 +1041,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
               {hp && (
                 <div className="ac-tooltip" style={{
                   left: Math.min(Math.max(12, hover.point.x + 16), Math.max(12, (hover.width || 900) - 210)),
-                  top: Math.min(Math.max(8, hover.point.y - 30), Math.max(8, plotH - 200)),
+                  top: Math.min(Math.max(8, hover.point.y - 30), Math.max(8, canvasH - 200)),
                 }}>
                   <div className="ac-tt-date">{fmtDate(hp.date, true)}</div>
                   {!synthetic && lwOhlcOk(hp) && (
@@ -1110,94 +1122,96 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         </div>
       </div>
 
-      <div className="ac-notes">
-        {effInterval === "H" && !busy && (
-          <p className="muted" data-testid="ac-hourly-note">
-            {source.length
-              ? t(`Часовые бары — из ленты сделок биржи; хранятся с ${fmtDate(String(source[0].date).slice(0, 10), true)}, раньше почасовых данных нет.`,
-                  `Soatlik barlar — birja bitimlar lentasidan; ${fmtDate(String(source[0].date).slice(0, 10), true)} dan saqlanadi.`,
-                  `Hourly bars come from the exchange's trade feed, stored from ${fmtDate(String(source[0].date).slice(0, 10), true)}; nothing hourly exists before that.`)
-              : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было.",
-                  "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan.",
-                  "No hourly bars for this security — it has not traded in the last 60 days.")}
-          </p>
-        )}
-        {patternsWanted && (patternsAvailable || patternsOn.cycle ? (
-          <PatternList data={patternData} signals={shownPatterns} lang={lang} visibleFrom={visFrom} visibleTo={visTo}
-            limit={12} selectedKey={selectedPattern}
-            families={{ chart: patternsAvailable && patternsOn.chart, candle: patternsAvailable && patternsOn.candle,
-                        cycle: patternsOn.cycle }}
-            onPick={(sig) => {
-              setSelectedPattern(patternKey(sig));
-              setFocus({ from: lwTime(sig.start_date) - 10 * 86400, to: lwTime(sig.exit_date || sig.signal_date) + 10 * 86400 });
-            }} />
-        ) : (
-          <p className="pattern-note muted" data-testid="pattern-list">
-            {t("Паттерны строятся по дневным свечам в сумах — без сравнения, недельных баров и синтетических видов.",
-               "Patternlar kunlik shamlarda quriladi — taqqoslash, haftalik barlar va sintetik turlarsiz.",
-               "Patterns are read off daily bars in сум — not while comparing, on weekly bars or synthetic types.")}
-          </p>
-        ))}
-        {visFrom && (
-          <p className="ac-history-help" data-testid="ac-visible-range" data-from={visFrom} data-to={visTo}>
-            <span>
-              {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
-                 "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
-                 "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
-            </span>
-            <span className="ac-history-dates">{fmtDate(visFrom, true)} — {fmtDate(visTo, true)}</span>
-            {visible?.changed && (
-              <button type="button" className="ac-history-reset" onClick={() => setResetToken((v) => v + 1)}>
-                {t("Сбросить", "Tiklash", "Reset")}
-              </button>
-            )}
-          </p>
-        )}
-        {stepLine && (
-          <p className="muted">
-            {t("Цена показана ступенями — между сделками она не менялась.",
-               "Narx pog'onalar bilan — bitimlar orasida u o'zgarmagan.",
-               "The price is drawn as steps — between trades it did not move.")}
-            {quality?.reason ? ` ${quality.reason}` : ""}
-          </p>
-        )}
-        {AC_SYNTHETIC_TYPES.has(drawType) && (
-          <p className="muted ac-synthetic-note">
-            {t("Расчётный вид по дневным данным; значения фигур синтетические и не являются ценами сделок.",
-               "Kunlik ma’lumotlar asosidagi hisobiy ko‘rinish; shakl qiymatlari sintetik va bitim narxlari emas.",
-               "Calculated from daily data; figure values are synthetic and are not traded prices.")}
-          </p>
-        )}
-        {cmpOn && cmp.start && (
-          <p className="muted">
-            {t(`Сравнение считается с ${fmtDate(cmp.start, true)} — раньше сохранённых котировок нет.`,
-               `Taqqoslash ${fmtDate(cmp.start, true)} dan — undan oldingi kotirovkalar yo'q.`,
-               `The comparison starts on ${fmtDate(cmp.start, true)} — there are no stored quotes before it.`)}
-          </p>
-        )}
-        {cmp && cmp.dropped.length > 0 && !cmpLoading && (
-          <p className="muted">
-            {t("Нет сохранённых котировок за этот период: ", "Bu davr uchun kotirovkalar yo'q: ", "No stored quotes for this period: ")}
-            {cmp.dropped.map((c) => c.ticker).join(", ")}
-          </p>
-        )}
-        {adjustments.length > 0 && (
-          <p className="muted">
-            {t("Стрелками отмечены дробления и бонусные эмиссии; цены до них пересчитаны на текущую акцию.",
-               "Strelkalar bilan maydalash va bonus emissiyalar belgilangan; ulardan oldingi narxlar qayta hisoblangan.",
-               "The arrows mark splits and bonus issues; prices before them are restated onto the current share.")}
-          </p>
-        )}
-        {finFields.length > 0 && (
-          <p className="muted">
-            {t("Годовой показатель нанесён на 31 декабря своего периода и держится до следующего отчёта — раньше его не существовало.",
-               "Yillik ko'rsatkich o'z davrining 31 dekabriga qo'yilgan va keyingi hisobotgacha saqlanadi.",
-               "An annual figure is placed on 31 December of its period and held until the next filing — before that it did not exist.")}
-          </p>
-        )}
+      <div className="ac-details">
+        <div className="ac-notes">
+          {effInterval === "H" && !busy && (
+            <p className="muted" data-testid="ac-hourly-note">
+              {source.length
+                ? t(`Часовые бары — из ленты сделок биржи; хранятся с ${fmtDate(String(source[0].date).slice(0, 10), true)}, раньше почасовых данных нет.`,
+                    `Soatlik barlar — birja bitimlar lentasidan; ${fmtDate(String(source[0].date).slice(0, 10), true)} dan saqlanadi.`,
+                    `Hourly bars come from the exchange's trade feed, stored from ${fmtDate(String(source[0].date).slice(0, 10), true)}; nothing hourly exists before that.`)
+                : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было.",
+                    "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan.",
+                    "No hourly bars for this security — it has not traded in the last 60 days.")}
+            </p>
+          )}
+          {patternsWanted && (patternsAvailable || patternsOn.cycle ? (
+            <PatternList data={patternData} signals={shownPatterns} lang={lang} visibleFrom={visFrom} visibleTo={visTo}
+              limit={12} selectedKey={selectedPattern}
+              families={{ chart: patternsAvailable && patternsOn.chart, candle: patternsAvailable && patternsOn.candle,
+                          cycle: patternsOn.cycle }}
+              onPick={(sig) => {
+                setSelectedPattern(patternKey(sig));
+                setFocus({ from: lwTime(sig.start_date) - 10 * 86400, to: lwTime(sig.exit_date || sig.signal_date) + 10 * 86400 });
+              }} />
+          ) : (
+            <p className="pattern-note muted" data-testid="pattern-list">
+              {t("Паттерны строятся по дневным свечам в сумах — без сравнения, недельных баров и синтетических видов.",
+                 "Patternlar kunlik shamlarda quriladi — taqqoslash, haftalik barlar va sintetik turlarsiz.",
+                 "Patterns are read off daily bars in сум — not while comparing, on weekly bars or synthetic types.")}
+            </p>
+          ))}
+          {visFrom && (
+            <p className="ac-history-help" data-testid="ac-visible-range" data-from={visFrom} data-to={visTo}>
+              <span>
+                {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
+                   "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
+                   "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
+              </span>
+              <span className="ac-history-dates">{fmtDate(visFrom, true)} — {fmtDate(visTo, true)}</span>
+              {visible?.changed && (
+                <button type="button" className="ac-history-reset" onClick={() => setResetToken((v) => v + 1)}>
+                  {t("Сбросить", "Tiklash", "Reset")}
+                </button>
+              )}
+            </p>
+          )}
+          {stepLine && (
+            <p className="muted">
+              {t("Цена показана ступенями — между сделками она не менялась.",
+                 "Narx pog'onalar bilan — bitimlar orasida u o'zgarmagan.",
+                 "The price is drawn as steps — between trades it did not move.")}
+              {quality?.reason ? ` ${quality.reason}` : ""}
+            </p>
+          )}
+          {AC_SYNTHETIC_TYPES.has(drawType) && (
+            <p className="muted ac-synthetic-note">
+              {t("Расчётный вид по дневным данным; значения фигур синтетические и не являются ценами сделок.",
+                 "Kunlik ma’lumotlar asosidagi hisobiy ko‘rinish; shakl qiymatlari sintetik va bitim narxlari emas.",
+                 "Calculated from daily data; figure values are synthetic and are not traded prices.")}
+            </p>
+          )}
+          {cmpOn && cmp.start && (
+            <p className="muted">
+              {t(`Сравнение считается с ${fmtDate(cmp.start, true)} — раньше сохранённых котировок нет.`,
+                 `Taqqoslash ${fmtDate(cmp.start, true)} dan — undan oldingi kotirovkalar yo'q.`,
+                 `The comparison starts on ${fmtDate(cmp.start, true)} — there are no stored quotes before it.`)}
+            </p>
+          )}
+          {cmp && cmp.dropped.length > 0 && !cmpLoading && (
+            <p className="muted">
+              {t("Нет сохранённых котировок за этот период: ", "Bu davr uchun kotirovkalar yo'q: ", "No stored quotes for this period: ")}
+              {cmp.dropped.map((c) => c.ticker).join(", ")}
+            </p>
+          )}
+          {adjustments.length > 0 && (
+            <p className="muted">
+              {t("Стрелками отмечены дробления и бонусные эмиссии; цены до них пересчитаны на текущую акцию.",
+                 "Strelkalar bilan maydalash va bonus emissiyalar belgilangan; ulardan oldingi narxlar qayta hisoblangan.",
+                 "The arrows mark splits and bonus issues; prices before them are restated onto the current share.")}
+            </p>
+          )}
+          {finFields.length > 0 && (
+            <p className="muted">
+              {t("Годовой показатель нанесён на 31 декабря своего периода и держится до следующего отчёта — раньше его не существовало.",
+                 "Yillik ko'rsatkich o'z davrining 31 dekabriga qo'yilgan va keyingi hisobotgacha saqlanadi.",
+                 "An annual figure is placed on 31 December of its period and held until the next filing — before that it did not exist.")}
+            </p>
+          )}
+        </div>
+        <TechnicalBacktestCard ticker={ticker} lang={lang} apiFetch={apiFetch} signedIn={signedIn}
+          hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
       </div>
-      <TechnicalBacktestCard ticker={ticker} lang={lang} apiFetch={apiFetch} signedIn={signedIn}
-        hasProAccess={hasProAccess} onUpgrade={onUpgrade} />
     </div>
   );
 }

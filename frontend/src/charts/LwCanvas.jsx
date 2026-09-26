@@ -1,8 +1,7 @@
 // TradingView Lightweight Charts™
 // Copyright (c) 2025 TradingView, Inc. https://www.tradingview.com/
-// Licensed under the Apache License 2.0. The licence asks for a link to
-// tradingview.com on the page that shows the chart: it is the credit line this
-// component renders under every chart, in place of the logo drawn on the plot.
+// Licensed under the Apache License 2.0. The attribution link is rendered once
+// in the application footer, outside the chart surface.
 import React from "react";
 import {
   createChart, createSeriesMarkers, createTextWatermark, AreaSeries, LineSeries, BaselineSeries, CandlestickSeries,
@@ -344,13 +343,8 @@ export default function LwCanvas({
   }, [focus]);
 
   return (
-    <>
-      <div className={`lw-canvas ${className}`} style={{ position: "relative", height, ...style }} {...rest}>
-        <div ref={boxRef} className="lw-canvas-surface" style={{ position: "absolute", inset: 0 }} />
-      </div>
-      <a className="lw-credit" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
-        {lang === "en" ? "Charts by TradingView" : lang === "uz" ? "Grafiklar: TradingView" : "Графики: TradingView"}
-      </a>
-    </>
+    <div className={`lw-canvas ${className}`} style={{ position: "relative", height, ...style }} {...rest}>
+      <div ref={boxRef} className="lw-canvas-surface" style={{ position: "absolute", inset: 0 }} />
+    </div>
   );
 }

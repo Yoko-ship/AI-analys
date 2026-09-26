@@ -391,6 +391,13 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
         <footer className="app-footer">
           <DisclaimerNote language={language} variant="footer" />
+          {(activeView === "company" || activeView === "chart") && (
+            <small className="app-chart-attribution">
+              <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
+                Lightweight Charts™ © 2025 TradingView, Inc.
+              </a>
+            </small>
+          )}
         </footer>
       </div>
 

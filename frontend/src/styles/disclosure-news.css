@@ -1,5 +1,8 @@
 /* ── Legal disclaimer (ТЗ §3.2) ─────────────────────────────── */
 .app-footer { margin-top: 32px; padding: 20px 0 8px; }
+.app-chart-attribution { display: block; max-width: 1180px; margin: 12px auto 0; color: var(--muted); font-size: 11px; }
+.app-chart-attribution a { color: inherit; text-decoration: none; }
+.app-chart-attribution a:hover, .app-chart-attribution a:focus-visible { color: var(--text-secondary); text-decoration: underline; }
 .disclaimer-note { border: 1px solid rgba(245, 166, 35, 0.45); border-left: 5px solid var(--accent, #f5a623); border-radius: 12px; padding: 18px 20px; background: rgba(245, 166, 35, 0.09); }
 .disclaimer-note--footer { max-width: 1180px; margin: 0 auto; }
 .disclaimer-note--report { margin: 16px 0 4px; }
