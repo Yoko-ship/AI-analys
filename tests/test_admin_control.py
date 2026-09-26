@@ -257,7 +257,9 @@ def test_pdf_preview_and_image():
 
 
 def test_reprocess_creates_new_runs_and_deduplicates_bytes(monkeypatch):
-    monkeypatch.setattr(documents, "fetch_original", lambda url: workbook_bytes())
+    # Reuse the exact archive: generating another XLSX can change ZIP timestamps.
+    original = workbook_bytes()
+    monkeypatch.setattr(documents, "fetch_original", lambda url: original)
     for i in (1, 2):
         put("documents", {"id": f"doc{i}", "ticker": "UZNF", "standard": "IFRS", "period": "2026", "period_end": "2026-12-31",
                           "duration_months": 12, "published_at": "2026-08-01", "source_url": f"https://openinfo.uz/{i}", "source": "openinfo.uz"})
