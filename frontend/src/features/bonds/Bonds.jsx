@@ -865,8 +865,8 @@ function niceAxisStep(span, count) {
  * duration. All of it «indicative»: a thin market and inferred terms make it
  * an estimate, and the page says so rather than hiding the map.
  *
- * `compact` draws the small version for a bond card, with `highlight` marked
- * and every other dot faded.
+ * `compact` shows the focused bond-card view without the screener controls,
+ * with `highlight` marked and every other dot faded.
  */
 function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = false, highlight = null }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
@@ -876,6 +876,17 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
   const [hover, setHover] = React.useState(null);
   const [sortKey, setSortKey] = React.useState("spread");
   const boxRef = React.useRef(null);
+  const [plotWidth, setPlotWidth] = React.useState(560);
+  const hasPoints = rows.some((r) => r.dur != null && r.ytm != null);
+
+  React.useLayoutEffect(() => {
+    if (!compact || !hasPoints || !boxRef.current) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setPlotWidth(entry.contentRect.width);
+    });
+    observer.observe(boxRef.current);
+    return () => observer.disconnect();
+  }, [compact, hasPoints]);
 
   const priced = rows
     .map((r) => ({
@@ -913,9 +924,9 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
     .filter((c) => Number.isFinite(c.x) && Number.isFinite(c.y))
     .sort((a, b) => a.x - b.x);
 
-  const W = compact ? 560 : 1060;
-  const H = compact ? 250 : 470;
-  const L = compact ? 44 : 58; const R = compact ? 16 : 150; const T = 18; const B = compact ? 34 : 50;
+  const W = compact ? plotWidth : 1060;
+  const H = compact ? Math.max(320, Math.min(520, W * 0.42)) : 470;
+  const L = compact ? 48 : 58; const R = compact ? 20 : 150; const T = 18; const B = 50;
   const pw = W - L - R; const ph = H - T - B;
   const xMaxData = Math.max(...priced.map((p) => p.x), ...curvePts.map((c) => c.x), 1);
   const xStep = niceAxisStep(xMaxData, compact ? 4 : 6);
@@ -927,7 +938,7 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
   const X = (v) => L + (pw * Math.max(0, Math.min(v, maxX))) / maxX;
   const Y = (v) => T + ph - (ph * (v - minY)) / (maxY - minY || 1);
   const maxSize = Math.max(...priced.map((p) => p.size), 1);
-  const radius = (p) => (compact ? 4 : 5) + (compact ? 5 : 11) * Math.sqrt((p.size || 0) / maxSize);
+  const radius = (p) => 5 + (compact ? 8 : 11) * Math.sqrt((p.size || 0) / maxSize);
 
   const gridY = [];
   for (let v = minY; v <= maxY + 1e-9; v += yStep) gridY.push(Number(v.toFixed(6)));
@@ -1021,11 +1032,9 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
         ))}
         <line x1={L} x2={L + pw} y1={T + ph} y2={T + ph} className="bondsec-axis" />
         <line x1={L} x2={L} y1={T} y2={T + ph} className="bondsec-axis" />
-        {!compact && (
-          <text x={L + pw / 2} y={H - 10} textAnchor="middle" className="bondsec-tick">
-            {t("Дюрация Маколея, лет", "Makoley dyuratsiyasi, yil", "Macaulay duration, years")}
-          </text>
-        )}
+        <text x={L + pw / 2} y={H - 10} textAnchor="middle" className="bondsec-tick">
+          {t("Дюрация Маколея, лет", "Makoley dyuratsiyasi, yil", "Macaulay duration, years")}
+        </text>
         {keyRate?.rate != null && (
           <g>
             <line x1={L} x2={L + pw} y1={Y(keyRate.rate)} y2={Y(keyRate.rate)} className="bondsec-keyrate" />
@@ -1058,6 +1067,7 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
           const sg = bondSegment(p.seg);
           const faded = (hl && p.ticker !== highlight) || (hover && hover.ticker !== p.ticker);
           const lab = labels.get(p.ticker);
+          const labelOnLeft = compact && X(p.x) + r + 5 + p.ticker.length * 8 > W - 4;
           return (
             <g key={p.ticker} className={`bondsec-map-pt ${faded ? "is-faded" : ""} ${p.ticker === highlight ? "is-highlight" : ""}`}
                data-ticker={p.ticker} data-segment={p.seg}
@@ -1068,7 +1078,8 @@ function BondYieldMap({ rows, govPoints, keyRate, lang, onOpenBond, compact = fa
                 className={`bondsec-bubble ${p.stale ? "is-stale" : ""}`} />
               {lab && <text x={lab.x} y={lab.y} textAnchor={lab.anchor} className="bondsec-label">{p.ticker}</text>}
               {compact && p.ticker === highlight && (
-                <text x={X(p.x) + r + 5} y={Y(p.y) + 4} className="bondsec-label bondsec-label-strong">{p.ticker}</text>
+                <text x={X(p.x) + (labelOnLeft ? -r - 5 : r + 5)} y={Y(p.y) + 4}
+                  textAnchor={labelOnLeft ? "end" : "start"} className="bondsec-label bondsec-label-strong">{p.ticker}</text>
               )}
             </g>
           );
@@ -1307,7 +1318,7 @@ function BondLifeLine({ bond, flows, lang }) {
 
 /**
  * Where one issue stands in the market: its G-spread, its rank among issuers
- * of the same kind, that group's median, and the small yield map with the
+ * of the same kind, that group's median, and a full-width yield map with the
  * issue marked. Built from the same board payload as the market's map, so
  * the card and the map can never disagree about a number.
  */
@@ -1453,6 +1464,8 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           </button>
         </div>
       </div>
+
+      <BondMarketPosition bond={bond} board={board} keyRate={keyRate} lang={lang} />
 
       {bond.issuer_report && <details className="verified-block">
         <summary>{t("Финансовый профиль эмитента", "Emitentning moliyaviy profili", "Issuer financial profile")} · {bond.financial_as_of || "—"}</summary>
@@ -1641,8 +1654,6 @@ function BondCard({ ticker, language, onBack, onOpenChart }) {
           <p><strong>{t("Нужно раскрыть", "Oshkor qilish kerak", "Disclosure needed")}:</strong> {monitorCopy(point, "required_disclosure")}</p>
         </article>)}</div>
       </section>}
-
-      <BondMarketPosition bond={bond} board={board} keyRate={keyRate} lang={lang} />
 
       <BondLifeLine bond={bond} flows={(bond.schedule_flows || []).map((f) => ({
         date: f.date, paid: f.paid, due: f.due, executionStatus: f.execution_status, principal: f.principal || 0,

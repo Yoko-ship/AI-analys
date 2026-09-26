@@ -854,7 +854,9 @@ body[data-theme="light"] .profile-page .dashboard-metric-card {
 .bondmap-bar { position: absolute; top: 50%; height: 14px; transform: translateY(-50%); border-radius: 3px; opacity: 0.18; right: 8px; }
 .bondmap-bar.pos { background: #10b981; }
 .bondmap-bar.neg { background: #ee6a60; }
-.bondmap-compact .bondsec-chart { max-height: 260px; }
+.bond-market-position { margin: 18px 0; }
+.bondmap-compact .bondsec-tick { font-size: 12px; }
+.bondmap-compact .bondsec-label-strong { font-size: 13px; }
 .bond-spread-badge { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 6px 0 10px; font-size: 13px; }
 .bond-spread-badge b { font-size: 18px; font-variant-numeric: tabular-nums; }
 

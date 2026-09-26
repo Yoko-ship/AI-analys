@@ -69,3 +69,43 @@ test("the yield map plots priced issues by group and explains what is missing", 
   await expect(tip).toContainText("+708 б.п.");
   expect(errors).toEqual([]);
 });
+
+test("the bond card leads with a full-width market chart that stays readable after resizing", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route("**/api/**", (route) => {
+    const p = new URL(route.request().url()).pathname;
+    const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (p === "/api/bonds") return json(payload);
+    if (p === "/api/bonds/CORPA") return json({ ...payload.items[3], ok: true, key_rate: payload.key_rate });
+    if (p === "/api/auth/me") return json({ user: null }, 401);
+    return json({ ok: true });
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/bond/CORPA");
+  const section = page.getByTestId("bond-market-position");
+  const map = section.getByTestId("bond-yield-map");
+  await expect(map).toHaveAttribute("data-points", "4");
+  const header = await page.locator(".bondsec-card-head").boundingBox();
+  const position = await section.boundingBox();
+  const summary = await page.locator(".bondsec-summary").boundingBox();
+  expect(position.y).toBeGreaterThanOrEqual(header.y + header.height);
+  expect(position.y).toBeLessThan(header.y + header.height + 40);
+  expect(position.y + position.height).toBeLessThanOrEqual(summary.y);
+  expect((await map.boundingBox()).height).toBeGreaterThan(400);
+
+  for (const width of [1440, 390, 320, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    // The drawing itself must fill the SVG, rather than a wide SVG centering a tiny plot.
+    await expect.poll(() => map.evaluate((svg) => Math.abs(svg.viewBox.baseVal.width - svg.clientWidth))).toBeLessThan(2);
+    const chart = await map.boundingBox();
+    expect(chart.height).toBeGreaterThanOrEqual(319);
+    const label = await section.locator(".bondsec-label-strong").boundingBox();
+    expect(label.x).toBeGreaterThanOrEqual(chart.x);
+    expect(label.x + label.width).toBeLessThanOrEqual(chart.x + chart.width);
+    expect(await section.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  }
+  await section.locator('.bondsec-map-pt[data-ticker="CORPA"] circle').hover();
+  await expect(section.locator(".bondmap-tip")).toContainText("+614 б.п.");
+  expect(errors).toEqual([]);
+});
