@@ -22,22 +22,14 @@ What each filing carries:
   source: BFMT3B4 has two same-day #6 filings whose terms disagree (720 vs 1080
   days) and whose prose says 27% where the accruals say 28%.
 
-**The rate is inverted from the accruals, not parsed from prose.** Every filing
-states the same formula — ``Dn = N * C * 30 / 365`` — so the annual rate follows
-from the published per-security amount by arithmetic on published numbers. It is
-then validated against EVERY other coupon of the same issue (each must equal
-``N * C * d / 365`` for a day count within a few days of the period); an issue
-that fails gets no rate at all rather than a plausible one. The check earns its
-keep: all twelve issues come out at whole percentages, which a wrong par, a
-wrong period or a mis-joined series could not produce.
+The exchange register supplies contractual rates and payment cycles. Accruals
+corroborate those terms through ``N * C * days / 365`` before any rate is
+inferred from announcement spacing. Monthly, quarterly and annual coupons must
+use their own period; missing announcements do not lengthen that period.
 
-**The maturity is taken only from #31.** Nowhere is a redemption DATE published
-— the decision says "N days from the start of placement", and the start of
-placement is itself derived ("the 15th calendar day after the registration
-notice"). Reconstructing it lands within about three days of the filed date
-(checked against ACMT1B2: derived 26.07.2026, filed 23.07.2026), and three days
-of guesswork is not a maturity date. So an issue whose redemption has not been
-filed keeps ``maturity_date`` NULL and its yield stays a dash.
+This module supplies a maturity only from #31. Otherwise the collector keeps
+the exchange register's maturity and placement dates. A registration date is
+not a placement date, and an elapsed accrual window is not proof of payment.
 """
 from __future__ import annotations
 
@@ -154,25 +146,40 @@ def resolve_org_id(ticker: str, issuer_name: str | None) -> Any | None:
     except Exception:  # noqa: BLE001 — no catalog on this host is not fatal
         log.debug("catalog lookup failed for %s", ticker, exc_info=True)
 
-    name = re.sub(r"[<>«»\"']", " ", str(issuer_name or "")).strip()
+    name = _issuer_name(issuer_name)
     if not name:
         return None
-    # "«CONTACT FINANSE» mas'uliyati cheklangan jamiyati" → "CONTACT FINANSE",
-    # then "CONTACT": autofill matches the head of the name, not the legal form,
-    # and the two registers spell the same issuer FINANSE and FINANCE. Shortest
-    # query last, because a one-word query is the one that can match a stranger.
+    # Autofill is a search, not an identity lookup: even a single result may
+    # be an unrelated company. Try distinctive words as well as the full name,
+    # but accept only one matching issuer, independently of result ordering.
     words = name.split()
-    for query in (" ".join(words[:2]), words[0]):
+    queries = dict.fromkeys([name, " ".join(words[:2]), *sorted(words, key=len, reverse=True)])
+    for query in queries:
         if not query:
             continue
         try:
             found = _get("/home/autofill/", {"name": query})
         except Exception:  # noqa: BLE001
             return None
-        for item in found or []:
-            if isinstance(item, dict) and item.get("id"):
-                return item["id"]
+        matches = {item["id"] for item in found or []
+                   if isinstance(item, dict) and item.get("id")
+                   and _issuer_name(item.get("full_name_text")) == name}
+        if len(matches) == 1:
+            return matches.pop()
     return None
+
+
+def _issuer_name(value: Any) -> str:
+    """Comparable issuer name, without quoted-name punctuation or legal suffix."""
+    text = str(value or "").strip()
+    quoted = re.search(r'["«“<]([^"»”>]+)["»”>]', text)
+    if quoted:
+        text = quoted.group(1)
+    else:
+        text = re.split(r"\b(?:aksiyadorlik|mas[ʼ’'`ʻ]?uliyati|AJ|ATB|AITB|MChJ)\b",
+                        text, maxsplit=1, flags=re.IGNORECASE)[0]
+    text = re.sub(r"[ʼ’'`ʻ]", "", text.casefold())
+    return " ".join(re.findall(r"\w+", text))
 
 
 def _issue_sequence(registration: Any) -> int | None:
@@ -264,7 +271,8 @@ PERIOD_BY_FREQ = {12: 30, 6: 60, 4: 90, 2: 182, 1: 365}
 
 
 def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]],
-                 known_freq: Any = None) -> tuple[float | None, int | None, str]:
+                 known_freq: Any = None, known_rate: Any = None,
+                 known_period_days: Any = None) -> tuple[float | None, int | None, str]:
     """Annual rate, period length and coupon type from the filed accruals.
 
     Each filing states what one security earns for one period; the decision
@@ -280,22 +288,35 @@ def _coupon_rate(nominal: float, accruals: Sequence[dict[str, Any]],
     """
     _repair_transposed(accruals)
     amounts = [a["amount"] for a in accruals if a.get("amount")]
-    starts = sorted(a["pay_date"] for a in accruals if a.get("pay_date"))
-    if not amounts or len(starts) < 1:
+    starts = sorted({a["pay_date"] for a in accruals if a.get("pay_date")})
+    if nominal <= 0 or not amounts or not starts:
         return None, None, "unknown"
 
-    gaps = [(b - a).days for a, b in zip(starts, starts[1:]) if 20 <= (b - a).days <= 200]
-    period = int(round(statistics.median(gaps) / 30.0) * 30) if gaps else None
+    frequency = _num(known_freq)
+    declared_period = _num(known_period_days) or PERIOD_BY_FREQ.get(frequency)
+    declared_rate = _num(known_rate)
+    if declared_period and declared_rate and declared_rate > 0:
+        # Missing filings lengthen the gap between payment announcements, not
+        # the coupon period. Prefer terms corroborated by the filed amounts.
+        if all(abs(amount * 365 / (nominal * declared_rate / 100) - declared_period)
+               <= _ALLOWED_PERIOD_DRIFT for amount in amounts):
+            return declared_rate, int(declared_period), "fixed"
+
+    gaps = [(b - a).days for a, b in zip(starts, starts[1:]) if 20 <= (b - a).days <= 370]
+    if gaps:
+        median = statistics.median(gaps)
+        period = min(PERIOD_BY_FREQ.values(), key=lambda days: abs(days - median))
+        if abs(period - median) > _ALLOWED_PERIOD_DRIFT:
+            return None, None, "unknown"
+    else:
+        period = None
     if period is None:
-        if len(accruals) > 1:
+        if len(starts) > 1:
             return None, None, "unknown"
         # A single filed coupon cannot show its own spacing: the register's
         # frequency sets it. Without one, no rate — a guessed period is a
         # fabricated rate.
-        try:
-            period = PERIOD_BY_FREQ.get(int(float(known_freq))) if known_freq else None
-        except (TypeError, ValueError):
-            period = None
+        period = int(declared_period) if declared_period else None
         if period is None:
             return None, None, "unknown"
 
@@ -322,11 +343,16 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
     size) and fills in what only the issuer publishes. Returns reference updates
     and coupon rows; an issue whose filings do not add up appears in neither.
     """
-    today = today or date.today()
     rows = [r for r in (reference_rows or []) if r.get("ticker") and r.get("nominal")]
     by_issuer: dict[Any, list[dict[str, Any]]] = {}
+    org_by_name: dict[str, Any] = {}
     for row in rows:
-        org = resolve_org_id(row["ticker"], row.get("issuer"))
+        name = _issuer_name(row.get("issuer"))
+        org = org_by_name.get(name) if name else None
+        if org is None:
+            org = resolve_org_id(row["ticker"], row.get("issuer"))
+            if name and org is not None:
+                org_by_name[name] = org
         if org is None:
             log.info("bond %s: no openinfo organisation", row["ticker"])
             continue
@@ -379,11 +405,19 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
             issue = match_issue(row, issues)
             if not issue or not issue.get("decision_date"):
                 continue
-            mine = sorted((a for a in accruals if a["decision_date"] == issue["decision_date"]),
-                          key=lambda a: a["pay_date"])
+            by_day = {}
+            for accrual in accruals:
+                if (accrual["decision_date"] == issue["decision_date"]
+                        and (not issue.get("registration_date")
+                             or accrual["pay_date"] >= issue["registration_date"])):
+                    # Facts arrive newest first: a correction replaces the
+                    # earlier announcement of the same payment, not a second coupon.
+                    by_day.setdefault(accrual["pay_date"], accrual)
+            mine = sorted(by_day.values(), key=lambda a: a["pay_date"])
             if not mine:
                 continue
-            rate, period, kind = _coupon_rate(float(row["nominal"]), mine, row.get("coupon_freq"))
+            rate, period, kind = _coupon_rate(float(row["nominal"]), mine, row.get("coupon_freq"),
+                                             row.get("coupon_rate"), row.get("coupon_period_days"))
             redemption = next((r for r in redemptions
                                if r["decision_date"] == issue["decision_date"] and r["begins"]), None)
             reference.append({
@@ -403,8 +437,9 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                 # Only a filed redemption window is a maturity. A term of "N days
                 # from the start of placement" is not a date.
                 "maturity_date": redemption["begins"].isoformat() if redemption else None,
-                "issue_date": issue["registration_date"].isoformat() if issue.get("registration_date") else None,
-                "source_url": f"{OPENINFO_API_BASE}/disclosure/facts/{issue['fact_id']}/",
+                # Registration precedes placement; it cannot replace the
+                # register's placement date used to build the payment schedule.
+                "source_url": f"{OPENINFO_API_BASE}/disclosure/facts/{mine[-1]['fact_id']}/",
             })
             for no, accrual in enumerate(mine, start=1):
                 coupons.append({
@@ -416,7 +451,9 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
                     # period — see provenance.bond_coupons.
                     "period_from": None,
                     "period_to": None,
-                    "is_paid": 1 if (accrual["window_end"] and accrual["window_end"] < today) else 0,
+                    # Fact 32 announces accrual, not proof that cash was paid.
+                    "is_paid": None,
+                    "source_url": f"{OPENINFO_API_BASE}/disclosure/facts/{accrual['fact_id']}/",
                 })
             log.info("bond %s: coupon %s%% every %s days, %d filed, maturity %s",
                      row["ticker"], rate, period, len(mine),

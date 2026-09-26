@@ -220,12 +220,20 @@ def _filed_terms_for(row: dict, terms: dict) -> dict:
     filed = {k: v for k, v in (terms or {}).items() if v is not None}
     evidence = filed.pop("coupon_evidence", 0) or 0
     listed = row.get("coupon_rate")
+    # An irregular first/last coupon or a corrected filing does not change
+    # a contractually fixed rate into a floating one.
+    if (row.get("coupon_type") in {"fixed", "zero"}
+            and listed is not None and filed.get("coupon_type") == "floating"):
+        for key in ("coupon_rate", "coupon_freq", "coupon_type", "source_url"):
+            filed.pop(key, None)
     if (evidence <= 1 and listed is not None and filed.get("coupon_rate") is not None
             and abs(float(filed["coupon_rate"]) - float(listed)) > 0.5):
         collectors_financials_settings.log.warning("bond %s: one filed coupon implies %.2f%%, the register states %.2f%% — "
                     "keeping the register", row.get("ticker"), filed["coupon_rate"], listed)
         filed.pop("coupon_rate", None)
         filed.pop("coupon_freq", None)
+        filed.pop("coupon_type", None)
+        filed.pop("source_url", None)
     if filed.get("coupon_rate") is not None:
         filed["coupon_source"] = "openinfo_facts"
     if filed.get("maturity_date"):

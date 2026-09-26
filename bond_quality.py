@@ -6,7 +6,7 @@ import math
 from datetime import date
 
 # Sanity bounds. A value outside them is a data fault until shown otherwise —
-# ANBK3B's register row said 66 % a year monthly where its only filed coupon
+# ANBK3B's stored reference said 66 % a year monthly where its only filed coupon
 # is 22 % for 90 days, and its «yield» came out at 80 %. Numbers like that
 # must not reach a map where they look like the market's best offer. There is
 # deliberately no bound on price: a 19-year zero at 12 % of par is a fair
