@@ -82,5 +82,5 @@ NEWS_MODULE.md
 news_ai_module_scope.md
 
 # Local refactor verification and isolated release checkouts
-output/
+output
 .codex-worktrees/
