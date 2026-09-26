@@ -237,8 +237,10 @@ def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
         row["close_price"] = quote["prev_close"]
         row["close_date"] = market_dates._iso_trade_date(quote.get("prev_close_date")) or row.get("close_date")
     for src, dst in (("open_price", "open"), ("high_price", "high"), ("low_price", "low")):
-        if quote.get(src) is not None:
-            row[dst] = quote[src]
+        # An older listing's range cannot describe the quote's newer session.
+        # Only a second read of the SAME dated session may retain known OHLC.
+        if quote.get(src) is not None or row_day != day:
+            row[dst] = quote.get(src)
     if quote.get("turnover") is not None:
         row["volume"] = quote["turnover"]
     if quote.get("quantity") is not None:

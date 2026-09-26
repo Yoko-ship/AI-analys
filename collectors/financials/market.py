@@ -190,6 +190,13 @@ def push_quotes(stats: dict[str, dict]) -> int:
     history: list[dict[str, Any]] = []
     for q in quotes:
         isin = str(q.get("isin") or "").upper()
+        # Settled quote pages retain only the close. The completed execution
+        # feed still has this session's open/high/low; never borrow another day.
+        session_stats = (stats or {}).get(isin) or {}
+        if q.get("trade_date") and session_stats.get("trade_date") == q["trade_date"]:
+            for field in ("open_price", "high_price", "low_price"):
+                if q.get(field) is None and session_stats.get(field) is not None:
+                    q[field] = session_stats[field]
         for h in (q.pop("history", None) or []):
             day = str(h.get("date") or "").strip()
             if not isin or not day:

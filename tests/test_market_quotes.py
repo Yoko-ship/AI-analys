@@ -60,6 +60,19 @@ def _quote(**over) -> dict:
 
 
 class TestAQuoteOverlaysABoardRow:
+    @pytest.mark.parametrize("row_day,expected", [
+        ("2026-07-30", (None, None, None)),
+        (None, (None, None, None)),
+        ("2026-07-31", (30000.0, 31000.0, 29000.0)),
+    ])
+    def test_a_settled_close_cannot_keep_another_sessions_range(self, row_day, expected):
+        row = {"last_trade_date": row_day, "last_price": 30720.0,
+               "open": 30000.0, "high": 31000.0, "low": 29000.0}
+        subject_server_market_board._apply_quote(
+            row, _quote(open_price=None, high_price=None, low_price=None))
+        assert row["last_trade_date"] == "2026-07-31"
+        assert (row["open"], row["high"], row["low"]) == expected
+
     def test_the_change_becomes_the_exchanges_change(self) -> None:
         """The registry priced UQEQ at 32 000 (24.07): -4.00%. The exchange says +20%."""
         row = {"ticker": "UQEQ", "isin": "UZ7042540003", "last_price": 32000.0,

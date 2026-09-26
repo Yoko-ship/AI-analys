@@ -193,6 +193,31 @@ class TestWaitingForTheExchangeToComeBack:
 
 
 class TestTheQuotePassCoversTheWholeBoard:
+    @pytest.mark.parametrize("quote_day,expected", [
+        ("20260804", (51950.0, 52000.0, 50900.0)),
+        ("20260803", (None, None, None)),
+    ])
+    def test_settled_quotes_take_the_range_only_from_the_same_execution_session(
+            self, monkeypatch, pushed, quote_day, expected):
+        stats = _feed()["stats"]
+        stats["UZ7003040001"].update(open_price=51950.0, high_price=52000.0, low_price=50900.0)
+        monkeypatch.setattr(uq, "fetch_session_quotes", lambda targets, **kw: [
+            {"isin": "UZ7003040001", "trade_date": quote_day, "close_price": 51850.0,
+             "open_price": None, "high_price": None, "low_price": None}])
+        assert collectors_financials_market.push_quotes(stats) == 0
+        row = next(body["rows"][0] for path, body in pushed if path == "/api/admin/quotes")
+        assert tuple(row[key] for key in ("open_price", "high_price", "low_price")) == expected
+
+    def test_the_execution_fallback_preserves_the_quote_pages_own_range(self, monkeypatch, pushed):
+        stats = _feed()["stats"]
+        stats["UZ7003040001"].update(open_price=10.0, high_price=12.0, low_price=8.0)
+        monkeypatch.setattr(uq, "fetch_session_quotes", lambda targets, **kw: [
+            {"isin": "UZ7003040001", "trade_date": "20260804", "close_price": 11.0,
+             "open_price": 9.0, "high_price": 13.0, "low_price": 7.0}])
+        assert collectors_financials_market.push_quotes(stats) == 0
+        row = next(body["rows"][0] for path, body in pushed if path == "/api/admin/quotes")
+        assert (row["open_price"], row["high_price"], row["low_price"]) == (9.0, 13.0, 7.0)
+
     def test_every_listed_security_is_read_not_only_what_traded(
             self, monkeypatch, pushed) -> None:
         """The backfill list used to be read from the collector's own scratch
