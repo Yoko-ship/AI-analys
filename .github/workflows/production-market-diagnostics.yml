@@ -1,0 +1,36 @@
+name: Production market diagnostics
+on:
+  push:
+    branches: [codex/market-incident]
+    paths: [.github/workflows/production-market-diagnostics.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect production asset delivery without changing services
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=15 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          asset=/assets/MarketView-XxqJTxoG.js
+          for path in /health "$asset"; do
+            printf 'APP %s ' "$path"
+            curl --max-time 12 -sS -o /dev/null -w '%{http_code} bytes=%{size_download} seconds=%{time_total}\n' "http://127.0.0.1:8001$path" || true
+          done
+          printf 'HTTPS ORIGIN '
+          curl --max-time 12 -ksS --resolve uzstock.uz:443:127.0.0.1 -o /dev/null -w '%{http_code} bytes=%{size_download} seconds=%{time_total}\n' "https://uzstock.uz$asset" || true
+          REMOTE
