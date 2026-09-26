@@ -245,7 +245,7 @@ test("a viewer can inspect analysis but has no mutation controls", async ({ page
   await expect(page.getByText("Правила выбора шаблона", { exact: true })).toHaveCount(0);
 });
 
-test("a bond opens its shared issuer report without borrowing the share verdict", async ({ page }) => {
+test("a bond shows issue assessments without the removed issuer report", async ({ page }) => {
   await api(page);
   await page.route("**/api/bonds/EX1B", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({
     ok: true, ticker: "EX1B", isin: "QA-BOND", issuer: "Узметкомбинат", state: "live",
@@ -272,8 +272,7 @@ test("a bond opens its shared issuer report without borrowing the share verdict"
   await expect(page.getByText(/payment execution is confirmed/)).toHaveCount(0);
   await page.getByText("Три независимые оценки", { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: "audit/sector-v2.3/bond-assessments.png" });
-  await page.getByText(/Финансовый профиль эмитента ·/).click();
-  await expect(page.getByTestId("verified-report")).toBeVisible();
-  await expect(page.getByTestId("verified-report")).toContainText("2026-06-30");
-  await page.screenshot({ path: "audit/sector-v2.3/bond-issuer-report.png" });
+  await expect(page.getByText(/Финансовый профиль эмитента/)).toHaveCount(0);
+  await expect(page.getByTestId("verified-report")).toHaveCount(0);
+  await expect(page.getByText("insufficient_data", { exact: true })).toHaveCount(0);
 });
