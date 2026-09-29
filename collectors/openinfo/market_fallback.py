@@ -50,6 +50,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             raise ValueError("archive is behind the exchange session")
         params = {"start_date": iso_day, "end_date": iso_day, "page_size": 1000}
         trades: list[dict] = []
+        read = 0
+        other_markets: dict[str, int] = defaultdict(int)
         expected = pages = page_size = None
         first = None
         for page in range(1, max_pages + 1):
@@ -67,11 +69,21 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                     or payload["page_size"] != page_size or payload["current_page"] != page
                     or payload["has_next"] is not (page < pages)
                     or not isinstance(batch, list)
-                    or len(batch) != min(page_size, expected - len(trades))):
+                    or len(batch) != min(page_size, expected - read)):
                 raise ValueError("archive session changed or a page is incomplete")
+            read += len(batch)
             for record in batch:
                 item = dict(record, issue_code=str(record["isin_code"]).strip().upper(),
                             trade_date=day)
+                # The archive carries every market the exchange runs. REPO deals
+                # (`RPO`) are financing, not board trades, and two of them on
+                # 28.09 made the whole session look corrupt, so nothing was
+                # published. A named market off the board is skipped; a missing
+                # one is still a broken record.
+                market = str(item.get("market_id") or "")
+                if market and market not in {"STK", "BND"}:
+                    other_markets[market] += 1
+                    continue
                 if (not item["issue_code"] or not item.get("board_id")
                         or item.get("market_id") not in {"STK", "BND"}
                         or ts.trade_moment(item) is None):
@@ -84,8 +96,13 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             if page == pages:
                 break
         check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
-        if check != first or len(trades) != expected or _latest_day(client) != iso_day:
+        if check != first or read != expected or _latest_day(client) != iso_day:
             raise ValueError("archive session changed while being read")
+        if not trades:
+            raise ValueError("archive session has no board executions")
+        if other_markets:
+            log.info("OpenInfo fallback: skipped executions off the board: %s",
+                     ", ".join(f"{k} {v}" for k, v in sorted(other_markets.items())))
         grouped: dict[str, list] = defaultdict(list)
         for trade in trades:
             grouped[trade["issue_code"]].append(trade)

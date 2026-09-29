@@ -88,6 +88,29 @@ def test_incomplete_or_inconsistent_archive_never_exposes_publishable_rows(sourc
     assert result["stats"] == {} and result["intraday"] == []
 
 
+def test_repo_deals_are_skipped_not_taken_for_a_corrupt_session(source):
+    """Two REPO deals (market RPO) on 28.09 made the fallback refuse the whole
+    session, so the board kept 25.09 and every change read 0 %."""
+    source["trades"].append(execution(market_id="RPO", board_id="R1",
+                                      isin_code="IQMK3B5XX030"))
+
+    def mutate(payload, params):
+        payload.update(count=3, total_pages=3)
+        payload["has_next"] = params["page"] < 3
+        return payload
+
+    source["mutate"] = mutate
+    data = archive.fetch_latest_trade_stats(session=object())
+    assert data["complete"]
+    assert set(data["stats"]) == {ISIN}
+    assert data["stats"][ISIN]["total_qty"] == 4
+
+
+def test_execution_with_no_market_is_still_refused(source):
+    source["trades"][1]["market_id"] = None
+    assert not archive.fetch_latest_trade_stats(session=object())["complete"]
+
+
 def test_archive_cannot_roll_back_a_newer_partial_exchange_session(source):
     assert not archive.fetch_latest_trade_stats(min_day="20260926", session=object())["complete"]
 
