@@ -183,8 +183,11 @@ for (const { ticker, entry } of FULLSCREEN_ENTRY_POINTS) {
       await page.getByTestId("ac-patterns").click();
       await expect(chart).toHaveAttribute("data-patterns", "2");
       const selected = page.getByTestId("pattern-list").getByRole("button", { name: /Двойная вершина/ });
+      const openedFrom = await range.getAttribute("data-from");
       await selected.click();
       await expect(selected).toHaveAttribute("aria-pressed", "true");
+      // The chart reports its range a frame after it moves; read it once it has.
+      await expect.poll(() => range.getAttribute("data-from")).not.toBe(openedFrom);
       const focusedRange = await range.evaluate((el) => ({ from: el.dataset.from, to: el.dataset.to }));
 
       await page.getByRole("button", { name: "Развернуть график на весь экран" }).click();

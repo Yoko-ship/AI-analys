@@ -94,6 +94,8 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await expect(chart).toHaveAttribute("data-chart-type", "candle");
   const initialCandles = await bars();
   expect(initialCandles).toBeGreaterThan(150);
+  const initialVolume = await chart.getAttribute("data-volume-title");
+  expect(initialVolume).toMatch(/^Объём · .+ сум$/);
 
   const box = await chart.boundingBox();
   expect(box).not.toBeNull();
@@ -104,6 +106,11 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
 
   await expect.poll(bars).toBeLessThan(initialCandles);
   await expect(page.getByRole("button", { name: "Сбросить" })).toBeVisible();
+  // The volume heading is the turnover of the bars in view, so a zoom
+  // restates it, not only a range button.
+  await expect(chart).toHaveAttribute("data-volume-title", /^Объём · .+ сум$/);
+  await expect.poll(() => chart.getAttribute("data-volume-title")).not.toBe(initialVolume);
+  const zoomedVolume = await chart.getAttribute("data-volume-title");
 
   const zoomed = await range.evaluate((el) => ({
     from: el.dataset.from,
@@ -120,6 +127,9 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await expect.poll(async () => range.getAttribute("data-from")).not.toBe(zoomed.from);
   const pannedFrom = await range.getAttribute("data-from");
   expect(pannedFrom < zoomed.from).toBeTruthy();
+  // Dragging onto older sessions — the one with the 1.6 bn spike among them
+  // or not — is a different set of bars, and the heading says so.
+  await expect.poll(() => chart.getAttribute("data-volume-title")).not.toBe(zoomedVolume);
   const desktopShot = testInfo.outputPath("candle-history-desktop.png");
   await page.screenshot({ path: desktopShot, fullPage: true });
   await testInfo.attach("candle-history-desktop", { path: desktopShot, contentType: "image/png" });
@@ -128,6 +138,7 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await expect(range).toHaveAttribute("data-from", initial.from);
   await expect(range).toHaveAttribute("data-to", initial.to);
   await expect.poll(bars).toBe(initialCandles);
+  await expect(chart).toHaveAttribute("data-volume-title", initialVolume);
 
   // Line/area/baseline use the same movable viewport as candles. This was
   // previously wired only to candle mode, leaving the line frozen in place.
@@ -233,17 +244,18 @@ test("advanced chart interval rolls sessions up into weeks and months", async ({
   await expect(interval).toHaveText("W");
   await expect(page).toHaveURL(/iv=W/);
   await expect(chart).toHaveAttribute("data-chart-interval", "W");
+  // The visible range is reported a frame after the new bars land.
+  await expect.poll(bars).toBeLessThanOrEqual(56);
   const weekly = await bars();
   expect(weekly).toBeGreaterThanOrEqual(50);
-  expect(weekly).toBeLessThanOrEqual(56);
 
   await interval.click();
   await page.locator(".ac-menu-item", { hasText: "Месяц" }).click();
   await expect(interval).toHaveText("M");
   await expect(chart).toHaveAttribute("data-chart-interval", "M");
+  await expect.poll(bars).toBeLessThanOrEqual(14);
   const monthly = await bars();
   expect(monthly).toBeGreaterThanOrEqual(12);
-  expect(monthly).toBeLessThanOrEqual(14);
 
   // The choice is in the link, so a reload keeps it.
   await page.reload();

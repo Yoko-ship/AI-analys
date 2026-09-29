@@ -19,6 +19,18 @@ import LwCanvas from "../../charts/LwCanvas.jsx";
 import { patternName } from "../../lib/patterns.js";
 import { TechnicalBacktestCard } from "./TechnicalBacktest.jsx";
 
+// The volume pane's heading is the turnover of the bars in view — the same
+// span «за период» measures — so a drag or a zoom restates it as the range
+// buttons do. It used to print the largest single session of everything
+// loaded, which read like a period total and never moved.
+function volumeTitle(bars, lang) {
+  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
+  const total = bars.reduce((sum, p) => sum + (p.turnover > 0 ? p.turnover : 0), 0);
+  return `${t("Объём", "Hajm", "Volume")} · ${total > 0
+    ? `${fmtCompact(total, lang)} ${t("сум", "so'm", "UZS")}`
+    : t("нет сделок", "savdo yo'q", "no trades")}`;
+}
+
 function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, favorites,
                          onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch,
                          onUpgrade, onBack, onOpenCompany, onOpenChart, initial }) {
@@ -664,7 +676,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
     const panes = synthetic ? [] : [{
       height: VOL_H,
-      title: `${tt("Объём", "Hajm", "Volume")} · ${fmtCompact(Math.max(1, ...points.map((p) => p.turnover || 0)), lang)} ${tt("сум", "so'm", "UZS")}`,
+      title: volumeTitle(rangeWindow, lang),
     }];
     if (!synthetic) {
       subPanes.forEach((pane, pi) => {
@@ -1026,6 +1038,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
               <LwCanvas spec={spec} height={canvasH} lang={lang} crosshair={cursorOn} pan={!drawMode}
                 viewKey={viewKey} initialView={initialView} resetToken={resetToken} focus={focus}
+                paneTitles={synthetic ? null : [volumeTitle(changeBase, lang)]}
                 onHover={setHover} onClick={onChartClick}
                 onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}
                 className={`ac-canvas ${drawMode ? "is-drawing" : ""}`}
@@ -1033,6 +1046,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
                 data-series={spec.series.map((s) => s.key).join(",")}
                 data-panes={1 + spec.panes.length} data-trend-points={drawPoints.length}
                 data-visible-bars={visible ? visible.to - visible.from + 1 : spec.series[0].data.length}
+                data-volume-title={synthetic ? undefined : volumeTitle(changeBase, lang)}
                 data-patterns={shownPatterns.length}
                 aria-label={t("График. Ctrl и колесо меняют масштаб, перетаскивание показывает историю.",
                   "Grafik. Ctrl va g'ildirak masshtabni o'zgartiradi, sudrash tarixni ko'rsatadi.",

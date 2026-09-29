@@ -29,6 +29,8 @@ const MIN_VISIBLE_BARS = 12;
  *   series: [{ key, kind, pane, data, options, markers, trend, glyphs, segments, boxes, lines, scale }],
  *   main: key of the series the crosshair, clicks and the visible range read,
  *   panes: [{ height, title }] for panes 1…n (pane 0 takes the rest),
+ *   (a `paneTitles` prop, one entry per sub-pane, overrides a title in place —
+ *   for a heading that follows the view, which must not rebuild the series),
  *   hourly: the axis carries hours,
  *   labels: Map(time → date) for synthetic types with no calendar of their own,
  * }
@@ -44,7 +46,7 @@ const MIN_VISIBLE_BARS = 12;
  */
 export default function LwCanvas({
   spec, height, lang, grid = true, crosshair = true, pan = true, viewKey, initialView = null,
-  resetToken = 0, focus = null, onHover, onClick, onRange, className = "", style, ...rest
+  resetToken = 0, focus = null, paneTitles = null, onHover, onClick, onRange, className = "", style, ...rest
 }) {
   const boxRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -60,6 +62,8 @@ export default function LwCanvas({
 
   cbRef.current = { onHover, onClick, onRange };
   specRef.current = spec;
+  const paneTitlesRef = React.useRef(paneTitles);
+  paneTitlesRef.current = paneTitles;
   initialViewRef.current = initialView;
 
   // The visible data span, reported as indices into the main series' data.
@@ -258,7 +262,7 @@ export default function LwCanvas({
     const keep = sameView ? lastRangeRef.current : null;
     const th = readChartTheme();
 
-    const live = { series: new Map(), detach: [] };
+    const live = { series: new Map(), detach: [], titles: [] };
     spec.series.forEach((item) => {
       if (!item.data?.length) return;
       const api = chart.addSeries(KINDS[item.kind], item.options || {}, item.pane || 0);
@@ -296,10 +300,12 @@ export default function LwCanvas({
     });
     // A pane has no heading of its own; its name sits in its top-left corner.
     chart.panes().forEach((pane, i) => {
-      const title = i > 0 ? spec.panes?.[i - 1]?.title : null;
+      const title = i > 0 ? (paneTitlesRef.current?.[i - 1] || spec.panes?.[i - 1]?.title) : null;
       if (!title) return;
+      const color = spec.panes[i - 1].color || th.muted;
       const wm = createTextWatermark(pane, { horzAlign: "left", vertAlign: "top",
-        lines: [{ text: title, color: spec.panes[i - 1].color || th.muted, fontSize: 11 }] });
+        lines: [{ text: title, color, fontSize: 11 }] });
+      live.titles[i - 1] = { wm, text: title, color };
       live.detach.push(() => wm.detach());
     });
     liveRef.current = live;
@@ -331,6 +337,17 @@ export default function LwCanvas({
       live.series.forEach((api) => chart.removeSeries(api));
     };
   }, [spec, viewKey, height, applyInitialView, reportRange]);
+
+  // A title that follows the view is rewritten on the watermark it already has.
+  const paneTitlesKey = (paneTitles || []).join("\u0000");
+  React.useEffect(() => {
+    (liveRef.current.titles || []).forEach((entry, i) => {
+      const text = paneTitlesRef.current?.[i];
+      if (!entry || !text || text === entry.text) return;
+      entry.wm.applyOptions({ lines: [{ text, color: entry.color, fontSize: 11 }] });
+      entry.text = text;
+    });
+  }, [paneTitlesKey]);
 
   React.useEffect(() => {
     if (resetToken) applyInitialView();
