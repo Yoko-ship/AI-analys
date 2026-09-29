@@ -99,6 +99,11 @@ COMPANY_CATALOG = {
     '"O\'zbekinvest" eksport-import sug\'urta kompaniyasi': "UZINP",  # openinfo org 835; only the preferred (UZINP) is UZSE-listed
     '“O’z-Tong Hong Kompani” O’zbekiston-Koreya QK AJ': "UTHK",  # openinfo org 80 (pinned in ORG_OVERRIDES; the screener TIN join misses it)
     '«Octobank» aksiyadorlik jamiyati': "OCBK",  # openinfo org 27 (ex Ravnaq-bank); un-delisted 2026-08-20 — uzse serves a live quote page again
+    # openinfo org 538 (pinned in ORG_OVERRIDES). Not listed: no ISIN, no price —
+    # a catalogue-only issuer like TNGB. The key is openinfo's name byte for byte
+    # (curly quotes, a Cyrillic «Р» in «Рlus», a double space): the /reports/main/
+    # search runs on it.
+    '“Daromad Рlus” investisiya fondi  aksiyadorlik jamiyati': "ODMP",
 }
 
 # Sector classification for each ticker.
@@ -176,4 +181,5 @@ COMPANY_SECTORS: dict[str, str] = {
     "UTHK": "manufacturing",  # O'z-Tong Hong Kompani — UZ-Korea textile JV
     "OCBK": "finance",  # Octobank — commercial bank (ex Ravnaq-bank)
     "UZNF": "funds",  # O'zbekiston Respublikasi Milliy Investitsiya jamg'armasi
+    "ODMP": "funds",  # «Daromad Plus» investitsiya fondi AJ
 }

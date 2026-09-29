@@ -1433,4 +1433,31 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
             "rivojlantirishga yo'naltiradi."
         ),
     },
+    # openinfo org 538 (INN 202081907): its card says is_listing=false and carries
+    # no exchange security, so nothing here claims the shares trade.
+    "ODMP": {
+        "title": "Daromad Plus",
+        "url": "https://www.daromad-plus.uz",
+        "ru": (
+            "«Daromad Plus» — инвестиционный фонд в форме акционерного общества из Ташкента "
+            "(Мирзо-Улугбекский район). Фонд вкладывает средства в ценные бумаги и доли других "
+            "компаний, поэтому его доход — это инвестиционный доход, а не выручка от продаж. "
+            "Акции фонда не входят в листинг Республиканской фондовой биржи «Тошкент»; "
+            "отчётность фонд раскрывает на портале openinfo.uz."
+        ),
+        "en": (
+            "Daromad Plus is an investment fund organised as a joint-stock company in Tashkent "
+            "(Mirzo Ulugbek district). The fund invests in securities and stakes in other "
+            "companies, so its income is investment income rather than sales revenue. Its shares "
+            "are not listed on the Republican Stock Exchange \"Toshkent\"; it files its reports "
+            "on openinfo.uz."
+        ),
+        "uz": (
+            "«Daromad Plus» — Toshkent shahridagi (Mirzo Ulug'bek tumani) aksiyadorlik jamiyati "
+            "shaklidagi investitsiya fondi. Fond mablag'larni boshqa kompaniyalarning qimmatli "
+            "qog'ozlari va ulushlariga kiritadi, shuning uchun uning daromadi sotuvdan tushum "
+            "emas, balki investitsiya daromadidir. Fond aksiyalari «Toshkent» Respublika fond "
+            "birjasi listingiga kiritilmagan; hisobotlarini openinfo.uz portalida e'lon qiladi."
+        ),
+    },
 }

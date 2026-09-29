@@ -144,6 +144,7 @@ ORG_ID_OVERRIDE = {
     # IFRS — which is why it was written off as IFRS-only and left unreconciled.
     # Do not substitute the lookalike "O'zbekinvest Hayot" (org 898): different issuer.
     "UZIN": 835, "UZINP": 835,                 # "O'zbekinvest", INN 201222058
+    "ODMP": 538,                               # «Daromad Plus» IF AJ, INN 202081907; no exchange ticker
 }
 
 # Tickers with no openinfo source at all — never auto-reconciled (раздел 8).

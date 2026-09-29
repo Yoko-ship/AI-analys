@@ -23,6 +23,32 @@ import requests
 import time
 
 
+def _ensure_catalogued(ticker: str) -> None:
+    """Sync a named issuer's filings into this machine's catalogue if it has none.
+
+    A single-ticker backfill reads the local report catalogue, which only the
+    report sync fills — and the full sync walks exchange securities, so an issuer
+    with no listing (ODMP, org 538) never enters it and its backfill found
+    nothing to parse. Only a catalogued name with a pinned openinfo org is synced:
+    the pin is what makes the match safe.
+    """
+    import catalogue.settings as catalogue_settings
+    from entity_resolver import ORG_OVERRIDES
+
+    name = catalogue_settings._TICKER_TO_NAME.get(ticker)
+    org_id = ORG_OVERRIDES.get(ticker)
+    if not name or not org_id:
+        return
+    try:
+        if catalogue_filings.get_company_reports(ticker):
+            return
+        result = catalogue_sync.sync_company(ticker, name, force=True, org_id=org_id)
+        collectors_financials_settings.log.info("catalogued %s from openinfo org %s: %s reports",
+                                                ticker, org_id, result.get("added"))
+    except Exception:  # noqa: BLE001 — the backfill then reports what it could not find
+        collectors_financials_settings.log.exception("could not catalogue %s", ticker)
+
+
 def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -> int:
     """Parse every issuer's historical ANNUAL filing into the financials cache.
 
@@ -46,6 +72,8 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
     from securities_catalog import get_securities_map
 
     requested_tickers = {str(t).strip().upper() for t in (tickers or set()) if str(t).strip()}
+    for ticker in requested_tickers:
+        _ensure_catalogued(ticker)
     tickers = requested_tickers or {str(t).upper() for t in (get_securities_map() or {})}
     # The deployment's board is the universe the site serves, and it is wider
     # than this machine's catalog (109 vs 78, measured 2026-08-10) — the same
@@ -154,6 +182,8 @@ def backfill_quarterly_financials(min_year: int = 2023,
     from securities_catalog import get_securities_map
 
     requested_tickers = {str(t).strip().upper() for t in (tickers or set()) if str(t).strip()}
+    for ticker in requested_tickers:
+        _ensure_catalogued(ticker)
     tickers = requested_tickers or {str(t).upper() for t in (get_securities_map() or {})}
     # The deployment's board is the universe the site serves — wider than this
     # machine's catalog. Same trap, same fix as the annual backfill above.

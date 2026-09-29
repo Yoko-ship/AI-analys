@@ -90,6 +90,7 @@ _TICKER_SECTORS: dict[str, str] = {
     "TGPG": "professional",
     # Investment funds
     "UZNF": "funds", "UZNFP": "funds",  # National Investment Fund of Uzbekistan
+    "ODMP": "funds",  # «Daromad Plus» investitsiya fondi AJ
 }
 
 # Wikipedia search titles for known tickers

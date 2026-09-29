@@ -77,6 +77,9 @@ ORG_OVERRIDES: dict[str, str] = {
     # does not publish an exchange ticker, so name/ticker discovery cannot form
     # the otherwise unambiguous issuer link.
     "INFB": "25",
+    # «Daromad Plus» investitsiya fondi AJ (org 538, INN 202081907): not listed —
+    # no exchange ticker, no ISIN — so only this pin links ODMP to its filings.
+    "ODMP": "538",
 }
 
 # Explicit ticker -> ISIN pins for securities that openinfo's info_rfb and stock
