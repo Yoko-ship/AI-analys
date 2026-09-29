@@ -1195,6 +1195,11 @@ jobs:
           if [ -n "$BACKFILL_QUARTER_HISTORY_TICKER" ]; then
             docker exec -i -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web \
               python collector_financials.py --backfill-company-quarter-history "$BACKFILL_TICKER"
+            # The history pass publishes the quarters BEFORE the catalogue's
+            # recent window; the window itself (ODMP: 2024Q1–2026Q2) is the
+            # quarterly backfill's job, and an issuer added today has neither.
+            docker exec -i -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web \
+              python collector_financials.py --backfill-company-quarterly-financials "$BACKFILL_TICKER"
           else
             docker exec -i -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web \
               python collector_financials.py --backfill-company-financials "$BACKFILL_TICKER"
