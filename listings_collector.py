@@ -360,8 +360,10 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
         "open_price": _num(last.get("open")) if last else None,
         "high_price": _num(last.get("high")) if last else None,
         "low_price": _num(last.get("low")) if last else None,
-        "volume": _num(last.get("trading_volume")) if last else None,
+        "volume": _num(last.get("trading_value")) if last else None,
         "market_cap": (shares * last_price) if (shares and last_price) else None,
+        # Both counts above come from the exchange's own registry.
+        "shares_source": "uzse" if shares else None,
     }
 
 
@@ -401,6 +403,43 @@ def _last_conclusion(session: Any, isin: str) -> dict[str, Any] | None:
     return points[-1]
 
 
+def _org_detail(session: Any, org_id: str) -> dict:
+    """An organization card whose share counts two reads agree on.
+
+    openinfo answers the same request differently: six reads of UzAuto Motors
+    (org 102) on 2026-09-29 gave ``list_shares`` 1 344 000 017 200 five times and
+    270 000 000 once, and an earlier read 270 784 703 — the one that matches its
+    charter capital at a 5 000 par. The capital-sized figure reached the board and
+    put the market at 76 500 трлн сум. So a count is taken only when two reads
+    give the same number (a third read breaks a tie); a line with no agreement
+    publishes no count, and the stored one is judged by the upsert instead.
+    """
+    def read() -> dict:
+        resp = session.get(f"{OPENINFO_API_BASE}/home/organizations/{org_id}/", timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+
+    def counts(detail: dict) -> dict[str, Any]:
+        rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
+        return {str(ic.get("isu_cd") or "").upper(): ic.get("list_shares")
+                for ic in rfb.get("isin_codes") or []}
+
+    first = read()
+    reads = [counts(first), counts(read())]
+    if reads[0] != reads[1]:
+        reads.append(counts(read()))
+    rfb = (first.get("info_rfb") or {}) if isinstance(first, dict) else {}
+    for ic in rfb.get("isin_codes") or []:
+        isin = str(ic.get("isu_cd") or "").upper()
+        seen = [r.get(isin) for r in reads if r.get(isin) is not None]
+        agreed = next((v for v in seen if seen.count(v) >= 2), None)
+        if agreed != ic.get("list_shares"):
+            log.warning("org %s %s: openinfo share counts disagree across reads %s — using %s",
+                        org_id, isin, seen, agreed)
+        ic["list_shares"] = agreed
+    return first
+
+
 def collect_listing_rows() -> list[dict[str, Any]]:
     """One row per RFB-registered security across all catalogued issuers."""
     session = _make_session()
@@ -416,9 +455,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # Many tickers share an org (common + preferred); info_rfb already
             # lists all of the org's securities, so fetch each org only once.
             try:
-                resp = session.get(f"{OPENINFO_API_BASE}/home/organizations/{org_id}/", timeout=30)
-                resp.raise_for_status()
-                detail = resp.json()
+                detail = _org_detail(session, org_id)
             except Exception:  # noqa: BLE001
                 log.warning("org %s (%s) detail fetch failed", org_id, ticker)
                 detail = {}
@@ -463,8 +500,10 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # last trade; openinfo's info_rfb figures are frequently stale or in an
             # older denomination, which skewed market cap. Prefer UZSE for equities.
             uz = _uzse_equity(session, isin) if isin.startswith("UZ7") else None
+            shares_source = "openinfo"
             if uz and uz.get("shares"):
                 shares = uz["shares"]
+                shares_source = "uzse"
             if not reference_price and isin.startswith("UZ6"):
                 # Exchange bond (UZ6… ISIN) with no openinfo reference price:
                 # par from UZSE so the cap shows outstanding face value.
@@ -516,8 +555,13 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 "open_price": _num(last.get("open")) if last else None,
                 "high_price": _num(last.get("high")) if last else None,
                 "low_price": _num(last.get("low")) if last else None,
-                "volume": _num(last.get("trading_volume")) if last else None,
+                "volume": _num(last.get("trading_value")) if last else None,
                 "market_cap": (shares * price_for_cap) if (shares and price_for_cap) else None,
+                # Not stored: the upsert judges the count by them (market_store).
+                # A pinned ISIN means this org's card is known to be wrong, so its
+                # charter capital is another issuer's (DRBK's org carries AISK).
+                "shares_source": shares_source,
+                "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
             })
 
         # Issuer listed on openinfo but with no tradable RFB security (empty

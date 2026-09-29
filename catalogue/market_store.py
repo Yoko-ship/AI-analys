@@ -10,6 +10,7 @@ from delisted import DELISTED_TICKERS
 import catalogue.settings as catalogue_settings
 import catalogue.storage as catalogue_storage
 import dbx
+import logging
 import os
 import re
 
@@ -452,6 +453,62 @@ _LISTING_COLS = (
 )
 
 
+def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
+    """Decide the share count to store: exchange count, else the one we hold.
+
+    openinfo's ``list_shares`` is not a reliable source. The same request comes
+    back with different counts — twelve organizations flipped between two values
+    on 2026-09-29 (AGMK 606M/187M, UZTL 277M/157M, KASU 6.1 трлн/32 млрд) — and
+    UzAuto Motors came back as 1 344 000 017 200, a capital-sized figure that put
+    the market at 76 500 трлн сум. So:
+
+      * a count read from the exchange (``shares_source == "uzse"``) replaces
+        the stored one, if it is plausible;
+      * otherwise the stored count stands, if it is plausible;
+      * openinfo's count only fills a gap — nothing stored, or nothing plausible.
+
+    Plausible: shares × par within the charter capital, since a class's shares
+    at par are part of it and never more (UZMT: 5 000× over). Without a charter
+    to judge by, any positive count is taken as plausible. The last resort is
+    no count at all — an empty cap is honest, an absurd one is not.
+    ``stored`` is the row's (shares_outstanding, nominal) before this upsert.
+    """
+    def num(v: Any) -> float | None:
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+
+    old_shares, old_nominal = stored if stored else (None, None)
+    charter = num(row.get("charter_capital"))
+    nominal = num(row.get("nominal")) or num(old_nominal)
+
+    def fits(shares: float | None) -> bool:
+        if not shares:
+            return False
+        return not (charter and nominal) or shares * nominal <= charter * 1.05
+
+    new, old = num(row.get("shares_outstanding")), num(old_shares)
+    if row.get("shares_source") == "uzse" and fits(new):
+        keep = new
+    elif fits(old):
+        keep = old
+    elif fits(new):
+        keep = new
+    else:
+        keep = None
+    if keep == new:
+        return row
+    if new is not None and not fits(new) or old is not None and not fits(old):
+        logging.getLogger(__name__).warning(
+            "listings: %s share count new=%s stored=%s (par %s, charter %s) — using %s",
+            ticker, new, old, nominal, charter, keep)
+    price = num(row.get("last_price")) or num(row.get("reference_price"))
+    return {**row, "shares_outstanding": keep,
+            "market_cap": keep * price if keep and price else None}
+
+
 def bulk_upsert_listings(rows: list[dict]) -> int:
     """Overwrite the exchange-listing registry from an externally-computed batch.
 
@@ -476,6 +533,10 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
                     # Deleted from the site: an older collector build still emits
                     # these, and the upsert would silently resurrect them.
                     continue
+                stored = conn.execute(
+                    "SELECT shares_outstanding, nominal FROM catalog_listings WHERE ticker=?",
+                    (ticker,)).fetchone()
+                r = _plausible_shares(ticker, r, (stored[0], stored[1]) if stored else None)
                 conn.execute(
                     """
                     INSERT INTO catalog_listings
