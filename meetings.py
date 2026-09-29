@@ -196,7 +196,12 @@ def announcement_detail(
         if cached and now - cached[0] < DETAIL_TTL_SECONDS:
             return cached[1]
 
-    client = session or requests.Session()
+    # The shared openinfo session: paced, counted, and stopped by the breaker
+    # like every other openinfo request.
+    if session is None:
+        from openinfo_http import shared_session
+        session = shared_session()
+    client = session
     try:
         response = client.get(
             f"{OPENINFO_ORIGIN}/{lang}/announce/{item_id}",

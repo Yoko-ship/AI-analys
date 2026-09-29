@@ -36,6 +36,7 @@ import time
 import requests
 
 from uzse_quotes import _session, fetch_issue_detail, fetch_quote, settled_quote
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 APP = os.environ.get("APP_URL", "https://uzstock.uz").rstrip("/")
 LIMIT = int(os.environ.get("LIMIT", "0"))

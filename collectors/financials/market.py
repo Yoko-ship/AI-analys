@@ -147,7 +147,10 @@ def push_quotes(stats: dict[str, dict], *, source: str = "uzse",
         from collectors.openinfo.market_fallback import fetch_quotes
         quotes = list(archive_quotes or [])
         cached = {q["isin"] for q in quotes}
-        quotes.extend(fetch_quotes([t for t in targets if t[0] not in cached]))
+        session_days = {str(row.get("trade_date") or "") for row in stats.values()} - {""}
+        as_of = max(session_days) if session_days else None
+        quotes.extend(fetch_quotes([t for t in targets if t[0] not in cached],
+                                   as_of=f"{as_of[:4]}-{as_of[4:6]}-{as_of[6:]}" if as_of else None))
         # A delayed archive quote must not leave today's statistics beside an
         # older close while claiming the refresh completed successfully.
         dated = {q["isin"]: q["trade_date"] for q in quotes}

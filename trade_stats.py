@@ -18,6 +18,7 @@ from typing import Any
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 logger = logging.getLogger(__name__)
 

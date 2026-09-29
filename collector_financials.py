@@ -91,3 +91,4 @@ import requests
 from collectors.financials.backfill import _bank_history_remote_attempt
 from collectors.financials.instruments import _filed_terms_for
 from collectors.financials.backfill import backfill_bank_financials
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)

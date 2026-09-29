@@ -90,6 +90,7 @@ def test_company_quarter_history_backfill_pushes_only_recovered_periods(monkeypa
     })]
 
 
+@pytest.mark.usefixtures("uzse_on")
 class TestAnEmptySessionIsNotAFailure:
     def test_a_feed_window_with_no_trading_days_in_it(self, monkeypatch, pushed) -> None:
         """Monday 08:00 reads Saturday + Sunday."""
@@ -114,6 +115,13 @@ class TestAnEmptySessionIsNotAFailure:
         assert [p for p, _ in pushed] == []
 
 
+@pytest.fixture()
+def uzse_on(monkeypatch):
+    """These pin the exchange path, which is switched off by default (uzse_access)."""
+    monkeypatch.setenv("UZSE_ENABLED", "1")
+
+
+@pytest.mark.usefixtures("uzse_on")
 class TestWhatIsStillAFailure:
     def test_a_feed_that_never_answered(self, monkeypatch, pushed) -> None:
         attempts = []
@@ -145,6 +153,7 @@ class TestWhatIsStillAFailure:
         assert collectors_financials_market.push_quotes(_feed()["stats"]) == 1
 
 
+@pytest.mark.usefixtures("uzse_on")
 class TestWaitingForTheExchangeToComeBack:
     """uzse.uz was unreachable for over an hour on the evening of 2026-08-04 —
     from Railway as well as from a home connection — and then answered normally.
@@ -318,3 +327,55 @@ class TestASecondReadOfTheSameSessionOnlyAdds:
         catalogue_market_store.bulk_upsert_quotes([self._quote(trade_date="20260731", close_price=1.0)])
 
         assert catalogue_market_store.get_all_quotes()["UZ7003040001"]["close_price"] == 51850.0
+
+
+class TestUzseSwitchedOff:
+    """uzse.uz blocked the server on 2026-09-24 and the collectors kept asking it
+    for days. Switched off, a run goes to openinfo once and asks uzse nothing."""
+
+    def test_the_trade_feed_is_never_asked(self, monkeypatch, pushed) -> None:
+        monkeypatch.delenv("UZSE_ENABLED", raising=False)
+        from collectors.openinfo import market_fallback as archive
+        monkeypatch.setattr(ts, "fetch_trade_stats",
+                            lambda *a, **k: pytest.fail("uzse.uz was asked"))
+        asked = []
+        monkeypatch.setattr(archive, "fetch_latest_trade_stats",
+                            lambda **kw: asked.append(kw) or {"reachable": False, "complete": False})
+
+        # One openinfo attempt, no five-minute re-walks, and still a red run.
+        assert collectors_financials_trading.push_trade_stats() == 1
+        assert len(asked) == 1
+        assert pushed == []
+
+    def test_a_pinned_session_is_passed_to_openinfo(self, monkeypatch, pushed) -> None:
+        monkeypatch.setenv("UZSE_ENABLED", "1")   # a pinned day never asks uzse either
+        from collectors.openinfo import market_fallback as archive
+        monkeypatch.setattr(ts, "fetch_trade_stats",
+                            lambda *a, **k: pytest.fail("uzse.uz was asked"))
+        monkeypatch.setattr(collectors_financials_trading, "SESSION_DATE", "2026-09-28")
+        asked = []
+        monkeypatch.setattr(archive, "fetch_latest_trade_stats",
+                            lambda **kw: asked.append(kw) or {"reachable": False, "complete": False})
+
+        assert collectors_financials_trading.push_trade_stats() == 1
+        assert asked[0]["session_day"] == "2026-09-28"
+
+
+def test_the_gate_refuses_uzse_before_a_socket_is_opened(monkeypatch) -> None:
+    import requests
+    import uzse_access
+
+    monkeypatch.delenv("UZSE_ENABLED", raising=False)
+    sent = []
+    monkeypatch.setattr(uzse_access, "_original_send", lambda self, request, *a, **k: sent.append(request.url))
+    uzse = requests.Request("GET", "https://uzse.uz/trade_results/?page=1").prepare()
+    other = requests.Request("GET", "https://new-api.openinfo.uz/api/v2/x").prepare()
+
+    with pytest.raises(requests.ConnectionError):
+        uzse_access._gated_send(None, uzse)
+    uzse_access._gated_send(None, other)
+    assert sent == ["https://new-api.openinfo.uz/api/v2/x"]
+
+    monkeypatch.setenv("UZSE_ENABLED", "1")
+    uzse_access._gated_send(None, uzse)
+    assert sent[-1] == "https://uzse.uz/trade_results/?page=1"

@@ -42,6 +42,7 @@ import logging
 import re
 from datetime import date
 from typing import Any, Iterable
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 log = logging.getLogger("bond_registry")
 

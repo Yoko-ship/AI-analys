@@ -189,7 +189,7 @@ def test_scheduled_collector_publishes_only_a_complete_fallback(monkeypatch, sou
 
 def test_failure_to_obtain_current_archive_quote_is_not_reported_as_success(monkeypatch):
     monkeypatch.setattr(market, "board_securities", list)
-    monkeypatch.setattr(archive, "fetch_quotes", lambda targets: [])
+    monkeypatch.setattr(archive, "fetch_quotes", lambda targets, **kw: [])
     monkeypatch.setattr(delivery, "_post", lambda *args: pytest.fail("must not publish stale quotes"))
     assert market.push_quotes({ISIN: {"trade_date": DAY, "trade_count": 1}}, source="openinfo") == 1
 
@@ -205,3 +205,30 @@ def test_exchange_error_payload_is_not_an_empty_successful_session(monkeypatch, 
 def test_archive_daily_range_must_agree_with_the_executions(source):
     source["conclusions"][0]["high"] = 50
     assert not archive.fetch_latest_trade_stats(session=object())["complete"]
+
+
+def test_a_pinned_older_session_is_read_even_after_a_newer_one_started(source):
+    """28.09 for a test while 29.09 was still being written: the pin reads the
+    finished session and quotes it as of its own day."""
+    data = archive.fetch_latest_trade_stats(session=object(), session_day="2026-09-25")
+    assert data["complete"] and data["trade_date"] == DAY
+    trade_calls = [p for path, p in source["calls"] if "start_date" in p and not path.endswith("conclusions/")]
+    assert trade_calls and all(p["start_date"] == "2026-09-25" for p in trade_calls)
+    conclusion_calls = [p for path, p in source["calls"] if path.endswith("conclusions/")]
+    assert conclusion_calls and all(p["end_date"] == "2026-09-26" for p in conclusion_calls)  # exclusive
+
+
+def test_a_pinned_session_newer_than_the_archive_is_refused(source):
+    assert not archive.fetch_latest_trade_stats(session=object(), session_day="2026-09-26")["complete"]
+
+
+def test_quotes_ask_a_year_first_and_a_decade_only_for_a_quiet_security(source):
+    archive.fetch_quotes([(ISIN, "STK")], session=object(), as_of="2026-09-25")
+    spans = [p["start_date"] for path, p in source["calls"] if path.endswith("conclusions/")]
+    assert spans == ["2025-08-21"]           # 400 days: it traded, no decade asked
+
+    source["calls"].clear()
+    source["conclusions"] = [conclusion(trading_volume=0)]
+    archive.fetch_quotes([(ISIN, "STK")], session=object(), as_of="2026-09-25")
+    spans = [p["start_date"] for path, p in source["calls"] if path.endswith("conclusions/")]
+    assert spans == ["2025-08-21", "2016-09-27"]

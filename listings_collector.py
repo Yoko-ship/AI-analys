@@ -27,6 +27,7 @@ from entity_resolver import ISIN_OVERRIDES, ORG_OVERRIDES
 from collectors.openinfo.settings import OPENINFO_API_BASE
 from collectors.openinfo.transport import _json_get, _make_session
 from securities_catalog import get_securities_map
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 log = logging.getLogger("listings")
 

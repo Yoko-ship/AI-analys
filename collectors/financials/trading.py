@@ -6,19 +6,38 @@ import collectors.financials.history as collectors_financials_history
 import collectors.financials.market as collectors_financials_market
 import collectors.financials.retry as collectors_financials_retry
 import collectors.financials.settings as collectors_financials_settings
+import os
 import time
 import trade_stats as ts
+import uzse_access
 from collectors.openinfo import market_fallback as archive_market
+
+# --session-date / MARKET_SESSION_DATE: publish this finished openinfo session
+# (YYYY-MM-DD) instead of the newest one.
+SESSION_DATE: str | None = os.getenv("MARKET_SESSION_DATE") or None
 
 
 def push_trade_stats() -> int:
-    """Fetch the latest-day per-trade stats from UZSE and push to prod."""
-    for attempt in range(1, collectors_financials_retry.RETRY_ATTEMPTS + 1):
-        collectors_financials_settings.log.info("fetching UZSE trade stats (latest day) ...")
-        data = ts.fetch_trade_stats()
+    """Fetch the latest-day per-trade stats and push to prod.
+
+    From uzse.uz when it is switched on, else straight from openinfo's archive.
+    openinfo gets ONE attempt: when its session is not there yet it is hours
+    behind, not minutes, and re-walking it every five minutes only multiplies
+    the requests — the next scheduled run is the retry.
+    """
+    exchange = uzse_access.enabled() and not SESSION_DATE
+    attempts = collectors_financials_retry.RETRY_ATTEMPTS if exchange else 1
+    for attempt in range(1, attempts + 1):
+        if exchange:
+            collectors_financials_settings.log.info("fetching UZSE trade stats (latest day) ...")
+            data = ts.fetch_trade_stats()
+        else:
+            data = {}
         if not (data.get("reachable") and data.get("complete")):
-            collectors_financials_settings.log.warning("UZSE unavailable/incomplete; trying OpenInfo")
-            data = archive_market.fetch_latest_trade_stats(min_day=data.get("trade_date"))
+            if exchange:
+                collectors_financials_settings.log.warning("UZSE unavailable/incomplete; trying OpenInfo")
+            data = archive_market.fetch_latest_trade_stats(min_day=data.get("trade_date"),
+                                                           session_day=SESSION_DATE)
         stats = data.get("stats") or {}
         rows = list(stats.values())
         collectors_financials_settings.log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
@@ -29,7 +48,7 @@ def push_trade_stats() -> int:
         # published, exactly like a feed that never answered.
         why = ("the trade feed did not answer" if not data.get("reachable")
                else f"the trade feed stopped mid-session with {len(rows)} securities")
-        if not collectors_financials_retry._wait_and_retry(attempt, why):
+        if attempt >= attempts or not collectors_financials_retry._wait_and_retry(attempt, why):
             collectors_financials_settings.log.error("%s — giving up after %d attempts", why, attempt)
             return 1
     if not rows:

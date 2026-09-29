@@ -10,6 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from numeric_parse import parse_decimal
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 BASE_URL = "https://uzse.uz/trade_results"
 DATE_FORMAT = "%d.%m.%Y"

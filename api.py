@@ -38,6 +38,7 @@ import server.market.routes as market_routes
 import server.news.routes as news_routes
 import server.research.routes as research_routes
 import server.system.routes as system_routes
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 
 def _cors_origins() -> list[str]:

@@ -36,6 +36,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from numeric_parse import parse_decimal
+import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 logger = logging.getLogger(__name__)
 

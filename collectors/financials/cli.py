@@ -44,6 +44,9 @@ def main() -> int:
 
     ap.add_argument("--trades-only", action="store_true", help="only fetch+push trade stats")
 
+    ap.add_argument("--session-date", metavar="YYYY-MM-DD",
+                    help="with --trades-only: publish this finished openinfo session, not the newest")
+
     ap.add_argument("--no-quotes", action="store_true",
 
                     help="skip the exchange-quote pass that follows the trade stats")
@@ -153,6 +156,10 @@ def main() -> int:
     # State is owned by its module.
 
     collectors_financials_market.SKIP_QUOTES = bool(args.no_quotes)
+
+    if args.session_date:
+        import collectors.financials.trading as collectors_financials_trading
+        collectors_financials_trading.SESSION_DATE = args.session_date
 
 
 

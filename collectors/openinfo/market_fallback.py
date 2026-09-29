@@ -32,8 +32,13 @@ def _latest_day(client: Any) -> str:
 
 
 def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
-                             max_pages: int = 100) -> dict:
+                             max_pages: int = 100, session_day: str | None = None) -> dict:
     """Return a complete, stable session or an explicit failure with no rows.
+
+    ``session_day`` (YYYY-MM-DD) publishes that finished session instead of the
+    newest one — the newest is often still being written (trading, or openinfo
+    not yet holding its daily conclusions), and an operator may need the one
+    before it now rather than at 21:30.
 
     Pin the latest session before pagination; require the advertised count on
     every page and recheck it afterwards. Preserve identical executions: the
@@ -44,7 +49,12 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                "trade_date": None, "count": 0, "stats": {}, "intraday": []}
     client = session or _make_session()
     try:
-        iso_day = _latest_day(client)
+        latest = _latest_day(client)
+        iso_day = latest
+        if session_day:
+            iso_day = date.fromisoformat(str(session_day)).isoformat()
+            if iso_day > latest:
+                raise ValueError(f"archive has no session {iso_day} yet (latest {latest})")
         day = iso_day.replace("-", "")
         if min_day and day < str(min_day).replace("-", ""):
             raise ValueError("archive is behind the exchange session")
@@ -96,7 +106,9 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             if page == pages:
                 break
         check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
-        if check != first or read != expected or _latest_day(client) != iso_day:
+        # A pinned older session cannot be the one still being written, so only
+        # the newest has to still be the newest when the read ends.
+        if check != first or read != expected or (not session_day and _latest_day(client) != iso_day):
             raise ValueError("archive session changed while being read")
         if not trades:
             raise ValueError("archive session has no board executions")
@@ -107,7 +119,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         for trade in trades:
             grouped[trade["issue_code"]].append(trade)
         stats = {isin: ts._aggregate(isin, rows, day) for isin, rows in grouped.items()}
-        quotes = fetch_quotes([(isin, row["market"]) for isin, row in stats.items()], session=client)
+        quotes = fetch_quotes([(isin, row["market"]) for isin, row in stats.items()],
+                              session=client, as_of=iso_day)
         quoted = {row["isin"]: row for row in quotes}
         for isin, row in stats.items():
             if not row["trade_count"]:
@@ -141,21 +154,38 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         return failure
 
 
-def fetch_quotes(targets: list[tuple[str, str]], *, session: Any = None) -> list[dict]:
+# A year of closes is what the board needs from almost every security; ten years
+# is only for one that has not traded in a year. Asking for ten up front sent the
+# whole decade for all ~120 board securities on every run.
+_QUOTE_LOOKBACK_DAYS = (400, 3650)
+
+
+def fetch_quotes(targets: list[tuple[str, str]], *, session: Any = None,
+                 as_of: str | None = None) -> list[dict]:
     """Official daily closes, ranges and history, retaining actual trading dates.
 
     This path makes no requests to the unavailable exchange. The endpoint is
     ISIN-filtered and supplies its issuer identity along with daily conclusions.
+    ``as_of`` (YYYY-MM-DD) ends the read on that session, so a pinned older
+    session is quoted as it closed, not with a later day's close.
     """
     client = session or _make_session()
     today = datetime.now(TASHKENT).date()
+    end = min(date.fromisoformat(as_of), today) if as_of else today
     rows = []
     for isin, market in targets:
         try:
-            payload = _json_get(client, "/iuzse/conclusions/", {
-                "isu_cd": isin, "start_date": (today - timedelta(days=3650)).isoformat(),
-                "end_date": today.isoformat(),
-            })
+            for lookback in _QUOTE_LOOKBACK_DAYS:
+                # openinfo's end_date is EXCLUSIVE: end_date=2026-09-28 stops at
+                # 25.09. Ask one day past the session; later days are dropped below.
+                payload = _json_get(client, "/iuzse/conclusions/", {
+                    "isu_cd": isin, "start_date": (end - timedelta(days=lookback)).isoformat(),
+                    "end_date": (end + timedelta(days=1)).isoformat(),
+                })
+                payload["results"] = [p for p in payload.get("results") or []
+                                      if str(p.get("date") or "") <= end.isoformat()]
+                if any(_number(p.get("trading_volume") or 0) > 0 for p in payload.get("results") or []):
+                    break
             points = payload["results"]
             if not isinstance(points, list):
                 raise ValueError("invalid archive conclusions")
@@ -164,7 +194,7 @@ def fetch_quotes(targets: list[tuple[str, str]], *, session: Any = None) -> list
             for index, point in enumerate(sorted(points, key=lambda p: p["date"], reverse=True)):
                 day = date.fromisoformat(point["date"])
                 close = _number(point["close"])
-                if day > today or close <= 0:
+                if day > end or close <= 0:
                     if index == 0:
                         raise ValueError("invalid archive latest quote date/close")
                     continue  # historical zero placeholders are not prices
