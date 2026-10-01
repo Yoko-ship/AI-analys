@@ -942,19 +942,23 @@ jobs:
                   + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-financial-monitor\n",
               "/etc/systemd/system/uzstock-financial-monitor.timer": timer(
                   "Monitor financial evidence every fifteen minutes", "*-*-* *:10,25,40,55:00"),
+              # Every openinfo reader mounts the data volume: the openinfo
+              # pause after repeated 403/429 and the daily request count live
+              # there, and a worker without it neither honours a pause another
+              # process tripped nor appears in the count.
               "/etc/systemd/system/uzstock-quotes-1610.service": worker(
                   "uzstock-quotes-1610", "UZStock post-close quotes collector",
-                  "python collector_financials.py --trades-only"),
+                  "python collector_financials.py --trades-only", data_volume=True),
               "/etc/systemd/system/uzstock-quotes-1610.timer": timer(
                   "Run UZStock 16:10 local quotes collector", "Mon..Sat *-*-* 11:10:00"),
               "/etc/systemd/system/uzstock-quotes-2130.service": worker(
                   "uzstock-quotes-2130", "UZStock final-session quotes collector",
-                  "python collector_financials.py --trades-only"),
+                  "python collector_financials.py --trades-only", data_volume=True),
               "/etc/systemd/system/uzstock-quotes-2130.timer": timer(
                   "Run UZStock 21:30 local quotes collector", "Mon..Sat *-*-* 16:30:00"),
               "/etc/systemd/system/uzstock-reports-watch.service": worker(
                   "uzstock-reports-watch", "UZStock newly filed reports watcher",
-                  "python collector_financials.py --watch-filings"),
+                  "python collector_financials.py --watch-filings", data_volume=True),
               "/etc/systemd/system/uzstock-reports-watch.timer": timer(
                   "Run UZStock reports watcher", "Mon..Sat *-*-* 18:00:00"),
               "/etc/systemd/system/uzstock-bank-fx.service": worker(
