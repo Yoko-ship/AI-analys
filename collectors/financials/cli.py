@@ -158,7 +158,6 @@ def main() -> int:
     collectors_financials_market.SKIP_QUOTES = bool(args.no_quotes)
 
     if args.session_date:
-        import collectors.financials.trading as collectors_financials_trading
         collectors_financials_trading.SESSION_DATE = args.session_date
 
 
