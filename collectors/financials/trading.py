@@ -142,17 +142,28 @@ def backfill_intraday(days: int = 30) -> int:
     status = 0
     total = 0
     for offset in range(days, -1, -1):
-        day = (date.today() - timedelta(days=offset)).strftime("%Y%m%d")
-        trades = ts.fetch_day_trades(day, session=session)
-        if trades is None:
-            collectors_financials_settings.log.error("intraday backfill: %s could not be walked completely — skipped", day)
-            status = 1
-            continue
-        if not trades:
-            continue  # a weekend or holiday, not a failure
-        bars = ts.hourly_bars(trades)
-        collectors_financials_settings.log.info("intraday backfill %s: %d executions -> %d hourly bars",
-                 day, len(trades), len(bars))
+        when = date.today() - timedelta(days=offset)
+        day = when.strftime("%Y%m%d")
+        if not uzse_access.enabled():
+            # openinfo's archive instead of uzse.uz's feed; a Sunday is known
+            # to be empty without asking.
+            if when.weekday() == 6:
+                continue
+            bars = archive_market.fetch_session_bars(when.isoformat())
+            if bars is None:
+                collectors_financials_settings.log.error("intraday backfill: %s could not be read completely — skipped", day)
+                status = 1
+                continue
+        else:
+            trades = ts.fetch_day_trades(day, session=session)
+            if trades is None:
+                collectors_financials_settings.log.error("intraday backfill: %s could not be walked completely — skipped", day)
+                status = 1
+                continue
+            if not trades:
+                continue  # a weekend or holiday, not a failure
+            bars = ts.hourly_bars(trades)
+        collectors_financials_settings.log.info("intraday backfill %s: %d hourly bars", day, len(bars))
         if bars:
             status = collectors_financials_delivery._post("/api/admin/quotes",
                            {"rows": [], "history": [], "intraday": bars}) or status

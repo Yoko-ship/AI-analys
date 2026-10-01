@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import logging
 import math
+import statistics
 from typing import Any
 
 from collectors.openinfo.transport import _json_get, _make_session
@@ -31,6 +32,82 @@ def _latest_day(client: Any) -> str:
     return stamp.date().isoformat()
 
 
+class NoSession(ValueError):
+    """The archive holds no executions on that day: a holiday or a day off."""
+
+
+def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
+                     max_pages: int = 100) -> list[dict]:
+    """Every board execution of one session, or ValueError — never a short read.
+
+    Pin the session before pagination; require the advertised count on every
+    page and recheck it afterwards. Preserve identical executions: the archive
+    has no execution IDs, and separate auction trades can share every visible
+    field. Deduplicating those would understate actual volume. ``still_newest``
+    also requires the session to still be the archive's newest when the read
+    ends — a pinned older one cannot be the session still being written.
+    """
+    day = iso_day.replace("-", "")
+    params = {"start_date": iso_day, "end_date": iso_day, "page_size": 1000}
+    trades: list[dict] = []
+    read = 0
+    other_markets: dict[str, int] = defaultdict(int)
+    expected = pages = page_size = None
+    first = None
+    for page in range(1, max_pages + 1):
+        payload = _json_get(client, "/iuzse/trade-results/", {**params, "page": page})
+        batch = payload["results"]
+        if first is None:
+            first = payload
+            expected, pages, page_size = (int(payload[k]) for k in
+                                          ("count", "total_pages", "page_size"))
+            if expected == 0 and not still_newest:
+                raise NoSession(iso_day)
+            if expected <= 0 or page_size <= 0 or not 1 <= pages <= max_pages:
+                raise ValueError("invalid archive session pagination")
+            if pages != math.ceil(expected / page_size):
+                raise ValueError("archive page count disagrees with record count")
+        if (payload["count"] != expected or payload["total_pages"] != pages
+                or payload["page_size"] != page_size or payload["current_page"] != page
+                or payload["has_next"] is not (page < pages)
+                or not isinstance(batch, list)
+                or len(batch) != min(page_size, expected - read)):
+            raise ValueError("archive session changed or a page is incomplete")
+        read += len(batch)
+        for record in batch:
+            item = dict(record, issue_code=str(record["isin_code"]).strip().upper(),
+                        trade_date=day)
+            # The archive carries every market the exchange runs. REPO deals
+            # (`RPO`) are financing, not board trades, and two of them on
+            # 28.09 made the whole session look corrupt, so nothing was
+            # published. A named market off the board is skipped; a missing
+            # one is still a broken record.
+            market = str(item.get("market_id") or "")
+            if market and market not in {"STK", "BND"}:
+                other_markets[market] += 1
+                continue
+            if (not item["issue_code"] or not item.get("board_id")
+                    or item.get("market_id") not in {"STK", "BND"}
+                    or ts.trade_moment(item) is None):
+                raise ValueError("archive execution has no valid identity/date/market")
+            for field in ("trade_price", "trade_quantity", "trading_value"):
+                item[field] = _number(item[field])
+                if item[field] <= 0:
+                    raise ValueError("archive execution has a non-positive value")
+            trades.append(item)
+        if page == pages:
+            break
+    check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
+    if check != first or read != expected or (still_newest and _latest_day(client) != iso_day):
+        raise ValueError("archive session changed while being read")
+    if not trades:
+        raise ValueError("archive session has no board executions")
+    if other_markets:
+        log.info("OpenInfo fallback: skipped executions off the board: %s",
+                 ", ".join(f"{k} {v}" for k, v in sorted(other_markets.items())))
+    return trades
+
+
 def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                              max_pages: int = 100, session_day: str | None = None) -> dict:
     """Return a complete, stable session or an explicit failure with no rows.
@@ -40,10 +117,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
     not yet holding its daily conclusions), and an operator may need the one
     before it now rather than at 21:30.
 
-    Pin the latest session before pagination; require the advertised count on
-    every page and recheck it afterwards. Preserve identical executions: the
-    archive has no execution IDs, and separate auction trades can share every
-    visible field. Deduplicating those would understate actual volume.
+    The executions are read by ``_read_executions``; the official daily
+    conclusions then have to agree with them before anything is returned.
     """
     failure = {"source": "openinfo", "reachable": False, "complete": False,
                "trade_date": None, "count": 0, "stats": {}, "intraday": []}
@@ -58,63 +133,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         day = iso_day.replace("-", "")
         if min_day and day < str(min_day).replace("-", ""):
             raise ValueError("archive is behind the exchange session")
-        params = {"start_date": iso_day, "end_date": iso_day, "page_size": 1000}
-        trades: list[dict] = []
-        read = 0
-        other_markets: dict[str, int] = defaultdict(int)
-        expected = pages = page_size = None
-        first = None
-        for page in range(1, max_pages + 1):
-            payload = _json_get(client, "/iuzse/trade-results/", {**params, "page": page})
-            batch = payload["results"]
-            if first is None:
-                first = payload
-                expected, pages, page_size = (int(payload[k]) for k in
-                                              ("count", "total_pages", "page_size"))
-                if expected <= 0 or page_size <= 0 or not 1 <= pages <= max_pages:
-                    raise ValueError("invalid archive session pagination")
-                if pages != math.ceil(expected / page_size):
-                    raise ValueError("archive page count disagrees with record count")
-            if (payload["count"] != expected or payload["total_pages"] != pages
-                    or payload["page_size"] != page_size or payload["current_page"] != page
-                    or payload["has_next"] is not (page < pages)
-                    or not isinstance(batch, list)
-                    or len(batch) != min(page_size, expected - read)):
-                raise ValueError("archive session changed or a page is incomplete")
-            read += len(batch)
-            for record in batch:
-                item = dict(record, issue_code=str(record["isin_code"]).strip().upper(),
-                            trade_date=day)
-                # The archive carries every market the exchange runs. REPO deals
-                # (`RPO`) are financing, not board trades, and two of them on
-                # 28.09 made the whole session look corrupt, so nothing was
-                # published. A named market off the board is skipped; a missing
-                # one is still a broken record.
-                market = str(item.get("market_id") or "")
-                if market and market not in {"STK", "BND"}:
-                    other_markets[market] += 1
-                    continue
-                if (not item["issue_code"] or not item.get("board_id")
-                        or item.get("market_id") not in {"STK", "BND"}
-                        or ts.trade_moment(item) is None):
-                    raise ValueError("archive execution has no valid identity/date/market")
-                for field in ("trade_price", "trade_quantity", "trading_value"):
-                    item[field] = _number(item[field])
-                    if item[field] <= 0:
-                        raise ValueError("archive execution has a non-positive value")
-                trades.append(item)
-            if page == pages:
-                break
-        check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
-        # A pinned older session cannot be the one still being written, so only
-        # the newest has to still be the newest when the read ends.
-        if check != first or read != expected or (not session_day and _latest_day(client) != iso_day):
-            raise ValueError("archive session changed while being read")
-        if not trades:
-            raise ValueError("archive session has no board executions")
-        if other_markets:
-            log.info("OpenInfo fallback: skipped executions off the board: %s",
-                     ", ".join(f"{k} {v}" for k, v in sorted(other_markets.items())))
+        trades = _read_executions(client, iso_day, still_newest=not session_day,
+                                  max_pages=max_pages)
         grouped: dict[str, list] = defaultdict(list)
         for trade in trades:
             grouped[trade["issue_code"]].append(trade)
@@ -145,13 +165,93 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                  day, len(trades), len(stats))
         return {"source": "openinfo", "reachable": True, "complete": True,
                 "trade_date": day, "count": len(stats), "stats": stats,
-                # Without execution IDs tied timestamps cannot give reliable
-                # hourly opens/closes. Preserve existing bars; daily history is
-                # updated from authoritative conclusions instead.
-                "intraday": [], "quotes": quotes}
+                "intraday": session_bars(trades, {
+                    (isin, day): (row.get("open_price"), row.get("close_price"))
+                    for isin, row in stats.items()}),
+                "quotes": quotes}
     except Exception:
         log.exception("OpenInfo market session unavailable or incomplete; nothing published")
         return failure
+
+
+def _nearest(prices: list[float], anchor: float | None) -> float:
+    """The tied price closest to ``anchor``; the lower one on a draw."""
+    if anchor is None:
+        return statistics.median_low(prices)
+    return min(prices, key=lambda p: (abs(p - anchor), p))
+
+
+def session_bars(trades: list[dict], anchors: dict[tuple[str, str], tuple]) -> list[dict]:
+    """Hourly bars for the 1Д/1Н chart from the archive's executions.
+
+    ``trade_stats.hourly_bars`` builds them exactly as it does from uzse.uz's
+    feed. The one thing the archive lacks is uzse's trade number: an hour that
+    opens or closes with several executions in the same millisecond at
+    different prices does not say which came first (7–8 % of bars on 29–30.09;
+    the tied prices sit a median 0,2 % apart, 3,6 % at the 90th percentile).
+    Such an edge takes one of its own tied prices — a real execution, never an
+    average: the day's first open and last close come from the official
+    conclusion (``anchors``: (isin, YYYYMMDD) -> (open, close)); an hour in
+    between opens nearest the previous hour's close and closes nearest the
+    next hour's opening executions. High, low, quantity and turnover are exact.
+    """
+    bars = ts.hourly_bars(trades)
+    edges: dict[tuple, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for trade in trades:
+        if ts._is_block(trade):
+            continue
+        day, hour, stamp = ts.trade_moment(trade)
+        edges[(trade["issue_code"], day, hour)][stamp[0]].append(trade["trade_price"])
+    series: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for bar in bars:
+        series[(bar["isin"], bar["date"])].append(bar)
+    for key, day_bars in series.items():
+        day_bars.sort(key=lambda b: b["hour"])
+        day_open, day_close = anchors.get(key) or (None, None)
+        for i, bar in enumerate(day_bars):
+            stamps = edges[(bar["isin"], bar["date"], bar["hour"])]
+            opening, closing = stamps[min(stamps)], stamps[max(stamps)]
+            if len(set(opening)) > 1:
+                bar["open"] = _nearest(opening, day_open if i == 0 else day_bars[i - 1]["close"])
+            if len(set(closing)) > 1:
+                if i == len(day_bars) - 1:
+                    anchor = day_close
+                else:
+                    later = edges[(bar["isin"], bar["date"], day_bars[i + 1]["hour"])]
+                    anchor = statistics.median(later[min(later)])
+                bar["close"] = _nearest(closing, anchor)
+    return bars
+
+
+def fetch_session_bars(iso_day: str, *, session: Any = None) -> list[dict] | None:
+    """Hourly bars of one finished session (the intraday backfill), or None.
+
+    One conclusions read per security traded that day supplies the day's open
+    and close for the tied edges. None when the day cannot be read completely
+    — a partial day would upsert understated volumes over correct bars.
+    """
+    client = session or _make_session()
+    day = iso_day.replace("-", "")
+    try:
+        trades = _read_executions(client, iso_day, still_newest=False)
+    except NoSession:
+        return []
+    except Exception:
+        log.exception("OpenInfo bars: session %s unreadable", iso_day)
+        return None
+    # Only a security whose day opens or closes on a tie needs its conclusion
+    # (a handful a day), not every security that traded.
+    edges: dict[str, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for trade in trades:
+        if not ts._is_block(trade):
+            edges[trade["issue_code"]][ts.trade_moment(trade)[2][0]].add(trade["trade_price"])
+    tied = sorted(isin for isin, stamps in edges.items()
+                  if len(stamps[min(stamps)]) > 1 or len(stamps[max(stamps)]) > 1)
+    anchors = {}
+    for quote in fetch_quotes([(isin, "") for isin in tied], session=client, as_of=iso_day):
+        if quote.get("trade_date") == day:
+            anchors[(quote["isin"], day)] = (quote.get("open_price"), quote.get("close_price"))
+    return session_bars(trades, anchors)
 
 
 # A year of closes is what the board needs from almost every security; ten years

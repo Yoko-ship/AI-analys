@@ -54,7 +54,8 @@ def test_complete_fallback_preserves_identical_executions_and_official_closes(so
     assert (row["trade_count"], row["total_qty"], row["total_value"]) == (2, 4, 40)
     assert (row["open_price"], row["close_price"]) == (10, 10)
     assert data["quotes"][0]["history"][0]["quantity"] == 4
-    assert data["intraday"] == []  # tied executions have no reliable hourly order
+    bar, = data["intraday"]  # identical tied executions: one bar, both counted
+    assert (bar["hour"], bar["open"], bar["close"], bar["quantity"]) == (10, 10, 10, 4)
 
 
 @pytest.mark.parametrize("problem", ["short", "wrong_count", "wrong_page", "broken_page",
@@ -180,9 +181,11 @@ def test_scheduled_collector_publishes_only_a_complete_fallback(monkeypatch, sou
     monkeypatch.setattr(delivery, "_post", lambda path, body: pushed.append((path, body)) or 0)
     assert trading.push_trade_stats() == (0 if available else 1)
     if available:
-        assert [p for p, _ in pushed] == ["/api/admin/trade-stats", "/api/admin/quotes"]
-        assert pushed[1][1]["rows"][0]["close_price"] == 10
-        assert pushed[1][1]["history"][0]["trade_date"] == DAY
+        assert [p for p, _ in pushed] == ["/api/admin/trade-stats", "/api/admin/quotes",
+                                          "/api/admin/quotes"]
+        assert pushed[1][1]["intraday"][0]["quantity"] == 4  # the hourly bars
+        assert pushed[2][1]["rows"][0]["close_price"] == 10
+        assert pushed[2][1]["history"][0]["trade_date"] == DAY
     else:
         assert pushed == []
 
@@ -232,3 +235,45 @@ def test_quotes_ask_a_year_first_and_a_decade_only_for_a_quiet_security(source):
     archive.fetch_quotes([(ISIN, "STK")], session=object(), as_of="2026-09-25")
     spans = [p["start_date"] for path, p in source["calls"] if path.endswith("conclusions/")]
     assert spans == ["2025-08-21", "2016-09-27"]
+
+
+def ex(stamp, price, isin=ISIN):
+    return {**execution(trade_datetime=f"2026-09-25T{stamp}", trade_price=price,
+                        trading_value=2 * price),
+            "issue_code": isin, "trade_date": DAY}
+
+
+def test_hourly_bars_resolve_tied_edges_to_real_neighbouring_prices():
+    trades = [
+        # 10h opens on a tie (12 / 9): the official day open (12) decides.
+        ex("10:00:01.000000", 12), ex("10:00:01.000000", 9),
+        # ...and closes on a tie (11 / 14): nearest 11h's first executions (14).
+        ex("10:59:00.000000", 11), ex("10:59:00.000000", 14),
+        # 11h opens on a tie (15 / 13.5): nearest 10h's close, 14 -> 13.5.
+        ex("11:00:05.000000", 15), ex("11:00:05.000000", 13.5),
+        # The last hour closes on a tie: the official day close (16) decides.
+        ex("11:30:00.000000", 16), ex("11:30:00.000000", 17),
+    ]
+    ten, eleven = archive.session_bars(trades, {(ISIN, DAY): (12, 16)})
+    assert (ten["open"], ten["close"], ten["high"], ten["low"]) == (12, 14, 14, 9)
+    assert (eleven["open"], eleven["close"]) == (13.5, 16)
+    assert ten["quantity"] == 8 and eleven["turnover"] == 2 * (15 + 13.5 + 16 + 17)
+
+
+def test_session_bars_backfill_reads_conclusions_only_for_tied_day_edges(source):
+    other = "UZ7011340005"
+    source["trades"] = [execution(trade_price=10), execution(trade_price=11),
+                        execution(isin_code=other, trade_datetime="2026-09-25T10:00:02.000000")]
+    source["mutate"] = lambda payload, params: {
+        **payload, "count": 3, "total_pages": 3, "has_next": params["page"] < 3}
+    source["conclusions"] = [conclusion(open=11, close=10, high=11, low=10)]
+    bars = archive.fetch_session_bars("2026-09-25", session=object())
+    asked = [p["isu_cd"] for path, p in source["calls"] if path.endswith("conclusions/")]
+    assert asked == [ISIN]  # the other security's day has no tie to resolve
+    assert {b["isin"]: b["open"] for b in bars}[ISIN] == 11
+
+
+def test_session_bars_backfill_takes_a_day_without_trades_as_empty(source):
+    source["mutate"] = lambda payload, params: {**payload, "count": 0, "total_pages": 0,
+                                                "has_next": False, "results": []}
+    assert archive.fetch_session_bars("2026-09-27", session=object()) == []
