@@ -871,7 +871,10 @@ jobs:
           # A collector can parse a large exchange response immediately after a
           # deploy. Keep half a CPU free for the public web container so an
           # initial collection cannot stall /health, heatmap or finance routes.
-          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
+          # The journald log driver: an attached `docker run` under systemd left
+          # the jobs' own lines out of the journal, so a failed run showed only
+          # "status=1". Read a run with `journalctl -t {name}`.
+          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, calendar: str) -> str:
