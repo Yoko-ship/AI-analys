@@ -318,3 +318,57 @@ def test_live_bars_step_pushes_bars_only(monkeypatch):
     assert pushed == [("/api/admin/quotes", {"rows": [], "history": [], "intraday": [bar]})]
     monkeypatch.setattr(archive, "fetch_live_bars", lambda: None)
     assert trading.push_live_bars() == 1
+
+
+def coverage(monkeypatch, stats_day, quotes_day=None):
+    import requests
+    steps = {"trade_stats": {"last_day": stats_day},
+             "quotes": {"last_day": stats_day if quotes_day is None else quotes_day}}
+    answer = SimpleNamespace(json=lambda: {"collector": {"steps": steps}})
+    monkeypatch.setattr(requests, "get", lambda url, **kw: answer)
+
+
+@pytest.mark.parametrize("published, quotes_day, newest, posted, outcome", [
+    ("20260930", None, "20260930", True, "published"),   # nothing new: one request
+    ("20260930", None, "20261002", False, "not yet"),    # session on, conclusions not
+    ("20260930", None, "20261002", True, "go"),          # a new, complete session
+    ("20260930", "20260929", "20260930", True, "go"),    # quotes never landed for it
+    ("", None, "20260930", True, "go"),                  # no stamp at all
+])
+def test_a_run_with_nothing_to_publish_stops_after_one_or_two_requests(
+        monkeypatch, published, quotes_day, newest, posted, outcome):
+    coverage(monkeypatch, published, quotes_day)
+    monkeypatch.setattr(trading.uzse_access, "enabled", lambda: False)
+    monkeypatch.setattr(trading, "SESSION_DATE", None)
+    monkeypatch.setattr(archive, "latest_session", lambda **kw: newest)
+    monkeypatch.setattr(archive, "conclusions_posted", lambda day, **kw: posted)
+    walked = []
+    monkeypatch.setattr(archive, "fetch_latest_trade_stats", lambda **kw: walked.append(1) or {"reachable": False})
+    monkeypatch.setattr(market, "audit_board", lambda: 0)
+    status = trading.push_trade_stats()
+    assert bool(walked) is (outcome == "go")
+    assert status == (0 if outcome == "published" else 1)
+
+
+def test_unknown_prod_state_or_a_pinned_session_always_runs_in_full(monkeypatch):
+    import requests
+    monkeypatch.setattr(requests, "get", lambda url, **kw: (_ for _ in ()).throw(requests.ConnectionError()))
+    monkeypatch.setattr(trading.uzse_access, "enabled", lambda: False)
+    monkeypatch.setattr(archive, "latest_session", lambda **kw: "20260930")
+    monkeypatch.setattr(archive, "conclusions_posted", lambda day, **kw: True)
+    assert trading._session_to_publish() == "go"
+    coverage(monkeypatch, "20260930")
+    monkeypatch.setattr(trading, "SESSION_DATE", "2026-09-30")
+    walked = []
+    monkeypatch.setattr(archive, "fetch_latest_trade_stats", lambda **kw: walked.append(kw) or {"reachable": False})
+    trading.push_trade_stats()
+    assert walked and walked[0]["session_day"] == "2026-09-30"
+
+
+def test_conclusions_posted_reads_all_securities_in_one_request(monkeypatch):
+    calls = []
+    monkeypatch.setattr(archive, "_json_get", lambda c, path, params: calls.append(params) or
+                        {"results": [{"date": "2026-10-02"}] if params["start_date"] == "2026-10-02" else []})
+    assert archive.conclusions_posted("20261002", session=object()) is True
+    assert archive.conclusions_posted("20261001", session=object()) is False
+    assert calls[0] == {"isu_cd": "", "start_date": "2026-10-02", "end_date": "2026-10-03"}

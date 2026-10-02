@@ -17,6 +17,53 @@ from collectors.openinfo import market_fallback as archive_market
 SESSION_DATE: str | None = os.getenv("MARKET_SESSION_DATE") or None
 
 
+def _published_session() -> str | None:
+    """The session prod's board already holds, when BOTH its steps landed it.
+
+    Read from the deployment's own step stamps (/api/coverage), not from
+    openinfo. None when they disagree or cannot be read — then nothing is skipped.
+    """
+    import requests
+
+    base = os.getenv("FINANCIALS_PUSH_URL", collectors_financials_settings.DEFAULT_URL).rstrip("/")
+    try:
+        steps = (requests.get(f"{base}/api/coverage", timeout=30).json()
+                 .get("collector", {}).get("steps", {}))
+    except Exception:  # noqa: BLE001 — unknown means "publish"
+        collectors_financials_settings.log.warning("published session unknown; running in full", exc_info=True)
+        return None
+    stats = str((steps.get("trade_stats") or {}).get("last_day") or "")
+    quotes = str((steps.get("quotes") or {}).get("last_day") or "")
+    return stats if len(stats) == 8 and stats.isdigit() and stats == quotes else None
+
+
+def _session_to_publish() -> str:
+    """"published", "not yet" or "go" — decided in one or two openinfo requests.
+
+    A run with nothing to do re-read the whole session and every security's
+    quote (~80-320 requests) only to stop or to push the same numbers again:
+    01.10's 16:10 run re-pushed an unchanged 30.09, and a run before openinfo
+    posts the day's conclusions can only fail on them. So first ask openinfo
+    for its newest session; when prod already holds it, stop ("published");
+    when its conclusions are not posted yet, stop without publishing
+    ("not yet", a failed run as before, minus the requests). Any doubt: "go".
+    """
+    published = _published_session()
+    try:
+        newest = archive_market.latest_session()
+        if newest == published:
+            collectors_financials_settings.log.info("session %s is already published — nothing to do", newest)
+            return "published"
+        if not archive_market.conclusions_posted(newest):
+            collectors_financials_settings.log.error(
+                "openinfo has not posted the %s conclusions yet — nothing published", newest)
+            return "not yet"
+    except Exception:  # noqa: BLE001
+        collectors_financials_settings.log.warning("openinfo's newest session unknown; running in full",
+                                                   exc_info=True)
+    return "go"
+
+
 def push_trade_stats() -> int:
     """Fetch the latest-day per-trade stats and push to prod.
 
@@ -26,6 +73,12 @@ def push_trade_stats() -> int:
     the requests — the next scheduled run is the retry.
     """
     exchange = uzse_access.enabled() and not SESSION_DATE
+    if not exchange and not SESSION_DATE:
+        ready = _session_to_publish()
+        if ready == "published":
+            return collectors_financials_market.audit_board()
+        if ready == "not yet":
+            return 1
     attempts = collectors_financials_retry.RETRY_ATTEMPTS if exchange else 1
     for attempt in range(1, attempts + 1):
         if exchange:

@@ -32,6 +32,23 @@ def _latest_day(client: Any) -> str:
     return stamp.date().isoformat()
 
 
+def latest_session(*, session: Any = None) -> str:
+    """The archive's newest session as YYYYMMDD — one request."""
+    return _latest_day(session or _make_session()).replace("-", "")
+
+
+def conclusions_posted(day: str, *, session: Any = None) -> bool:
+    """Whether openinfo holds the day's conclusions yet — one request for all securities.
+
+    ``isu_cd=""`` answers every security's conclusion for the dates asked
+    (73 rows for 30.09). end_date is exclusive, so ask one day past.
+    """
+    iso = date.fromisoformat(f"{day[:4]}-{day[4:6]}-{day[6:]}" if len(day) == 8 else day)
+    payload = _json_get(session or _make_session(), "/iuzse/conclusions/", {
+        "isu_cd": "", "start_date": iso.isoformat(), "end_date": (iso + timedelta(days=1)).isoformat()})
+    return any(str(p.get("date")) == iso.isoformat() for p in payload.get("results") or [])
+
+
 def _board_execution(record: dict, day: str) -> dict | None:
     """One archive record as a board execution; None off the board; ValueError if broken.
 
