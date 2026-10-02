@@ -79,7 +79,7 @@ def test_collection_keeps_placement_date_and_coupon_evidence(monkeypatch, tmp_pa
     }
     monkeypatch.setattr(bond_terms, "resolve_org_id", lambda *args: 837)
     monkeypatch.setattr(bond_terms, "issuer_facts", lambda org: facts)
-    monkeypatch.setattr(bond_terms, "fact_detail", details.get)
+    monkeypatch.setattr(bond_terms, "fact_detail", lambda fact_id, **kw: details.get(fact_id))
     result = bond_terms.collect_bond_terms([row], today=date(2026, 9, 26))
     ref = {**row, **_filed_terms_for(row, result["reference"][0])}
     assert (ref["coupon_rate"], ref["coupon_freq"], ref["issue_date"]) == (22, 4, "2026-04-29")
@@ -114,3 +114,65 @@ def test_refresh_replaces_bad_persisted_rate_and_restores_yield(monkeypatch, tmp
     assert repaired["reference"]["coupon_rate"] == 22
     assert repaired["ytm"]["value"] is not None
     assert repaired["yield"]["blocked_reason"] is None
+
+
+
+@pytest.fixture
+def kept(tmp_path, monkeypatch):
+    import openinfo_id_cache
+    monkeypatch.setattr(openinfo_id_cache, "_state_dir", lambda: tmp_path)
+    monkeypatch.setenv("OPENINFO_CACHE", "1")
+    monkeypatch.setattr(bond_terms, "_FACT_LISTS", openinfo_id_cache.IdCache("bond-fact-lists"))
+    monkeypatch.setattr(bond_terms, "_FACT_DETAILS", openinfo_id_cache.IdCache("bond-fact-details"))
+    return tmp_path
+
+
+def facts_portal(monkeypatch, facts):
+    """openinfo's fact list, newest first, two to a page; records every call."""
+    calls = []
+
+    def get(path, params=None):
+        calls.append((path, dict(params or {})))
+        if path.startswith("/disclosure/facts/") and path != "/disclosure/facts/":
+            return {"fact": [{"id": int(path.strip("/").rsplit("/", 1)[1])}]}
+        page = params["page"]
+        return {"count": len(facts), "results": facts[(page - 1) * 2:page * 2]}
+    monkeypatch.setattr(bond_terms, "_PAGE_SIZE", 2)
+    monkeypatch.setattr(bond_terms, "_get", get)
+    return calls
+
+
+def test_a_kept_fact_list_reads_only_the_new_facts_in_front_of_it(kept, monkeypatch):
+    facts = [{"id": i} for i in (5, 4, 3, 2, 1)]
+    facts_portal(monkeypatch, facts[2:])
+    assert bond_terms.issuer_facts(837) == facts[2:]          # first run: the whole list
+    calls = facts_portal(monkeypatch, facts)
+    assert bond_terms.issuer_facts(837) == facts               # next run: 5, 4 are new
+    assert [p["page"] for _, p in calls] == [1, 2]             # page 2 reaches the kept 3
+
+
+def test_a_count_that_does_not_add_up_reads_the_whole_list_again(kept, monkeypatch):
+    facts_portal(monkeypatch, [{"id": i} for i in (3, 2, 1)])
+    bond_terms.issuer_facts(837)
+    withdrawn = [{"id": 4}, {"id": 3}, {"id": 1}]               # 2 was withdrawn
+    calls = facts_portal(monkeypatch, withdrawn)
+    assert bond_terms.issuer_facts(837) == withdrawn
+    assert [p["page"] for _, p in calls] == [1, 1, 2]           # incremental, then in full
+
+
+def test_only_an_approved_fact_detail_is_kept(kept, monkeypatch):
+    calls = facts_portal(monkeypatch, [])
+    bond_terms.fact_detail(7, keep=True)
+    bond_terms.fact_detail(7, keep=True)
+    bond_terms.fact_detail(8, keep=False)
+    bond_terms.fact_detail(8, keep=False)
+    assert [p for p, _ in calls] == ["/disclosure/facts/7/", "/disclosure/facts/8/", "/disclosure/facts/8/"]
+
+
+def test_the_cache_switch_restores_the_full_read(kept, monkeypatch):
+    facts_portal(monkeypatch, [{"id": 1}])
+    bond_terms.issuer_facts(837)
+    monkeypatch.setenv("OPENINFO_CACHE", "0")
+    calls = facts_portal(monkeypatch, [{"id": 2}, {"id": 1}])
+    assert bond_terms.issuer_facts(837) == [{"id": 2}, {"id": 1}]
+    assert [p["page"] for _, p in calls] == [1]

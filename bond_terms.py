@@ -40,6 +40,8 @@ from collections import Counter
 from datetime import date
 from typing import Any, Iterable, Sequence
 
+from openinfo_id_cache import IdCache
+
 log = logging.getLogger("bond_terms")
 
 OPENINFO_API_BASE = "https://new-api.openinfo.uz/api/v2"
@@ -54,6 +56,10 @@ PAPER_TYPE_BOND = 3
 # ignored and answer with the unfiltered 64k set — which reads exactly like a
 # filter that worked, so the page size is capped and the count is logged.
 _PAGE_SIZE = 100
+# Kept between runs (openinfo_id_cache): an issuer's fact list, and the detail
+# of every approved fact — a filed fact does not change under its id.
+_FACT_LISTS = IdCache("bond-fact-lists")
+_FACT_DETAILS = IdCache("bond-fact-details")
 _MAX_FACT_PAGES = 20  # 2000 filings; the busiest issuer on the walk files ~1500
 _ALLOWED_PERIOD_DRIFT = 3  # a 31-day month is the same coupon as a 30-day one
 
@@ -83,16 +89,10 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     return resp.json()
 
 
-def issuer_facts(org_id: Any) -> list[dict[str, Any]]:
-    """Every material fact filed by one issuer (newest-first, paged).
-
-    Reading one page regressed once: AGAT's matured first issue slid past the
-    newest 100 as later filings arrived, its registration stopped matching and
-    a run "lost" a coupon that was proved weeks earlier. An issuer's whole
-    history is a handful of pages, so read them all (capped well above any real
-    issuer, far below the portal).
-    """
+def _read_fact_pages(org_id: Any, known: set | None = None) -> tuple[list[dict[str, Any]], int | None]:
+    """Facts newest-first, page by page; with ``known`` ids, stop at the first page that reaches them."""
     results: list[dict[str, Any]] = []
+    count = None
     for page in range(1, (_MAX_FACT_PAGES) + 1):
         payload = _get("/disclosure/facts/",
                        {"organization_id": org_id, "page_size": _PAGE_SIZE, "page": page})
@@ -101,17 +101,51 @@ def issuer_facts(org_id: Any) -> list[dict[str, Any]]:
         if count and count > 60000:
             # The filter was ignored and we are holding the whole portal.
             log.warning("org %s: facts filter ignored (count=%s) — skipping", org_id, count)
-            return []
-        results.extend(batch)
-        if not batch or (count and len(results) >= count):
+            return [], None
+        fresh = [f for f in batch if known is None or f.get("id") not in known]
+        results.extend(fresh)
+        if not batch or len(fresh) < len(batch) or (count and len(results) >= count):
             break
     else:
         log.info("org %s: reading stopped at %d filings of %s", org_id, len(results), count)
-    return results
+    return results, count
 
 
-def fact_detail(fact_id: Any) -> dict[str, Any] | None:
-    """One filing's own fields."""
+def issuer_facts(org_id: Any) -> list[dict[str, Any]]:
+    """Every material fact filed by one issuer (newest-first, paged).
+
+    Reading one page regressed once: AGAT's matured first issue slid past the
+    newest 100 as later filings arrived, its registration stopped matching and
+    a run "lost" a coupon that was proved weeks earlier. An issuer's whole
+    history is a handful of pages, so read them all (capped well above any real
+    issuer, far below the portal).
+
+    The whole list is kept between runs (openinfo_id_cache) and a run reads
+    only the new facts in front of it — usually one page. It is the whole list
+    only while openinfo's own count equals the kept facts plus the new ones;
+    anything else (a withdrawn filing, one slotted in out of order) and the
+    list is read in full again, as it is anyway once the kept copy expires.
+    """
+    kept = _FACT_LISTS.get(org_id)
+    if isinstance(kept, list):
+        new, count = _read_fact_pages(org_id, known={f.get("id") for f in kept})
+        if count is not None and count == len(new) + len(kept):
+            facts = new + kept
+            _FACT_LISTS.replace(org_id, facts)
+            return facts
+        log.info("org %s: %s facts on openinfo, %d kept + %d new — reading the whole list",
+                 org_id, count, len(kept), len(new))
+    facts, count = _read_fact_pages(org_id)
+    if facts and count == len(facts):
+        _FACT_LISTS.put(org_id, facts)
+    return facts
+
+
+def fact_detail(fact_id: Any, *, keep: bool = True) -> dict[str, Any] | None:
+    """One filing's own fields — kept between runs when ``keep`` (an approved filing)."""
+    cached = _FACT_DETAILS.get(fact_id) if keep else None
+    if cached is not None:
+        return cached
     try:
         payload = _get(f"/disclosure/facts/{fact_id}/")
     except Exception:  # noqa: BLE001 — one unreadable filing is not a failed run
@@ -119,7 +153,11 @@ def fact_detail(fact_id: Any) -> dict[str, Any] | None:
         return None
     fact = (payload or {}).get("fact") or []
     fact = fact[0] if isinstance(fact, list) and fact else fact
-    return fact if isinstance(fact, dict) else None
+    if not isinstance(fact, dict):
+        return None
+    if keep:
+        _FACT_DETAILS.put(fact_id, fact)
+    return fact
 
 
 def resolve_org_id(ticker: str, issuer_name: str | None) -> Any | None:
@@ -369,7 +407,8 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
             number = int(_num(fact.get("fact_number")) or 0)
             if number not in (FACT_ISSUE, FACT_REDEMPTION, FACT_ACCRUAL):
                 continue
-            detail = fact_detail(fact.get("id"))
+            # A filing still under review may change; only an approved one is kept.
+            detail = fact_detail(fact.get("id"), keep=fact.get("status") == "approved")
             if not detail:
                 continue
             if number == FACT_ISSUE:
@@ -458,4 +497,6 @@ def collect_bond_terms(reference_rows: Iterable[dict[str, Any]],
             log.info("bond %s: coupon %s%% every %s days, %d filed, maturity %s",
                      row["ticker"], rate, period, len(mine),
                      reference[-1]["maturity_date"] or "не подано")
+    _FACT_LISTS.save()
+    _FACT_DETAILS.save()
     return {"reference": reference, "coupons": coupons}

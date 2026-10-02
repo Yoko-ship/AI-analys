@@ -514,3 +514,29 @@ class TestFieldProvenance:
         assert row["revenue_thousand"] == 5_530.0
         assert row["annual"]["revenue_thousand"] == 17_518.0
         assert all(not r.get("field_periods") for r in orc.admin_push_rows(row))
+
+
+def test_one_issuers_tickers_share_its_report_list_and_details(monkeypatch, tmp_path):
+    import openinfo_id_cache
+    import openinfo_reconcile as orc
+    monkeypatch.setenv("OPENINFO_CACHE", "1")
+    monkeypatch.setattr(openinfo_id_cache, "_state_dir", lambda: tmp_path)
+    monkeypatch.setattr(orc, "_REPORT_DETAILS", openinfo_id_cache.IdCache("report-details"))
+    calls = []
+
+    def getj(url, params=None):
+        calls.append(url)
+        if url == orc.UNIFIED_REPORTS_URL:
+            return {"results": [{"report_type": "NSBU", "pub_date": "2026-07-31T10:00:00",
+                                 "organization_id": 44,
+                                 "properties": {"report_type": "quarter", "org_type": "bank"},
+                                 "report_link": "https://openinfo.uz/reports/bank/quarter/5985"}]}
+        return {"reporting_year": "2026-06-30", "organization_ticket_name": "SQBN"}
+    monkeypatch.setattr(orc, "_getj", getj)
+    monkeypatch.setattr(orc, "org_id_for", lambda ticker: 44)
+    orc.reconcile_all(["SQBN", "SQBNP", "SQB2"])
+    assert calls.count(orc.UNIFIED_REPORTS_URL) == 1        # one list for the issuer
+    assert calls.count(f"{orc.API_BASE}/reports/bank/quarter/5985/") == 1
+    calls.clear()
+    orc.reconcile_all(["SQBN"])                              # the next run
+    assert calls == [orc.UNIFIED_REPORTS_URL]                # list read again, detail kept

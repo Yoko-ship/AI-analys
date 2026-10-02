@@ -17,6 +17,16 @@ def no_live_http(monkeypatch):
     monkeypatch.setattr(requests.sessions.Session, "send", unexpected_request)
 
 
+@pytest.fixture(autouse=True)
+def no_openinfo_cache(monkeypatch):
+    """Tests never read or write the data directory's openinfo cache, nor share a run's report lists."""
+    import sys
+    monkeypatch.setenv("OPENINFO_CACHE", "0")
+    reconcile = sys.modules.get("openinfo_reconcile")
+    if reconcile is not None:
+        reconcile._listings.clear()
+
+
 @pytest.fixture
 def authenticated_reader(monkeypatch):
     """Opt in only for data-contract tests; authorization tests use real guards."""

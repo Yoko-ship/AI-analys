@@ -57,6 +57,7 @@ import logging
 import re
 
 import openinfo_http as _http
+from openinfo_id_cache import IdCache
 from numeric_parse import parse_decimal
 
 log = logging.getLogger(__name__)
@@ -595,8 +596,26 @@ def _candidate(pub_date, org_type, period_type, object_id, organization=None):
     }
 
 
+# One issuer's tickers share its reports: SQBN, SQBNP and the bonds SQB2…SQB8
+# are nine reconciliations of one bank. Within a run a report list is read once
+# per issuer (or search term); a report's detail is kept by its id across runs
+# (openinfo_id_cache — a restatement is a new filing with a new id).
+_listings: dict[tuple, list] = {}
+_REPORT_DETAILS = IdCache("report-details")
+
+
+def _listed(key, read):
+    if key not in _listings:
+        _listings[key] = read()
+    return list(_listings[key])
+
+
 def list_candidates(search):
     """NSBU reports with an object_id and a quarter/annual form, newest pub first."""
+    return _listed(("search", search), lambda: _list_candidates(search))
+
+
+def _list_candidates(search):
     data = _getj(f"{API_BASE}/reports/main/", {"search": search, "page_size": 40})
     out = []
     for rec in data.get("results", []):
@@ -617,6 +636,10 @@ def list_candidates_by_org(org_id):
     The unified feed carries no object_id of its own — the report's own id is the
     last segment of ``report_link`` (…/reports/jsc/annual/5985).
     """
+    return _listed(("org", org_id), lambda: _list_candidates_by_org(org_id))
+
+
+def _list_candidates_by_org(org_id):
     data = _getj(UNIFIED_REPORTS_URL, {"format": "json", "page_size": 40, "organization": org_id})
     out = []
     for rec in data.get("results", []):
@@ -635,7 +658,12 @@ def list_candidates_by_org(org_id):
 
 
 def fetch_detail(cand):
-    return _getj(f"{API_BASE}/reports/{cand['org_type']}/{cand['period_type']}/{cand['object_id']}/")
+    key = f"{cand['org_type']}/{cand['period_type']}/{cand['object_id']}"
+    detail = _REPORT_DETAILS.get(key)
+    if detail is None:
+        detail = _getj(f"{API_BASE}/reports/{key}/")
+        _REPORT_DETAILS.put(key, detail)
+    return detail
 
 
 def _ticket_match(detail, ticker):
@@ -1014,19 +1042,23 @@ def reconcile_all(tickers, today=None, progress=None):
     """Reconcile a list of tickers -> (rows, errors). `progress(i, n, ticker)` optional."""
     rows, errors = [], {}
     n = len(tickers)
-    for i, t in enumerate(tickers):
-        if progress:
-            progress(i, n, t)
-        try:
-            row, meta = reconcile_ticker(t, today=today)
-        except Exception as exc:  # noqa: BLE001
-            errors[t] = f"exception: {exc}"
-            continue
-        if row is None:
-            errors[t] = meta.get("error", "unresolved")
-            continue
-        row["_meta"] = {k: meta.get(k) for k in ("org_type", "period_type", "reporting_year", "pub_date", "object_id")}
-        rows.append(row)
+    _listings.clear()  # report lists are read fresh once per run
+    try:
+        for i, t in enumerate(tickers):
+            if progress:
+                progress(i, n, t)
+            try:
+                row, meta = reconcile_ticker(t, today=today)
+            except Exception as exc:  # noqa: BLE001
+                errors[t] = f"exception: {exc}"
+                continue
+            if row is None:
+                errors[t] = meta.get("error", "unresolved")
+                continue
+            row["_meta"] = {k: meta.get(k) for k in ("org_type", "period_type", "reporting_year", "pub_date", "object_id")}
+            rows.append(row)
+    finally:
+        _REPORT_DETAILS.save()
     return rows, errors
 
 
