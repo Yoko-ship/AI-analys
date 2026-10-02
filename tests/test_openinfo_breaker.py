@@ -57,3 +57,16 @@ def test_the_count_says_which_job_and_endpoint_and_includes_retries(state) -> No
     assert data["by_job"] == {"collector_financials.py --trades-only": 5}
     assert data["by_endpoint"] == {"/iuzse/conclusions/": 1, "/organizations/{id}/reports/": 3,
                                    "openinfo.uz/media/files/{file}": 1}
+
+
+def test_other_hosts_on_the_session_are_not_openinfo_requests(state, monkeypatch) -> None:
+    import requests
+
+    def refused(self, method, url, **kwargs):  # what uzse_access raises when uzse.uz is off
+        raise requests.ConnectionError(f"uzse.uz is switched off: {url}")
+    monkeypatch.setattr(requests.Session, "request", refused)
+    monkeypatch.setattr(h, "_pace", lambda: pytest.fail("a uzse.uz call took an openinfo pacing slot"))
+    with pytest.raises(requests.ConnectionError):
+        h.make_session().get("https://uzse.uz/isu_infos/STK?isu_cd=UZ7011340005")
+    h._flush_count()
+    assert not list(state.glob("openinfo-requests-*.json"))

@@ -196,6 +196,13 @@ def _report_run() -> None:
 
 class PacedSession(requests.Session):
     def request(self, method, url, **kwargs):  # type: ignore[override]
+        if not (urlsplit(str(url)).hostname or "").endswith("openinfo.uz"):
+            # Some collectors send uzse.uz through this session. Those are not
+            # openinfo's requests to pace, pause or count: a gated uzse call
+            # (UZSE_ENABLED=0) opens no socket and counted four times as a
+            # failed openinfo request.
+            kwargs.setdefault("timeout", TIMEOUT)
+            return super().request(method, url, **kwargs)
         until = paused_until()
         if until:
             raise OpeninfoPaused(
