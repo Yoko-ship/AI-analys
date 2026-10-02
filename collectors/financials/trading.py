@@ -126,6 +126,28 @@ def push_trade_stats() -> int:
     return status
 
 
+def push_live_bars() -> int:
+    """Refresh the 1Д/1Н chart's hourly bars from today's session so far.
+
+    One openinfo request per run (the hourly timer during trading). Only the
+    bars move: the board's day statistics wait for the official conclusions
+    the evening run publishes.
+    """
+    bars = archive_market.fetch_live_bars()
+    if bars is None:
+        return 1
+    if not bars:
+        collectors_financials_settings.log.info("live bars: nothing traded today yet")
+        return 0
+    status = collectors_financials_delivery._post("/api/admin/quotes",
+                                                  {"rows": [], "history": [], "intraday": bars})
+    if status:
+        collectors_financials_settings.log.error("live bars: push of %d hourly bars failed", len(bars))
+    else:
+        collectors_financials_settings.log.info("live bars: %d hourly bars for %s pushed",
+                                                len(bars), bars[0]["date"])
+    return status
+
 def backfill_intraday(days: int = 30) -> int:
     """One-off: bank hourly bars for the last ``days`` calendar days.
 

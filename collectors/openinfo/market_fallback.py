@@ -32,6 +32,29 @@ def _latest_day(client: Any) -> str:
     return stamp.date().isoformat()
 
 
+def _board_execution(record: dict, day: str) -> dict | None:
+    """One archive record as a board execution; None off the board; ValueError if broken.
+
+    The archive carries every market the exchange runs. REPO deals (`RPO`)
+    are financing, not board trades, and two of them on 28.09 made the whole
+    session look corrupt, so nothing was published. A named market off the
+    board is skipped; a missing one is still a broken record.
+    """
+    item = dict(record, issue_code=str(record["isin_code"]).strip().upper(), trade_date=day)
+    market = str(item.get("market_id") or "")
+    if market and market not in {"STK", "BND"}:
+        return None
+    if (not item["issue_code"] or not item.get("board_id")
+            or item.get("market_id") not in {"STK", "BND"}
+            or ts.trade_moment(item) is None):
+        raise ValueError("archive execution has no valid identity/date/market")
+    for field in ("trade_price", "trade_quantity", "trading_value"):
+        item[field] = _number(item[field])
+        if item[field] <= 0:
+            raise ValueError("archive execution has a non-positive value")
+    return item
+
+
 class NoSession(ValueError):
     """The archive holds no executions on that day: a holiday or a day off."""
 
@@ -75,26 +98,11 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
             raise ValueError("archive session changed or a page is incomplete")
         read += len(batch)
         for record in batch:
-            item = dict(record, issue_code=str(record["isin_code"]).strip().upper(),
-                        trade_date=day)
-            # The archive carries every market the exchange runs. REPO deals
-            # (`RPO`) are financing, not board trades, and two of them on
-            # 28.09 made the whole session look corrupt, so nothing was
-            # published. A named market off the board is skipped; a missing
-            # one is still a broken record.
-            market = str(item.get("market_id") or "")
-            if market and market not in {"STK", "BND"}:
-                other_markets[market] += 1
-                continue
-            if (not item["issue_code"] or not item.get("board_id")
-                    or item.get("market_id") not in {"STK", "BND"}
-                    or ts.trade_moment(item) is None):
-                raise ValueError("archive execution has no valid identity/date/market")
-            for field in ("trade_price", "trade_quantity", "trading_value"):
-                item[field] = _number(item[field])
-                if item[field] <= 0:
-                    raise ValueError("archive execution has a non-positive value")
-            trades.append(item)
+            item = _board_execution(record, day)
+            if item is None:
+                other_markets[str(record.get("market_id"))] += 1
+            else:
+                trades.append(item)
         if page == pages:
             break
     check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
@@ -252,6 +260,42 @@ def fetch_session_bars(iso_day: str, *, session: Any = None) -> list[dict] | Non
         if quote.get("trade_date") == day:
             anchors[(quote["isin"], day)] = (quote.get("open_price"), quote.get("close_price"))
     return session_bars(trades, anchors)
+
+
+# One request reads the session so far: the archive answers page_size=10000
+# for a whole day (8 270 executions on 30.09). A live session read page by page
+# would shift under us as trades arrive — newest first, so every page would
+# repeat the executions pushed down from the one before.
+_LIVE_PAGE = 10000
+
+
+def fetch_live_bars(*, session: Any = None) -> list[dict] | None:
+    """Hourly bars of TODAY's session so far, from one archive request.
+
+    The archive receives executions within seconds of the trade (02.10:
+    10:39:33 visible at 10:39:30 + 3 s), while the day's conclusions come only
+    after the close — so these bars carry no official day open/close, and a
+    tied first open or last close takes the lower-median of its tied prices.
+    The evening run rebuilds the whole day with the conclusions over them.
+    The hour still in progress is partial and is upserted again next run.
+    [] when nothing has traded today; None when the read is not usable.
+    """
+    client = session or _make_session()
+    today = datetime.now(TASHKENT).date().isoformat()
+    day = today.replace("-", "")
+    try:
+        payload = _json_get(client, "/iuzse/trade-results/", {
+            "start_date": today, "end_date": today, "page": 1, "page_size": _LIVE_PAGE})
+        records = payload["results"]
+        if int(payload["count"]) == 0:
+            return []
+        if int(payload["count"]) != len(records) or payload.get("has_next"):
+            raise ValueError(f"live read is not the whole session ({len(records)} of {payload['count']})")
+        trades = [t for t in (_board_execution(r, day) for r in records) if t is not None]
+    except Exception:
+        log.exception("OpenInfo live bars: today's executions unusable; bars left as they are")
+        return None
+    return session_bars(trades, {})
 
 
 # A year of closes is what the board needs from almost every security; ten years

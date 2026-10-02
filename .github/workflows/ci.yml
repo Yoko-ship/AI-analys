@@ -614,14 +614,14 @@ jobs:
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
-            uzstock-quotes-2130.timer uzstock-reports-watch.timer \
+            uzstock-quotes-2130.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
             uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
             uzstock-collector.service uzstock-quotes-1610.service \
-            uzstock-quotes-2130.service uzstock-reports-watch.service \
+            uzstock-quotes-2130.service uzstock-reports-watch.service uzstock-hourly-bars.service \
             uzstock-bank-fx.service uzstock-bank-history.service uzstock-financial-ingestion.service uzstock-news-collector.service; do
             systemctl stop "$service" >/dev/null 2>&1 || true
           done
@@ -956,6 +956,14 @@ jobs:
                   "python collector_financials.py --trades-only", data_volume=True),
               "/etc/systemd/system/uzstock-quotes-2130.timer": timer(
                   "Run UZStock 21:30 local quotes collector", "Mon..Sat *-*-* 16:30:00"),
+              # The 1Д/1Н chart during the session: one openinfo request an
+              # hour (the session so far in a single page), bars only. The
+              # board itself waits for the evening run and the conclusions.
+              "/etc/systemd/system/uzstock-hourly-bars.service": worker(
+                  "uzstock-hourly-bars", "UZStock hourly bars from openinfo's live executions",
+                  "python collector_financials.py --intraday-only", timeout="10min", data_volume=True),
+              "/etc/systemd/system/uzstock-hourly-bars.timer": timer(
+                  "Refresh hourly bars 11:05-16:05 Tashkent", "Mon..Sat *-*-* 06..11:05:00"),
               "/etc/systemd/system/uzstock-reports-watch.service": worker(
                   "uzstock-reports-watch", "UZStock newly filed reports watcher",
                   "python collector_financials.py --watch-filings", data_volume=True),
@@ -1003,7 +1011,7 @@ jobs:
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
-            uzstock-quotes-2130.timer uzstock-reports-watch.timer \
+            uzstock-quotes-2130.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"

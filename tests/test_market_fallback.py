@@ -277,3 +277,44 @@ def test_session_bars_backfill_takes_a_day_without_trades_as_empty(source):
     source["mutate"] = lambda payload, params: {**payload, "count": 0, "total_pages": 0,
                                                 "has_next": False, "results": []}
     assert archive.fetch_session_bars("2026-09-27", session=object()) == []
+
+
+def live(monkeypatch, payload):
+    calls = []
+    monkeypatch.setattr(archive, "_json_get", lambda client, path, params: calls.append(params) or deepcopy(payload))
+    return calls
+
+
+def test_live_bars_read_the_session_so_far_in_one_request(monkeypatch):
+    today = archive.datetime.now(archive.TASHKENT).date().isoformat()
+    trades = [execution(trade_datetime=f"{today}T10:00:01.000000", trade_price=12),
+              execution(trade_datetime=f"{today}T10:00:01.000000", trade_price=9),
+              execution(trade_datetime=f"{today}T11:15:00.000000", trade_price=10),
+              execution(trade_datetime=f"{today}T11:20:00.000000", market_id="RPO")]
+    calls = live(monkeypatch, {"count": 4, "has_next": False, "results": trades})
+    ten, eleven = archive.fetch_live_bars(session=object())
+    assert len(calls) == 1 and calls[0]["page_size"] == archive._LIVE_PAGE
+    assert (ten["hour"], ten["open"], ten["low"], ten["quantity"]) == (10, 9, 9, 4)  # no conclusion yet
+    assert (eleven["hour"], eleven["close"], eleven["quantity"]) == (11, 10, 2)      # REPO left out
+
+
+@pytest.mark.parametrize("payload, expected", [
+    ({"count": 0, "has_next": False, "results": []}, []),
+    ({"count": 3, "has_next": False, "results": [execution()]}, None),   # short read
+    ({"count": 1, "has_next": True, "results": [execution()]}, None),    # not one page
+])
+def test_live_bars_never_push_a_partial_read(monkeypatch, payload, expected):
+    live(monkeypatch, payload)
+    assert archive.fetch_live_bars(session=object()) == expected
+
+
+def test_live_bars_step_pushes_bars_only(monkeypatch):
+    bar = {"isin": ISIN, "date": DAY, "hour": 10, "open": 1, "high": 1, "low": 1,
+           "close": 1, "quantity": 1, "turnover": 1}
+    monkeypatch.setattr(archive, "fetch_live_bars", lambda: [bar])
+    pushed = []
+    monkeypatch.setattr(delivery, "_post", lambda path, body: pushed.append((path, body)) or 0)
+    assert trading.push_live_bars() == 0
+    assert pushed == [("/api/admin/quotes", {"rows": [], "history": [], "intraday": [bar]})]
+    monkeypatch.setattr(archive, "fetch_live_bars", lambda: None)
+    assert trading.push_live_bars() == 1
