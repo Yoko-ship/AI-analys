@@ -23,7 +23,8 @@ a proxy relay:
   directory, so the web app and every collector honour one decision;
 - a daily request count per host in the data directory
   (openinfo-requests-YYYY-MM-DD.json), logged at exit, so the volume we send is
-  a number we can read instead of a guess.
+  a number we can read instead of a guess — split by job and by endpoint, and
+  counting urllib3's retries, each of which reached openinfo too.
 """
 from __future__ import annotations
 
@@ -31,10 +32,14 @@ import atexit
 import json
 import logging
 import os
+import re
+import sys
 import threading
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -92,7 +97,21 @@ _STATE_LOCK = threading.Lock()
 _block_streak = 0
 _paused_until = 0.0          # epoch seconds; mirrors the shared file
 _run_count = 0
-_unflushed = 0
+_unflushed: Counter = Counter()  # endpoint -> requests not yet in the shared count
+# Which job sent them: the script and its flags (`collector_financials.py
+# --trades-only`), so the daily count says where its requests came from.
+_JOB = " ".join([Path(sys.argv[0]).name if sys.argv and sys.argv[0] else "python"]
+                + [a for a in sys.argv[1:] if a.startswith("--")])
+_ID_SEGMENT = re.compile(r"^(\d+|[0-9a-f-]{32,36})$", re.I)
+
+
+def _endpoint(url: str) -> str:
+    """The request's path with ids and file names folded: /org/{id}/reports/, /media/{file}."""
+    parts = urlsplit(url)
+    path = re.sub(r"^/api/v\d+", "", parts.path)
+    path = "/".join("{id}" if _ID_SEGMENT.match(seg) else "{file}" if "." in seg else seg
+                    for seg in path.split("/"))
+    return path if parts.hostname == "new-api.openinfo.uz" else f"{parts.hostname}{path}"
 
 
 def paused_until() -> float:
@@ -118,12 +137,12 @@ def _trip(status: int, url: str) -> None:
               "request for %d min", status, BLOCK_STREAK, url, COOLDOWN_SECONDS // 60)
 
 
-def _record(status: int | None, url: str) -> None:
-    """Count one answered request and move the breaker."""
-    global _block_streak, _run_count, _unflushed
+def _record(status: int | None, url: str, tries: int = 1) -> None:
+    """Count one call — ``tries`` requests, with urllib3's retries — and move the breaker."""
+    global _block_streak, _run_count
     with _STATE_LOCK:
-        _run_count += 1
-        _unflushed += 1
+        _run_count += tries
+        _unflushed[_endpoint(url)] += tries
         if status in BLOCK_STATUSES:
             _block_streak += 1
             if _block_streak >= BLOCK_STREAK:
@@ -131,16 +150,17 @@ def _record(status: int | None, url: str) -> None:
                 _trip(status, url)
         elif status is not None:
             _block_streak = 0
-        flush = _unflushed >= 50
+        flush = sum(_unflushed.values()) >= 50
     if flush:
         _flush_count()
 
 
 def _flush_count() -> None:
     """Add this process's unflushed requests to today's shared count (UTC day)."""
-    global _unflushed
     with _STATE_LOCK:
-        n, _unflushed = _unflushed, 0
+        counts = Counter(_unflushed)
+        _unflushed.clear()
+    n = sum(counts.values())
     if not n:
         return
     path = _state_dir() / f"openinfo-requests-{datetime.now(timezone.utc):%Y-%m-%d}.json"
@@ -155,6 +175,11 @@ def _flush_count() -> None:
             except ValueError:
                 data = {}
             data["requests"] = int(data.get("requests") or 0) + n
+            jobs = data.setdefault("by_job", {})
+            jobs[_JOB] = int(jobs.get(_JOB) or 0) + n
+            endpoints = data.setdefault("by_endpoint", {})
+            for endpoint, k in counts.items():
+                endpoints[endpoint] = int(endpoints.get(endpoint) or 0) + k
             fh.seek(0)
             fh.truncate()
             fh.write(json.dumps(data))
@@ -182,9 +207,16 @@ class PacedSession(requests.Session):
             response = super().request(method, url, **kwargs)
         except requests.exceptions.RetryError as exc:
             # urllib3 gave up retrying a 429/5xx: still an answer, and a 429 counts.
-            _record(429 if "429" in str(exc) else None, url)
+            _record(429 if "429" in str(exc) else None, url, tries=RETRIES + 1)
             raise
-        _record(response.status_code, url)
+        except requests.exceptions.RequestException:
+            # Timeouts and refused connections, after urllib3's own retries: they
+            # reached openinfo too (an upper bound — the retry budget is spent).
+            _record(None, url, tries=RETRIES + 1)
+            raise
+        # A 5xx or a timeout urllib3 retried and then got past is several requests.
+        history = getattr(getattr(response.raw, "retries", None), "history", None) or ()
+        _record(response.status_code, url, tries=1 + len(history))
         return response
 
 
