@@ -1,0 +1,11 @@
+{
+  "_about": "Issued share count per class, for issuers with more than one class of share. openinfo's charter capital gives the issuer's total (charter / par) but never the ordinary/preferred split, and its per-class list_shares are stale. An entry is used only while its classes' shares x par still add up to the charter capital openinfo publishes; once the charter moves, the entry stops fitting and the issuer's capitalisation is withheld until this file is updated. Counts are the exchange's own (uzse.uz /isu_infos/{isin}/detail, list_shrs), each checked against the charter on the day it was read.",
+  "classes": {
+    "ALKB":  {"isin": "UZ7044760005", "shares": 3674450046965, "par": 1,    "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
+    "ALKBP": {"isin": "UZ704476K019", "shares": 3690000000,    "par": 1,    "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
+    "UZMK":  {"isin": "UZ7021720006", "shares": 593644242,     "par": 5000, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
+    "UZMKP": {"isin": "UZ702172K016", "shares": 151548393,     "par": 5000, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
+    "AGMK":  {"isin": "UZ7000550002", "shares": 708620381,     "par": 3914, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
+    "AGMKP": {"isin": "UZ700055K015", "shares": 8998232,       "par": 3914, "as_of": "2026-10-06", "source": "uzse isu_infos detail"}
+  }
+}

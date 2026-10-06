@@ -509,6 +509,102 @@ def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
             "market_cap": keep * price if keep and price else None}
 
 
+# An issuer's classes at par add up to its charter capital exactly — ALKB, UZMK
+# and AGMK all matched openinfo's ustav_capitalization to the soum against the
+# exchange's own counts (2026-10-06). The slack is for rounding, not for a
+# missing issue: a count 0.5% short is a count from before the last issue.
+_CHARTER_TOLERANCE = 0.005
+_SHARE_REGISTRY_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "share_registry.json")
+_share_registry_memo: dict[str, dict] | None = None
+
+
+def _share_registry() -> dict[str, dict]:
+    """ticker → {shares, par, ...} from config/share_registry.json, read once."""
+    global _share_registry_memo
+    if _share_registry_memo is None:
+        import json
+
+        try:
+            with open(_SHARE_REGISTRY_PATH, encoding="utf-8") as fh:
+                classes = json.load(fh).get("classes") or {}
+            _share_registry_memo = {str(t).upper(): v for t, v in classes.items()}
+        except (OSError, ValueError):
+            logging.getLogger(__name__).exception("share registry unreadable")
+            _share_registry_memo = {}
+    return _share_registry_memo
+
+
+def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
+    """Hold one issuer's share counts to its charter capital.
+
+    ``_plausible_shares`` judges a class alone and only from above, so a count
+    from before the issuer's last share issue passes it for ever: openinfo still
+    lists UZMK at 43 322 393 shares against a charter of 3,73 трлн at a 5 000 par
+    (745 192 635 shares), and the board priced the company 15x too cheap. The
+    charter openinfo publishes on the same card IS current, so:
+
+      * the classes at par already add up to the charter — keep them;
+      * else the share registry, if its counts still add up to this charter;
+      * else a single class of share is charter / par, exactly;
+      * else (two classes, split unknown) no count — an empty cap, not a stale one.
+
+    ``group`` is the issuer's equity rows (UZ7… ISINs) from one collector pass.
+    """
+    log = logging.getLogger(__name__)
+
+    def num(v: Any) -> float | None:
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+
+    charters = {num(r.get("charter_capital")) for r in group} - {None}
+    if len(charters) != 1:
+        return group
+    charter = charters.pop()
+
+    def fits(total: float) -> bool:
+        return abs(total - charter) <= _CHARTER_TOLERANCE * charter
+
+    pars = [num(r.get("nominal")) or num((stored.get(r["ticker"]) or (None, None))[1])
+            for r in group]
+    counts = [num(r.get("shares_outstanding")) for r in group]
+    complete = None not in pars and None not in counts
+    if complete and fits(sum(c * p for c, p in zip(counts, pars))):
+        return group
+
+    def with_count(row: dict, shares: float | None, source: str | None) -> dict:
+        price = num(row.get("last_price")) or num(row.get("reference_price"))
+        return {**row, "shares_outstanding": shares, "shares_source": source,
+                "market_cap": shares * price if shares and price else None}
+
+    tickers = [r["ticker"] for r in group]
+    registry = _share_registry()
+    entries = [registry.get(t) for t in tickers]
+    # The card's own equity list, not just the rows that reached this batch: a
+    # delisted preferred class still holds its share of the charter.
+    classes_on_card = max(int(r.get("org_equity_classes") or 0) for r in group)
+    if None not in entries and len(entries) >= classes_on_card and fits(
+            sum(float(e["shares"]) * float(e["par"]) for e in entries)):
+        log.info("listings: %s share counts from the registry (charter %s)", tickers, charter)
+        return [with_count(r, float(e["shares"]), "registry") for r, e in zip(group, entries)]
+    if len(group) == 1 and classes_on_card == 1 and pars[0]:
+        shares = round(charter / pars[0])
+        log.info("listings: %s share count %s = charter %s / par %s (was %s)",
+                 tickers[0], shares, charter, pars[0], counts[0])
+        return [with_count(group[0], float(shares), "charter")]
+    if not complete:
+        # A class with no count or no par gives the charter nothing to be
+        # compared with: the cap was already incomplete, not shown to be wrong.
+        return group
+    log.warning("listings: %s share counts %s at par %s do not add up to charter %s "
+                "and no registry entry fits — capitalisation withheld",
+                tickers, counts, pars, charter)
+    return [with_count(r, None, None) for r in group]
+
+
 def bulk_upsert_listings(rows: list[dict]) -> int:
     """Overwrite the exchange-listing registry from an externally-computed batch.
 
@@ -526,17 +622,31 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
     conn = catalogue_storage.get_catalog_conn()
     n = 0
     try:
+        judged: list[dict] = []
+        stored_by_ticker: dict[str, tuple] = {}
+        for r in rows or []:
+            ticker = str(r.get("ticker") or "").strip().upper()
+            if not ticker or ticker in DELISTED_TICKERS:
+                # Deleted from the site: an older collector build still emits
+                # these, and the upsert would silently resurrect them.
+                continue
+            stored = conn.execute(
+                "SELECT shares_outstanding, nominal FROM catalog_listings WHERE ticker=?",
+                (ticker,)).fetchone()
+            stored = (stored[0], stored[1]) if stored else None
+            stored_by_ticker[ticker] = stored
+            judged.append({**_plausible_shares(ticker, r, stored), "ticker": ticker})
+        # Then each issuer's equity classes together, against its charter.
+        issuers: dict[str, list[int]] = {}
+        for i, r in enumerate(judged):
+            if r.get("org_id") and str(r.get("isin") or "").upper().startswith("UZ7"):
+                issuers.setdefault(str(r["org_id"]), []).append(i)
+        for idx in issuers.values():
+            for i, r in zip(idx, _charter_counts([judged[i] for i in idx], stored_by_ticker)):
+                judged[i] = r
         with conn:
-            for r in rows or []:
-                ticker = str(r.get("ticker") or "").strip().upper()
-                if not ticker or ticker in DELISTED_TICKERS:
-                    # Deleted from the site: an older collector build still emits
-                    # these, and the upsert would silently resurrect them.
-                    continue
-                stored = conn.execute(
-                    "SELECT shares_outstanding, nominal FROM catalog_listings WHERE ticker=?",
-                    (ticker,)).fetchone()
-                r = _plausible_shares(ticker, r, (stored[0], stored[1]) if stored else None)
+            for r in judged:
+                ticker = r["ticker"]
                 conn.execute(
                     """
                     INSERT INTO catalog_listings

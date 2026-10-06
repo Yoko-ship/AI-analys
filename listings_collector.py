@@ -475,6 +475,10 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             "stock_type": "01",
             "listing_date": _LISTING_DATE_OVERRIDES.get(ticker),
         }] if pinned_isin else (rfb.get("isin_codes") or []))
+        # Every share class on the card, delisted ones included — together they
+        # make up the charter capital the upsert holds the counts to.
+        equity_classes = len({str(ic.get("isu_cd") or "").strip().upper() for ic in isin_codes
+                              if str(ic.get("isu_cd") or "").strip().upper().startswith("UZ7")})
         for ic in isin_codes:
             tk = str(ic.get("ticker") or "").strip().upper()
             isin = str(ic.get("isu_cd") or "").strip().upper()
@@ -562,6 +566,9 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                 # charter capital is another issuer's (DRBK's org carries AISK).
                 "shares_source": shares_source,
                 "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
+                # Not stored either: which classes are one issuer, for that check.
+                "org_id": None if pinned_isin else org_id,
+                "org_equity_classes": equity_classes,
             })
 
         # Issuer listed on openinfo but with no tradable RFB security (empty
