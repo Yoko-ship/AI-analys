@@ -514,7 +514,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // ── The canvas ───────────────────────────────────────────────────────────
   const GAP = 12;
   // Volume needs enough of its own pane to be readable.
-  const VOL_H = 130;
   const SUB_H = 92;
   const subPanes = React.useMemo(() => [
     ...(indicators.has("rsi") ? [{ key: "rsi" }] : []),
@@ -532,15 +531,22 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // The panel GROWS with what is on it. A fixed height would take an
   // oscillator's ninety pixels out of the price pane, which is the one pane
   // that was the reason to open this page.
-  const plotH = Math.max(420, Math.floor(viewH * 0.62)) + subPanes.length * (SUB_H + GAP);
   const plotRef = React.useRef(null);
   const [measuredPlotH, setMeasuredPlotH] = React.useState(null);
+  const [plotWidth, setPlotWidth] = React.useState(() => (typeof window === "undefined" ? 900 : window.innerWidth));
+  const compactChart = plotWidth <= 620;
+  const VOL_H = compactChart ? 80 : 130;
+  const plotH = (compactChart ? Math.max(360, Math.min(480, Math.floor(viewH * 0.52)))
+    : Math.max(420, Math.floor(viewH * 0.62))) + subPanes.length * (SUB_H + GAP);
   React.useLayoutEffect(() => {
     const plot = plotRef.current;
     if (!plot) return undefined;
     // Full screen allocates space between the toolbar, plot and details.
     // Its canvas must follow that allocation, not the page's preferred height.
-    const measure = () => setMeasuredPlotH(Math.max(1, plot.clientHeight));
+    const measure = () => {
+      setMeasuredPlotH(Math.max(1, plot.clientHeight));
+      setPlotWidth(plot.clientWidth);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(plot);
@@ -726,7 +732,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     }
     return { series, main: "price", panes, hourly: hasHourly, labels };
   }, [n, points, baseVals, cmpOn, cmp, drawType, synthetic, stepLine, priceColor, isUp, rangeWindow, adjustments,
-      drawPoints, ind, toScale, subPanes, hasHourly, lang, shownPatterns, patternLabels, selectedPattern]);
+      drawPoints, ind, toScale, subPanes, hasHourly, lang, shownPatterns, patternLabels, selectedPattern, VOL_H]);
 
   const initialView = React.useMemo(() => {
     if (synthetic || !historyNavigation || range === "max" || n < 2) return null;
@@ -1167,10 +1173,15 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           ))}
           {visFrom && (
             <p className="ac-history-help" data-testid="ac-visible-range" data-from={visFrom} data-to={visTo}>
-              <span>
+              <span className="ac-history-desktop">
                 {t("Ctrl + колесо: вверх — приблизить, вниз — отдалить; потяните график — перейти по истории.",
                    "Ctrl + g'ildirak: yuqoriga — yaqinlashtirish, pastga — uzoqlashtirish; tarix uchun grafikni suring.",
                    "Ctrl + wheel: up zooms in, down zooms out; drag the chart to browse history.")}
+              </span>
+              <span className="ac-history-touch">
+                {t("Сведите или разведите пальцы для масштаба; смахните для просмотра истории.",
+                   "Masshtab uchun ikki barmoqdan foydalaning; tarixni ko'rish uchun suring.",
+                   "Pinch to zoom; swipe to browse history.")}
               </span>
               <span className="ac-history-dates">{fmtDate(visFrom, true)} — {fmtDate(visTo, true)}</span>
               {visible?.changed && (
