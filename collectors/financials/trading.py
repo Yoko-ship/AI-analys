@@ -17,11 +17,13 @@ from collectors.openinfo import market_fallback as archive_market
 SESSION_DATE: str | None = os.getenv("MARKET_SESSION_DATE") or None
 
 
-def _published_session() -> str | None:
-    """The session prod's board already holds, when BOTH its steps landed it.
+def _published_session() -> tuple[str | None, str | None]:
+    """(session prod's board holds, newest session it holds OFFICIALLY).
 
-    Read from the deployment's own step stamps (/api/coverage), not from
-    openinfo. None when they disagree or cannot be read — then nothing is skipped.
+    The first is set when BOTH its steps landed it; the second is the newest
+    session published from openinfo's daily conclusions rather than provisionally
+    from the executions. Read from the deployment's own step stamps
+    (/api/coverage), not from openinfo. None when unreadable — nothing is skipped.
     """
     import requests
 
@@ -31,10 +33,14 @@ def _published_session() -> str | None:
                  .get("collector", {}).get("steps", {}))
     except Exception:  # noqa: BLE001 — unknown means "publish"
         collectors_financials_settings.log.warning("published session unknown; running in full", exc_info=True)
-        return None
+        return None, None
     stats = str((steps.get("trade_stats") or {}).get("last_day") or "")
     quotes = str((steps.get("quotes") or {}).get("last_day") or "")
-    return stats if len(stats) == 8 and stats.isdigit() and stats == quotes else None
+    held = stats if len(stats) == 8 and stats.isdigit() and stats == quotes else None
+    # Before provisional sessions existed every published one was official, and
+    # such a deployment carries no official_quotes stamp at all.
+    official = str((steps.get("official_quotes") or {}).get("last_day") or "") or held
+    return held, official
 
 
 def _session_to_publish() -> str:
@@ -42,21 +48,30 @@ def _session_to_publish() -> str:
 
     A run with nothing to do re-read the whole session and every security's
     quote (~80-320 requests) only to stop or to push the same numbers again:
-    01.10's 16:10 run re-pushed an unchanged 30.09, and a run before openinfo
-    posts the day's conclusions can only fail on them. So first ask openinfo
-    for its newest session; when prod already holds it, stop ("published");
-    when its conclusions are not posted yet, stop without publishing
-    ("not yet", a failed run as before, minus the requests). Any doubt: "go".
+    01.10's 16:10 run re-pushed an unchanged 30.09. So first ask openinfo for
+    its newest session. openinfo posts a day's conclusions only overnight, but
+    its executions are whole at the close, so a finished session is published
+    provisionally from them (16:10) and again officially once the conclusions
+    are there (the next morning). Hence:
+
+      * prod holds it officially, or provisionally with no conclusions yet to
+        replace it: stop ("published");
+      * no conclusions and the session is still trading: stop ("not yet");
+      * otherwise "go". Any doubt: "go".
     """
-    published = _published_session()
+    published, official = _published_session()
     try:
         newest = archive_market.latest_session()
-        if newest == published:
-            collectors_financials_settings.log.info("session %s is already published — nothing to do", newest)
+        posted = archive_market.conclusions_posted(newest)
+        if newest == published and (official == newest or not posted):
+            collectors_financials_settings.log.info(
+                "session %s is already published%s — nothing to do", newest,
+                "" if official == newest else " (provisionally; conclusions not posted yet)")
             return "published"
-        if not archive_market.conclusions_posted(newest):
+        if not posted and not archive_market._session_finished(
+                f"{newest[:4]}-{newest[4:6]}-{newest[6:]}"):
             collectors_financials_settings.log.error(
-                "openinfo has not posted the %s conclusions yet — nothing published", newest)
+                "session %s is still trading — nothing published", newest)
             return "not yet"
     except Exception:  # noqa: BLE001
         collectors_financials_settings.log.warning("openinfo's newest session unknown; running in full",
@@ -176,6 +191,10 @@ def push_trade_stats() -> int:
         except Exception:
             collectors_financials_settings.log.exception("quotes step failed")
             status = status or 1
+    if status == 0 and not data.get("provisional") and not collectors_financials_market.SKIP_QUOTES:
+        # The session now stands on the exchange's own daily figures; a
+        # provisional one (from the executions) is published again over itself.
+        collectors_financials_delivery._stamp_step("official_quotes", str(data.get("trade_date") or ""))
     return status
 
 
@@ -183,8 +202,9 @@ def push_live_bars() -> int:
     """Refresh the 1Д/1Н chart's hourly bars from today's session so far.
 
     One openinfo request per run (the hourly timer during trading). Only the
-    bars move: the board's day statistics wait for the official conclusions
-    the evening run publishes.
+    bars move: the board's day statistics wait for the close — the 16:10 run
+    publishes them provisionally from the executions, the next morning's run
+    officially from the conclusions.
     """
     bars = archive_market.fetch_live_bars()
     if bars is None:

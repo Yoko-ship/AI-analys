@@ -167,6 +167,27 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         quotes = fetch_quotes([(isin, row["market"]) for isin, row in stats.items()],
                               session=client, as_of=iso_day)
         quoted = {row["isin"]: row for row in quotes}
+        traded = [isin for isin, row in stats.items() if row["trade_count"]]
+        if traded and not any((quoted.get(isin) or {}).get("trade_date") == day for isin in traded):
+            # openinfo posts the day's conclusions only overnight (none by 21:30
+            # on 02.10, 05.10 or 06.10), while its executions are complete at the
+            # close — and a day rebuilt from them matched the conclusions exactly
+            # (15/15 securities, OHLC and volume, 05–06.10). So a FINISHED session
+            # is published from the executions now, marked provisional; the next
+            # run that finds the conclusions publishes the official one over it.
+            if not _session_finished(iso_day):
+                raise ValueError(f"session {iso_day} is still trading and has no conclusions")
+            quotes = [q for q in quotes if q["isin"] not in traded] + [
+                _provisional_quote(isin, stats[isin], grouped[isin], quoted.get(isin), day)
+                for isin in traded]
+            log.info("OpenInfo fallback: %s provisional from %d executions, %d securities "
+                     "(conclusions not posted yet)", day, len(trades), len(stats))
+            return {"source": "openinfo", "reachable": True, "complete": True,
+                    "provisional": True, "trade_date": day, "count": len(stats),
+                    "stats": stats, "quotes": quotes,
+                    "intraday": session_bars(trades, {
+                        (isin, day): (stats[isin]["open_price"], stats[isin]["close_price"])
+                        for isin in traded})}
         for isin, row in stats.items():
             if not row["trade_count"]:
                 continue  # negotiated trades have no auction close
@@ -197,6 +218,57 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
     except Exception:
         log.exception("OpenInfo market session unavailable or incomplete; nothing published")
         return failure
+
+
+# The session's last executions land at 16:02 (05.10, 06.10); after this the
+# archive holds the whole day.
+_SESSION_CLOSED = (16, 5)
+
+
+def _session_finished(iso_day: str) -> bool:
+    now = datetime.now(TASHKENT)
+    return iso_day < now.date().isoformat() or (now.hour, now.minute) >= _SESSION_CLOSED
+
+
+def _provisional_quote(isin: str, row: dict, trades: list[dict], official: dict | None,
+                       day: str) -> dict:
+    """One security's day as its conclusion will state it, from the executions.
+
+    High, low, quantity and turnover are exact. The day's open and close are the
+    first and last execution. Several at the same millisecond at different
+    prices are one order sweeping the book, which the archive does not order:
+    a sweep starts at the level nearest the price before it and ends at the
+    level furthest from it. That is how the conclusions resolved every such
+    open and close on 06.10 (YRFS 4 176 → 3 905…3 889 closed at 3 889, UZIR
+    11 500 → 11 110…11 070 at 11 070, ACMT2B5 107 800 → 108 027,65 at
+    108 027,65; its open nearest the previous close). The previous close is
+    the latest official one, which the exchange's change is measured against.
+    """
+    official = official or {}
+    previous = official.get("close_price") if official.get("trade_date", "") < day else None
+    stamps: dict[str, list[float]] = defaultdict(list)
+    for trade in trades:
+        if not ts._is_block(trade) and _number(trade.get("trade_price") or 0) > 0:
+            stamps[ts.trade_moment(trade)[2][0]].append(_number(trade["trade_price"]))
+    if stamps:
+        order = sorted(stamps)
+        first, last = stamps[order[0]], stamps[order[-1]]
+        row["open_price"] = _nearest(first, previous)
+        before = statistics.median(stamps[order[-2]]) if len(order) > 1 else previous
+        row["close_price"] = (max(last, key=lambda p: (abs(p - before), -p))
+                              if before is not None else statistics.median_low(last))
+    close = row["close_price"]
+    change = close - previous if previous else None
+    history = [h for h in official.get("history") or [] if h["date"] < day]
+    history.append({"date": day, "close": close, "change": change,
+                    "quantity": row["total_qty"], "turnover": row["total_value"]})
+    return {"isin": isin, "market": row.get("market"), "ticker": official.get("ticker"),
+            "name": official.get("name"), "trade_date": day, "close_price": close,
+            "prev_close": previous, "change_value": change,
+            "change_percent": round(change / abs(previous) * 100, 4) if previous and change is not None else None,
+            "quantity": row["total_qty"], "turnover": row["total_value"],
+            "open_price": row["open_price"], "high_price": row["high_price"],
+            "low_price": row["low_price"], "history": history[-21:], "provisional": True}
 
 
 def _nearest(prices: list[float], anchor: float | None) -> float:

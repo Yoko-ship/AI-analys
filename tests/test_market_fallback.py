@@ -60,7 +60,7 @@ def test_complete_fallback_preserves_identical_executions_and_official_closes(so
 
 @pytest.mark.parametrize("problem", ["short", "wrong_count", "wrong_page", "broken_page",
                                     "wrong_day", "no_board", "nan", "lagging_quote", "short_quote"])
-def test_incomplete_or_inconsistent_archive_never_exposes_publishable_rows(source, problem):
+def test_incomplete_or_inconsistent_archive_never_exposes_publishable_rows(source, problem, monkeypatch):
     def mutate(payload, params):
         if params["page"] == 2:
             if problem == "short":
@@ -81,12 +81,71 @@ def test_incomplete_or_inconsistent_archive_never_exposes_publishable_rows(sourc
     elif problem == "nan":
         source["trades"][1]["trade_quantity"] = "NaN"
     elif problem == "lagging_quote":
+        # No conclusions yet for a session still trading: nothing to publish.
         source["conclusions"][0]["date"] = "2026-09-24"
+        monkeypatch.setattr(archive, "_session_finished", lambda day: False)
     elif problem == "short_quote":
         source["conclusions"][0]["trading_volume"] = 2
     result = archive.fetch_latest_trade_stats(session=object())
     assert not result["complete"]
     assert result["stats"] == {} and result["intraday"] == []
+
+
+def test_a_finished_session_without_conclusions_is_published_provisionally(source):
+    """openinfo posts conclusions overnight; the executions are whole at 16:02."""
+    source["trades"] = [execution(trade_datetime="2026-09-25T10:00:01.100000", trade_price=10),
+                        execution(trade_datetime="2026-09-25T15:59:59.500000", trade_price=12)]
+    source["conclusions"] = [conclusion(date="2026-09-24", close=9, change=-1,
+                                        trading_volume=3, trading_value=27)]
+    data = archive.fetch_latest_trade_stats(session=object())
+    assert data["complete"] and data["provisional"]
+    quote, = data["quotes"]
+    assert (quote["trade_date"], quote["open_price"], quote["close_price"]) == (DAY, 10, 12)
+    assert (quote["prev_close"], quote["change_value"], quote["quantity"], quote["turnover"]) == (9, 3, 4, 40)
+    assert [h["date"] for h in quote["history"]] == ["20260924", DAY]
+
+
+@pytest.mark.parametrize("before, tied, close", [
+    (4176, [3889, 3903.02, 3906.67, 3905], 3889),   # YRFS 06.10: a sell sweep ends lowest
+    (11500, [11070, 11080, 11100, 11110], 11070),   # UZIR 06.10
+    (107800, [107800, 108027.65], 108027.65),       # ACMT2B5 06.10: a buy sweep ends highest
+])
+def test_a_sweep_closes_at_the_level_furthest_from_the_trade_before(source, before, tied, close):
+    stamp = "2026-09-25T15:05:39.964000"
+    source["trades"] = [execution(trade_datetime="2026-09-25T14:39:51.532000", trade_price=before)] + [
+        execution(trade_datetime=stamp, trade_price=p) for p in tied]
+    source["conclusions"] = [conclusion(date="2026-09-24")]
+    source["mutate"] = lambda payload, params: dict(
+        payload, count=len(source["trades"]), total_pages=1, page_size=1000, has_next=False,
+        results=deepcopy(source["trades"]))
+    quote, = archive.fetch_latest_trade_stats(session=object())["quotes"]
+    assert quote["close_price"] == close
+
+
+def test_a_sweep_opens_at_the_level_nearest_the_previous_close(source):
+    stamp = "2026-09-25T10:00:18.808000"
+    source["trades"] = [execution(trade_datetime=stamp, trade_price=102500),
+                        execution(trade_datetime=stamp, trade_price=104505)]
+    source["conclusions"] = [conclusion(date="2026-09-24", close=106999)]
+    quote, = archive.fetch_latest_trade_stats(session=object())["quotes"]
+    assert quote["open_price"] == 104505
+
+
+def test_conclusions_for_some_securities_only_are_still_refused(monkeypatch):
+    other = "UZ7002200006"
+    trades = [execution(), execution(isin_code=other)]
+
+    def get(client, path, params):
+        if path.endswith("conclusions/"):
+            day = "2026-09-25" if params["isu_cd"] == ISIN else "2026-09-24"
+            return {"results": [conclusion(date=day, trading_volume=2, trading_value=20)]}
+        if "start_date" not in params:
+            return {"results": [trades[0]]}
+        return {"count": 2, "total_pages": 1, "page_size": 1000, "current_page": 1,
+                "has_next": False, "results": deepcopy(trades)}
+
+    monkeypatch.setattr(archive, "_json_get", get)
+    assert not archive.fetch_latest_trade_stats(session=object())["complete"]
 
 
 def test_repo_deals_are_skipped_not_taken_for_a_corrupt_session(source):
@@ -320,24 +379,30 @@ def test_live_bars_step_pushes_bars_only(monkeypatch):
     assert trading.push_live_bars() == 1
 
 
-def coverage(monkeypatch, stats_day, quotes_day=None):
+def coverage(monkeypatch, stats_day, quotes_day=None, official=None):
     import requests
     steps = {"trade_stats": {"last_day": stats_day},
              "quotes": {"last_day": stats_day if quotes_day is None else quotes_day}}
+    if official:
+        steps["official_quotes"] = {"last_day": official}
     answer = SimpleNamespace(json=lambda: {"collector": {"steps": steps}})
     monkeypatch.setattr(requests, "get", lambda url, **kw: answer)
 
 
-@pytest.mark.parametrize("published, quotes_day, newest, posted, outcome", [
-    ("20260930", None, "20260930", True, "published"),   # nothing new: one request
-    ("20260930", None, "20261002", False, "not yet"),    # session on, conclusions not
-    ("20260930", None, "20261002", True, "go"),          # a new, complete session
-    ("20260930", "20260929", "20260930", True, "go"),    # quotes never landed for it
-    ("", None, "20260930", True, "go"),                  # no stamp at all
+@pytest.mark.parametrize("published, quotes_day, official, newest, posted, finished, outcome", [
+    ("20260930", None, None, "20260930", True, True, "published"),        # nothing new
+    ("20260930", None, None, "20261002", False, False, "not yet"),        # still trading
+    ("20260930", None, None, "20261002", False, True, "go"),              # closed: provisional
+    ("20261002", None, "20260930", "20261002", False, True, "published"), # provisional, no conclusions yet
+    ("20261002", None, "20260930", "20261002", True, True, "go"),         # conclusions came: official
+    ("20260930", None, None, "20261002", True, True, "go"),               # a new, complete session
+    ("20260930", "20260929", None, "20260930", True, True, "go"),         # quotes never landed for it
+    ("", None, None, "20260930", True, True, "go"),                       # no stamp at all
 ])
 def test_a_run_with_nothing_to_publish_stops_after_one_or_two_requests(
-        monkeypatch, published, quotes_day, newest, posted, outcome):
-    coverage(monkeypatch, published, quotes_day)
+        monkeypatch, published, quotes_day, official, newest, posted, finished, outcome):
+    coverage(monkeypatch, published, quotes_day, official)
+    monkeypatch.setattr(archive, "_session_finished", lambda day: finished)
     monkeypatch.setattr(trading.uzse_access, "enabled", lambda: False)
     monkeypatch.setattr(trading, "SESSION_DATE", None)
     monkeypatch.setattr(archive, "latest_session", lambda **kw: newest)
@@ -372,3 +437,24 @@ def test_conclusions_posted_reads_all_securities_in_one_request(monkeypatch):
     assert archive.conclusions_posted("20261002", session=object()) is True
     assert archive.conclusions_posted("20261001", session=object()) is False
     assert calls[0] == {"isu_cd": "", "start_date": "2026-10-02", "end_date": "2026-10-03"}
+
+
+@pytest.mark.parametrize("provisional", [False, True])
+def test_only_a_session_from_the_conclusions_is_stamped_official(monkeypatch, source, provisional):
+    if provisional:
+        source["conclusions"] = [conclusion(date="2026-09-24")]
+    data = archive.fetch_latest_trade_stats(session=object())
+    assert bool(data.get("provisional")) is provisional
+    monkeypatch.setattr(trading, "_session_to_publish", lambda: "go")
+    monkeypatch.setattr(trading.uzse_access, "enabled", lambda: False)
+    monkeypatch.setattr(trading, "SESSION_DATE", None)
+    monkeypatch.setattr(archive, "fetch_latest_trade_stats", lambda **kw: data)
+    monkeypatch.setattr(market, "board_securities", lambda: [{"isin": ISIN, "_market": "STK"}])
+    monkeypatch.setattr(market, "SKIP_QUOTES", False)
+    monkeypatch.setattr(market, "push_quotes", lambda *a, **kw: 0)
+    monkeypatch.setattr(delivery, "_post", lambda path, body: 0)
+    stamps = []
+    monkeypatch.setattr(delivery, "_stamp_step", lambda step, day="": stamps.append((step, day)))
+    assert trading.push_trade_stats() == 0
+    assert ("trade_stats", DAY) in stamps
+    assert (("official_quotes", DAY) in stamps) is not provisional
