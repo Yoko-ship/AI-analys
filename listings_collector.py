@@ -19,6 +19,7 @@ from typing import Any
 import requests
 
 import reports_catalog as rc
+import catalogue.market_store as catalogue_market_store
 import catalogue.snapshots as catalogue_snapshots
 import catalogue.storage as catalogue_storage
 import corporate_actions
@@ -318,7 +319,9 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
     Prices come from OpenInfo's conclusions archive; issued shares and the
     exchange control value come from UZSE's security detail. This is the same
     source pair used for regular ``info_rfb`` rows, but it also works when the
-    issuer card omits the security altogether.
+    issuer card omits the security altogether. With uzse.uz off on the server
+    the count comes from the checked-in share registry instead, the exchange's
+    own figure as last read (TGMQ, MXUS: their openinfo cards are empty).
     """
     ticker = str(ticker or "").strip().upper()
     isin = str(security.get("isin") or "").strip().upper()
@@ -326,6 +329,12 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
         return None
     uz = _uzse_equity(session, isin) or {}
     shares = uz.get("shares") or _uzse_share_count(session, isin)
+    entry = catalogue_market_store._share_registry().get(ticker) or {}
+    if str(entry.get("isin") or "").upper() != isin:
+        entry = {}
+    source = "uzse" if shares else None
+    if not shares and entry:
+        shares, source = float(entry["shares"]), "registry"
     last = _last_conclusion(session, isin)
     last_close = _num(last.get("close")) if last else None
     uz_price = _num(uz.get("price"))
@@ -353,7 +362,7 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
                        or ("preferred" if security.get("is_preferred") else "ordinary")),
         "listing_date": None,
         "shares_outstanding": shares,
-        "nominal": uz.get("nominal"),
+        "nominal": uz.get("nominal") or (entry.get("par") if source == "registry" else None),
         "reference_price": None,
         "last_price": last_price,
         "last_trade_date": last_trade_date,
@@ -362,8 +371,9 @@ def _known_equity_row(session: Any, ticker: str, security: dict[str, Any],
         "low_price": _num(last.get("low")) if last else None,
         "volume": _num(last.get("trading_value")) if last else None,
         "market_cap": (shares * last_price) if (shares and last_price) else None,
-        # Both counts above come from the exchange's own registry.
-        "shares_source": "uzse" if shares else None,
+        # Both counts above come from the exchange's own registry, read live
+        # or (``registry``) from the checked-in copy.
+        "shares_source": source,
     }
 
 

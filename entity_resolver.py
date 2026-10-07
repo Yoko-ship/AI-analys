@@ -80,6 +80,13 @@ ORG_OVERRIDES: dict[str, str] = {
     # «Daromad Plus» investitsiya fondi AJ (org 538, INN 202081907): not listed —
     # no exchange ticker, no ISIN — so only this pin links ODMP to its filings.
     "ODMP": "538",
+    # O'zpartamponaj (org 150, INN 203025578) and O'zbekinvest (org 835, INN
+    # 201222058): each card lists the issuer's ISINs with counts that add up to
+    # its charter, but the screener carries no TIN for them, so the walk never
+    # reached the card and the board fell back to uzse.uz for a count — which
+    # the server cannot reach. Pinned 2026-10-07 after checking card vs exchange.
+    "UZPN": "150",
+    "UZIN": "835", "UZINP": "835",
 }
 
 # Explicit ticker -> ISIN pins for securities that openinfo's info_rfb and stock

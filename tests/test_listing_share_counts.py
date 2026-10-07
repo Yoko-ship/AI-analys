@@ -4,6 +4,10 @@ openinfo answered org 102 (UzAuto Motors) with 1 344 000 017 200 shares five
 times out of six and 270 000 000 once; the capital-sized figure reached the
 board and put the market at 76 500 трлн сум.
 """
+from datetime import date
+
+import pytest
+
 import catalogue.market_store as store
 import listings_collector as lc
 
@@ -88,15 +92,17 @@ def test_three_different_answers_publish_no_count() -> None:
 # openinfo's card, 2026-10-06: charter current, per-class list_shares from before
 # the last issue. The exchange's counts at par add up to the charter exactly.
 
-def _cls(ticker, isin, shares, par, charter, classes=2, price=None):
+def _cls(ticker, isin, shares, par, charter, classes=2, price=None, traded=None):
     return {"ticker": ticker, "isin": isin, "shares_outstanding": shares, "nominal": par,
             "charter_capital": charter, "org_id": "1", "org_equity_classes": classes,
-            "last_price": price, "shares_source": "openinfo"}
+            "last_price": price, "shares_source": "openinfo",
+            "last_trade_date": traded or (date.today().isoformat() if price else None)}
 
 
 def _registry(monkeypatch, entries):
     monkeypatch.setattr(store, "_share_registry_memo", {
-        t: {"shares": s, "par": p} for t, (s, p) in entries.items()})
+        t: {"shares": e[0], "par": e[1], **({"isin": e[2]} if len(e) > 2 else {})}
+        for t, e in entries.items()})
 
 
 UZMK_CHARTER = 3_725_963_175_000.0
@@ -106,7 +112,19 @@ def test_classes_that_add_up_to_the_charter_are_kept(monkeypatch) -> None:
     _registry(monkeypatch, {})
     group = [_cls("UZMK", "UZ7021720006", 593_644_242.0, 5000.0, UZMK_CHARTER),
              _cls("UZMKP", "UZ702172K016", 151_548_393.0, 5000.0, UZMK_CHARTER)]
-    assert store._charter_counts(group, {}) == group
+    out = store._charter_counts(group, {})
+    assert [r["shares_outstanding"] for r in out] == [593_644_242.0, 151_548_393.0]
+
+
+def test_counts_that_fit_still_take_no_cap_from_a_par_price(monkeypatch) -> None:
+    """UZIN: the card's counts fit the charter, but the ordinary line has only its par."""
+    _registry(monkeypatch, {})
+    charter = 303_452_228_000.0
+    group = [{**_cls("UZIN", "UZ7056920018", 289_341_408.0, 1000.0, charter), "last_price": 1000.0},
+             _cls("UZINP", "UZ7056921008", 14_110_820.0, 1000.0, charter, price=3650.0)]
+    ordinary, preferred = store._charter_counts(group, {})
+    assert ordinary["shares_outstanding"] == 289_341_408.0 and ordinary["market_cap"] is None
+    assert preferred["market_cap"] == 14_110_820.0 * 3650.0
 
 
 def test_a_stale_pair_is_replaced_by_a_registry_that_fits_the_charter(monkeypatch) -> None:
@@ -163,13 +181,77 @@ def test_without_a_par_nothing_is_judged(monkeypatch) -> None:
     assert store._charter_counts(group, {}) == group
 
 
+def test_a_class_missing_from_the_pass_is_found_by_its_isin(monkeypatch) -> None:
+    """GRBK: the card holds GRBKP too, so the lone GRBK row needs the pair."""
+    _registry(monkeypatch, {"GRBK": (4_997_000_000, 100, "UZ7037610001"),
+                            "GRBKP": (3_000_000, 100, "UZ703761K015")})
+    row = _cls("GRBK", "UZ7037610001", 1_297_000_000.0, 100.0, 500_000_000_000.0, price=2458.0)
+    (out,) = store._charter_counts([row], {})
+    assert out["shares_outstanding"] == 4_997_000_000.0
+    assert out["market_cap"] == 4_997_000_000.0 * 2458.0
+
+
+def test_a_row_the_card_labels_otherwise_is_matched_by_isin(monkeypatch) -> None:
+    _registry(monkeypatch, {"UZNG": (47_118_148_624, 500, "UZ7036270005"),
+                            "UZNGP": (24_437_863, 500, "UZ7036271003")})
+    charter = 23_571_293_243_500.0
+    group = [_cls("UZNG", "UZ7036270005", 43_048_493_329.0, 500.0, charter),
+             _cls("UZNG1", "UZ7036271003", 24_437_863.0, 500.0, charter, price=5400.0)]
+    out = store._charter_counts(group, {})
+    assert [r["shares_outstanding"] for r in out] == [47_118_148_624.0, 24_437_863.0]
+
+
+def test_a_class_that_never_trades_gets_its_count_but_no_cap_at_par(monkeypatch) -> None:
+    """UZNG's ordinary line carries only its 500 par: no cap is built on it."""
+    _registry(monkeypatch, {"UZNG": (47_118_148_624, 500), "UZNGP": (24_437_863, 500)})
+    charter = 23_571_293_243_500.0
+    group = [{**_cls("UZNG", "UZ7036270005", 43_048_493_329.0, 500.0, charter),
+              "reference_price": 500.0, "last_price": 500.0, "last_trade_date": None},
+             _cls("UZNGP", "UZ7036271003", 24_437_863.0, 500.0, charter, price=5400.0)]
+    ordinary, preferred = store._charter_counts(group, {})
+    assert ordinary["shares_outstanding"] == 47_118_148_624.0 and ordinary["market_cap"] is None
+    assert preferred["market_cap"] == 24_437_863.0 * 5400.0
+
+
+def test_a_price_older_than_the_activity_window_builds_no_cap(monkeypatch) -> None:
+    _registry(monkeypatch, {})
+    row = _cls("X", "UZ7000000001", 1_000_000.0, 5000.0, 25_000_000_000.0, classes=1,
+               price=6000.0, traded="2019-03-01")
+    (out,) = store._charter_counts([row], {})
+    assert out["shares_outstanding"] == 5_000_000.0 and out["market_cap"] is None
+
+
+# openinfo's ustav_capitalization on the day each entry was read from uzse.uz.
+REGISTRY_CHARTERS = {
+    ("ALKB", "ALKBP"): 3_678_140_046_965.0, ("UZMK", "UZMKP"): UZMK_CHARTER,
+    ("AGMK", "AGMKP"): 2_808_759_251_282.0,
+    ("AGBA", "AGBAP"): 12_765_191_063_584.0, ("ALSM", "ALSMP"): 60_272_931_060.0,
+    ("BRBN", "BRBNP"): 5_689_083_510_324.0, ("GRBK", "GRBKP"): 500_000_000_000.0,
+    ("HMKB", "HMKBP"): 646_648_980_000.0, ("IPKY", "IPKYP"): 602_421_052_640.0,
+    ("IPTB", "IPTBP"): 4_225_522_638_941.0, ("KASU", "KASUP"): 80_000_000_000.0,
+    ("KFSK", "KFSKP"): 240_000_000_000.0, ("MCBA", "MCBAP"): 7_145_336_799_816.0,
+    ("QATT", "QATTP"): 11_461_144_000.0, ("TNBN", "TNBNP"): 2_334_142_421_800.0,
+    ("TRSB", "TRSBP"): 2_000_500_000_000.0, ("UPOS", "UPOSP"): 52_563_506_760.0,
+    ("UZAL", "UZALP"): 1_016_808_998_010.0, ("UZIR", "UZIRP"): 185_773_565_000.0,
+    ("UZNG", "UZNGP"): 23_571_293_243_500.0, ("UZTL", "UZTLP"): 978_514_666_998.0,
+}
+
+
+# Single-class issuers the walk reaches only through the fallback row: the
+# exchange's total_capital (BIOK's also equals openinfo org 396's charter).
+REGISTRY_SINGLE = {"BIOK": 19_139_488_000.0, "TGMQ": 615_769_000.0, "MXUS": 3_148_983_500.0}
+
+
 def test_the_checked_in_registry_adds_up_to_the_charters_it_was_read_against() -> None:
     store._share_registry_memo = None
     reg = store._share_registry()
-    charters = {("ALKB", "ALKBP"): 3_678_140_046_965.0, ("UZMK", "UZMKP"): UZMK_CHARTER,
-                ("AGMK", "AGMKP"): 2_808_759_251_282.0}
-    for tickers, charter in charters.items():
-        assert sum(reg[t]["shares"] * reg[t]["par"] for t in tickers) == charter
+    assert set(reg) == {t for tickers in REGISTRY_CHARTERS for t in tickers} | set(REGISTRY_SINGLE)
+    for t, capital in REGISTRY_SINGLE.items():
+        assert reg[t]["shares"] * reg[t]["par"] == capital
+    for tickers, charter in REGISTRY_CHARTERS.items():
+        assert sum(reg[t]["shares"] * reg[t]["par"] for t in tickers) == pytest.approx(charter, rel=1e-12)
+        # One issuer per pair: the ISINs share the UZ7 + five-digit issuer code.
+        assert len({reg[t]["isin"][:8] for t in tickers}) == 1
 
 
 def test_the_upsert_holds_an_issuer_to_its_charter(tmp_path, monkeypatch) -> None:
@@ -200,3 +282,28 @@ def test_the_upsert_holds_an_issuer_to_its_charter(tmp_path, monkeypatch) -> Non
     assert listings["ALKBP"]["shares_outstanding"] == 3_690_000_000.0
     assert listings["ALKB"]["market_cap"] == 3_674_450_046_965.0 * 0.9
     assert listings["ALKBND"]["shares_outstanding"] == 30000.0
+
+
+def test_the_fallback_row_takes_the_registry_count_when_uzse_is_off(monkeypatch) -> None:
+    """TGMQ: an empty openinfo card, uzse.uz refused on the server."""
+    _registry(monkeypatch, {"TGMQ": (615_769, 1000, "UZ7035630001")})
+    monkeypatch.setattr(lc, "_uzse_equity", lambda s, i: None)
+    monkeypatch.setattr(lc, "_uzse_share_count", lambda s, i: None)
+    monkeypatch.setattr(lc, "_last_conclusion", lambda s, i: {"date": "2026-10-06", "close": 23201.77})
+    row = lc._known_equity_row(None, "TGMQ", {"isin": "UZ7035630001"})
+    assert row["shares_outstanding"] == 615_769.0 and row["shares_source"] == "registry"
+    assert row["nominal"] == 1000 and row["market_cap"] == 615_769.0 * 23201.77
+
+
+def test_a_registry_entry_for_another_isin_is_not_used(monkeypatch) -> None:
+    _registry(monkeypatch, {"TGMQ": (615_769, 1000, "UZ7000000009")})
+    monkeypatch.setattr(lc, "_uzse_equity", lambda s, i: None)
+    monkeypatch.setattr(lc, "_uzse_share_count", lambda s, i: None)
+    monkeypatch.setattr(lc, "_last_conclusion", lambda s, i: None)
+    assert lc._known_equity_row(None, "TGMQ", {"isin": "UZ7035630001"})["shares_outstanding"] is None
+
+
+def test_a_registry_count_replaces_a_stale_stored_one() -> None:
+    row = {"ticker": "BIOK", "nominal": 3350.0, "shares_outstanding": 5_713_280.0,
+           "shares_source": "registry", "last_price": 14_400.0}
+    assert store._plausible_shares("BIOK", row, (2_856_640.0, 3350.0)) is row

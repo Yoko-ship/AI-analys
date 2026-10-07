@@ -462,8 +462,8 @@ def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
     UzAuto Motors came back as 1 344 000 017 200, a capital-sized figure that put
     the market at 76 500 трлн сум. So:
 
-      * a count read from the exchange (``shares_source == "uzse"``) replaces
-        the stored one, if it is plausible;
+      * a count read from the exchange (``shares_source == "uzse"``, or its
+        checked-in copy ``"registry"``) replaces the stored one, if plausible;
       * otherwise the stored count stands, if it is plausible;
       * openinfo's count only fills a gap — nothing stored, or nothing plausible.
 
@@ -490,7 +490,7 @@ def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
         return not (charter and nominal) or shares * nominal <= charter * 1.05
 
     new, old = num(row.get("shares_outstanding")), num(old_shares)
-    if row.get("shares_source") == "uzse" and fits(new):
+    if row.get("shares_source") in ("uzse", "registry") and fits(new):
         keep = new
     elif fits(old):
         keep = old
@@ -535,6 +535,26 @@ def _share_registry() -> dict[str, dict]:
     return _share_registry_memo
 
 
+def _parse_day(v: Any) -> date | None:
+    """A trade date as the collector writes it: ISO, DD.MM.YYYY or YYYYMMDD."""
+    from datetime import datetime
+
+    s = str(v or "").strip()[:10]
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%Y%m%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _traded_within_days() -> int:
+    """The board's activity window — the same limit the multiples apply."""
+    from formulas import thresholds
+
+    return int(thresholds()["catalog"].get("inactive_after_days", 90))
+
+
 def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     """Hold one issuer's share counts to its charter capital.
 
@@ -572,22 +592,39 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
             for r in group]
     counts = [num(r.get("shares_outstanding")) for r in group]
     complete = None not in pars and None not in counts
-    if complete and fits(sum(c * p for c, p in zip(counts, pars))):
-        return group
-
     def with_count(row: dict, shares: float | None, source: str | None) -> dict:
-        price = num(row.get("last_price")) or num(row.get("reference_price"))
+        # Only a price the class actually traded at, inside the board's activity
+        # window. The reference price of a class that never trades is its par
+        # (AGMK at 3 914, UZNG at 500), and the downstream multiples take a
+        # listing's cap as given — so a cap built on it is the V9 fiction.
+        price = num(row.get("last_price"))
+        traded = _parse_day(row.get("last_trade_date"))
+        if traded is None or (date.today() - traded).days > _traded_within_days():
+            price = None
         return {**row, "shares_outstanding": shares, "shares_source": source,
                 "market_cap": shares * price if shares and price else None}
 
+    if complete and fits(sum(c * p for c, p in zip(counts, pars))):
+        # The counts stand; the cap is rebuilt from a traded price all the same
+        # (UZIN's ordinary line fits its charter but has only ever had its par).
+        return [with_count(r, c, r.get("shares_source")) for r, c in zip(group, counts)]
+
     tickers = [r["ticker"] for r in group]
     registry = _share_registry()
-    entries = [registry.get(t) for t in tickers]
+    # Every class the registry holds for this issuer: by ticker, or by the issuer
+    # code in the ISIN (UZ7 + five digits), so a class the card labels otherwise
+    # or this pass skipped (GRBKP, UZNG's untraded ordinary) still counts.
+    stems = {str(r.get("isin") or "").upper()[:8] for r in group}
+    issuer_entries = {t: e for t, e in registry.items()
+                      if t in tickers or str(e.get("isin") or "").upper()[:8] in stems}
+    by_isin = {str(e.get("isin") or "").upper(): e for e in issuer_entries.values()}
+    entries = [registry.get(t) or by_isin.get(str(r.get("isin") or "").upper())
+               for t, r in zip(tickers, group)]
     # The card's own equity list, not just the rows that reached this batch: a
     # delisted preferred class still holds its share of the charter.
     classes_on_card = max(int(r.get("org_equity_classes") or 0) for r in group)
-    if None not in entries and len(entries) >= classes_on_card and fits(
-            sum(float(e["shares"]) * float(e["par"]) for e in entries)):
+    if None not in entries and len(issuer_entries) >= classes_on_card and fits(
+            sum(float(e["shares"]) * float(e["par"]) for e in issuer_entries.values())):
         log.info("listings: %s share counts from the registry (charter %s)", tickers, charter)
         return [with_count(r, float(e["shares"]), "registry") for r, e in zip(group, entries)]
     if len(group) == 1 and classes_on_card == 1 and pars[0]:
