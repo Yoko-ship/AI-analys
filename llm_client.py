@@ -1,4 +1,4 @@
-"""Shared accounting and errors for subscription-backed Codex news calls."""
+"""Shared accounting and errors for subscription-backed Claude news calls."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Usage:
-    """Accumulated Codex token usage across one or more classification calls."""
+    """Accumulated Claude token usage across one or more classification calls."""
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -35,10 +35,10 @@ class Usage:
         out_per_m: float | None = None,
         model: str | None = None,
     ) -> float:
-        """Return estimated API spend; Codex calls are covered by the subscription."""
+        """Return estimated API spend; Claude Code calls are covered by the subscription."""
         del in_per_m, out_per_m, model
         return 0.0
 
 
 class LLMError(RuntimeError):
-    """Raised when Codex cannot complete a classification call."""
+    """Raised when Claude cannot complete a classification call."""

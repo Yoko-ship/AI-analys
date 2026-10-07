@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from datetime import timezone
+from claude_client import ClaudeGatewayClient
 from news_classifier import classifier_model_name
+from news_classifier import get_classifier_client
 from runtime_preflight import NEWS_REQUIREMENTS
 from runtime_preflight import preflight
 from uuid import uuid4
@@ -16,6 +18,27 @@ import json
 import logging
 import news_store
 import sys
+
+
+def require_claude_login() -> None:
+    """Fail the run loudly when the server's Claude gateway has lost its login.
+
+    Unclassified items are not stored and would be retried anyway, but a run that only
+    logs per-item warnings looks green; a failed systemd unit is what gets noticed.
+    """
+    client = get_classifier_client()
+    if not isinstance(client, ClaudeGatewayClient):
+        return
+    try:
+        status = client.health()
+    except Exception as exc:  # noqa: BLE001 — the per-call retries handle a restarting gateway
+        collectors_news_settings.logger.warning("Claude gateway health check failed: %s", exc)
+        return
+    if not status.get("logged_in"):
+        collectors_news_settings.logger.error(
+            "Claude gateway is not logged in — run `docker exec -it -u appuser uzstock-claude-gateway "
+            "claude auth login` on the server")
+        raise SystemExit(1)
 
 
 def main() -> None:
@@ -58,11 +81,11 @@ def main() -> None:
     # feedparser missing from the image made every cron run collect 0 items while
     # exiting 0 — name the gap in the log instead of shrugging it off.
     preflight(NEWS_REQUIREMENTS, label="news-collector")
-    from codex_usage import read_codex_rate_limit
+    import claude_client
 
     run_id = uuid4().hex
     started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    before_limit = read_codex_rate_limit()
+    claude_client.reset_observed_rate_limits()
     if args.rejudge:
         result = collectors_news_backfill.rejudge_source(args.rejudge, push=not args.no_push)
     elif args.purge_failed:
@@ -85,19 +108,22 @@ def main() -> None:
         result = collectors_news_backfill.backfill_facts(limit=max(args.limit, 60), push=not args.no_push,
                                 dry_run=args.dry_run)
     else:
+        require_claude_login()
         result = collectors_news_runner.run(only=args.source, limit=args.limit, push=not args.no_push, dry_run=args.dry_run)
 
     finished_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    after_limit = read_codex_rate_limit()
+    # Claude Code reports the plan's five-hour window with each call, so "before" is
+    # the reading after this run's first call; a run without calls has no reading.
+    before_limit, after_limit = claude_client.observed_rate_limits()
     before_pct = before_limit.get("used_percent") if before_limit else None
     after_pct = after_limit.get("used_percent") if after_limit else None
     delta_pct = round(after_pct - before_pct, 1) if before_pct is not None and after_pct is not None else None
     resets_at = ((after_limit or before_limit or {}).get("resets_at"))
     result.update({
-        "codex_limit_used_before_pct": before_pct,
-        "codex_limit_used_after_pct": after_pct,
-        "codex_limit_delta_pct": delta_pct,
-        "codex_limit_resets_at": resets_at,
+        "claude_limit_used_before_pct": before_pct,
+        "claude_limit_used_after_pct": after_pct,
+        "claude_limit_delta_pct": delta_pct,
+        "claude_limit_resets_at": resets_at,
     })
 
     mode = next((name for name, enabled in (
@@ -122,6 +148,7 @@ def main() -> None:
         "cached_input_tokens": int(result.get("cached_input_tokens") or 0),
         "total_tokens": int(result.get("tokens") or 0),
         "subscription_tokens": int(result.get("subscription_tokens") or 0),
+        # Column names predate the move to Claude; they hold the Claude 5h window.
         "codex_before_pct": before_pct,
         "codex_after_pct": after_pct,
         "codex_delta_pct": delta_pct,
@@ -140,7 +167,7 @@ def main() -> None:
         tracked_prod = False
     result["usage_tracked"] = bool(tracked_prod)
     if before_pct is not None and after_pct is not None:
-        collectors_news_settings.logger.info("Codex limit: %.0f%% -> %.0f%% (%+.1f percentage points); news tokens: %d",
+        collectors_news_settings.logger.info("Claude 5h limit: %.0f%% -> %.0f%% (%+.1f percentage points); news tokens: %d",
                     before_pct, after_pct, delta_pct, usage_record["total_tokens"])
     print(json.dumps(result, ensure_ascii=False, indent=2))
     # A run that classified everything correctly and could not hand it to prod has

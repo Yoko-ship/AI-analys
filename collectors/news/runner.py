@@ -178,7 +178,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
     # 2) classify what's left (Layer A: cheap triage, then full classification).
     from llm_client import Usage
     usage = Usage()
-    # Label rows with the Codex model that actually classified them.
+    # Label rows with the Claude model that actually classified them.
     model = classifier_model_name()
     records: list[dict[str, Any]] = []
     failed = 0
@@ -247,7 +247,7 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
         collectors_news_settings.logger.info("%d item(s) kept over the model's verdict: their source filter had already "
                     "matched an issuer", kept_by_filter)
     relevant = [r for r in records if r.get("relevant")]
-    billing_note = "Codex tokens covered by subscription"
+    billing_note = "Claude tokens covered by subscription"
     collectors_news_settings.logger.info("classified %d items (%d stopped at triage, %d relevant); ~%d tokens in "
                 "%d calls (%.0f%% of input from prompt cache), est API $%.4f (%s)",
                 len(records), triaged_out, len(relevant), usage.total_tokens, usage.calls,

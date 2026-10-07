@@ -21,11 +21,8 @@ import collectors.news.runner as collectors_news_runner
 @pytest.fixture()
 def cron_run(monkeypatch):
     """main() as the scheduler calls it, with the collection itself stubbed out."""
-    import codex_usage
-
     monkeypatch.setattr(nc.sys, "argv", ["news_collector.py"])
     monkeypatch.setattr(collectors_news_cli, "preflight", lambda *a, **k: None)
-    monkeypatch.setattr(codex_usage, "read_codex_rate_limit", lambda: None)
     monkeypatch.setattr(news_store, "record_news_usage", lambda record: 1)
     monkeypatch.setattr(collectors_news_delivery, "push_news_usage", lambda record: True)
     return monkeypatch

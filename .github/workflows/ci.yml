@@ -13,12 +13,12 @@ on:
         type: boolean
         default: false
       run_news_now:
-        description: Run the production Codex news collector after deployment
+        description: Run the production Claude news collector after deployment
         required: false
         type: boolean
         default: false
       report_news_usage:
-        description: Print the latest production news-collector usage record without running Codex
+        description: Print the latest production news-collector usage record without running Claude
         required: false
         type: boolean
         default: false
@@ -407,26 +407,27 @@ jobs:
           PY
           REMOTE
 
-      - name: Synchronize Codex news credentials
-        # The news worker authenticates with the already configured Codex
-        # subscription profile.  It is seeded into the Docker volume below,
-        # never committed or put in the application environment file.
+      - name: Synchronize optional Claude gateway token
+        # The Claude gateway normally keeps its own subscription login in the
+        # uzstock_claude volume (`docker exec -it -u appuser uzstock-claude-gateway claude
+        # auth login`, once).  A `claude setup-token` value in this optional
+        # secret overrides that login; it is never put in the app env file.
         env:
-          CODEX_AUTH_JSON_B64: ${{ secrets.CODEX_AUTH_JSON_B64 }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          if [ -z "$CODEX_AUTH_JSON_B64" ]; then
-            echo "Codex news credential is not configured."
-            exit 1
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "No CLAUDE_CODE_OAUTH_TOKEN secret; the gateway uses its stored login."
+            exit 0
           fi
           secret_file="$(mktemp)"
           trap 'shred -u "$secret_file"' EXIT
-          printf '%s' "$CODEX_AUTH_JSON_B64" > "$secret_file"
+          printf '%s' "$CLAUDE_CODE_OAUTH_TOKEN" > "$secret_file"
           scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -P "$PROD_PORT" "$secret_file" \
-            "$PROD_USER@$PROD_HOST:/root/uzstock/.codex-auth-b64"
+            "$PROD_USER@$PROD_HOST:/root/uzstock/.claude-news-token"
 
       - name: Synchronize Netdata dashboard password
         # The monitoring UI is intentionally not public.  Its password stays a
@@ -839,26 +840,76 @@ jobs:
             exit 1
           fi
           shred -u "$netdata_password_file"
-          codex_auth_file=/root/uzstock/.codex-auth-b64
-          if [ ! -s "$codex_auth_file" ]; then
-            echo "Codex news credential was not uploaded." >&2
+          # Claude gateway: the one long-running container holding the Claude
+          # subscription login (volume uzstock_claude). The news collector
+          # reaches it on the private network with a host-generated secret.
+          rm -f /root/uzstock/.codex-auth-b64
+          python3 - <<'PY'
+          import os
+          import secrets
+          from pathlib import Path
+
+          gateway_env = Path("/root/uzstock/claude-gateway.env")
+          news_env = Path("/root/uzstock/news-collector.env")
+          token_file = Path("/root/uzstock/.claude-news-token")
+          current = {}
+          if gateway_env.exists():
+              for line in gateway_env.read_text(encoding="utf-8").splitlines():
+                  key, _, value = line.partition("=")
+                  current[key] = value
+          secret = current.get("CLAUDE_GATEWAY_SECRET") or secrets.token_hex(32)
+          token = current.get("CLAUDE_CODE_OAUTH_TOKEN", "")
+          if token_file.exists():
+              token = token_file.read_text(encoding="utf-8").strip()
+              token_file.write_bytes(b"\0" * max(1, len(token)))
+              token_file.unlink()
+          values = {"CLAUDE_GATEWAY_SECRET": secret, "CLAUDE_CONFIG_DIR": "/app/claude-home"}
+          if token:
+              values["CLAUDE_CODE_OAUTH_TOKEN"] = token
+          os.umask(0o077)
+          gateway_env.write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
+          news_env.write_text(f"CLAUDE_GATEWAY_SECRET={secret}\n", encoding="utf-8")
+          gateway_env.chmod(0o600)
+          news_env.chmod(0o600)
+          PY
+          /snap/bin/docker rm -f uzstock-claude-gateway >/dev/null 2>&1 || true
+          /snap/bin/docker run -d \
+            --name uzstock-claude-gateway \
+            --restart unless-stopped \
+            --cpus 1.0 \
+            --log-driver journald --log-opt tag=uzstock-claude-gateway \
+            --network uzstock-internal \
+            --env-file /root/uzstock/claude-gateway.env \
+            -v uzstock_claude:/app/claude-home \
+            uzstock-web:latest \
+            uvicorn claude_gateway:app --host 0.0.0.0 --port 8080 --no-access-log
+          gateway_health=""
+          for attempt in $(seq 1 20); do
+            if gateway_health="$(/snap/bin/docker exec uzstock-claude-gateway python -c \
+              'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=40).read().decode())' 2>/dev/null)"; then
+              break
+            fi
+            gateway_health=""
+            sleep 2
+          done
+          if [ -z "$gateway_health" ]; then
+            echo "Claude gateway did not start." >&2
+            journalctl -t uzstock-claude-gateway -n 80 --no-pager >&2 || true
             exit 1
           fi
-          # docker-entrypoint.sh accepts only this fixed CODEX_HOME, decodes
-          # the one-time seed with mode 0600, then drops privileges to appuser.
-          /snap/bin/docker run --rm --network none \
-            -v uzstock_data:/app/data \
-            -e CODEX_HOME=/app/data/codex-home \
-            -e CODEX_AUTH_JSON_B64="$(tr -d '\r\n' < "$codex_auth_file")" \
-            uzstock-web:latest codex login status >/dev/null
-          shred -u "$codex_auth_file"
+          echo "Claude gateway health: $gateway_health"
+          if ! printf '%s' "$gateway_health" | grep -q '"logged_in":true'; then
+            # The site still deploys; only news classification waits for the login.
+            echo "::warning::Claude gateway is not logged in. Run once on the server: docker exec -it -u appuser uzstock-claude-gateway claude auth login"
+          fi
           python3 - <<'PY'
           from pathlib import Path
 
           def worker(name: str, description: str, command: str, *, timeout: str = "30min",
-                     data_volume: bool = False, extra_env: tuple[str, ...] = (), resources: str = "", cpus: str = "0.50") -> str:
+                     data_volume: bool = False, extra_env: tuple[str, ...] = (), resources: str = "", cpus: str = "0.50",
+                     env_file: str = "") -> str:
               volume = " -v uzstock_data:/app/data" if data_volume else ""
-              env = "".join(f" -e {value}" for value in extra_env)
+              env = (f" --env-file {env_file}" if env_file else "") + "".join(f" -e {value}" for value in extra_env)
               return f"""[Unit]
           Description={description}
           Wants=network-online.target
@@ -978,22 +1029,21 @@ jobs:
               "/etc/systemd/system/uzstock-bank-fx.timer": timer(
                   "Run UZStock bank FX collector", "*-*-* 06:10:00"),
               "/etc/systemd/system/uzstock-news-collector.service": worker(
-                  "uzstock-news-collector", "UZStock Codex news collector",
+                  "uzstock-news-collector", "UZStock Claude news collector",
                   "python news_collector.py", timeout="60min", data_volume=True,
+                  env_file="/root/uzstock/news-collector.env",
                   extra_env=(
-                      "CODEX_HOME=/app/data/codex-home",
-                      "CODEX_EXECUTABLE=codex",
-                      "NEWS_CLASSIFIER_PROVIDER=codex",
-                      "NEWS_CODEX_MODEL=gpt-5.6-luna",
-                      "NEWS_CODEX_FALLBACK_MODEL=gpt-5.6-terra",
-                      "NEWS_CODEX_REASONING=low",
-                      "NEWS_CODEX_TIMEOUT=180",
+                      "NEWS_CLAUDE_GATEWAY_URL=http://uzstock-claude-gateway:8080",
+                      "NEWS_CLAUDE_MODEL=claude-haiku-4-5",
+                      "NEWS_CLAUDE_FALLBACK_MODEL=claude-sonnet-5-5",
+                      "NEWS_CLAUDE_EFFORT=low",
+                      "NEWS_CLAUDE_TIMEOUT=180",
                       "NEWS_OG_MAX_FETCH=40",
                       "NEWS_PUSH_URL=https://uzstock.uz",
                       "TZ=Asia/Tashkent",
                   )),
               "/etc/systemd/system/uzstock-news-collector.timer": timer(
-                  "Run UZStock Codex news collector", "*-*-* 11:10:00"),
+                  "Run UZStock Claude news collector", "*-*-* 11:10:00"),
           }
           for name, content in units.items():
               Path(name).write_text(content, encoding="utf-8")
@@ -1098,7 +1148,7 @@ jobs:
     name: Test production news collector
     needs: deploy-production
     # This is deliberately opt-in. Normal deployments leave the scheduled
-    # collector alone; a manual run captures its Codex limit before/after.
+    # collector alone; a manual run captures its Claude limit before/after.
     if: github.event_name == 'workflow_dispatch' && (inputs.run_news_now || inputs.report_news_usage)
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -1114,7 +1164,7 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Run and report production Codex news collection
+      - name: Run and report production Claude news collection
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}

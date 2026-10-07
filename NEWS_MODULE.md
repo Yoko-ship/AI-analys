@@ -1,7 +1,7 @@
-# §3.11 News module — Codex-powered collection and classification
+# §3.11 News module — Claude-powered collection and classification
 
 Editorial-news layer for the UZSE platform: it **collects** Uzbek market news,
-**classifies/sorts** each item with subscription-backed Codex (type, tone, impact,
+**classifies/sorts** each item with subscription-backed Claude Code (type, tone, impact,
 issuer links), and publishes it through the
 existing collector-push → prod-serve architecture (see `news_ai_module_scope.md`).
 
@@ -32,7 +32,8 @@ second request. A filing whose rating fails is stored **unrated** rather than lo
 | File | Role |
 |---|---|
 | `news_sources.json` | Source registry (feed URLs, type, lang, coverage weight, legal flag, enabled) |
-| `codex_client.py` | Hardened `codex exec` adapter with structured output, isolated environment, token accounting, and a second Codex-model fallback |
+| `claude_client.py` | Hardened `claude -p` adapter (no tools/MCP/settings) with schema-constrained output, isolated environment, token and 5h-window accounting, and a second Claude-model fallback; plus `ClaudeGatewayClient`, the HTTP client the server's collector uses |
+| `claude_gateway.py` | Internal gateway container (`uzstock-claude-gateway`) that holds the Claude subscription login and serves `/v1/json` + `/health` to the collector |
 | `llm_client.py` | Shared usage accounting and classification error type |
 | `news_classifier.py` | The three gates: `prefilter_reject` (free), batched triage, and Pydantic-validated full classification |
 | `news_lang.py` | Code-only language detection (`detect_lang`, `is_foreign`) — no model, no network |
@@ -301,9 +302,15 @@ stored classification and drop the item out of the feed.
 
 ## Usage & control
 
-Classification runs through the linked Codex subscription. Operational logs report input,
-cached-input, output, call count, and the actual Codex model used; estimated API spend is
-always zero because there is no API fallback.
+Classification runs through the Claude subscription. On the server the collector calls the
+`uzstock-claude-gateway` container over `uzstock-internal`; the gateway keeps its own login in
+the `uzstock_claude` volume (log in once: `docker exec -it -u appuser uzstock-claude-gateway
+claude auth login`; it survives deploys and refreshes itself). A `CLAUDE_CODE_OAUTH_TOKEN`
+GitHub secret (`claude setup-token`) optionally overrides that login. The shared gateway secret
+is generated on the host (`/root/uzstock/claude-gateway.env`, `news-collector.env`). Operational
+logs report input, cached-input, output, call count, the Claude model used, and the plan's
+five-hour window before/after the run (stored in the legacy `codex_*_pct` columns); estimated
+API spend is always zero because `ANTHROPIC_API_KEY` is never passed to the CLI.
 
 Where the tokens went in the old single-call design: of 6,248 input chars per item, the
 **news item was 205 (3.3%)** — the rest was the system prompt (27%) and the 93-line issuer

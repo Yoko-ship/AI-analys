@@ -27,7 +27,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Pin the CLI so production behavior does not change underneath a scheduled run.
-RUN npm install --global --omit=dev @openai/codex@0.154.0 \
+# The npm package only copies its native binary into place, so Debian's Node is enough.
+RUN npm install --global --omit=dev @anthropic-ai/claude-code@2.1.292 \
+    && claude --version \
     && npm cache clean --force
 
 COPY requirements-server.txt /app/

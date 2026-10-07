@@ -767,7 +767,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         -- exactly; the before/after percentage is the account's own rolling
 
-        -- Codex limit reading, not an estimate derived from tokens.
+        -- subscription limit reading, not an estimate derived from tokens.
+
+        -- The codex_* columns predate the move to Claude and hold its 5h window.
 
         CREATE TABLE IF NOT EXISTS news_usage_runs (
 

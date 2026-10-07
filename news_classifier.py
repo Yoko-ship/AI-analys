@@ -1,4 +1,4 @@
-"""Layer A — subscription-backed Codex news classifier.
+"""Layer A — subscription-backed Claude news classifier.
 
 Three gates, cheapest first, because this path runs once per collected item and the
 enabled feeds are whole-site feeds where most items are not market news at all:
@@ -16,12 +16,12 @@ the 2026-07-25 run, the ~2,200-token constant prefix was re-sent 31 times and ac
 instead of once per item; output volume is unchanged, so the saving is pure input.
 
 The expensive constant (the ~93-line issuer universe) sits in the SYSTEM message so it
-is an identical prefix on every call and Codex can reuse the stable context.
+is an identical prefix on every call and Claude can reuse the stable context.
 
 Issuer filings take a separate, compact prompt: their ticker and class come from the filing
 itself, so sending them the issuer universe is pure waste.
 
-The primary and secondary Codex models are selected with ``NEWS_CODEX_*`` settings.
+The primary and secondary Claude models are selected with ``NEWS_CLAUDE_*`` settings.
 
 Compliance (TZ §3.11): every output is a *statistical/analytical signal, not a
 diagnosis*. We never assert manipulation or an "attack". The price-direction
@@ -36,7 +36,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from codex_client import CodexClient
+from claude_client import ClaudeCodeClient, ClaudeGatewayClient
 from llm_client import Usage
 
 logger = logging.getLogger(__name__)
@@ -98,37 +98,51 @@ class NewsClassification(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# subscription-backed Codex provider
+# subscription-backed Claude Code provider
 # --------------------------------------------------------------------------- #
-_CODEX_MODEL = os.getenv("NEWS_CODEX_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
-_CODEX_REASONING = os.getenv("NEWS_CODEX_REASONING", "low").strip().lower() or "low"
-_CODEX_FALLBACK_MODEL = os.getenv("NEWS_CODEX_FALLBACK_MODEL", "gpt-5.6-terra").strip()
-_CODEX_TIMEOUT = float(os.getenv("NEWS_CODEX_TIMEOUT", "180"))
-ClassifierClient = CodexClient
-_client: CodexClient | None = None
+_CLAUDE_MODEL = os.getenv("NEWS_CLAUDE_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+_CLAUDE_EFFORT = os.getenv("NEWS_CLAUDE_EFFORT", "low").strip().lower() or "low"
+_CLAUDE_FALLBACK_MODEL = os.getenv("NEWS_CLAUDE_FALLBACK_MODEL", "claude-sonnet-5-5").strip()
+_CLAUDE_TIMEOUT = float(os.getenv("NEWS_CLAUDE_TIMEOUT", "180"))
+# On the server the collector calls the Claude gateway container, which holds the login;
+# without a URL (local runs) the CLI is called directly with your own `claude login`.
+_CLAUDE_GATEWAY_URL = os.getenv("NEWS_CLAUDE_GATEWAY_URL", "").strip()
+ClassifierClient = ClaudeCodeClient | ClaudeGatewayClient
+_client: ClassifierClient | None = None
 
 
 def classifier_model_name() -> str:
     """Configured model label stored alongside each classification."""
-    return _CODEX_MODEL
+    return _CLAUDE_MODEL
 
 
 def get_classifier_client() -> ClassifierClient:
-    """Build the subscription-backed Layer-A Codex client."""
+    """Build the subscription-backed Layer-A Claude client."""
     global _client
     if _client is not None:
         return _client
-    _client = CodexClient(
-        model=_CODEX_MODEL,
-        reasoning_effort=_CODEX_REASONING,
-        fallback_model=_CODEX_FALLBACK_MODEL or None,
-        timeout=_CODEX_TIMEOUT,
-    )
+    if _CLAUDE_GATEWAY_URL:
+        _client = ClaudeGatewayClient(
+            _CLAUDE_GATEWAY_URL,
+            os.getenv("CLAUDE_GATEWAY_SECRET", ""),
+            model=_CLAUDE_MODEL,
+            effort=_CLAUDE_EFFORT,
+            fallback_model=_CLAUDE_FALLBACK_MODEL or None,
+            timeout=_CLAUDE_TIMEOUT,
+        )
+    else:
+        _client = ClaudeCodeClient(
+            model=_CLAUDE_MODEL,
+            effort=_CLAUDE_EFFORT,
+            fallback_model=_CLAUDE_FALLBACK_MODEL or None,
+            timeout=_CLAUDE_TIMEOUT,
+        )
     logger.info(
-        "classifier provider: codex model=%s reasoning=%s fallback_model=%s",
-        _CODEX_MODEL,
-        _CODEX_REASONING,
-        _CODEX_FALLBACK_MODEL or "disabled",
+        "classifier provider: claude via=%s model=%s effort=%s fallback_model=%s",
+        _CLAUDE_GATEWAY_URL or "local CLI",
+        _CLAUDE_MODEL,
+        _CLAUDE_EFFORT,
+        _CLAUDE_FALLBACK_MODEL or "disabled",
     )
     return _client
 
