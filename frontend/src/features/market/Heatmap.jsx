@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { orderSectors, sectorOf } from "../../lib/sectors.js";
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
-import { marketDisplayPrice } from "../../shared/marketModel.jsx";
+import { formatCompactVolume, marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
 import { marketVolumeMetrics } from "../../lib/marketVolume.js";
 import { formatMapMetric, HeatmapMetricPicker, mapMetricCoverage, useHeatmapMetrics } from "./HeatmapMetrics.jsx";
@@ -31,6 +31,20 @@ function heatmapColor(changePercent, full = 5, muted = false) {
     return `hsl(${352 + intensity * 14} ${muted ? 50 : 70}% ${lightness}%)`;
   }
   return muted ? "#323a45" : "#46505d";
+}
+
+// The map's own filters. Turnover steps are absolute UZS, the same for every
+// period; the change steps are the legend's own two stops, so «≥ ±2%» on a
+// session and «≥ ±8%» over a month both mean "a visible colour", not a number
+// that is huge on one scale and noise on the other.
+const TURNOVER_STEPS = [0, 1e6, 1e7, 1e8, 1e9];
+const CHANGE_FILTERS = ["all", "up", "down", "mid", "full"];
+
+function turnoverStepLabel(value, lang) {
+  if (!value) return lang === "en" ? "All" : lang === "uz" ? "Barchasi" : "Все";
+  const [n, unit] = value >= 1e9 ? [value / 1e9, { ru: "млрд", uz: "mlrd", en: "bn" }]
+    : [value / 1e6, { ru: "млн", uz: "mln", en: "M" }];
+  return `≥ ${n} ${unit[lang] || unit.ru}`;
 }
 
 function heatmapShortName(name) {
@@ -137,6 +151,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const lang = normalizeLanguage(language);
   const [hover, setHover] = useState(null);
   const [selectedTicker, setSelectedTicker] = useState("");
+  const [minTurnover, setMinTurnover] = useState(0);
+  const [changeFilter, setChangeFilter] = useState("all");
   const metricSelection = useHeatmapMetrics(lang, type);
   const selectedMetrics = metricSelection.selected;
   const treeRef = React.useRef(null);
@@ -176,12 +192,30 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const isBond = (row) => row.type === "bond" || securitiesMap?.[row.ticker]?.type === "bond";
   const allowBonds = type === "bond";
   const isNeutralRow = (row) => row.inactive === true || !Number.isFinite(row.changePercent);
-  const tradedRows = (Array.isArray(rows) ? rows : []).filter((row) => allowBonds || !isBond(row));
+  const marketRows = (Array.isArray(rows) ? rows : []).filter((row) => allowBonds || !isBond(row));
+  // The filters choose which tiles are DRAWN. The pulse, breadth and legend
+  // keep describing the whole board (`marketRows`): a filter for gainers must
+  // not report a market that only went up.
+  const changeBand = (row) => {
+    if (changeFilter === "all") return true;
+    if (tileStatus(row) !== "ok" || !Number.isFinite(row.changePercent)) return false;
+    const pct = row.changePercent;
+    const band = fullScale / 50;
+    if (changeFilter === "up") return pct > band;
+    if (changeFilter === "down") return pct < -band;
+    return Math.abs(pct) >= (changeFilter === "full" ? fullScale : fullScale * 0.4);
+  };
+  const tradedRows = marketRows.filter((row) => (
+    (!minTurnover || (Number.isFinite(row.stockVolume) && row.stockVolume >= minTurnover))
+    && changeBand(row)
+  ));
+  const filtersActive = minTurnover > 0 || changeFilter !== "all";
+  const resetFilters = () => { setMinTurnover(0); setChangeFilter("all"); };
 
   // A request failure used to leave this panel as a featureless dark rectangle.
   // Say plainly when the market-board request has not produced any rows instead
   // of making a missing response look like a blank exchange session.
-  if (tradedRows.length === 0) {
+  if (marketRows.length === 0) {
     const message = lang === "uz"
       ? "Bozor xaritasini chizish uchun ma'lumot hozircha mavjud emas. Sahifani yangilang."
       : lang === "en"
@@ -270,20 +304,20 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     { pct: fullScale * 1.1,  label: `≥ +${formatRatio(fullScale, 0, lang)}%` },
   ];
 
-  const marketAverage = avgOf(tradedRows);
+  const marketAverage = avgOf(marketRows);
   const flatBand = fullScale / 50;
-  const signalRows = tradedRows.filter((row) => Number.isFinite(row.changePercent) && tileStatus(row) === "ok");
+  const signalRows = marketRows.filter((row) => Number.isFinite(row.changePercent) && tileStatus(row) === "ok");
   const rising = signalRows.filter((row) => row.changePercent > flatBand).length;
   const falling = signalRows.filter((row) => row.changePercent < -flatBand).length;
   const flat = Math.max(0, signalRows.length - rising - falling);
-  const unavailable = Math.max(0, tradedRows.length - signalRows.length);
+  const unavailable = Math.max(0, marketRows.length - signalRows.length);
   const breadthTotal = Math.max(1, rising + falling + flat + unavailable);
   const mapCopy = lang === "ru"
-    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь", movement: "Сила движения", securities: "бумаг", board: "Тепловая карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", focus: "В фокусе", mainMove: "Главное движение", open: "Нажмите, чтобы открыть компанию", preferred: "Привилегированная акция" }
+    ? { pulse: "Пульс рынка", weighted: "взвешено по обороту", up: "Рост", down: "Снижение", flat: "Без изменения", noData: "Без данных", scale: "Изменение цены", area: "Площадь", movement: "Сила движения", securities: "бумаг", board: "Тепловая карта рынка", sectors: "Сектора", price: "Цена", turnover: "Оборот", focus: "В фокусе", mainMove: "Главное движение", open: "Нажмите, чтобы открыть компанию", preferred: "Привилегированная акция", filterTurnover: "Оборот", filterChange: "Изменение", changeUp: "Рост", changeDown: "Снижение", shown: "Показано", reset: "Сбросить фильтры", none: "Нет бумаг под выбранные фильтры" }
     : lang === "uz"
-      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon", movement: "Harakat kuchi", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya" }
-      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area", movement: "Move magnitude", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share" };
-  const mainMover = signalRows.reduce((best, row) => (
+      ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon", movement: "Harakat kuchi", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya", filterTurnover: "Aylanma", filterChange: "O'zgarish", changeUp: "O'sish", changeDown: "Pasayish", shown: "Ko'rsatilgan", reset: "Filtrlarni tozalash", none: "Tanlangan filtrlarga mos qog'oz yo'q" }
+      : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area", movement: "Move magnitude", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share", filterTurnover: "Turnover", filterChange: "Change", changeUp: "Up", changeDown: "Down", shown: "Showing", reset: "Reset filters", none: "No securities match the selected filters" };
+  const mainMover = signalRows.filter((row) => tradedRows.includes(row)).reduce((best, row) => (
     !best || Math.abs(row.changePercent) > Math.abs(best.changePercent) ? row : best
   ), null);
   // Resolve from current rows so changing the period never leaves stale values.
@@ -296,8 +330,32 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     ? focusRow.name || companyMap[focusRow.ticker]?.company_name || focusRow.ticker
     : null;
 
+  const changeLabel = (key) => key === "all" ? turnoverStepLabel(0, lang)
+    : key === "up" ? mapCopy.changeUp : key === "down" ? mapCopy.changeDown
+      : `≥ ±${formatRatio(key === "full" ? fullScale : fullScale * 0.4, 0, lang)}%`;
+
   return (
     <div className="heatmap-wrap">
+      <div className="heatmap-filters" role="group" aria-label={`${mapCopy.filterTurnover}, ${mapCopy.filterChange}`}>
+        <div className="market-period-row">
+          <span className="market-period-label">{mapCopy.filterTurnover}</span>
+          <div className="segmented-control market-period-control" role="group" aria-label={mapCopy.filterTurnover}>
+            {TURNOVER_STEPS.map((value) => <button key={value} type="button" className={minTurnover === value ? "active" : ""}
+              aria-pressed={minTurnover === value} onClick={() => setMinTurnover(value)}>{turnoverStepLabel(value, lang)}</button>)}
+          </div>
+        </div>
+        <div className="market-period-row">
+          <span className="market-period-label">{mapCopy.filterChange}</span>
+          <div className="segmented-control market-period-control" role="group" aria-label={mapCopy.filterChange}>
+            {CHANGE_FILTERS.map((key) => <button key={key} type="button" className={changeFilter === key ? "active" : ""}
+              aria-pressed={changeFilter === key} onClick={() => setChangeFilter(key)}>{changeLabel(key)}</button>)}
+          </div>
+        </div>
+        <span className="heatmap-filters-count" aria-live="polite">
+          {mapCopy.shown}: <b>{tradedRows.length}</b>/{marketRows.length}
+          {filtersActive && <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>}
+        </span>
+      </div>
       <div className="heatmap-overview">
         <div className="heatmap-pulse">
           <span className="heatmap-overview-kicker">{mapCopy.pulse}</span>
@@ -422,8 +480,15 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const showPercent = width >= 58 && height >= 40;
                 const showName = width > 105 && height > 62;
                 const values = marketVolumeMetrics(row, stats);
-                const metricSlots = width >= 180 ? Math.max(0, Math.floor((height - 80) / 17)) : 0;
-                const tileMetrics = selectedMetrics.slice(0, metricSlots);
+                // A tile carries only what the reader compares across the map:
+                // price and turnover. Every other trading metric lives in the
+                // panel above the map and in the tooltip.
+                const tilePrice = marketDisplayPrice(row);
+                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80) / 17)) : 0;
+                const tileMetrics = [
+                  { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
+                  { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
+                ].slice(0, metricSlots);
                 const metricTitle = selectedMetrics.map(({ key, label }) => [
                   `${label}: ${formatMapMetric(key, values[key], lang)}`,
                   windowed ? mapMetricCoverage(row, key, lang) : "",
@@ -461,8 +526,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     {showPercent && <span className="htt-pct" style={{ fontSize: tickerSize * 0.78 }}>{status === "ok" ? formatPct(row.changePercent) : "—"}</span>}
                     {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
                     {tileMetrics.length > 0 && <span className="htt-metrics">
-                      {tileMetrics.map(({ key, label }) => <span key={key} data-metric={key}>
-                        <span>{label}</span><b>{formatMapMetric(key, values[key], lang, true)}</b>
+                      {tileMetrics.map(({ key, label, value }) => <span key={key} data-metric={key}>
+                        <span>{label}</span><b>{value}</b>
                       </span>)}
                     </span>}
                   </button>
@@ -473,7 +538,13 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         })}
       </div>
 
-      {sectorItems.length === 0 && (
+      {sectorItems.length === 0 && filtersActive && (
+        <p className="market-empty-cell heatmap-empty-state" role="status">
+          {mapCopy.none}{" "}
+          <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>
+        </p>
+      )}
+      {sectorItems.length === 0 && !filtersActive && (
         <p className="market-empty-cell">
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>

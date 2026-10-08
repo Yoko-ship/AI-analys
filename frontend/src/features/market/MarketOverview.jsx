@@ -2,12 +2,10 @@ import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { formatCompactVolume, tradeCountLabel } from "../../shared/marketModel.jsx";
 import { mt, sectorLabel } from "../../shared/marketCopy.jsx";
 import { formatRatio } from "../../shared/format.jsx";
-import { FxRatesBar } from "../currency/index.js";
 import { MarketBreadthCard, MarketStatCard } from "./Statistics.jsx";
 export function MarketOverview({
   viewMode,
   lang,
-  onOpenBankFx,
   cardSector,
   setMarketSector,
   cardStats,
@@ -19,8 +17,8 @@ export function MarketOverview({
   windowed
 }) {
   return <>{viewMode === "heatmap" && <>
-          <FxRatesBar language={lang} onOpenBanks={onOpenBankFx} />
-
+          {/* No exchange-rate strip here: the map page shows market data only
+              (customer request 2026-10-08). The rates stay in the topbar ticker. */}
           {/* The sector control that scopes these four cards is further down the
               page, in the filter bar — so the row has to say for itself which
               sector it is answering for, and offer the way back. Without this the

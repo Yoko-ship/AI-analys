@@ -60,7 +60,8 @@ for (const type of ["stock", "bond"]) {
       if (width === 1280) await page.locator(".theme-toggle").click();
       const tile = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
       await expect(tile).toHaveAttribute("title", /Крупнейшая сделка/);
-      if (width === 1280) await expect(tile.locator(".htt-metrics [data-metric]")).toHaveCount(6);
+      // A tile carries price and turnover only; the six metrics live in the panel.
+      if (width === 1280) await expect(tile.locator(".htt-metrics [data-metric]")).toHaveCount(2);
       await page.getByRole("button", { name: /Показатели/ }).click();
       const picker = page.locator(".market-cols-dropdown");
       await expect(picker.getByRole("checkbox")).toHaveCount(7);
@@ -118,5 +119,28 @@ test("metric choices persist on reload and apply to both instruments and languag
   await expect(page.locator(".heatmap-metric-details")).toContainText("Hajm (dona)");
   await page.locator("#languageSelect").selectOption("en");
   await expect(page.locator(".heatmap-metric-details")).toContainText("Volume (units)");
+  expect(errors).toEqual([]);
+});
+
+test("turnover and change filters choose which tiles are drawn, not the market pulse", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const errors = await openMap(page);
+  await expect(page.locator(".fx-bar")).toHaveCount(0);
+  const tiles = page.locator(".heatmap-tree-tile");
+  await expect(tiles).toHaveCount(3);
+  const pulse = await page.locator(".heatmap-pulse-main strong").innerText();
+  const filters = page.locator(".heatmap-filters");
+  await filters.getByRole("group", { name: "Оборот" }).getByRole("button", { name: "≥ 1 млн" }).click();
+  await expect(tiles).toHaveCount(2);
+  await filters.getByRole("group", { name: "Изменение" }).getByRole("button", { name: "Рост" }).click();
+  await expect(tiles).toHaveCount(1);
+  await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toHaveCount(1);
+  await expect(filters).toContainText("Показано: 1/3");
+  await expect(page.locator(".heatmap-pulse-main strong")).toHaveText(pulse);
+  await filters.getByRole("group", { name: "Оборот" }).getByRole("button", { name: "≥ 1 млрд" }).click();
+  await expect(tiles).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("Нет бумаг под выбранные фильтры");
+  await page.getByRole("button", { name: "Сбросить фильтры" }).first().click();
+  await expect(tiles).toHaveCount(3);
   expect(errors).toEqual([]);
 });

@@ -864,3 +864,24 @@ body[data-theme="light"] .empty-copy {
   font-style: italic;
   color: var(--np-ink-light);
 }
+
+/* Turnover / change filters at the top of the map. The rows reuse the
+   period control's segmented style so the page reads as one toolbar. */
+.heatmap-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding: 2px 0 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.heatmap-filters .market-period-row { padding: 0 !important; border: 0; margin: 0; min-width: 0; max-width: 100%; }
+.heatmap-filters .market-period-control { margin: 0 !important; }
+.heatmap-filters .market-period-label { min-width: 0; margin: 0; padding: 0; line-height: 1; align-self: center; }
+.heatmap-filters-count { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.heatmap-filters-count b { color: var(--text); }
+.heatmap-filters-reset { padding: 4px 10px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.heatmap-filters-reset:hover { border-color: var(--accent); }
+@media (max-width: 640px) {
+  .heatmap-filters { flex-direction: column; align-items: stretch; gap: 10px; }
+  /* Label above, chips on ONE line that pans sideways — the mobile rule that
+     wraps every segmented control into ragged centred rows reads as noise here. */
+  .heatmap-filters .market-period-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .heatmap-filters .market-period-label { align-self: flex-start; }
+  .heatmap-filters .market-period-control { display: flex; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; }
+  .heatmap-filters .market-period-control button { flex: 0 0 auto; min-height: 34px; padding: 6px 11px; }
+  .heatmap-filters-count { margin-left: 0; }
+}

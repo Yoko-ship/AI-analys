@@ -316,7 +316,6 @@ function MarketView({
       <MarketOverview
         viewMode={viewMode}
         lang={lang}
-        onOpenBankFx={onOpenBankFx}
         cardSector={cardSector}
         setMarketSector={setMarketSector}
         cardStats={cardStats}
