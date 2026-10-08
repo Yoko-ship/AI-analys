@@ -54,13 +54,14 @@ function multipleStatusText(status, lang) {
 // for KSCM/KSCMP and for every other multi-class issuer.  The API supplies the
 // class inputs, so this explanation is derived from live data rather than a
 // ticker-specific exception.
-// The cell names what is actually missing, so a reader sees «нет торгов AGMK»
-// (the ordinary line never traded — no price exists to value it at) or
+// The cell names what is actually missing, so a reader sees «нет цены AGMK»
+// (no usable price for that class — NOT «нет торгов»: openinfo's archive holds
+// one negotiated AGMK block, 19.11.2024, that our quote feed never carried) or
 // «цена от 31.10.2019» (DRBK's last trade is too old for a multiple) rather
 // than a bare «нет капитализации».
 function missingCapReason(unavailable, lang) {
   const words = {
-    never: ["нет торгов", "savdo yo'q", "never traded"],
+    never: ["нет цены", "narx yo'q", "no price"],
     stale: ["цена от", "narx", "price of"],
     shares: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
   };

@@ -47,8 +47,8 @@ def test_board_multiples_payload_keeps_screen_values_and_audit_context() -> None
 
 
 def test_board_multiples_payload_names_the_class_that_blocks_the_issuer_cap() -> None:
-    # AGMKP trades; the ordinary AGMK never has. The board must carry enough of
-    # the issuer-cap gap for the cell to read «нет торгов AGMK», not a bare
+    # AGMKP trades; the ordinary AGMK has no usable price. The board must carry enough of
+    # the issuer-cap gap for the cell to read «нет цены AGMK», not a bare
     # «нет капитализации» beside AGMKP's own visible market cap.
     agmk = {"ticker": "AGMK", "price": 3914.0, "price_as_of": None, "price_age_days": None,
             "max_price_age_days": 90, "limitation_reason": "verified class price is unavailable",

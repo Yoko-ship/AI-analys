@@ -291,7 +291,7 @@ _BOARD_METRIC_FIELDS = (
 
 _BOARD_CLASS_INPUT_FIELDS = (
     # Just what the cell needs to say WHICH class blocks the issuer cap and
-    # why («нет торгов AGMK», «цена от 31.10.2019») instead of a bare
+    # why («нет цены AGMK», «цена от 31.10.2019») instead of a bare
     # «нет капитализации» beside a class cap the reader can see.
     "ticker", "price_as_of", "price_age_days", "max_price_age_days",
     "limitation_reason", "usable_for_issuer_cap", "market_cap",
