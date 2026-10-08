@@ -332,3 +332,64 @@ def test_a_row_with_no_org_takes_no_cap_from_an_old_trade(tmp_path, monkeypatch)
     assert listings["DRBK"]["shares_outstanding"] == 100_000_000.0
     assert listings["DRBK"]["market_cap"] is None
     assert listings["OCBK"]["market_cap"] == 100_000_000.0 * 47000.0
+
+
+def _search(monkeypatch, results, cards):
+    asked = []
+
+    def json_get(session, path, params=None):
+        asked.append(params["search"])
+        return {"results": results.get(params["search"], [])}
+
+    monkeypatch.setattr(lc, "_json_get", json_get)
+    monkeypatch.setattr(lc, "_org_detail", lambda s, org: {"info_rfb": {"isin_codes": cards[org]}})
+    return asked
+
+
+def test_an_unreached_share_is_found_by_its_ticker(monkeypatch) -> None:
+    """EQQU: on the board with a price, but the walk never reached org 553."""
+    _search(monkeypatch, {"EQQU": [{"id": 553, "exchange_ticket_name": "EQQU"}]},
+            {"553": [{"ticker": "EQQU", "isu_cd": "UZ7007130006", "list_shares": 162897}]})
+    cache: dict = {}
+    assert lc._discover_org(None, "EQQU", "UZ7007130006", cache) == "553"
+    assert "553" in cache
+
+
+def test_a_card_without_the_isin_is_not_taken(monkeypatch) -> None:
+    _search(monkeypatch, {"EQQU": [{"id": 9, "exchange_ticket_name": "EQQU"}]},
+            {"9": [{"ticker": "EQQU", "isu_cd": "UZ7000000009"}]})
+    assert lc._discover_org(None, "EQQU", "UZ7007130006", {}) is None
+
+
+def test_a_name_match_without_the_ticker_is_not_read(monkeypatch) -> None:
+    _search(monkeypatch, {"EQQU": [{"id": 9, "exchange_ticket_name": "EQQUX, ABC"}]},
+            {"9": [{"ticker": "EQQU", "isu_cd": "UZ7007130006"}]})
+    assert lc._discover_org(None, "EQQU", "UZ7007130006", {}) is None
+
+
+def test_a_preferred_line_is_found_under_its_ordinary_ticker(monkeypatch) -> None:
+    asked = _search(monkeypatch, {"ACME": [{"id": 7, "exchange_ticket_name": "ACME, ACMEB1"}]},
+                    {"7": [{"ticker": "ACME", "isu_cd": "UZ7000010001"},
+                           {"ticker": "ACMEP", "isu_cd": "UZ700001K011"}]})
+    assert lc._discover_org(None, "ACMEP", "UZ700001K011", {}) == "7"
+    assert asked == ["ACMEP", "ACME"]
+
+
+def test_the_walk_reads_the_found_card(monkeypatch) -> None:
+    """End to end: the leftover share gets the card's count, not the fallback."""
+    monkeypatch.setattr(lc, "_make_session", lambda: None)
+    monkeypatch.setattr(lc, "_org_ids", lambda: {})
+    monkeypatch.setattr(lc, "_known_equities",
+                        lambda: {"EQQU": {"isin": "UZ7007130006", "type": "stock"}})
+    _search(monkeypatch, {"EQQU": [{"id": 553, "exchange_ticket_name": "EQQU"}]}, {})
+    monkeypatch.setattr(lc, "_org_detail", lambda s, org: {
+        "full_name_text": '"Elektrqishloqqurilish" AJ',
+        "info_rfb": {"ustav_capitalization": 814_485_000.0, "isin_codes": [
+            {"ticker": "EQQU", "isu_cd": "UZ7007130006", "list_shares": 162897,
+             "stock_type": "01", "price": 5000.0}]}})
+    monkeypatch.setattr(lc, "_uzse_equity", lambda s, i: None)
+    monkeypatch.setattr(lc, "_last_conclusion", lambda s, i: {"date": "2026-10-06", "close": 313000.0})
+    monkeypatch.setattr(lc, "_known_equity_row", lambda *a, **k: pytest.fail("fallback used"))
+    (row,) = lc.collect_listing_rows()
+    assert row["ticker"] == "EQQU" and row["shares_outstanding"] == 162897.0
+    assert row["org_id"] == "553" and row["charter_capital"] == 814_485_000.0

@@ -389,3 +389,35 @@ def test_api_payload_passes_price_and_freshness_into_the_contract(monkeypatch):
     assert row["market_input"]["calculation_status"] == contract.STALE_PRICE
     assert row["pe"]["calculation_status"] == contract.STALE_PRICE
     assert row["pe"]["inputs"]["issuer_market_cap"] is None
+
+
+def test_a_preferred_class_the_catalog_misnames_joins_its_ordinary_by_the_board_class(monkeypatch):
+    """UZNGP: renamed plain «O'zbekneftgaz», the catalog read it as ordinary and
+    it printed P/E 0,04× alone. The board's class field (openinfo stock_type 02)
+    keeps it with UZNG."""
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    payload = subject_server_market_valuations._multiples_payload({
+        "securities": {
+            "ACME": {"name": '"Acme" Aksiyadorlik jamiyati', "type": "stock"},
+            "ACMEP": {"name": "Acme", "type": "stock"},
+        },
+        "board": [
+            {"ticker": "ACME", "share_type": "ordinary", "last_price": 10.0,
+             "last_trade_date": "2026-08-31", "shares_outstanding": 100.0},
+            {"ticker": "ACMEP", "share_type": "preferred", "last_price": 5.0,
+             "last_trade_date": "2026-08-31", "shares_outstanding": 5.0},
+        ],
+        "listings": {},
+        "financials": {"ACME": _statement()},
+        "ratios": {"ACME": _ratio()},
+        "trade_date": "2026-08-31", "stats": {},
+    })
+    rows = {row["ticker"]: row for row in payload["items"]}
+    assert rows["ACMEP"]["share_class"] == "preferred"
+    assert rows["ACMEP"]["issuer_classes"] == rows["ACME"]["issuer_classes"] == ["ACME", "ACMEP"]
+
+
+def test_a_board_class_never_turns_an_ordinary_line_preferred():
+    assert subject_server_market_valuations._board_says_preferred({"share_type": "ordinary"}) is False
+    assert subject_server_market_valuations._board_says_preferred({}) is False
+    assert subject_server_market_valuations._board_says_preferred({"share_type": "Preferred"}) is True

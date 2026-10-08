@@ -450,6 +450,45 @@ def _org_detail(session: Any, org_id: str) -> dict:
     return first
 
 
+def _discover_org(session: Any, ticker: str, isin: str,
+                  cache: dict[str, dict]) -> str | None:
+    """The openinfo org whose card lists ``isin``, searched for by ticker.
+
+    openinfo's search matches the exchange ticker on the card
+    (``exchange_ticket_name``) but not an ISIN. A preferred line is usually
+    filed under its ordinary's ticker, so ``XXXP`` is also tried as ``XXX``.
+    A candidate counts only when its card carries the ISIN itself; the card
+    read lands in ``cache`` so the walk does not read it again.
+    """
+    isin = isin.strip().upper()
+    if not isin.startswith("UZ7"):
+        return None
+    queries = [ticker] + ([ticker[:-1]] if ticker.endswith("P") and len(ticker) > 1 else [])
+    for query in queries:
+        try:
+            payload = _json_get(session, "/home/organizations/", {"search": query})
+        except Exception:  # noqa: BLE001 — no lookup leaves the fallback row
+            log.warning("listings: openinfo search for %s failed", query)
+            return None
+        results = (payload.get("results") or []) if isinstance(payload, dict) else []
+        for org in results:
+            listed = set(re.findall(r"[A-Z0-9]+", str(org.get("exchange_ticket_name") or "").upper()))
+            org_id = str(org.get("id") or "")
+            if not org_id or query not in listed or org_id in cache:
+                continue
+            try:
+                detail = _org_detail(session, org_id)
+            except Exception:  # noqa: BLE001
+                log.warning("org %s (%s) detail fetch failed", org_id, ticker)
+                continue
+            cache[org_id] = detail
+            rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
+            if any(str(ic.get("isu_cd") or "").strip().upper() == isin
+                   for ic in rfb.get("isin_codes") or []):
+                return org_id
+    return None
+
+
 def collect_listing_rows() -> list[dict[str, Any]]:
     """One row per RFB-registered security across all catalogued issuers."""
     session = _make_session()
@@ -459,155 +498,175 @@ def collect_listing_rows() -> list[dict[str, Any]]:
     seen_tickers: set[str] = set()
     rows: list[dict[str, Any]] = []
 
-    for ticker, org_id in org_ids.items():
-        detail = org_detail_cache.get(org_id)
-        if detail is None:
-            # Many tickers share an org (common + preferred); info_rfb already
-            # lists all of the org's securities, so fetch each org only once.
-            try:
-                detail = _org_detail(session, org_id)
-            except Exception:  # noqa: BLE001
-                log.warning("org %s (%s) detail fetch failed", org_id, ticker)
-                detail = {}
-            org_detail_cache[org_id] = detail
+    def walk(orgs: dict[str, str]) -> None:
+        for ticker, org_id in orgs.items():
+            detail = org_detail_cache.get(org_id)
+            if detail is None:
+                # Many tickers share an org (common + preferred); info_rfb already
+                # lists all of the org's securities, so fetch each org only once.
+                try:
+                    detail = _org_detail(session, org_id)
+                except Exception:  # noqa: BLE001
+                    log.warning("org %s (%s) detail fetch failed", org_id, ticker)
+                    detail = {}
+                org_detail_cache[org_id] = detail
 
-        rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
-        name = detail.get("full_name_text") or detail.get("short_name_text") or ticker
-        # An explicit ISIN pin means the openinfo security list is known to be
-        # absent or wrong. DRBK is the sharp case: Davr Bank's org currently
-        # carries AISK (Asia Insurance), so trusting that list would both hide
-        # DRBK and publish AISK under the wrong issuer. Build the row from the
-        # exchange's authoritative security card instead.
-        pinned_isin = ISIN_OVERRIDES.get(ticker)
-        isin_codes = ([{
-            "ticker": ticker,
-            "isu_cd": pinned_isin,
-            "stock_type": "01",
-            "listing_date": _LISTING_DATE_OVERRIDES.get(ticker),
-        }] if pinned_isin else (rfb.get("isin_codes") or []))
-        # Every share class on the card, delisted ones included — together they
-        # make up the charter capital the upsert holds the counts to.
-        equity_classes = len({str(ic.get("isu_cd") or "").strip().upper() for ic in isin_codes
-                              if str(ic.get("isu_cd") or "").strip().upper().startswith("UZ7")})
-        for ic in isin_codes:
-            tk = str(ic.get("ticker") or "").strip().upper()
-            isin = str(ic.get("isu_cd") or "").strip().upper()
-            if not tk or not isin or tk in seen_tickers:
-                continue
-            # Some issuer cards put a bond first under the ordinary share's
-            # ticker (Aloqabank: UZ60447611B9 is labelled ALKB). Do not let that
-            # collision consume the ticker and hide the real UZ7… share later in
-            # the same list.
-            known_isin = str((known_equities.get(tk) or {}).get("isin") or "").upper()
-            if known_isin and known_isin != isin and not isin.startswith("UZ7"):
-                continue
-            if tk in DELISTED_TICKERS:
-                # Deleted from the site — skip before the per-security UZSE calls
-                # so the walk is cheaper too, not just the output smaller.
+            rfb = (detail.get("info_rfb") or {}) if isinstance(detail, dict) else {}
+            name = detail.get("full_name_text") or detail.get("short_name_text") or ticker
+            # An explicit ISIN pin means the openinfo security list is known to be
+            # absent or wrong. DRBK is the sharp case: Davr Bank's org currently
+            # carries AISK (Asia Insurance), so trusting that list would both hide
+            # DRBK and publish AISK under the wrong issuer. Build the row from the
+            # exchange's authoritative security card instead.
+            pinned_isin = ISIN_OVERRIDES.get(ticker)
+            isin_codes = ([{
+                "ticker": ticker,
+                "isu_cd": pinned_isin,
+                "stock_type": "01",
+                "listing_date": _LISTING_DATE_OVERRIDES.get(ticker),
+            }] if pinned_isin else (rfb.get("isin_codes") or []))
+            # Every share class on the card, delisted ones included — together they
+            # make up the charter capital the upsert holds the counts to.
+            equity_classes = len({str(ic.get("isu_cd") or "").strip().upper() for ic in isin_codes
+                                  if str(ic.get("isu_cd") or "").strip().upper().startswith("UZ7")})
+            for ic in isin_codes:
+                tk = str(ic.get("ticker") or "").strip().upper()
+                isin = str(ic.get("isu_cd") or "").strip().upper()
+                if not tk or not isin or tk in seen_tickers:
+                    continue
+                # Some issuer cards put a bond first under the ordinary share's
+                # ticker (Aloqabank: UZ60447611B9 is labelled ALKB). Do not let that
+                # collision consume the ticker and hide the real UZ7… share later in
+                # the same list.
+                known_isin = str((known_equities.get(tk) or {}).get("isin") or "").upper()
+                if known_isin and known_isin != isin and not isin.startswith("UZ7"):
+                    continue
+                if tk in DELISTED_TICKERS:
+                    # Deleted from the site — skip before the per-security UZSE calls
+                    # so the walk is cheaper too, not just the output smaller.
+                    seen_tickers.add(tk)
+                    continue
                 seen_tickers.add(tk)
-                continue
-            seen_tickers.add(tk)
 
-            shares = _num(ic.get("list_shares"))
-            reference_price = _num(ic.get("price"))
-            # UZSE (the exchange) is authoritative for the current share count and
-            # last trade; openinfo's info_rfb figures are frequently stale or in an
-            # older denomination, which skewed market cap. Prefer UZSE for equities.
-            uz = _uzse_equity(session, isin) if isin.startswith("UZ7") else None
-            shares_source = "openinfo"
-            if uz and uz.get("shares"):
-                shares = uz["shares"]
-                shares_source = "uzse"
-            if not reference_price and isin.startswith("UZ6"):
-                # Exchange bond (UZ6… ISIN) with no openinfo reference price:
-                # par from UZSE so the cap shows outstanding face value.
-                reference_price = _uzse_bond_nominal(isin)
-            # «Номинальная стоимость» — a fact about the security that no page
-            # showed. The exchange states it as `parval` on the same card for
-            # both classes of instrument: read off the equity detail for a share,
-            # off the bond card for an issue.
-            nominal = (uz or {}).get("nominal")
-            if nominal is None and isin.startswith("UZ6"):
-                nominal = _uzse_bond_nominal(isin)
+                shares = _num(ic.get("list_shares"))
+                reference_price = _num(ic.get("price"))
+                # UZSE (the exchange) is authoritative for the current share count and
+                # last trade; openinfo's info_rfb figures are frequently stale or in an
+                # older denomination, which skewed market cap. Prefer UZSE for equities.
+                uz = _uzse_equity(session, isin) if isin.startswith("UZ7") else None
+                shares_source = "openinfo"
+                if uz and uz.get("shares"):
+                    shares = uz["shares"]
+                    shares_source = "uzse"
+                if not reference_price and isin.startswith("UZ6"):
+                    # Exchange bond (UZ6… ISIN) with no openinfo reference price:
+                    # par from UZSE so the cap shows outstanding face value.
+                    reference_price = _uzse_bond_nominal(isin)
+                # «Номинальная стоимость» — a fact about the security that no page
+                # showed. The exchange states it as `parval` on the same card for
+                # both classes of instrument: read off the equity detail for a share,
+                # off the bond card for an issue.
+                nominal = (uz or {}).get("nominal")
+                if nominal is None and isin.startswith("UZ6"):
+                    nominal = _uzse_bond_nominal(isin)
 
-            last = _last_conclusion(session, isin)
-            last_close = _num(last.get("close")) if last else None
-            uz_price = uz.get("price") if uz else None
-            # The conclusions feed looks back years; for a redenominated / long-idle
-            # equity its close can be a pre-redenomination stub that no longer matches
-            # the current share count and would blow up the cap. Trust it only when it
-            # agrees with UZSE's stated last trade, else take UZSE's price and drop the
-            # mismatched OHLC.
-            if uz_price:
-                if last_close and 0.9 <= (last_close / uz_price) <= 1.1:
-                    last_price = last_close
+                last = _last_conclusion(session, isin)
+                last_close = _num(last.get("close")) if last else None
+                uz_price = uz.get("price") if uz else None
+                # The conclusions feed looks back years; for a redenominated / long-idle
+                # equity its close can be a pre-redenomination stub that no longer matches
+                # the current share count and would blow up the cap. Trust it only when it
+                # agrees with UZSE's stated last trade, else take UZSE's price and drop the
+                # mismatched OHLC.
+                if uz_price:
+                    if last_close and 0.9 <= (last_close / uz_price) <= 1.1:
+                        last_price = last_close
+                    else:
+                        last = None
+                        last_price = uz_price
                 else:
-                    last = None
-                    last_price = uz_price
-            else:
-                last_price = last_close
-            price_for_cap = last_price if last_price is not None else reference_price
+                    last_price = last_close
+                price_for_cap = last_price if last_price is not None else reference_price
 
-            if last:
-                last_trade_date = last.get("date")
-            elif uz and uz.get("date"):
-                p = str(uz["date"]).split(".")
-                last_trade_date = f"{p[2]}-{p[1]}-{p[0]}" if len(p) == 3 else uz["date"]
-            else:
-                last_trade_date = None
-            rows.append({
-                "ticker": tk,
-                "isin": isin,
-                "name": name,
-                "share_type": _STOCK_TYPE.get(str(ic.get("stock_type") or ""), "ordinary"),
-                "listing_date": _fmt_date(ic.get("listing_date")),
-                "shares_outstanding": shares,
-                "nominal": nominal,
-                "reference_price": reference_price,
-                "last_price": last_price,
-                "last_trade_date": last_trade_date,
-                "open_price": _num(last.get("open")) if last else None,
-                "high_price": _num(last.get("high")) if last else None,
-                "low_price": _num(last.get("low")) if last else None,
-                "volume": _num(last.get("trading_value")) if last else None,
-                "market_cap": (shares * price_for_cap) if (shares and price_for_cap) else None,
-                # Not stored: the upsert judges the count by them (market_store).
-                # A pinned ISIN means this org's card is known to be wrong, so its
-                # charter capital is another issuer's (DRBK's org carries AISK).
-                "shares_source": shares_source,
-                "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
-                # Not stored either: which classes are one issuer, for that check.
-                "org_id": None if pinned_isin else org_id,
-                "org_equity_classes": equity_classes,
-            })
+                if last:
+                    last_trade_date = last.get("date")
+                elif uz and uz.get("date"):
+                    p = str(uz["date"]).split(".")
+                    last_trade_date = f"{p[2]}-{p[1]}-{p[0]}" if len(p) == 3 else uz["date"]
+                else:
+                    last_trade_date = None
+                rows.append({
+                    "ticker": tk,
+                    "isin": isin,
+                    "name": name,
+                    "share_type": _STOCK_TYPE.get(str(ic.get("stock_type") or ""), "ordinary"),
+                    "listing_date": _fmt_date(ic.get("listing_date")),
+                    "shares_outstanding": shares,
+                    "nominal": nominal,
+                    "reference_price": reference_price,
+                    "last_price": last_price,
+                    "last_trade_date": last_trade_date,
+                    "open_price": _num(last.get("open")) if last else None,
+                    "high_price": _num(last.get("high")) if last else None,
+                    "low_price": _num(last.get("low")) if last else None,
+                    "volume": _num(last.get("trading_value")) if last else None,
+                    "market_cap": (shares * price_for_cap) if (shares and price_for_cap) else None,
+                    # Not stored: the upsert judges the count by them (market_store).
+                    # A pinned ISIN means this org's card is known to be wrong, so its
+                    # charter capital is another issuer's (DRBK's org carries AISK).
+                    "shares_source": shares_source,
+                    "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
+                    # Not stored either: which classes are one issuer, for that check.
+                    "org_id": None if pinned_isin else org_id,
+                    "org_equity_classes": equity_classes,
+                })
 
-        # Issuer listed on openinfo but with no tradable RFB security (empty
-        # isin_codes — e.g. an inactive exchange registration like NGQT): still
-        # surface it on the board (financials only, no price) so curated catalog
-        # companies stay visible instead of vanishing. Keyed by our catalog ticker.
-        if not isin_codes and ticker not in seen_tickers \
-                and ticker not in DELISTED_TICKERS:
-            seen_tickers.add(ticker)
-            # openinfo lists no RFB security for this issuer, but UZSE may still
-            # publish its ISIN and share count — recover them so the market-cap
-            # join has shares to multiply by the live price (e.g. BIOK, DORI).
-            # The pinned ISINs come first: the screener proxy answers 73 rows
-            # and misses issuers (OCBK) whose uzse quote page is alive and well.
-            security = known_equities.get(ticker) or {}
-            uz_isin = (ISIN_OVERRIDES.get(ticker)
-                       or str(security.get("isin") or "").strip().upper()
-                       or _uzse_screener_isins(session).get(ticker))
-            fallback = _known_equity_row(
-                session, ticker, {**security, "isin": uz_isin}, name=name,
-            ) if uz_isin else None
-            rows.append(fallback or {
-                "ticker": ticker, "isin": None, "name": name,
-                "share_type": (security.get("share_type") or "ordinary"),
-                "listing_date": None, "shares_outstanding": None,
-                "reference_price": None, "nominal": None, "last_price": None,
-                "last_trade_date": None, "open_price": None, "high_price": None,
-                "low_price": None, "volume": None, "market_cap": None,
-            })
+            # Issuer listed on openinfo but with no tradable RFB security (empty
+            # isin_codes — e.g. an inactive exchange registration like NGQT): still
+            # surface it on the board (financials only, no price) so curated catalog
+            # companies stay visible instead of vanishing. Keyed by our catalog ticker.
+            if not isin_codes and ticker not in seen_tickers \
+                    and ticker not in DELISTED_TICKERS:
+                seen_tickers.add(ticker)
+                # openinfo lists no RFB security for this issuer, but UZSE may still
+                # publish its ISIN and share count — recover them so the market-cap
+                # join has shares to multiply by the live price (e.g. BIOK, DORI).
+                # The pinned ISINs come first: the screener proxy answers 73 rows
+                # and misses issuers (OCBK) whose uzse quote page is alive and well.
+                security = known_equities.get(ticker) or {}
+                uz_isin = (ISIN_OVERRIDES.get(ticker)
+                           or str(security.get("isin") or "").strip().upper()
+                           or _uzse_screener_isins(session).get(ticker))
+                fallback = _known_equity_row(
+                    session, ticker, {**security, "isin": uz_isin}, name=name,
+                ) if uz_isin else None
+                rows.append(fallback or {
+                    "ticker": ticker, "isin": None, "name": name,
+                    "share_type": (security.get("share_type") or "ordinary"),
+                    "listing_date": None, "shares_outstanding": None,
+                    "reference_price": None, "nominal": None, "last_price": None,
+                    "last_trade_date": None, "open_price": None, "high_price": None,
+                    "low_price": None, "volume": None, "market_cap": None,
+                })
+
+    walk(org_ids)
+
+    # A listed share the walk never reached has no count but the exchange's,
+    # which the server cannot read (EQQU: price on the board, no count, while
+    # its openinfo card held 162 897 shares matching the charter). Look its
+    # issuer up by ticker and walk the card — only a card that lists this very
+    # ISIN, so a name match can never lend one issuer another's shares.
+    found: dict[str, str] = {}
+    for ticker, security in known_equities.items():
+        if ticker in seen_tickers or ticker in DELISTED_TICKERS or ticker in ISIN_OVERRIDES:
+            continue
+        org_id = _discover_org(session, ticker, str(security.get("isin") or ""),
+                               org_detail_cache)
+        if org_id:
+            log.info("listings: %s found on openinfo org %s by its ticker — "
+                     "pin it in ORG_OVERRIDES to skip the search", ticker, org_id)
+            found[ticker] = org_id
+    walk(found)
 
     # The org walk starts from catalog_companies. Securities can reach the board
     # before that catalog resolves their OpenInfo org (ORFI/ORFIP are the current

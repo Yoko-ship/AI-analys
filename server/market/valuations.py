@@ -148,6 +148,18 @@ async def _heatmap_inputs() -> dict[str, Any]:
             "trade_date": trade_date.isoformat() if trade_date else None}
 
 
+def _board_says_preferred(row: dict[str, Any]) -> bool:
+    """The board's class field: openinfo's ``stock_type`` 02 on the issuer card.
+
+    The catalog's flag leans on the security's name, and a rename can drop the
+    «привилегированные» it looks for — UZNGP, renamed plain «O'zbekneftgaz»,
+    read as ordinary, missed UZNG and printed P/E 0,04× (2026-10-08). The card's
+    class code survives a rename. It only ever adds a preferred class: the
+    board defaults a missing class to ordinary, so BNGP stays ordinary.
+    """
+    return str(row.get("share_type") or "").strip().lower() == "preferred"
+
+
 def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     """Issuer-level multiples for every listed share class (ТЗ §8)."""
     securities, financials, ratios = (inputs["securities"], inputs["financials"],
@@ -190,13 +202,16 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
     for ticker, meta in (securities or {}).items():
         row = board_by_ticker.get(str(ticker).upper()) or {}
         shares = row.get("shares_outstanding") or meta.get("shares_outstanding")
+        preferred = bool(meta.get("is_preferred") or row.get("is_preferred")
+                         or _board_says_preferred(row))
         market_input = _market_input(str(ticker).upper(), {
             **row, "ticker": str(ticker).upper(),
-            "is_preferred": meta.get("is_preferred") or row.get("is_preferred"),
+            "is_preferred": preferred,
             "share_type": meta.get("share_type") or row.get("share_type"),
         }, shares)
         catalog_rows.append({
             "ticker": str(ticker).upper(), **meta,
+            "is_preferred": preferred,
             "market_cap": market_input["market_cap"],
             "last_price": market_input["price"],
             "last_trade_date": market_input["price_as_of"],
@@ -219,7 +234,7 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
             "name": row.get("name"),
             "type": row.get("type") or "stock",
             "share_type": row.get("share_type"),
-            "is_preferred": row.get("is_preferred"),
+            "is_preferred": row.get("is_preferred") or _board_says_preferred(row),
             "market_cap": market_input["market_cap"],
             "last_price": market_input["price"],
             "last_trade_date": market_input["price_as_of"],
