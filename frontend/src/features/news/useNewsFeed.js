@@ -57,9 +57,9 @@ export function useNewsFeed({}) {
       error: false,
       items: []
     });
-    const group = (NEWS_TABS.find(t => t.key === tab) || {}).type;
+    const category = (NEWS_TABS.find(t => t.key === tab) || {}).category;
     const inst = tab === "corporate" && instrument !== "all" ? `&instrument=${instrument}` : "";
-    fetch(`/api/news/feed?limit=60&days=30${group ? `&type=${group}` : ""}${inst}`).then(r => r.json()).then(d => {
+    fetch(`/api/news/feed?limit=60&days=30${category ? `&category=${category}` : ""}${inst}`).then(r => r.json()).then(d => {
       if (alive) setState({
         loading: false,
         error: !d || !d.ok,

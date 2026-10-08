@@ -227,19 +227,19 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
                 """
                 INSERT INTO news_nlp (news_id, relevant, relevance_score, type, tone,
                                       tone_score, impact, direction, sectors_json, reason, model,
-                                      classified_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                                      topic, classified_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                 ON CONFLICT(news_id) DO UPDATE SET
                     relevant=excluded.relevant, relevance_score=excluded.relevance_score,
                     type=excluded.type, tone=excluded.tone, tone_score=excluded.tone_score,
                     impact=excluded.impact, direction=excluded.direction,
                     sectors_json=excluded.sectors_json, reason=excluded.reason,
-                    model=excluded.model, classified_at=datetime('now')
+                    model=excluded.model, topic=excluded.topic, classified_at=datetime('now')
                 """,
                 (news_id, 1 if it.get("relevant") else 0, it.get("relevance_score"),
                  it.get("type"), it.get("tone"), it.get("tone_score"), it.get("impact"),
                  it.get("direction"), json.dumps(it.get("sectors") or [], ensure_ascii=False),
-                 it.get("reason"), it.get("model")),
+                 it.get("reason"), it.get("model"), it.get("topic")),
             )
             conn.execute("DELETE FROM news_entities WHERE news_id = ?", (news_id,))
             for ticker in {str(t).strip().upper() for t in (it.get("tickers") or []) if str(t).strip()}:
@@ -667,6 +667,7 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
         "sectors": json.loads(r["sectors_json"]) if r["sectors_json"] else [],
+        "topic": r["topic"] if "topic" in keys else None,
         "relevance_score": r["relevance_score"] if "relevance_score" in keys else None,
         "coverage_weight": r["coverage_weight"] if "coverage_weight" in keys else None,
         "tickers": ([t for t in (r["tickers_csv"] or "").split(",") if t]
@@ -685,6 +686,7 @@ def _row_to_item(r: Any) -> dict[str, Any]:
     # at all — see _SLUG_TITLE_SOURCES for why the rating agencies are excluded here rather
     # than in the UI.
     item["translatable"] = bool(item["lang"]) and item["source_id"] not in _SLUG_TITLE_SOURCES
+    item["category"] = news_category(item)
     return item
 
 
@@ -1011,6 +1013,49 @@ NEWS_GROUPS: dict[str, tuple[str, ...]] = {
 }
 
 
+# The news section's tabs (customer, 2026-10-08), each item under exactly one:
+#
+#   reports     — financial_report, from any source (filings, results, ratings)
+#   corporate   — every other issuer disclosure from openinfo
+#   politics    — regulatory decisions, and the classifier's «politics»
+#   economy / markets / companies / technology / other — the classifier's
+#                 `topic` for press items
+#
+# Rows classified before `topic` existed carry NULL; the rules below file them
+# from what was stored (type, sectors, headline) until they age out of the
+# 30-day window. They are a stand-in, not a second opinion: a stored topic wins.
+NEWS_CATEGORIES = ("economy", "corporate", "reports", "markets", "companies",
+                   "politics", "technology", "other")
+_TOPICS = frozenset({"economy", "markets", "companies", "politics", "technology", "other"})
+_TECH_SECTOR_RE = re.compile(
+    r"tech|telecom|fintech|e-?commerce|digital|software|internet|crypto|\bit\b|data cent", re.I)
+_MARKETS_TEXT_RE = re.compile(
+    r"бирж|котиров|акци[йия]|облигац|валют|курс (сума|доллар|валют|евро|рубл)|золот|нефт[ьи] |"
+    r"\bIPO\b|stock exchange|\bbonds?\b|currency|exchange rate|gold price|oil price|\bUZSE\b", re.I)
+
+
+def news_category(item: dict[str, Any]) -> str:
+    """The one news tab an item belongs to (see NEWS_CATEGORIES)."""
+    kind = str(item.get("type") or "")
+    if kind == "financial_report":
+        return "reports"
+    if str(item.get("source_id") or "") in disclosure_source_ids():
+        return "corporate"
+    if kind == "regulatory":
+        return "politics"
+    topic = str(item.get("topic") or "").strip().lower()
+    if topic in _TOPICS:
+        return topic
+    if any(_TECH_SECTOR_RE.search(str(s)) for s in item.get("sectors") or []):
+        return "technology"
+    if kind == "corporate_event":
+        return "companies"
+    text = " ".join(str(item.get(k) or "") for k in ("title", "summary_ru", "summary_en"))
+    if kind == "market":
+        return "markets" if _MARKETS_TEXT_RE.search(text) else "economy"
+    return "other"
+
+
 def disclosure_source_ids() -> set[str]:
     """Source ids that are an issuer's own disclosure, not a paper's write-up.
 
@@ -1114,7 +1159,7 @@ def get_news_feed(
     news_type: Any = None, order: str = "rank",
     min_relevance: float | None = None,
     instrument: str | None = None, ticker_types: dict[str, str] | None = None,
-    notes: dict[str, Any] | None = None,
+    notes: dict[str, Any] | None = None, category: str | None = None,
 ) -> list[dict[str, Any]]:
     """Public editorial feed: relevant, classified items, **ranked by likely impact**.
 
@@ -1127,13 +1172,19 @@ def get_news_feed(
     newest N can still surface; each returned item carries its ``rank`` for transparency.
     """
     fetch = max(1, min(limit, 200))
-    if order == "rank":
+    category = str(category or "").strip().lower() or None
+    if category not in NEWS_CATEGORIES:
+        category = None
         # Rank over more rows than we return, or a high-impact filing from yesterday could
         # never outrank today's currency-rate note simply for being one row too far down.
         fetch = max(1, min(max(limit * 3, 60), 300))
+    if category:
+        # A tab is filed in Python (news_category), so read the whole window: a
+        # small tab must not lose its items to the newest rows of a large one.
+        fetch = 1000
     conn = catalogue_storage.get_catalog_conn()
     q = [
-        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,",
+        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.topic,",
         "       p.relevant, p.relevance_score,",
         "       (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e",
         "         WHERE e.news_id = n.id) AS tickers_csv",
@@ -1183,6 +1234,8 @@ def get_news_feed(
     rows = conn.execute(" ".join(q), params).fetchall()
     conn.close()
     items = [_row_to_item(r) for r in rows]
+    if category:
+        items = [it for it in items if it["category"] == category]
     # Before ranking, not after: the rank window exists so a strong item just
     # outside the newest N can still surface, and filtering afterwards would
     # spend that window on stories the reader asked not to see.
@@ -1223,7 +1276,7 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
     conn = catalogue_storage.get_catalog_conn()
     row = conn.execute(
         """
-        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
+        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.topic,
                p.relevant, p.relevance_score, p.model, p.classified_at,
                (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
                  WHERE e.news_id = n.id) AS tickers_csv
@@ -1287,7 +1340,7 @@ def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[d
         conn.close()
         return []
     select = (
-        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,"
+        "SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.topic,"
         "       p.relevance_score,"
         "       (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e"
         "         WHERE e.news_id = n.id) AS tickers_csv"
@@ -1348,7 +1401,7 @@ def get_news_for_ticker(
     conn = catalogue_storage.get_catalog_conn()
     rows = conn.execute(
         """
-        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json,
+        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.topic,
                p.relevant,
                (SELECT GROUP_CONCAT(x.ticker) FROM news_entities x
                  WHERE x.news_id = n.id) AS tickers_csv

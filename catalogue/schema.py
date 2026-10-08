@@ -1065,4 +1065,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         conn.execute("ALTER TABLE catalog_listings ADD COLUMN nominal REAL")
 
+    # The classifier's subject heading (news_classifier.Topic) — the news tabs.
+
+    if "topic" not in set(dbx.columns(conn, "news_nlp")):
+
+        conn.execute("ALTER TABLE news_nlp ADD COLUMN topic TEXT")
+
     conn.commit()

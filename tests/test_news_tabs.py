@@ -361,3 +361,61 @@ class TestNothingFallsBetweenTheTwoTabs:
 
         assert [i["id"] for i in got] == [2]
         assert "untyped_tickers" not in notes
+
+
+class TestEachItemHasExactlyOneCategory:
+    """The news tabs (customer, 2026-10-08): every item under exactly one heading."""
+
+    @pytest.fixture(autouse=True)
+    def _disclosures(self, monkeypatch):
+        monkeypatch.setattr(ns, "disclosure_source_ids", lambda: {"openinfo_facts"})
+
+    @pytest.mark.parametrize(("item", "category"), [
+        ({"type": "financial_report", "source_id": "openinfo_facts"}, "reports"),
+        ({"type": "financial_report", "source_id": "fitch"}, "reports"),
+        ({"type": "corporate_event", "source_id": "openinfo_facts", "topic": "companies"}, "corporate"),
+        ({"type": "regulatory", "source_id": "napp", "topic": "markets"}, "politics"),
+        # A stored topic is the classifier's answer and wins over the rules.
+        ({"type": "market", "source_id": "spot", "topic": "technology"}, "technology"),
+        ({"type": "corporate_event", "source_id": "spot", "topic": "politics"}, "politics"),
+        ({"type": "market", "source_id": "spot", "topic": "other"}, "other"),
+        # Rows classified before `topic` existed are filed by the fallback rules.
+        ({"type": "corporate_event", "source_id": "spot", "sectors": ["telecom"]}, "technology"),
+        ({"type": "corporate_event", "source_id": "spot", "sectors": ["banking"]}, "companies"),
+        ({"type": "market", "source_id": "kun", "title": "ЦБ купил 8 тонн золота"}, "markets"),
+        ({"type": "market", "source_id": "kun", "title": "Реальная зарплата выросла на 11%"}, "economy"),
+        ({"type": None, "source_id": "kun"}, "other"),
+    ])
+    def test_the_category(self, item, category) -> None:
+        assert ns.news_category(item) == category
+        assert category in ns.NEWS_CATEGORIES
+
+    def test_the_tabs_cover_the_classifier_topics(self) -> None:
+        assert set(typing.get_args(nc.Topic)) <= set(ns.NEWS_CATEGORIES)
+
+    def test_a_category_request_reads_the_whole_window_and_files_in_python(self, monkeypatch) -> None:
+        rows = [
+            {"id": 1, "type": "market", "source_id": "kun", "topic": "economy"},
+            {"id": 2, "type": "market", "source_id": "kun", "topic": "markets"},
+            {"id": 3, "type": "financial_report", "source_id": "kun", "topic": None},
+        ]
+        seen = {}
+
+        class _Conn:
+            def execute(self, sql, params):
+                seen["params"] = list(params)
+                return self
+
+            def fetchall(self):
+                return rows
+
+            def close(self):
+                return None
+
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: _Conn())
+        monkeypatch.setattr(ns, "_row_to_item", lambda r: {**r, "category": ns.news_category(r)})
+        got = ns.get_news_feed(category="markets", order="recent", days=0)
+
+        assert [it["id"] for it in got] == [2]
+        assert seen["params"][-1] == 1000
+        assert [it["id"] for it in ns.get_news_feed(category="nonsense", order="recent", days=0)] == [1, 2, 3]

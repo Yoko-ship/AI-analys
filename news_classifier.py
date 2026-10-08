@@ -46,11 +46,16 @@ NewsType = Literal["financial_report", "corporate_event", "regulatory", "market"
 Tone = Literal["positive", "neutral", "negative"]
 Impact = Literal["high", "medium", "low", "none"]
 Direction = Literal["up", "down", "mixed", "unclear"]
+# The reader's subject heading, independent of `type` (what kind of event it is):
+# the news section's tabs are written in these words. Filings and reports are
+# filed by source and type before this is consulted (news_store.news_category).
+Topic = Literal["economy", "markets", "companies", "politics", "technology", "other"]
 
 # Models can return null/empty for these constrained fields on off-topic items; coerce to
 # the field default so an irrelevant item validates cleanly instead of raising (which
 # would drop it to a generic classification_failed and spam the logs).
-_ENUM_DEFAULTS = {"type": "market", "tone": "neutral", "impact": "none", "direction": "unclear"}
+_ENUM_DEFAULTS = {"type": "market", "tone": "neutral", "impact": "none", "direction": "unclear",
+                  "topic": "other"}
 
 
 class NewsClassification(BaseModel):
@@ -61,6 +66,7 @@ class NewsClassification(BaseModel):
     tone_score: float = Field(ge=-1.0, le=1.0, default=0.0)
     impact: Impact = "none"
     direction: Direction = "unclear"
+    topic: Topic = "other"
     tickers: list[str] = Field(default_factory=list)
     sectors: list[str] = Field(default_factory=list)
     summary_ru: str = Field(default="", description="Our own 1-2 sentence factual summary in Russian.")
@@ -83,7 +89,7 @@ class NewsClassification(BaseModel):
             return [v] if v.strip() else []
         return [str(x).strip() for x in v if str(x).strip()]
 
-    @field_validator("type", "tone", "impact", "direction", mode="before")
+    @field_validator("type", "tone", "impact", "direction", "topic", mode="before")
     @classmethod
     def _coerce_enum(cls, v: Any, info: Any) -> Any:
         # Off-topic items come back with null here; fall back to the field default.
@@ -168,6 +174,7 @@ _CLASSIFICATION_SCHEMA = _strict_object({
     "tone_score": {"type": "number", "minimum": -1.0, "maximum": 1.0},
     "impact": {"type": "string", "enum": ["high", "medium", "low", "none"]},
     "direction": {"type": "string", "enum": ["up", "down", "mixed", "unclear"]},
+    "topic": {"type": "string", "enum": ["economy", "markets", "companies", "politics", "technology", "other"]},
     "tickers": {"type": "array", "items": {"type": "string"}},
     "sectors": {"type": "array", "items": {"type": "string"}},
     "summary_ru": {"type": "string"},
@@ -488,6 +495,13 @@ never a claim of manipulation or "attack"):
 3. tone — positive / neutral / negative FOR INVESTORS IN THE AFFECTED ISSUERS, and tone_score in [-1,1].
 4. impact — high / medium / low / none (how strongly it could move price).
 5. direction — up / down / mixed / unclear (estimated price effect; this is a hint, not advice).
+5b. topic — the reader's subject heading, exactly one of:
+   - "economy"    : macro, GDP, inflation, trade, investment, budget, sector conditions, infrastructure
+   - "markets"    : the exchange, share/bond trading, FX and the sum, commodity and asset prices
+   - "companies"  : one named company's business, deals, projects, management (press coverage)
+   - "politics"   : state decisions, laws/decrees, government programmes, diplomacy with economic stakes
+   - "technology" : IT, telecom, fintech, e-commerce, digital services, data centres, AI, crypto
+   - "other"      : none of the above fits
 6. tickers — ONLY symbols from the provided issuer universe that the item is genuinely about. Empty if none.
 7. sectors — affected sectors (e.g. "banking", "cement", "energy"), if any.
 8. summary_ru — YOUR OWN 1-2 sentence factual summary in Russian. Do NOT copy the source's wording.
@@ -497,7 +511,7 @@ never a claim of manipulation or "attack"):
 10. reason — why this class/tone, in AT MOST 12 WORDS. It is an internal note, never shown.
 
 Reply with ONLY a JSON object with keys:
-relevant, relevance_score, type, tone, tone_score, impact, direction, tickers, sectors,
+relevant, relevance_score, type, tone, tone_score, impact, direction, topic, tickers, sectors,
 summary_ru, summary_en, summary_uz, reason."""
 
 

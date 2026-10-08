@@ -240,6 +240,11 @@ MIGRATIONS: tuple[Migration, ...] = (
               columns("bond_reference",
                       ("coupon_basis", "TEXT"),
                       ("coupon_period_days", "INTEGER"))),
+    # The news section's subject tabs (Экономика, Рынки, Компании, Политика,
+    # Технологии, Прочее) read the classifier's `topic`. Rows written before it
+    # existed keep NULL and are filed by news_store's fallback rules.
+    Migration(16, "news: the classifier's subject heading",
+              columns("news_nlp", ("topic", "TEXT"))),
 )
 
 

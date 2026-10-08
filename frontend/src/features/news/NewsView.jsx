@@ -75,8 +75,18 @@ export function NewsView({
         {NEWS_TABS.map(t => <button
           key={t.key}
           type="button"
+          data-tab={t.key}
           className={`newsdesk-tab ${tab === t.key ? "active" : ""}`}
           aria-current={tab === t.key ? "page" : undefined}
+          // On a phone the bar pans sideways; centre the chosen tab in it. Set on
+          // the bar itself — scrollIntoView would also scroll the page.
+          ref={tab === t.key ? (el) => {
+            if (!el) return;
+            requestAnimationFrame(() => {
+              const bar = el.parentElement;
+              if (bar && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
+            });
+          } : undefined}
           onClick={() => selectTab(t.key)}
         >
             {tx.tabs && tx.tabs[t.key] || t.key}
