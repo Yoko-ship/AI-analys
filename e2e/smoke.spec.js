@@ -652,6 +652,8 @@ test("market cells distinguish published, provisional, out-of-range and blocked 
 });
 
 test("company details stay fixed to the viewport when opened from a scrolled market row", async ({ page }) => {
+  // Short enough that the fixture board's last row sits below the fold.
+  await page.setViewportSize({ width: 1280, height: 480 });
   await page.goto("/market");
   const opener = page.locator(".market-info-btn").last();
   await opener.scrollIntoViewIfNeeded();
@@ -1639,11 +1641,11 @@ test("the movers strip says who moved AND what was tradeable", async ({ page }) 
   await page.route("**/api/market/stocks**", (route) => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify(MOVERS_STOCKS),
   }));
+  // The strip lives on the main page; /market no longer carries it.
   await page.goto("/");
-  await page.getByRole("button", { name: "Рынок", exact: true }).click();
-  await expect(page.locator(".market-movers-col")).toHaveCount(3);
+  await expect(page.locator(".lv-movers .market-movers-col")).toHaveCount(3);
 
-  const names = (col) => page.locator(`.market-movers-col.${col} .market-movers-name`);
+  const names = (col) => page.locator(`.lv-movers .market-movers-col.${col} .market-movers-name`);
   // EEE is a mover like any other — a missing turnover figure hides it from the
   // liquidity list below, never from the move it actually made.
   await expect(names("up")).toHaveText(["AAA", "CCC", "EEE"]);
@@ -1651,7 +1653,7 @@ test("the movers strip says who moved AND what was tradeable", async ({ page }) 
 
   // Ordered by turnover, and it is turnover that is printed — not a percent.
   await expect(names("vol")).toHaveText(["AAA", "QQQ", "BBB", "CCC", "DDD"]);
-  await expect(page.locator(".market-movers-col.vol .market-movers-chg").first())
+  await expect(page.locator(".lv-movers .market-movers-col.vol .market-movers-chg").first())
     .toHaveText("1,2B");
 
   // The flat security is here and nowhere else; the one with no figure is nowhere.
