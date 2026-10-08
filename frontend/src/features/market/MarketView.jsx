@@ -18,7 +18,6 @@ import { useMarketExport } from "./useMarketExport.js";
 import { createMarketHeaders } from "./MarketHeaders.jsx";
 import { MarketHeader } from "./MarketHeader.jsx";
 import { MarketOverview } from "./MarketOverview.jsx";
-import { MarketMovers } from "./MarketMovers.jsx";
 import { MarketFilters } from "./MarketFilters.jsx";
 import { MarketTable } from "./MarketTable.jsx";
 function MarketView({
@@ -206,8 +205,7 @@ function MarketView({
     stats,
     cardStats,
     capPeriodChange,
-    sectorDormant,
-    periodMovers
+    sectorDormant
   } = summarizeMarket({
     activeSector,
     byClass,
@@ -328,23 +326,6 @@ function MarketView({
         capPeriodChange={capPeriodChange}
         changePeriod={changePeriod}
         windowed={windowed}
-      />
-
-      {/* Three readings of one session: who moved, and who was actually
-          tradeable. Ликвидность answers the question the two percent lists
-          cannot — a +20 % on one 37 200-сум trade is a move, not a market —
-          and it reads off the same «Объём» (turnover in money) the column, the
-          turnover card and the charts already mean — in the same compact form
-          those use, so the figure is recognisable without a unit spelled out
-          beside it (one was tried in the head and the customer had it out). */}
-      <MarketMovers
-        viewMode={viewMode}
-        periodMovers={periodMovers}
-        lang={lang}
-        changePeriod={changePeriod}
-        onOpenCompany={onOpenCompany}
-        onAnalyze={onAnalyze}
-        smap={smap}
       />
 
       <article className="panel market-board">

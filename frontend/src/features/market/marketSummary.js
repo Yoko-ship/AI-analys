@@ -14,7 +14,6 @@ export function summarizeMarket({
   const cardStats = cardSector ? buildMarketStats(byClass.filter(r => !isDormant(r) && rowSector(r) === cardSector), {
     windowed
   }) : stats;
-  const moverStats = cardStats;
   const capPeriodChange = (() => {
     if (!windowed) return null;
     const pool = byClass.filter(r => !isDormant(r) && (!cardSector || rowSector(r) === cardSector));
@@ -30,13 +29,11 @@ export function summarizeMarket({
     return before > 0 ? (now - before) / before * 100 : null;
   })();
   const sectorDormant = cardSector ? byClass.filter(r => isDormant(r) && rowSector(r) === cardSector).length : 0;
-  const periodMovers = moverStats;
   return {
     cardSector,
     stats,
     cardStats,
     capPeriodChange,
-    sectorDormant,
-    periodMovers
+    sectorDormant
   };
 }
