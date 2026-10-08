@@ -441,3 +441,67 @@ def test_a_board_class_never_turns_an_ordinary_line_preferred():
     assert subject_server_market_valuations._board_says_preferred({"share_type": "ordinary"}) is False
     assert subject_server_market_valuations._board_says_preferred({}) is False
     assert subject_server_market_valuations._board_says_preferred({"share_type": "Preferred"}) is True
+
+
+def test_a_class_with_only_an_archived_negotiated_deal_is_valued_at_it(monkeypatch):
+    # AGMK: no session price ever, one NC block in openinfo's archive
+    # (19.11.2024 at 69 499). Customer decision 2026-10-08: that deal counts,
+    # however old, and every cap multiple says so.
+    import api
+
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_share_registry", lambda: {
+        "AGMK": {"last_execution": {"date": "2024-11-19", "price": 69499, "board": "NC",
+                                    "source": "https://openinfo.example/trade-results"}},
+    })
+    def scaled(row):  # a statement on the cap's scale (~7 mln), not the toy 1 000
+        return {k: (v * 10_000 if isinstance(v, float) else scaled(v) if isinstance(v, dict) else v)
+                for k, v in row.items()}
+
+    today = date.today().isoformat()
+    payload = subject_server_market_valuations._multiples_payload({
+        "securities": {
+            "AGMK": {"name": "Olmaliq KMK", "type": "stock"},
+            "AGMKP": {"name": "Olmaliq KMK", "type": "stock", "is_preferred": True},
+        },
+        "board": [
+            {"ticker": "AGMK", "last_price": 3914.0, "shares_outstanding": 100.0},
+            {"ticker": "AGMKP", "last_price": 31850.0, "shares_outstanding": 10.0,
+             "last_trade_date": today},
+        ],
+        "financials": {"AGMK": scaled(_statement())}, "ratios": {"AGMK": scaled(_ratio())},
+        "trade_date": today, "listings": {}, "stats": {},
+    })
+    row = next(r for r in payload["items"] if r["ticker"] == "AGMKP")
+    agmk = next(c for c in row["market_cap_issuer"]["class_inputs"] if c["ticker"] == "AGMK")
+
+    assert agmk["usable_for_issuer_cap"] is True
+    assert agmk["price_basis"] == contract.NEGOTIATED_EXECUTION
+    assert agmk["price_as_of"] == "2024-11-19"
+    assert agmk["market_cap"] == 100.0 * 69499
+    assert row["market_cap_issuer"]["value"] == 100.0 * 69499 + 10.0 * 31850
+    assert row["pe"]["value"] == pytest.approx((100.0 * 69499 + 10.0 * 31850) / 2_000_000.0, rel=1e-3)
+    assert row["pe"]["estimate"] is True
+    assert "по сделке 19.11.2024 (NC)" in row["pe"]["note"]
+    assert row["roe"].get("estimate") is not True
+
+
+def test_a_session_trade_beats_the_archived_deal(monkeypatch):
+    import api
+
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_share_registry", lambda: {
+        "AGMK": {"last_execution": {"date": "2024-11-19", "price": 69499, "board": "NC"}},
+    })
+    today = date.today().isoformat()
+    payload = subject_server_market_valuations._multiples_payload({
+        "securities": {"AGMK": {"name": "Olmaliq KMK", "type": "stock"}},
+        "board": [{"ticker": "AGMK", "last_price": 50000.0, "shares_outstanding": 100.0,
+                   "last_trade_date": today}],
+        "financials": {"AGMK": _statement()}, "ratios": {"AGMK": _ratio()},
+        "trade_date": today, "listings": {}, "stats": {},
+    })
+    agmk = payload["items"][0]["market_input"]
+    assert agmk["price"] == 50000.0
+    assert agmk["price_basis"] == "session"
+    assert payload["items"][0]["pe"].get("estimate") is not True

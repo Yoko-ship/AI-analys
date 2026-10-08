@@ -194,6 +194,14 @@ def _multiples_payload(inputs: dict[str, Any]) -> dict[str, Any]:
                 "market_cap_source_url": "https://openinfo.uz/",
                 "market_cap_as_of": listing.get("updated_at"),
             }
+        deal = (catalogue_market_store._share_registry().get(ticker) or {}).get("last_execution")
+        if deal and not catalogue_market_store._parse_day(row.get("last_trade_date")):
+            # No session price at all, but openinfo's archive holds a real
+            # (negotiated) execution: value the class at it, flagged as such.
+            row = {**row, "ticker": ticker, "last_price": deal["price"],
+                   "last_trade_date": deal["date"], "price_board": deal.get("board"),
+                   "price_basis": public_contract.NEGOTIATED_EXECUTION,
+                   "price_source": deal.get("source")}
         if not row:
             return public_contract.market_class_input({}, shares_outstanding=shares)
         return public_contract.market_class_input(row, shares_outstanding=shares)

@@ -146,6 +146,25 @@ def _reason(metric: dict[str, Any]) -> str | None:
     return None
 
 
+NEGOTIATED_EXECUTION = "negotiated_execution"
+
+
+def _negotiated_note(class_inputs: Sequence[dict[str, Any]]) -> str | None:
+    """«AGMK — по сделке 19.11.2024 (NC), 69 499 сум» for every class so valued."""
+    parts = []
+    for item in class_inputs:
+        if (item.get("price_basis") != NEGOTIATED_EXECUTION
+                or item.get("included_in_issuer_cap") is False):
+            continue
+        day = _day(item.get("price_as_of"))
+        price = _number(item.get("price"))
+        parts.append(
+            f"{item.get('ticker')} — по сделке {day.strftime('%d.%m.%Y') if day else '?'}"
+            + (f" ({item['price_board']})" if item.get("price_board") else "")
+            + (f", {price:,.0f} сум".replace(",", " ") if price else ""))
+    return ("Капитализация оценена по внебиржевой сделке: " + "; ".join(parts)) if parts else None
+
+
 def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
                        reference_date: date | None = None) -> dict[str, Any]:
     """Validate one class's quote/share inputs and calculate its usable cap.
@@ -169,11 +188,16 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     )
 
     age = (ref - traded).days if traded else None
+    # A class whose only exchange execution is an archived negotiated deal
+    # (AGMK: one NC block, 19.11.2024 — customer decision 2026-10-08) is
+    # valued at that deal's price however old it is; the multiples built on
+    # it are flagged an estimate and name the deal (``multiplier_contract``).
+    negotiated = row.get("price_basis") == NEGOTIATED_EXECUTION
     # The listing's cap is shares x the class's last trade, however old: the
     # board shows it. The multiples take it only while that trade is inside
     # the window — DRBK's 2019 trade at par printed P/E 0,71×, ORFI's 2021 one
     # 1,61×. A stale class is then refused like any stale price below.
-    stale = age is not None and age > limit
+    stale = age is not None and age > limit and not negotiated
     fresh_reported_cap = source_reported_cap and not stale
     if fresh_reported_cap:
         status, reason = CALCULATED, None
@@ -183,7 +207,7 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
         status, reason = DATA_CONFLICT, "last trade date is in the future"
     elif price is None or price <= 0 or traded is None:
         status, reason = INCOMPLETE_MARKET_CAP, "verified class price is unavailable"
-    elif age is not None and age > limit:
+    elif stale:
         status, reason = STALE_PRICE, f"class price is older than {limit} days"
     elif shares is None or shares <= 0:
         status, reason = INCOMPLETE_MARKET_CAP, "verified outstanding share count is unavailable"
@@ -205,7 +229,7 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     preferred = (row.get("is_preferred") is True
                  or row.get("share_type") == "preferred")
     inactive_preferred = preferred and not fresh_reported_cap and (
-        (age is not None and age > limit)
+        stale
         or (not row.get("last_trade_date") and row.get("inactive") is True
             and not _number(row.get("trade_count")) and not _number(row.get("volume")))
     )
@@ -218,6 +242,8 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
         "currency": row.get("currency") or "UZS",
         "price_age_days": age,
         "max_price_age_days": limit,
+        "price_basis": NEGOTIATED_EXECUTION if negotiated else "session",
+        "price_board": row.get("price_board") if negotiated else None,
         "shares_outstanding": shares,
         "shares_as_of": row.get("shares_as_of"),
         "shares_source": row.get("shares_source"),
@@ -337,6 +363,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
     cap_basis = "active_share_classes" if excluded else "issuer"
     cap_note = ("Без неактивных привилегированных акций: " + ", ".join(excluded)
                 if excluded else None)
+    deal_note = _negotiated_note(class_inputs)
     financial_period = result.get("base_period") or fundamentals.period_label(fin)
     financial_standard = (fin or {}).get("standard") or (fin or {}).get("form") or "NSBU"
     financial_scope = ((fin or {}).get("consolidation_scope")
@@ -401,6 +428,9 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
         if name in _CAP_METRICS and cap_note:
             metric["note"] = "; ".join(filter(None, [metric.get("note"), cap_note]))
             metric["excluded_classes"] = excluded
+        if name in _CAP_METRICS and deal_note and metric.get("value") is not None:
+            metric["note"] = "; ".join(filter(None, [metric.get("note"), deal_note]))
+            metric["estimate"] = True
         display_value = _display_value(name, metric, inputs, status)
         metric["display_value"] = display_value
         metric["display_warning"] = bool(
