@@ -6,6 +6,7 @@ import { EDNEWS_TX, edHeadline, interceptNav, newsArticlePath, newsRelTime } fro
 import { buildMarketStats, marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { marketRowDay } from "../../lib/valuation.js";
 import { CHANGE_PERIODS, CHANGE_PERIOD_KEY, changePeriodLabel } from "../../shared/marketPeriods.jsx";
+import { MarketMovers } from "../market/index.js";
 import { compact as fmtCompact, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "../../lib/format.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,7 +27,6 @@ const LANDING_TX = {
     boardTitle: "Итоги сессии",
     thSecurity: "Бумага", thPrice: "Цена, сум", thDay: "За день", th30d: "30 дней",
     footVolume: "Объём торгов", footUp: "Растёт", footDown: "Падает", footFlat: "Без изменения",
-    railGainers: "Лидеры дня", railLosers: "Аутсайдеры",
     s3Title: ["Каждая компания —", "с историей"],
     s3Sub: "Страница эмитента собирает всё, что о нём раскрыто официально, — и показывает это так, чтобы выводы напрашивались сами.",
     points: [
@@ -60,7 +60,6 @@ const LANDING_TX = {
     boardTitle: "Sessiya yakunlari",
     thSecurity: "Qog'oz", thPrice: "Narx, so'm", thDay: "Kunlik", th30d: "30 kun",
     footVolume: "Savdo hajmi", footUp: "O'sdi", footDown: "Tushdi", footFlat: "O'zgarishsiz",
-    railGainers: "Kun yetakchilari", railLosers: "Autsayderlar",
     s3Title: ["Har bir kompaniya —", "tarixi bilan"],
     s3Sub: "Emitent sahifasi u haqda rasman oshkor qilingan hamma narsani yig'adi — va xulosa o'z-o'zidan kelib chiqadigan qilib ko'rsatadi.",
     points: [
@@ -94,7 +93,6 @@ const LANDING_TX = {
     boardTitle: "Session results",
     thSecurity: "Security", thPrice: "Price, UZS", thDay: "1 day", th30d: "30 days",
     footVolume: "Turnover", footUp: "Up", footDown: "Down", footFlat: "Unchanged",
-    railGainers: "Top gainers", railLosers: "Top losers",
     s3Title: ["Every company —", "with its history"],
     s3Sub: "The issuer page gathers everything officially disclosed about a company — and lays it out so the conclusions suggest themselves.",
     points: [
@@ -377,17 +375,27 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
   // window's. `null` is a period the stored closes cannot reach — printed as a
   // dash, never as nought.
   const shownPct = (row) => (changePeriod === "1d" ? row.changePercent : periodPct(row.ticker));
-  const periodRail = React.useMemo(() => {
-    if (changePeriod === "1d") {
-      return { up: stats.topGainers.slice(0, 3), down: stats.topLosers.slice(0, 2) };
-    }
-    const pool = prepared
-      .map((r) => ({ row: r, pct: periodPct(r.ticker) }))
-      .filter((x) => Number.isFinite(x.pct));
-    return {
-      up: pool.filter((x) => x.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3).map((x) => x.row),
-      down: pool.filter((x) => x.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 2).map((x) => x.row),
-    };
+  // The /market leaders strip (рост · падение · ликвидность), over the same
+  // span as the board. A window is ranked the way /market ranks it: rows
+  // restated for the period, not filtered to who traded this morning.
+  const movers = React.useMemo(() => {
+    if (changePeriod === "1d") return stats;
+    const num = (v) => (Number.isFinite(v) ? v : null);
+    const rows = prepared.map((r) => {
+      const t = String(r.ticker || "").toUpperCase();
+      const st = ((changes[t] || {}).stats || {})[changePeriod] || null;
+      const pct = periodPct(r.ticker);
+      return {
+        ...r,
+        changePercent: num(pct),
+        periodPct: num(pct),
+        stockVolume: num(st?.value),
+        periodVolume: num(st?.value),
+        periodFrom: st?.from || (changes[t] || {})[changePeriod]?.from || null,
+        periodSessions: num(st?.sessions),
+      };
+    });
+    return buildMarketStats(rows, { windowed: true });
   }, [changePeriod, changes, prepared, stats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sparkKey = boardRows.map((r) => r.ticker).join(",");
@@ -539,6 +547,16 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
             <h2 className="lv-sec-title">{LT.s2Title[0]} <em>{LT.s2Title[1]}</em></h2>
           </div>
           <p className="lv-sec-sub lv-reveal">{LT.s2Sub}</p>
+          <div className="market-layout lv-movers lv-reveal">
+            <MarketMovers
+              viewMode="table"
+              periodMovers={movers}
+              lang={lang}
+              changePeriod={changePeriod}
+              onOpenCompany={onOpenCompany}
+              smap={securitiesMap || {}}
+            />
+          </div>
           <div className="lv-panel lv-reveal">
             <div className="lv-panel-body">
               <div className="lv-board">
@@ -591,22 +609,6 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
                   <span>{LT.footFlat} · <b>{stats.unchanged}</b></span>
                 </div>
               </div>
-              <aside className="lv-rail">
-                <h5>{LT.railGainers}{changePeriod !== "1d" && ` · ${changePeriodLabel(changePeriod, lang, "short")}`}</h5>
-                {periodRail.up.map((r) => (
-                  <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
-                    <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
-                    <span className="pc lv-u">{fmtPct(shownPct(r), lang, 2)}</span>
-                  </button>
-                ))}
-                <h5>{LT.railLosers}{changePeriod !== "1d" && ` · ${changePeriodLabel(changePeriod, lang, "short")}`}</h5>
-                {periodRail.down.map((r) => (
-                  <button type="button" className="lv-mover" key={r.ticker} onClick={() => onOpenCompany(r.ticker)}>
-                    <span className="lv-mover-id"><span className="lv-tk">{r.ticker}</span><span className="lv-nm">{nameOf(r.ticker)}</span></span>
-                    <span className="pc lv-d">{fmtPct(shownPct(r), lang, 2)}</span>
-                  </button>
-                ))}
-              </aside>
             </div>
           </div>
         </div>

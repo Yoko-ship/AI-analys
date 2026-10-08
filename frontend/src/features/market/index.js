@@ -2,3 +2,4 @@
 import { lazy } from "react";
 export const MarketView = lazy(() => import("./MarketView.jsx").then(module => ({ default: module.MarketView })));
 export { useMarketData } from "./useMarketData.jsx";
+export { MarketMovers } from "./MarketMovers.jsx";

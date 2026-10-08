@@ -26,8 +26,6 @@
   --lv-down: var(--danger);
   --lv-belt-bg: color-mix(in srgb, var(--bg-2) 88%, transparent);
   --lv-row-line: var(--border);
-  --lv-rail-bg: color-mix(in srgb, var(--bg) 58%, transparent);
-  --lv-mover-bg: color-mix(in srgb, var(--panel-elevated) 80%, transparent);
   --lv-step-bg: color-mix(in srgb, var(--surface-2) 84%, transparent);
   --lv-shadow: var(--shadow-xl);
   --lv-amber-soft: var(--accent-glow);
@@ -68,8 +66,6 @@
   --lv-down: var(--danger);
   --lv-belt-bg: var(--bg-2);
   --lv-row-line: var(--border);
-  --lv-rail-bg: color-mix(in srgb, var(--bg-2) 60%, transparent);
-  --lv-mover-bg: var(--panel);
   --lv-step-bg: var(--surface-2);
   --lv-shadow: var(--shadow-lg);
   --lv-amber-soft: var(--accent-glow);
@@ -190,8 +186,7 @@
   backdrop-filter: blur(12px); overflow: hidden;
   box-shadow: var(--lv-shadow);
 }
-.lv-panel-body { display: grid; grid-template-columns: 1fr 300px; }
-.lv-board { padding: 22px 24px; border-right: 1px solid var(--lv-line); min-width: 0; }
+.lv-board { padding: 22px 24px; min-width: 0; }
 .lv-board-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
 .lv-board-head h4 { margin: 0; font-size: 17.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .lv-ses { font-family: var(--lv-mono); font-size: 13.5px; color: var(--lv-ink-3); margin-left: auto; }
@@ -251,24 +246,8 @@
 }
 .lv-board-foot b { color: var(--lv-ink-2); font-weight: 600; }
 
-.lv-rail { padding: 22px 20px; background: var(--lv-rail-bg); }
-.lv-rail h5 { margin: 0 0 12px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--lv-amber); }
-.lv-rail h5 + .lv-mover ~ h5, .lv-rail .lv-mover + h5 { margin-top: 20px; }
-.lv-mover {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  border: 1px solid var(--lv-line); border-radius: 9px;
-  padding: 10px 12px; margin-bottom: 8px;
-  background: var(--lv-mover-bg);
-  color: inherit; font: inherit; text-align: left; cursor: pointer;
-  transition: border-color 0.2s;
-}
-.lv-mover:hover { border-color: var(--lv-amber-soft); }
-/* min-width:0 + a block name: the full legal names the catalog carries must
-   ellipsize INSIDE the card — an inline span ignores max-width and shoved the
-   percentage out through the card's border. */
-.lv-mover-id { flex: 1; min-width: 0; }
-.lv-mover-id .lv-nm { max-width: none; }
-.lv-mover .pc { flex: none; font-family: var(--lv-mono); font-size: 15px; font-weight: 600; }
+/* The /market leaders strip, styled by market.css under .market-layout. */
+.lv-movers { margin-bottom: 28px; }
 
 /* ── Компания ── */
 .lv-company-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 52px; align-items: center; }
@@ -365,8 +344,6 @@
 
 @media (max-width: 980px) {
   .lv-cue { display: none; }
-  .lv-panel-body { grid-template-columns: 1fr; }
-  .lv-board { border-right: none; }
   .lv-company-grid { grid-template-columns: 1fr; gap: 34px; }
   .lv-news-grid, .lv-steps { grid-template-columns: 1fr; }
   .lv-step { border-right: none; border-bottom: 1px solid var(--lv-line); }
