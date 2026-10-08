@@ -565,11 +565,11 @@ function BondCoveragePanel({ items, lang }) {
 // Issuer groups on the yield map (bonds.issuer_segment). Colour carries the
 // group, and the legend chips double as filters.
 const BOND_SEGMENTS = [
-  { key: "bank", color: "#3b82f6", label: ["Банки", "Banklar", "Banks"] },
-  { key: "mortgage", color: "#f97316", label: ["Ипотека и SPV", "Ipoteka va SPV", "Mortgage & SPV"] },
-  { key: "mfo", color: "#10b981", label: ["МФО и финкомпании", "MMT va moliya kompaniyalari", "Microfinance & finance cos"] },
-  { key: "leasing", color: "#a855f7", label: ["Лизинг", "Lizing", "Leasing"] },
-  { key: "corporate", color: "#eab308", label: ["Корпоративные", "Korporativ", "Corporates"] },
+  { key: "bank", color: "#2f74e8", label: ["Банки", "Banklar", "Banks"] },
+  { key: "mortgage", color: "#ea6a12", label: ["Ипотека и SPV", "Ipoteka va SPV", "Mortgage & SPV"] },
+  { key: "mfo", color: "#0ea371", label: ["МФО и финкомпании", "MMT va moliya kompaniyalari", "Microfinance & finance cos"] },
+  { key: "leasing", color: "#9b4de8", label: ["Лизинг", "Lizing", "Leasing"] },
+  { key: "corporate", color: "#d9a406", label: ["Корпоративные", "Korporativ", "Corporates"] },
 ];
 
 const bondSegment = (key) => BOND_SEGMENTS.find((sg) => sg.key === key) || BOND_SEGMENTS[4];
