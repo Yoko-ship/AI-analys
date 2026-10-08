@@ -43,6 +43,8 @@
     "KFSKP": {"isin": "UZ700110K018", "shares": 19300000, "par": 1, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "MCBA":  {"isin": "UZ7015230004", "shares": 6690255262, "par": 1068, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "MCBAP": {"isin": "UZ701523K011", "shares": 135000, "par": 1068, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
+    "UZIN":  {"isin": "UZ7056920018", "shares": 289341408, "par": 1000, "as_of": "2026-10-08", "source": "uzse isu_infos detail"},
+    "UZINP": {"isin": "UZ7056921008", "shares": 14110820, "par": 1000, "as_of": "2026-10-08", "source": "uzse isu_infos detail"},
     "BIOK":  {"isin": "UZ7025870005", "shares": 5713280, "par": 3350, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "TGMQ":  {"isin": "UZ7035630001", "shares": 615769, "par": 1000, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "MXUS":  {"isin": "UZ7012480008", "shares": 6297967, "par": 500, "as_of": "2026-10-07", "source": "uzse isu_infos detail"}

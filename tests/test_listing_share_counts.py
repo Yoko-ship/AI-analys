@@ -234,6 +234,7 @@ REGISTRY_CHARTERS = {
     ("TRSB", "TRSBP"): 2_000_500_000_000.0, ("UPOS", "UPOSP"): 52_563_506_760.0,
     ("UZAL", "UZALP"): 1_016_808_998_010.0, ("UZIR", "UZIRP"): 185_773_565_000.0,
     ("UZNG", "UZNGP"): 23_571_293_243_500.0, ("UZTL", "UZTLP"): 978_514_666_998.0,
+    ("UZIN", "UZINP"): 303_452_228_000.0,
 }
 
 
@@ -307,3 +308,27 @@ def test_a_registry_count_replaces_a_stale_stored_one() -> None:
     row = {"ticker": "BIOK", "nominal": 3350.0, "shares_outstanding": 5_713_280.0,
            "shares_source": "registry", "last_price": 14_400.0}
     assert store._plausible_shares("BIOK", row, (2_856_640.0, 3350.0)) is row
+
+
+def test_a_row_with_no_org_takes_no_cap_from_an_old_trade(tmp_path, monkeypatch) -> None:
+    """DRBK: a pinned ISIN carries no org, so the issuer check never saw it and
+    its 2019 trade at the 5 000 par stayed a 500 млрд cap — P/E 0,71×."""
+    import catalogue.schema as catalogue_schema
+    import catalogue.storage as catalogue_storage
+
+    monkeypatch.setattr(catalogue_storage, "_catalog_db_path", lambda: str(tmp_path / "c.db"))
+    conn = catalogue_storage.get_catalog_conn()
+    catalogue_schema._init_schema(conn)
+    conn.close()
+    _registry(monkeypatch, {})
+    drbk = {"ticker": "DRBK", "isin": "UZ7050240009", "shares_outstanding": 100_000_000.0,
+            "nominal": 5000.0, "last_price": 5000.0, "last_trade_date": "2019-10-31",
+            "market_cap": 500_000_000_000.0, "shares_source": "uzse",
+            "charter_capital": None, "org_id": None}
+    fresh = {**drbk, "ticker": "OCBK", "isin": "UZ7048610008", "last_price": 47000.0,
+             "last_trade_date": date.today().isoformat()}
+    store.bulk_upsert_listings([drbk, fresh])
+    listings = store.get_all_listings()
+    assert listings["DRBK"]["shares_outstanding"] == 100_000_000.0
+    assert listings["DRBK"]["market_cap"] is None
+    assert listings["OCBK"]["market_cap"] == 100_000_000.0 * 47000.0

@@ -38,7 +38,12 @@ class TestPreferredFlag:
     def test_the_override_is_a_list_of_names_not_a_pattern(self) -> None:
         """Every entry costs one deliberate decision. If this set ever starts
         growing by rule, the rule belongs in the feed, not here."""
-        assert securities_catalog._PREFERRED_OVERRIDE == {"UZINP"}
+        assert securities_catalog._PREFERRED_OVERRIDE == {"UZINP", "UZNGP"}
+
+    def test_uzngp_is_preferred_under_its_short_name(self) -> None:
+        """The catalog dropped «(привилегированные)» from UZNGP's name; alone it
+        printed P/E 0,04× off O'zbekneftgaz's whole profit (2026-10-08)."""
+        assert securities_catalog._preferred_flag("ordinary", "O'zbekneftgaz", "UZNGP") is True
 
     def test_the_override_is_case_and_space_insensitive(self) -> None:
         assert securities_catalog._preferred_flag("ordinary", "x", " uzinp ") is True

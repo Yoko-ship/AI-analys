@@ -261,9 +261,14 @@ BOND_ISSUER_LOGOS: dict[str, str] = {
 # carries no «привилегированные» either. COMPANY_TICKERS in company_catalog.py
 # has said «only the preferred (UZINP) is UZSE-listed» all along; the 2026-08-09
 # sweep grouped it with BNGP and got it wrong. BNGP really is ordinary — it has a
-# separate BNGPP — and must stay out of this set. UZNGP is the same failure as
-# UZINP with a name that gives it away, which the suffix rule below catches.
-_PREFERRED_OVERRIDE = {"UZINP"}
+# separate BNGPP — and must stay out of this set.
+#
+# UZNGP (O'zbekneftgaz, 2026-10-08) used to be caught by the name rule below,
+# but the catalog now names it plain «O'zbekneftgaz», so it read as ordinary,
+# missed its UZNG sibling and divided the whole company's profit by the
+# preferred float alone: P/E 0,04×. uzse.uz files UZ7036271003 under
+# «Привилегированные акции».
+_PREFERRED_OVERRIDE = {"UZINP", "UZNGP"}
 
 
 def _preferred_flag(share_type, name, ticker=None) -> bool:

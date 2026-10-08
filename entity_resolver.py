@@ -87,6 +87,10 @@ ORG_OVERRIDES: dict[str, str] = {
     # the server cannot reach. Pinned 2026-10-07 after checking card vs exchange.
     "UZPN": "150",
     "UZIN": "835", "UZINP": "835",
+    # Elektrqishloqqurilish (org 553, INN 200523561): the card lists EQQU at
+    # 162 897 shares x 5 000 = its 814 485 000 charter, but the walk never
+    # reached it, so the board had a price and no count. Pinned 2026-10-08.
+    "EQQU": "553",
 }
 
 # Explicit ticker -> ISIN pins for securities that openinfo's info_rfb and stock

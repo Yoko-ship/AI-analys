@@ -555,6 +555,27 @@ def _traded_within_days() -> int:
     return int(thresholds()["catalog"].get("inactive_after_days", 90))
 
 
+def _traded_cap(row: dict, shares: Any) -> float | None:
+    """A share class's cap, from a price it actually traded at inside the
+    board's activity window — never from its par or a years-old trade.
+
+    The reference price of a class that never trades is its par (AGMK at
+    3 914, UZNG at 500), and the downstream multiples take a listing's cap as
+    given, so a cap built on it is the V9 fiction. A pinned ISIN has no org to
+    group by and so missed this rule inside ``_charter_counts``: DRBK kept a
+    cap from a 2019 trade at its 5 000 par (P/E 0,71×), ORFI one from 2021.
+    """
+    try:
+        shares = float(shares) if shares else None
+        price = float(row.get("last_price") or 0) or None
+    except (TypeError, ValueError):
+        return None
+    traded = _parse_day(row.get("last_trade_date"))
+    if traded is None or (date.today() - traded).days > _traded_within_days():
+        price = None
+    return shares * price if shares and price and shares > 0 and price > 0 else None
+
+
 def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     """Hold one issuer's share counts to its charter capital.
 
@@ -593,16 +614,8 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     counts = [num(r.get("shares_outstanding")) for r in group]
     complete = None not in pars and None not in counts
     def with_count(row: dict, shares: float | None, source: str | None) -> dict:
-        # Only a price the class actually traded at, inside the board's activity
-        # window. The reference price of a class that never trades is its par
-        # (AGMK at 3 914, UZNG at 500), and the downstream multiples take a
-        # listing's cap as given — so a cap built on it is the V9 fiction.
-        price = num(row.get("last_price"))
-        traded = _parse_day(row.get("last_trade_date"))
-        if traded is None or (date.today() - traded).days > _traded_within_days():
-            price = None
         return {**row, "shares_outstanding": shares, "shares_source": source,
-                "market_cap": shares * price if shares and price else None}
+                "market_cap": _traded_cap(row, shares)}
 
     if complete and fits(sum(c * p for c, p in zip(counts, pars))):
         # The counts stand; the cap is rebuilt from a traded price all the same
@@ -681,6 +694,12 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
         for idx in issuers.values():
             for i, r in zip(idx, _charter_counts([judged[i] for i in idx], stored_by_ticker)):
                 judged[i] = r
+        # Every share's cap, grouped or not: rows with a pinned ISIN or no
+        # card carry no org, and a card whose counts it cannot judge comes back
+        # as it went in.
+        judged = [{**r, "market_cap": _traded_cap(r, r.get("shares_outstanding"))}
+                  if str(r.get("isin") or "").upper().startswith("UZ7") else r
+                  for r in judged]
         with conn:
             for r in judged:
                 ticker = r["ticker"]
