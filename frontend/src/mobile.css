@@ -1047,7 +1047,7 @@ iframe {
    the blocks below change shape; they lose the decoration a phone cannot afford
    and the movers move under the board. */
 @media (max-width: 760px) {
-  /* The kicker says "Рынок" directly above an h1 that says "Цены акций UZSE",
+  /* The kicker says "Рынок" directly above an h1 that says "Цены акций",
      under a topbar whose active tab already says "Рынок". The subtitle is
      another 77px explaining what a price table is. */
   .market-hero-panel {

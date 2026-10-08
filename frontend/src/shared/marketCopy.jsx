@@ -3,7 +3,7 @@ import { normalizeLanguage } from "./i18n.jsx";
 const MARKET_TEXTS = {
   ru: {
     nav: "Рынок",
-    title: "Цены акций UZSE",
+    title: "Цены акций",
     subtitle: "Актуальные цены, дневной диапазон и изменение к предыдущему закрытию",
     updated: "Обновлено",
     refresh: "Обновить",
@@ -105,7 +105,7 @@ const MARKET_TEXTS = {
   },
   en: {
     nav: "Market",
-    title: "UZSE stock prices",
+    title: "Stock prices",
     subtitle: "Latest prices, daily range, and change versus previous close",
     updated: "Updated",
     refresh: "Refresh",
@@ -207,7 +207,7 @@ const MARKET_TEXTS = {
   },
   uz: {
     nav: "Bozor",
-    title: "UZSE aksiya narxlari",
+    title: "Aksiya narxlari",
     subtitle: "So'nggi narxlar, kunlik oraliq va oldingi yopilish bilan farq",
     updated: "Yangilandi",
     refresh: "Yangilash",
