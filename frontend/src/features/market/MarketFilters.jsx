@@ -19,8 +19,6 @@ export function MarketFilters({
   dormantCount,
   inactiveOnly,
   setInactiveOnly,
-  query,
-  onQueryChange,
   exportCsv,
   exporting,
   exportError,
@@ -131,9 +129,6 @@ export function MarketFilters({
                 {` (${dormantCount})`}
               </span>
             </button>}
-          {viewMode === "table" && <label className="market-search">
-              <input value={query} onChange={event => onQueryChange(event.target.value)} placeholder={mt(lang, "search")} />
-            </label>}
           {viewMode === "table" && <button type="button" className="market-fav-filter market-export-btn" onClick={exportCsv} disabled={exporting} aria-busy={exporting} title={mt(lang, "exportCsv")}>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
               <span className="market-btn-label">{exporting ? lang === "en" ? "Preparing CSV…" : lang === "uz" ? "CSV tayyorlanmoqda…" : "Подготовка CSV…" : mt(lang, "exportCsv")}</span>

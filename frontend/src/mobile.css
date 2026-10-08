@@ -1066,6 +1066,10 @@ iframe {
   }
 
   .market-hero-actions {
+    width: 100%;
+  }
+
+  .market-hero-actions {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;

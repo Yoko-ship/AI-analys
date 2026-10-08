@@ -308,7 +308,7 @@ function MarketView({
   });
   const formatLeader = row => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
   return <section className="market-layout">
-      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} />
+      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
 
       {/* The FX strip and summary cards provide context for the visual map, but
           duplicate information available in the market table. Keep this block
@@ -382,8 +382,6 @@ function MarketView({
           dormantCount={dormantCount}
           inactiveOnly={inactiveOnly}
           setInactiveOnly={setInactiveOnly}
-          query={query}
-          onQueryChange={onQueryChange}
           exportCsv={startExport}
           exporting={exporting || loading || !rows.length}
           exportError={exportError}
