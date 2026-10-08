@@ -535,6 +535,28 @@ def _share_registry() -> dict[str, dict]:
     return _share_registry_memo
 
 
+_negotiated_memo: dict[str, dict] | None = None
+
+
+def _negotiated_executions() -> dict[str, dict]:
+    """ticker → the archived negotiated deal a price-less class is valued at.
+
+    ``negotiated_executions`` in config/share_registry.json; see its _about.
+    """
+    global _negotiated_memo
+    if _negotiated_memo is None:
+        import json
+
+        try:
+            with open(_SHARE_REGISTRY_PATH, encoding="utf-8") as fh:
+                deals = json.load(fh).get("negotiated_executions") or {}
+            _negotiated_memo = {str(t).upper(): v for t, v in deals.items()}
+        except (OSError, ValueError):
+            logging.getLogger(__name__).exception("share registry unreadable")
+            _negotiated_memo = {}
+    return _negotiated_memo
+
+
 def _parse_day(v: Any) -> date | None:
     """A trade date as the collector writes it: ISO, DD.MM.YYYY or YYYYMMDD."""
     from datetime import datetime

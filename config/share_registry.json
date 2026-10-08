@@ -1,12 +1,11 @@
 {
-  "_about": "Issued share count per class, from the exchange (uzse.uz /isu_infos/{isin}/detail, list_shrs) — which the server cannot reach. Two kinds of entry. (1) Issuers with more than one class: openinfo's charter capital gives the issuer's total (charter / par) but never the ordinary/preferred split, and its per-class list_shares are stale. Such an entry is used only while its classes' shares x par still add up to the charter capital openinfo publishes; once the charter moves, the entry stops fitting and the issuer's capitalisation is withheld until this file is updated. (2) Single-class issuers the listings walk cannot reach through an openinfo card (BIOK, TGMQ, MXUS): the fallback row takes the count from here when uzse.uz is off. BIOK fits the charter on openinfo org 396; TGMQ and MXUS have empty openinfo cards, so only the exchange's own total_capital backs them. Every entry was checked against the charter on the day it was read. An optional last_execution is the class's only exchange execution in openinfo's archive when the session feed has none (AGMK: a negotiated NC block); the multiples value the class at it as a flagged estimate, by customer decision 2026-10-08, until a session trade replaces it.",
+  "_about": "Issued share count per class, from the exchange (uzse.uz /isu_infos/{isin}/detail, list_shrs) — which the server cannot reach. Two kinds of entry. (1) Issuers with more than one class: openinfo's charter capital gives the issuer's total (charter / par) but never the ordinary/preferred split, and its per-class list_shares are stale. Such an entry is used only while its classes' shares x par still add up to the charter capital openinfo publishes; once the charter moves, the entry stops fitting and the issuer's capitalisation is withheld until this file is updated. (2) Single-class issuers the listings walk cannot reach through an openinfo card (BIOK, TGMQ, MXUS): the fallback row takes the count from here when uzse.uz is off. BIOK fits the charter on openinfo org 396; TGMQ and MXUS have empty openinfo cards, so only the exchange's own total_capital backs them. Every entry was checked against the charter on the day it was read.",
   "classes": {
     "ALKB":  {"isin": "UZ7044760005", "shares": 3674450046965, "par": 1, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
     "ALKBP": {"isin": "UZ704476K019", "shares": 3690000000, "par": 1, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
     "UZMK":  {"isin": "UZ7021720006", "shares": 593644242, "par": 5000, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
     "UZMKP": {"isin": "UZ702172K016", "shares": 151548393, "par": 5000, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
-    "AGMK":  {"isin": "UZ7000550002", "shares": 708620381, "par": 3914, "as_of": "2026-10-06", "source": "uzse isu_infos detail",
-              "last_execution": {"date": "2024-11-19", "price": 69499, "quantity": 175472021, "board": "NC", "source": "https://new-api.openinfo.uz/api/v2/iuzse/trade-results/?isu_cd=UZ7000550002"}},
+    "AGMK":  {"isin": "UZ7000550002", "shares": 708620381, "par": 3914, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
     "AGMKP": {"isin": "UZ700055K015", "shares": 8998232, "par": 3914, "as_of": "2026-10-06", "source": "uzse isu_infos detail"},
     "QATT":  {"isin": "UZ7034730000", "shares": 107316800, "par": 106, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "QATTP": {"isin": "UZ703473K017", "shares": 807200, "par": 106, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
@@ -49,5 +48,11 @@
     "BIOK":  {"isin": "UZ7025870005", "shares": 5713280, "par": 3350, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "TGMQ":  {"isin": "UZ7035630001", "shares": 615769, "par": 1000, "as_of": "2026-10-07", "source": "uzse isu_infos detail"},
     "MXUS":  {"isin": "UZ7012480008", "shares": 6297967, "par": 500, "as_of": "2026-10-07", "source": "uzse isu_infos detail"}
+  },
+  "_negotiated_executions_about": "A class the session feed has no dated price for, valued instead at its last execution in openinfo's archive (/iuzse/trade-results/?isu_cd=ISIN) — negotiated NC/T1 deals. By customer decision 2026-10-08 these count however old they are; every cap multiple built on one is flagged an estimate and names the deal. A session trade replaces the entry automatically.",
+  "negotiated_executions": {
+    "AGMK": {"isin": "UZ7000550002", "date": "2024-11-19", "price": 69499, "quantity": 175472021, "board": "NC", "source": "https://new-api.openinfo.uz/api/v2/iuzse/trade-results/?isu_cd=UZ7000550002"},
+    "MXUS": {"isin": "UZ7012480008", "date": "2026-06-19", "price": 5515.92, "quantity": 666420, "board": "T1", "source": "https://new-api.openinfo.uz/api/v2/iuzse/trade-results/?isu_cd=UZ7012480008"},
+    "UTHK": {"isin": "UZ7044930004", "date": "2026-04-27", "price": 4323.5, "quantity": 5323250, "board": "T1", "source": "https://new-api.openinfo.uz/api/v2/iuzse/trade-results/?isu_cd=UZ7044930004"}
   }
 }

@@ -450,9 +450,9 @@ def test_a_class_with_only_an_archived_negotiated_deal_is_valued_at_it(monkeypat
     import api
 
     monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
-    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_share_registry", lambda: {
-        "AGMK": {"last_execution": {"date": "2024-11-19", "price": 69499, "board": "NC",
-                                    "source": "https://openinfo.example/trade-results"}},
+    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_negotiated_executions", lambda: {
+        "AGMK": {"date": "2024-11-19", "price": 69499, "board": "NC",
+                 "source": "https://openinfo.example/trade-results"},
     })
     def scaled(row):  # a statement on the cap's scale (~7 mln), not the toy 1 000
         return {k: (v * 10_000 if isinstance(v, float) else scaled(v) if isinstance(v, dict) else v)
@@ -490,8 +490,8 @@ def test_a_session_trade_beats_the_archived_deal(monkeypatch):
     import api
 
     monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
-    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_share_registry", lambda: {
-        "AGMK": {"last_execution": {"date": "2024-11-19", "price": 69499, "board": "NC"}},
+    monkeypatch.setattr(subject_server_market_valuations.catalogue_market_store, "_negotiated_executions", lambda: {
+        "AGMK": {"date": "2024-11-19", "price": 69499, "board": "NC"},
     })
     today = date.today().isoformat()
     payload = subject_server_market_valuations._multiples_payload({
@@ -505,3 +505,13 @@ def test_a_session_trade_beats_the_archived_deal(monkeypatch):
     assert agmk["price"] == 50000.0
     assert agmk["price_basis"] == "session"
     assert payload["items"][0]["pe"].get("estimate") is not True
+
+
+def test_the_checked_in_negotiated_deals_match_their_classes():
+    from catalogue import market_store
+
+    deals = market_store._negotiated_executions()
+    assert set(deals) == {"AGMK", "MXUS", "UTHK"}
+    for ticker, deal in deals.items():
+        assert deal["isin"].startswith("UZ7") and deal["price"] > 0 and deal["board"] in {"NC", "T1"}
+        assert date.fromisoformat(deal["date"]) < date.today()
