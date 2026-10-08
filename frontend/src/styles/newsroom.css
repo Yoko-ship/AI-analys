@@ -13,7 +13,7 @@
 /* One compact row of tabs (customer, 2026-10-08): a segmented bar, the active
    tab filled. Ten headings do not fit a phone, so the row pans sideways
    instead of wrapping into a ragged second line. */
-.newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; margin-bottom: 0; }
+.newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; margin-bottom: 14px; }
 .newsdesk-tabs::-webkit-scrollbar { display: none; }
 .newsdesk-tab { appearance: none; flex: 0 0 auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; cursor: pointer; transition: background-color .12s, color .12s; }
 .newsdesk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -195,3 +195,6 @@
 @media (prefers-reduced-motion: reduce) {
   .newsdesk-loading-lead, .newsdesk-loading-side, .newsdesk-loading-feed { animation: none; }
 }
+/* The calendar's own sub-tabs pulled themselves up under the old underline
+   tabs; under the boxed tab bar they keep the bar's own spacing instead. */
+.led.newsdesk .news-subtabs { margin-top: 0; }
