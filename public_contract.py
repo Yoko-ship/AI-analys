@@ -161,7 +161,8 @@ def _negotiated_note(class_inputs: Sequence[dict[str, Any]]) -> str | None:
         parts.append(
             f"{item.get('ticker')} — по сделке {day.strftime('%d.%m.%Y') if day else '?'}"
             + (f" ({item['price_board']})" if item.get("price_board") else "")
-            + (", " + f"{price:,.0f}".replace(",", " ") + " сум" if price else ""))
+            + (", " + f"{price:,.2f}".rstrip("0").rstrip(".").replace(",", " ").replace(".", ",")
+               + " сум" if price else ""))
     return ("Капитализация оценена по внебиржевой сделке: " + "; ".join(parts)) if parts else None
 
 
