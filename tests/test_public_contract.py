@@ -482,7 +482,7 @@ def test_a_class_with_only_an_archived_negotiated_deal_is_valued_at_it(monkeypat
     assert row["market_cap_issuer"]["value"] == 100.0 * 69499 + 10.0 * 31850
     assert row["pe"]["value"] == pytest.approx((100.0 * 69499 + 10.0 * 31850) / 2_000_000.0, rel=1e-3)
     assert row["pe"]["estimate"] is True
-    assert "по сделке 19.11.2024 (NC)" in row["pe"]["note"]
+    assert "по сделке 19.11.2024 (NC), 69 499 сум" in row["pe"]["note"]
     assert row["roe"].get("estimate") is not True
 
 
