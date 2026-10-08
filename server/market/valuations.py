@@ -289,6 +289,29 @@ _BOARD_METRIC_FIELDS = (
 )
 
 
+_BOARD_CLASS_INPUT_FIELDS = (
+    # Just what the cell needs to say WHICH class blocks the issuer cap and
+    # why («нет торгов AGMK», «цена от 31.10.2019») instead of a bare
+    # «нет капитализации» beside a class cap the reader can see.
+    "ticker", "price_as_of", "price_age_days", "max_price_age_days",
+    "limitation_reason", "usable_for_issuer_cap", "market_cap",
+)
+
+
+def _board_issuer_cap(cap: Any) -> dict[str, Any] | None:
+    """The issuer-cap gap, trimmed for the board; None when nothing is missing."""
+    if not isinstance(cap, dict) or cap.get("status") != "incomplete":
+        return None
+    return {
+        "status": "incomplete",
+        "missing_classes": list(cap.get("missing_classes") or []),
+        "class_inputs": [
+            {key: item[key] for key in _BOARD_CLASS_INPUT_FIELDS if key in item}
+            for item in (cap.get("class_inputs") or []) if isinstance(item, dict)
+        ],
+    }
+
+
 def _board_multiples_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """The small, table-safe form of the multiples contract.
 
@@ -307,6 +330,9 @@ def _board_multiples_payload(payload: dict[str, Any]) -> dict[str, Any]:
                               if key in metric}
             else:
                 row[field] = metric
+        issuer_cap = _board_issuer_cap(source.get("market_cap_issuer"))
+        if issuer_cap:
+            row["market_cap_issuer"] = issuer_cap
         items.append(row)
     return {
         "ok": True,

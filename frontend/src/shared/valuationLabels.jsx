@@ -100,8 +100,10 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
   const details = unavailable.map((item) => {
     const name = String(item?.ticker || "").toUpperCase() || "—";
     const date = item?.price_as_of ? String(item.price_as_of) : null;
-    const age = Number.isFinite(Number(item?.price_age_days)) ? Number(item.price_age_days) : null;
-    const maximum = Number.isFinite(Number(item?.max_price_age_days)) ? Number(item.max_price_age_days) : null;
+    // Number(null) is 0: a class that never traded must not read «0 дн.».
+    const age = item?.price_as_of && item?.price_age_days != null && Number.isFinite(Number(item.price_age_days))
+      ? Number(item.price_age_days) : null;
+    const maximum = age != null && Number.isFinite(Number(item?.max_price_age_days)) ? Number(item.max_price_age_days) : null;
     const ageText = age != null
       ? (lang === "ru" ? `${age} дн.` : lang === "uz" ? `${age} kun` : `${age} days`)
       : null;
@@ -110,7 +112,7 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
       : null;
     return [name, date, [ageText, limitText].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   });
-  const classes = details.length ? details.join("; ") : classNames.join(", ");
+  const classes = (details.length ? details.join("; ") : classNames.join(", ")).replace(/\.$/, "");
   const label = missingCapReason(unavailable, lang);
 
   if (lang === "uz") {
