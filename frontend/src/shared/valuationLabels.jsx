@@ -54,6 +54,35 @@ function multipleStatusText(status, lang) {
 // for KSCM/KSCMP and for every other multi-class issuer.  The API supplies the
 // class inputs, so this explanation is derived from live data rather than a
 // ticker-specific exception.
+// The cell names what is actually missing, so a reader sees «нет торгов AGMK»
+// (the ordinary line never traded — no price exists to value it at) or
+// «цена от 31.10.2019» (DRBK's last trade is too old for a multiple) rather
+// than a bare «нет капитализации».
+function missingCapReason(unavailable, lang) {
+  const words = {
+    never: ["нет торгов", "savdo yo'q", "never traded"],
+    stale: ["цена от", "narx", "price of"],
+    shares: ["нет числа акций", "aksiyalar soni yo'q", "no share count"],
+  };
+  const pick = (key) => words[key][lang === "uz" ? 1 : lang === "en" ? 2 : 0];
+  const ruDate = (iso) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : String(iso || "");
+  };
+  const parts = [];
+  const never = [];
+  for (const item of unavailable) {
+    const name = String(item?.ticker || "").toUpperCase();
+    const reason = String(item?.limitation_reason || "");
+    if (!item?.price_as_of && reason.includes("price")) never.push(name);
+    else if (item?.price_as_of && Number(item?.price_age_days) > Number(item?.max_price_age_days)) {
+      parts.push(`${pick("stale")} ${ruDate(item.price_as_of)}${unavailable.length > 1 ? ` (${name})` : ""}`);
+    } else if (reason.includes("share count")) parts.push(`${pick("shares")} ${name}`);
+  }
+  if (never.length) parts.unshift(`${pick("never")} ${never.join(", ")}`);
+  return parts.length ? parts.join("; ") : null;
+}
+
 function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
   if (metric?.status !== "no_market_cap" || issuerCap?.status !== "incomplete") return null;
 
@@ -82,21 +111,22 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
     return [name, date, [ageText, limitText].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   });
   const classes = details.length ? details.join("; ") : classNames.join(", ");
+  const label = missingCapReason(unavailable, lang);
 
   if (lang === "uz") {
     return {
-      label: "emitent kapitalizatsiyasi to'liq emas",
+      label: label || "emitent kapitalizatsiyasi to'liq emas",
       title: `${ownCapAvailable ? `${currentTicker} kapitalizatsiyasi mavjud. ` : ""}Emitentning P/E, P/B va P/S ko'rsatkichlari uchun ${classes} bo'yicha yangiroq narx kerak.`,
     };
   }
   if (lang === "en") {
     return {
-      label: "issuer market cap incomplete",
+      label: label || "issuer market cap incomplete",
       title: `${ownCapAvailable ? `${currentTicker} market cap is available. ` : ""}A current price for ${classes} is required to calculate issuer P/E, P/B and P/S.`,
     };
   }
   return {
-    label: "неполная капитализация эмитента",
+    label: label || "неполная капитализация эмитента",
     title: `${ownCapAvailable ? `Капитализация ${currentTicker} доступна. ` : ""}Для расчёта P/E, P/B и P/S эмитента нужна свежая цена ${classes}.`,
   };
 }

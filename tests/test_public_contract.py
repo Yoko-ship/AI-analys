@@ -90,19 +90,38 @@ def test_openinfo_reported_cap_is_usable_without_a_trade_quote():
     assert got["market_cap_source"] == "openinfo_listing"
 
 
-def test_openinfo_reported_cap_replaces_a_stale_price_reconstruction():
+def test_a_listing_cap_on_a_stale_trade_is_refused_like_any_stale_price():
+    """DRBK: shares x its 2019 trade at par stayed on the board as a cap and
+    printed P/E 0,71×. The board may show it; the multiples may not use it."""
     got = contract.market_class_input({
-        "ticker": "ACMEP",
+        "ticker": "ACME",
         "last_price": 10.0,
         "last_trade_date": "2025-02-26",
         "shares_outstanding": 25.0,
-        "market_cap": 275.0,
+        "market_cap": 250.0,
         "market_cap_source": "openinfo_listing",
     }, reference_date=TODAY)
 
-    assert got["calculation_status"] == contract.CALCULATED
-    assert got["market_cap"] == 275.0
-    assert got["price_age_days"] > got["max_price_age_days"]
+    assert got["calculation_status"] == contract.STALE_PRICE
+    assert got["market_cap"] is None and got["reported_market_cap"] == 250.0
+    assert got["included_in_issuer_cap"] is True
+
+
+def test_a_stale_preferred_listing_cap_leaves_the_issuer_cap():
+    """IPKYP: last trade 2025-02-26. Like any inactive preferred class it is out
+    of the issuer cap rather than blocking the traded ordinary."""
+    got = contract.market_class_input({
+        "ticker": "ACMEP",
+        "is_preferred": True,
+        "last_price": 10.0,
+        "last_trade_date": "2025-02-26",
+        "shares_outstanding": 25.0,
+        "market_cap": 250.0,
+        "market_cap_source": "openinfo_listing",
+    }, reference_date=TODAY)
+
+    assert got["included_in_issuer_cap"] is False
+    assert got["exclusion_reason"] == "inactive_preferred"
 
 
 @pytest.mark.parametrize("metadata", [
@@ -273,9 +292,10 @@ def test_api_uses_openinfo_cap_for_all_issuer_classes(monkeypatch):
     })
 
     ordinary = next(row for row in payload["items"] if row["ticker"] == "ACME")
-    assert ordinary["market_cap_issuer"]["value"] == 1_025.0
+    # ACMEP last traded 2025-02-26: an inactive preferred class, out of the cap.
+    assert ordinary["market_cap_issuer"]["value"] == 1_000.0
     assert ordinary["market_cap_issuer"]["calculation_status"] == contract.CALCULATED
-    assert ordinary["pe"]["value"] == 5.125
+    assert ordinary["pe"]["value"] == 5.0
     assert {item["market_cap_method"]
             for item in ordinary["market_cap_issuer"]["class_inputs"]} == {"source_reported"}
 

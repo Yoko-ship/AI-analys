@@ -169,7 +169,13 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     )
 
     age = (ref - traded).days if traded else None
-    if source_reported_cap:
+    # The listing's cap is shares x the class's last trade, however old: the
+    # board shows it. The multiples take it only while that trade is inside
+    # the window — DRBK's 2019 trade at par printed P/E 0,71×, ORFI's 2021 one
+    # 1,61×. A stale class is then refused like any stale price below.
+    stale = age is not None and age > limit
+    fresh_reported_cap = source_reported_cap and not stale
+    if fresh_reported_cap:
         status, reason = CALCULATED, None
     elif row.get("last_trade_date") and traded is None:
         status, reason = DATA_CONFLICT, "unreadable last trade date"
@@ -194,11 +200,11 @@ def market_class_input(row: dict[str, Any], *, shares_outstanding: Any = None,
     # Use the same 90-day activity boundary as the instrument catalog. An
     # inactive preferred class must not block valuation of the traded ordinary
     # class. Missing data alone is not evidence of inactivity. A class whose
-    # capitalisation OpenInfo reports directly does not block anything, so it
+    # listing cap rests on a current trade does not block anything, so it
     # stays in the issuer cap.
     preferred = (row.get("is_preferred") is True
                  or row.get("share_type") == "preferred")
-    inactive_preferred = preferred and not source_reported_cap and (
+    inactive_preferred = preferred and not fresh_reported_cap and (
         (age is not None and age > limit)
         or (not row.get("last_trade_date") and row.get("inactive") is True
             and not _number(row.get("trade_count")) and not _number(row.get("volume")))

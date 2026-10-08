@@ -548,30 +548,21 @@ def _parse_day(v: Any) -> date | None:
     return None
 
 
-def _traded_within_days() -> int:
-    """The board's activity window — the same limit the multiples apply."""
-    from formulas import thresholds
-
-    return int(thresholds()["catalog"].get("inactive_after_days", 90))
-
-
 def _traded_cap(row: dict, shares: Any) -> float | None:
-    """A share class's cap, from a price it actually traded at inside the
-    board's activity window — never from its par or a years-old trade.
+    """A share class's cap, from a price it actually traded at — never its par.
 
     The reference price of a class that never trades is its par (AGMK at
-    3 914, UZNG at 500), and the downstream multiples take a listing's cap as
-    given, so a cap built on it is the V9 fiction. A pinned ISIN has no org to
-    group by and so missed this rule inside ``_charter_counts``: DRBK kept a
-    cap from a 2019 trade at its 5 000 par (P/E 0,71×), ORFI one from 2021.
+    3 914, UZNG at 500): a cap built on it is the V9 fiction, so a class with
+    no trade date gets none. An old trade is still a trade: its cap is shown
+    on the board, and the multiples refuse it as a stale price on their own
+    (``public_contract.market_class_input``).
     """
     try:
         shares = float(shares) if shares else None
         price = float(row.get("last_price") or 0) or None
     except (TypeError, ValueError):
         return None
-    traded = _parse_day(row.get("last_trade_date"))
-    if traded is None or (date.today() - traded).days > _traded_within_days():
+    if _parse_day(row.get("last_trade_date")) is None:
         price = None
     return shares * price if shares and price and shares > 0 and price > 0 else None
 
@@ -694,9 +685,9 @@ def bulk_upsert_listings(rows: list[dict]) -> int:
         for idx in issuers.values():
             for i, r in zip(idx, _charter_counts([judged[i] for i in idx], stored_by_ticker)):
                 judged[i] = r
-        # Every share's cap, grouped or not: rows with a pinned ISIN or no
-        # card carry no org, and a card whose counts it cannot judge comes back
-        # as it went in.
+        # Every share's cap, grouped or not — no cap at par: rows with a pinned
+        # ISIN or no card carry no org, and a card whose counts it cannot judge
+        # comes back as it went in.
         judged = [{**r, "market_cap": _traded_cap(r, r.get("shares_outstanding"))}
                   if str(r.get("isin") or "").upper().startswith("UZ7") else r
                   for r in judged]

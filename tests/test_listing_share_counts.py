@@ -213,12 +213,13 @@ def test_a_class_that_never_trades_gets_its_count_but_no_cap_at_par(monkeypatch)
     assert preferred["market_cap"] == 24_437_863.0 * 5400.0
 
 
-def test_a_price_older_than_the_activity_window_builds_no_cap(monkeypatch) -> None:
+def test_an_old_trade_still_builds_the_class_cap(monkeypatch) -> None:
+    """An old trade is a trade: the board shows its cap, the multiples refuse it."""
     _registry(monkeypatch, {})
     row = _cls("X", "UZ7000000001", 1_000_000.0, 5000.0, 25_000_000_000.0, classes=1,
                price=6000.0, traded="2019-03-01")
     (out,) = store._charter_counts([row], {})
-    assert out["shares_outstanding"] == 5_000_000.0 and out["market_cap"] is None
+    assert out["shares_outstanding"] == 5_000_000.0 and out["market_cap"] == 5_000_000.0 * 6000.0
 
 
 # openinfo's ustav_capitalization on the day each entry was read from uzse.uz.
@@ -310,9 +311,9 @@ def test_a_registry_count_replaces_a_stale_stored_one() -> None:
     assert store._plausible_shares("BIOK", row, (2_856_640.0, 3350.0)) is row
 
 
-def test_a_row_with_no_org_takes_no_cap_from_an_old_trade(tmp_path, monkeypatch) -> None:
-    """DRBK: a pinned ISIN carries no org, so the issuer check never saw it and
-    its 2019 trade at the 5 000 par stayed a 500 млрд cap — P/E 0,71×."""
+def test_a_row_with_no_org_takes_no_cap_at_par(tmp_path, monkeypatch) -> None:
+    """Pinned ISINs carry no org, so the issuer check never sees them: the
+    no-cap-at-par rule has to hold for them too. An old real trade still counts."""
     import catalogue.schema as catalogue_schema
     import catalogue.storage as catalogue_storage
 
@@ -325,13 +326,13 @@ def test_a_row_with_no_org_takes_no_cap_from_an_old_trade(tmp_path, monkeypatch)
             "nominal": 5000.0, "last_price": 5000.0, "last_trade_date": "2019-10-31",
             "market_cap": 500_000_000_000.0, "shares_source": "uzse",
             "charter_capital": None, "org_id": None}
-    fresh = {**drbk, "ticker": "OCBK", "isin": "UZ7048610008", "last_price": 47000.0,
-             "last_trade_date": date.today().isoformat()}
-    store.bulk_upsert_listings([drbk, fresh])
+    par = {**drbk, "ticker": "OCBK", "isin": "UZ7048610008", "last_price": 1000.0,
+           "reference_price": 1000.0, "last_trade_date": None}
+    store.bulk_upsert_listings([drbk, par])
     listings = store.get_all_listings()
-    assert listings["DRBK"]["shares_outstanding"] == 100_000_000.0
-    assert listings["DRBK"]["market_cap"] is None
-    assert listings["OCBK"]["market_cap"] == 100_000_000.0 * 47000.0
+    assert listings["DRBK"]["market_cap"] == 500_000_000_000.0
+    assert listings["OCBK"]["shares_outstanding"] == 100_000_000.0
+    assert listings["OCBK"]["market_cap"] is None
 
 
 def _search(monkeypatch, results, cards):
