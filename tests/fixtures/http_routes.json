@@ -1032,6 +1032,14 @@
     "dependencies": []
   },
   {
+    "path": "/api/news/calendar/events",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_events",
+    "dependencies": []
+  },
+  {
     "path": "/api/news/calendar/announcements",
     "methods": [
       "GET"
@@ -3079,6 +3087,14 @@
       "GET"
     ],
     "name": "api_news_calendar_meetings__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/calendar/events",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_news_calendar_events",
     "dependencies": []
   },
   {

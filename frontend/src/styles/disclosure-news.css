@@ -108,72 +108,205 @@ body[data-theme="light"] .heatmap-tree-tile.is-inactive {
 .led .news-subtab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .led .news-subtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* «Календарь» tab: month grid of announced meetings + market dividend table.
-   Token-driven like the rest of the news page; the grid borrows the calendar
-   idiom openinfo's readers already know — cells, day chips, a «+N» overflow. */
-.led .newscal-hint { font-size: 12.5px; margin: -16px 0 18px; }
-.led .newscal-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; }
-.led .newscal-nav { display: flex; align-items: center; gap: 8px; }
-.led .newscal-month { font-family: var(--led-serif); font-size: 19px; color: var(--text); min-width: 168px; text-align: center; text-transform: capitalize; }
-.led .newscal-arrow { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; transition: all .12s ease; }
-.led .newscal-arrow:hover { border-color: var(--accent); color: var(--accent); }
-.led .newscal-select { appearance: auto; font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; text-transform: capitalize; }
-.led .newscal-select:hover { border-color: var(--accent); }
+/* «Календарь» tab: every dated corporate event on one grid — month, week or
+   list — coloured by type. Token-driven like the rest of the news page; the six
+   type hues are the only colours of its own, chosen to stay apart from each
+   other in both themes and never to be the only cue (every pill also says what
+   it is, in text or in the legend beside it). */
+.led .newscal {
+  --ev-meeting: #6d5bd0; --ev-dividend: #0f9f6e; --ev-report: #2563eb;
+  --ev-fact: #c47a10; --ev-notice: #64748b; --ev-listing: #c2417a;
+}
+body[data-theme="dark"] .led .newscal {
+  --ev-meeting: #a497f5; --ev-dividend: #34d399; --ev-report: #60a5fa;
+  --ev-fact: #fbbf24; --ev-notice: #94a3b8; --ev-listing: #f472b6;
+}
+.led .newscal .ev-meeting { --ev: var(--ev-meeting); }
+.led .newscal .ev-dividend { --ev: var(--ev-dividend); }
+.led .newscal .ev-report { --ev: var(--ev-report); }
+.led .newscal .ev-fact { --ev: var(--ev-fact); }
+.led .newscal .ev-notice { --ev: var(--ev-notice); }
+.led .newscal .ev-listing { --ev: var(--ev-listing); }
+.led .newscal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ev, var(--accent)); flex: 0 0 8px; }
+.led .newscal button { font: inherit; }
+
+/* Coming up */
+.led .newscal-upcoming { margin: -6px 0 22px; }
+.led .newscal-upcoming h3, .led .newscal-listhead h3 { font-family: var(--led-serif); font-size: 17px; font-weight: 600; color: var(--text); margin: 0 0 10px; text-transform: none; }
+.led .newscal-upcoming-empty { font-size: 12.5px; margin: 0; }
+.led .newscal-up-track { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+.led .newscal-up-card { appearance: none; text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 11px 13px 12px; border-radius: 12px;
+  border: 1px solid var(--border); border-top: 3px solid var(--ev); background: var(--panel); color: var(--text); cursor: pointer; scroll-snap-align: start; transition: border-color .12s ease, transform .12s ease; }
+.led .newscal-up-card:hover { border-color: var(--ev); transform: translateY(-1px); }
+.led .newscal-up-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.led .newscal-up-when { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.led .newscal-up-when strong { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+.led .newscal-up-type { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ev); }
+.led .newscal-up-org { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .newscal-up-title { font-size: 12px; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Navigation and filters */
+.led .newscal-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+.led .newscal-nav { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.led .newscal-month { font-family: var(--led-serif); font-size: 19px; font-weight: 600; color: var(--text); margin: 0 0 0 8px; text-transform: capitalize; white-space: nowrap; }
+.led .newscal-arrow { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 16px; line-height: 1; transition: all .12s ease; }
+.led .newscal-arrow:hover, .led .newscal-today:hover { border-color: var(--accent); color: var(--accent); }
+.led .newscal-today { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; height: 32px; padding: 0 12px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
 .led .newscal-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-.led .newscal-toggle-btn { appearance: none; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 14px; color: var(--muted); cursor: pointer; transition: all .12s ease; }
+.led .newscal-toggle-btn { appearance: none; border: 0; background: none; font-size: 12.5px; font-weight: 600; padding: 6px 15px; color: var(--muted); cursor: pointer; transition: all .12s ease; }
 .led .newscal-toggle-btn.active { background: var(--accent); color: #fff; }
-.led .newscal-search { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 200px; }
-.led .newscal-search:focus { outline: none; border-color: var(--accent); }
+.led .newscal-filters { display: flex; flex-direction: column; gap: 10px; margin: 0 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2, var(--panel)); }
+.led .newscal-types { display: flex; flex-wrap: wrap; gap: 6px; }
+.led .newscal-type { appearance: none; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--muted); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .12s ease; }
+.led .newscal-type:not(.on) .newscal-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ev); }
+.led .newscal-type.on { color: var(--text); border-color: var(--ev, var(--accent)); box-shadow: inset 0 0 0 1px var(--ev, var(--accent)); }
+.led .newscal-type.all.on { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+.led .newscal-type:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.led .newscal-type-n { font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.led .newscal-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.led .newscal-search { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 220px; flex: 1 1 220px; max-width: 340px; }
+.led .newscal-search:focus, .led .newscal-range input:focus { outline: none; border-color: var(--accent); }
 .led .newscal-search::placeholder { color: var(--muted); }
-.led .newscal-mh { font-family: var(--led-serif); font-size: 17px; color: var(--text); text-transform: capitalize; padding: 16px 4px 6px; border-bottom: 2px solid var(--text); }
-.led .newscal-pager { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 12.5px; }
-.led .newscal-psize { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; }
-.led .newscal-pnums { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.led .newscal-pnum { appearance: none; border: 1px solid var(--border); background: none; color: var(--text); border-radius: 8px; min-width: 30px; height: 30px; padding: 0 6px; cursor: pointer; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; transition: all .12s ease; }
-.led .newscal-pnum:hover { border-color: var(--accent); color: var(--accent); }
-.led .newscal-pnum.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.led .newscal-sortth { cursor: pointer; user-select: none; white-space: nowrap; }
-.led .newscal-sortth:hover { color: var(--accent); }
-.led .newscal-anntitle { font-size: 12.5px; line-height: 1.45; max-width: 48ch; }
+.led .newscal-range { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.led .newscal-range input { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); color-scheme: light dark; }
+.led .newscal-warn { font-size: 12.5px; color: var(--warning, #b45309); margin: 0 0 12px; }
+
+/* Month */
 /* minmax(0,1fr), not 1fr: a bare 1fr track's min-size is the content, so one
    long nowrap issuer chip widened its column until the weekend fell out of the
    clipped container — seven equal tracks require the min to be 0. */
 .led .newscal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .led .newscal-dow { background: var(--surface-2, var(--panel)); padding: 7px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
-.led .newscal-cell { appearance: none; border: 0; font: inherit; text-align: left; background: var(--panel); min-height: 84px; padding: 6px 8px; color: var(--text); position: relative; display: block; width: 100%; }
+.led .newscal-cell { background: var(--panel); min-height: 96px; padding: 5px 6px 6px; color: var(--text); position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.led .newscal-cell.out { background: var(--surface-2, var(--panel)); }
+.led .newscal-cell.out .newscal-daynum { opacity: .45; }
+.led .newscal-cell.past:not(.today) .newscal-pill { opacity: .62; }
 .led .newscal-cell.has-events { cursor: pointer; }
 .led .newscal-cell.has-events:hover { background: var(--surface-2, rgba(127,127,127,.08)); }
 .led .newscal-cell.selected { box-shadow: inset 0 0 0 2px var(--accent); }
-.led .newscal-daynum { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.led .newscal-cell.today .newscal-daynum { color: var(--accent); font-weight: 800; }
-.led .newscal-count { display: none; position: absolute; top: 6px; right: 7px; font-size: 10px; font-weight: 700; color: var(--accent); }
-.led .newscal-chip { display: block; font-size: 11px; line-height: 1.35; margin-top: 4px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.led .newscal-chip::before { content: "•"; color: var(--accent); margin-right: 4px; }
-.led .newscal-more { display: block; font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 600; }
-.led .newscal-list { margin-top: 20px; display: flex; flex-direction: column; }
-.led .newscal-row { display: flex; gap: 14px; padding: 11px 4px; border-bottom: 1px solid var(--border); align-items: baseline; }
+.led .newscal-cell.today { box-shadow: inset 0 3px 0 var(--accent); }
+.led .newscal-cell.today.selected { box-shadow: inset 0 0 0 2px var(--accent), inset 0 3px 0 var(--accent); }
+.led .newscal-daynum { appearance: none; border: 0; background: none; padding: 0 3px; align-self: flex-start; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; border-radius: 6px; cursor: pointer; }
+.led .newscal-daynum:disabled { cursor: default; }
+.led .newscal-daynum:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.led .newscal-cell.today .newscal-daynum { background: var(--accent); color: #fff; font-weight: 800; }
+.led .newscal-count { position: absolute; top: 6px; right: 7px; font-size: 10px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.led .newscal-dots { display: none; gap: 3px; flex-wrap: wrap; }
+.led .newscal-dots .newscal-dot { width: 6px; height: 6px; flex-basis: 6px; }
+.led .newscal-pill { appearance: none; display: block; width: 100%; text-align: left; border: 0; border-left: 3px solid var(--ev); border-radius: 4px; padding: 2px 5px;
+  background: color-mix(in srgb, var(--ev) 13%, transparent); color: var(--text); font-size: 11px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.led .newscal-pill:hover { background: color-mix(in srgb, var(--ev) 24%, transparent); }
+.led .newscal-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.led .newscal-more { appearance: none; border: 0; background: none; padding: 0 3px; text-align: left; font-size: 11px; color: var(--accent); font-weight: 700; cursor: pointer; }
+.led .newscal-listhead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 22px 0 4px; }
+.led .newscal-listhead h3 { margin: 0; text-transform: capitalize; }
+
+/* Week */
+.led .newscal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.led .newscal-wday { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); min-height: 180px; }
+.led .newscal-wday.today { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+.led .newscal-wday.past .newscal-wev { opacity: .7; }
+.led .newscal-wday header { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.led .newscal-wday-name { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.led .newscal-wday-date { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.led .newscal-wday.today .newscal-wday-date { color: var(--accent); }
+.led .newscal-wday-empty { color: var(--muted); font-size: 12px; }
+.led .newscal-wday-more { appearance: none; border: 0; background: none; padding: 2px 0; text-align: left; font-size: 12px; font-weight: 700; color: var(--accent); cursor: pointer; }
+.led .newscal-wev { appearance: none; text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 6px 7px; border: 0; border-left: 3px solid var(--ev); border-radius: 6px;
+  background: color-mix(in srgb, var(--ev) 10%, transparent); color: var(--text); cursor: pointer; min-width: 0; }
+.led .newscal-wev:hover { background: color-mix(in srgb, var(--ev) 20%, transparent); }
+.led .newscal-wev:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.led .newscal-wev-type { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--ev); }
+.led .newscal-wev-type .newscal-dot { display: none; }
+.led .newscal-wev-org { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.led .newscal-wev-title { font-size: 11.5px; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* List */
+.led .newscal-list { margin-top: 6px; display: flex; flex-direction: column; }
+.led .newscal-mh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-family: var(--led-serif); font-size: 16px; color: var(--text); padding: 18px 4px 6px; border-bottom: 2px solid var(--text); }
+.led .newscal-mh > span:first-child { text-transform: capitalize; }
+.led .newscal-mh.is-today { border-bottom-color: var(--accent); color: var(--accent); }
+.led .newscal-mh-rel { font-family: inherit; font-size: 12px; color: var(--muted); }
+.led .newscal-now { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--accent); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.led .newscal-now::before, .led .newscal-now::after { content: ""; flex: 1; height: 2px; background: var(--accent); }
+.led .newscal-row { appearance: none; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--border); color: var(--text);
+  display: flex; gap: 14px; padding: 11px 4px; align-items: baseline; cursor: pointer; }
 .led .newscal-row:last-child { border-bottom: none; }
-.led a.newscal-news-row { color: inherit; text-decoration: none; cursor: pointer; }
-.led a.newscal-news-row:hover .newscal-row-org,
-.led a.newscal-news-row:hover .newscal-row-title { color: var(--accent); }
-.led a.newscal-news-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
-.led .newscal-row-date { flex: 0 0 96px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
-.led .newscal-row-body { min-width: 0; }
+.led .newscal-row:hover .newscal-row-org, .led .newscal-row:hover .newscal-row-title { color: var(--accent); }
+.led .newscal-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.led .newscal-row.is-past { opacity: .72; }
+.led .newscal-row-date { flex: 0 0 88px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.led .newscal-row-type { flex: 0 0 150px; display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; color: var(--ev); }
+.led .newscal-row-body { min-width: 0; display: flex; flex-direction: column; }
 .led .newscal-row-org { font-weight: 600; }
-.led .newscal-org-btn { appearance: none; background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; text-align: left; }
-.led .newscal-org-btn:hover { color: var(--accent); }
-.led .newscal-tk { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.led .newscal-tk { font-size: 11px; font-weight: 700; color: var(--accent); letter-spacing: .04em; margin-left: 6px; }
 .led .newscal-row-title { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.45; }
-.led .newscal-news-link { color: inherit; text-decoration-color: transparent; text-underline-offset: 3px; }
-.led .newscal-news-link:hover { color: var(--accent); text-decoration-color: currentColor; }
-.led .newscal-news-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.led .newscal-more-btn { align-self: flex-start; margin-top: 12px; font-size: 12.5px; }
+.led .newscal-note { font-size: 11px; margin: 14px 0 0; line-height: 1.5; }
+.led .newscal-note + .newscal-note { margin-top: 4px; }
+
+/* Event detail — rendered on <body>, outside .led, so a transformed page
+   wrapper cannot become the containing block of a fixed overlay. */
+.newscal-modal { --led-serif: Georgia, "Times New Roman", "Iowan Old Style", serif;
+  --ev-meeting: #6d5bd0; --ev-dividend: #0f9f6e; --ev-report: #2563eb; --ev-fact: #c47a10; --ev-notice: #64748b; --ev-listing: #c2417a; }
+body[data-theme="dark"] .newscal-modal { --ev-meeting: #a497f5; --ev-dividend: #34d399; --ev-report: #60a5fa; --ev-fact: #fbbf24; --ev-notice: #94a3b8; --ev-listing: #f472b6; }
+.newscal-modal .ev-meeting { --ev: var(--ev-meeting); }
+.newscal-modal .ev-dividend { --ev: var(--ev-dividend); }
+.newscal-modal .ev-report { --ev: var(--ev-report); }
+.newscal-modal .ev-fact { --ev: var(--ev-fact); }
+.newscal-modal .ev-notice { --ev: var(--ev-notice); }
+.newscal-modal .ev-listing { --ev: var(--ev-listing); }
+.newscal-modal .newscal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ev, var(--accent)); flex: 0 0 8px; }
+.newscal-modal button { font: inherit; }
+.newscal-modal { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .45); animation: newscal-fade .12s ease; }
+@keyframes newscal-fade { from { opacity: 0; } }
+.newscal-modal .newscal-detail { width: min(560px, 100%); max-height: min(86vh, 760px); overflow: auto; background: var(--panel); color: var(--text); border-radius: 16px;
+  border: 1px solid var(--border); border-top: 4px solid var(--ev); box-shadow: 0 24px 60px rgba(0,0,0,.25); padding: 18px 20px 20px; }
+.newscal-modal .newscal-detail-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.newscal-modal .newscal-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--ev); padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--ev) 12%, transparent); }
+.newscal-modal .newscal-status { font-size: 12px; color: var(--muted); }
+.newscal-modal .newscal-status.is-future, .newscal-modal .newscal-status.is-today { color: var(--accent); font-weight: 700; }
+.newscal-modal .newscal-close { appearance: none; margin-left: auto; border: 1px solid var(--border); background: none; color: var(--text); width: 32px; height: 32px; border-radius: 8px; font-size: 18px; line-height: 1; cursor: pointer; }
+.newscal-modal .newscal-close:hover { border-color: var(--accent); color: var(--accent); }
+.newscal-modal .newscal-detail h2 { font-family: var(--led-serif); font-size: 21px; line-height: 1.3; margin: 14px 0 6px; }
+.newscal-modal .newscal-detail-co { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.newscal-modal .newscal-detail-org { font-weight: 600; }
+.newscal-modal .newscal-tk-btn { appearance: none; border: 1px solid var(--border); background: none; color: var(--accent); border-radius: 6px; padding: 1px 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+.newscal-modal .newscal-tk-btn:hover { border-color: var(--accent); }
+.newscal-modal .newscal-detail-about { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 12px 0 0; }
+.newscal-modal .newscal-detail-fact { font-size: 14px; line-height: 1.5; margin: 8px 0 0; }
+.newscal-modal .newscal-detail-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 16px; margin: 16px 0 0; font-size: 13px; }
+.newscal-modal .newscal-detail-facts dt { color: var(--muted); }
+.newscal-modal .newscal-detail-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.newscal-modal .newscal-detail-table { margin-top: 16px; }
+.newscal-modal .newscal-detail-table tr.is-hit td:first-child { box-shadow: inset 3px 0 0 var(--ev); }
+.newscal-modal .newscal-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.newscal-modal .newscal-act { appearance: none; display: inline-flex; align-items: center; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--border); background: none; color: var(--text);
+  font-size: 12.5px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.newscal-modal .newscal-act:hover { border-color: var(--accent); color: var(--accent); }
+.newscal-modal .newscal-act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.newscal-modal .newscal-act.primary:hover { color: #fff; filter: brightness(1.08); }
+
+@media (max-width: 900px) {
+  .led .newscal-week { grid-template-columns: 1fr; }
+  .led .newscal-wday { min-height: 0; }
+  .led .newscal-wday-empty { display: none; }
+}
 @media (max-width: 700px) {
-  /* Issuer names cannot fit a phone-width cell — the grid keeps the day count
-     badge, the list below carries the names. */
-  .led .newscal-cell { min-height: 46px; padding: 4px 6px; }
-  .led .newscal-chip, .led .newscal-more { display: none; }
-  .led .newscal-count { display: block; }
-  .led .newscal-row { flex-direction: column; gap: 2px; }
+  /* Issuer names cannot fit a phone-width cell — the grid keeps a dot per
+     event type and the count; the list below carries the names. */
+  .led .newscal-cell { min-height: 52px; padding: 4px; }
+  .led .newscal-pill, .led .newscal-more { display: none; }
+  .led .newscal-dots { display: flex; margin-top: auto; }
+  .led .newscal-count { top: 4px; right: 4px; }
+  .led .newscal-row { flex-wrap: wrap; gap: 2px 10px; }
+  .led .newscal-row-date, .led .newscal-row-type { flex: 0 0 auto; }
+  .led .newscal-row-body { flex: 1 1 100%; }
+  .led .newscal-search { max-width: none; }
+  .led .newscal-month { font-size: 16px; }
+  .newscal-modal { place-items: end center; padding: 0; }
+  .newscal-modal .newscal-detail { width: 100%; max-height: 88vh; border-radius: 16px 16px 0 0; }
 }
 
 .led .led-cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 44px; align-items: start; }

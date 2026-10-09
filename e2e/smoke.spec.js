@@ -123,6 +123,22 @@ const CALENDAR_MEETINGS = [
     pub_date: "2026-08-21T09:00:00",
   },
 ];
+// The unified calendar's feed (/api/news/calendar/events), dated TODAY in
+// Tashkent so every view — month, week, list, «coming up» — shows it.
+const CAL_TODAY = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+const CALENDAR_EVENTS = [
+  { id: "meeting:21349", type: "meeting", date: CAL_TODAY, time: "10:00", organization: CALENDAR_MEETINGS[0].organization,
+    ticker: "AGBA", title: CALENDAR_MEETINGS[0].title, announcement_id: "21349", details: { pub_date: "2026-08-20T09:00:00" } },
+  { id: "meeting:21350", type: "meeting", date: CAL_TODAY, time: "11:00", organization: CALENDAR_MEETINGS[1].organization,
+    ticker: null, title: CALENDAR_MEETINGS[1].title, announcement_id: "21350", details: { pub_date: "2026-08-21T09:00:00" } },
+  { id: "dividend:4236:payment_start", type: "dividend", kind: "payment_start", date: CAL_TODAY, time: null,
+    organization: '"Buxoroneftgazparmalash" AJ', ticker: "BNGP", tickers: ["BNGP", "BNGPP"], classes: ["ordinary", "preferred"], title: null,
+    details: { decision_date: "2026-09-25", pub_date: "2026-10-05", link: "https://openinfo.uz/facts/32/4236",
+      classes: [{ class: "ordinary", amount: 242.47, percent: 4.85, start: "2026-10-01", end: "2026-11-24" },
+                { class: "preferred", amount: 242.47, percent: 4.85, start: "2026-10-01", end: "2026-11-24" }] } },
+  { id: "report:AGBA:IFRS:2026:2:quarterly", type: "report", date: CAL_TODAY, time: null, organization: "AGBA Bank", ticker: "AGBA", title: "Q2",
+    details: { report_form: "IFRS", period_type: "quarterly", year: 2026, quarter: 2, pdf_url: "https://openinfo.uz/r.pdf" } },
+];
 const CALENDAR_ANNOUNCEMENT = {
   announcement_id: "21349",
   language: "ru",
@@ -187,6 +203,8 @@ async function mockApi(page) {
     if (p === "/api/news/calendar/announcements") return j({ ok: true, count: CALENDAR_MEETINGS.length, items: CALENDAR_MEETINGS });
     if (p === "/api/news/calendar/announcements/21349") return j({ ok: true, item: CALENDAR_ANNOUNCEMENT });
     if (p === "/api/news/calendar/dividends") return j({ ok: true, count: 0, items: [] });
+    if (p === "/api/news/calendar/events") return j({ ok: true, count: CALENDAR_EVENTS.length, items: CALENDAR_EVENTS, today: CAL_TODAY,
+      sources: { meeting: { ok: true }, dividend: { ok: true }, report: { ok: true } } });
     if (p.startsWith("/api/news/ticker/")) {
       const tk = p.slice("/api/news/ticker/".length);
       const items = NEWS_ITEMS.filter((n) => (n.tickers || []).includes(tk));
@@ -408,13 +426,10 @@ test("language switch re-renders the hero copy", async ({ page }) => {
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
   await page.goto("/news?tab=calendar");
-  const titles = page.locator(".newscal-row-title");
+  const titles = page.locator(".newscal-list .newscal-row-title");
 
   await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
   await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
-  await expect(page.locator("a.newscal-news-row").first())
-    .toHaveAttribute("href", "/news/announcement/21349");
-  await expect(page.locator("a.newscal-news-row").first()).not.toHaveAttribute("target", "_blank");
   await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
 
   await page.locator("#languageSelect").selectOption("en");
@@ -424,19 +439,22 @@ test("calendar meeting headlines follow the selected interface language", async 
   await page.locator("#languageSelect").selectOption("uz");
   await expect(titles.nth(0)).toHaveText(CALENDAR_MEETINGS[0].title);
   await expect(titles.nth(1)).toHaveText("Aksiyadorlarning yillik umumiy yig‘ilishi");
-
-  await page.locator("#languageSelect").selectOption("ru");
-  await page.getByRole("button", { name: "Объявления", exact: true }).click();
-  await expect(page.locator(".newscal-anntitle").first()).toHaveText("Внеочередное общее собрание акционеров");
-  await expect(page.locator(".newscal-anntitle a").first())
-    .toHaveAttribute("href", "/news/announcement/21349");
 });
 
-test("clicking a calendar meeting opens the announcement on our site", async ({ page }) => {
+test("clicking a calendar event opens its detail, and the announcement on our site", async ({ page }) => {
   await page.goto("/news?tab=calendar");
 
-  await page.locator("a.newscal-news-row").first().click();
+  await page.locator(".newscal-list .newscal-row").first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".newscal-detail-org")).toHaveText(CALENDAR_MEETINGS[0].organization);
+  await expect(dialog.getByRole("button", { name: "AGBA", exact: true })).toBeVisible();
+  await expect(dialog).toContainText("10:00");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
 
+  await page.locator(".newscal-list .newscal-row").first().click();
+  await page.getByRole("dialog").getByRole("link", { name: "Текст объявления" }).click();
   await expect(page).toHaveURL(/\/news\/announcement\/21349$/);
   await expect(page.getByRole("heading", { name: CALENDAR_ANNOUNCEMENT.title })).toBeVisible();
   await expect(page.getByText("Полный текст объявления на странице.")).toBeVisible();
@@ -444,11 +462,39 @@ test("clicking a calendar meeting opens the announcement on our site", async ({ 
   await expect(page.getByText("200000001")).toBeVisible();
 });
 
+test("a dividend event shows its amounts, and filters narrow the calendar", async ({ page }) => {
+  await page.goto("/news?tab=calendar");
+  await expect(page.locator(".newscal-up-card")).toHaveCount(CALENDAR_EVENTS.length);
+
+  await page.locator(".newscal-up-card.ev-dividend").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Начало выплаты · 242,47 сум");
+  await expect(dialog.locator("tbody tr")).toHaveCount(2);
+  await expect(dialog.getByRole("link", { name: /openinfo\.uz/ })).toHaveAttribute("href", "https://openinfo.uz/facts/32/4236");
+  await dialog.getByRole("button", { name: "Закрыть" }).click();
+
+  const rows = page.locator(".newscal-list .newscal-row");
+  await expect(rows).toHaveCount(4);
+  await page.locator(".newscal-type.ev-meeting").click();
+  await expect(rows).toHaveCount(2);
+  await page.locator(".newscal-search").fill("bngpp");
+  await expect(rows).toHaveCount(1);
+  await page.getByRole("button", { name: "Сбросить фильтры" }).click();
+  await expect(rows).toHaveCount(4);
+
+  await page.getByRole("button", { name: "Неделя", exact: true }).click();
+  await expect(page.locator(".newscal-wday")).toHaveCount(7);
+  await expect(page.locator(".newscal-wday.today .newscal-wev")).toHaveCount(4);
+  await page.getByRole("button", { name: "Список", exact: true }).click();
+  await expect(page.locator(".newscal-mh.is-today")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Скачать CSV" })).toBeVisible();
+});
+
 test("an open calendar refetches when the tab regains focus", async ({ page }) => {
   await page.goto("/news?tab=calendar");
-  await expect(page.locator("a.newscal-news-row").first()).toBeVisible();
+  await expect(page.locator(".newscal-list .newscal-row").first()).toBeVisible();
   const refreshed = page.waitForRequest((request) => (
-    new URL(request.url()).pathname === "/api/news/calendar/meetings"
+    new URL(request.url()).pathname === "/api/news/calendar/events"
   ));
 
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -459,9 +505,9 @@ test("an open calendar refetches when the tab regains focus", async ({ page }) =
 test("calendar rows identify the issuer on a phone without overflowing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/news?tab=calendar");
-  const issuers = page.locator(".newscal-row-org");
-  await expect(issuers.nth(0)).toHaveText(CALENDAR_MEETINGS[0].organization);
-  await expect(issuers.nth(1)).toHaveText(CALENDAR_MEETINGS[1].organization);
+  const issuers = page.locator(".newscal-list .newscal-row-org");
+  await expect(issuers.nth(0)).toContainText(CALENDAR_MEETINGS[0].organization);
+  await expect(issuers.nth(1)).toContainText(CALENDAR_MEETINGS[1].organization);
 
   const widths = await page.evaluate(() => ({
     client: document.documentElement.clientWidth,
@@ -478,7 +524,7 @@ test("calendar keeps all seven weekdays inside the screenshot-width viewport", a
   const weekdays = page.locator(".newscal-dow");
   await expect(grid).toBeVisible();
   await expect(weekdays).toHaveCount(7);
-  await expect(page.locator(".newscal-row-title").first())
+  await expect(page.locator(".newscal-list .newscal-row-title").first())
     .toHaveText("Внеочередное общее собрание акционеров");
 
   const geometry = await page.evaluate(() => {

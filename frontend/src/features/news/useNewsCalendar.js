@@ -1,42 +1,89 @@
 import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
-import { NEWSCAL_TX, NEWS_CALENDAR_POLL_MS } from "./calendarCopy.js";
-export function useNewsCalendar({
-  language
-}) {
+import { EVENT_TYPES, NEWSCAL_TX, NEWS_CALENDAR_POLL_MS } from "./calendarCopy.js";
+import { addDays, addMonths, daysBetween, filterEvents, groupByDay, tashkentToday, viewWindow } from "./calendarEvents.js";
+
+const UPCOMING_DAYS = 60;
+const VIEW_KEY = "uzstock:newscal:view";
+
+function readView() {
+  try {
+    const v = window.localStorage.getItem(VIEW_KEY);
+    return v === "week" || v === "list" ? v : "month";
+  } catch {
+    return "month";
+  }
+}
+
+/** One fetch of /api/news/calendar/events, refetched whenever `tick` moves. */
+function useEvents(start, end, tick) {
+  const [state, setState] = React.useState({ loading: true, error: false, partial: false, items: [] });
+  React.useEffect(() => {
+    if (!start || !end) return undefined;
+    let alive = true;
+    setState((s) => ({ ...s, loading: true }));
+    fetch(`/api/news/calendar/events?start=${start}&end=${end}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        const sources = Object.values((d && d.sources) || {});
+        setState({
+          loading: false,
+          error: !d || !d.ok,
+          partial: sources.some((s) => s && s.ok === false),
+          items: (d && d.items) || [],
+        });
+      })
+      .catch(() => {
+        if (alive) setState({ loading: false, error: true, partial: false, items: [] });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [start, end, tick]);
+  return state;
+}
+
+export function useNewsCalendar({ language }) {
   const lang = normalizeLanguage(language);
   const tx = NEWSCAL_TX[lang] || NEWSCAL_TX.ru;
   const locale = lang === "en" ? "en-US" : lang === "uz" ? "uz" : "ru-RU";
-  const today = new Date();
-  const [view, setView] = React.useState("events");
-  const [mode, setMode] = React.useState("month");
-  const [cursor, setCursor] = React.useState({
-    y: today.getFullYear(),
-    m: today.getMonth() + 1
-  });
+  const today = tashkentToday();
+
+  const [view, setViewState] = React.useState(readView);
+  const [anchor, setAnchor] = React.useState(today);
+  const [range, setRangeState] = React.useState({ from: addDays(today, -7), to: addDays(today, 60) });
+  const [types, setTypes] = React.useState(() => new Set(EVENT_TYPES));
+  const [company, setCompany] = React.useState("");
   const [day, setDay] = React.useState(null);
-  const [search, setSearch] = React.useState("");
-  const [events, setEvents] = React.useState({
-    loading: true,
-    error: false,
-    items: []
-  });
-  const [anns, setAnns] = React.useState(null);
-  const [divs, setDivs] = React.useState(null);
-  const [divType, setDivType] = React.useState("common");
-  const [divSort, setDivSort] = React.useState({
-    key: "pub",
-    dir: -1
-  });
-  const [pageSize, setPageSize] = React.useState(10);
-  const [page, setPage] = React.useState(1);
-  const [refreshTick, setRefreshTick] = React.useState(0);
-  React.useEffect(() => {
-    setPage(1);
-  }, [view, divType, search, pageSize, divSort]);
+  const [selected, setSelected] = React.useState(null);
+  const [tick, setTick] = React.useState(0);
+
+  const setView = React.useCallback((v) => {
+    setViewState(v);
+    setDay(null);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* a private window keeps the default */
+    }
+  }, []);
+
+  // Editing the range is asking for a list of that range.
+  const setRange = React.useCallback((next) => {
+    setRangeState((r) => {
+      const merged = { ...r, ...next };
+      if (merged.from && merged.to && merged.to < merged.from) {
+        return next.from ? { from: merged.from, to: merged.from } : { from: merged.to, to: merged.to };
+      }
+      return merged;
+    });
+    setViewState("list");
+  }, []);
+
   React.useEffect(() => {
     const refresh = () => {
-      if (!document.hidden) setRefreshTick(n => n + 1);
+      if (!document.hidden) setTick((n) => n + 1);
     };
     const timer = window.setInterval(refresh, NEWS_CALENDAR_POLL_MS);
     window.addEventListener("focus", refresh);
@@ -47,118 +94,53 @@ export function useNewsCalendar({
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
-  React.useEffect(() => {
-    let alive = true;
-    setEvents({
-      loading: true,
-      error: false,
-      items: []
-    });
+
+  const win = viewWindow(view, anchor, range);
+  const events = useEvents(win.start, win.end, tick);
+  const ahead = useEvents(today, addDays(today, UPCOMING_DAYS), tick);
+
+  const move = React.useCallback((dir) => {
     setDay(null);
-    fetch(mode === "year" ? `/api/news/calendar/meetings?year=${cursor.y}` : `/api/news/calendar/meetings?year=${cursor.y}&month=${cursor.m}`).then(r => r.json()).then(d => {
-      if (alive) setEvents({
-        loading: false,
-        error: !d || !d.ok,
-        items: d && d.items || []
+    if (view === "week") setAnchor((a) => addDays(a, 7 * dir));
+    else if (view === "list") {
+      setRangeState((r) => {
+        const span = Math.max(1, daysBetween(r.from, r.to) + 1);
+        return { from: addDays(r.from, span * dir), to: addDays(r.to, span * dir) };
       });
-    }).catch(() => {
-      if (alive) setEvents({
-        loading: false,
-        error: true,
-        items: []
-      });
+    } else setAnchor((a) => addMonths(a, dir));
+  }, [view]);
+
+  const goToday = React.useCallback(() => {
+    setDay(null);
+    setAnchor(today);
+    if (view === "list") setRangeState({ from: addDays(today, -7), to: addDays(today, 60) });
+  }, [today, view]);
+
+  const toggleType = React.useCallback((t) => {
+    setTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
+      return next;
     });
-    return () => {
-      alive = false;
-    };
-  }, [cursor.y, cursor.m, mode, refreshTick]);
-  React.useEffect(() => {
-    if (view !== "dividends") return undefined;
-    let alive = true;
-    fetch("/api/news/calendar/dividends?limit=1000").then(r => r.json()).then(d => {
-      if (alive) setDivs({
-        error: !d || !d.ok,
-        items: d && d.items || []
-      });
-    }).catch(() => {
-      if (alive) setDivs({
-        error: true,
-        items: []
-      });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [view, refreshTick]);
-  React.useEffect(() => {
-    if (view !== "announcements") return undefined;
-    let alive = true;
-    fetch("/api/news/calendar/announcements?limit=2000").then(r => r.json()).then(d => {
-      if (alive) setAnns({
-        error: !d || !d.ok,
-        items: d && d.items || []
-      });
-    }).catch(() => {
-      if (alive) setAnns({
-        error: true,
-        items: []
-      });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [view, refreshTick]);
-  const q = search.trim().toLowerCase();
-  const filteredEvents = React.useMemo(() => q ? events.items.filter(it => String(it.organization || "").toLowerCase().includes(q) || String(it.ticker || "").toLowerCase().includes(q)) : events.items, [events.items, q]);
-  const byDay = React.useMemo(() => {
-    const map = new Map();
-    for (const it of filteredEvents) {
-      const n = parseInt(String(it.meeting_date || "").slice(8, 10), 10);
-      if (!n) continue;
-      if (!map.has(n)) map.set(n, []);
-      map.get(n).push(it);
-    }
-    return map;
-  }, [filteredEvents]);
-  const byMonth = React.useMemo(() => {
-    const map = new Map();
-    for (const it of filteredEvents) {
-      const key = String(it.meeting_date || "").slice(0, 7);
-      if (!key) continue;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(it);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredEvents]);
+  }, []);
+
+  const resetFilters = React.useCallback(() => {
+    setTypes(new Set(EVENT_TYPES));
+    setCompany("");
+  }, []);
+
+  const filters = { types, company };
+  const visible = React.useMemo(() => filterEvents(events.items, filters), [events.items, types, company]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upcoming = React.useMemo(() => filterEvents(ahead.items, filters), [ahead.items, types, company]); // eslint-disable-line react-hooks/exhaustive-deps
+  const byDay = React.useMemo(() => groupByDay(visible), [visible]);
+  const filtered = types.size !== EVENT_TYPES.length || company.trim() !== "";
+
   return {
-    lang,
-    tx,
-    locale,
-    today,
-    view,
-    setView,
-    mode,
-    setMode,
-    cursor,
-    setCursor,
-    day,
-    setDay,
-    search,
-    setSearch,
-    events,
-    anns,
-    divs,
-    divType,
-    setDivType,
-    divSort,
-    setDivSort,
-    pageSize,
-    setPageSize,
-    page,
-    setPage,
-    q,
-    filteredEvents,
-    byDay,
-    byMonth
+    lang, tx, locale, today,
+    view, setView, anchor, setAnchor, range, setRange, move, goToday,
+    types, toggleType, setTypes, company, setCompany, resetFilters, filtered,
+    day, setDay, selected, setSelected,
+    events, visible, byDay, upcoming, upcomingLoading: ahead.loading,
   };
 }

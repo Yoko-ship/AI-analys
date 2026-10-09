@@ -108,7 +108,7 @@ export function NewsView({
         </div>}
 
       {user && user.is_admin && apiFetch && <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey(k => k + 1)} />}
-      {tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
+      {tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
           <div className="newsdesk-loading-side" />
           <div className="newsdesk-loading-feed" />

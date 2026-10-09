@@ -258,6 +258,25 @@ async def api_news_calendar_meetings(year: int | None = None, month: int | None 
         return {"ok": False, "error": str(exc), "items": []}
 
 
+@router.get("/api/news/calendar/events")
+async def api_news_calendar_events(start: str | None = None, end: str | None = None,
+                                   types: str | None = None) -> dict[str, Any]:
+    """Every dated corporate event in [start, end] — meetings, their notices,
+    dividend decisions and payment windows, report filings, material facts and
+    listings — in one shape, for the unified «Календарь» (see calendar_events.py).
+    """
+    import calendar_events
+
+    wanted = [t.strip() for t in (types or "").split(",") if t.strip()] or None
+    loop = asyncio.get_running_loop()
+    try:
+        payload = await loop.run_in_executor(
+            None, partial(calendar_events.events_between, start, end, wanted))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return http._json_safe(payload)
+
+
 @router.get("/api/news/calendar/announcements")
 async def api_news_calendar_announcements(limit: int = 1000) -> dict[str, Any]:
     """The meeting-notice feed, newest publication first — the list shape of the
