@@ -125,7 +125,7 @@ export function companyOptions(items) {
     const key = ev.ticker || name;
     if (!seen.has(key)) seen.set(key, { name, ticker: ev.ticker || null });
   }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
 export { reportPeriod };

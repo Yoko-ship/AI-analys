@@ -3094,7 +3094,7 @@
     "methods": [
       "GET"
     ],
-    "name": "api_news_calendar_events",
+    "name": "api_news_calendar_events__v2",
     "dependencies": []
   },
   {

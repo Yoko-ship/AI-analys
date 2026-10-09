@@ -40,7 +40,7 @@ test("today is the exchange's day, not the reader's", () => {
 });
 
 const events = [
-  { id: "a", type: "meeting", date: "2026-10-02", organization: "АО Alpha", ticker: "ALFA", title: "Внеочередное общее собрание акционеров" },
+  { id: "a", type: "meeting", date: "2026-10-02", organization: "Alpha AJ", ticker: "ALFA", title: "Внеочередное общее собрание акционеров" },
   { id: "b", type: "dividend", kind: "payment_start", date: "2026-10-12", organization: "Buxoroneftgazparmalash", ticker: "BNGP",
     tickers: ["BNGP", "BNGPP"], classes: ["preferred"],
     details: { classes: [{ class: "ordinary", amount: 242.47, start: "2026-10-01" }, { class: "preferred", amount: 300, start: "2026-10-12", end: "2026-11-24" }] } },
