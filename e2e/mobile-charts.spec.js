@@ -1,30 +1,34 @@
 import { test, expect } from '@playwright/test';
 
+async function mockChartApi(page, ticker, price) {
+  const history = Array.from({ length: 260 }, (_, i) => {
+    const day = new Date(Date.now() - (260 - i) * 864e5).toISOString().slice(0, 10);
+    const close = price * (1 + Math.sin(i / 12) * 0.05);
+    return { date: day, open: close * 0.99, close, high: close * 1.01, low: close * 0.98, value: 1000000 + i * 1000 };
+  });
+  const security = { name: `${ticker} company`, company_name: `${ticker} company`, security_type: 'stock', sector: 'finance', last_price: price, close_price: price };
+  const stocks = Array.from({ length: 16 }, (_, i) => ({ ...security, ticker: `PEER${i}`, price }));
+  const securities = Object.fromEntries(stocks.map(s => [s.ticker, s]));
+  securities[ticker] = security;
+  await page.route('**/api/**', route => {
+    const p = new URL(route.request().url()).pathname;
+    const json = (body, status = 200) => route.fulfill({ status, json: body });
+    if (p === '/api/securities') return json({ ok: true, securities });
+    if (p === '/api/market/stocks') return json({ ok: true, stocks });
+    if (p === `/api/price-history/${ticker}`) return json({ ok: true, points: history, adjustments: [] });
+    if (p === `/api/company/${ticker}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
+    if (p === `/api/securities/${ticker}/info`) return json({ ok: true, security });
+    if (p === '/api/auth/me') return json({ user: null }, 401);
+    return json({});
+  });
+}
+
 for (const [ticker, width, price] of [['UZMK', 320, 6800], ['UNVB', 390, 8200], ['IPTB', 430, 3.23]]) {
   test(`${ticker}: mobile chart fits ${width}px and keeps its menus usable`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    const history = Array.from({ length: 260 }, (_, i) => {
-      const day = new Date(Date.now() - (260 - i) * 864e5).toISOString().slice(0, 10);
-      const close = price * (1 + Math.sin(i / 12) * 0.05);
-      return { date: day, open: close * 0.99, close, high: close * 1.01, low: close * 0.98, value: 1000000 + i * 1000 };
-    });
-    const security = { name: `${ticker} company`, company_name: `${ticker} company`, security_type: 'stock', sector: 'finance', last_price: price, close_price: price };
-    const stocks = Array.from({ length: 16 }, (_, i) => ({ ...security, ticker: `PEER${i}`, price }));
-    const securities = Object.fromEntries(stocks.map(s => [s.ticker, s]));
-    securities[ticker] = security;
-    await page.route('**/api/**', route => {
-      const p = new URL(route.request().url()).pathname;
-      const json = (body, status = 200) => route.fulfill({ status, json: body });
-      if (p === '/api/securities') return json({ ok: true, securities });
-      if (p === '/api/market/stocks') return json({ ok: true, stocks });
-      if (p === `/api/price-history/${ticker}`) return json({ ok: true, points: history, adjustments: [] });
-      if (p === `/api/company/${ticker}/metrics`) return json({ ok: true, quality: { candles_enabled: true } });
-      if (p === `/api/securities/${ticker}/info`) return json({ ok: true, security });
-      if (p === '/api/auth/me') return json({ user: null }, 401);
-      return json({});
-    });
+    await mockChartApi(page, ticker, price);
     await page.goto(`/chart/${ticker}?type=candle&range=1y`);
     const chart = page.locator('.ac-canvas');
     await expect(chart).toBeVisible();
@@ -77,3 +81,21 @@ for (const [ticker, width, price] of [['UZMK', 320, 6800], ['UNVB', 390, 8200], 
     expect(errors).toEqual([]);
   });
 }
+
+// A phone held sideways in full screen leaves the canvas ~300 px tall; a fixed
+// 130 px volume pane once took half of it and flattened the price line.
+test('landscape phone full screen keeps the price pane dominant', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 780, height: 360 });
+  await mockChartApi(page, 'IPTB', 3.23);
+  await page.goto('/chart/IPTB?type=line&range=1y');
+  const chart = page.locator('.ac-canvas');
+  await expect(chart).toHaveAttribute('data-panes', '2');
+  await page.getByRole('button', { name: 'Развернуть график на весь экран' }).click();
+  await expect(page.locator('.advanced-chart')).toHaveClass(/is-fullscreen/);
+  await expect.poll(async () => {
+    // Pane rows, then the time axis; the 1 px separators drop out.
+    const h = await chart.locator('tr').evaluateAll(rows => rows.map(r => r.getBoundingClientRect().height).filter(x => x > 2));
+    return h.length === 3 && h[0] > h[1] * 3;
+  }).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('landscape-fullscreen.png') });
+});

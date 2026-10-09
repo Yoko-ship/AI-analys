@@ -535,7 +535,6 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   const [measuredPlotH, setMeasuredPlotH] = React.useState(null);
   const [plotWidth, setPlotWidth] = React.useState(() => (typeof window === "undefined" ? 900 : window.innerWidth));
   const compactChart = plotWidth <= 620;
-  const VOL_H = compactChart ? 80 : 130;
   const plotH = (compactChart ? Math.max(360, Math.min(480, Math.floor(viewH * 0.52)))
     : Math.max(420, Math.floor(viewH * 0.62))) + subPanes.length * (SUB_H + GAP);
   React.useLayoutEffect(() => {
@@ -553,6 +552,11 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     return () => observer.disconnect();
   }, []);
   const canvasH = measuredPlotH ?? plotH;
+  // Volume is a supporting pane: at most a fifth of what the oscillators leave.
+  // A fixed 130 px took half the canvas in full screen on a phone held sideways,
+  // and the price line — the reason to open the chart — got squeezed flat.
+  const VOL_H = Math.round(Math.min(compactChart ? 80 : 130,
+    Math.max(40, (canvasH - subPanes.length * (SUB_H + GAP)) * 0.2)));
 
   const isUp = n >= 2 && baseVals[n - 1] >= (cmpOn ? 0 : (rangeWindow[0]?.close ?? baseVals[0]));
   const priceColor = cmpOn ? LW_UP : isUp ? LW_UP : LW_DOWN;

@@ -727,6 +727,31 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
    measurement lands. */
 .ac-plot { position: relative; min-width: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); overflow: hidden; }
 .advanced-chart.is-fullscreen .ac-plot { height: 100% !important; min-height: 0; }
+/* A phone held sideways: ~360 px of height. Header, two toolbar rows and the
+   compare strip used to fill all of it and push the chart below the fold. Here
+   the chart is the screen — one line of name and price, a tight toolbar, and
+   the compare strip and notes wait until the phone is upright again. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body .advanced-chart.is-fullscreen { padding: 6px 10px; gap: 6px; }
+  body .advanced-chart.is-fullscreen .ac-head { flex-wrap: nowrap; gap: 10px; }
+  body .advanced-chart.is-fullscreen .ac-head .chip-logo,
+  body .advanced-chart.is-fullscreen .ac-head .chip-logo-fallback,
+  body .advanced-chart.is-fullscreen .ac-meta,
+  body .advanced-chart.is-fullscreen .ac-open-company,
+  body .advanced-chart.is-fullscreen .ac-fullscreen-label,
+  body .advanced-chart.is-fullscreen .ac-compare,
+  body .advanced-chart.is-fullscreen .ac-details { display: none; }
+  body .advanced-chart.is-fullscreen .ac-title h1 { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body .advanced-chart.is-fullscreen .ac-price { font-size: 16px; }
+  body .advanced-chart.is-fullscreen .ac-toolbar { padding: 4px 8px; gap: 4px 10px; }
+  body .advanced-chart.is-fullscreen .ac-back { white-space: nowrap; }
+  body .advanced-chart.is-fullscreen .ac-title { flex: 0 0 auto; max-width: 45vw; }
+  body .advanced-chart.is-fullscreen .ac-quote { margin-left: 0; min-width: 0; overflow: hidden; flex-wrap: nowrap; white-space: nowrap; }
+  /* The exit button leads the range row instead of wrapping onto a row of its own. */
+  body .advanced-chart.is-fullscreen .ac-fullscreen-btn { order: -1; }
+  body .advanced-chart.is-fullscreen .ac-body { flex: 1 1 0; min-height: 180px; }
+  body .advanced-chart.is-fullscreen .ac-plot { min-height: 0; }
+}
 .ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
 .ac-legend { position: absolute; z-index: 3; top: 8px; left: 10px; display: flex; flex-wrap: wrap; gap: 5px; max-width: calc(100% - 90px); }
 .ac-legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--text-primary); background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--ac-color, var(--border)); cursor: pointer; }
