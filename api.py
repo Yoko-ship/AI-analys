@@ -12,6 +12,9 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
+from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from issuer_analysis_api import router as issuer_analysis_v1_router
 from server.settings import PROJECT_ROOT
@@ -38,6 +41,7 @@ import server.lifecycle as lifecycle
 import server.market.routes as market_routes
 import server.news.routes as news_routes
 import server.research.routes as research_routes
+import server.seo as seo
 import server.system.routes as system_routes
 import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
@@ -134,15 +138,37 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/")
-async def index() -> FileResponse:
+async def index() -> Response:
+    return await _spa_shell("")
+
+
+@app.get("/robots.txt")
+async def robots_txt() -> PlainTextResponse:
+    return PlainTextResponse(seo.robots_txt(), headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml() -> Response:
+    return Response(await seo.sitemap_xml(), media_type="application/xml",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+async def _spa_shell(full_path: str) -> Response:
+    """The SPA shell, filled with this URL's title, meta tags and a text snapshot.
+
+    Crawlers read the snapshot; React replaces it on its first render (see
+    server/seo.py). Any failure there serves the bare shell, as before.
+    """
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend is not built yet")
-    return FileResponse(
-        index_path,
-        media_type="text/html; charset=utf-8",
-        headers={"Cache-Control": "no-store"},
-    )
+    try:
+        page = seo.render(seo.template(index_path), await seo.page_meta(full_path))
+    except Exception:
+        http.logger.warning("seo: serving the bare shell for /%s", full_path, exc_info=True)
+        return FileResponse(index_path, media_type="text/html; charset=utf-8",
+                            headers={"Cache-Control": "no-store"})
+    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +235,7 @@ http.logger.info("api: %d routes also served under /api/v2", API_V2_ROUTES)
 
 
 @app.get("/{full_path:path}")
-async def spa_fallback(full_path: str) -> FileResponse:
+async def spa_fallback(full_path: str) -> Response:
     """Serve the SPA shell for client-side routes (/market, /heatmap, /catalog…).
 
     Registered last so real API and static routes match first; unknown /api
@@ -224,14 +250,7 @@ async def spa_fallback(full_path: str) -> FileResponse:
     public_file = _public_file(full_path)
     if public_file is not None:
         return FileResponse(public_file, headers={"Cache-Control": "public, max-age=86400"})
-    index_path = WEB_DIR / "index.html"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail="Frontend is not built yet")
-    return FileResponse(
-        index_path,
-        media_type="text/html; charset=utf-8",
-        headers={"Cache-Control": "no-store"},
-    )
+    return await _spa_shell(full_path)
 
 
 def _public_file(full_path: str) -> Path | None:

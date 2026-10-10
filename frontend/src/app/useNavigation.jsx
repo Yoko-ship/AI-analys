@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { HIDDEN_VIEWS, pathToView, viewToPath } from "./routing.jsx";
 import { endPageview, trackPageview } from "../lib/track.js";
+import { applyPageTitle } from "./pageTitle.js";
 
 export function useNavigation() {
 
@@ -39,6 +40,7 @@ export function useNavigation() {
     if (window.location.pathname !== target) {
       window.history.pushState({ view: activeView }, "", target);
     }
+    applyPageTitle();
     // Count the view once the URL settles. The admin's own walks through the
     // panel are not audience and would only pollute its numbers.
     if (activeView !== "admin") {

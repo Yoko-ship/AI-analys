@@ -6,7 +6,9 @@ import api
 
 
 def test_public_root_files_are_served_not_the_shell(tmp_path, monkeypatch):
-    (tmp_path / "index.html").write_text("<!doctype html><title>shell</title>", encoding="utf-8")
+    (tmp_path / "index.html").write_text(
+        "<!doctype html><head><meta name=\"app\" content=\"shell\"><title>t</title></head>"
+        "<body><div id=\"root\"></div></body>", encoding="utf-8")
     (tmp_path / "favicon.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
     (tmp_path / "bank-logos").mkdir()
     (tmp_path / "bank-logos" / "002.png").write_bytes(b"\x89PNG\r\n\x1a\n")

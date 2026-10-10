@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { normalizeLanguage, t } from "../shared/i18n.jsx";
+import { normalizeLanguage } from "../shared/i18n.jsx";
 import { LANGUAGE_KEY, TEXT_SCALES, TEXT_SCALE_KEY, THEME_KEY } from "./preferences.jsx";
+import { applyPageTitle } from "./pageTitle.js";
 
 export function usePreferences() {
 
@@ -38,7 +39,7 @@ export function usePreferences() {
     const lang = normalizeLanguage(language);
     localStorage.setItem(LANGUAGE_KEY, lang);
     document.documentElement.lang = lang;
-    document.title = t(lang, "pageTitle");
+    applyPageTitle(lang);
   }, [language]);
 
   useEffect(() => {
