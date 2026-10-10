@@ -51,7 +51,15 @@ _KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
 # no session's OHLC. Folding it in made the card contradict itself three ways:
 # a day's turnover 2,2× the year's, an average price outside the day's range,
 # and a stored low (55,0) the exchange never printed.
-NEGO_BOARD_IDS = {"T1"}
+#
+# "NC" is the third board, measured 2026-10-10: ORFI 24.08 (four executions,
+# 883,8 млрд) and INFB 28.08 (four, 146,1 млрд), each at exactly the nominal and
+# with the SAME member (00443) on both sides — a placement or transfer booked
+# through the exchange, not a trade that stood in the order book. The exchange's
+# own daily history leaves both days at zero quantity (ORFI's close stays
+# 573,95), and folding them in put both banks at the top of «Топ ликвидности».
+# Kept out of the session exactly like a negotiated deal.
+NEGO_BOARD_IDS = {"T1", "NC"}
 
 
 def _f(v: Any) -> float:

@@ -282,3 +282,31 @@ class TestTheEndpointServesThePeriodsFigures:
         assert half["largest_value"] == 600 and half["largest_from"] == "20260601"
         # The key the liquidity panel has read since 2026-08-18 keeps answering.
         assert row["turnover"]["6m"] == {"value": 1600, "sessions": 2, "from": "20260601"}
+
+    def test_windows_end_at_the_markets_last_session_not_the_lines_own(self, monkeypatch) -> None:
+        """ORFI last printed on 24.08 and led «Топ ликвидности · Нед.» in October:
+        its «week» was its own last week of August. A window is the market's."""
+        from fastapi.testclient import TestClient
+
+        monkeypatch.setattr(subject_securities_catalog, 'get_securities_map',
+                            lambda: {"OLDX": {"isin": "UZ7000000002"}, "LIVE": {"isin": "UZ7000000003"}})
+        monkeypatch.setattr(catalogue_market_store, 'get_quote_history', lambda codes, days: {
+            "UZ7000000002": [
+                {"trade_date": "20210727", "close_price": 573.95, "quantity": 0.0, "turnover": 0.0},
+                {"trade_date": "20260824", "close_price": 1250.0, "quantity": 7.0, "turnover": 8750.0},
+            ],
+            "UZ7000000003": [
+                {"trade_date": "20260901", "close_price": 10.0, "quantity": 1.0, "turnover": 10.0},
+                {"trade_date": "20261009", "close_price": 11.0, "quantity": 2.0, "turnover": 22.0},
+            ]})
+
+        with TestClient(api.app) as client:
+            body = client.get("/api/market/changes").json()
+
+        old = body["changes"]["OLDX"]
+        for code in ("1w", "1m"):
+            assert code not in old, f"nothing traded inside the market's {code}"
+            assert code not in old.get("stats", {})
+        assert old["stats"]["3m"]["value"] == 8750, "24.08 IS inside three months of 09.10"
+        assert old["as_of"] == "20260824", "the line still says when it last traded"
+        assert body["changes"]["LIVE"]["stats"]["1w"]["value"] == 22

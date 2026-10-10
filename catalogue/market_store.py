@@ -80,6 +80,11 @@ def bulk_upsert_trade_stats(rows: list[dict], trade_date: str | None = None) -> 
     return n
 
 
+def is_off_session_only(r: dict) -> bool:
+    """True for a day-statistics row whose every execution was off-session."""
+    return r.get("trade_count") == 0 and not r.get("total_qty") and not r.get("total_value")
+
+
 def trade_stats_as_history(rows: list[dict], trade_date: str | None = None) -> list[dict]:
     """The day statistics restated as quote-history rows.
 
@@ -98,6 +103,11 @@ def trade_stats_as_history(rows: list[dict], trade_date: str | None = None) -> l
         isin = str(r.get("isin") or "").strip().upper()
         day = str(r.get("trade_date") or trade_date or "").strip()
         if not isin or not day:
+            continue
+        # A day made only of off-session deals is not a session: the exchange's
+        # daily history leaves it at zero, and banking it would plant a session
+        # date (and, through COALESCE, never remove it) where none happened.
+        if is_off_session_only(r):
             continue
         out.append({
             "isin": isin,

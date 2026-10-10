@@ -121,3 +121,30 @@ class TestBondsApplyDayStats:
         assert row["block_date"] == "2026-08-13"
         # and the session itself still belongs to the last real trading day
         assert row["last_trade_date"] == "2026-08-11"
+
+
+class TestTheNcBoardIsOffSession:
+    """ORFI 24.08.2026 / INFB 28.08.2026: four executions each on board NC, at
+    the nominal, the same member on both sides — 883,8 and 146,1 млрд that the
+    exchange's own daily history leaves at zero. Not a session."""
+
+    ORFI_DAY = [
+        {"board_id": "NC", "market_id": "STK", "trade_price": 1250.0,
+         "trade_quantity": q, "trading_value": 1250.0 * q,
+         "trade_datetime": f"2026-08-24T1{n}:00:00", "trade_number": n, "id": n}
+        for n, q in enumerate((197_991_742, 404_127_226, 26_253_671, 78_704_046), 1)
+    ]
+
+    def test_an_nc_only_day_has_no_session_figures(self):
+        st = _aggregate("UZ7055870008", self.ORFI_DAY, "20260824")
+        assert st["trade_count"] == 0 and st["total_value"] == 0 and not st["total_qty"]
+        assert st["close_price"] is None
+        assert st["block_count"] == 4
+        assert st["block_value"] == pytest.approx(883_845_856_250.0)
+
+    def test_an_nc_only_day_is_never_banked_as_a_session(self):
+        from catalogue.market_store import trade_stats_as_history
+        st = _aggregate("UZ7055870008", self.ORFI_DAY, "20260824")
+        live = _aggregate("UZ7011340005", HMKB_DAY, "20260814")
+        banked = trade_stats_as_history([st, live])
+        assert [r["isin"] for r in banked] == ["UZ7011340005"]

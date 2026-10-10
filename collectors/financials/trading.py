@@ -309,7 +309,9 @@ def backfill_day_stats(days: int = 365) -> int:
             collectors_financials_settings.log.exception("day-stats backfill: %s unreadable", isin)
             failed += 1
             continue
-        sessions = ts.aggregate_by_day(isin, trades)
+        # Days made only of off-session deals (board T1/NC) are not sessions.
+        sessions = [r for r in ts.aggregate_by_day(isin, trades)
+                    if r.get("trade_count") or r.get("total_qty")]
         rows.extend(sessions)
         if index % 20 == 0:
             collectors_financials_settings.log.info("day-stats backfill: %d/%d codes, %d sessions so far",

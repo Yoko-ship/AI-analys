@@ -24,9 +24,9 @@ export function createMarketCells({
   multiplesOf
 }) {
   const statusText = status => multipleStatusText(status, lang);
-  // A negotiated (board T1) deal: real money at a bilaterally agreed price, so it
-  // is flagged beside the turnover rather than added to it — the same † the bond
-  // table uses. Dated, because these deals are routinely weeks older than the
+  // An off-session deal (board T1 negotiated, NC placement): real money that never
+  // stood in the order book, so it is flagged beside the turnover rather than
+  // added to it — the same † the bond table uses. Dated, because these deals are routinely weeks older than the
   // row's last auction session.
   const negoMark = row => {
     const nego = row.nego;
@@ -34,7 +34,7 @@ export function createMarketCells({
     const day = String(nego.date || "");
     const date = /^\d{8}$/.test(day) ? ` ${day.slice(6)}.${day.slice(4, 6)}.${day.slice(0, 4)}` : "";
     const sum = `${formatRatio(nego.value, 0, lang)} UZS`;
-    const title = lang === "en" ? `Negotiated deal off-session${date}: ${sum}. Not part of the session's turnover: the price was agreed off-book.` : lang === "uz" ? `Sessiyadan tashqari kelishilgan bitim${date}: ${sum}. Sessiya aylanmasiga kirmaydi.` : `Переговорная сделка вне сессии${date}: ${sum}. В оборот сессии не входит: цена согласована вне стакана.`;
+    const title = lang === "en" ? `Off-session deal${date} (negotiated or placement): ${sum}. Not part of the session's turnover: it never stood in the order book.` : lang === "uz" ? `Sessiyadan tashqari bitim${date} (kelishilgan yoki joylashtirish): ${sum}. Sessiya aylanmasiga kirmaydi.` : `Сделка вне сессии${date} (переговорная или размещение): ${sum}. В оборот сессии не входит: она не проходила через стакан.`;
     return <span className="market-block-mark" title={title} aria-label={title}>†</span>;
   };
   const multipleCell = (row, metric, digits, suffix = "×") => {

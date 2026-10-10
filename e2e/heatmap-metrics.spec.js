@@ -108,7 +108,7 @@ test("the market table flags a negotiated deal beside the turnover without addin
   const row = page.locator(".market-table tbody tr").filter({ has: page.getByRole("button", { name: "AGBA", exact: true }) });
   const mark = row.locator(".market-block-mark");
   await expect(mark).toHaveText("†");
-  await expect(mark).toHaveAttribute("title", /Переговорная сделка вне сессии 25\.09\.2026: 2\s000\s000\sUZS/);
+  await expect(mark).toHaveAttribute("title", /Сделка вне сессии 25\.09\.2026 \(переговорная или размещение\): 2\s000\s000\sUZS/);
   // The cell's turnover is the auction's 1 000 000, not 3 000 000 with the deal added.
   await expect(mark.locator("xpath=..")).toContainText(/^1\s000\s000†/);
   await mark.locator("xpath=..").scrollIntoViewIfNeeded();

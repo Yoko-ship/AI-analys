@@ -401,11 +401,17 @@ async def api_market_changes(request: Request) -> Response:
             series[isin] = sorted(points, key=lambda p: p["d"])
 
     changes: dict[str, dict[str, Any]] = {}
+    # Every window ends at the MARKET's latest session, not at each security's
+    # own last one. Anchored per security, «за неделю» for a line that last
+    # traded in August was its last week of August — ORFI's 24.08 print led
+    # «Топ ликвидности · Нед.» in October. A line with nothing inside the window
+    # now simply has no figure for it.
+    market_as_of = max((pts[-1]["d"] for pts in series.values()), default=None)
     for ticker, isin in isin_of.items():
         points = series.get(isin)
         if not points:
             continue
-        as_of = points[-1]["d"]
+        as_of = market_as_of
         row = {code: market_history._window_change(points, span, as_of)
                for code, span in market_history.MARKET_CHANGE_WINDOWS.items()}
         row = {k: v for k, v in row.items() if v}
