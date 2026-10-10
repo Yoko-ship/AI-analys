@@ -1,8 +1,9 @@
 import { roundedDisplayValue } from "../../lib/format.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
-import { avgSharePrice, marketDisplayPrice } from "../../shared/marketModel.jsx";
+import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
-import { finPeriodCoverage, finRowPeriod, marketRowDay } from "../../lib/valuation.js";
+import { marketRowDay } from "../../lib/valuation.js";
+import { marketVolumeShare } from "../../lib/marketVolume.js";
 export function createMarketExport({
   lang,
   type,
@@ -16,8 +17,13 @@ export function createMarketExport({
   sortKeys,
   SORT_LABEL_OF,
   visibleRows,
+  visibleOrder,
+  LABEL_OF,
   smap,
   finOf,
+  ratioOf,
+  parOf,
+  priceToPar,
   changeOver,
   mktCapOf,
   peOf,
@@ -76,19 +82,58 @@ export function createMarketExport({
       key,
       dir
     }) => `${SORT_LABEL_OF[key] || key} ${dir === "asc" ? "↑" : "↓"}`).join(" → ") : mt(lang, "csvSortDefault")].map(cell).join(sep), [mt(lang, "csvRows"), visibleRows.length].map(cell).join(sep), [mt(lang, "csvMoneyNote"), ""].map(cell).join(sep), [mt(lang, "csvSources"), ""].map(cell).join(sep), ""];
-    const header = [mt(lang, "ticker"), mt(lang, "company"), mt(lang, "isin"), mt(lang, "sector"), mt(lang, "shareType"), mt(lang, "date"), mt(lang, "last"), `${mt(lang, "change")}, %`,
-    // Each window change names the session it was measured from — the same
-    // statement the cell's tooltip makes, because a percent without its base
-    // date is not reproducible from a spreadsheet.
-    `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}, %`, lang === "en" ? "1W base" : lang === "uz" ? "1H bazasi" : "База 1Н", `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}, %`, lang === "en" ? "1M base" : lang === "uz" ? "1O bazasi" : "База 1М", mt(lang, "open"), mt(lang, "high"), mt(lang, "low"), mt(lang, "volumeCol"), mt(lang, "csvTrades"), mt(lang, "volQty"), mt(lang, "avgSharePrice"), "VWAP", mt(lang, "bigTrade"), mt(lang, "volShare"), mt(lang, "finPeriod"), mt(lang, "finCoverage"), mt(lang, "finRevenue"), mt(lang, "finGross"), mt(lang, "finOperating"), mt(lang, "finNet"), mt(lang, "finCash"), mt(lang, "finLiab"), mt(lang, "mktCap"), mt(lang, "pe"), mt(lang, "pb"), "P/S", mt(lang, "roe"), mt(lang, "roa"), `${mt(lang, "netMargin")}, % (${mt(lang, "netMarginBankNote")})`, `${mt(lang, "equityAssets")}, %`];
+    // The file carries exactly the columns the board shows, in the board's order
+    // (frozen ones first): ticker and company, which cannot be hidden, then every
+    // column the reader left switched on. A column switched off on screen is
+    // absent from the file too.
+    const EXPORT_OF = {
+      last: row => round(marketDisplayPrice(row), 2),
+      // Mirrors the cell: «нет сделок» on a 1D board is a blank, never a 0.
+      change: row => changePeriod === "1d" ? row.tradedToday ? round(row.changePercent, 2) : "" : round(changeOver(row.ticker, changePeriod)?.pct, 2),
+      change1w: row => round(changeOver(row.ticker, "1w")?.pct, 2),
+      change1m: row => round(changeOver(row.ticker, "1m")?.pct, 2),
+      nominal: row => round(parOf(row), 2),
+      priceToPar: row => round(priceToPar(row), 2),
+      open: row => round(row.openPrice !== null ? row.openPrice : marketDisplayPrice(row), 2),
+      high: row => round(row.highPrice !== null ? row.highPrice : marketDisplayPrice(row), 2),
+      low: row => round(row.lowPrice !== null ? row.lowPrice : marketDisplayPrice(row), 2),
+      volume: row => money(row.stockVolume),
+      volQty: row => row.stockQuantity,
+      avgShare: row => round(Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row), 2),
+      avgTrade: row => money(avgTradeValue(row)),
+      bigTrade: row => money(row.ts?.largest_value),
+      volShare: row => round(marketVolumeShare(row, stats), 2),
+      finRevenue: row => money(finOf(row.ticker)?.revenue),
+      finGross: row => money(finOf(row.ticker)?.gross_profit),
+      finCash: row => money(finOf(row.ticker)?.cash),
+      finLiab: row => money(finOf(row.ticker)?.total_liabilities),
+      finNet: row => money(finOf(row.ticker)?.net_income),
+      finOperating: row => money(finOf(row.ticker)?.operating_income),
+      mktCap: row => money(mktCapOf(row)),
+      pe: row => round(peOf(row), 2),
+      pb: row => round(pbOf(row), 2),
+      ps: row => round(multipleOf(row, "ps").value, 2),
+      roe: row => round(multipleOf(row, "roe").value, 2),
+      roa: row => round(multipleOf(row, "roa").value, 2),
+      netMargin: row => round(multipleOf(row, "net_margin").value, 2),
+      eqAssets: row => round(multipleOf(row, "equity_assets").value, 2),
+      currentRatio: row => round(ratioOf(row.ticker)?.current_ratio, 2),
+      quickRatio: row => round(ratioOf(row.ticker)?.quick_ratio, 2),
+      debtAssets: row => round(ratioOf(row.ticker)?.debt_ratio, 1),
+      assetTurnover: row => round(ratioOf(row.ticker)?.total_asset_turnover, 2),
+      roce: row => round(ratioOf(row.ticker)?.return_to_capital_employed, 2),
+      date: row => day(marketRowDay(row)),
+      source: row => row.url || ""
+    };
+    // The screen prints «%» inside the cell; a spreadsheet cell holds the bare number,
+    // so the unit moves to the heading.
+    const PCT_COLS = new Set(["change", "change1w", "change1m", "volShare", "roe", "roa", "netMargin", "eqAssets", "debtAssets"]);
+    const cols = visibleOrder.filter(k => EXPORT_OF[k]);
+    const label = k => LABEL_OF[k] || k;
+    const header = [mt(lang, "ticker"), mt(lang, "company"), ...cols.map(k => PCT_COLS.has(k) && !label(k).includes("%") ? `${label(k)}, %` : label(k))];
     lines.push(header.map(cell).join(sep));
     for (const row of visibleRows) {
-      const sec = smap[row.ticker] || {};
-      const fin = finOf(row.ticker) || null;
-      const period = finRowPeriod(fin);
-      const share = stats.boardDay && marketRowDay(row) !== stats.boardDay ? 0 : Number.isFinite(row.stockVolume) && stats.totalVolume > 0 ? row.stockVolume / stats.totalVolume * 100 : "";
-      const isPreferred = sec.is_preferred || row.share_type === "preferred";
-      lines.push([row.ticker, row.name, row.isin, sec.sector || "", row.type === "bond" || sec.type === "bond" ? mt(lang, "bondOne") : isPreferred ? mt(lang, "preferred") : mt(lang, "ordinary"), day(marketRowDay(row)), round(marketDisplayPrice(row), 2), round(row.changePercent, 2), round(changeOver(row.ticker, "1w")?.pct, 2), day(changeOver(row.ticker, "1w")?.from), round(changeOver(row.ticker, "1m")?.pct, 2), day(changeOver(row.ticker, "1m")?.from), round(row.openPrice, 2), round(row.highPrice, 2), round(row.lowPrice, 2), money(row.stockVolume), row.stockTradeCount, row.stockQuantity, round(Number.isFinite(row.avgPrice) ? row.avgPrice : avgSharePrice(row), 2), round(row.vwap, 2), money(row.ts?.largest_value), round(share, 2), period || "", period ? finPeriodCoverage(period, lang) : "", money(fin?.revenue), money(fin?.gross_profit), money(fin?.operating_income), money(fin?.net_income), money(fin?.cash), money(fin?.total_liabilities), money(mktCapOf(row)), round(peOf(row), 2), round(pbOf(row), 2), round(multipleOf(row, "ps").value, 2), round(multipleOf(row, "roe").value, 2), round(multipleOf(row, "roa").value, 2), round(multipleOf(row, "net_margin").value, 2), round(multipleOf(row, "equity_assets").value, 2)].map(cell).join(sep));
+      lines.push([row.ticker, row.name || smap[row.ticker]?.name || "", ...cols.map(k => EXPORT_OF[k](row))].map(cell).join(sep));
     }
 
     // CRLF and the BOM: what Excel expects of a CSV on Windows, which is where these open.

@@ -1164,6 +1164,10 @@ test("market CSV waits for hidden financial data and exports issuer reporting (�
     } } }),
   }));
 
+  // The export carries the board's columns only, so the reporting columns under
+  // test are switched on — and nothing else beyond the defaults.
+  await page.addInitScript(() => localStorage.setItem("uz_market_cols_v3", JSON.stringify(
+    ["change", "volume", "volShare", "finRevenue", "finNet", "finLiab", "mktCap", "pe"])));
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
   const [download] = await Promise.all([
@@ -1188,20 +1192,16 @@ test("market CSV waits for hidden financial data and exports issuer reporting (�
   const header = lines.find((l) => l.startsWith("Тикер"));
   expect(header).toBeTruthy();
   // Semicolons, because Excel in a ru locale splits on ';' and reads ',' as the decimal mark.
-  expect(header.split(";").length).toBeGreaterThan(30);
-  for (const col of ["Выручка", "Чистая прибыль", "Общие обязательства", "Отчётный период",
-    "Капитализация", "P/E", "Сектор"]) {
-    expect(header.split(";")).toContain(col);
-  }
+  // Exactly the board's columns, in the board's order — nothing switched off leaks in.
+  expect(header.split(";")).toEqual(["Тикер", "Компания", "Последняя", "Изм. (сессия), %", "Объём", "% объёма",
+    "Выручка", "Общие обязательства", "Чистая прибыль", "Капитализация", "P/E"]);
   expect(header).not.toContain("Ticker");        // never English on the Russian UI
-  expect(header).not.toContain("% объёма, %");   // the label already carries its unit
 
   const row = lines[lines.indexOf(header) + 1].split(";");
   expect(row[0]).toBe("AGBA");
-  expect(row[header.split(";").indexOf("Отчётный период")]).toBe("2026 Q1");
   expect(row[header.split(";").indexOf("Выручка")]).toBe("9000000000");
   // Rounded like the screen and with a decimal comma — not "4.166666666666667".
-  expect(row[header.split(";").indexOf("Изм., %")]).toBe("4,17");
+  expect(row[header.split(";").indexOf("Изм. (сессия), %")]).toBe("4,17");
 });
 
 test("market CSV fails visibly and retries without downloading incomplete data", async ({ page }, testInfo) => {
