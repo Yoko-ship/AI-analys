@@ -24,7 +24,6 @@ export function AudienceSection({
   setRangeDays,
   t,
   language,
-  KIND_LABELS,
   DEVICE_LABELS,
   LANG_LABELS,
   VIEW_LABELS
@@ -33,6 +32,7 @@ export function AudienceSection({
   const audTotals = aud && aud.totals || {};
   const quality = aud && aud.quality || null;
   const [excluded, setExcluded] = useState(isBrowserExcluded);
+  const [siteFilter, setSiteFilter] = useState("all");
   const CHANNEL_LABELS = {
     telegram: "Telegram",
     search: t("Поисковики", "Qidiruv tizimlari", "Search engines"),
@@ -48,6 +48,20 @@ export function AudienceSection({
     security: t("Открыли бумагу", "Qog'ozni ochdi", "Opened a security"),
     signed_in: t("Вошли в аккаунт", "Akkauntga kirdi", "Signed in"),
     analysed: t("Запустили AI-анализ", "AI-tahlil qildi", "Ran an AI analysis")
+  };
+  const sites = aud && aud.sites || [];
+  const siteChannels = ["all", ...["referral", "search", "social", "telegram", "ads", "email", "campaign"].filter(c => sites.some(s => s.channel === c))];
+  const shownSites = siteFilter === "all" ? sites : sites.filter(s => s.channel === siteFilter);
+  const showSitesOf = row => {
+    if (!sites.some(s => s.channel === row.channel)) return;
+    setSiteFilter(row.channel);
+    const panel = document.getElementById("admin-referring-sites");
+    if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const APP_LABELS = {
+    "org.telegram.messenger": t("Приложение Telegram (Android)", "Telegram ilovasi (Android)", "Telegram app (Android)"),
+    "com.google.android.googlequicksearchbox": t("Приложение Google (Android)", "Google ilovasi (Android)", "Google app (Android)"),
+    "com.google.android.gm": "Gmail (Android)"
   };
   const placeLabel = r => {
     const country = countryName(r.country, language);
@@ -83,7 +97,7 @@ export function AudienceSection({
       <div className="admin-cols2">
         <div className="panel">
           <h3>{t("Каналы", "Kanallar", "Channels")}</h3>
-          <HBarList rows={aud && aud.channels || []} nameFn={r => CHANNEL_LABELS[r.channel] || r.channel} valueFn={r => r.sessions} detailFn={r => visitLine(r, t)} />
+          <HBarList rows={aud && aud.channels || []} nameFn={r => CHANNEL_LABELS[r.channel] || r.channel} valueFn={r => r.sessions} detailFn={r => visitLine(r, t)} onClickRow={showSitesOf} canClickRow={r => sites.some(site => site.channel === r.channel)} />
           {aud && !(aud.channels || []).length ? <NoTraffic t={t} /> : null}
           <p className="admin-muted admin-note">
             {t("Визиты по источнику первой страницы. Встроенный браузер Telegram не сообщает, откуда пришёл человек, — такие переходы видны как Telegram, только если ссылка помечена utm_source=telegram.", "Tashriflar birinchi sahifa manbasi bo'yicha. Telegram havolalarini utm_source=telegram bilan belgilang.", "Sessions by the source of their first page. Telegram's in-app browser hides where a reader came from — tag links with utm_source=telegram to see them as Telegram.")}
@@ -98,21 +112,56 @@ export function AudienceSection({
         </div>
       </div>
 
-      <div className="admin-cols2">
-        <div className="panel">
-          <h3>{t("С каких сайтов", "Qaysi saytlardan", "Referring sites")}</h3>
-          <HBarList rows={aud && aud.referrers || []} nameFn={r => r.host === "(direct)" ? t("Прямые заходы", "To'g'ridan-to'g'ri", "Direct") : r.host} valueFn={r => r.sessions} detailFn={r => KIND_LABELS[r.kind] || ""} />
-          {aud && !(aud.referrers || []).length ? <NoTraffic t={t} /> : null}
-        </div>
-        <div className="panel">
-          <h3>{t("Кампании (UTM)", "Kampaniyalar (UTM)", "Campaigns (UTM)")}</h3>
-          <HBarList rows={aud && aud.campaigns || []} nameFn={r => [r.source, r.medium, r.campaign].filter(Boolean).join(" · ")} valueFn={r => r.sessions} detailFn={r => visitLine(r, t)} />
-          {aud && !(aud.campaigns || []).length ? <div className="admin-empty">{t("Помеченных ссылок ещё не было", "Belgilangan havolalar hali yo'q", "No tagged links yet")}</div> : null}
-          <p className="admin-muted admin-note">
-            {t("Пометьте ссылку, которую публикуете, и она появится здесь отдельной строкой: ", "Havolani belgilang: ", "Tag a link you post and it shows up here on its own: ")}
-            <code>uzstock.uz/?utm_source=telegram&amp;utm_campaign=…</code>
-          </p>
-        </div>
+      <div className="panel" id="admin-referring-sites" style={{
+      scrollMarginTop: 96
+    }}>
+        <h3>{t("С каких сайтов приходят", "Qaysi saytlardan kelishadi", "Which sites send visitors")}</h3>
+        {sites.length ? <div className="admin-seg" style={{
+        marginBottom: 12
+      }}>
+            {siteChannels.map(c => <button key={c} type="button" aria-selected={siteFilter === c} onClick={() => setSiteFilter(c)}>
+                {c === "all" ? t("Все", "Hammasi", "All") : CHANNEL_LABELS[c] || c}
+              </button>)}
+          </div> : null}
+        {shownSites.length ? <div className="admin-scroll narrow">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("Сайт", "Sayt", "Site")}</th>
+                  <th>{t("Канал", "Kanal", "Channel")}</th>
+                  <th>{t("Визитов", "Tashriflar", "Sessions")}</th>
+                  <th>{t("Отказы", "Rad etish", "Bounce")}</th>
+                  <th>{t("Время", "Vaqt", "Time")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shownSites.map(r => <tr key={r.host}>
+                    <td>
+                      <strong>{APP_LABELS[r.host] || r.host}</strong>
+                      {APP_LABELS[r.host] ? null : <a className="admin-muted" href={`https://${r.host}`} target="_blank" rel="noopener noreferrer"> ↗</a>}
+                      {(r.pages || []).map(page => <div key={page.path} className="admin-muted admin-path">{page.path} · {fmtInt(page.sessions)}</div>)}
+                    </td>
+                    <td>{CHANNEL_LABELS[r.channel] || r.channel}</td>
+                    <td>{fmtInt(r.sessions)}</td>
+                    <td>{fmtShare(r.bounce_rate)}</td>
+                    <td>{fmtDuration(r.avg_seconds, t)}</td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div> : <div className="admin-empty">{t("За этот период переходов с других сайтов не было", "Bu davrda boshqa saytlardan o'tishlar bo'lmagan", "No visits came from other sites in this period")}</div>}
+        <p className="admin-muted admin-note">
+          {t("Нажмите канал выше, чтобы увидеть его сайты. Обычно браузер сообщает только сайт; конкретная страница-источник видна, когда сайт её передаёт. Прямые заходы и наш собственный сайт сюда не входят.", "Kanalni bosing — uning saytlari ko'rinadi. Brauzer odatda faqat saytni aytadi.", "Click a channel above to see its sites. Browsers usually report only the site; the exact page shows when the referring site passes it on. Direct visits and our own site are not listed.")}
+        </p>
+      </div>
+
+      <div className="panel">
+        <h3>{t("Кампании (UTM)", "Kampaniyalar (UTM)", "Campaigns (UTM)")}</h3>
+        <HBarList rows={aud && aud.campaigns || []} nameFn={r => [r.source, r.medium, r.campaign].filter(Boolean).join(" · ")} valueFn={r => r.sessions} detailFn={r => visitLine(r, t)} />
+        {aud && !(aud.campaigns || []).length ? <div className="admin-empty">{t("Помеченных ссылок ещё не было", "Belgilangan havolalar hali yo'q", "No tagged links yet")}</div> : null}
+        <p className="admin-muted admin-note">
+          {t("Пометьте ссылку, которую публикуете, и она появится здесь отдельной строкой: ", "Havolani belgilang: ", "Tag a link you post and it shows up here on its own: ")}
+          <code>uzstock.uz/?utm_source=telegram&amp;utm_campaign=…</code>
+        </p>
       </div>
 
       <div className="panel">

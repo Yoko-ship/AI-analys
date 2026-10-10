@@ -74,7 +74,7 @@ def traffic(monkeypatch):
         for n in range(3):
             hit(f"visitorNET{n}", "/", "main", "198.51.100.3")
         assert wa.flush() == 11
-        yield
+        yield hit
     finally:
         with psycopg.connect(dsn, autocommit=True) as conn:
             conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
@@ -121,3 +121,21 @@ def test_reading_time_scroll_and_exits(traffic):
     assert exits["/company/UZTL"]["exits"] == 1 and "/market" not in exits
     assert exits["/"]["exits"] == 3 and exits["/"]["exit_rate"] == 1.0
     assert all(e["event"] != "leave" for e in engagement["events"])
+
+
+def test_referring_sites_name_the_site_and_the_page_when_sent(traffic):
+    hit = traffic
+    # a reader from a news site that passes the page, and one from the Telegram Android app
+    hit("visitorCCC1", "/company/UZTL", "company", "198.51.100.2",
+        ref="https://www.kun.uz/news/2026/10/09/uztl?utm_x=1#top")
+    hit("visitorDDD1", "/market", "market", "198.51.100.2", ref="android-app://org.telegram.messenger/")
+    assert wa.flush() == 2
+    sites = {s["host"]: s for s in wa.audience(30)["sites"]}
+    assert set(sites) == {"kun.uz", "google.com", "org.telegram.messenger"}
+    kun = sites["kun.uz"]
+    assert kun["channel"] == "referral" and kun["sessions"] == 1
+    # scheme, www, query and fragment are dropped; the page is kept
+    assert kun["pages"] == [{"path": "/news/2026/10/09/uztl", "sessions": 1}]
+    # a search engine's page (the query) is never listed
+    assert sites["google.com"]["channel"] == "search" and sites["google.com"]["pages"] == []
+    assert sites["org.telegram.messenger"]["channel"] == "telegram"

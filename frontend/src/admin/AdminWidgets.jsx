@@ -56,7 +56,8 @@ export function HBarList({
   nameFn,
   valueFn,
   detailFn,
-  onClickRow
+  onClickRow,
+  canClickRow = () => true
 }) {
   const items = rows || [];
   if (!items.length) return null;
@@ -67,7 +68,7 @@ export function HBarList({
       const name = nameFn(row);
       return <div key={`${name}-${index}`} className="admin-hbar">
             <span className="admin-hbar-name">
-              {onClickRow ? <button type="button" className="admin-link" onClick={() => onClickRow(row)}>{name}</button> : name}
+              {onClickRow && canClickRow(row) ? <button type="button" className="admin-link" onClick={() => onClickRow(row)}>{name}</button> : name}
               {detailFn ? <span className="admin-hbar-detail">{detailFn(row)}</span> : null}
             </span>
             <span className="admin-hbar-track">

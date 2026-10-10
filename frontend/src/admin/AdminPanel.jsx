@@ -141,13 +141,6 @@ export default function AdminPanel({
     desktop: t("Компьютер", "Kompyuter", "Desktop"),
     "(unknown)": t("Неизвестно", "Noma'lum", "Unknown")
   };
-  const KIND_LABELS = {
-    direct: t("прямые", "to'g'ridan-to'g'ri", "direct"),
-    search: t("поиск", "qidiruv", "search"),
-    social: t("соцсети", "ijtimoiy", "social"),
-    referral: t("переход", "havola", "referral"),
-    internal: t("внутренний", "ichki", "internal")
-  };
   const LANG_LABELS = {
     ru: "Русский",
     uz: "O'zbekcha",
@@ -171,7 +164,6 @@ export default function AdminPanel({
     rangeDays={rangeDays}
     setRangeDays={setRangeDays}
     t={t}
-    KIND_LABELS={KIND_LABELS}
     DEVICE_LABELS={DEVICE_LABELS}
     LANG_LABELS={LANG_LABELS}
     VIEW_LABELS={VIEW_LABELS}

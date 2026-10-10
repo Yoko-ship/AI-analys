@@ -280,6 +280,9 @@ def test_channels():
     assert wa.channel_for("web.telegram.org") == "telegram"
     assert wa.channel_for("instagram.com") == "social"
     assert wa.channel_for("kun.uz") == "referral"
+    # Android apps refer as android-app://<package>
+    assert wa.channel_for("org.telegram.messenger") == "telegram"
+    assert wa.channel_for("com.google.android.googlequicksearchbox") == "search"
     # tags outrank the referrer — Telegram's in-app browser sends none
     assert wa.channel_for("", "telegram") == "telegram"
     assert wa.channel_for("kun.uz", "kun", "cpc") == "ads"

@@ -635,8 +635,13 @@ def channel_for(host: str, utm_source: str | None = None, utm_medium: str | None
     host = referrer_host(f"https://{host}/") if host else ""
     if not host or any(host == h or host.endswith("." + h) for h in _OWN_HOSTS):
         return "direct"
-    if host in _TELEGRAM_HOSTS or host.startswith("telegram.") or host.endswith(".t.me"):
+    # Android apps refer as android-app://<package>: Telegram's own app is
+    # org.telegram.messenger, the Google app is googlequicksearchbox.
+    if (host in _TELEGRAM_HOSTS or host.startswith("telegram.") or host.endswith(".t.me")
+            or host.startswith("org.telegram")):
         return "telegram"
+    if "googlequicksearchbox" in host:
+        return "search"
     kind = classify_referrer(f"https://{host}/")
     return kind if kind in {"search", "social"} else "referral"
 
@@ -672,8 +677,10 @@ def _acquisition(conn, since: datetime) -> dict[str, Any]:
             ORDER BY session_id, ts
         )
         SELECT f.path, MAX(f.view) AS view,
-               split_part(split_part(regexp_replace(lower(COALESCE(f.referrer, '')), '^[a-z]+://', ''),
-                                     '/', 1), ':', 1) AS host,
+               -- the referring page without scheme, query or fragment: a
+               -- search query or a tracking id in the query is not ours to keep
+               split_part(split_part(regexp_replace(lower(COALESCE(f.referrer, '')),
+                                                    '^[a-z][a-z0-9+.-]*://', ''), '?', 1), '#', 1) AS ref_page,
                f.utm_source, f.utm_medium, f.utm_campaign,
                COUNT(*) AS sessions,
                COUNT(*) FILTER (WHERE s.views <= 1) AS bounced,
@@ -700,10 +707,23 @@ def _acquisition(conn, since: datetime) -> dict[str, Any]:
     channels: dict[str, dict[str, int]] = {}
     campaigns: dict[tuple, dict[str, int]] = {}
     landings: dict[str, dict[str, Any]] = {}
+    sites: dict[str, dict[str, Any]] = {}
     total = bucket()
     for row in rows:
+        ref_page = row["ref_page"] or ""
+        raw_host = ref_page.split("/", 1)[0].split(":", 1)[0]
+        channel = channel_for(raw_host, row["utm_source"], row["utm_medium"])
         add(total, row)
-        add(channels.setdefault(channel_for(row["host"], row["utm_source"], row["utm_medium"]), bucket()), row)
+        add(channels.setdefault(channel, bucket()), row)
+        host = referrer_host(f"https://{raw_host}/") if raw_host else ""
+        if host and channel != "direct":
+            site = sites.setdefault(host, {**bucket(), "channel": channel, "pages": {}})
+            add(site, row)
+            # Most browsers send only the site, not the page; when the page
+            # does arrive (and it is not a search engine's), keep which one.
+            page = ref_page.split("/", 1)[1] if "/" in ref_page else ""
+            if page.strip("/") and channel != "search":
+                site["pages"]["/" + page] = site["pages"].get("/" + page, 0) + int(row["sessions"] or 0)
         if row["utm_source"] or row["utm_medium"] or row["utm_campaign"]:
             key = (row["utm_source"] or "", row["utm_medium"] or "", row["utm_campaign"] or "")
             add(campaigns.setdefault(key, bucket()), row)
@@ -719,6 +739,10 @@ def _acquisition(conn, since: datetime) -> dict[str, Any]:
                       for k, stats in top(campaigns.items(), 15)],
         "landings": [{"path": path, "view": stats["view"], **shape(stats)}
                      for path, stats in top(landings.items(), 15)],
+        "sites": [{"host": host, "channel": stats["channel"], **shape(stats),
+                   "pages": [{"path": page, "sessions": n}
+                             for page, n in sorted(stats["pages"].items(), key=lambda kv: -kv[1])[:5]]}
+                  for host, stats in top(sites.items(), 40)],
         "engaged_session_seconds": _avg_seconds(total["engaged_ms"], total["measured"]),
     }
 

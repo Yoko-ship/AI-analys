@@ -62,6 +62,11 @@ const AUDIENCE = {
   totals: { visitors: 96, sessions: 142, pageviews: 400, new_visitors: 70, returning_visitors: 26, pages_per_session: 2.8, avg_session_seconds: 95, bounce_rate: 0.46, engaged_session_seconds: 74 },
   referrers: [{ host: "(direct)", sessions: 60, kind: "direct" }, { host: "google.com", sessions: 30, kind: "search" }],
   channels: [{ channel: "direct", sessions: 60, bounce_rate: 0.5, avg_seconds: 50 }, { channel: "telegram", sessions: 45, bounce_rate: 0.31, avg_seconds: 112 }, { channel: "search", sessions: 30, bounce_rate: 0.62, avg_seconds: 21 }],
+  sites: [
+    { host: "kun.uz", channel: "referral", sessions: 14, bounce_rate: 0.29, avg_seconds: 88, pages: [{ path: "/news/2026/10/09/uztl", sessions: 6 }] },
+    { host: "google.com", channel: "search", sessions: 30, bounce_rate: 0.62, avg_seconds: 21, pages: [] },
+    { host: "org.telegram.messenger", channel: "telegram", sessions: 5, bounce_rate: 0.4, avg_seconds: 60, pages: [] },
+  ],
   campaigns: [{ source: "telegram", medium: null, campaign: "launch-oct", sessions: 40, bounce_rate: 0.3, avg_seconds: 120 }],
   landings: [{ path: "/market", view: "market", sessions: 80, bounce_rate: 0.4, avg_seconds: 60 }, { path: "/company/UZTL", view: "company", sessions: 20, bounce_rate: 0.2, avg_seconds: 150 }],
   countries: [{ name: "UZ", visitors: 80 }, { name: "RU", visitors: 9 }, { name: "(unknown)", visitors: 7 }],
@@ -90,6 +95,19 @@ for (const [label, size] of [["desktop", { width: 1440, height: 1000 }], ["phone
     await expect(page.getByText("network a1b2c3 · Tashkent, Uzbekistan")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`audience-${label}.png`), fullPage: true });
+
+    const sites = page.locator("#admin-referring-sites");
+    await expect(sites.getByText("/news/2026/10/09/uztl · 6")).toBeVisible();
+    await expect(sites.getByText("Telegram app (Android)")).toBeVisible();
+    await sites.getByRole("button", { name: "Other sites" }).click();
+    await expect(sites.getByText("google.com")).toHaveCount(0);
+    await expect(sites.getByText("kun.uz", { exact: true })).toBeVisible();
+    // a channel in «Каналы» opens its own sites; one without sites is not a link
+    await page.locator(".admin-hbars").first().getByRole("button", { name: "Search engines" }).click();
+    await expect(sites.getByText("google.com")).toBeVisible();
+    await expect(sites.getByText("kun.uz", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".admin-hbars").first().getByRole("button", { name: "Direct" })).toHaveCount(0);
+    await sites.screenshot({ path: testInfo.outputPath(`sites-${label}.png`) });
 
     await page.getByRole("button", { name: "Don't count this browser" }).click();
     expect(await page.evaluate(() => localStorage.getItem("uz_track_internal"))).toBe("1");
