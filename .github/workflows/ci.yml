@@ -615,14 +615,14 @@ jobs:
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
-            uzstock-quotes-2130.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
+            uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
             uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
             uzstock-collector.service uzstock-quotes-1610.service \
-            uzstock-quotes-2130.service uzstock-reports-watch.service uzstock-hourly-bars.service \
+            uzstock-quotes-2130.service uzstock-quotes-catchup.service uzstock-reports-watch.service uzstock-hourly-bars.service \
             uzstock-bank-fx.service uzstock-bank-history.service uzstock-financial-ingestion.service uzstock-news-collector.service; do
             systemctl stop "$service" >/dev/null 2>&1 || true
           done
@@ -928,12 +928,13 @@ jobs:
           ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
-          def timer(description: str, calendar: str) -> str:
+          def timer(description: str, *calendars: str) -> str:
+              on_calendar = "\n".join(f"OnCalendar={calendar}" for calendar in calendars)
               return f"""[Unit]
           Description={description}
 
           [Timer]
-          OnCalendar={calendar}
+          {on_calendar}
           Persistent=true
           AccuracySec=1min
 
@@ -1010,6 +1011,21 @@ jobs:
                   "python collector_financials.py --trades-only", data_volume=True),
               "/etc/systemd/system/uzstock-quotes-2130.timer": timer(
                   "Run UZStock 21:30 local quotes collector", "Mon..Sat *-*-* 16:30:00"),
+              # The fallback when a scheduled run above fails (09.10.2026: both
+              # Friday runs failed and the board stayed on Thursday all weekend).
+              # Each run first asks openinfo whether prod already holds the newest
+              # session (one or two requests) and stops there, so on a good day
+              # these cost almost nothing; after a failure they publish it. Spaced
+              # past the 60-minute openinfo pause a refused run may have tripped:
+              # 18:00 and 23:30 retry the 16:10 and 21:30 runs, and 09:30 every
+              # day, before the session opens, takes the official conclusions —
+              # Sunday included, so a lost Friday no longer waits for Monday.
+              "/etc/systemd/system/uzstock-quotes-catchup.service": worker(
+                  "uzstock-quotes-catchup", "UZStock quotes catch-up after a failed run",
+                  "python collector_financials.py --trades-only", data_volume=True),
+              "/etc/systemd/system/uzstock-quotes-catchup.timer": timer(
+                  "Re-run the UZStock quotes collector after a failed run",
+                  "*-*-* 04:30:00", "Mon..Sat *-*-* 13:00:00", "Mon..Sat *-*-* 18:30:00"),
               # The 1Д/1Н chart during the session: one openinfo request an
               # hour (the session so far in a single page), bars only. The
               # board itself waits for the evening run and the conclusions.
@@ -1064,7 +1080,7 @@ jobs:
           for timer in \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
-            uzstock-quotes-2130.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
+            uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
@@ -1327,7 +1343,7 @@ jobs:
           systemctl show uzstock-quotes-2130.service -p FragmentPath -p ActiveState
           # The collector validates its selected source, including the automatic
           # OpenInfo fallback. Requiring UZSE here would prevent outage recovery.
-          for unit in uzstock-quotes-1610.service uzstock-quotes-2130.service; do
+          for unit in uzstock-quotes-1610.service uzstock-quotes-2130.service uzstock-quotes-catchup.service; do
             state=$(systemctl show "$unit" -p ActiveState --value)
             if [ "$state" = active ] || [ "$state" = activating ]; then
               echo 'A market collector is already running; no duplicate crawl started.'
