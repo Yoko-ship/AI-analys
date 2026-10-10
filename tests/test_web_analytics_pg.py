@@ -139,3 +139,29 @@ def test_referring_sites_name_the_site_and_the_page_when_sent(traffic):
     # a search engine's page (the query) is never listed
     assert sites["google.com"]["channel"] == "search" and sites["google.com"]["pages"] == []
     assert sites["org.telegram.messenger"]["channel"] == "telegram"
+
+
+def test_one_day_reads_only_that_day_and_the_daily_table_names_its_leaders(traffic):
+    # move the Google reader's visit to yesterday (Tashkent days)
+    with wa._conn() as conn:
+        conn.execute("UPDATE web_events SET ts = ts - INTERVAL '1 day' WHERE visitor_id = 'visitorBBB1'")
+    yesterday = (wa.datetime.now(wa.TASHKENT) - wa.timedelta(days=1)).date().isoformat()
+    today = wa.datetime.now(wa.TASHKENT).date().isoformat()
+
+    one = wa.audience(30, yesterday)
+    assert one["day"] == yesterday and one["totals"]["visitors"] == 1
+    assert [c["channel"] for c in one["channels"]] == ["search"]
+    assert len(one["hourly"]) == 24 and sum(h["visitors"] for h in one["hourly"]) == 1
+    # "new" looks past the window: the reader was first seen yesterday
+    assert one["totals"]["new_visitors"] == 1
+    assert wa.engagement(30, yesterday)["reading"][0]["view"] == "news"
+
+    rows = {r["day"]: r for r in wa.audience(7)["daily"]}
+    assert rows[yesterday]["top_channel"] == {"name": "search", "sessions": 1}
+    assert rows[yesterday]["top_site"] == {"name": "google.com", "sessions": 1}
+    assert rows[yesterday]["bounce_rate"] == 1.0 and rows[yesterday]["avg_seconds"] == 3.0
+    assert rows[today]["visitors"] == 4 and rows[today]["new_visitors"] == 4
+
+    # a malformed or future day falls back to the range instead of an empty screen
+    assert wa.audience(7, "2999-01-01")["day"] is None
+    assert wa.audience(7, "not-a-date")["totals"]["visitors"] == 5

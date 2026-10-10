@@ -94,13 +94,13 @@ async def api_metrics_overview() -> dict[str, Any]:
 
 
 @admin_router.get("/api/admin/metrics/audience")
-async def api_metrics_audience(days: int = 30) -> dict[str, Any]:
-    return await _run(web_analytics.audience, days)
+async def api_metrics_audience(days: int = 30, day: str | None = None) -> dict[str, Any]:
+    return await _run(web_analytics.audience, days, day)
 
 
 @admin_router.get("/api/admin/metrics/engagement")
-async def api_metrics_engagement(days: int = 30) -> dict[str, Any]:
-    return await _run(web_analytics.engagement, days)
+async def api_metrics_engagement(days: int = 30, day: str | None = None) -> dict[str, Any]:
+    return await _run(web_analytics.engagement, days, day)
 
 
 @admin_router.get("/api/admin/metrics/analysis")

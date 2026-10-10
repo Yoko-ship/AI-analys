@@ -483,7 +483,7 @@ def _admin_user_ids(conn) -> list[int]:
     return [int(r["id"]) for r in rows if is_admin_email(r["email"])]
 
 
-def _scope(conn) -> list[str]:
+def _scope(conn, until: datetime | None = None) -> list[str]:
     """Create the temp view ``ev``: ``web_events`` without the team's browsers.
 
     A browser is the team's when it was ever signed in to an administrator's
@@ -491,6 +491,9 @@ def _scope(conn) -> list[str]:
     browsers are dropped — every event they sent, before and after — so the
     audience numbers describe other people. Networks are deliberately NOT
     excluded: mobile carriers put thousands of real readers behind one address.
+    ``ev_all`` is the same set over all time — "first seen" must look past a
+    window. With ``until``, ``ev`` also ends there, so a single day reads as
+    ``ts >= day_start`` in every query without each one restating the bound.
     Returns the excluded visitor ids.
     """
     from psycopg import sql
@@ -501,9 +504,33 @@ def _scope(conn) -> list[str]:
     ).fetchall()
     excluded = [r["visitor_id"] for r in rows]
     conn.execute(sql.SQL(
-        "CREATE OR REPLACE TEMP VIEW ev AS SELECT * FROM web_events WHERE NOT (visitor_id = ANY({}::text[]))"
+        "CREATE OR REPLACE TEMP VIEW ev_all AS SELECT * FROM web_events WHERE NOT (visitor_id = ANY({}::text[]))"
     ).format(sql.Literal(excluded)))
+    if until is None:
+        conn.execute("CREATE OR REPLACE TEMP VIEW ev AS SELECT * FROM ev_all")
+    else:
+        conn.execute(sql.SQL("CREATE OR REPLACE TEMP VIEW ev AS SELECT * FROM ev_all WHERE ts < {}")
+                     .format(sql.Literal(until)))
     return excluded
+
+
+def _window(days: int, day: str | None) -> tuple[int, datetime, datetime | None, str | None]:
+    """(days, since, until, day): the last N Tashkent days, or one named day.
+
+    A day that is malformed or in the future falls back to the range — the
+    panel never shows an empty screen for a typo in the address.
+    """
+    now = datetime.now(timezone.utc)
+    if day:
+        try:
+            start = datetime.strptime(str(day)[:10], "%Y-%m-%d").replace(tzinfo=TASHKENT)
+        except ValueError:
+            start = None
+        if start is not None and start.astimezone(timezone.utc) <= now:
+            return 1, start.astimezone(timezone.utc), (start + timedelta(days=1)).astimezone(timezone.utc), \
+                start.date().isoformat()
+    days = max(1, min(int(days or 30), 365))
+    return days, _day_start(now, days - 1), None, None
 
 
 def _available() -> bool:
@@ -750,7 +777,7 @@ def _acquisition(conn, since: datetime) -> dict[str, Any]:
 _SECURITY_VIEWS = ("company", "chart", "bond")
 
 
-def _journey_funnel(conn, since: datetime) -> list[dict[str, Any]]:
+def _journey_funnel(conn, since: datetime, until: datetime | None = None) -> list[dict[str, Any]]:
     """Visitor → opened a security → signed in → ran an AI analysis.
 
     Every step counts the same people (browsers), so each bar is a share of
@@ -773,9 +800,10 @@ def _journey_funnel(conn, since: datetime) -> list[dict[str, Any]]:
                 """
                 SELECT COUNT(DISTINCT e.visitor_id) FROM ev e
                 WHERE e.ts >= %s AND e.user_id IN (
-                    SELECT user_id FROM web_analysis_history WHERE created_at >= %s)
+                    SELECT user_id FROM web_analysis_history
+                    WHERE created_at >= %s AND created_at < COALESCE(%s, 'infinity'::timestamptz))
                 """,
-                (since, since),
+                (since, since, until),
             )
     except Exception:
         analysed = None
@@ -787,7 +815,7 @@ def _journey_funnel(conn, since: datetime) -> list[dict[str, Any]]:
     ]
 
 
-def _quality(conn, since: datetime, excluded: list[str]) -> dict[str, Any]:
+def _quality(conn, since: datetime, until: datetime | None, excluded: list[str]) -> dict[str, Any]:
     """How far «посетители» can be read as people.
 
     A visitor is a browser. One person in several browsers or incognito
@@ -813,8 +841,9 @@ def _quality(conn, since: datetime, excluded: list[str]) -> dict[str, Any]:
     ).fetchall()
     team = _scalar(
         conn,
-        "SELECT COUNT(DISTINCT visitor_id) FROM web_events WHERE ts >= %s AND visitor_id = ANY(%s::text[])",
-        (since, excluded),
+        "SELECT COUNT(DISTINCT visitor_id) FROM web_events "
+        "WHERE ts >= %s AND ts < COALESCE(%s, 'infinity'::timestamptz) AND visitor_id = ANY(%s::text[])",
+        (since, until, excluded),
     )
     return {
         "visitors": int(totals["visitors"] or 0),
@@ -828,14 +857,82 @@ def _quality(conn, since: datetime, excluded: list[str]) -> dict[str, Any]:
     }
 
 
-def audience(days: int = 30) -> dict[str, Any]:
+def _daily_report(conn, since: datetime, until: datetime | None) -> dict[str, dict[str, Any]]:
+    """Per Tashkent day: new visitors, bounce, engaged time and the day's
+    leading channel and site — the «по дням» table. Visits are dated by
+    the moment they started."""
+    sessions = conn.execute(
+        """
+        WITH s AS (
+            SELECT session_id, MIN(ts) AS started,
+                   COUNT(*) FILTER (WHERE event = 'pageview') AS views,
+                   SUM(engaged_ms) FILTER (WHERE event = 'leave') AS engaged_ms
+            FROM ev WHERE ts >= %s GROUP BY session_id
+        ), f AS (
+            SELECT DISTINCT ON (session_id) session_id, referrer, utm_source, utm_medium
+            FROM ev WHERE ts >= %s AND event = 'pageview'
+            ORDER BY session_id, ts
+        )
+        SELECT ((s.started + INTERVAL '5 hour')::date) AS day,
+               split_part(split_part(split_part(regexp_replace(lower(COALESCE(f.referrer, '')),
+                   '^[a-z][a-z0-9+.-]*://', ''), '/', 1), ':', 1), '?', 1) AS host,
+               f.utm_source, f.utm_medium,
+               COUNT(*) AS sessions,
+               COUNT(*) FILTER (WHERE s.views <= 1) AS bounced,
+               COUNT(s.engaged_ms) AS measured,
+               COALESCE(SUM(s.engaged_ms), 0) AS engaged_ms
+        FROM s LEFT JOIN f USING (session_id)
+        GROUP BY 1, 2, 3, 4
+        """,
+        (since, since),
+    ).fetchall()
+    newcomers = conn.execute(
+        """
+        SELECT ((first_seen + INTERVAL '5 hour')::date) AS day, COUNT(*) AS n FROM (
+            SELECT visitor_id, MIN(ts) AS first_seen FROM ev_all GROUP BY visitor_id
+        ) v
+        WHERE first_seen >= %s AND first_seen < COALESCE(%s, 'infinity'::timestamptz)
+        GROUP BY 1
+        """,
+        (since, until),
+    ).fetchall()
+
+    days: dict[str, dict[str, Any]] = {}
+    for row in sessions:
+        d = days.setdefault(str(row["day"]), {"sessions": 0, "bounced": 0, "measured": 0,
+                                              "engaged_ms": 0, "channels": {}, "sites": {}})
+        n = int(row["sessions"] or 0)
+        for key in ("sessions", "bounced", "measured", "engaged_ms"):
+            d[key] += int(row[key] or 0)
+        channel = channel_for(row["host"] or "", row["utm_source"], row["utm_medium"])
+        d["channels"][channel] = d["channels"].get(channel, 0) + n
+        host = referrer_host(f"https://{row['host']}/") if row["host"] else ""
+        if host and channel != "direct":
+            d["sites"][host] = d["sites"].get(host, 0) + n
+    new_by_day = {str(r["day"]): int(r["n"]) for r in newcomers}
+
+    def leader(counts: dict[str, int]) -> Optional[dict[str, Any]]:
+        if not counts:
+            return None
+        name, n = max(counts.items(), key=lambda kv: (kv[1], kv[0]))
+        return {"name": name, "sessions": n}
+
+    return {
+        day: {"new_visitors": new_by_day.get(day, 0),
+              "bounce_rate": _rate(d["bounced"], d["sessions"]),
+              "avg_seconds": _avg_seconds(d["engaged_ms"], d["measured"]),
+              "top_channel": leader(d["channels"]),
+              "top_site": leader(d["sites"])}
+        for day, d in days.items()
+    }
+
+
+def audience(days: int = 30, day: str | None = None) -> dict[str, Any]:
     if not _available():
         return {"ok": False, "reason": "no database"}
-    days = max(1, min(int(days or 30), 365))
-    now = datetime.now(timezone.utc)
-    since = _day_start(now, days - 1)
+    days, since, until, day = _window(days, day)
     with _conn() as conn:
-        excluded = _scope(conn)
+        excluded = _scope(conn, until)
         daily = conn.execute(
             """
             SELECT ((ts + INTERVAL '5 hour')::date) AS day,
@@ -880,11 +977,22 @@ def audience(days: int = 30) -> dict[str, Any]:
             """
             SELECT COUNT(*) FROM (
                 SELECT visitor_id, MIN(ts) AS first_seen
-                FROM ev GROUP BY visitor_id
-            ) v WHERE first_seen >= %s
+                FROM ev_all GROUP BY visitor_id
+            ) v WHERE first_seen >= %s AND first_seen < COALESCE(%s, 'infinity'::timestamptz)
+            """,
+            (since, until),
+        )
+        by_day = _daily_report(conn, since, until)
+        hourly = conn.execute(
+            """
+            SELECT EXTRACT(HOUR FROM ts + INTERVAL '5 hour')::INT AS hour,
+                   COUNT(DISTINCT visitor_id) AS visitors,
+                   COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
+            FROM ev WHERE ts >= %s
+            GROUP BY 1 ORDER BY 1
             """,
             (since,),
-        )
+        ).fetchall() if day else []
 
         referrers = conn.execute(
             """
@@ -946,8 +1054,8 @@ def audience(days: int = 30) -> dict[str, Any]:
         ).fetchall()
         cities = [{"name": r["city"], "country": r["country"], "visitors": int(r["visitors"])} for r in cities]
         acquisition = _acquisition(conn, since)
-        journey = _journey_funnel(conn, since)
-        quality = _quality(conn, since, excluded)
+        journey = _journey_funnel(conn, since, until)
+        quality = _quality(conn, since, until, excluded)
 
     total_visitors = int(totals["visitors"]) if totals and totals["visitors"] is not None else None
     sessions_total = int(session_stats["sessions"]) if session_stats and session_stats["sessions"] else 0
@@ -959,11 +1067,21 @@ def audience(days: int = 30) -> dict[str, Any]:
         kind = "direct" if host == "(direct)" else classify_referrer(f"https://{host}/")
         ref_rows.append({"host": host, "sessions": int(r["sessions"]), "kind": kind})
 
+    daily_rows = []
+    for r in daily:
+        extra = by_day.get(str(r["day"]), {})
+        daily_rows.append({"day": str(r["day"]), "visitors": int(r["visitors"]),
+                           "sessions": int(r["sessions"]), "pageviews": int(r["pageviews"]), **extra})
+    hours = {int(r["hour"]): r for r in hourly}
+
     return {
         "ok": True,
         "days": days,
-        "daily": [{"day": str(r["day"]), "visitors": int(r["visitors"]),
-                   "sessions": int(r["sessions"]), "pageviews": int(r["pageviews"])} for r in daily],
+        "day": day,
+        "daily": daily_rows,
+        "hourly": [{"hour": h, "visitors": int(hours[h]["visitors"]) if h in hours else 0,
+                    "pageviews": int(hours[h]["pageviews"]) if h in hours else 0}
+                   for h in range(24)] if day else [],
         "totals": {
             "visitors": total_visitors,
             "sessions": int(totals["sessions"]) if totals and totals["sessions"] is not None else None,
@@ -996,13 +1114,12 @@ def audience(days: int = 30) -> dict[str, Any]:
 # §3 Вовлечённость
 # ---------------------------------------------------------------------------
 
-def engagement(days: int = 30) -> dict[str, Any]:
+def engagement(days: int = 30, day: str | None = None) -> dict[str, Any]:
     if not _available():
         return {"ok": False, "reason": "no database"}
-    days = max(1, min(int(days or 30), 365))
-    since = _day_start(datetime.now(timezone.utc), days - 1)
+    days, since, until, day = _window(days, day)
     with _conn() as conn:
-        _scope(conn)
+        _scope(conn, until)
         views = conn.execute(
             """
             SELECT COALESCE(NULLIF(view, ''), '(other)') AS view,
@@ -1090,6 +1207,7 @@ def engagement(days: int = 30) -> dict[str, Any]:
     return {
         "ok": True,
         "days": days,
+        "day": day,
         "views": [{"view": r["view"], "pageviews": int(r["pageviews"]), "visitors": int(r["visitors"])}
                   for r in views],
         "tickers": [{"ticker": r["ticker"], "pageviews": int(r["pageviews"]), "visitors": int(r["visitors"])}

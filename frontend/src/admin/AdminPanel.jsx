@@ -35,6 +35,8 @@ export default function AdminPanel({
     engagementData,
     analysisData,
     rangeDays,
+    day,
+    setDay,
     setRangeDays,
     usersData,
     funnel,
@@ -162,6 +164,8 @@ export default function AdminPanel({
   const audienceBody = <AudienceSection
     audienceData={audienceData}
     rangeDays={rangeDays}
+    day={day}
+    setDay={setDay}
     setRangeDays={setRangeDays}
     t={t}
     DEVICE_LABELS={DEVICE_LABELS}
@@ -173,7 +177,7 @@ export default function AdminPanel({
   /* ══════════════════════════════════════════════════════════════════════════
      PRODUCT · Вовлечённость
      ════════════════════════════════════════════════════════════════════════ */
-  const engagementBody = <EngagementSection engagementData={engagementData} rangeDays={rangeDays} setRangeDays={setRangeDays} t={t} VIEW_LABELS={VIEW_LABELS} />;
+  const engagementBody = <EngagementSection engagementData={engagementData} rangeDays={rangeDays} setRangeDays={setRangeDays} day={day} setDay={setDay} t={t} VIEW_LABELS={VIEW_LABELS} />;
 
   /* ══════════════════════════════════════════════════════════════════════════
      PRODUCT · AI-анализ

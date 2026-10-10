@@ -3,6 +3,12 @@ import { DASH, fmtInt, fmtNum, fmtShare, fmtDuration, fmtDay } from "./adminMode
 import { Stat, DailyBars, HBarList, Funnel, RangePicker, NoTraffic } from "./AdminWidgets.jsx";
 import { isBrowserExcluded, setBrowserExcluded } from "../lib/track.js";
 
+/** 09.10.2026 — a single day's report names its year too. */
+function fullDay(iso) {
+  const parts = String(iso || "").split("-");
+  return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : String(iso || "");
+}
+
 function countryName(code, language) {
   if (!code || code === "(unknown)") return null;
   try {
@@ -22,6 +28,8 @@ export function AudienceSection({
   audienceData,
   rangeDays,
   setRangeDays,
+  day,
+  setDay,
   t,
   language,
   DEVICE_LABELS,
@@ -74,8 +82,14 @@ export function AudienceSection({
   };
   return <div className="admin-section">
       <div className="admin-panel-bar">
-        <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+        <RangePicker value={rangeDays} onChange={setRangeDays} day={day} onDay={setDay} t={t} />
       </div>
+      {day ? <div className="admin-panel-bar">
+          <strong>{t(`Отчёт за ${fullDay(day)}`, `${fullDay(day)} hisoboti`, `Report for ${fullDay(day)}`)}</strong>
+          <button type="button" className="admin-btn sm" onClick={() => setRangeDays(rangeDays)}>
+            {t(`← к ${rangeDays} дням`, `← ${rangeDays} kunga`, `← back to ${rangeDays} days`)}
+          </button>
+        </div> : null}
 
       <div className="admin-stats">
         <Stat label={t("Уникальных посетителей", "Noyob tashrifchilar", "Unique visitors")} value={fmtInt(audTotals.visitors)} line1={t(`новых — ${fmtInt(audTotals.new_visitors)} · вернувшихся — ${fmtInt(audTotals.returning_visitors)}`, `yangi — ${fmtInt(audTotals.new_visitors)}`, `new — ${fmtInt(audTotals.new_visitors)} · returning — ${fmtInt(audTotals.returning_visitors)}`)} line2={t("без браузеров команды", "jamoa brauzerlarisiz", "the team's browsers excluded")} />
@@ -84,15 +98,58 @@ export function AudienceSection({
         <Stat label={t("Отказы", "Rad etishlar", "Bounce rate")} value={fmtShare(audTotals.bounce_rate)} line1={t("визиты из одной страницы", "bir sahifalik tashriflar", "single-page sessions")} line2={t("по каналам и страницам входа — ниже", "kanallar bo'yicha — pastda", "by channel and landing page below")} />
       </div>
 
-      <div className="panel">
-        <div className="admin-chart-head">
-          <div>
-            <h2>{t("Посетители по дням", "Kunlik tashrifchilar", "Visitors by day")}</h2>
-            <p>{t(`${rangeDays} дней · граница суток — Ташкент`, `${rangeDays} kun`, `${rangeDays} days · Tashkent day boundary`)}</p>
+      {day ? <div className="panel">
+          <div className="admin-chart-head">
+            <div>
+              <h2>{t("Посетители по часам", "Soatlar bo'yicha tashrifchilar", "Visitors by hour")}</h2>
+              <p>{t(`${fullDay(day)} · время Ташкента`, `${fullDay(day)} · Toshkent vaqti`, `${fullDay(day)} · Tashkent time`)}</p>
+            </div>
           </div>
-        </div>
-        {aud && aud.daily && aud.daily.length ? <DailyBars data={aud.daily} valueKey="visitors" titleFn={r => `${fmtDay(r.day)} · ${fmtInt(r.visitors)} ${t("чел.", "kishi", "visitors")} · ${fmtInt(r.sessions)} ${t("визитов", "tashrif", "sessions")}`} /> : <NoTraffic t={t} />}
-      </div>
+          {aud && (aud.hourly || []).some(h => h.visitors) ? <DailyBars data={aud.hourly} valueKey="visitors" labelFn={r => `${String(r.hour).padStart(2, "0")}:00`} titleFn={r => `${String(r.hour).padStart(2, "0")}:00–${String(r.hour).padStart(2, "0")}:59 · ${fmtInt(r.visitors)} ${t("чел.", "kishi", "visitors")} · ${fmtInt(r.pageviews)} ${t("просмотров", "ko'rish", "views")}`} /> : <NoTraffic t={t} />}
+        </div> : <div className="panel">
+          <div className="admin-chart-head">
+            <div>
+              <h2>{t("Посетители по дням", "Kunlik tashrifchilar", "Visitors by day")}</h2>
+              <p>{t(`${rangeDays} дней · граница суток — Ташкент · нажмите на день, чтобы открыть его отчёт`, `${rangeDays} kun · kunni bosing`, `${rangeDays} days · Tashkent day boundary · click a day to open its report`)}</p>
+            </div>
+          </div>
+          {aud && aud.daily && aud.daily.length ? <DailyBars data={aud.daily} valueKey="visitors" onPick={r => setDay(r.day)} titleFn={r => `${fmtDay(r.day)} · ${fmtInt(r.visitors)} ${t("чел.", "kishi", "visitors")} · ${fmtInt(r.sessions)} ${t("визитов", "tashrif", "sessions")}`} /> : <NoTraffic t={t} />}
+        </div>}
+
+      {!day && aud && (aud.daily || []).length ? <div className="panel">
+          <h3>{t("По дням", "Kunlar bo'yicha", "Day by day")}</h3>
+          <div className="admin-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("День", "Kun", "Day")}</th>
+                  <th>{t("Посетители", "Tashrifchilar", "Visitors")}</th>
+                  <th>{t("Новые", "Yangi", "New")}</th>
+                  <th>{t("Визиты", "Tashriflar", "Sessions")}</th>
+                  <th>{t("Просмотры", "Ko'rishlar", "Views")}</th>
+                  <th>{t("Отказы", "Rad etish", "Bounce")}</th>
+                  <th>{t("Время", "Vaqt", "Time")}</th>
+                  <th>{t("Главный источник", "Asosiy manba", "Top source")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...aud.daily].reverse().map(r => <tr key={r.day} className="admin-day-row">
+                    <td><button type="button" className="admin-link" onClick={() => setDay(r.day)}>{fmtDay(r.day)}</button></td>
+                    <td>{fmtInt(r.visitors)}</td>
+                    <td>{fmtInt(r.new_visitors)}</td>
+                    <td>{fmtInt(r.sessions)}</td>
+                    <td>{fmtInt(r.pageviews)}</td>
+                    <td>{fmtShare(r.bounce_rate)}</td>
+                    <td>{fmtDuration(r.avg_seconds, t)}</td>
+                    <td>
+                      {r.top_channel ? CHANNEL_LABELS[r.top_channel.name] || r.top_channel.name : DASH}
+                      {r.top_site ? <span className="admin-muted"> · {APP_LABELS[r.top_site.name] || r.top_site.name}</span> : null}
+                    </td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div> : null}
 
       <div className="admin-cols2">
         <div className="panel">

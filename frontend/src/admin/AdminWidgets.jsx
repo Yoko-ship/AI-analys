@@ -33,7 +33,9 @@ export function deltaBadge(now, prev) {
 export function DailyBars({
   data,
   valueKey,
-  titleFn
+  titleFn,
+  labelFn = row => fmtDay(row.day),
+  onPick
 }) {
   const rows = data || [];
   if (!rows.length) return null;
@@ -43,10 +45,22 @@ export function DailyBars({
       {rows.map((row, index) => {
       const value = Number(row[valueKey]) || 0;
       const last = index === rows.length - 1;
-      return <div key={row.day || index} className={`bar${last ? " now" : ""}`} style={{
+      const title = titleFn ? titleFn(row) : `${labelFn(row)} · ${fmtInt(value)}`;
+      return <div key={row.day || row.hour || index} className={`bar${last ? " now" : ""}${onPick ? " pickable" : ""}`} style={{
         height: `${Math.max(3, (value / peak * 100))}%`
-      }} title={titleFn ? titleFn(row) : `${fmtDay(row.day)} · ${fmtInt(value)}`}>
-            {last || index % step === 0 ? <span>{fmtDay(row.day)}</span> : null}
+      }} title={title} {...onPick ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": title,
+        onClick: () => onPick(row),
+        onKeyDown: event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onPick(row);
+          }
+        }
+      } : {}}>
+            {last || index % step === 0 ? <span>{labelFn(row)}</span> : null}
           </div>;
     })}
     </div>;
@@ -108,16 +122,31 @@ export function Funnel({
     })}
     </div>;
 }
+/** YYYY-MM-DD of the Tashkent day `back` days ago — the panel's day boundary. */
+export function tashkentDay(back = 0) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tashkent" }).format(Date.now() - back * 86400000);
+}
 export function RangePicker({
   value,
   onChange,
-  t
+  t,
+  day,
+  onDay
 }) {
-  return <div className="admin-seg">
-      {[7, 30, 90].map(days => <button key={days} type="button" aria-selected={value === days} onClick={() => onChange(days)}>
-          {t(`${days} дней`, `${days} kun`, `${days} days`)}
-        </button>)}
-    </div>;
+  const today = tashkentDay(0);
+  const yesterday = tashkentDay(1);
+  return <>
+      <div className="admin-seg">
+        {onDay ? <>
+            <button type="button" aria-selected={day === today} onClick={() => onDay(today)}>{t("Сегодня", "Bugun", "Today")}</button>
+            <button type="button" aria-selected={day === yesterday} onClick={() => onDay(yesterday)}>{t("Вчера", "Kecha", "Yesterday")}</button>
+          </> : null}
+        {[7, 30, 90].map(days => <button key={days} type="button" aria-selected={!day && value === days} onClick={() => onChange(days)}>
+            {t(`${days} дней`, `${days} kun`, `${days} days`)}
+          </button>)}
+      </div>
+      {onDay ? <input type="date" className="admin-input admin-day-input" aria-label={t("Выбрать день", "Kunni tanlash", "Pick a day")} value={day || ""} max={today} onChange={event => event.target.value ? onDay(event.target.value) : onChange(value)} /> : null}
+    </>;
 }
 export function Skeleton({
   rows = 3

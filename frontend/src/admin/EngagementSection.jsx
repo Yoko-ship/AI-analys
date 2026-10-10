@@ -4,13 +4,15 @@ export function EngagementSection({
   engagementData,
   rangeDays,
   setRangeDays,
+  day,
+  setDay,
   t,
   VIEW_LABELS
 }) {
   const eng = engagementData && engagementData.ok ? engagementData : null;
   return <div className="admin-section">
       <div className="admin-panel-bar">
-        <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+        <RangePicker value={rangeDays} onChange={setRangeDays} day={day} onDay={setDay} t={t} />
       </div>
 
       <div className="panel">

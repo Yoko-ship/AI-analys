@@ -15,7 +15,14 @@ export function useAdminData({
   const [audienceData, setAudienceData] = useState(null);
   const [engagementData, setEngagementData] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
-  const [rangeDays, setRangeDays] = useState(30);
+  const [rangeDays, setRangeDaysRaw] = useState(30);
+  // One Tashkent day (YYYY-MM-DD) instead of a range; «Аудитория» and
+  // «Вовлечённость» honour it, picking a range clears it.
+  const [day, setDay] = useState(null);
+  const setRangeDays = useCallback(days => {
+    setDay(null);
+    setRangeDaysRaw(days);
+  }, []);
   const [overview, setOverview] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [ledgerTicker, setLedgerTicker] = useState("");
@@ -101,12 +108,12 @@ export function useAdminData({
     const data = await readJson("/api/admin/metrics/overview");
     if (alive.current) setMetrics(data);
   }, [readJson]);
-  const loadAudience = useCallback(async days => {
-    const data = await readJson(`/api/admin/metrics/audience?days=${days}`);
+  const loadAudience = useCallback(async (days, oneDay) => {
+    const data = await readJson(`/api/admin/metrics/audience?days=${days}${oneDay ? `&day=${oneDay}` : ""}`);
     if (alive.current) setAudienceData(data);
   }, [readJson]);
-  const loadEngagement = useCallback(async days => {
-    const data = await readJson(`/api/admin/metrics/engagement?days=${days}`);
+  const loadEngagement = useCallback(async (days, oneDay) => {
+    const data = await readJson(`/api/admin/metrics/engagement?days=${days}${oneDay ? `&day=${oneDay}` : ""}`);
     if (alive.current) setEngagementData(data);
   }, [readJson]);
   const loadAnalysis = useCallback(async days => {
@@ -134,9 +141,9 @@ export function useAdminData({
     } else if (section === "overview") {
       jobs.push(loadMetrics());
     } else if (section === "audience") {
-      jobs.push(loadAudience(rangeDays));
+      jobs.push(loadAudience(rangeDays, day));
     } else if (section === "engagement") {
-      jobs.push(loadEngagement(rangeDays));
+      jobs.push(loadEngagement(rangeDays, day));
     } else if (section === "analysis") {
       jobs.push(loadAnalysis(rangeDays));
     } else if (section === "users") {
@@ -155,7 +162,7 @@ export function useAdminData({
     // usersQuery deliberately not a dependency: the list reloads on Enter or a
     // filter click, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
+  }, [section, rangeDays, day, usersOnly, isSystem, loadOverview, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
   const streams = useMemo(() => overview?.streams || [], [overview?.streams]);
   const staleStreams = useMemo(() => streams.filter(s => s.state === "stale").length, [streams]);
   const activeTab = isSystem ? "system" : section;
@@ -173,6 +180,8 @@ export function useAdminData({
     engagementData,
     analysisData,
     rangeDays,
+    day,
+    setDay,
     setRangeDays,
     usersData,
     funnel,
