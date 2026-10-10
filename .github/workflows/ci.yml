@@ -925,7 +925,10 @@ jobs:
           # The journald log driver: an attached `docker run` under systemd left
           # the jobs' own lines out of the journal, so a failed run showed only
           # "status=1". Read a run with `journalctl -t {name}`.
-          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/app/.env -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
+          # uzse.uz blocked this host after ~30 crawls a day (2026-09-24). Pinned
+          # off here, after the env file, so no .env on the server can turn a
+          # collector back onto it; only openinfo is read (see uzse_access.py).
+          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/app/.env -e UZSE_ENABLED=0 -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, *calendars: str) -> str:

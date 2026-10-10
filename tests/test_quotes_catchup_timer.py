@@ -44,3 +44,12 @@ def test_single_calendar_timers_are_unchanged():
     timer = units["/etc/systemd/system/uzstock-quotes-2130.timer"]
     assert [line for line in timer.splitlines() if line.startswith("OnCalendar=")] == [
         "OnCalendar=Mon..Sat *-*-* 16:30:00"]
+
+
+def test_every_server_worker_has_uzse_pinned_off():
+    # uzse.uz blocked the host after ~30 crawls a day; a server .env must not
+    # be able to switch a collector back onto it (docker's -e beats --env-file).
+    _, units = _units()
+    for name, unit in units.items():
+        if "docker run" in unit and "--env-file /root/uzstock/app/.env" in unit:
+            assert "--env-file /root/uzstock/app/.env -e UZSE_ENABLED=0" in unit, name
