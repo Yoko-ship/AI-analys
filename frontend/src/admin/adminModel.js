@@ -123,31 +123,18 @@ export const SECTIONS = [{
   icon: "sliders",
   title: ["Система", "Tizim", "System"]
 }];
-export const SYSTEM_SECTIONS = [
-  { key: "quality", title: ["Качество данных", "Ma'lumotlar sifati", "Data quality"] },{
-  key: "system",
-  title: ["Данные", "Ma'lumotlar", "Data"]
-}, {
+export const SYSTEM_SECTIONS = [{
   key: "companies",
   title: ["Компании", "Kompaniyalar", "Companies"]
 }, {
   key: "streams",
   title: ["Сборщики", "Yig'uvchilar", "Collectors"]
 }, {
-  key: "findings",
-  title: ["Аудит", "Audit", "Audit"]
-}, {
-  key: "intake",
-  title: ["Отчёты", "Hisobotlar", "Statements"]
-}, {
   key: "issuer",
   title: ["Эмитент", "Emitent", "Issuer"]
-}, {
-  key: "rules",
-  title: ["Правила", "Qoidalar", "Rules"]
 }, {
   key: "source",
   title: ["Источник", "Manba", "Source"]
 }];
 export const SYSTEM_KEYS = SYSTEM_SECTIONS.map(s => s.key);
-export const ADMIN_SECTION_KEYS = [...SECTIONS.map(s => s.key), ...SYSTEM_KEYS.filter(k => k !== "system")];
+export const ADMIN_SECTION_KEYS = [...SECTIONS.map(s => s.key), ...SYSTEM_KEYS];

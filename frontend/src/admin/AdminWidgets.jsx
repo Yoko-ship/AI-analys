@@ -1,5 +1,5 @@
 import { Icon } from "./icons.jsx";
-import { fmtInt, fmtShare, fmtStamp, fmtDay, SEVERITY_TONE } from "./adminModel.js";
+import { fmtInt, fmtShare, fmtDay } from "./adminModel.js";
 export function Stat({
   label,
   value,
@@ -29,36 +29,6 @@ export function deltaBadge(now, prev) {
     text,
     icon: change >= 0 ? "up" : "down"
   };
-}
-export function Severity({
-  value,
-  t
-}) {
-  const label = value === "blocking" ? t("Блокирующая", "Bloklovchi", "Blocking") : value === "warning" ? t("Предупреждение", "Ogohlantirish", "Warning") : t("Информация", "Ma'lumot", "Info");
-  return <span className="admin-pill">
-      <span className={`admin-dot ${SEVERITY_TONE[value] || ""}`} />{label}
-    </span>;
-}
-export function RunHistory({
-  runs,
-  t
-}) {
-  const peak = Math.max(1, ...runs.map(r => Number(r.blocking) || 0));
-  return <div className="admin-bars">
-      {runs.map((run, index) => {
-      const value = Number(run.blocking) || 0;
-      const last = index === runs.length - 1;
-      const label = fmtStamp(run.finished_at || run.started_at, {
-        withTime: false
-      }).slice(0, 5);
-      const cls = ["bar", last ? "now" : "", run.status === "failed" ? "failed" : ""].filter(Boolean).join(" ");
-      return <div key={run.id || index} className={cls} style={{
-        height: `${Math.max(4, (value / peak * 100))}%`
-      }} title={`${label} · ${value} ${t("блокирующих", "bloklovchi", "blocking")}`}>
-            {last || index === 0 || index === Math.floor(runs.length / 2) ? <span>{label}</span> : null}
-          </div>;
-    })}
-    </div>;
 }
 export function DailyBars({
   data,

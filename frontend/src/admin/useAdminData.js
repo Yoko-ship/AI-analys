@@ -1,4 +1,3 @@
-import { useAdminQuality } from "./useAdminQuality.js";
 import { useAdminFeedback } from "./useAdminFeedback.js";
 import { useAdminUsers } from "./useAdminUsers.js";
 import { useCompanyImports } from "./useCompanyImports.js";
@@ -18,19 +17,9 @@ export function useAdminData({
   const [analysisData, setAnalysisData] = useState(null);
   const [rangeDays, setRangeDays] = useState(30);
   const [overview, setOverview] = useState(null);
-  const [rules, setRules] = useState([]);
-  const [findings, setFindings] = useState([]);
-  const [filters, setFilters] = useState({
-    severity: "blocking",
-    status: "new"
-  });
-  const [intake, setIntake] = useState(null);
-  const [intakeState, setIntakeState] = useState("ineligible");
   const [ledger, setLedger] = useState(null);
   const [ledgerTicker, setLedgerTicker] = useState("");
-  const [ruleBook, setRuleBook] = useState(null);
   const [source, setSource] = useState(null);
-  const [selected, setSelected] = useState(() => new Set());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -125,24 +114,9 @@ export function useAdminData({
     const data = await readJson(`/api/admin/metrics/analysis?days=${days}`);
     if (alive.current) setAnalysisData(data);
   }, [readJson]);
-  const qualityState = useAdminQuality({ readJson, alive, setError, t, onSectionChange, previewCompany });
-  const { loadQuality } = qualityState;
   const loadOverview = useCallback(async () => {
     const data = await readJson("/api/admin/overview");
     if (alive.current) setOverview(data);
-  }, [readJson]);
-  const loadIntake = useCallback(async () => {
-    const data = await readJson("/api/admin/reports");
-    if (!alive.current) return;
-    setIntake(data);
-    // A clean intake is the normal state, and opening on an empty «не допущена»
-    // reads as a broken screen rather than as good news. The filter still holds
-    // whatever the operator picks afterwards.
-    setIntakeState(s => s === "ineligible" && !data.ineligible ? "used" : s);
-  }, [readJson]);
-  const loadRuleBook = useCallback(async () => {
-    const data = await readJson("/api/admin/rules");
-    if (alive.current) setRuleBook(data);
   }, [readJson]);
   const loadSource = useCallback(async () => {
     const data = await readJson("/api/admin/source");
@@ -154,29 +128,15 @@ export function useAdminData({
     const data = await readJson(`/api/admin/issuer/${encodeURIComponent(one)}`);
     if (alive.current) setLedger(data);
   }, [readJson]);
-  const loadFindings = useCallback(async () => {
-    const params = new URLSearchParams({
-      limit: "300"
-    });
-    if (filters.severity) params.set("severity", filters.severity);
-    if (filters.status) params.set("status", filters.status);
-    const data = await readJson(`/api/audit/findings?${params}`);
-    if (alive.current) setFindings(data.items || []);
-  }, [filters, readJson]);
-  useEffect(() => {
-    fetch("/api/audit/rules").then(r => r.json()).then(d => {
-      if (alive.current && d && d.ok) setRules(d.items || []);
-    }).catch(() => {});
-  }, []);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
     const jobs = [];
     if (isSystem) {
-      jobs.push(loadOverview());
-      if (section === "companies") jobs.push(loadCompanyImports(companyFilter));else if (section === "findings") jobs.push(loadFindings());else if (section === "intake") jobs.push(loadIntake());else if (section === "rules") jobs.push(loadRuleBook());else if (section === "source") jobs.push(loadSource());
-      else if (section === "quality") jobs.push(loadQuality());
+      if (section === "companies") jobs.push(loadCompanyImports(companyFilter));
+      else if (section === "streams") jobs.push(loadOverview());
+      else if (section === "source") jobs.push(loadSource());
     } else if (section === "overview") {
       jobs.push(loadMetrics());
     } else if (section === "audience") {
@@ -201,64 +161,8 @@ export function useAdminData({
     // usersQuery deliberately not a dependency: the list reloads on Enter or a
     // filter click, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadFindings, loadIntake, loadRuleBook, loadSource, loadQuality, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
-  const runAudit = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      await readJson("/api/audit/run", {
-        method: "POST",
-        body: JSON.stringify({
-          trigger: "manual",
-          with_history: 8
-        })
-      });
-      await Promise.all([loadOverview(), section === "findings" ? loadFindings() : null]);
-    } catch (e) {
-      setError(String(e.message || e));
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  };
-  const acceptFindings = async ids => {
-    if (!ids.length) return;
-    setBusy(true);
-    setError("");
-    try {
-      for (const id of ids) {
-        await readJson(`/api/audit/findings/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            status: "accepted",
-            note: "принято в админ-панели"
-          })
-        });
-      }
-      setSelected(current => {
-        const next = new Set(current);
-        ids.forEach(id => next.delete(id));
-        return next;
-      });
-      await Promise.all([loadOverview(), loadFindings()]);
-    } catch (e) {
-      setError(String(e.message || e));
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  };
-  const toggleSelected = id => setSelected(current => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id);else next.add(id);
-    return next;
-  });
-  const audit = overview && overview.audit;
-  const catalog = overview && overview.catalog;
-  const news = overview && overview.news;
+  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadSource, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
   const streams = useMemo(() => overview?.streams || [], [overview?.streams]);
-  const latest = audit && audit.latest;
-  const openCounts = audit && audit.open || {};
-  const history = audit && audit.history || [];
-  const queue = audit && audit.queue || [];
   const staleStreams = useMemo(() => streams.filter(s => s.state === "stale").length, [streams]);
   const activeTab = isSystem ? "system" : section;
   useEffect(() => {
@@ -268,7 +172,6 @@ export function useAdminData({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
   return {
-    qualityState,
     t,
     isSystem,
     metrics,
@@ -293,17 +196,9 @@ export function useAdminData({
     setFeedbackFilter,
     feedbackBusy,
     overview,
-    rules,
-    findings,
-    filters,
-    setFilters,
-    intake,
-    intakeState,
-    setIntakeState,
     ledger,
     ledgerTicker,
     setLedgerTicker,
-    ruleBook,
     source,
     companyImports,
     companyLookup,
@@ -314,7 +209,6 @@ export function useAdminData({
     setCompanyDraft,
     companyNotice,
     companyBusy,
-    selected,
     error,
     loading,
     busy,
@@ -331,16 +225,7 @@ export function useAdminData({
     syncCompany,
     setCompanyVisibility,
     loadLedger,
-    runAudit,
-    acceptFindings,
-    toggleSelected,
-    catalog,
-    news,
     streams,
-    latest,
-    openCounts,
-    history,
-    queue,
     staleStreams,
     activeTab
   };

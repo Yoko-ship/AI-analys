@@ -1,18 +1,13 @@
-import { QualitySection } from "./QualitySection.jsx";
 import { Icon, IconSprite } from "./icons.jsx";
 import "./admin.css";
 import { useEffect } from "react";
-import { lang3, fmtInt, fmtStamp, SECTIONS, SYSTEM_SECTIONS, ADMIN_SECTION_KEYS } from "./adminModel.js";
+import { lang3, SECTIONS, SYSTEM_SECTIONS, ADMIN_SECTION_KEYS } from "./adminModel.js";
 import { Skeleton } from "./AdminWidgets.jsx";
 import { FeedbackSection } from "./FeedbackSection.jsx";
 import { SourceSection } from "./SourceSection.jsx";
-import { RulesSection } from "./RulesSection.jsx";
 import { IssuerLedgerSection } from "./IssuerLedgerSection.jsx";
-import { IntakeSection } from "./IntakeSection.jsx";
-import { FindingsSection } from "./FindingsSection.jsx";
 import { StreamsSection } from "./StreamsSection.jsx";
 import { CompanyImportsSection } from "./CompanyImportsSection.jsx";
-import { DataHealthSection } from "./DataHealthSection.jsx";
 import { UsersSection } from "./UsersSection.jsx";
 import { AnalysisUsageSection } from "./AnalysisUsageSection.jsx";
 import { EngagementSection } from "./EngagementSection.jsx";
@@ -27,13 +22,13 @@ export default function AdminPanel({
 }) {
   // Old links (/admin/documents, /admin/audit, …) point at screens that no
   // longer exist; they land on the overview instead of an empty body.
-  const known = ADMIN_SECTION_KEYS.includes(requestedSection);
-  const section = known ? requestedSection : "overview";
+  // «Система» itself is a group, not a screen: it opens on its first sub-tab.
+  const section = requestedSection === "system" ? SYSTEM_SECTIONS[0].key
+    : ADMIN_SECTION_KEYS.includes(requestedSection) ? requestedSection : "overview";
   useEffect(() => {
-    if (!known && onSectionChange) onSectionChange("overview");
-  }, [known, onSectionChange]);
+    if (section !== requestedSection && onSectionChange) onSectionChange(section);
+  }, [section, requestedSection, onSectionChange]);
   const {
-    qualityState,
     t,
     isSystem,
     metrics,
@@ -58,17 +53,9 @@ export default function AdminPanel({
     setFeedbackFilter,
     feedbackBusy,
     overview,
-    rules,
-    findings,
-    filters,
-    setFilters,
-    intake,
-    intakeState,
-    setIntakeState,
     ledger,
     ledgerTicker,
     setLedgerTicker,
-    ruleBook,
     source,
     companyImports,
     companyLookup,
@@ -79,7 +66,6 @@ export default function AdminPanel({
     setCompanyDraft,
     companyNotice,
     companyBusy,
-    selected,
     error,
     loading,
     busy,
@@ -96,16 +82,7 @@ export default function AdminPanel({
     syncCompany,
     setCompanyVisibility,
     loadLedger,
-    runAudit,
-    acceptFindings,
-    toggleSelected,
-    catalog,
-    news,
     streams,
-    latest,
-    openCounts,
-    history,
-    queue,
     staleStreams,
     activeTab
   } = useAdminData({
@@ -138,14 +115,10 @@ export default function AdminPanel({
     analysis: t("Кто запускает AI-анализ, что анализируют и во сколько это обходится. Доля кэша — это напрямую счёт за LLM.", "Kim AI-tahlil ishga tushiradi va bu qancha turadi.", "Who runs the AI analysis, what they analyse and what it costs. The cache share is directly the LLM bill."),
     users: t("Зарегистрированные: список, воронка от визита до возврата, безопасные действия поддержки и их постоянный журнал.", "Ro'yxatdan o'tganlar: ro'yxat, voronka, xavfsiz amallar va ularning jurnali.", "Registered users: the visit-to-return funnel, safe support actions and their durable audit trail."),
     feedback: t("Отзывы и обращения пользователей. Сообщения видны только администраторам и остаются привязанными к аккаунту для ответа.", "Foydalanuvchi fikrlari va murojaatlari. Xabarlarni faqat administratorlar ko'radi.", "User feedback and support requests. Messages are visible only to administrators and remain linked to an account for follow-up."),
-    system: t("Состояние данных: что собрано, что требует решения. Служебная половина панели — один взгляд, когда карточка крона красная.", "Ma'lumotlar holati: nima yig'ilgan, nima qaror kutmoqda.", "The state of the data: what was collected, what needs a decision. The operations half, one look when a cron card goes red."),
     companies: t("Новые бумаги приходят с UZSE и OpenInfo автоматически. Здесь администратор проверяет точное соответствие эмитента и публикует компанию без правки кода.", "Yangi qog'ozlar UZSE va OpenInfo'dan avtomatik keladi; administrator ularni tekshiradi va e'lon qiladi.", "New securities arrive automatically from UZSE and OpenInfo. Review the issuer match here and publish without a code change."),
     streams: t("Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.", "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.", "The last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here."),
-    intake: t("Что конвейер принял на вход. Пока статус записи не виден, любая правка расчёта делается наугад: половина найденных дефектов — не ошибка формулы, а то, какая запись до неё доехала.", "Konveyer nimani qabul qilgani.", "What the pipeline took in. While a record's status is invisible, every fix to the calculation is made blind."),
     issuer: t("Расчёт разложен построчно: каждое слагаемое двенадцатимесячной базы со своим периодом и знаком, капитализация по классам, остатки, из которых берутся знаменатели, и все прошедшие проверки.", "Hisob-kitob qatorma-qator yoyilgan.", "The calculation laid out line by line: every component of the twelve-month base with its period and sign, the capitalisation by class, the balances the denominators come from."),
     source: t("Кто должен был отчитаться, кто отчитался и кто молчит. Просрочка — это факт об эмитенте, а не о нашем сборщике, и тот же список — основа публичного индекса раскрытия.", "Kim hisobot berishi kerak edi, kim berdi va kim jim.", "Who was due to file, who did, and who has gone quiet. Being late is a fact about the issuer, not about our collector."),
-    rules: t("Параметры расчёта и граница ответственности: панель задаёт пороги и исключения, код задаёт вычисления.", "Hisob parametrlari va javobgarlik chegarasi.", "The calculation's parameters and the boundary: the panel sets thresholds and exceptions, the code holds the computation."),
-    findings: t("Аудитор пересчитывает те же величины независимым путём и сравнивает их с опубликованным. Блокирующая находка снимает число с публикации.", "Auditor qiymatlarni mustaqil qayta hisoblab, e'lon qilingani bilan solishtiradi.", "The auditor recomputes the same quantities by an independent route and compares them with what was published.")
   };
 
   /* labels shared by the product bodies */
@@ -189,7 +162,7 @@ export default function AdminPanel({
   /* ══════════════════════════════════════════════════════════════════════════
      PRODUCT · Обзор
      ════════════════════════════════════════════════════════════════════════ */
-  const overviewBody = <ProductOverviewSection metrics={metrics} t={t} overview={overview} streams={streams} staleStreams={staleStreams} openCounts={openCounts} />;
+  const overviewBody = <ProductOverviewSection metrics={metrics} t={t} overview={overview} streams={streams} staleStreams={staleStreams} />;
 
   // The product overview also wants the two operations numbers above; load them
   // lazily once the section is open so the screen never blocks on them.
@@ -239,26 +212,6 @@ export default function AdminPanel({
     setUserDetail={setUserDetail}
   />;
 
-  /* ══════════════════════════════════════════════════════════════════════════
-     СИСТЕМА · Данные (the old data overview)
-     ════════════════════════════════════════════════════════════════════════ */
-  const dataBody = <DataHealthSection
-    t={t}
-    catalog={catalog}
-    openCounts={openCounts}
-    news={news}
-    streams={streams}
-    staleStreams={staleStreams}
-    history={history}
-    latest={latest}
-    queue={queue}
-    onSectionChange={onSectionChange}
-    rules={rules}
-    selected={selected}
-    toggleSelected={toggleSelected}
-    acceptFindings={acceptFindings}
-    busy={busy}
-  />;
 
   /* ── Система · Компании (OpenInfo import review) ─────────────────────── */
   const companiesBody = <CompanyImportsSection
@@ -281,36 +234,10 @@ export default function AdminPanel({
     syncCompany={syncCompany}
   />;
   const streamsBody = <StreamsSection t={t} streams={streams} />;
-  const findingsBody = <FindingsSection
-    filters={filters}
-    setFilters={setFilters}
-    t={t}
-    openCounts={openCounts}
-    loading={loading}
-    findings={findings}
-    rules={rules}
-    selected={selected}
-    toggleSelected={toggleSelected}
-    acceptFindings={acceptFindings}
-    busy={busy}
-  />;
 
-  /* ── Система · Отчёты (intake) ──────────────────────────────────────────── */
-  const intakeBody = <IntakeSection
-    intake={intake}
-    intakeState={intakeState}
-    t={t}
-    setIntakeState={setIntakeState}
-    setLedgerTicker={setLedgerTicker}
-    loadLedger={loadLedger}
-    onSectionChange={onSectionChange}
-  />;
 
   /* ── Система · Эмитент (the TTM ledger) ─────────────────────────────────── */
   const issuerBody = <IssuerLedgerSection t={t} ledgerTicker={ledgerTicker} setLedgerTicker={setLedgerTicker} loadLedger={loadLedger} ledger={ledger} />;
-
-  /* ── Система · Правила ──────────────────────────────────────────────────── */
-  const rulesBody = <RulesSection t={t} ruleBook={ruleBook} />;
 
   /* ── Система · Источник ─────────────────────────────────────────────────── */
   const sourceBody = <SourceSection source={source} t={t} setLedgerTicker={setLedgerTicker} loadLedger={loadLedger} onSectionChange={onSectionChange} />;
@@ -329,14 +256,9 @@ export default function AdminPanel({
     analysis: analysisBody,
     users: usersBody,
     feedback: feedbackBody,
-    system: dataBody,
     companies: companiesBody,
     streams: streamsBody,
-    findings: findingsBody,
-    intake: intakeBody,
     issuer: issuerBody,
-    rules: rulesBody,
-    quality: <QualitySection {...qualityState} t={t} />,
     source: sourceBody
   };
   return <div className="admin-view">
@@ -348,24 +270,11 @@ export default function AdminPanel({
           <h1>{t("Администрирование", "Administratsiya", "Administration")}</h1>
           <p>{SECTION_LEDE[section] || SECTION_LEDE.overview}</p>
         </div>
-        {section === "findings" ? <div className="admin-head-actions">
-            {latest && latest.finished_at ? <span className="admin-btn" style={{
-          pointerEvents: "none"
-        }}>
-                <Icon name="clock" />
-                {fmtStamp(latest.finished_at)}
-              </span> : null}
-            <button type="button" className="admin-btn accent" disabled={busy} onClick={runAudit}>
-              <Icon name={busy ? "clock" : "play"} />
-              {busy ? t("Идёт прогон…", "Ishlamoqda…", "Running…") : t("Прогнать аудит", "Auditni ishga tushirish", "Run the audit")}
-            </button>
-          </div> : null}
       </div>
 
       <nav className="admin-tabs">
         {SECTIONS.map(item => {
         const active = activeTab === item.key;
-        const badge = item.key === "system" && openCounts.blocking ? openCounts.blocking : null;
         return <button
           key={item.key}
           type="button"
@@ -375,7 +284,6 @@ export default function AdminPanel({
         >
               <Icon name={item.icon} />
               {item.title[lang3(language)]}
-              {badge ? <span className="n hot">{fmtInt(badge)}</span> : null}
             </button>;
       })}
       </nav>
@@ -384,7 +292,6 @@ export default function AdminPanel({
           <div className="admin-seg">
             {SYSTEM_SECTIONS.map(item => <button key={item.key} type="button" aria-selected={section === item.key} onClick={() => onSectionChange && onSectionChange(item.key)}>
                 {item.title[lang3(language)]}
-                {item.key === "findings" && openCounts.blocking ? <span className="n">{fmtInt(openCounts.blocking)}</span> : null}
               </button>)}
           </div>
         </div> : null}
@@ -392,6 +299,6 @@ export default function AdminPanel({
       {error ? <div className="admin-error" style={{
       marginBottom: 16
     }}>{error}</div> : null}
-      {loading && !(isSystem && overview) ? <Skeleton rows={4} /> : bodyBySection[section] || overviewBody}
+      {loading ? <Skeleton rows={4} /> : bodyBySection[section] || overviewBody}
     </div>;
 }

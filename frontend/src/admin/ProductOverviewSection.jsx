@@ -5,8 +5,7 @@ export function ProductOverviewSection({
   t,
   overview,
   streams,
-  staleStreams,
-  openCounts
+  staleStreams
 }) {
   const mVisitors = metrics && metrics.visitors || {};
   const mReg = metrics && metrics.registrations || {};
@@ -54,13 +53,6 @@ export function ProductOverviewSection({
           warn={Boolean(staleStreams)}
           line1={staleStreams ? t(`${staleStreams} устарел(и)`, `${staleStreams} eskirgan`, `${staleStreams} stale`) : t("Все потоки писали недавно", "Barcha oqimlar yaqinda yozgan", "Every stream wrote recently")}
           line2={t("Подробности — в «Системе»", "Tafsilotlar — «Tizim»da", "Details under System")}
-        />
-        <Stat
-          label={t("Блокирующих находок", "Bloklovchi topilmalar", "Blocking findings")}
-          value={overview ? fmtInt(openCounts.blocking) : DASH}
-          warn={Boolean(openCounts.blocking)}
-          line1={overview ? t(`Предупреждений — ${fmtInt(openCounts.warning)}`, `Ogohlantirish — ${fmtInt(openCounts.warning)}`, `Warnings — ${fmtInt(openCounts.warning)}`) : null}
-          line2={t("Аудит данных — в «Системе»", "Ma'lumot auditi — «Tizim»da", "Data audit under System")}
         />
       </div>
     </div>;

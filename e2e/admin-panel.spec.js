@@ -26,15 +26,17 @@ test("admin opens straight on the product tabs, with no second navigation", asyn
   await tabs.getByRole("button", { name: "Audience" }).click();
   await expect(page).toHaveURL(/\/admin\/audience$/);
   await tabs.getByRole("button", { name: "System" }).click();
-  await expect(page).toHaveURL(/\/admin\/system$/);
-  await page.locator(".admin-subtabs").getByRole("button", { name: "Audit" }).click();
-  await expect(page).toHaveURL(/\/admin\/findings$/);
+  await expect(page).toHaveURL(/\/admin\/companies$/);
+  const subtabs = page.locator(".admin-subtabs");
+  for (const gone of ["Data quality", "Data", "Audit", "Statements", "Rules"]) await expect(subtabs.getByRole("button", { name: gone, exact: true })).toHaveCount(0);
+  await subtabs.getByRole("button", { name: "Collectors" }).click();
+  await expect(page).toHaveURL(/\/admin\/streams$/);
   expect(failures).toEqual([]);
 });
 
 test("links to removed admin screens land on the overview", async ({ page }) => {
   await mockAdmin(page);
-  for (const old of ["/admin/documents", "/admin/audit", "/admin/access", "/admin/product-overview"]) {
+  for (const old of ["/admin/documents", "/admin/audit", "/admin/access", "/admin/product-overview", "/admin/findings", "/admin/quality", "/admin/intake", "/admin/rules"]) {
     await page.goto(old);
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.locator(".admin-tabs").getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");
@@ -45,6 +47,7 @@ test("the panel fits a phone without sideways scrolling", async ({ page }, testI
   await mockAdmin(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/system");
+  await expect(page).toHaveURL(/\/admin\/companies$/);
   await expect(page.locator(".admin-subtabs")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("admin-phone.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
