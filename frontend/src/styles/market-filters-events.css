@@ -322,15 +322,15 @@
   font-size: 0.86rem;
 }
 
-/* MAIN | NEGO. Sized like the share-class control below it: both are "which
-   market", and the instrument class above stays the loudest of the three. */
-.market-segment-control {
-  width: auto;
-}
-.market-segment-control button {
-  padding: 8px 14px;
-  font-size: 0.86rem;
-  white-space: nowrap;
+/* Off-session negotiated deal beside the turnover — a footnote, not a number.
+   Beats `.market-table td span` (block, muted, own line) so it sits on the figure. */
+.market-table td .market-block-mark {
+  display: inline;
+  color: var(--warning);
+  font-size: 0.75rem;
+  margin: 0 0 0 3px;
+  cursor: help;
+  vertical-align: super;
 }
 
 /* The period every change on the screen is measured over. Seven buttons do not

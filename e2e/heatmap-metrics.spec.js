@@ -23,7 +23,7 @@ const changes = Object.fromEntries(all.filter((r) => r.volume).map((r) => [r.tic
   } },
 }]));
 
-async function openMap(page, type = "stock") {
+async function openMap(page, type = "stock", path = "/heatmap") {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
@@ -38,7 +38,8 @@ async function openMap(page, type = "stock") {
     if (url.pathname === "/api/auth/me") return json({ user: null }, 401);
     return json({ ok: true });
   });
-  await page.goto("/heatmap");
+  await page.goto(path);
+  if (path !== "/heatmap") return errors;
   if (type === "bond") await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
   await page.getByLabel("Бумага на карте").selectOption(type === "bond" ? "BOND1" : "AGBA");
   return errors;
@@ -82,7 +83,7 @@ for (const type of ["stock", "bond"]) {
   }
 }
 
-test("metrics follow the selected period, sector, missing data and negotiated board", async ({ page }) => {
+test("metrics follow the selected period, sector and missing data on the one combined board", async ({ page }) => {
   const errors = await openMap(page);
   await page.getByRole("button", { name: "1Н", exact: true }).click();
   await expect(metric(page, "volume")).toHaveText("10 000 000 UZS");
@@ -95,11 +96,23 @@ test("metrics follow the selected period, sector, missing data and negotiated bo
   await page.getByLabel("Бумага на карте").selectOption("EMPTY");
   for (const key of ["volume", "volQty", "avgShare", "avgTrade", "bigTrade", "volShare"]) await expect(metric(page, key)).toHaveText("—");
   await page.getByLabel("Бумага на карте").selectOption("AGBA");
-  await page.locator(".market-segment-control").getByRole("button", { name: /Переговорный/ }).click();
-  await expect(metric(page, "volume")).toHaveText("2 000 000 UZS");
-  await expect(metric(page, "avgShare")).toHaveText("500 UZS");
-  await expect(metric(page, "avgTrade")).toHaveText("1 000 000 UZS");
-  await expect(metric(page, "bigTrade")).toHaveText("—");
+  // Main and negotiated boards were merged: no board switch, and the negotiated
+  // deal never leaks into the session metrics.
+  await expect(page.locator(".market-segment-control")).toHaveCount(0);
+  await expect(metric(page, "volume")).toHaveText("10 000 000 UZS");
+  expect(errors).toEqual([]);
+});
+
+test("the market table flags a negotiated deal beside the turnover without adding it", async ({ page }) => {
+  const errors = await openMap(page, "stock", "/market");
+  const row = page.locator(".market-table tbody tr").filter({ has: page.getByRole("button", { name: "AGBA", exact: true }) });
+  const mark = row.locator(".market-block-mark");
+  await expect(mark).toHaveText("†");
+  await expect(mark).toHaveAttribute("title", /Переговорная сделка вне сессии 25\.09\.2026: 2\s000\s000\sUZS/);
+  // The cell's turnover is the auction's 1 000 000, not 3 000 000 with the deal added.
+  await expect(mark.locator("xpath=..")).toContainText(/^1\s000\s000†/);
+  await mark.locator("xpath=..").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath("nego-mark-row.png") });
   expect(errors).toEqual([]);
 });
 

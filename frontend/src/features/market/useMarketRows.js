@@ -11,7 +11,6 @@ export function useMarketRows({
   onDemandFinancials,
   tradeStats,
   rows,
-  segment,
   changePeriod,
   type,
   instruments,
@@ -60,32 +59,11 @@ export function useMarketRows({
     const t = String(ticker || "").toUpperCase();
     return fmap[t] || fmap[t.endsWith("P") ? t.slice(0, -1) : `${t}P`] || null;
   };
-  const tmap = tradeStats || {};
   const preparedEnriched = prepareMarketRows(rows, tradeStats);
-  const negotiated = r => Number.isFinite(r?.nego?.value) && r.nego.value > 0;
-  const asNegotiated = r => ({
-    ...r,
-    stockVolume: r.nego.value,
-    stockQuantity: r.nego.qty,
-    stockTradeCount: r.nego.count,
-    // Cleared so «Ср. цена акции» derives from the NEGOTIATED turnover and
-    // quantity (avgSharePrice) instead of serving the auction's VWAP under a
-    // negotiated row. Same for the session VWAP column.
-    avgPrice: undefined,
-    vwap: null,
-    // The auction's largest execution cannot describe negotiated trades.
-    ts: r.ts ? { ...r.ts, largest_value: null, largest_qty: null, largest_pct_value: null } : null,
-    // The date column must name the day the DEAL was struck. A negotiated deal is
-    // not a session and is routinely weeks old — the ones on this market in
-    // August 2026 were dated 02.07, 10.07, 07.08 and 13.08 — so showing the
-    // auction's last-trade date beside a negotiated turnover would date the deal
-    // to a session it had nothing to do with.
-    last_trade_date: r.nego.date || r.last_trade_date
-  });
-  const negotiatedCount = preparedEnriched.filter(negotiated).length;
-  const negotiatedAnywhere = Object.values(tmap).filter(s => Number.isFinite(s?.block_value) && s.block_value > 0).length;
-  const preparedAllSession = segment === "nego" ? preparedEnriched.filter(negotiated).map(asNegotiated) : preparedEnriched;
-  const windowed = changePeriod !== "1d" && segment !== "nego";
+  // One board. The auction's figures fill the row; a negotiated (T1) deal rides
+  // along on `nego` and is shown as a footnote beside the turnover, never summed
+  // into it — the exchange's bulletin keeps it out of the session too.
+  const windowed = changePeriod !== "1d";
   const orNull = v => Number.isFinite(v) ? v : null;
   const asPeriod = r => {
     const hit = changeOver(r.ticker, changePeriod);
@@ -133,7 +111,7 @@ export function useMarketRows({
       periodDetailSessions: orNull(st?.detail_sessions)
     };
   };
-  const preparedAll = windowed ? preparedAllSession.map(asPeriod) : preparedAllSession;
+  const preparedAll = windowed ? preparedEnriched.map(asPeriod) : preparedEnriched;
   const isPreferredSec = r => smap[r.ticker]?.is_preferred === true || smap[r.ticker]?.share_type === "preferred" || r.share_type === "preferred";
   const byClass = type === "preferred" ? preparedAll.filter(isPreferredSec) : type === "ordinary" ? preparedAll.filter(r => !isPreferredSec(r)) : preparedAll;
   const isDormant = r => {
@@ -188,8 +166,6 @@ export function useMarketRows({
     priceToPar,
     smap,
     finOf,
-    negotiatedCount,
-    negotiatedAnywhere,
     windowed,
     byClass,
     isDormant,

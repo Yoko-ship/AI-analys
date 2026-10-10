@@ -22,9 +22,6 @@ export function MarketTable({
   mapData,
   changePeriod,
   inactiveOnly,
-  segment,
-  negotiatedCount,
-  negotiatedAnywhere,
   wrapRef,
   headCells,
   colSpan,
@@ -70,15 +67,6 @@ export function MarketTable({
               securities that all happened to close flat. */}
           {inactiveOnly && <p className="market-dormant-note">
               {lang === "en" ? "Listings with no trades for over 90 days. The price is their last settled close, carried forward — there is no day's move, and the market capitalisation above leaves them out." : lang === "uz" ? "90 kundan ortiq bitimsiz qog'ozlar. Narx — ularning oxirgi yopilishi, oldinga ko'chirilgan; kunlik o'zgarish yo'q va yuqoridagi kapitalizatsiya ularni hisobga olmaydi." : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
-            </p>}
-          {/* The NEGO board's own contract, stated where it is read: which
-              columns are negotiated figures, which are still the session's, and
-              why the two are never added together. */}
-          {segment === "nego" && <p className="market-dormant-note">
-              {lang === "en" ? "Negotiated deals (exchange board T1) — struck bilaterally at an agreed price, outside the auction. Turnover, quantity, trades and the average price are the negotiated ones; the quote, the day's change and the OHLC remain the auction session's, because a negotiated price is not a quote. The exchange's own bulletin excludes these deals from the session, and so does the Main board." : lang === "uz" ? "Kelishilgan bitimlar (T1 bordi) — auksiondan tashqari, kelishilgan narxda. Aylanma, hajm, bitimlar soni va o'rtacha narx — kelishilgan; kotirovka, kunlik o'zgarish va OHLC — auksion sessiyasining, chunki kelishilgan narx kotirovka emas." : "Переговорные сделки (борд T1) — заключены двусторонне по согласованной цене, вне аукциона. Оборот, количество, число сделок и средняя цена — переговорные; котировка, дневное изменение и OHLC остаются аукционными, потому что переговорная цена не является котировкой. Бюллетень биржи не включает эти сделки в сессию — и «Основной» рынок здесь тоже."}
-            </p>}
-          {segment === "nego" && negotiatedCount === 0 && !loading && <p className="market-dormant-note">
-              {lang === "en" ? `No negotiated deals on record for the securities on this board.${negotiatedAnywhere ? ` The exchange's statistics hold ${negotiatedAnywhere} for other instruments — most of them bonds, which have their own section.` : ""}` : lang === "uz" ? `Bu ro'yxatdagi qog'ozlar bo'yicha kelishilgan bitimlar yo'q.${negotiatedAnywhere ? ` Boshqa instrumentlar bo'yicha — ${negotiatedAnywhere}, asosan obligatsiyalar.` : ""}` : `По бумагам этого раздела переговорных сделок не зафиксировано.${negotiatedAnywhere ? ` В статистике биржи их ${negotiatedAnywhere} по другим инструментам — в основном по облигациям, у которых свой раздел.` : ""}`}
             </p>}
           <div className="market-table-wrap" ref={wrapRef}>
             <table className="market-table">

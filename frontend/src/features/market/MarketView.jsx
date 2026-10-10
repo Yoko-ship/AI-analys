@@ -51,7 +51,6 @@ function MarketView({
   const [marketSector, setMarketSector] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
   const hasFav = t => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
-  const [segment, setSegment] = useState("main");
   const [changePeriod, setChangePeriod] = useState(() => {
     try {
       const saved = localStorage.getItem(CHANGE_PERIOD_KEY);
@@ -158,8 +157,6 @@ function MarketView({
     priceToPar,
     smap,
     finOf,
-    negotiatedCount,
-    negotiatedAnywhere,
     windowed,
     byClass,
     isDormant,
@@ -188,7 +185,6 @@ function MarketView({
     onDemandFinancials,
     tradeStats,
     rows,
-    segment,
     changePeriod,
     type,
     instruments,
@@ -368,9 +364,6 @@ function MarketView({
           lang={lang}
           type={type}
           onTypeChange={onTypeChange}
-          segment={segment}
-          setSegment={setSegment}
-          negotiatedCount={negotiatedCount}
           presentSectors={presentSectors}
           activeSector={activeSector}
           setMarketSector={setMarketSector}
@@ -431,9 +424,6 @@ function MarketView({
           mapData={mapData}
           changePeriod={changePeriod}
           inactiveOnly={inactiveOnly}
-          segment={segment}
-          negotiatedCount={negotiatedCount}
-          negotiatedAnywhere={negotiatedAnywhere}
           wrapRef={wrapRef}
           headCells={headCells}
           colSpan={colSpan}

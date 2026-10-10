@@ -24,6 +24,19 @@ export function createMarketCells({
   multiplesOf
 }) {
   const statusText = status => multipleStatusText(status, lang);
+  // A negotiated (board T1) deal: real money at a bilaterally agreed price, so it
+  // is flagged beside the turnover rather than added to it — the same † the bond
+  // table uses. Dated, because these deals are routinely weeks older than the
+  // row's last auction session.
+  const negoMark = row => {
+    const nego = row.nego;
+    if (!(Number.isFinite(nego?.value) && nego.value > 0)) return null;
+    const day = String(nego.date || "");
+    const date = /^\d{8}$/.test(day) ? ` ${day.slice(6)}.${day.slice(4, 6)}.${day.slice(0, 4)}` : "";
+    const sum = `${formatRatio(nego.value, 0, lang)} UZS`;
+    const title = lang === "en" ? `Negotiated deal off-session${date}: ${sum}. Not part of the session's turnover: the price was agreed off-book.` : lang === "uz" ? `Sessiyadan tashqari kelishilgan bitim${date}: ${sum}. Sessiya aylanmasiga kirmaydi.` : `Переговорная сделка вне сессии${date}: ${sum}. В оборот сессии не входит: цена согласована вне стакана.`;
+    return <span className="market-block-mark" title={title} aria-label={title}>†</span>;
+  };
   const multipleCell = (row, metric, digits, suffix = "×") => {
     // Keep an outlier visible for audit, but label it so it is never mistaken
     // for an ordinary comparable multiple.
@@ -244,6 +257,7 @@ export function createMarketCells({
       })()}</td>,
     volume: row => <td className="num" title={periodHint(row)}>
         {row.stockVolume !== null ? formatRatio(row.stockVolume, 0, lang) : "—"}
+        {negoMark(row)}
         {row.stockTradeCount !== null && <span title={periodHint(row, {
         detail: true
       })}>{formatRatio(row.stockTradeCount, 0, lang)} {tradeCountLabel(row.stockTradeCount, lang)}</span>}

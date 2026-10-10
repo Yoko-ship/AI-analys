@@ -6,9 +6,6 @@ export function MarketFilters({
   lang,
   type,
   onTypeChange,
-  segment,
-  setSegment,
-  negotiatedCount,
   presentSectors,
   activeSector,
   setMarketSector,
@@ -59,24 +56,6 @@ export function MarketFilters({
                     {label}
                   </button>;
           })}
-            </div>
-            {/* MAIN | NEGO — the exchange's own two boards, side by side with the
-                instrument class because that is the same kind of choice: which
-                market you are looking at, not which slice of one. The count says
-                how many lines had a negotiated deal, so an empty NEGO board
-                reads as «none today» rather than as a broken page. */}
-            <div className="segmented-control market-segment-control" role="group" aria-label={lang === "en" ? "Market board" : lang === "uz" ? "Bozor" : "Рынок"}>
-              {[["main", lang === "en" ? "Main" : lang === "uz" ? "Asosiy" : "Основной"], ["nego", lang === "en" ? "Negotiated" : lang === "uz" ? "Kelishilgan" : "Переговорный"]].map(([value, label]) => <button
-                key={value}
-                type="button"
-                className={segment === value ? "active" : ""}
-                aria-pressed={segment === value}
-                onClick={() => setSegment(value)}
-                title={value === "main" ? lang === "en" ? "The auction session (board G1)" : lang === "uz" ? "Auksion sessiyasi (G1)" : "Аукционная сессия (борд G1)" : lang === "en" ? "Negotiated deals, struck bilaterally (board T1)" : lang === "uz" ? "Kelishilgan bitimlar (T1)" : "Переговорные сделки, вне сессии (борд T1)"}
-              >
-                    {label}
-                    {value === "nego" && negotiatedCount > 0 ? ` (${negotiatedCount})` : ""}
-                  </button>)}
             </div>
             {/* Level 2: share class — only meaningful inside stocks. */}
             {type !== "bond" && <div className="segmented-control market-subtype-control">
