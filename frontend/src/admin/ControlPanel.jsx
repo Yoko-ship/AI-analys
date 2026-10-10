@@ -10,23 +10,6 @@ const BASE = "/api/admin/control";
 const langIndex = language => ({ ru: 0, uz: 1, en: 2 }[language] ?? 0);
 const textValue = value => value === null || value === undefined || value === "" ? "—" : typeof value === "object" ? JSON.stringify(value) : String(value);
 const fieldLabel = (key, t) => FIELD_LABELS[key] ? t(...FIELD_LABELS[key]) : key.replaceAll("_", " ");
-const INCIDENT_TITLES = {
-  ANNUAL_BEFORE_YEAR_END: ["Годовой отчёт заканчивается до конца года", "Yillik hisobot yil tugashidan oldin yakunlangan", "Annual report ends before year-end"],
-  BALANCE_COMPONENTS_MISSING: ["Не хватает компонентов баланса", "Balans tarkibiy qismlari yetishmayapti", "Balance components are missing"],
-  BALANCE_IDENTITY_FAILED: ["Баланс не сходится", "Balans tengligi buzilgan", "Balance does not reconcile"],
-  CAPITAL_COMPONENTS_MISMATCH: ["Изменение капитала не сходится", "Kapitaldagi o‘zgarish tarkibiy qismlarga mos emas", "Equity movement does not reconcile"],
-  FOUND_NOT_INGESTED: ["Исходный файл найден, но ещё не загружен", "Manba fayli topildi, ammo hali yuklanmadi", "Source file found but not yet ingested"],
-  IMPOSSIBLE_PERIOD: ["Некорректный отчётный период", "Hisobot davri noto‘g‘ri", "Reporting period is invalid"],
-  INSURANCE_RESERVES_OMITTED: ["Не учтены страховые резервы", "Sug‘urta zaxiralari hisobga olinmagan", "Insurance reserves are missing"],
-  PERIOD_CLASSIFICATION_ERROR: ["Неверно определён отчётный период", "Hisobot davri noto‘g‘ri tasniflangan", "Reporting period is classified incorrectly"],
-  SOURCE_MAPPING_FAILED: ["Не удалось сопоставить данные источника", "Manba ma’lumotlarini moslashtirib bo‘lmadi", "Source data could not be mapped"],
-  SOURCE_NOT_VERIFIED: ["Исходный документ не подтверждён", "Asl hujjat tasdiqlanmagan", "Source document has not been verified"],
-  UZNF_2026H1_SOURCE_UNCONFIRMED: ["Отчёт UZNF за 2026H1 не подтверждён", "UZNFning 2026H1 hisoboti tasdiqlanmagan", "UZNF’s 2026H1 report is unconfirmed"],
-  blocked_unit_mismatch: ["Единицы измерения не совпадают", "O‘lchov birliklari mos kelmaydi", "Units do not match"],
-};
-const incidentTitle = (code, t) => INCIDENT_TITLES[code] ? t(...INCIDENT_TITLES[code]) : String(code || "").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
-const incidentStage = (stage, t) => ({ analysis: t("Анализ", "Tahlil", "Analysis"), classification: t("Классификация", "Tasniflash", "Classification"), coverage: t("Полнота каталога", "Katalog qamrovi", "Catalog coverage") }[stage] || textValue(stage));
-const incidentPriority = (severity, t) => ({ P0: t("Приоритет 0", "0-darajali ustuvorlik", "Priority 0"), P1: t("Приоритет 1", "1-darajali ustuvorlik", "Priority 1"), P2: t("Приоритет 2", "2-darajali ustuvorlik", "Priority 2"), P3: t("Приоритет 3", "3-darajali ustuvorlik", "Priority 3") }[severity] || textValue(severity));
 
 export function StatusBadge({ value, label }) {
   const state = String(value || "unavailable");
@@ -73,70 +56,11 @@ function DetailDialog({ title, onClose, children, wide = false, t }) {
 
 function KeyValues({ item, fields, t }) {
   const displayValue = key => {
-    if (item.blocker_code && key === "severity") return incidentPriority(item[key], t);
-    if (item.blocker_code && key === "stage") return incidentStage(item[key], t);
     return typeof item[key] === "boolean" ? (item[key] ? t("Да", "Ha", "Yes") : t("Нет", "Yo‘q", "No")) : textValue(item[key]);
   };
   return <dl className="control-key-values">{fields.filter(key => item[key] !== undefined).map(key => <React.Fragment key={key}>
     <dt>{fieldLabel(key, t)}</dt><dd>{displayValue(key)}</dd>
   </React.Fragment>)}</dl>;
-}
-
-function JobProgress({ job, t }) {
-  return <div className="control-job-progress"><div><StatusBadge value={job.status} /><span>{job.processed ?? 0} / {job.total ?? "—"}</span></div>
-    <progress max={job.total || 1} value={job.processed || 0} aria-label={t("Прогресс задания", "Vazifa jarayoni", "Job progress")} />
-    <small>{t("Контрольная точка", "Nazorat nuqtasi", "Checkpoint")} {job.checkpoint ?? 0} · {t("Попытка", "Urinish", "Attempt")} {job.attempt}</small></div>;
-}
-
-function Overview({ data, navigate, t }) {
-  const k = data.kpis || {};
-  const ingestion = data.financial_ingestion;
-  const percent = v => v == null ? "—" : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(v * 100)}%`;
-  const cards = [
-    [t("Автопубликация · 24 ч", "Avtonashr · 24 soat", "Auto-publication · 24h"), percent(k.auto_publication), "publications", t("Цель ≥ 95%", "Maqsad ≥ 95%", "Target ≥ 95%"), "success"],
-    [t("Активные блокеры", "Faol bloklovchilar", "Active blockers"), textValue(k.active_blockers), "incidents", t("Системные причины P0 / P1", "P0 / P1 tizimli sabablar", "P0 / P1 root causes"), k.active_blockers ? "danger" : ""],
-    [t("Полнота каталога", "Katalog qamrovi", "Catalog completeness"), `${k.coverage_complete ?? 0} / ${k.coverage_total ?? 0}`, "catalog-coverage", t("Связь от файла до анализа", "Fayldan tahlilgacha bog‘lanish", "Document through to analysis"), ""],
-    [t("В очереди", "Navbatda", "In the queue"), textValue(k.queued), "jobs", t("Ожидание и обработка", "Kutish va qayta ishlash", "Queued, running & retrying"), "processing"],
-  ];
-  return <>
-    <div className="control-kpis">{cards.map(([label, value, route, hint, tone]) => <button key={route} className={`control-kpi ${tone}`} onClick={() => navigate(route)}>
-      <span>{label}<Icon name="external" /></span><strong>{value}</strong><small>{hint}</small>
-    </button>)}</div>
-    <div className="control-overview-grid">
-      <section className="control-card" aria-label={t("Данные банков", "Bank ma’lumotlari", "Bank data pipeline")}>
-        <div className="control-card-title"><h2>{t("Данные банков", "Bank ma’lumotlari", "Bank data pipeline")}</h2>
-          <StatusBadge value={!ingestion?.available || ingestion.monitor_stale ? "stale" : ingestion.incidents?.length ? "failed" : ingestion.status === "PARTIAL" ? "partial" : "active"} /></div>
-        {!ingestion?.available ? <p role="alert" className="control-muted control-pad">{t("Статус недоступен. Проверьте мониторинг.", "Holat mavjud emas. Monitoringni tekshiring.", "Status unavailable. Check the monitor.")}</p> : <>
-          {ingestion.monitor_stale && <p role="alert" className="control-muted control-pad">{t("Мониторинг давно не запускался — состояние не подтверждено.", "Monitoring eskirgan — holat tasdiqlanmagan.", "Monitor is overdue — pipeline health is unconfirmed.")}</p>}
-          <p className="control-muted control-pad">{t("Опубликовано периодов", "Nashr qilingan davrlar", "Published periods")}: {ingestion.published_periods ?? 0} · {t("Заданий в очереди", "Navbatdagi vazifalar", "Pending jobs")}: {ingestion.pending_jobs ?? 0} · {t("Ожидают проверки источника", "Manba tekshiruvini kutmoqda", "Sources awaiting review")}: {ingestion.unreviewed_sources ?? 0} · {t("Одобрено, не опубликовано", "Tasdiqlangan, nashr qilinmagan", "Approved, unpublished")}: {ingestion.approved_unpublished ?? 0}</p>
-          {ingestion.incidents?.map(item => <div className="control-attention" key={item.code} role="alert">
-            <StatusBadge value="failed" /><div><strong>{incidentTitle(item.code, t)}</strong><span>{item.detail}</span><small>{item.first_seen}</small></div>
-          </div>)}
-          {!ingestion.incidents?.length && !ingestion.monitor_stale && <p className="control-muted control-pad">{t("Активных сбоев нет. Непроверенные данные не публикуются автоматически.", "Faol nosozliklar yo‘q. Tekshirilmagan ma’lumotlar avtomatik nashr qilinmaydi.", "No active failures. Unreviewed figures are not published automatically.")}</p>}
-        </>}
-      </section>
-      <section className="control-card"><div className="control-card-title"><h2>{t("Требует внимания", "E’tibor talab qiladi", "Needs attention")}</h2><span className="control-count">{data.attention?.length || 0}</span></div>
-        <p className="control-muted">{t("Исключения, сгруппированные по системной причине", "Tizimli sabablar bo‘yicha guruhlangan istisnolar", "Exceptions grouped by their underlying cause")}</p>
-        {data.attention?.length ? data.attention.map(item => <button className="control-attention" key={item.id} onClick={() => navigate("incidents", { object: item.id })}>
-          <StatusBadge value={item.severity} /><div><strong>{item.blocker_code}</strong><span>{item.ticker || item.stage} · {item.impact_count} {t("объектов", "obyekt", "affected objects")}</span></div><Icon name="external" />
-        </button>) : <div className="control-empty"><Icon name="check" /><h3>{t("Открытых блокеров нет", "Ochiq bloklovchilar yo‘q", "No open blockers")}</h3><p>{t("Проверки новых документов появятся здесь.", "Yangi hujjat tekshiruvlari shu yerda ko‘rinadi.", "New document checks will appear here.")}</p></div>}
-      </section>
-      <section className="control-card"><div className="control-card-title"><h2>{t("Путь документа", "Hujjat yo‘li", "Document pipeline")}</h2><Icon name="sliders" /></div>
-        <p className="control-muted">{t("Каждый этап сохраняет историю и источник", "Har bosqich tarix va manbani saqlaydi", "Every stage retains its history and source")}</p>
-        <div className="control-pipeline">{[
-          ["documents", t("Документы", "Hujjatlar", "Documents")], ["parsers", t("Распознавание", "Aniqlash", "Parsing")],
-          ["facts", t("Финансовые факты", "Moliyaviy faktlar", "Financial facts")], ["calculations", t("Расчёты", "Hisob-kitoblar", "Calculations")],
-          ["analyses", t("Анализ", "Tahlil", "Analysis")], ["publications", t("Публикации", "Nashrlar", "Publications")],
-        ].map(([key, label], i) => <button key={key} onClick={() => navigate(key)}><span>{String(i + 1).padStart(2, "0")}</span><strong>{label}</strong><em>{Object.values(data.counts?.[key] || {}).reduce((a, b) => a + b, 0)}</em></button>)}</div>
-      </section>
-      <section className="control-card"><div className="control-card-title"><h2>{t("Последние публикации", "So‘nggi nashrlar", "Recent publications")}</h2><button onClick={() => navigate("publications")}>{t("Все", "Barchasi", "View all")} →</button></div>
-        {data.publications?.length ? data.publications.map(item => <button className="control-feed" key={item.id} onClick={() => navigate("publications", { object: item.id })}><strong>{item.ticker}</strong><span>{item.period} · {item.standard}</span><StatusBadge value={item.status} /></button>) : <p className="control-muted control-pad">{t("Проверенных публикаций пока нет.", "Tekshirilgan nashrlar hozircha yo‘q.", "No verified publications have been indexed yet.")}</p>}
-      </section>
-      <section className="control-card"><div className="control-card-title"><h2>{t("Фоновые задания", "Fon vazifalari", "Background jobs")}</h2><button onClick={() => navigate("jobs")}>{t("Все", "Barchasi", "View all")} →</button></div>
-        {data.jobs?.length ? data.jobs.slice(0, 3).map(job => <button key={job.id} className="control-job-link" onClick={() => navigate("jobs", { object: job.id })}><strong>{job.category}</strong><JobProgress job={job} t={t} /></button>) : <p className="control-muted control-pad">{t("Очередь пуста. Синхронизируйте каталог для первого запуска.", "Navbat bo‘sh. Avval katalogni sinxronlang.", "The queue is empty. Sync the catalog to index existing records.")}</p>}
-      </section>
-    </div>
-  </>;
 }
 
 export default function ControlPanel({ apiFetch, language = "ru", section = "overview", onSectionChange, user }) {
@@ -169,7 +93,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
     return filters.toString();
   }, [query, section]);
   const selected = params.get("object");
-  const isLegacy = LEGACY.includes(section) || section === "system";
+  const isLegacy = LEGACY.includes(section) || section === "system" || section === "overview";
   const read = useCallback(async (path, options) => {
     const response = await apiFetch(BASE + path, options);
     let result;
@@ -186,11 +110,6 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
   }, []);
   useEffect(() => { setQuery(window.location.search); setHiddenColumns([]); }, [section]);
   useEffect(() => {
-    if (section !== "overview") return undefined;
-    const timer = setInterval(() => { if (!document.hidden) setRefresh(v => v + 1); }, 60000);
-    return () => clearInterval(timer);
-  }, [section]);
-  useEffect(() => {
     let live = true;
     read("/session").then(result => { if (live) setSession(result); }).catch(exc => { if (live) setError(exc.message); });
     return () => { live = false; };
@@ -199,7 +118,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
     if (!session || isLegacy) return;
     const controller = new AbortController();
     setLoading(true); setError("");
-    read(section === "overview" ? "/overview" : `/${collection}?${listQuery}`, { signal: controller.signal })
+    read(`/${collection}?${listQuery}`, { signal: controller.signal })
       .then(result => { setData(result); setLoading(false); }).catch(exc => { if (exc.name !== "AbortError") { setError(exc.message); setLoading(false); } });
     return () => controller.abort();
   }, [section, collection, listQuery, read, refresh, session, isLegacy]);
@@ -218,11 +137,6 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
     const timeout = setTimeout(() => read(`/search?q=${encodeURIComponent(globalSearch)}`, { signal: controller.signal }).then(result => setSearchResults(result.items)).catch(exc => { if (exc.name !== "AbortError") setError(exc.message); }), 250);
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [globalSearch, read]);
-  useEffect(() => {
-    if (section !== "jobs" && !action?.waitingJob) return;
-    const timer = setInterval(() => setRefresh(n => n + 1), 5000);
-    return () => clearInterval(timer);
-  }, [section, action?.waitingJob]);
   const savedKey = `admin-views:${user?.id}:${session?.environment}:${section}`;
   useEffect(() => { try { setSavedViews(JSON.parse(localStorage.getItem(savedKey) || "[]")); } catch { setSavedViews([]); } }, [savedKey]);
 
@@ -265,8 +179,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
       const result = await read(`/${action.collection}/${encodeURIComponent(entity)}/${action.name}`, { method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": action.key, "X-Admin-OTP": String(form.get("otp") || "") }, body: JSON.stringify(input) });
       setAction(null); setRefresh(n => n + 1);
-      if (result.job_id) navigate("jobs", { object: result.job_id });
-      else if (result.item && action.name === "draft") navigate(RULE_TYPES[section] ? section : "rules-workspace", { object: result.item.id });
+      if (result.item && action.name === "draft") navigate(RULE_TYPES[section] ? section : "rules-workspace", { object: result.item.id });
       setNotice(t("Действие сохранено в журнале аудита.", "Amal audit jurnalida saqlandi.", "The action was recorded in the audit trail."));
     } catch (exc) { setNotice(exc.message); } finally { setBusy(false); }
   };
@@ -284,8 +197,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
   const title = allNav.find(n => n[0] === section)?.[li + 2] || (section === "rules-workspace" ? t("Правила", "Qoidalar", "Rules") : t("Продуктовая аналитика", "Mahsulot tahlili", "Product analytics"));
   const columns = COLUMNS[collection] || COLUMNS.rules;
   const displayColumns = columns.filter(c => !hiddenColumns.includes(c));
-  const selectedIncidentTitle = collection === "incidents" && detail ? incidentTitle(detail.blocker_code || detail.title, t) : null;
-  const statusOptions = [...new Set(["OPEN", "INVESTIGATING", "RESOLVED", "PUBLISHED", "BLOCKED", "QUALITY_BLOCKED", "DRAFT", "TESTED", "APPROVED", "ACTIVE", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "verified", "blocked", "stale", "COMPLETE", "FOUND_NOT_INGESTED", "CLASSIFIED_SUSPICIOUS", ...(data?.items || []).map(r => r.status).filter(Boolean)])];
+    const statusOptions = [...new Set(["OPEN", "INVESTIGATING", "RESOLVED", "PUBLISHED", "BLOCKED", "QUALITY_BLOCKED", "DRAFT", "TESTED", "APPROVED", "ACTIVE", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "verified", "blocked", "stale", "COMPLETE", "FOUND_NOT_INGESTED", "CLASSIFIED_SUSPICIOUS", ...(data?.items || []).map(r => r.status).filter(Boolean)])];
   const actionButton = (name, label, capability, item = detail, extra = {}, coll = collection) => can(capability) && <button className="control-button" onClick={() => requestAction(name, item, extra, coll)}>{label}</button>;
 
   return <div className={`control-shell ${collapsed ? "is-collapsed" : ""}`}>
@@ -298,18 +210,18 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
     <div className="control-workspace">
       <label className="control-mobile-navigation">{t("Раздел", "Bo‘lim", "Section")}<select aria-label={t("Раздел", "Bo‘lim", "Section")} value={section} onChange={event => navigate(event.target.value)}>{NAVIGATION.map(group => <optgroup label={group.title[li]} key={group.title[2]}>{group.items.filter(item => item[0] !== "access" || can("access")).map(([key, , ...names]) => <option key={key} value={key}>{names[li]}</option>)}</optgroup>)}</select></label>
       <header className="control-topbar"><div className="control-search"><Icon name="search" /><input aria-label={t("Глобальный поиск", "Umumiy qidiruv", "Global search")} placeholder={t("Тикер, ИНН, ISIN, документ или run…", "Tiker, STIR, ISIN, hujjat yoki run…", "Ticker, tax ID, ISIN, document or run…")} value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
-        {searchResults && <div className="control-search-results">{searchResults.length ? searchResults.map(item => <button key={`${item.collection}:${item.id}`} onClick={() => navigate(item.collection, { object: item.id })}><span>{item.collection} · {item.ticker}</span><strong>{item.title || item.id}</strong></button>) : <p>{t("Ничего не найдено", "Hech narsa topilmadi", "No matches")}</p>}</div>}
+        {searchResults && <div className="control-search-results">{searchResults.length ? searchResults.filter(item => !["incidents", "jobs"].includes(item.collection)).map(item => <button key={`${item.collection}:${item.id}`} onClick={() => navigate(item.collection, { object: item.id })}><span>{item.collection} · {item.ticker}</span><strong>{item.title || item.id}</strong></button>) : <p>{t("Ничего не найдено", "Hech narsa topilmadi", "No matches")}</p>}</div>}
       </div><span className={`control-environment ${session?.environment === "production" ? "production" : ""}`}><i />{session?.environment || "…"}</span><div className="control-actor"><span>{session?.actor?.email || user?.email}</span><small>{session?.actor?.role || "—"}</small></div></header>
       <main className="control-main"><div className="control-page-head"><div><span className="control-eyebrow">{t("Администрирование", "Boshqaruv", "Administration")} / {t("Рабочая область", "Ish maydoni", "Workspace")}</span><h1>{title}</h1><p>{t("От источника до публикации — с проверкой каждого шага.", "Manbadan nashrgacha — har bir bosqich tekshiriladi.", "From source to publication, with every step accounted for.")}</p></div><div className="control-head-actions"><button className="control-button" onClick={() => setRefresh(n => n + 1)}><Icon name="refresh" />{t("Обновить", "Yangilash", "Refresh")}</button>
-        {(section === "overview" || section === "catalog-coverage" || section === "documents") && actionButton("sync", t("Синхронизировать каталог", "Katalogni sinxronlash", "Sync catalog"), "retry", { id: "catalog" }, {}, "catalog")}
+        {(section === "catalog-coverage" || section === "documents") && actionButton("sync", t("Синхронизировать каталог", "Katalogni sinxronlash", "Sync catalog"), "retry", { id: "catalog" }, {}, "catalog")}
         {(RULE_TYPES[section] || section === "parsers" || section === "rules-workspace") && actionButton("draft", t("Новое правило", "Yangi qoida", "New rule"), "draft", null, {}, "rules")}
         {section === "calculations" && actionButton("recalculate", t("Пересчитать выборку", "Tanlovni qayta hisoblash", "Recalculate selection"), "retry", { id: "all" }, { filters: Object.fromEntries(params) }, "calculations")}
         {section === "access" && actionButton("grant", t("Назначить роль", "Rol berish", "Assign role"), "access", null, {}, "access")}
       </div></div>
       {notice && <div className="control-notice" role="status">{notice}</div>}
       {error && <div className="control-error" role="alert"><Icon name="alert" />{error}<button onClick={() => setRefresh(n => n + 1)}>{t("Повторить", "Takrorlash", "Retry")}</button></div>}
-      {isLegacy ? <><Suspense fallback={<Loading t={t} />}><LegacyPanel apiFetch={apiFetch} language={language} section={section === "product-overview" ? "overview" : section} onSectionChange={key => navigate(key === "overview" ? "product-overview" : key)} /></Suspense></>
-        : loading ? <Loading t={t} /> : section === "overview" && data ? <Overview data={data} navigate={navigate} t={t} /> : <>
+      {isLegacy ? <><Suspense fallback={<Loading t={t} />}><LegacyPanel apiFetch={apiFetch} language={language} section={section === "product-overview" ? "overview" : section} onSectionChange={navigate} /></Suspense></>
+        : loading ? <Loading t={t} /> : <>
           <section className="control-card control-registry">
             <form className="control-filters" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); updateFilters({ q: f.get("q"), ticker: f.get("ticker"), status: f.get("status"), standard: f.get("standard"), period: f.get("period"), object: "" }); }} key={`${section}:${listQuery}`}>
               <label>{t("Поиск", "Qidiruv", "Search")}<input name="q" defaultValue={params.get("q") || ""} placeholder={t("По всему реестру", "Barcha yozuvlar", "Search all records")} /></label>
@@ -325,7 +237,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
               <details><summary>{t("Представления", "Ko‘rinishlar", "Saved views")}</summary><div className="control-popover">{savedViews.map(view => <button key={view.name} onClick={() => navigate(section, view.filters)}>{view.name}</button>)}<form onSubmit={event => { event.preventDefault(); const name = new FormData(event.currentTarget).get("name").trim(); if (!name) return; const views = [...savedViews.filter(v => v.name !== name), { name, filters: Object.fromEntries(params) }].slice(-15); setSavedViews(views); try { localStorage.setItem(savedKey, JSON.stringify(views)); } catch { setNotice("Local preferences are unavailable."); } }}><input name="name" aria-label={t("Название представления", "Ko‘rinish nomi", "View name")} required placeholder={t("Название", "Nomi", "View name")} /><button>{t("Сохранить", "Saqlash", "Save")}</button></form></div></details>
               {can("export") && <><button onClick={() => exportRows("csv")}>CSV ↓</button><button onClick={() => exportRows("json")}>JSON ↓</button></>}
             </div></div>
-            {data?.items?.length ? <div className="control-table-scroll"><table><thead><tr>{displayColumns.map(col => <th key={col} scope="col"><button disabled={!["ticker", "status", "standard", "period", "severity", "source", "category", "updated_at", "id", "created_at", "actor", "action"].includes(col)} onClick={() => updateFilters({ sort: col, direction: params.get("sort") === col && params.get("direction") === "asc" ? "desc" : "asc" })}>{fieldLabel(col, t)}{params.get("sort") === col ? params.get("direction") === "asc" ? " ↑" : " ↓" : ""}</button></th>)}</tr></thead><tbody>{data.items.map(item => <tr key={item.id} className={selected === item.id ? "selected" : ""}>{displayColumns.map((col, i) => <td key={col}>{i === 0 ? <button className="control-row-link" onClick={() => updateFilters({ object: item.id })}>{collection === "incidents" && col === "severity" ? incidentPriority(item[col], t) : textValue(item[col])}<Icon name="external" /></button> : collection === "incidents" && col === "blocker_code" ? <span className="control-incident-code" title={textValue(item[col])}><strong>{incidentTitle(item[col], t)}</strong><small>{textValue(item[col])}</small></span> : collection === "incidents" && col === "stage" ? <span title={textValue(item[col])}>{incidentStage(item[col], t)}</span> : ["status", "result", "severity"].includes(col) ? <StatusBadge value={item[col]} label={collection === "incidents" && col === "severity" ? incidentPriority(item[col], t) : undefined} /> : typeof item[col] === "boolean" ? <span className={`control-bool ${item[col] ? "yes" : ""}`}>{item[col] ? t("Да", "Ha", "Yes") : "—"}</span> : <span title={textValue(item[col])}>{textValue(item[col])}</span>}</td>)}</tr>)}</tbody></table></div>
+            {data?.items?.length ? <div className="control-table-scroll"><table><thead><tr>{displayColumns.map(col => <th key={col} scope="col"><button disabled={!["ticker", "status", "standard", "period", "severity", "source", "category", "updated_at", "id", "created_at", "actor", "action"].includes(col)} onClick={() => updateFilters({ sort: col, direction: params.get("sort") === col && params.get("direction") === "asc" ? "desc" : "asc" })}>{fieldLabel(col, t)}{params.get("sort") === col ? params.get("direction") === "asc" ? " ↑" : " ↓" : ""}</button></th>)}</tr></thead><tbody>{data.items.map(item => <tr key={item.id} className={selected === item.id ? "selected" : ""}>{displayColumns.map((col, i) => <td key={col}>{i === 0 ? <button className="control-row-link" onClick={() => updateFilters({ object: item.id })}>{textValue(item[col])}<Icon name="external" /></button> : ["status", "result", "severity"].includes(col) ? <StatusBadge value={item[col]} /> : typeof item[col] === "boolean" ? <span className={`control-bool ${item[col] ? "yes" : ""}`}>{item[col] ? t("Да", "Ha", "Yes") : "—"}</span> : <span title={textValue(item[col])}>{textValue(item[col])}</span>}</td>)}</tr>)}</tbody></table></div>
               : <div className="control-empty"><Icon name="search" /><h3>{t("Нет записей для этой выборки", "Tanlov bo‘yicha yozuvlar yo‘q", "No records in this view")}</h3><p>{t("Измените фильтры или синхронизируйте каталог. Неполученные данные не считаются проверенными.", "Filtrlarni o‘zgartiring yoki katalogni sinxronlang. Olinmagan ma’lumotlar tekshirilgan hisoblanmaydi.", "Adjust the filters or sync the catalog. Missing data is never marked as verified.")}</p></div>}
             <footer className="control-pagination"><span>{data?.items?.length || 0} / {data?.total || 0}</span><div><button className="control-button" disabled={!params.get("cursor")} onClick={() => updateFilters({ cursor: "" })}>{t("Первая страница", "Birinchi sahifa", "First page")}</button><button className="control-button" disabled={!data?.next_cursor} onClick={() => updateFilters({ cursor: data.next_cursor, object: "" })}>{t("Следующая", "Keyingi", "Next page")} →</button></div></footer>
           </section>
@@ -333,21 +245,17 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
       <footer className="control-footnote"><Icon name="lock" />{t("Исходные данные неизменяемы. Исправления проходят через версионируемые правила.", "Asl ma’lumotlar o‘zgarmaydi. Tuzatishlar versiyali qoidalar orqali bajariladi.", "Source data stays immutable. Corrections go through versioned rules.")}</footer>
       </main>
     </div>
-    {selected && !isLegacy && <DetailDialog title={selectedIncidentTitle ? `${detail?.ticker || "—"} · ${selectedIncidentTitle}` : detail?.ticker ? `${detail.ticker} · ${detail.metric_code || detail.period || title}` : title} onClose={closeDetail} wide={collection === "documents"} t={t}>
+    {selected && !isLegacy && <DetailDialog title={detail?.ticker ? `${detail.ticker} · ${detail.metric_code || detail.period || title}` : title} onClose={closeDetail} wide={collection === "documents"} t={t}>
       {detailError ? <div className="control-error" role="alert">{detailError}</div> : !detail ? <Loading t={t} /> : <>
         <div className="control-detail-meta"><StatusBadge value={detail.status || detail.result} /><span>v{detail.version || 1}</span><code>{detail.id}</code></div>
-        {selectedIncidentTitle && <div className="control-incident-explainer"><strong>{selectedIncidentTitle}</strong><p>{t("Проверка остановила публикацию или пометила данные для проверки. Машинный код сохранён ниже для поиска и аудита.", "Tekshiruv nashrni to‘xtatdi yoki ma’lumotlarni tekshirish uchun belgiladi. Qidiruv va audit uchun mashina kodi quyida saqlanadi.", "The check stopped publication or flagged the data for review. Its machine code is retained below for search and audit.")}</p><code>{detail.blocker_code || detail.title}</code></div>}
         {detail.blockers?.length > 0 && <div className="control-blockers"><strong>{t("Блокеры", "Bloklovchilar", "Blockers")}</strong>{detail.blockers.map(code => <p key={code}><Icon name="alert" />{code}</p>)}</div>}
         <div className="control-detail-actions">
           {collection === "documents" && actionButton("reprocess", t("Повторить обработку", "Qayta ishlash", "Reprocess"), "retry")}
-          {collection === "jobs" && (["COMPLETED", "FAILED", "BLOCKED", "CANCELLED"].includes(detail.status) ? actionButton("retry", t("Новая попытка", "Yangi urinish", "New attempt"), "retry") : actionButton("cancel", t("Остановить безопасно", "Xavfsiz to‘xtatish", "Cancel safely"), "retry"))}
-          {collection === "incidents" && <>{actionButton("investigate", t("Взять в работу", "Tekshirishni boshlash", "Investigate"), "comment")}{actionButton("comment", t("Комментарий", "Izoh", "Comment"), "comment")}{actionButton("resolve", t("Проверить и закрыть", "Tekshirish va yopish", "Verify & resolve"), "comment")}</>}
           {collection === "rules" && <>{["DRAFT", "TESTED"].includes(detail.status) && actionButton("test", t("Тесты и влияние", "Testlar va ta’sir", "Test & assess impact"), "test")}{detail.status === "TESTED" && actionButton("approve", t("Подтвердить", "Tasdiqlash", "Approve"), "approve")}{detail.status === "APPROVED" && actionButton("activate", t("Запустить активацию", "Faollashtirish", "Start activation"), "activate")}{actionButton("draft", t("Новая версия", "Yangi versiya", "New version"), "draft")}</>}
           {collection === "publications" && actionButton("rollback", detail.rollback_request ? t("Подтвердить откат", "Qaytarishni tasdiqlash", "Confirm rollback") : t("Запросить откат", "Qaytarishni so‘rash", "Request rollback"), "rollback")}
           {collection !== "audit" && <button className="control-button" onClick={() => read(`/${collection}/${encodeURIComponent(detail.id)}/history`).then(result => setHistory(result.items)).catch(exc => setDetailError(exc.message))}>{t("История версий", "Versiyalar tarixi", "Version history")}</button>}
         </div>
         {collection === "documents" && <Suspense fallback={<Loading t={t} />}><DocumentViewer document={detail} apiFetch={apiFetch} read={read} params={params} updateFilters={updateFilters} navigate={navigate} t={t} /></Suspense>}
-        {collection === "jobs" && <JobProgress job={detail} t={t} />}
         {collection === "calculations" && <section className="control-trace"><span className="control-eyebrow">CALCULATION TRACE</span><h3>{detail.metric_code} <strong>{textValue(detail.display_result ?? detail.value)} {detail.unit === "percent" ? "%" : detail.unit === "ratio" ? "×" : detail.unit}</strong></h3><pre>{detail.expression || detail.formula || "—"}</pre><KeyValues item={detail} fields={["formula_version", "raw_result", "report_period_end", "market_price_at", "shares_at", "sector_template"]} t={t} />
           <h4>{t("Входные факты и источник", "Kirish faktlari va manba", "Inputs & source lineage")}</h4>{detail.inputs?.length ? detail.inputs.map(input => <button className="control-source-link" key={input.id} onClick={() => navigate(input.document_id ? "documents" : "facts", { object: input.document_id || input.id, ...(input.source_location || {}) })}><strong>{input.title || input.metric_code}</strong><span>{textValue(input.value)} {input.unit}</span><small>{input.source_line_id || input.source_location?.cell || "SOURCE_LOCATION_MISSING"}</small><Icon name="external" /></button>) : <div className="control-error">SOURCE_LOCATION_MISSING</div>}
         </section>}

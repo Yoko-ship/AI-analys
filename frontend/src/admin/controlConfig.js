@@ -1,10 +1,4 @@
 export const NAVIGATION = [
-  { title: ["Операции", "Operatsiyalar", "Operations"], items: [
-    ["overview", "dashboard", "Обзор", "Umumiy", "Overview"],
-    ["incidents", "alert", "Инциденты", "Hodisalar", "Incidents"],
-    ["quality", "alert", "Качество данных", "Ma'lumotlar sifati", "Data quality"],
-    ["jobs", "clock", "Задания", "Vazifalar", "Jobs"],
-  ] },
   { title: ["Каталог", "Katalog", "Catalog"], items: [
     ["catalog-coverage", "panel", "Полнота каталога", "Katalog qamrovi", "Catalog coverage"],
     ["issuers", "users", "Эмитенты", "Emitentlar", "Issuers"],
@@ -56,13 +50,11 @@ export const COLUMNS = {
   facts: ["ticker", "title", "value", "unit", "period", "status"],
   calculations: ["ticker", "metric_code", "value", "unit", "period", "formula_version", "status"],
   rules: ["title", "category", "created_by", "approved_by", "version", "status"],
-  incidents: ["severity", "blocker_code", "ticker", "stage", "impact_count", "status"],
   analyses: ["ticker", "period", "standard", "language", "headline", "status"],
   publications: ["ticker", "period", "standard", "language", "headline", "status"],
   securities: ["ticker", "isin", "instrument_type", "last_price", "market_as_of", "status"],
   sources: ["title", "source", "last_success", "documents", "status"],
   audit: ["created_at", "actor", "action", "entity_id", "reason", "result"],
-  jobs: ["category", "ticker", "processed", "total", "attempt", "status"],
   access: ["email", "role", "status", "updated_at"],
 };
 

@@ -16,52 +16,20 @@ async function setup(page, role = "analyst") {
   return fixture;
 }
 
-test("operations overview, navigation and desktop layout", async ({ page }, testInfo) => {
+test("admin opens on product analytics without the operations section", async ({ page }, testInfo) => {
   const failures = [];
   page.on("pageerror", error => failures.push(error.message));
   await setup(page);
   await page.setViewportSize({ width: 1600, height: 1050 });
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible();
-  await expect(page.getByText("96%", { exact: true })).toBeVisible();
-  await expect(page.getByText("PERIOD_CLASSIFICATION_ERROR", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Product analytics", exact: true })).toBeVisible();
+  const sidebar = page.locator(".control-sidebar");
+  for (const name of ["Operations", "Incidents", "Jobs", "Data quality"]) await expect(sidebar.getByText(name, { exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("overview-desktop.png"), fullPage: true });
-  await page.getByRole("button", { name: "Documents", exact: true }).first().click();
+  await sidebar.getByRole("button", { name: "Documents", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/documents$/);
   await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
   expect(failures).toEqual([]);
-});
-
-test("bank pipeline alerts and monitor freshness appear in the dashboard", async ({ page }) => {
-  const fixture = await setup(page, "administrator");
-  fixture.financialIngestion.incidents = [{ code: "FAILED_JOBS", detail: "2 failed jobs require investigation", first_seen: "2026-09-18T10:00:00Z" }];
-  await page.goto("/admin");
-  const card = page.getByRole("region", { name: "Bank data pipeline" });
-  await expect(card.getByText("2 failed jobs require investigation")).toBeVisible();
-  await expect(card.getByText(/Published periods: 19/)).toBeVisible();
-  fixture.financialIngestion.incidents = [];
-  fixture.financialIngestion.monitor_stale = true;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await expect(card.getByText(/Monitor is overdue/)).toBeVisible();
-  await expect(card.getByText(/No active failures/)).toHaveCount(0);
-  fixture.financialIngestion.monitor_stale = false;
-  await page.getByRole("button", { name: "Refresh", exact: true }).click();
-  await expect(card.getByText(/No active failures/)).toBeVisible();
-});
-
-test("incidents explain the issue in the selected language while retaining its audit code", async ({ page }, testInfo) => {
-  await setup(page);
-  await page.goto("/admin/incidents");
-  await expect(page.getByText("Reporting period is classified incorrectly", { exact: true })).toBeVisible();
-  await expect(page.getByText("Classification", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "First page", exact: true })).toBeVisible();
-  await expect(page.getByText("Первая страница", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Priority 1", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: /Reporting period is classified incorrectly/ });
-  await expect(dialog.locator(".control-incident-explainer code")).toHaveText("PERIOD_CLASSIFICATION_ERROR");
-  await expect(dialog.getByText("Classification", { exact: true })).toBeVisible();
-  await expect(dialog.getByText(/The check stopped publication or flagged the data for review/)).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("incident-detail.png"), fullPage: true });
 });
 
 test("filters persist in the URL and document deep link opens a safe cell grid", async ({ page }, testInfo) => {
@@ -84,7 +52,7 @@ test("filters persist in the URL and document deep link opens a safe cell grid",
   await expect(page).toHaveURL(/ticker=UZNF/);
 });
 
-test("calculation to source and retry creates a tracked job", async ({ page }, testInfo) => {
+test("calculation to source and retry is recorded without leaving the page", async ({ page }, testInfo) => {
   const fixture = await setup(page);
   await page.goto("/admin/calculations?object=calc-fixture");
   await expect(page.getByText("market_price / NAV_per_share", { exact: true })).toBeVisible();
@@ -94,8 +62,8 @@ test("calculation to source and retry creates a tracked job", async ({ page }, t
   const confirm = page.getByRole("dialog", { name: "Review this action" });
   await confirm.getByLabel("Reason", { exact: true }).fill("Verify the classified half-year period");
   await confirm.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/jobs\?object=job-new/);
-  await expect(page.getByRole("progressbar")).toBeVisible();
+  await expect(page.locator(".control-notice")).toContainText("recorded in the audit trail");
+  await expect(page).toHaveURL(/\/admin\/documents/);
   const submitted = fixture.calls.find(call => call.method === "POST");
   expect(submitted.body.version).toBe(1);
   expect(submitted.body.reason).toContain("half-year");
