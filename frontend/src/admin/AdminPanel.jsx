@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { lang3, SECTIONS, SYSTEM_SECTIONS, ADMIN_SECTION_KEYS } from "./adminModel.js";
 import { Skeleton } from "./AdminWidgets.jsx";
 import { FeedbackSection } from "./FeedbackSection.jsx";
-import { SourceSection } from "./SourceSection.jsx";
 import { IssuerLedgerSection } from "./IssuerLedgerSection.jsx";
 import { StreamsSection } from "./StreamsSection.jsx";
 import { CompanyImportsSection } from "./CompanyImportsSection.jsx";
@@ -56,7 +55,6 @@ export default function AdminPanel({
     ledger,
     ledgerTicker,
     setLedgerTicker,
-    source,
     companyImports,
     companyLookup,
     setCompanyLookup,
@@ -118,7 +116,6 @@ export default function AdminPanel({
     companies: t("Новые бумаги приходят с UZSE и OpenInfo автоматически. Здесь администратор проверяет точное соответствие эмитента и публикует компанию без правки кода.", "Yangi qog'ozlar UZSE va OpenInfo'dan avtomatik keladi; administrator ularni tekshiradi va e'lon qiladi.", "New securities arrive automatically from UZSE and OpenInfo. Review the issuer match here and publish without a code change."),
     streams: t("Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.", "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.", "The last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here."),
     issuer: t("Расчёт разложен построчно: каждое слагаемое двенадцатимесячной базы со своим периодом и знаком, капитализация по классам, остатки, из которых берутся знаменатели, и все прошедшие проверки.", "Hisob-kitob qatorma-qator yoyilgan.", "The calculation laid out line by line: every component of the twelve-month base with its period and sign, the capitalisation by class, the balances the denominators come from."),
-    source: t("Кто должен был отчитаться, кто отчитался и кто молчит. Просрочка — это факт об эмитенте, а не о нашем сборщике, и тот же список — основа публичного индекса раскрытия.", "Kim hisobot berishi kerak edi, kim berdi va kim jim.", "Who was due to file, who did, and who has gone quiet. Being late is a fact about the issuer, not about our collector."),
   };
 
   /* labels shared by the product bodies */
@@ -239,8 +236,6 @@ export default function AdminPanel({
   /* ── Система · Эмитент (the TTM ledger) ─────────────────────────────────── */
   const issuerBody = <IssuerLedgerSection t={t} ledgerTicker={ledgerTicker} setLedgerTicker={setLedgerTicker} loadLedger={loadLedger} ledger={ledger} />;
 
-  /* ── Система · Источник ─────────────────────────────────────────────────── */
-  const sourceBody = <SourceSection source={source} t={t} setLedgerTicker={setLedgerTicker} loadLedger={loadLedger} onSectionChange={onSectionChange} />;
   const feedbackBody = <FeedbackSection
     feedbackData={feedbackData}
     t={t}
@@ -259,7 +254,6 @@ export default function AdminPanel({
     companies: companiesBody,
     streams: streamsBody,
     issuer: issuerBody,
-    source: sourceBody
   };
   return <div className="admin-view">
       <IconSprite />

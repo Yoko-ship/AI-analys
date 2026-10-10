@@ -132,9 +132,6 @@ export const SYSTEM_SECTIONS = [{
 }, {
   key: "issuer",
   title: ["Эмитент", "Emitent", "Issuer"]
-}, {
-  key: "source",
-  title: ["Источник", "Manba", "Source"]
 }];
 export const SYSTEM_KEYS = SYSTEM_SECTIONS.map(s => s.key);
 export const ADMIN_SECTION_KEYS = [...SECTIONS.map(s => s.key), ...SYSTEM_KEYS];

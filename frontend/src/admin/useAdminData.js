@@ -19,7 +19,6 @@ export function useAdminData({
   const [overview, setOverview] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [ledgerTicker, setLedgerTicker] = useState("");
-  const [source, setSource] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -118,10 +117,6 @@ export function useAdminData({
     const data = await readJson("/api/admin/overview");
     if (alive.current) setOverview(data);
   }, [readJson]);
-  const loadSource = useCallback(async () => {
-    const data = await readJson("/api/admin/source");
-    if (alive.current) setSource(data);
-  }, [readJson]);
   const loadLedger = useCallback(async ticker => {
     const one = String(ticker || "").trim().toUpperCase();
     if (!one) return;
@@ -136,7 +131,6 @@ export function useAdminData({
     if (isSystem) {
       if (section === "companies") jobs.push(loadCompanyImports(companyFilter));
       else if (section === "streams") jobs.push(loadOverview());
-      else if (section === "source") jobs.push(loadSource());
     } else if (section === "overview") {
       jobs.push(loadMetrics());
     } else if (section === "audience") {
@@ -161,7 +155,7 @@ export function useAdminData({
     // usersQuery deliberately not a dependency: the list reloads on Enter or a
     // filter click, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadSource, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
+  }, [section, rangeDays, usersOnly, isSystem, loadOverview, loadCompanyImports, companyFilter, loadMetrics, loadAudience, loadEngagement, loadAnalysis, loadFeedback, feedbackFilter]);
   const streams = useMemo(() => overview?.streams || [], [overview?.streams]);
   const staleStreams = useMemo(() => streams.filter(s => s.state === "stale").length, [streams]);
   const activeTab = isSystem ? "system" : section;
@@ -199,7 +193,6 @@ export function useAdminData({
     ledger,
     ledgerTicker,
     setLedgerTicker,
-    source,
     companyImports,
     companyLookup,
     setCompanyLookup,
