@@ -458,3 +458,56 @@ def test_only_a_session_from_the_conclusions_is_stamped_official(monkeypatch, so
     assert trading.push_trade_stats() == 0
     assert ("trade_stats", DAY) in stamps
     assert (("official_quotes", DAY) in stamps) is not provisional
+
+
+def _session_of_ten(monkeypatch, *, surplus=False, posted=True, bad=("UZ7000000000",)):
+    """Ten securities, two executions each; ``bad`` over-counts one of them."""
+    isins = [f"UZ70000000{i:02d}"[:12] for i in range(10)]
+    trades = [execution(isin_code=i) for i in isins for _ in range(2)]
+    if surplus:
+        trades.append(execution(isin_code=isins[0]))  # listed twice: beyond the count
+    count = 20
+
+    def get(client, path, params):
+        if path.endswith("conclusions/"):
+            over = params["isu_cd"] in bad
+            return {"results": [conclusion(date="2026-09-25" if posted else "2026-09-24",
+                                           trading_volume=2 if over else 4,
+                                           trading_value=20 if over else 40)]}
+        if "start_date" not in params:
+            return {"results": [trades[0]]}
+        return {"count": count, "total_pages": 1, "page_size": 1000, "current_page": 1,
+                "has_next": False, "results": deepcopy(trades)}
+
+    monkeypatch.setattr(archive, "_json_get", get)
+    return isins
+
+
+def test_one_security_out_of_line_with_its_conclusion_takes_the_official_figures(monkeypatch):
+    # 09.10.2026: SQBNP, ALKBP and BECMP disagreed with their conclusions and
+    # the whole session was refused all weekend.
+    isins = _session_of_ten(monkeypatch)
+    data = archive.fetch_latest_trade_stats(session=object())
+    assert data["complete"] and not data.get("provisional")
+    bad = data["stats"][isins[0]]
+    assert (bad["total_qty"], bad["total_value"], bad["vwap"], bad["trade_count"]) == (2, 20, 10, 2)
+    assert bad["largest_pct_value"] == 100
+    assert data["stats"][isins[1]]["total_qty"] == 4
+
+
+def test_a_row_beyond_the_archive_count_is_settled_by_the_conclusions(monkeypatch):
+    isins = _session_of_ten(monkeypatch, surplus=True, bad=())
+    data = archive.fetch_latest_trade_stats(session=object())
+    assert data["complete"]
+    assert data["stats"][isins[0]]["total_qty"] == 4  # the conclusion, not the 6 the rows add up to
+
+
+def test_a_row_beyond_the_count_without_conclusions_is_refused(monkeypatch):
+    _session_of_ten(monkeypatch, surplus=True, bad=(), posted=False)
+    monkeypatch.setattr(archive, "_session_finished", lambda day: True)
+    assert not archive.fetch_latest_trade_stats(session=object())["complete"]
+
+
+def test_many_securities_out_of_line_still_refuse_the_session(monkeypatch):
+    _session_of_ten(monkeypatch, bad=("UZ7000000000", "UZ7000000001"))  # 2 of 10: more than one in ten
+    assert not archive.fetch_latest_trade_stats(session=object())["complete"]

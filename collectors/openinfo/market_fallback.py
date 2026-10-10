@@ -76,6 +76,21 @@ class NoSession(ValueError):
     """The archive holds no executions on that day: a holiday or a day off."""
 
 
+class SurplusRows(ValueError):
+    """The archive served more executions than its own count says it holds.
+
+    09.10.2026: count 7 334, rows 7 335, the same in one page or eight — one
+    BECMP execution listed twice, while the day's conclusion counts it once.
+    The read is otherwise whole; only the conclusions can say which row is the
+    phantom (see ``_drop_phantoms``).
+    """
+
+    def __init__(self, trades: list[dict], surplus: int):
+        super().__init__(f"archive served {surplus} execution(s) beyond its count")
+        self.trades = trades
+        self.surplus = surplus
+
+
 def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
                      max_pages: int = 100) -> list[dict]:
     """Every board execution of one session, or ValueError — never a short read.
@@ -111,7 +126,8 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
                 or payload["page_size"] != page_size or payload["current_page"] != page
                 or payload["has_next"] is not (page < pages)
                 or not isinstance(batch, list)
-                or len(batch) != min(page_size, expected - read)):
+                # More rows than the count is SurplusRows below; fewer is a short read.
+                or len(batch) < min(page_size, expected - read)):
             raise ValueError("archive session changed or a page is incomplete")
         read += len(batch)
         for record in batch:
@@ -123,14 +139,47 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
         if page == pages:
             break
     check = _json_get(client, "/iuzse/trade-results/", {**params, "page": 1})
-    if check != first or read != expected or (still_newest and _latest_day(client) != iso_day):
+    if check != first or read < expected or (still_newest and _latest_day(client) != iso_day):
         raise ValueError("archive session changed while being read")
     if not trades:
         raise ValueError("archive session has no board executions")
     if other_markets:
         log.info("OpenInfo fallback: skipped executions off the board: %s",
                  ", ".join(f"{k} {v}" for k, v in sorted(other_markets.items())))
+    if read > expected:
+        raise SurplusRows(trades, read - expected)
     return trades
+
+
+# The most securities whose official conclusion may stand in for executions
+# that disagree with it — at most five, and at most one in ten of the traded
+# ones — before the session is treated as misread instead.
+MAX_RECONCILED = 5
+
+
+def _official_day(row: dict, quote: dict) -> None:
+    """Restate one security's day from its official conclusion, in place.
+
+    09.10.2026: the archive's executions over-counted SQBNP (+421 shares),
+    ALKBP (+108 828) and BECMP (one execution listed twice; the archive's own
+    count was one short of its rows) against the exchange's conclusions, and
+    the whole session was refused all weekend. The conclusion is the
+    exchange's official figure for the day, so volume, turnover and the price
+    range are taken from it; the execution count and largest deal stay as read.
+    """
+    for field in ("quantity", "turnover", "open_price", "close_price", "high_price", "low_price"):
+        if quote.get(field) is None:
+            raise ValueError(f"conclusion for {row['isin']} has no {field}")
+    row["total_qty"] = quote["quantity"]
+    row["total_value"] = round(quote["turnover"], 2)
+    for field in ("open_price", "close_price", "high_price", "low_price"):
+        row[field] = quote[field]
+    row["vwap"] = round(row["total_value"] / row["total_qty"], 2) if row["total_qty"] else None
+    big_value, big_qty = row.get("largest_value"), row.get("largest_qty")
+    row["largest_pct_value"] = (round(min(big_value / row["total_value"] * 100, 100), 2)
+                                if big_value is not None and row["total_value"] else None)
+    row["largest_pct_qty"] = (round(min(big_qty / row["total_qty"] * 100, 100), 2)
+                              if big_qty is not None and row["total_qty"] else None)
 
 
 def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
@@ -158,8 +207,13 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         day = iso_day.replace("-", "")
         if min_day and day < str(min_day).replace("-", ""):
             raise ValueError("archive is behind the exchange session")
-        trades = _read_executions(client, iso_day, still_newest=not session_day,
-                                  max_pages=max_pages)
+        surplus = 0
+        try:
+            trades = _read_executions(client, iso_day, still_newest=not session_day,
+                                      max_pages=max_pages)
+        except SurplusRows as extra:
+            trades, surplus = extra.trades, extra.surplus
+
         grouped: dict[str, list] = defaultdict(list)
         for trade in trades:
             grouped[trade["issue_code"]].append(trade)
@@ -168,7 +222,14 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                               session=client, as_of=iso_day)
         quoted = {row["isin"]: row for row in quotes}
         traded = [isin for isin, row in stats.items() if row["trade_count"]]
-        if traded and not any((quoted.get(isin) or {}).get("trade_date") == day for isin in traded):
+        conclusions_out = traded and not any((quoted.get(isin) or {}).get("trade_date") == day
+                                             for isin in traded)
+        if surplus and conclusions_out:
+            # Without the conclusions nothing can tell the phantom row from a
+            # genuine identical trade. The next run after they post publishes it.
+            raise ValueError(f"archive served {surplus} surplus execution(s) and "
+                             f"{iso_day} has no conclusions yet to settle them")
+        if conclusions_out:
             # openinfo posts the day's conclusions only overnight (none by 21:30
             # on 02.10, 05.10 or 06.10), while its executions are complete at the
             # close — and a day rebuilt from them matched the conclusions exactly
@@ -188,18 +249,19 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                     "intraday": session_bars(trades, {
                         (isin, day): (stats[isin]["open_price"], stats[isin]["close_price"])
                         for isin in traded})}
+        disagree: list[str] = []
         for isin, row in stats.items():
             if not row["trade_count"]:
                 continue  # negotiated trades have no auction close
             quote = quoted.get(isin) or {}
             if quote.get("trade_date") != day:
                 raise ValueError(f"archive conclusions lag executions for {isin}")
-            for quote_key, stats_key in (("quantity", "total_qty"), ("turnover", "total_value")):
-                if not math.isclose(quote[quote_key], row[stats_key], rel_tol=1e-9, abs_tol=.02):
-                    raise ValueError(f"archive conclusions disagree with executions for {isin}")
-            for field in ("high_price", "low_price"):
-                if quote[field] is None or not math.isclose(quote[field], row[field], rel_tol=1e-7, abs_tol=.01):
-                    raise ValueError(f"archive price range disagrees with executions for {isin}")
+            if (any(not math.isclose(quote[q], row[k], rel_tol=1e-9, abs_tol=.02)
+                    for q, k in (("quantity", "total_qty"), ("turnover", "total_value")))
+                    or any(quote[f] is None or not math.isclose(quote[f], row[f], rel_tol=1e-7, abs_tol=.01)
+                           for f in ("high_price", "low_price"))):
+                disagree.append(isin)
+                continue
             for field in ("open_price", "close_price"):
                 if quote[field] is None or not row["low_price"] - .01 <= quote[field] <= row["high_price"] + .01:
                     raise ValueError(f"archive {field} is outside the execution range for {isin}")
@@ -207,6 +269,16 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             # daily conclusion resolves their order; arbitrary row order cannot.
             for field in ("open_price", "close_price", "high_price", "low_price"):
                 row[field] = quote[field]
+        traded_count = sum(1 for row in stats.values() if row["trade_count"])
+        if len(disagree) > MAX_RECONCILED or len(disagree) * 10 > traded_count:
+            raise ValueError(f"archive conclusions disagree with executions for {len(disagree)} "
+                             f"securities: {', '.join(sorted(disagree))}")
+        for isin in disagree:
+            _official_day(stats[isin], quoted[isin])
+        if disagree or surplus:
+            log.warning("OpenInfo fallback: %s executions disagree with the conclusions for %s"
+                        " (archive rows beyond its count: %d) — the official conclusion stands",
+                        day, ", ".join(sorted(disagree)) or "no security", surplus)
         log.info("OpenInfo fallback: %s complete, %d executions, %d securities",
                  day, len(trades), len(stats))
         return {"source": "openinfo", "reachable": True, "complete": True,
