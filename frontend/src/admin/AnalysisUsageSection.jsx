@@ -1,10 +1,7 @@
-import AnalysisMonitor from "./AnalysisMonitor.jsx";
 import { fmtInt, fmtShare, fmtUsd, fmtDay } from "./adminModel.js";
 import { Stat, DailyBars, HBarList, RangePicker } from "./AdminWidgets.jsx";
 export function AnalysisUsageSection({
   analysisData,
-  readJson,
-  language,
   rangeDays,
   setRangeDays,
   t
@@ -13,7 +10,6 @@ export function AnalysisUsageSection({
   const anaTotals = ana && ana.totals || {};
   const anaMtd = ana && ana.month_to_date || {};
   return <div className="admin-section">
-      <AnalysisMonitor readJson={readJson} language={language} />
       <div className="admin-panel-bar">
         <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
       </div>

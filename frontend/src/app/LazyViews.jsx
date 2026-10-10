@@ -5,6 +5,5 @@ import { lazy } from "react";
 // administration and account-editor code up front.
 const AdminPanel = lazy(() => import("../admin/AdminPanel.jsx"));
 
-const SectorMonitorPage = lazy(() => import("../admin/AnalysisMonitor.jsx").then((module) => ({ default: module.SectorMonitorPage })));
 
-export { AdminPanel, SectorMonitorPage };
+export { AdminPanel };

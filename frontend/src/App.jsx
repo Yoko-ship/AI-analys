@@ -3,7 +3,7 @@ import { loadConfig } from "./lib/flags.js";
 import { setTrackedUser } from "./lib/track.js";
 import { LandingView } from "./features/landing/index.js";
 import { CatalogView } from "./features/catalog/index.js";
-import { AdminPanel, SectorMonitorPage } from "./app/LazyViews.jsx";
+import { AdminPanel } from "./app/LazyViews.jsx";
 import { AnnouncementArticleView, NewsArticleView, NewsView } from "./features/news/index.js";
 import { normalizeLanguage } from "./shared/i18n.jsx";
 import { CompanyPage } from "./features/company/index.js";
@@ -88,7 +88,7 @@ function App() {
               reads as a bug, and the page is not secret — its data is guarded on
               the server, where guarding belongs. */}
           {activeView === "admin" && (
-            user && adminSection === "sector-analysis" ? <Suspense fallback={<div className="panel">Loading…</div>}><SectorMonitorPage apiFetch={apiFetch} language={language} /></Suspense> : (user?.is_admin || user?.admin_role) ? (
+            (user?.is_admin || user?.admin_role) ? (
               <Suspense fallback={<div className="panel">Loading…</div>}><AdminPanel
                 apiFetch={apiFetch}
                 language={language}

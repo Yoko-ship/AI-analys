@@ -39,9 +39,4 @@
 .verified-rule-form { display:grid; gap:12px; padding:16px; }
 .verified-rule-form label { display:grid; gap:6px; }
 .verified-rule-form input,.verified-rule-form select { max-width:100%; min-width:0; padding:8px; }
-.sector-monitor .admin-scroll { margin:12px 0; padding:0; }
-.sector-monitor .admin-scroll table { min-width:620px; }
-.sector-monitor .admin-btn { white-space:normal; }
-.sector-monitor .verified-rule-form input,.sector-monitor .verified-rule-form select { border:1px solid var(--border); border-radius:8px; min-height:40px; background:var(--panel); color:var(--text); font:inherit; }
-.sector-monitor :is(button,input,select):focus-visible { outline:2px solid var(--accent,#5f88d7); outline-offset:3px; }
 @media(max-width:560px) { .verified-ratios,.verified-watch-grid { grid-template-columns:1fr; } .verified-issues article { padding:12px; } }

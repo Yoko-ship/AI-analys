@@ -67,7 +67,6 @@ export default function AdminPanel({
     error,
     loading,
     busy,
-    readJson,
     loadUsers,
     updateFeedbackStatus,
     openUser,
@@ -185,7 +184,7 @@ export default function AdminPanel({
   /* ══════════════════════════════════════════════════════════════════════════
      PRODUCT · AI-анализ
      ════════════════════════════════════════════════════════════════════════ */
-  const analysisBody = <AnalysisUsageSection analysisData={analysisData} readJson={readJson} language={language} rangeDays={rangeDays} setRangeDays={setRangeDays} t={t} />;
+  const analysisBody = <AnalysisUsageSection analysisData={analysisData} rangeDays={rangeDays} setRangeDays={setRangeDays} t={t} />;
 
   /* ══════════════════════════════════════════════════════════════════════════
      PRODUCT · Пользователи

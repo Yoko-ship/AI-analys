@@ -25,6 +25,9 @@ test("admin opens straight on the product tabs, with no second navigation", asyn
   await page.screenshot({ path: testInfo.outputPath("admin-desktop.png"), fullPage: true });
   await tabs.getByRole("button", { name: "Audience" }).click();
   await expect(page).toHaveURL(/\/admin\/audience$/);
+  await tabs.getByRole("button", { name: "AI analysis" }).click();
+  await expect(page).toHaveURL(/[/]admin[/]analysis$/);
+  await expect(page.getByText("Sector analysis monitoring")).toHaveCount(0);
   await tabs.getByRole("button", { name: "System" }).click();
   await expect(page).toHaveURL(/\/admin\/companies$/);
   const subtabs = page.locator(".admin-subtabs");
@@ -36,7 +39,7 @@ test("admin opens straight on the product tabs, with no second navigation", asyn
 
 test("links to removed admin screens land on the overview", async ({ page }) => {
   await mockAdmin(page);
-  for (const old of ["/admin/documents", "/admin/audit", "/admin/access", "/admin/product-overview", "/admin/findings", "/admin/quality", "/admin/intake", "/admin/rules", "/admin/source"]) {
+  for (const old of ["/admin/documents", "/admin/audit", "/admin/access", "/admin/product-overview", "/admin/findings", "/admin/quality", "/admin/intake", "/admin/rules", "/admin/source", "/admin/sector-analysis"]) {
     await page.goto(old);
     await expect(page).toHaveURL(/\/admin$/);
     await expect(page.locator(".admin-tabs").getByRole("button", { name: "Overview" })).toHaveAttribute("aria-current", "page");

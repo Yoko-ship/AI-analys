@@ -188,29 +188,6 @@ test("a source error can be retried successfully", async ({ page }) => {
   expect(attempts).toBe(2);
 });
 
-test("admin rules require evidence and a reason, then send a scoped update", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "local-qa-token"));
-  await api(page, REPORT, true);
-  let mutation;
-  await page.route("**/api/admin/sector-analysis/overrides", (route) => {
-    mutation = route.request().postDataJSON();
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, version: "qa-only" }) });
-  });
-  await page.goto("/admin/analysis");
-  await expect(page.getByText("Мониторинг отраслевого анализа")).toBeVisible();
-  await page.getByText("Правила выбора шаблона", { exact: true }).click();
-  await page.getByLabel("Тикер", { exact: true }).fill("UZMK");
-  await page.getByLabel("Шаблон", { exact: true }).selectOption("metallurgy");
-  await page.getByLabel("Источник решения", { exact: true }).fill("https://example.org/verified-activity");
-  await page.getByLabel("Причина", { exact: true }).fill("Source confirms principal activity");
-  await page.getByRole("button", { name: "Сохранить версию и пересчитать эмитента" }).click();
-  await expect.poll(() => mutation?.ticker).toBe("UZMK");
-  expect(mutation.override_template).toBe("metallurgy");
-  expect(mutation.evidence_source).toBe("https://example.org/verified-activity");
-  await expect(page.getByRole("status")).toContainText("Изменение сохранено");
-  await page.screenshot({ path: "audit/sector-v2.3/admin-rules.png", fullPage: true });
-});
-
 test("verified financial tables stay inside the mobile dark report", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_theme", "dark"));
@@ -232,17 +209,6 @@ test("verified financial tables stay inside the mobile dark report", async ({ pa
   await expect(close).toBeInViewport();
   await close.click();
   await expect(dialog).toHaveCount(0);
-});
-
-test("a viewer can inspect analysis but has no mutation controls", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "local-viewer-token"));
-  await api(page, REPORT, true);
-  await page.route("**/api/auth/me", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ user: { id: 2, email: "viewer@example.org", is_admin: false } }) }));
-  await page.route("**/api/admin/sector-analysis", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, role: "viewer", capabilities: ["read"], counts: {}, runs: [], jobs: [], audit: [], overrides: [] }) }));
-  await page.goto("/admin/sector-analysis");
-  await expect(page.getByText("Мониторинг отраслевого анализа")).toBeVisible();
-  await expect(page.getByText("Запусков пока нет.")).toBeVisible();
-  await expect(page.getByText("Правила выбора шаблона", { exact: true })).toHaveCount(0);
 });
 
 test("a bond shows issue assessments without the removed issuer report", async ({ page }) => {
