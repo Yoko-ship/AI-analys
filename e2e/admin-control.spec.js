@@ -52,12 +52,9 @@ test("filters persist in the URL and document deep link opens a safe cell grid",
   await expect(page).toHaveURL(/ticker=UZNF/);
 });
 
-test("calculation to source and retry is recorded without leaving the page", async ({ page }, testInfo) => {
+test("document reprocess is recorded without leaving the page", async ({ page }) => {
   const fixture = await setup(page);
-  await page.goto("/admin/calculations?object=calc-fixture");
-  await expect(page.getByText("market_price / NAV_per_share", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Net asset value 123456/ }).click();
-  await expect(page.getByText("Balance!B2", { exact: true })).toBeVisible();
+  await page.goto("/admin/documents?object=doc-fixture");
   await page.getByRole("button", { name: "Reprocess", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "Review this action" });
   await confirm.getByLabel("Reason", { exact: true }).fill("Verify the classified half-year period");
@@ -65,9 +62,7 @@ test("calculation to source and retry is recorded without leaving the page", asy
   await expect(page.locator(".control-notice")).toContainText("recorded in the audit trail");
   await expect(page).toHaveURL(/\/admin\/documents/);
   const submitted = fixture.calls.find(call => call.method === "POST");
-  expect(submitted.body.version).toBe(1);
   expect(submitted.body.reason).toContain("half-year");
-  await page.screenshot({ path: testInfo.outputPath("tracked-job.png"), fullPage: true });
 });
 
 test("viewer cannot see mutation controls and empty results explain themselves", async ({ page }) => {
@@ -81,17 +76,14 @@ test("viewer cannot see mutation controls and empty results explain themselves",
   await expect(page.getByRole("heading", { name: "No records in this view" })).toBeVisible();
 });
 
-test("rule draft is reachable and narrow viewport does not overflow", async ({ page }, testInfo) => {
+test("sidebar keeps only catalog and management, and a tablet viewport does not overflow", async ({ page }, testInfo) => {
   await setup(page);
   await page.setViewportSize({ width: 768, height: 1024 });
-  await page.goto("/admin/formulas");
-  await page.getByRole("button", { name: "New rule", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Review this action" });
-  await dialog.getByLabel("Title", { exact: true }).fill("Reviewed liquidity formula");
-  await dialog.getByLabel("Reason", { exact: true }).fill("Check source-line compatibility");
-  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Formulas", exact: true }).getByText("Reviewed liquidity formula", { exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("rule-tablet.png"), fullPage: true });
+  await page.goto("/admin/documents");
+  const sections = page.getByLabel("Section", { exact: true });
+  for (const gone of ["formulas", "calculations", "analyses", "publications", "securities", "parsers"]) await expect(sections.locator(`option[value="${gone}"]`)).toHaveCount(0);
+  await expect(sections.locator('option[value="documents"]')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath("documents-tablet.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
 });
 

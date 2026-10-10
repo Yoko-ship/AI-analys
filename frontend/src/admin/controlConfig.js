@@ -5,20 +5,6 @@ export const NAVIGATION = [
     ["documents", "file", "Документы", "Hujjatlar", "Documents"],
     ["sources", "external", "Источники", "Manbalar", "Sources"],
   ] },
-  { title: ["Обработка и методика", "Qayta ishlash va usullar", "Processing & methodology"], items: [
-    ["parsers", "list", "Парсеры", "Parserlar", "Parsers"],
-    ["facts", "list", "Финансовые факты", "Moliyaviy faktlar", "Financial facts"],
-    ["mappings", "sliders", "Маппинг", "Moslashtirish", "Mappings"],
-    ["formulas", "percent", "Формулы", "Formulalar", "Formulas"],
-    ["calculations", "chart", "Расчёты", "Hisob-kitoblar", "Calculations"],
-    ["templates", "panel", "ОКЭД и шаблоны", "OKED va shablonlar", "OKED & templates"],
-    ["signals", "alert", "Сигналы и решения", "Signallar va yechimlar", "Signals & decisions"],
-  ] },
-  { title: ["Результат", "Natija", "Results"], items: [
-    ["analyses", "search", "AI-анализ", "AI-tahlil", "AI analysis"],
-    ["publications", "news", "Публикации", "Nashrlar", "Publications"],
-    ["securities", "chart", "Акции и облигации", "Aksiyalar va obligatsiyalar", "Securities"],
-  ] },
   { title: ["Управление", "Boshqaruv", "Management"], items: [
     ["audit", "list", "Аудит", "Audit", "Audit trail"],
     ["access", "lock", "Пользователи и роли", "Foydalanuvchilar va rollar", "Access & roles"],
@@ -27,32 +13,11 @@ export const NAVIGATION = [
   ] },
 ];
 export const LEGACY = ["audience", "engagement", "analysis", "users", "feedback", "companies", "streams", "findings", "intake", "issuer", "rules", "source", "quality", "product-overview"];
-export const RULE_TYPES = { mappings: "mapping", formulas: "formula", templates: "template", signals: "signal" };
-export const COLLECTION = { "catalog-coverage": "coverage", "rules-workspace": "rules", ...Object.fromEntries(Object.keys(RULE_TYPES).map(k => [k, "rules"])) };
-export const DEFAULT_RULES = {
-  formula: { code: "current_ratio", numerators: ["form1:c320", "form1:c370", "form1:c210", "form1:c140"], denominators: ["form1:c600"], percent: false,
-    test_cases: [{ inputs: { "form1:c320": "50", "form1:c370": "50", "form1:c210": "50", "form1:c140": "50", "form1:c600": "100" }, expected: "2" }, { inputs: { "form1:c600": "0" }, expected: null }] },
-  parser: { code: "interim_six_months", header_phrase: "Six months ended", duration_months: 6,
-    test_cases: [{ document: { standard: "IFRS", published_at: "2026-08-01" }, header: "Six months ended 30 June 2026", expected: { period_end: "2026-06-30", duration_months: 6, statement_type: "interim" } }] },
-  mapping: { code: "form1_line_alias", source_line: "form1:c391", target_line: "form1:c390",
-    test_cases: [{ snapshot: { organization_type: "non_financial", source_lines: { "form1:c391": { raw_current: "100" } } }, expected: { source_lines: { "form1:c390": { raw_current: "100", original_line: "form1:c391" } } } }] },
-  template: { code: "telecom_oked", oked_prefix: "61", template: "telecom",
-    test_cases: [{ snapshot: { organization_type: "non_financial" }, issuer: { oked_code: "61100" }, expected: { template_resolution: { selected_template: "telecom", resolution_status: "versioned_oked_rule" } } }] },
-  signal: { code: "freshness", max_age_days: 210,
-    test_cases: [{ snapshot: {}, expected: { max_age_days: 210 } }] },
-};
-
+export const COLLECTION = { "catalog-coverage": "coverage" };
 export const COLUMNS = {
   issuers: ["ticker", "title", "org_id", "special_type", "sector_template", "status"],
   documents: ["ticker", "title", "standard", "period", "detected_format", "status"],
   coverage: ["ticker", "period", "standard", "file_available", "parsed", "verified", "used_in_analysis", "status"],
-  parsers: ["ticker", "period", "standard", "parser_version", "rows_mapped", "status"],
-  facts: ["ticker", "title", "value", "unit", "period", "status"],
-  calculations: ["ticker", "metric_code", "value", "unit", "period", "formula_version", "status"],
-  rules: ["title", "category", "created_by", "approved_by", "version", "status"],
-  analyses: ["ticker", "period", "standard", "language", "headline", "status"],
-  publications: ["ticker", "period", "standard", "language", "headline", "status"],
-  securities: ["ticker", "isin", "instrument_type", "last_price", "market_as_of", "status"],
   sources: ["title", "source", "last_success", "documents", "status"],
   audit: ["created_at", "actor", "action", "entity_id", "reason", "result"],
   access: ["email", "role", "status", "updated_at"],

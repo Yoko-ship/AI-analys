@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-export default function DocumentViewer({ document, apiFetch, read, params, updateFilters, navigate, t }) {
+export default function DocumentViewer({ document, apiFetch, read, params, updateFilters, t }) {
   const [preview, setPreview] = useState(null), [error, setError] = useState(""), [image, setImage] = useState(null);
   const [zoom, setZoom] = useState(100), [query, setQuery] = useState(""), [start, setStart] = useState(0), [copied, setCopied] = useState(false);
   const page = Number(params.get("page") || 1), sheet = params.get("sheet") || "";
@@ -53,7 +53,7 @@ export default function DocumentViewer({ document, apiFetch, read, params, updat
       {start > 0 && <button className="control-button" onClick={() => { setStart(0); updateFilters({ row: "", cell: "" }); }}>{t("Первые строки", "Birinchi satrlar", "First rows")}</button>}
       {preview.next_row && <button className="control-button" onClick={() => setStart(preview.next_row)}>{t("Следующие строки", "Keyingi satrlar", "Next rows")} →</button>}
       {preview.format === "XLSX" && <p className="control-muted">{t("Просмотр: до 2000 строк и 100 столбцов. Полный файл доступен для скачивания.", "Ko‘rinish: 2000 satr va 100 ustungacha. To‘liq faylni yuklash mumkin.", "Preview: up to 2,000 rows and 100 columns. Download the original for the full workbook.")}</p>}
-      {selectedCell && <div className="control-source-selection"><strong>{preview.sheet}!{selectedCell}</strong><button className="control-button" onClick={() => navigate("facts", { q: selectedCell, ticker: document.ticker })}>{t("Связанные факты", "Bog‘langan faktlar", "Related facts")}</button></div>}
+      {selectedCell && <div className="control-source-selection"><strong>{preview.sheet}!{selectedCell}</strong></div>}
     </>}
   </section>;
 }
