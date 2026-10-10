@@ -29,9 +29,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
+from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse, Response
 from starlette.requests import Request
 
 import server.http as http
+
+router = APIRouter()
 
 SITE_URL = os.getenv("PUBLIC_SITE_URL", "https://uzstock.uz").rstrip("/")
 SITE_NAME = "UZStock"
@@ -560,6 +564,17 @@ async def sitemap_xml() -> str:
     return await _cached("sitemap", load)
 
 
+@router.get("/robots.txt", include_in_schema=False)
+async def robots_route() -> PlainTextResponse:
+    return PlainTextResponse(robots_txt(), headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_route() -> Response:
+    return Response(await sitemap_xml(), media_type="application/xml",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
 _template_cache: dict[str, tuple[float, str]] = {}
 
 
@@ -574,4 +589,4 @@ def template(index_path: Path) -> str:
     return text
 
 
-__all__ = ["PageMeta", "page_meta", "render", "robots_txt", "sitemap_xml", "template", "SITE_URL"]
+__all__ = ["PageMeta", "page_meta", "render", "robots_txt", "router", "sitemap_xml", "template", "SITE_URL"]

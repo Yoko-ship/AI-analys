@@ -1,7 +1,7 @@
 import { normalizeLanguage, t } from "../shared/i18n.jsx";
 import { LANGUAGE_KEY } from "./preferences.jsx";
 
-// The server writes each URL's own Russian title into the shell (server/seo.py)
+// The server writes each URL's own Russian title into the shell (server/seo/routes.py)
 // for search engines. Keep it while the reader is still on that URL in Russian;
 // any other page or language falls back to the app's generic title, so a page
 // reached in-app never inherits the landing page's company name.

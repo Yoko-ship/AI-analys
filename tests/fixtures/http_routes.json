@@ -4196,5 +4196,21 @@
     ],
     "name": "spa_fallback",
     "dependencies": []
+  },
+  {
+    "path": "/robots.txt",
+    "methods": [
+      "GET"
+    ],
+    "name": "robots_route",
+    "dependencies": []
+  },
+  {
+    "path": "/sitemap.xml",
+    "methods": [
+      "GET"
+    ],
+    "name": "sitemap_route",
+    "dependencies": []
   }
 ]

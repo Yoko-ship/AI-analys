@@ -11,7 +11,7 @@ import api
 import server.bonds.routes as bonds_routes
 import server.company.routes as company_routes
 import server.market.routes as market_routes
-import server.seo as seo
+import server.seo.routes as seo
 import news_store
 
 SHELL = ('<!doctype html><html lang="ru"><head><meta charset="UTF-8" />'
