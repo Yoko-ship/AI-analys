@@ -10,7 +10,7 @@ export function controlFixture(role = "analyst") {
     issuers: [{ id: "UZNF", version: 1, ticker: "UZNF", title: "Uzbekistan National Investment Fund", org_id: "fixture", special_type: "investment_fund", sector_template: "investment_fund", status: "INDEXED" }],
     facts: [fact], calculations: [calculation], incidents: [incident],
     coverage: [{ id: doc.id, version: 1, ticker: "UZNF", period: "2026H1", standard: "IFRS", status: "PUBLISHED_NOT_USED", file_available: true, parsed: true, verified: true, used_in_analysis: false }],
-    jobs: [], audit: [], rules: [], publications: [], analyses: [], sources: [], securities: [], access: [], parsers: [],
+    jobs: [], audit: [{ id: "audit-fixture", version: 1, created_at: "2026-10-09T10:00:00Z", actor: "qa@example.test", action: "grant", entity_id: "viewer@example.test", reason: "Onboard a reviewer", result: "COMPLETED", status: "COMPLETED" }], rules: [], publications: [], analyses: [], sources: [], securities: [], access: [], parsers: [],
   };
   const calls = [];
   const financialIngestion = { available: true, monitor_stale: false, status: "PARTIAL", published_periods: 19, unreviewed_sources: 12, approved_unpublished: 0, incidents: [] };

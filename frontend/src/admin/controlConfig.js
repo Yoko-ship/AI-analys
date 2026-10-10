@@ -1,10 +1,4 @@
 export const NAVIGATION = [
-  { title: ["Каталог", "Katalog", "Catalog"], items: [
-    ["catalog-coverage", "panel", "Полнота каталога", "Katalog qamrovi", "Catalog coverage"],
-    ["issuers", "users", "Эмитенты", "Emitentlar", "Issuers"],
-    ["documents", "file", "Документы", "Hujjatlar", "Documents"],
-    ["sources", "external", "Источники", "Manbalar", "Sources"],
-  ] },
   { title: ["Управление", "Boshqaruv", "Management"], items: [
     ["audit", "list", "Аудит", "Audit", "Audit trail"],
     ["access", "lock", "Пользователи и роли", "Foydalanuvchilar va rollar", "Access & roles"],
@@ -13,12 +7,7 @@ export const NAVIGATION = [
   ] },
 ];
 export const LEGACY = ["audience", "engagement", "analysis", "users", "feedback", "companies", "streams", "findings", "intake", "issuer", "rules", "source", "quality", "product-overview"];
-export const COLLECTION = { "catalog-coverage": "coverage" };
 export const COLUMNS = {
-  issuers: ["ticker", "title", "org_id", "special_type", "sector_template", "status"],
-  documents: ["ticker", "title", "standard", "period", "detected_format", "status"],
-  coverage: ["ticker", "period", "standard", "file_available", "parsed", "verified", "used_in_analysis", "status"],
-  sources: ["title", "source", "last_success", "documents", "status"],
   audit: ["created_at", "actor", "action", "entity_id", "reason", "result"],
   access: ["email", "role", "status", "updated_at"],
 };
