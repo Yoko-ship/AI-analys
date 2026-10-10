@@ -69,10 +69,13 @@ body[data-theme="dark"] .market-sector-select select:not([data-all="1"]) {
 
 /* ── Market table: logo + ticker cell ────────────────────────── */
 .market-ticker-cell {
+  white-space: nowrap;
+}
+
+.market-ticker-cell-inner {
   display: flex;
   align-items: center;
   gap: 8px;
-  white-space: nowrap;
 }
 
 /* Watchlist star: toggles the company as a favorite straight from the quotes. */

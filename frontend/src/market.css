@@ -813,7 +813,7 @@ html[data-theme="dark"] .market-layout .market-table th {
   line-height: 1.2;
 }
 
-.market-layout .market-ticker-cell {
+.market-layout .market-ticker-cell-inner {
   gap: 6px;
 }
 
@@ -1332,4 +1332,51 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
 .market-export-error {
   margin: 12px;
   color: var(--danger);
+}
+
+/* Phone toolbar + period row, measured on prod at 390px (2026-10-10).
+   `.market-cols-btn .market-btn-label` (0,2,0) outranked mobile.css's bare
+   `.market-btn-label { display: none }`, so «Колонки 11» spilled out of its
+   34px icon box over the export button — and «Неактивные», which had no icon,
+   rendered as an empty square. The period control inherited the generic phone
+   rule that lets a segmented control wrap, which folded seven chips into two
+   ragged rows beside its label; it gets the full width under its label and
+   stays on one line instead. */
+@media (max-width: 760px) {
+  .market-layout .market-controls .market-btn-label {
+    display: none;
+  }
+
+  .market-layout .market-period-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .market-layout .market-period-control {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .market-layout .market-period-control button {
+    flex: 1 0 auto;
+    min-height: 32px;
+    padding: 5px 8px;
+  }
+}
+
+/* With the ticker cell back inside table layout, its 34px ticker button stacked
+   on the share class made every phone row 70px. The star beside it already
+   holds the row at a 34px touch height, so the ticker button does not need to. */
+@media (max-width: 760px) {
+  .market-layout .market-table-wrap .market-ticker-btn {
+    height: auto;
+    min-height: 0;
+    padding-block: 3px;
+  }
+
+  .market-layout .market-table-wrap .market-ticker-info span {
+    margin-top: 0;
+  }
 }

@@ -95,6 +95,10 @@ export function MarketTable({
                       <td className={`market-ticker-cell${pinCls(pinTicker)}`} style={pinTicker ? {
                   left: pinTicker.left
                 } : undefined}>
+                        {/* The flex row lives inside the cell: a <td> that is itself
+                            `display: flex` drops out of table layout and stops
+                            stretching to its row, which misaligned every row. */}
+                        <div className="market-ticker-cell-inner">
                         <button type="button" className={`market-fav-btn ${isFav ? "is-fav" : ""}`} aria-pressed={isFav} title={isFav ? lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного" : lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное"} onClick={e => {
                     e.stopPropagation();
                     onToggleFavorite && onToggleFavorite(row.ticker, row.name);
@@ -109,6 +113,7 @@ export function MarketTable({
                           <span>{row.type === "bond" || sec.type === "bond" ? mt(lang, "bondOne") : isPreferred ? mt(lang, "preferred") : row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
                         </div>
                         <button type="button" className="market-info-btn" title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"} onClick={() => openPanel(row.ticker)}>ℹ</button>
+                        </div>
                       </td>
                       <td className={pinCls(pinCompany).trim() || undefined} style={pinCompany ? {
                   left: pinCompany.left

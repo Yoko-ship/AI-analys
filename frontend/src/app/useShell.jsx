@@ -270,6 +270,22 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                     : t(language, `nav.${key}`)}
               </button>
             ))}
+
+            {/* Phone only (mobile.css §2): a 390px topbar with «Войти» in it has
+                no room left for A−/A+, so on a phone the text size lives here,
+                at the foot of the drawer, instead of being pushed off-screen. */}
+            <div className="topbar-nav-textsize">
+              <span>{language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}</span>
+              <div className="topbar-textsize" role="group"
+                aria-label={language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}>
+                <button type="button" onClick={() => stepTextScale(-1)} disabled={textScale === TEXT_SCALES[0]}
+                  aria-label={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}>A−</button>
+                <button type="button" className="topbar-textsize-now" onClick={() => setTextScale(100)} disabled={textScale === 100}
+                  title={language === "en" ? "Reset to 100%" : language === "uz" ? "100% ga qaytarish" : "Вернуть 100%"}>{textScale}%</button>
+                <button type="button" onClick={() => stepTextScale(1)} disabled={textScale === TEXT_SCALES[TEXT_SCALES.length - 1]}
+                  aria-label={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}>A+</button>
+              </div>
+            </div>
           </nav>
 
           {token && (

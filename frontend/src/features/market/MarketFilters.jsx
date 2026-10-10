@@ -124,6 +124,8 @@ export function MarketFilters({
             onClick={() => setInactiveOnly(v => !v)}
             title={inactiveOnly ? lang === "en" ? "Back to the traded board" : lang === "uz" ? "Savdodagi ro'yxatga qaytish" : "Вернуться к торгуемым" : lang === "en" ? `Show the ${dormantCount} listings with no trades for 90 days` : lang === "uz" ? `90 kun bitimsiz ${dormantCount} qog'ozni ko'rsatish` : `Показать ${dormantCount} бумаг без сделок более 90 дней`}
           >
+              {/* The icon is what a phone shows: market.css hides the label there. */}
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M10 9v6" /><path d="M14 9v6" /></svg>
               <span className="market-btn-label">
                 {lang === "en" ? "Inactive" : lang === "uz" ? "Faol emas" : "Неактивные"}
                 {` (${dormantCount})`}

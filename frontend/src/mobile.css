@@ -315,6 +315,42 @@ iframe {
   .brand-copy {
     display: none;
   }
+
+  /* Measured on prod at 390px after «Войти» joined the row: burger + icon +
+     sign-in + rate + language + A−/A+ + theme came to 415px, so the theme
+     toggle sat half off the screen and the brand icon was squeezed to 0px.
+     A−/A+ is the control a phone reader touches least (the OS already scales
+     text), so it moves to the foot of the drawer — still one tap away. */
+  .topbar-controls .topbar-textsize {
+    display: none;
+  }
+
+  .topbar .topbar-nav .topbar-nav-textsize {
+    display: flex;
+  }
+}
+
+/* The drawer copy of the text-size control; hidden wherever the topbar keeps
+   its own. */
+.topbar-nav-textsize {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding: 14px 4px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.topbar-nav-textsize .topbar-textsize-now {
+  display: block;
+}
+
+.topbar-nav-textsize .topbar-textsize button {
+  min-width: 44px;
+  height: 40px;
 }
 
 @media (max-width: 380px) {
@@ -388,6 +424,13 @@ iframe {
 
   .co-sidebar-block {
     padding: 14px 14px;
+  }
+
+  /* The footer sits outside .content, so it never got the page gutter: the
+     disclaimer card ran edge to edge and the chart attribution hugged x=0. */
+  .app-footer {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
   }
 
   section > h2,
@@ -656,7 +699,7 @@ iframe {
     background: var(--bg-2, var(--panel));
   }
 
-  .market-ticker-cell {
+  .market-ticker-cell-inner {
     gap: 6px;
   }
 
@@ -773,8 +816,10 @@ iframe {
     min-height: 0;
   }
 
+  /* No padding of its own: the catalog panel already pads it, and a third
+     inset left the report cards 44px from the screen edge on a phone. */
   .catalog-main {
-    padding: 16px 14px;
+    padding: 0;
   }
 
   /* The company list is a nested scroller stacked above the report pane. A
@@ -1205,7 +1250,12 @@ iframe {
     height: 38px;
   }
 
+  /* inline-flex so the label centres in the 34px target — as a block it sat
+     on the top edge (the company hero's «Телеком» chip read as a tall pill). */
   .sector-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 34px;
     padding: 6px 14px;
   }
@@ -1499,4 +1549,12 @@ iframe {
   .ac-history-desktop { display: none; }
   .ac-history-touch { display: inline; }
   .ac-details .section-title h2 { font-size: 19px; overflow-wrap: anywhere; }
+}
+
+/* 320px: the row has no room left for the brand icon, which was squeezed to a
+   12px sliver beside the burger. The burger and «Войти» still lead home. */
+@media (max-width: 340px) {
+  .topbar-brand {
+    display: none;
+  }
 }

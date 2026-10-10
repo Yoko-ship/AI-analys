@@ -361,6 +361,23 @@
   .lv-nm { font-size: 12.5px; }
   .lv-titem { font-size: 13.5px; padding: 12px 18px; }
   .lv-lede p { font-size: 16.5px; }
+
+  /* «Итоги сессии»: the title, seven period chips and the session stamp do not
+     share one 300px line — each gets its own instead of wrapping into each
+     other. The table then has to fit the card: the name column was capped at
+     52vw and pushed the change column out past the card's clipped edge. */
+  .lv-board { padding: 16px 12px; }
+  .lv-board-head { flex-wrap: wrap; row-gap: 10px; }
+  .lv-board-head h4 { flex: 1 1 100%; }
+  .lv-ses { flex: 1 1 100%; margin-left: 0; }
+  .lv-table th, .lv-table td { padding-inline: 6px; }
+  .lv-nm { max-width: 36vw; }
+
+  /* Five revenue bars share ~280px; «10,51 трлн» on one line ran into its
+     neighbour, so the figure breaks before its unit. */
+  .lv-company-card { padding: 20px 16px 16px; }
+  .lv-bars { gap: 8px; }
+  .lv-bar .v { font-size: 10.5px; line-height: 1.15; white-space: normal; text-align: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
