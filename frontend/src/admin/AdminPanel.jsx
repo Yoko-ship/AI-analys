@@ -1,7 +1,8 @@
 import { QualitySection } from "./QualitySection.jsx";
 import { Icon, IconSprite } from "./icons.jsx";
 import "./admin.css";
-import { lang3, fmtInt, fmtStamp, SECTIONS, SYSTEM_SECTIONS } from "./adminModel.js";
+import { useEffect } from "react";
+import { lang3, fmtInt, fmtStamp, SECTIONS, SYSTEM_SECTIONS, ADMIN_SECTION_KEYS } from "./adminModel.js";
 import { Skeleton } from "./AdminWidgets.jsx";
 import { FeedbackSection } from "./FeedbackSection.jsx";
 import { SourceSection } from "./SourceSection.jsx";
@@ -21,9 +22,16 @@ import { useAdminData } from "./useAdminData.js";
 export default function AdminPanel({
   apiFetch,
   language = "ru",
-  section = "overview",
+  section: requestedSection = "overview",
   onSectionChange
 }) {
+  // Old links (/admin/documents, /admin/audit, …) point at screens that no
+  // longer exist; they land on the overview instead of an empty body.
+  const known = ADMIN_SECTION_KEYS.includes(requestedSection);
+  const section = known ? requestedSection : "overview";
+  useEffect(() => {
+    if (!known && onSectionChange) onSectionChange("overview");
+  }, [known, onSectionChange]);
   const {
     qualityState,
     t,
