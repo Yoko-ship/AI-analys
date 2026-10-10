@@ -128,9 +128,6 @@ export const SYSTEM_SECTIONS = [
   key: "system",
   title: ["Данные", "Ma'lumotlar", "Data"]
 }, {
-  key: "railway",
-  title: ["Railway", "Railway", "Railway"]
-}, {
   key: "companies",
   title: ["Компании", "Kompaniyalar", "Companies"]
 }, {

@@ -230,46 +230,6 @@
     ]
   },
   {
-    "path": "/api/admin/railway",
-    "methods": [
-      "GET"
-    ],
-    "name": "status",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/admin/railway/services/{service_id}/deployments",
-    "methods": [
-      "GET"
-    ],
-    "name": "history",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/admin/railway/services/{service_id}/deployments/{deployment_id}/logs",
-    "methods": [
-      "GET"
-    ],
-    "name": "logs",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/admin/railway/services/{service_id}/recover",
-    "methods": [
-      "POST"
-    ],
-    "name": "recover",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
     "path": "/api/admin/control/session",
     "methods": [
       "GET"
@@ -2437,46 +2397,6 @@
       "POST"
     ],
     "name": "api_admin_user_action__v2",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/v2/admin/railway",
-    "methods": [
-      "GET"
-    ],
-    "name": "status__v2",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/v2/admin/railway/services/{service_id}/deployments",
-    "methods": [
-      "GET"
-    ],
-    "name": "history__v2",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/v2/admin/railway/services/{service_id}/deployments/{deployment_id}/logs",
-    "methods": [
-      "GET"
-    ],
-    "name": "logs__v2",
-    "dependencies": [
-      "_admin_panel_gate"
-    ]
-  },
-  {
-    "path": "/api/v2/admin/railway/services/{service_id}/recover",
-    "methods": [
-      "POST"
-    ],
-    "name": "recover__v2",
     "dependencies": [
       "_admin_panel_gate"
     ]

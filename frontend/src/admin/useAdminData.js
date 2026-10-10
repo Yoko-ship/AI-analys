@@ -174,7 +174,7 @@ export function useAdminData({
     setError("");
     const jobs = [];
     if (isSystem) {
-      if (section !== "railway") jobs.push(loadOverview());
+      jobs.push(loadOverview());
       if (section === "companies") jobs.push(loadCompanyImports(companyFilter));else if (section === "findings") jobs.push(loadFindings());else if (section === "intake") jobs.push(loadIntake());else if (section === "rules") jobs.push(loadRuleBook());else if (section === "source") jobs.push(loadSource());
       else if (section === "quality") jobs.push(loadQuality());
     } else if (section === "overview") {

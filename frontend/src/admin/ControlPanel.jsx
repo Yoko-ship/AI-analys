@@ -308,7 +308,7 @@ export default function ControlPanel({ apiFetch, language = "ru", section = "ove
       </div></div>
       {notice && <div className="control-notice" role="status">{notice}</div>}
       {error && <div className="control-error" role="alert"><Icon name="alert" />{error}<button onClick={() => setRefresh(n => n + 1)}>{t("Повторить", "Takrorlash", "Retry")}</button></div>}
-      {isLegacy ? <><div className="control-legacy-links">{[["product-overview", "Product overview"], ["audience", "Audience"], ["companies", "Company intake"], ["analysis", "Analysis monitor"], ["railway", "Railway"]].map(([key, label]) => <button key={key} className="control-button" onClick={() => navigate(key)}>{label}</button>)}</div><Suspense fallback={<Loading t={t} />}><LegacyPanel apiFetch={apiFetch} language={language} section={section === "product-overview" ? "overview" : section} onSectionChange={navigate} /></Suspense></>
+      {isLegacy ? <><Suspense fallback={<Loading t={t} />}><LegacyPanel apiFetch={apiFetch} language={language} section={section === "product-overview" ? "overview" : section} onSectionChange={key => navigate(key === "overview" ? "product-overview" : key)} /></Suspense></>
         : loading ? <Loading t={t} /> : section === "overview" && data ? <Overview data={data} navigate={navigate} t={t} /> : <>
           <section className="control-card control-registry">
             <form className="control-filters" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); updateFilters({ q: f.get("q"), ticker: f.get("ticker"), status: f.get("status"), standard: f.get("standard"), period: f.get("period"), object: "" }); }} key={`${section}:${listQuery}`}>

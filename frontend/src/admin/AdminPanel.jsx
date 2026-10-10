@@ -1,6 +1,5 @@
 import { QualitySection } from "./QualitySection.jsx";
 import { Icon, IconSprite } from "./icons.jsx";
-import RailwayPanel from "./RailwayPanel.jsx";
 import "./admin.css";
 import { lang3, fmtInt, fmtStamp, SECTIONS, SYSTEM_SECTIONS } from "./adminModel.js";
 import { Skeleton } from "./AdminWidgets.jsx";
@@ -125,7 +124,6 @@ export default function AdminPanel({
   // The rule book is public and cacheable; a failure there must not blank the page.
 
   const SECTION_LEDE = {
-    railway: t("Состояние сервисов Railway, ошибки из логов и безопасный перезапуск после сбоя.", "Railway xizmatlari holati, loglardagi xatolar va nosozlikdan keyin xavfsiz qayta ishga tushirish.", "Railway service status, errors from logs, and controlled recovery after a failure."),
     overview: t("Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.", "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.", "How many people opened the site today, whether the audience is alive and the product is used — before the plumbing."),
     audience: t("Кто приходит: сколько, откуда, на чём и на каком языке. Ответ на буквальный вопрос «сколько человек открыло сайт».", "Kim kelmoqda: qancha, qayerdan va qaysi tilda.", "Who comes: how many, from where, on what device and in which language."),
     engagement: t("Что они на самом деле смотрят: страницы, бумаги, новости. Топ бумаг — самая коммерчески интересная таблица панели.", "Ular aslida nimani ko'rmoqda: sahifalar, qog'ozlar, yangiliklar.", "What they actually look at: pages, tickers, stories. The ticker ranking is the most commercially interesting table here."),
@@ -324,7 +322,6 @@ export default function AdminPanel({
     users: usersBody,
     feedback: feedbackBody,
     system: dataBody,
-    railway: <RailwayPanel readJson={readJson} t={t} />,
     companies: companiesBody,
     streams: streamsBody,
     findings: findingsBody,
@@ -343,7 +340,7 @@ export default function AdminPanel({
           <h1>{t("Администрирование", "Administratsiya", "Administration")}</h1>
           <p>{SECTION_LEDE[section] || SECTION_LEDE.overview}</p>
         </div>
-        {isSystem && section !== "railway" ? <div className="admin-head-actions">
+        {section === "findings" ? <div className="admin-head-actions">
             {latest && latest.finished_at ? <span className="admin-btn" style={{
           pointerEvents: "none"
         }}>

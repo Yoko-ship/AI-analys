@@ -14,7 +14,6 @@ from fastapi.staticfiles import StaticFiles
 from issuer_analysis_api import router as issuer_analysis_v1_router
 from server.settings import PROJECT_ROOT
 import admin_control.api as control_api
-import admin_railway
 import analytics_api
 import os
 import sector_admin_api
@@ -118,8 +117,6 @@ app.include_router(analytics_api.public_router)
 
 app.include_router(analytics_api.admin_router, dependencies=[Depends(auth_access._admin_panel_gate)])
 
-
-app.include_router(admin_railway.router, dependencies=[Depends(auth_access._admin_panel_gate)])
 
 
 app.include_router(control_api.router, dependencies=[Depends(auth_access._control_gate)])
