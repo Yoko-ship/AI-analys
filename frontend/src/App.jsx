@@ -124,8 +124,6 @@ function App() {
               onOpenCompany={openCompanyPage}
               onOpenNews={openNewsArticle}
               onOpenAnnouncement={openAnnouncementArticle}
-              user={user}
-              apiFetch={apiFetch}
             />
           )}
 

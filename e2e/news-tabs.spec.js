@@ -8,10 +8,11 @@ const item = (id, category, title) => ({
   tone_score: 0, impact: "low", direction: "unclear", sectors: [], tickers: [], category, rank: 0.5,
 });
 
-async function openNews(page, path = "/news") {
+async function openNews(page, path = "/news", { admin = false } = {}) {
   const asked = [];
   page.on("pageerror", (e) => { throw e; });
   await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
+  if (admin) await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "admin-token"));
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -21,7 +22,9 @@ async function openNews(page, path = "/news") {
       const items = category ? [item(1, category, `Новость раздела ${category}`)] : [item(1, "economy", "Экономика"), item(2, "markets", "Рынки")];
       return json({ ok: true, count: items.length, items });
     }
-    if (url.pathname === "/api/auth/me") return json({ user: null }, 401);
+    if (url.pathname === "/api/auth/me") {
+      return admin ? json({ user: { id: 1, email: "admin@example.com", full_name: "Admin", is_admin: true } }) : json({ user: null }, 401);
+    }
     return json({ ok: true, items: [] });
   });
   await page.goto(path);
@@ -62,4 +65,12 @@ test("on a phone the tabs stay one row that pans, without widening the page", as
   const active = await page.locator(".newsdesk-tab.active").boundingBox();
   expect(active.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(active.x + active.width).toBeLessThanOrEqual(box.x + box.width + 1);
+});
+
+test("an administrator's news page carries no Grok agent panel (customer, 2026-10-10)", async ({ page }) => {
+  await openNews(page, "/news", { admin: true });
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Все");
+  await expect(page.getByText("Экономика").first()).toBeVisible();
+  await expect(page.getByText(/Новостной агент|Grok/)).toHaveCount(0);
+  await page.screenshot({ path: "test-results/news-admin-no-agent.png" });
 });

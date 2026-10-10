@@ -1,4 +1,3 @@
-import { NewsAdminPanel } from "./NewsAgentPanel.jsx";
 import { EDNEWS_TX, NEWS_TX, newsRelTime } from "./editorial.jsx";
 import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
@@ -14,9 +13,7 @@ export function NewsView({
   language,
   onOpenCompany,
   onOpenNews,
-  onOpenAnnouncement,
-  user,
-  apiFetch
+  onOpenAnnouncement
 }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
@@ -26,8 +23,7 @@ export function NewsView({
     tab,
     instrument,
     selectTab,
-    selectInstrument,
-    setReloadKey
+    selectInstrument
   } = useNewsFeed({});
 
   // Kept in the URL so a tab can be linked and survives a reload — as a query,
@@ -107,7 +103,6 @@ export function NewsView({
             </button>)}
         </div>}
 
-      {user && user.is_admin && apiFetch && <NewsAdminPanel language={language} apiFetch={apiFetch} onStored={() => setReloadKey(k => k + 1)} />}
       {tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
           <div className="newsdesk-loading-side" />
