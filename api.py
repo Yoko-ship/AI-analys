@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 # Configuration must be loaded before project modules bind adapters.
 load_dotenv()
 
+from pathlib import Path
+
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import HTTPException
@@ -215,6 +217,13 @@ async def spa_fallback(full_path: str) -> FileResponse:
     """
     if full_path == "api" or full_path.startswith(("api/", "assets/", "logos/")) or full_path == "health":
         raise HTTPException(status_code=404, detail="Not found")
+    # Files Vite copies from frontend/public into the dist root (favicons,
+    # bank logos) have no mount of their own. Without this every one of them
+    # came back as the HTML shell with a 200 — Google could not fetch the
+    # favicon and the «Курсы банков» logos never loaded.
+    public_file = _public_file(full_path)
+    if public_file is not None:
+        return FileResponse(public_file, headers={"Cache-Control": "public, max-age=86400"})
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend is not built yet")
@@ -223,3 +232,17 @@ async def spa_fallback(full_path: str) -> FileResponse:
         media_type="text/html; charset=utf-8",
         headers={"Cache-Control": "no-store"},
     )
+
+
+def _public_file(full_path: str) -> Path | None:
+    """A real file under WEB_DIR for `full_path`, never one outside it."""
+    if not full_path or full_path.endswith("/"):
+        return None
+    root = WEB_DIR.resolve()
+    try:
+        candidate = (root / full_path).resolve()
+    except (OSError, ValueError):
+        return None
+    if candidate == root / "index.html" or not candidate.is_relative_to(root) or not candidate.is_file():
+        return None
+    return candidate
