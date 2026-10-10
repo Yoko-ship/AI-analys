@@ -37,8 +37,8 @@ production analytics.
 
 Two opt-in specs are the exception: `e2e/production-market.spec.js`
 (`E2E_PRODUCTION_SMOKE`) and `e2e/production-calendar.spec.js`
-(`E2E_BASE_URL`) talk to the real API on purpose and do not set the internal
-flag yet, so each run against prod counts as one visitor.
+(`E2E_BASE_URL`) talk to the real API on purpose. Both set the internal flag
+in a `beforeEach`, so their runs stay out of the audience numbers too.
 
 ## Events that were already recorded
 

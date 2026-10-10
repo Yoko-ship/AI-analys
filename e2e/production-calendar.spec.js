@@ -2,6 +2,14 @@ import { test, expect } from "@playwright/test";
 
 test.skip(!process.env.E2E_BASE_URL, "Set E2E_BASE_URL to run checks against a deployed environment.");
 
+// This spec talks to the real API: keep it out of the admin audience numbers
+// (docs/prod-browser-testing.md).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem("uz_track_internal", "1"); } catch (e) { /* ignore */ }
+  });
+});
+
 test("live Russian calendar data fits the screenshot-width viewport", async ({ page }) => {
   await page.setViewportSize({ width: 705, height: 1001 });
   await page.goto("/news?tab=calendar");
