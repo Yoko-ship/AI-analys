@@ -1122,7 +1122,15 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                                   <small>{report.quarter ? catalogTerminalText(lang, "quarterDetail", report.quarter) : catalogTerminalText(lang, "annualDetail")}</small>
                                 </button>
                               </td>
-                              <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`}>{formsObj[report.form] || report.form}</span></td>
+                              <td><span className={`catalog-report-type type-${report.form.toLowerCase()}`} title={formsObj[report.form] || report.form}>
+                                {report.form === "Audition" ? (
+                                  // «Аудиторское заключение» is ~150px; the phone column is 52px.
+                                  <>
+                                    <span className="catalog-report-type-full">{formsObj.Audition}</span>
+                                    <span className="catalog-report-type-short">{lang === "ru" ? "Аудит" : "Audit"}</span>
+                                  </>
+                                ) : (formsObj[report.form] || report.form)}
+                              </span></td>
                               <td><span className="catalog-report-status"><i />{catalogTerminalText(lang, "available")}</span></td>
                               <td>{formatCatalogDate(report.published_at, lang)}</td>
                               <td><a className="catalog-source-link" href="https://openinfo.uz" target="_blank" rel="noreferrer">openinfo.uz</a></td>

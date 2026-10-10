@@ -135,6 +135,14 @@ function useFinancialChartFrame() {
     : { W: 820, H: 210, PAD: { t: 12, r: 14, b: 26, l: 70 } };
 }
 
+// Every n-th period label. Thirteen at most (the desktop frame), and on the
+// phone frame (318 units of plot) a label per ~40 units — eleven years at 10px
+// ran together into «20242025». A label that would crowd the always-named last
+// period gives way to it.
+function finLabelStep(count, plotWidth) {
+  return Math.max(1, Math.ceil(count / Math.min(13, Math.max(2, Math.floor(plotWidth / 40)))));
+}
+
 function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // A chart nobody can interrogate is a picture. This one had no hover at all:
   // pointing at a year gave nothing, which is what «no info» meant.
@@ -194,8 +202,8 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
         {cols.map((c, i) => {
           // A quarterly series can put 15+ columns here; labels every ~60px at
           // most, the ends always named.
-          const step = Math.max(1, Math.ceil(cols.length / 13));
-          if (i % step !== 0 && i !== cols.length - 1) return null;
+          const step = finLabelStep(cols.length, W - PAD.l - PAD.r);
+          if (i !== cols.length - 1 && (i % step !== 0 || cols.length - 1 - i < step)) return null;
           return (
             <text key={c} x={x(i)} y={H - 8} fontSize="10" fill="currentColor" opacity="0.5"
               textAnchor={i === 0 ? "start" : i === cols.length - 1 ? "end" : "middle"}>
@@ -333,8 +341,8 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
             fill={d.color} rx={Math.min(2, barW / 3)} />;
         }))}
         {cols.map((c, i) => {
-          const step = Math.max(1, Math.ceil(cols.length / 13));
-          if (i % step !== 0 && i !== cols.length - 1) return null;
+          const step = finLabelStep(cols.length, plot);
+          if (i !== cols.length - 1 && (i % step !== 0 || cols.length - 1 - i < step)) return null;
           return (
             <text key={c} x={slotX(i) + slot / 2} y={H - 8} fontSize="10" fill="currentColor"
               opacity="0.5" textAnchor="middle">{finPeriodLabel(c, true)}</text>

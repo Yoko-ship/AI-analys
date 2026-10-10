@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 // the «Колонки» label spilled out of its icon box, the period chips folded into
 // two ragged rows and the ticker cell (a flex <td>) stopped matching its row.
 
-async function mockBoard(page) {
+async function mockBoard(page, theme = 'dark') {
   const stocks = Array.from({ length: 12 }, (_, i) => ({
     ticker: `TST${i}`, name: `Test company ${i}`, isin: `UZ00000000${i}`, type: 'stock',
     share_type: i % 3 ? 'ordinary' : 'preferred', price: 1000 + i, last_price: 1000 + i,
@@ -20,13 +20,14 @@ async function mockBoard(page) {
     if (p === '/api/auth/me') return json({ user: null }, 401);
     return json({});
   });
-  await page.addInitScript(() => { try { sessionStorage.setItem('uz_sponsor_seen', '1'); } catch (e) { /* ignore */ } });
+  await page.addInitScript((t) => { try { sessionStorage.setItem('uz_sponsor_seen', '1'); localStorage.setItem('uz_stock_analyzer_theme', t); } catch (e) { /* ignore */ } }, theme);
 }
 
-for (const width of [320, 360, 390]) {
-  test(`phone shell and board fit ${width}px`, async ({ page }) => {
+// The light theme is its own case: its select brought back the native arrow.
+for (const [width, theme] of [[320, 'dark'], [360, 'dark'], [390, 'dark'], [390, 'light']]) {
+  test(`phone shell and board fit ${width}px (${theme})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
-    await mockBoard(page);
+    await mockBoard(page, theme);
     await page.goto('/market');
     await expect(page.locator('.market-table-wrap tbody tr').first()).toBeVisible();
 
@@ -36,6 +37,7 @@ for (const width of [320, 360, 390]) {
       .filter(r => r.width > 0 && r.right > 0)
       .filter(r => r.left < 0 || r.right > document.documentElement.clientWidth).length);
     expect(overhang).toBe(0);
+    if (width >= 360) expect((await page.locator('.topbar-brand').boundingBox()).width).toBeGreaterThanOrEqual(30);
     await expect(page.locator('.theme-toggle')).toBeInViewport({ ratio: 1 });
 
     // Toolbar buttons are icon-only on a phone.

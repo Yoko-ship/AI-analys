@@ -213,6 +213,12 @@ iframe {
     padding: 0 6px;
     /* 16px keeps iOS from zooming the page when the select is focused. */
     font-size: 16px;
+    /* The light theme's white background brought back Chrome's native drop
+       arrow, which made the select 25px wider than in the dark theme and
+       squeezed the brand icon to 20px at 390px. Same box in both themes. */
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
   }
 
   .theme-toggle {
@@ -327,6 +333,12 @@ iframe {
 
   .topbar .topbar-nav .topbar-nav-textsize {
     display: flex;
+  }
+
+  /* The euro («13 336,36») is wider than the 88px slide at 13.5px and ran into
+     the language select; the row has no pixel left to widen the slide. */
+  .topbar-fx-rate {
+    font-size: 12.5px;
   }
 }
 
@@ -928,6 +940,12 @@ iframe {
 
   .company-metric-row {
     gap: 12px;
+  }
+
+  /* The table already scrolls sideways; a date broken as «29 июн. 2026 / г.»
+     only made every row two lines tall. */
+  .dividend-table td:first-child {
+    white-space: nowrap;
   }
 
   .company-metric-row .company-metric-val {
@@ -1556,5 +1574,37 @@ iframe {
 @media (max-width: 340px) {
   .topbar-brand {
     display: none;
+  }
+}
+
+.catalog-report-type-short {
+  display: none;
+}
+
+/* Phone pass 2 (2026-10-10, measured on prod at 390px). */
+@media (max-width: 760px) {
+  /* «Аудиторское заключение» is one 156px badge in a 52px column, so it lay
+     across the status beside it. The phone shows «Аудит»; the full name stays
+     in the badge title. */
+  .catalog-report-type-full {
+    display: none;
+  }
+
+  .catalog-report-type-short {
+    display: inline;
+  }
+
+  /* The bank-rate channel picker folded «Банкомат» onto a line of its own.
+     Three equal buttons, a long label breaking inside its own button. */
+  .bankfx-calc .segmented-control {
+    flex-wrap: nowrap;
+    max-width: 100%;
+  }
+
+  .bankfx-calc .segmented-control button {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.2;
   }
 }
