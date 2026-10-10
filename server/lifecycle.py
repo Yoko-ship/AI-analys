@@ -97,6 +97,14 @@ async def _on_startup(app) -> None:
         await asyncio.get_running_loop().run_in_executor(None, web_analytics.init_db)
     except Exception:
         http.logger.exception("web analytics init failed; tracking is off")
+    # The visitor geography database downloads itself in the background; until
+    # it is in place visits are simply stored without a place.
+    try:
+        import geoip
+
+        geoip.start_background_refresh()
+    except Exception:
+        http.logger.exception("geoip refresh could not start; visits stay unplaced")
     # Fire-and-forget: seed the catalog without blocking the server from accepting
     # requests. The Market endpoint still refreshes it on demand afterwards.
     _start_task(app, _populate_securities_on_startup(), "market-warmup")

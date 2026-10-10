@@ -51,12 +51,18 @@ async def api_track(request: Request) -> Response:
         # that, the same event remains anonymous instead of corrupting a user's
         # activity or the signed-in-user metrics.
         trusted_user_id = None
+        team_member = False
         scheme, _, token = headers.get("authorization", "").partition(" ")
         if scheme.lower() == "bearer" and token.strip():
             try:
                 user = await asyncio.get_running_loop().run_in_executor(
                     None, web_auth_store.sessions.get_user_by_token, token.strip())
                 trusted_user_id = user.id if user else None
+                # An administrator's browsing is the team's, not the audience's.
+                if user:
+                    from identity.users import is_admin_email
+
+                    team_member = is_admin_email(user.email)
             except Exception:
                 # Authentication availability must not turn a best-effort
                 # analytics call into a visible application failure.
@@ -69,6 +75,7 @@ async def api_track(request: Request) -> Response:
             user_agent=headers.get("user-agent", ""),
             ip=ip,
             country=country,
+            internal=team_member,
         )
     except Exception:
         # Deliberately silent: the beacon is fire-and-forget on both ends.

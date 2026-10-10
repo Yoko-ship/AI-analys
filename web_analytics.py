@@ -94,9 +94,22 @@ def init_db() -> bool:
             )
             """
         )
+        # Added for «откуда / почему уходят»: the place resolved from the IP,
+        # the visit's campaign tags, and per-page engaged time and scroll
+        # depth carried by the ``leave`` event. ``internal`` marks the team's
+        # own browsers so they can be kept out of the audience.
+        for column, kind in (("region", "TEXT"), ("city", "TEXT"),
+                             ("utm_source", "TEXT"), ("utm_medium", "TEXT"), ("utm_campaign", "TEXT"),
+                             ("engaged_ms", "INTEGER"), ("scroll_pct", "SMALLINT"),
+                             ("internal", "BOOLEAN NOT NULL DEFAULT FALSE")):
+            conn.execute(f"ALTER TABLE web_events ADD COLUMN IF NOT EXISTS {column} {kind}")  # noqa: S608 - fixed names
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_ts ON web_events(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_visitor_ts ON web_events(visitor_id, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_session ON web_events(session_id)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_web_events_user ON web_events(user_id) WHERE user_id IS NOT NULL"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_internal ON web_events(visitor_id) WHERE internal")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_web_events_ticker_ts ON web_events(ticker, ts) WHERE ticker IS NOT NULL"
         )
@@ -234,6 +247,16 @@ def hash_ip(ip: str) -> Optional[str]:
     return digest[:16]
 
 
+def _place(ip: str) -> Optional[dict[str, Optional[str]]]:
+    """Country/region/city from the offline database; None when unknown."""
+    try:
+        import geoip
+
+        return geoip.lookup(ip)
+    except Exception:
+        return None
+
+
 _ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 _TICKER_RE = re.compile(r"^[A-Z0-9]{2,16}$")
 _EVENT_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
@@ -279,19 +302,42 @@ def sanitize_payload(data: dict[str, Any]) -> Optional[dict[str, Any]]:
     except (TypeError, ValueError):
         uid = None
 
-    width = data.get("w")
-    try:
-        width = int(width) if width is not None else None
-        if width is not None and not (0 < width < 20000):
-            width = None
-    except (TypeError, ValueError):
-        width = None
+    width = _bounded_int(data.get("w"), 1, 19999)
+    # ``leave`` carries how long the page was actually looked at (visible tab
+    # only) and how far down it was read; capped so one forgotten tab cannot
+    # dominate an average.
+    engaged_ms = _bounded_int(data.get("ms"), 0, _MAX_ENGAGED_MS) if event == "leave" else None
+    scroll_pct = _bounded_int(data.get("sp"), 0, 100) if event == "leave" else None
 
     return {
         "vid": vid, "sid": sid, "uid": uid, "event": event, "path": path,
         "view": view or None, "ticker": ticker or None, "referrer": referrer or None,
         "lang": lang or None, "screen_w": width,
+        "utm_source": _utm(data.get("us"), lower=True),
+        "utm_medium": _utm(data.get("um"), lower=True),
+        "utm_campaign": _utm(data.get("uc")),
+        "engaged_ms": engaged_ms, "scroll_pct": scroll_pct,
+        "internal": data.get("int") in (1, True, "1"),
     }
+
+
+_MAX_ENGAGED_MS = 30 * 60 * 1000
+_UTM_JUNK_RE = re.compile(r"[^\w .+/:-]", re.UNICODE)
+
+
+def _bounded_int(value: Any, low: int, high: int) -> Optional[int]:
+    try:
+        number = int(value) if value is not None and value != "" else None
+    except (TypeError, ValueError):
+        return None
+    if number is None:
+        return None
+    return number if low <= number <= high else None
+
+
+def _utm(value: Any, *, lower: bool = False) -> Optional[str]:
+    text = _UTM_JUNK_RE.sub("", str(value or "")).strip()[:64]
+    return (text.lower() if lower else text) or None
 
 
 # ---------------------------------------------------------------------------
@@ -344,8 +390,11 @@ def flush() -> int:
                     """
                     INSERT INTO web_events
                         (ts, visitor_id, session_id, user_id, event, path, view, ticker,
-                         referrer, lang, device, screen_w, browser, os, country, ip_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         referrer, lang, device, screen_w, browser, os, country, ip_hash,
+                         region, city, utm_source, utm_medium, utm_campaign,
+                         engaged_ms, scroll_pct, internal)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     batch,
                 )
@@ -356,8 +405,12 @@ def flush() -> int:
 
 
 def record_pageview(data: dict[str, Any], *, user_agent: str = "", ip: str = "",
-                    country: str | None = None) -> bool:
-    """Buffer one event from the beacon. Fast path — no I/O, no exceptions out."""
+                    country: str | None = None, internal: bool = False) -> bool:
+    """Buffer one event from the beacon. Fast path — no network I/O, no exceptions out.
+
+    ``internal`` is the server's own verdict (an administrator's session); the
+    beacon can also flag a browser the team asked not to be counted.
+    """
     global _dropped
     if not DATABASE_URL:
         return False
@@ -367,13 +420,18 @@ def record_pageview(data: dict[str, Any], *, user_agent: str = "", ip: str = "",
     if clean is None:
         return False
     ua = parse_user_agent(user_agent)
-    country_code = (country or "").strip().upper()[:2] or None
+    place = _place(ip)
+    # A proxy's country header, when one exists, outranks the offline database.
+    country_code = (country or "").strip().upper()[:2] or (place or {}).get("country")
     row = (
         datetime.now(timezone.utc),
         clean["vid"], clean["sid"], clean["uid"], clean["event"], clean["path"],
         clean["view"], clean["ticker"], clean["referrer"], clean["lang"],
         ua["device"], clean["screen_w"], ua["browser"], ua["os"],
         country_code, hash_ip(ip),
+        (place or {}).get("region"), (place or {}).get("city"),
+        clean["utm_source"], clean["utm_medium"], clean["utm_campaign"],
+        clean["engaged_ms"], clean["scroll_pct"], bool(internal or clean["internal"]),
     )
     with _buffer_lock:
         if len(_buffer) >= _MAX_BUFFER:
@@ -403,11 +461,49 @@ def _scalar(conn, sql: str, params: tuple = ()) -> Any:
 
 def _uniq_visitors(conn, since: datetime, until: datetime | None = None) -> Optional[int]:
     if until is None:
-        value = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM web_events WHERE ts >= %s", (since,))
+        value = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM ev WHERE ts >= %s", (since,))
     else:
-        value = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM web_events WHERE ts >= %s AND ts < %s",
+        value = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM ev WHERE ts >= %s AND ts < %s",
                         (since, until))
     return int(value) if value is not None else None
+
+
+# ---------------------------------------------------------------------------
+# The audience scope: everyone except the team
+# ---------------------------------------------------------------------------
+
+def _admin_user_ids(conn) -> list[int]:
+    try:
+        from identity.users import is_admin_email
+
+        with conn.transaction():
+            rows = conn.execute("SELECT id, email FROM web_users").fetchall()
+    except Exception:
+        return []
+    return [int(r["id"]) for r in rows if is_admin_email(r["email"])]
+
+
+def _scope(conn) -> list[str]:
+    """Create the temp view ``ev``: ``web_events`` without the team's browsers.
+
+    A browser is the team's when it was ever signed in to an administrator's
+    account, or when someone pressed «Не считать этот браузер» in it. Whole
+    browsers are dropped — every event they sent, before and after — so the
+    audience numbers describe other people. Networks are deliberately NOT
+    excluded: mobile carriers put thousands of real readers behind one address.
+    Returns the excluded visitor ids.
+    """
+    from psycopg import sql
+
+    rows = conn.execute(
+        "SELECT DISTINCT visitor_id FROM web_events WHERE internal OR user_id = ANY(%s)",
+        (_admin_user_ids(conn),),
+    ).fetchall()
+    excluded = [r["visitor_id"] for r in rows]
+    conn.execute(sql.SQL(
+        "CREATE OR REPLACE TEMP VIEW ev AS SELECT * FROM web_events WHERE NOT (visitor_id = ANY({}::text[]))"
+    ).format(sql.Literal(excluded)))
+    return excluded
 
 
 def _available() -> bool:
@@ -425,6 +521,7 @@ def overview() -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     today = _day_start(now)
     with _conn() as conn:
+        _scope(conn)
         d7 = now - timedelta(days=7)
         d14 = now - timedelta(days=14)
         d30 = now - timedelta(days=30)
@@ -438,9 +535,9 @@ def overview() -> dict[str, Any]:
             "d30": _uniq_visitors(conn, d30),
             "prev30": _uniq_visitors(conn, d60, d30),
         }
-        pageviews_today = _scalar(conn, "SELECT COUNT(*) FROM web_events WHERE ts >= %s AND event = 'pageview'",
+        pageviews_today = _scalar(conn, "SELECT COUNT(*) FROM ev WHERE ts >= %s AND event = 'pageview'",
                                   (today,))
-        live_now = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM web_events WHERE ts >= %s",
+        live_now = _scalar(conn, "SELECT COUNT(DISTINCT visitor_id) FROM ev WHERE ts >= %s",
                            (now - timedelta(minutes=5),))
 
         # Stickiness on the average DAU of the last 7 full days, not today's
@@ -450,7 +547,7 @@ def overview() -> dict[str, Any]:
             """
             SELECT AVG(dau) FROM (
                 SELECT ((ts + INTERVAL '5 hour')::date) AS day, COUNT(DISTINCT visitor_id) AS dau
-                FROM web_events WHERE ts >= %s AND ts < %s
+                FROM ev WHERE ts >= %s AND ts < %s
                 GROUP BY 1
             ) days
             """,
@@ -460,8 +557,8 @@ def overview() -> dict[str, Any]:
         stickiness = (float(avg_dau) / mau) if (avg_dau and mau) else None
 
         signed_in = {
-            "today": _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM web_events WHERE ts >= %s AND user_id IS NOT NULL", (today,)),
-            "d7": _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM web_events WHERE ts >= %s AND user_id IS NOT NULL", (d7,)),
+            "today": _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM ev WHERE ts >= %s AND user_id IS NOT NULL", (today,)),
+            "d7": _scalar(conn, "SELECT COUNT(DISTINCT user_id) FROM ev WHERE ts >= %s AND user_id IS NOT NULL", (d7,)),
         }
 
         registrations = {
@@ -481,7 +578,7 @@ def overview() -> dict[str, Any]:
             SELECT ((ts + INTERVAL '5 hour')::date) AS day,
                    COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
-            FROM web_events WHERE ts >= %s
+            FROM ev WHERE ts >= %s
             GROUP BY 1 ORDER BY 1
             """,
             (_day_start(now, 13),),
@@ -508,6 +605,205 @@ def overview() -> dict[str, Any]:
 # §2 Аудитория
 # ---------------------------------------------------------------------------
 
+_OWN_HOSTS = ("uzstock.uz",)
+_TELEGRAM_HOSTS = ("t.me", "telegram.me", "telegram.org", "web.telegram.org")
+_PAID_MEDIUMS = {"cpc", "ppc", "paid", "ads", "banner", "display"}
+
+
+def channel_for(host: str, utm_source: str | None = None, utm_medium: str | None = None) -> str:
+    """telegram / search / social / ads / email / campaign / referral / direct.
+
+    Campaign tags outrank the referrer: a link posted with ``utm_source=telegram``
+    is Telegram even though Telegram's in-app browser sends no referrer at all.
+    Telegram is split out of «social» because for this audience it is the
+    largest single source.
+    """
+    source = (utm_source or "").strip().lower()
+    medium = (utm_medium or "").strip().lower()
+    if source or medium:
+        if "telegram" in source or source in {"tg", "t.me"}:
+            return "telegram"
+        if medium in _PAID_MEDIUMS:
+            return "ads"
+        if medium == "email" or "mail" in source:
+            return "email"
+        if any(s in source for s in ("google", "yandex", "bing")) or medium == "organic":
+            return "search"
+        if medium == "social" or classify_referrer(f"https://{source}/") == "social":
+            return "social"
+        return "campaign"
+    host = referrer_host(f"https://{host}/") if host else ""
+    if not host or any(host == h or host.endswith("." + h) for h in _OWN_HOSTS):
+        return "direct"
+    if host in _TELEGRAM_HOSTS or host.startswith("telegram.") or host.endswith(".t.me"):
+        return "telegram"
+    kind = classify_referrer(f"https://{host}/")
+    return kind if kind in {"search", "social"} else "referral"
+
+
+def _rate(part: int, whole: int) -> Optional[float]:
+    return round(part / whole, 4) if whole else None
+
+
+def _avg_seconds(total_ms: int, measured: int) -> Optional[float]:
+    return round(total_ms / measured / 1000, 1) if measured else None
+
+
+def _acquisition(conn, since: datetime) -> dict[str, Any]:
+    """Where visits start: channel, campaign and landing page, each with how
+    the visit went — bounced after one page, and the time actually spent.
+
+    One row per (landing, referrer host, campaign) comes back and is folded
+    here; ``measured`` counts only visits whose pages reported engaged time
+    (the ``leave`` event), so visits from before it existed do not drag the
+    average to zero.
+    """
+    rows = conn.execute(
+        """
+        WITH s AS (
+            SELECT session_id,
+                   COUNT(*) FILTER (WHERE event = 'pageview') AS views,
+                   SUM(engaged_ms) FILTER (WHERE event = 'leave') AS engaged_ms
+            FROM ev WHERE ts >= %s GROUP BY session_id
+        ), f AS (
+            SELECT DISTINCT ON (session_id) session_id, path, view, referrer,
+                   utm_source, utm_medium, utm_campaign
+            FROM ev WHERE ts >= %s AND event = 'pageview'
+            ORDER BY session_id, ts
+        )
+        SELECT f.path, MAX(f.view) AS view,
+               split_part(split_part(regexp_replace(lower(COALESCE(f.referrer, '')), '^[a-z]+://', ''),
+                                     '/', 1), ':', 1) AS host,
+               f.utm_source, f.utm_medium, f.utm_campaign,
+               COUNT(*) AS sessions,
+               COUNT(*) FILTER (WHERE s.views <= 1) AS bounced,
+               COUNT(s.engaged_ms) AS measured,
+               COALESCE(SUM(s.engaged_ms), 0) AS engaged_ms
+        FROM f JOIN s USING (session_id)
+        GROUP BY f.path, 3, f.utm_source, f.utm_medium, f.utm_campaign
+        """,
+        (since, since),
+    ).fetchall()
+
+    def bucket() -> dict[str, int]:
+        return {"sessions": 0, "bounced": 0, "measured": 0, "engaged_ms": 0}
+
+    def add(target: dict[str, int], row: Any) -> None:
+        for key in ("sessions", "bounced", "measured", "engaged_ms"):
+            target[key] += int(row[key] or 0)
+
+    def shape(stats: dict[str, int]) -> dict[str, Any]:
+        return {"sessions": stats["sessions"],
+                "bounce_rate": _rate(stats["bounced"], stats["sessions"]),
+                "avg_seconds": _avg_seconds(stats["engaged_ms"], stats["measured"])}
+
+    channels: dict[str, dict[str, int]] = {}
+    campaigns: dict[tuple, dict[str, int]] = {}
+    landings: dict[str, dict[str, Any]] = {}
+    total = bucket()
+    for row in rows:
+        add(total, row)
+        add(channels.setdefault(channel_for(row["host"], row["utm_source"], row["utm_medium"]), bucket()), row)
+        if row["utm_source"] or row["utm_medium"] or row["utm_campaign"]:
+            key = (row["utm_source"] or "", row["utm_medium"] or "", row["utm_campaign"] or "")
+            add(campaigns.setdefault(key, bucket()), row)
+        landing = landings.setdefault(row["path"], {**bucket(), "view": row["view"]})
+        add(landing, row)
+
+    def top(items, limit):
+        return sorted(items, key=lambda item: -item[1]["sessions"])[:limit]
+
+    return {
+        "channels": [{"channel": name, **shape(stats)} for name, stats in top(channels.items(), 12)],
+        "campaigns": [{"source": k[0] or None, "medium": k[1] or None, "campaign": k[2] or None, **shape(stats)}
+                      for k, stats in top(campaigns.items(), 15)],
+        "landings": [{"path": path, "view": stats["view"], **shape(stats)}
+                     for path, stats in top(landings.items(), 15)],
+        "engaged_session_seconds": _avg_seconds(total["engaged_ms"], total["measured"]),
+    }
+
+
+_SECURITY_VIEWS = ("company", "chart", "bond")
+
+
+def _journey_funnel(conn, since: datetime) -> list[dict[str, Any]]:
+    """Visitor → opened a security → signed in → ran an AI analysis.
+
+    Every step counts the same people (browsers), so each bar is a share of
+    the one before. The account funnel on «Пользователи» counts accounts
+    instead; the two answer different questions.
+    """
+    row = conn.execute(
+        """
+        SELECT COUNT(DISTINCT visitor_id) AS visitors,
+               COUNT(DISTINCT visitor_id) FILTER (WHERE event = 'pageview' AND view = ANY(%s)) AS security,
+               COUNT(DISTINCT visitor_id) FILTER (WHERE user_id IS NOT NULL) AS signed_in
+        FROM ev WHERE ts >= %s
+        """,
+        (list(_SECURITY_VIEWS), since),
+    ).fetchone()
+    try:
+        with conn.transaction():
+            analysed = _scalar(
+                conn,
+                """
+                SELECT COUNT(DISTINCT e.visitor_id) FROM ev e
+                WHERE e.ts >= %s AND e.user_id IN (
+                    SELECT user_id FROM web_analysis_history WHERE created_at >= %s)
+                """,
+                (since, since),
+            )
+    except Exception:
+        analysed = None
+    return [
+        {"key": "visited", "count": int(row["visitors"] or 0)},
+        {"key": "security", "count": int(row["security"] or 0)},
+        {"key": "signed_in", "count": int(row["signed_in"] or 0)},
+        {"key": "analysed", "count": int(analysed) if analysed is not None else None},
+    ]
+
+
+def _quality(conn, since: datetime, excluded: list[str]) -> dict[str, Any]:
+    """How far «посетители» can be read as people.
+
+    A visitor is a browser. One person in several browsers or incognito
+    windows shows up as several; the address they share shows it. Networks
+    with many visitors are listed, not removed: an office or a carrier puts
+    real people behind one address too.
+    """
+    totals = conn.execute(
+        "SELECT COUNT(DISTINCT visitor_id) AS visitors, COUNT(DISTINCT ip_hash) AS networks "
+        "FROM ev WHERE ts >= %s",
+        (since,),
+    ).fetchone()
+    crowded = conn.execute(
+        """
+        SELECT ip_hash, COUNT(DISTINCT visitor_id) AS visitors,
+               COUNT(DISTINCT COALESCE(browser, '') || '/' || COALESCE(os, '') || '/' || COALESCE(device, '')) AS clients,
+               MAX(city) AS city, MAX(country) AS country
+        FROM ev WHERE ts >= %s AND ip_hash IS NOT NULL
+        GROUP BY ip_hash HAVING COUNT(DISTINCT visitor_id) >= 3
+        ORDER BY visitors DESC LIMIT 8
+        """,
+        (since,),
+    ).fetchall()
+    team = _scalar(
+        conn,
+        "SELECT COUNT(DISTINCT visitor_id) FROM web_events WHERE ts >= %s AND visitor_id = ANY(%s::text[])",
+        (since, excluded),
+    )
+    return {
+        "visitors": int(totals["visitors"] or 0),
+        "networks": int(totals["networks"] or 0),
+        "team_excluded": int(team or 0),
+        "crowded_networks": [
+            {"network": r["ip_hash"][:6], "visitors": int(r["visitors"]), "clients": int(r["clients"]),
+             "city": r["city"], "country": r["country"]}
+            for r in crowded
+        ],
+    }
+
+
 def audience(days: int = 30) -> dict[str, Any]:
     if not _available():
         return {"ok": False, "reason": "no database"}
@@ -515,13 +811,14 @@ def audience(days: int = 30) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     since = _day_start(now, days - 1)
     with _conn() as conn:
+        excluded = _scope(conn)
         daily = conn.execute(
             """
             SELECT ((ts + INTERVAL '5 hour')::date) AS day,
                    COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(DISTINCT session_id) AS sessions,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
-            FROM web_events WHERE ts >= %s
+            FROM ev WHERE ts >= %s
             GROUP BY 1 ORDER BY 1
             """,
             (since,),
@@ -532,7 +829,7 @@ def audience(days: int = 30) -> dict[str, Any]:
             SELECT COUNT(DISTINCT visitor_id) AS visitors,
                    COUNT(DISTINCT session_id) AS sessions,
                    COUNT(*) FILTER (WHERE event = 'pageview') AS pageviews
-            FROM web_events WHERE ts >= %s
+            FROM ev WHERE ts >= %s
             """,
             (since,),
         ).fetchone()
@@ -547,7 +844,7 @@ def audience(days: int = 30) -> dict[str, Any]:
                 SELECT session_id,
                        COUNT(*) FILTER (WHERE event = 'pageview') AS views,
                        EXTRACT(EPOCH FROM MAX(ts) - MIN(ts)) AS seconds
-                FROM web_events WHERE ts >= %s
+                FROM ev WHERE ts >= %s
                 GROUP BY session_id
             ) s
             """,
@@ -559,7 +856,7 @@ def audience(days: int = 30) -> dict[str, Any]:
             """
             SELECT COUNT(*) FROM (
                 SELECT visitor_id, MIN(ts) AS first_seen
-                FROM web_events GROUP BY visitor_id
+                FROM ev GROUP BY visitor_id
             ) v WHERE first_seen >= %s
             """,
             (since,),
@@ -571,7 +868,7 @@ def audience(days: int = 30) -> dict[str, Any]:
                        regexp_replace(COALESCE(referrer, ''), '^[a-z]+://', ''), '/', 1), ':', 1), ''),
                    '(direct)') AS host,
                    COUNT(DISTINCT session_id) AS sessions
-            FROM web_events
+            FROM ev
             WHERE ts >= %s AND event = 'pageview'
             GROUP BY 1 ORDER BY sessions DESC LIMIT 15
             """,
@@ -583,7 +880,7 @@ def audience(days: int = 30) -> dict[str, Any]:
                 f"""
                 SELECT COALESCE(NULLIF({column}, ''), '(unknown)') AS name,
                        COUNT(DISTINCT visitor_id) AS visitors
-                FROM web_events WHERE ts >= %s
+                FROM ev WHERE ts >= %s
                 GROUP BY 1 ORDER BY visitors DESC LIMIT {int(limit)}
                 """,  # noqa: S608 - column names are fixed call sites below
                 (since,),
@@ -601,7 +898,7 @@ def audience(days: int = 30) -> dict[str, Any]:
                      ELSE '1280+'
                    END AS bucket,
                    COUNT(DISTINCT visitor_id) AS visitors
-            FROM web_events WHERE ts >= %s
+            FROM ev WHERE ts >= %s
             GROUP BY 1 ORDER BY visitors DESC
             """,
             (since,),
@@ -615,6 +912,18 @@ def audience(days: int = 30) -> dict[str, Any]:
         oses = breakdown("os")
         languages = breakdown("lang")
         countries = breakdown("country", 12)
+        cities = conn.execute(
+            """
+            SELECT city, MAX(country) AS country, COUNT(DISTINCT visitor_id) AS visitors
+            FROM ev WHERE ts >= %s AND city IS NOT NULL
+            GROUP BY city, country ORDER BY visitors DESC LIMIT 15
+            """,
+            (since,),
+        ).fetchall()
+        cities = [{"name": r["city"], "country": r["country"], "visitors": int(r["visitors"])} for r in cities]
+        acquisition = _acquisition(conn, since)
+        journey = _journey_funnel(conn, since)
+        quality = _quality(conn, since, excluded)
 
     total_visitors = int(totals["visitors"]) if totals and totals["visitors"] is not None else None
     sessions_total = int(session_stats["sessions"]) if session_stats and session_stats["sessions"] else 0
@@ -643,6 +952,7 @@ def audience(days: int = 30) -> dict[str, Any]:
             "avg_session_seconds": float(session_stats["avg_seconds"])
                 if session_stats and session_stats["avg_seconds"] is not None else None,
             "bounce_rate": round(bounced / sessions_total, 4) if sessions_total else None,
+            "engaged_session_seconds": acquisition["engaged_session_seconds"],
         },
         "referrers": ref_rows,
         "devices": devices,
@@ -651,6 +961,10 @@ def audience(days: int = 30) -> dict[str, Any]:
         "languages": languages,
         "countries": countries,
         "screens": [{"name": r["bucket"], "visitors": int(r["visitors"])} for r in screens],
+        "cities": cities,
+        **acquisition,
+        "journey": journey,
+        "quality": quality,
     }
 
 
@@ -664,12 +978,13 @@ def engagement(days: int = 30) -> dict[str, Any]:
     days = max(1, min(int(days or 30), 365))
     since = _day_start(datetime.now(timezone.utc), days - 1)
     with _conn() as conn:
+        _scope(conn)
         views = conn.execute(
             """
             SELECT COALESCE(NULLIF(view, ''), '(other)') AS view,
                    COUNT(*) AS pageviews,
                    COUNT(DISTINCT visitor_id) AS visitors
-            FROM web_events WHERE ts >= %s AND event = 'pageview'
+            FROM ev WHERE ts >= %s AND event = 'pageview'
             GROUP BY 1 ORDER BY pageviews DESC LIMIT 20
             """,
             (since,),
@@ -680,7 +995,7 @@ def engagement(days: int = 30) -> dict[str, Any]:
             SELECT ticker,
                    COUNT(*) AS pageviews,
                    COUNT(DISTINCT visitor_id) AS visitors
-            FROM web_events
+            FROM ev
             WHERE ts >= %s AND event = 'pageview' AND ticker IS NOT NULL
             GROUP BY 1 ORDER BY pageviews DESC LIMIT 25
             """,
@@ -690,7 +1005,7 @@ def engagement(days: int = 30) -> dict[str, Any]:
         news = conn.execute(
             """
             SELECT path, COUNT(*) AS pageviews, COUNT(DISTINCT visitor_id) AS visitors
-            FROM web_events
+            FROM ev
             WHERE ts >= %s AND event = 'pageview' AND path LIKE '/news/%%'
             GROUP BY 1 ORDER BY pageviews DESC LIMIT 15
             """,
@@ -700,10 +1015,52 @@ def engagement(days: int = 30) -> dict[str, Any]:
         events = conn.execute(
             """
             SELECT event, COUNT(*) AS count, COUNT(DISTINCT visitor_id) AS visitors
-            FROM web_events WHERE ts >= %s AND event <> 'pageview'
+            FROM ev WHERE ts >= %s AND event NOT IN ('pageview', 'leave')
             GROUP BY 1 ORDER BY count DESC LIMIT 20
             """,
             (since,),
+        ).fetchall()
+
+        # Why they leave. A page's reading is one (visit, path) pair summed
+        # over its ``leave`` events — a tab hidden and shown again reports
+        # twice, as deltas. Only pages that reported count, so the averages
+        # do not include the time before this measurement existed.
+        reading = conn.execute(
+            """
+            SELECT COALESCE(NULLIF(view, ''), '(other)') AS view,
+                   COUNT(*) AS measured,
+                   AVG(ms)::FLOAT AS avg_ms,
+                   AVG(scroll)::FLOAT AS avg_scroll,
+                   AVG((ms < 10000)::INT)::FLOAT AS quick_share
+            FROM (
+                SELECT session_id, path, MAX(view) AS view,
+                       SUM(engaged_ms) AS ms, MAX(scroll_pct) AS scroll
+                FROM ev WHERE ts >= %s AND event = 'leave'
+                GROUP BY session_id, path
+            ) pages
+            GROUP BY 1 ORDER BY measured DESC LIMIT 20
+            """,
+            (since,),
+        ).fetchall()
+
+        # The page each visit ended on, against how often that page is seen:
+        # a page most visits end on is where readers give up.
+        exits = conn.execute(
+            """
+            WITH last AS (
+                SELECT DISTINCT ON (session_id) session_id, path, view
+                FROM ev WHERE ts >= %s AND event = 'pageview'
+                ORDER BY session_id, ts DESC
+            ), seen AS (
+                SELECT path, COUNT(*) AS pageviews
+                FROM ev WHERE ts >= %s AND event = 'pageview'
+                GROUP BY path
+            )
+            SELECT last.path, MAX(last.view) AS view, COUNT(*) AS exits, MAX(seen.pageviews) AS pageviews
+            FROM last JOIN seen USING (path)
+            GROUP BY last.path ORDER BY exits DESC LIMIT 15
+            """,
+            (since, since),
         ).fetchall()
 
     return {
@@ -717,6 +1074,14 @@ def engagement(days: int = 30) -> dict[str, Any]:
                  for r in news],
         "events": [{"event": r["event"], "count": int(r["count"]), "visitors": int(r["visitors"])}
                    for r in events],
+        "reading": [{"view": r["view"], "measured": int(r["measured"]),
+                     "avg_seconds": round(r["avg_ms"] / 1000, 1) if r["avg_ms"] is not None else None,
+                     "avg_scroll": round(r["avg_scroll"]) if r["avg_scroll"] is not None else None,
+                     "quick_share": round(r["quick_share"], 4) if r["quick_share"] is not None else None}
+                    for r in reading],
+        "exits": [{"path": r["path"], "view": r["view"], "exits": int(r["exits"]),
+                   "exit_rate": _rate(int(r["exits"]), int(r["pageviews"] or 0))}
+                  for r in exits],
     }
 
 
@@ -905,6 +1270,7 @@ def users_funnel(days: int = 30) -> dict[str, Any]:
     days = max(1, min(int(days or 30), 365))
     since = _day_start(datetime.now(timezone.utc), days - 1)
     with _conn() as conn:
+        _scope(conn)
         visitors = _uniq_visitors(conn, since)
         registered = _scalar(conn, "SELECT COUNT(*) FROM web_users WHERE created_at >= %s", (since,))
         activated = _scalar(

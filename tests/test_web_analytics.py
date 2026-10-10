@@ -240,3 +240,66 @@ def test_allowlisted_admin_cannot_be_deleted_from_panel(monkeypatch):
         if sql.startswith("INSERT INTO web_admin_audit_log")
     )
     assert audit_params[6] == "denied_protected_admin"
+
+
+# ── sources, reading time and the team ────────────────────────────────────
+
+def test_campaign_tags_are_kept_clamped_and_sources_lowercased():
+    clean = wa.sanitize_payload({**VALID, "us": "Telegram", "um": "Social", "uc": "Launch<script>Oct"})
+    assert clean["utm_source"] == "telegram"
+    assert clean["utm_medium"] == "social"
+    assert clean["utm_campaign"] == "LaunchscriptOct"
+    assert wa.sanitize_payload({**VALID, "uc": "x" * 500})["utm_campaign"] == "x" * 64
+    assert wa.sanitize_payload(dict(VALID))["utm_source"] is None
+
+
+def test_reading_time_and_scroll_only_ride_on_leave_and_are_bounded():
+    leave = wa.sanitize_payload({**VALID, "event": "leave", "ms": 42000, "sp": 80})
+    assert (leave["engaged_ms"], leave["scroll_pct"]) == (42000, 80)
+    # a pageview cannot smuggle a reading time in
+    view = wa.sanitize_payload({**VALID, "ms": 42000, "sp": 80})
+    assert (view["engaged_ms"], view["scroll_pct"]) == (None, None)
+    # out-of-range measurements are dropped, not clipped into the averages
+    odd = wa.sanitize_payload({**VALID, "event": "leave", "ms": 10**9, "sp": 140})
+    assert (odd["engaged_ms"], odd["scroll_pct"]) == (None, None)
+    assert wa.sanitize_payload({**VALID, "event": "leave", "ms": "junk"})["engaged_ms"] is None
+
+
+def test_team_flag_only_from_an_explicit_marker():
+    assert wa.sanitize_payload({**VALID, "int": 1})["internal"] is True
+    assert wa.sanitize_payload({**VALID, "int": "yes"})["internal"] is False
+    assert wa.sanitize_payload(dict(VALID))["internal"] is False
+
+
+def test_channels():
+    assert wa.channel_for("") == "direct"
+    assert wa.channel_for("uzstock.uz") == "direct"
+    assert wa.channel_for("www.google.com") == "search"
+    assert wa.channel_for("yandex.uz") == "search"
+    assert wa.channel_for("t.me") == "telegram"
+    assert wa.channel_for("web.telegram.org") == "telegram"
+    assert wa.channel_for("instagram.com") == "social"
+    assert wa.channel_for("kun.uz") == "referral"
+    # tags outrank the referrer — Telegram's in-app browser sends none
+    assert wa.channel_for("", "telegram") == "telegram"
+    assert wa.channel_for("kun.uz", "kun", "cpc") == "ads"
+    assert wa.channel_for("", "newsletter", "email") == "email"
+    assert wa.channel_for("", "partner") == "campaign"
+
+
+def test_record_stores_place_tags_reading_and_team(monkeypatch):
+    monkeypatch.setattr(wa, "DATABASE_URL", "postgresql://test")
+    monkeypatch.setattr(wa, "_ensure_flusher", lambda: None)
+    monkeypatch.setattr(wa, "_place", lambda ip: {"country": "UZ", "region": "Samarqand", "city": "Samarkand"})
+    wa._buffer.clear()
+    ua = "Mozilla/5.0 (Windows NT 10.0) Chrome/126.0 Safari/537.36"
+    assert wa.record_pageview({**VALID, "event": "leave", "ms": 9000, "sp": 55, "us": "telegram"},
+                              user_agent=ua, ip="84.54.70.1", internal=True)
+    row = wa._buffer.pop()
+    assert row[14] == "UZ"                                   # country from the place
+    assert row[16:18] == ("Samarqand", "Samarkand")          # region, city
+    assert row[18] == "telegram"                             # utm_source
+    assert row[21:24] == (9000, 55, True)                    # engaged_ms, scroll_pct, internal
+    # a proxy's country header still outranks the database
+    assert wa.record_pageview(dict(VALID), user_agent=ua, ip="84.54.70.1", country="kz")
+    assert wa._buffer.pop()[14] == "KZ"

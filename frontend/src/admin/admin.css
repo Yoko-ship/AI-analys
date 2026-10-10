@@ -286,6 +286,9 @@
 
 .admin-scroll { overflow-x: auto; margin: 0 -22px -22px; padding: 0 22px 4px; }
 .admin-scroll table { min-width: 760px; }
+.admin-scroll.narrow { margin-bottom: 0; }
+.admin-scroll.narrow table { min-width: 460px; }
+.admin-path { font-family: var(--mono, ui-monospace, monospace); font-size: 0.85em; overflow-wrap: anywhere; }
 /* colour is declared, not inherited: Chrome leaves a table subtree stale when a
    custom property flips and the value only reaches it through inheritance. */
 .admin-view table { width: 100%; border-collapse: collapse; color: var(--text); }

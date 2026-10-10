@@ -1,4 +1,4 @@
-import { fmtInt } from "./adminModel.js";
+import { DASH, fmtInt, fmtShare, fmtDuration } from "./adminModel.js";
 import { HBarList, RangePicker, NoTraffic } from "./AdminWidgets.jsx";
 export function EngagementSection({
   engagementData,
@@ -11,6 +11,44 @@ export function EngagementSection({
   return <div className="admin-section">
       <div className="admin-panel-bar">
         <RangePicker value={rangeDays} onChange={setRangeDays} t={t} />
+      </div>
+
+      <div className="panel">
+        <h3>{t("Сколько читают и где бросают", "Qancha o'qishadi va qayerda tashlab ketishadi", "How long they read, and where they give up")}</h3>
+        {eng && (eng.reading || []).length ? <div className="admin-scroll narrow">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("Раздел", "Bo'lim", "Section")}</th>
+                  <th>{t("Просмотров с замером", "O'lchangan ko'rishlar", "Measured views")}</th>
+                  <th>{t("Время на странице", "Sahifadagi vaqt", "Time on page")}</th>
+                  <th>{t("Прокрутка", "Aylantirish", "Scrolled")}</th>
+                  <th>{t("Ушли за 10 с", "10 s ichida ketdi", "Left within 10 s")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eng.reading.map(r => <tr key={r.view}>
+                    <td>{VIEW_LABELS[r.view] || r.view}</td>
+                    <td>{fmtInt(r.measured)}</td>
+                    <td>{fmtDuration(r.avg_seconds, t)}</td>
+                    <td>{r.avg_scroll == null ? DASH : `${fmtInt(r.avg_scroll)}%`}</td>
+                    <td>{fmtShare(r.quick_share)}</td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div> : <div className="admin-empty">{t("Замеры появятся с новыми визитами: время и прокрутку сообщает каждая страница, когда её закрывают.", "O'lchovlar yangi tashriflar bilan paydo bo'ladi.", "Measurements appear with new visits: each page reports its time and scroll when it is left.")}</div>}
+        <p className="admin-muted admin-note">
+          {t("Время — только пока вкладка на экране. Прокрутка — насколько глубоко дочитали страницу, в среднем.", "Vaqt — faqat oyna ko'rinib turganda.", "Time counts only while the tab is visible. Scroll is how far down the page was read, on average.")}
+        </p>
+      </div>
+
+      <div className="panel">
+        <h3>{t("Страницы выхода", "Chiqish sahifalari", "Exit pages")}</h3>
+        <HBarList rows={eng && eng.exits || []} nameFn={r => r.path} valueFn={r => r.exits} detailFn={r => t(`${VIEW_LABELS[r.view] || ""} · визит закончился здесь в ${fmtShare(r.exit_rate)} просмотров`, `${VIEW_LABELS[r.view] || ""} · chiqish ${fmtShare(r.exit_rate)}`, `${VIEW_LABELS[r.view] || ""} · ${fmtShare(r.exit_rate)} of views ended the visit`)} />
+        {eng && !(eng.exits || []).length ? <NoTraffic t={t} /> : null}
+        <p className="admin-muted admin-note">
+          {t("Последняя страница каждого визита. Страница, на которой заканчивается большая доля просмотров, — место, где читатель сдаётся.", "Har bir tashrifning oxirgi sahifasi.", "The last page of each visit. A page where a large share of views ends the visit is where readers give up.")}
+        </p>
       </div>
 
       <div className="admin-cols2">

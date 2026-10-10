@@ -17,10 +17,48 @@ const SESSION_KEY = "uz_track_session";
 const SEEN_KEY = "uz_track_seen";
 const LANGUAGE_KEY = "uz_stock_analyzer_language";
 const AUTH_TOKEN_KEY = "uz_stock_analyzer_token";
+const INTERNAL_KEY = "uz_track_internal";
 const IDLE_MS = 30 * 60 * 1000;
+// One page left open in a background tab must not read as an hour of reading.
+const MAX_PAGE_MS = 30 * 60 * 1000;
 
 let currentAuthToken = "";
 let lastSent = { path: "", at: 0 };
+// The page being read: its visible time and how far down it was scrolled are
+// reported by a `leave` event when the reader moves on, hides the tab or
+// closes it — that is what answers "how long did they stay, and where did
+// they give up".
+let page = null;
+let listening = false;
+
+// Campaign tags are read once, at load: the app rewrites the address as it
+// routes, and by the first page view the query string may already be gone.
+const landingTags = (() => {
+  try {
+    const q = new URLSearchParams(window.location.search);
+    const tags = { us: q.get("utm_source"), um: q.get("utm_medium"), uc: q.get("utm_campaign") };
+    return tags.us || tags.um || tags.uc ? tags : null;
+  } catch {
+    return null;
+  }
+})();
+let tagsPending = Boolean(landingTags);
+
+/** «Не считать этот браузер»: the team's own devices stay out of the audience. */
+export function isBrowserExcluded() {
+  try {
+    return localStorage.getItem(INTERNAL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setBrowserExcluded(excluded) {
+  try {
+    if (excluded) localStorage.setItem(INTERNAL_KEY, "1");
+    else localStorage.removeItem(INTERNAL_KEY);
+  } catch { /* private mode: nothing to remember */ }
+}
 
 /** A token lets the server derive the user. The public payload never claims an id. */
 export function setTrackedUser(id) {
@@ -128,9 +166,13 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
     if (path === lastSent.path && now - lastSent.at < 1000) return;
     lastSent = { path, at: now };
 
+    reportLeave();
     const { sid, fresh } = sessionId(store);
+    const vid = visitorId(store);
+    const tags = fresh && tagsPending ? landingTags : null;
+    if (fresh) tagsPending = false;
     send({
-      vid: visitorId(store),
+      vid,
       sid,
       path,
       view,
@@ -140,6 +182,96 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
       ref: fresh ? document.referrer || "" : "",
       lang: store.getItem(LANGUAGE_KEY) || "",
       w: window.innerWidth || null,
+      ...(tags || {}),
+      ...(isBrowserExcluded() ? { int: 1 } : {}),
     });
+    page = { vid, sid, path, view, ticker: ticker || "", shownAt: visible() ? now : null, ms: 0, scroll: 0 };
+    measureScroll();
+    listen();
   } catch { /* tracking must never break the page */ }
+}
+
+/** The reader moved to a view that is not counted (the admin panel): close the page. */
+export function endPageview() {
+  try {
+    reportLeave();
+    page = null;
+  } catch { /* tracking must never break the page */ }
+}
+
+function visible() {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
+function measureScroll() {
+  if (!page) return;
+  try {
+    const doc = document.documentElement;
+    const height = Math.max(doc.scrollHeight, document.body ? document.body.scrollHeight : 0);
+    const seen = (window.scrollY || doc.scrollTop || 0) + window.innerHeight;
+    // A page shorter than the screen was read to its end by being shown.
+    const pct = height <= window.innerHeight ? 100 : Math.min(100, Math.trunc(seen / height * 100));
+    if (pct > page.scroll) page.scroll = pct;
+  } catch { /* measurement is best-effort */ }
+}
+
+/** Bank the visible time so far; the page stays current. */
+function pause() {
+  if (page && page.shownAt !== null) {
+    page.ms += Date.now() - page.shownAt;
+    page.shownAt = null;
+  }
+}
+
+/**
+ * Report the time read since the last report, as a delta: a tab hidden and
+ * shown again reports twice and the server sums them.
+ */
+function reportLeave() {
+  if (!page) return;
+  pause();
+  const ms = Math.min(MAX_PAGE_MS, page.ms);
+  if (ms >= 500) {
+    send({
+      vid: page.vid,
+      sid: page.sid,
+      event: "leave",
+      path: page.path,
+      view: page.view,
+      ticker: page.ticker,
+      ms,
+      sp: page.scroll,
+      ...(isBrowserExcluded() ? { int: 1 } : {}),
+    });
+  }
+  page.ms = 0;
+}
+
+function listen() {
+  if (listening) return;
+  listening = true;
+  let pending = false;
+  window.addEventListener("scroll", () => {
+    if (pending) return;
+    pending = true;
+    window.requestAnimationFrame(() => { pending = false; measureScroll(); });
+  }, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    try {
+      if (!page) return;
+      if (visible()) {
+        page.shownAt = Date.now();
+      } else {
+        // On a phone, hiding the tab is often the last moment the page is
+        // alive; report now rather than hope for a later unload.
+        reportLeave();
+      }
+    } catch { /* tracking must never break the page */ }
+  });
+  window.addEventListener("pagehide", () => {
+    try {
+      reportLeave();
+      page = null;
+    } catch { /* tracking must never break the page */ }
+  });
 }

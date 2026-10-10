@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { HIDDEN_VIEWS, pathToView, viewToPath } from "./routing.jsx";
-import { trackPageview } from "../lib/track.js";
+import { endPageview, trackPageview } from "../lib/track.js";
 
 export function useNavigation() {
 
@@ -47,6 +47,8 @@ export function useNavigation() {
         view: activeView,
         ticker: ["company", "chart", "bond"].includes(activeView) ? companyTicker : "",
       });
+    } else {
+      endPageview();
     }
   }, [activeView, companyTicker, newsId, adminSection]);
 

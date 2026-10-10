@@ -174,6 +174,8 @@ export default function AdminPanel({
     KIND_LABELS={KIND_LABELS}
     DEVICE_LABELS={DEVICE_LABELS}
     LANG_LABELS={LANG_LABELS}
+    VIEW_LABELS={VIEW_LABELS}
+    language={language}
   />;
 
   /* ══════════════════════════════════════════════════════════════════════════

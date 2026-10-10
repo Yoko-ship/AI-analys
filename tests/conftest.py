@@ -27,6 +27,12 @@ def no_openinfo_cache(monkeypatch):
         reconcile._listings.clear()
 
 
+@pytest.fixture(autouse=True)
+def no_geoip_download(monkeypatch):
+    """An app started in a test must not fetch the visitor-geography database."""
+    monkeypatch.setenv("GEOIP_REFRESH", "0")
+
+
 @pytest.fixture
 def authenticated_reader(monkeypatch):
     """Opt in only for data-contract tests; authorization tests use real guards."""
