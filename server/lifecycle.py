@@ -88,6 +88,14 @@ async def _on_startup(app) -> None:
             http.logger.info("startup purge of delisted securities: %s", removed)
     except Exception:
         http.logger.exception("startup purge of delisted securities failed")
+    # Same idea for days that were banked as sessions but were only NC/T1 deals.
+    try:
+        removed = await asyncio.get_running_loop().run_in_executor(
+            None, catalogue_market_store.purge_off_session_days)
+        if removed:
+            http.logger.info("startup purge of off-session days: %s", removed)
+    except Exception:
+        http.logger.exception("startup purge of off-session days failed")
     # The visit record's table lives in the same Postgres as web auth; creating
     # it is additive and idempotent. A missing DATABASE_URL only disables
     # tracking — the site itself must never depend on it.

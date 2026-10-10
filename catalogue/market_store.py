@@ -853,3 +853,40 @@ def purge_delisted(tickers: set[str] | frozenset[str] | None = None) -> dict[str
     if deleted:
         catalogue_settings.logger.info("purged delisted securities: %s", deleted)
     return deleted
+
+
+# Days banked as sessions before board NC was kept out of the session
+# (2026-10-10): each was four NC executions at the nominal, the same member on
+# both sides, and the exchange's own daily history leaves it at zero. Fixed at
+# the source since; these rows predate the fix, and the COALESCE upsert can never
+# blank them, so they are removed here. A row the exchange page re-banks for the
+# same day (its zero-quantity carried close) is correct and harmless.
+OFF_SESSION_DAYS: frozenset[tuple[str, str]] = frozenset({
+    ("UZ7055870008", "20260824"),  # ORFI — 883,8 млрд at 1 250
+    ("UZ7055560005", "20260828"),  # INFB — 146,1 млрд at 1 000
+})
+
+
+def purge_off_session_days(days: frozenset[tuple[str, str]] | None = None) -> dict[str, int]:
+    """Delete sessions that were only off-session deals. Idempotent, run on boot."""
+    targets = sorted(days if days is not None else OFF_SESSION_DAYS)
+    if not targets:
+        return {}
+    deleted: dict[str, int] = {}
+    conn = catalogue_storage.get_catalog_conn()
+    try:
+        existing = set(dbx.tables(conn))
+        with conn:
+            for table in ("catalog_quote_history", "catalog_intraday_history", "catalog_trade_stats"):
+                if table not in existing:
+                    continue
+                for isin, day in targets:
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE UPPER(isin) = ? AND trade_date = ?", (isin, day))
+                    if cur.rowcount > 0:
+                        deleted[table] = deleted.get(table, 0) + cur.rowcount
+    finally:
+        conn.close()
+    if deleted:
+        catalogue_settings.logger.info("purged off-session days: %s", deleted)
+    return deleted

@@ -148,3 +148,29 @@ class TestTheNcBoardIsOffSession:
         live = _aggregate("UZ7011340005", HMKB_DAY, "20260814")
         banked = trade_stats_as_history([st, live])
         assert [r["isin"] for r in banked] == ["UZ7011340005"]
+
+
+def test_the_banked_nc_days_are_purged_once_and_nothing_else(tmp_path, monkeypatch):
+    """The rows banked before the fix: the COALESCE upsert cannot blank them."""
+    import catalogue.market_store as store
+    import catalogue.schema as schema
+    import catalogue.storage as storage
+
+    monkeypatch.setattr(storage, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+    conn = storage.get_catalog_conn()
+    schema._init_schema(conn)
+    with conn:
+        for isin, day in (("UZ7055870008", "20260824"), ("UZ7055870008", "20210727"),
+                          ("UZ7055560005", "20260828")):
+            conn.execute("INSERT INTO catalog_quote_history (isin, trade_date, close_price, turnover) "
+                         "VALUES (?,?,?,?)", (isin, day, 1.0, 1.0))
+        conn.execute("INSERT INTO catalog_trade_stats (isin, trade_date) VALUES (?,?)",
+                     ("UZ7055560005", "20260828"))
+    conn.close()
+
+    assert store.purge_off_session_days() == {"catalog_quote_history": 2, "catalog_trade_stats": 1}
+    assert store.purge_off_session_days() == {}
+    conn = storage.get_catalog_conn()
+    left = [(r["isin"], r["trade_date"]) for r in conn.execute("SELECT isin, trade_date FROM catalog_quote_history")]
+    conn.close()
+    assert left == [("UZ7055870008", "20210727")]
