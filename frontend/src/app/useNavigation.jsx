@@ -103,5 +103,16 @@ export function useNavigation() {
     try { window.history.replaceState({}, "", "/news?tab=calendar"); } catch { /* noop */ }
     setActiveView("news");
   };
-  return { activeView, adminSection, backToNewsCalendar, chartState, companyTicker, newsId, openAnnouncementArticle, openBondPage, openChartPage, openCompanyPage, openNewsArticle, prevView, setActiveView, setAdminSection };
+  // A section of /news, from the topbar's drop-down. The tab lives in the query
+  // string, which the page reads on mount and on popstate — so when the page is
+  // already open, the same event switches it.
+  const openNewsTab = (tab) => {
+    const target = tab === "all" ? "/news" : `/news?tab=${tab}`;
+    try {
+      if (window.location.pathname + window.location.search !== target) window.history.pushState({ view: "news" }, "", target);
+    } catch { /* noop */ }
+    if (activeView === "news") window.dispatchEvent(new PopStateEvent("popstate"));
+    else setActiveView("news");
+  };
+  return { activeView, adminSection, backToNewsCalendar, openNewsTab, chartState, companyTicker, newsId, openAnnouncementArticle, openBondPage, openChartPage, openCompanyPage, openNewsArticle, prevView, setActiveView, setAdminSection };
 }

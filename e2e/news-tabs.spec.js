@@ -74,3 +74,35 @@ test("an administrator's news page carries no Grok agent panel (customer, 2026-1
   await expect(page.getByText(/Новостной агент|Grok/)).toHaveCount(0);
   await page.screenshot({ path: "test-results/news-admin-no-agent.png" });
 });
+
+test("hovering «Новости» in the topbar opens its sections, and each one opens its tab", async ({ page }) => {
+  const asked = await openNews(page, "/market");
+  const trigger = page.locator(".topbar-nav .nav-dd-wrap").filter({ hasText: "Новости" });
+  await trigger.locator(".topbar-nav-btn").first().hover();
+  const panel = page.locator(".nav-dd-panel");
+  await expect(panel.locator(".nav-dd-head")).toHaveText(["Лента", "Эмитенты", "События"]);
+  await page.screenshot({ path: "test-results/news-nav-menu.png" });
+  await panel.getByRole("menuitem", { name: "Календарь" }).click();
+  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
+  await expect(panel).toHaveCount(0);
+
+  // Already on /news: the menu switches the tab in place.
+  await trigger.locator(".topbar-nav-btn").first().hover();
+  await page.locator(".nav-dd-panel").getByRole("menuitem", { name: "Финотчётность" }).click();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Финотчётность");
+  await expect(page).toHaveURL(/\/news\?tab=reporting$/);
+  await expect.poll(() => asked.at(-1)).toBe("reports");
+
+  // Back returns to the previous section.
+  await page.goBack();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
+});
+
+test("the «Рынок» drop-down still opens its own sections", async ({ page }) => {
+  await openNews(page);
+  await page.locator(".topbar-nav .nav-dd-wrap").filter({ hasText: "Рынок" }).locator(".topbar-nav-btn").first().hover();
+  await expect(page.locator(".nav-dd-panel .nav-dd-head")).toHaveText(["Биржа", "Валюта"]);
+  await page.locator(".nav-dd-panel").getByRole("menuitem", { name: "Карта рынка" }).click();
+  await expect(page).toHaveURL(/\/heatmap/);
+});

@@ -17,7 +17,7 @@ import { SponsorOverlay } from "./SponsorOverlay.jsx";
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
   const { token, user } = sessionModule;
   const { language, setLanguage, stepTextScale, textScale, setTextScale, toggleTheme, theme } = preferencesModule;
-  const { activeView, setActiveView } = navigationModule;
+  const { activeView, setActiveView, openNewsTab } = navigationModule;
   const { catalogStatus } = marketModule;
   const { setNotifOpen, notifCount, notifOpen, notifItems, updateNotificationState, openNotification } = notificationsModule;
   const { handleLogout } = authModule;
@@ -67,42 +67,74 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     ? ["main", "market", "catalog", "news", "feedback", "profile"]
     : ["main", "market", "catalog", "news", "feedback", "auth"];
 
-  const [marketMenuOpen, setMarketMenuOpen] = useState(false);
+  // One hover drop-down open at a time: «Рынок» or «Новости».
+  const [navMenu, setNavMenu] = useState(null);
 
-  const [marketMenuPos, setMarketMenuPos] = useState(null);
+  const [navMenuPos, setNavMenuPos] = useState(null);
 
-  const marketMenuWrapRef = useRef(null);
+  const navMenuWrapRefs = useRef({});
 
-  const marketMenuTimer = useRef(null);
+  const navMenuTimer = useRef(null);
 
-  useEffect(() => () => clearTimeout(marketMenuTimer.current), []);
+  useEffect(() => () => clearTimeout(navMenuTimer.current), []);
 
-  const openMarketMenu = () => {
-    clearTimeout(marketMenuTimer.current);
-    const r = marketMenuWrapRef.current?.getBoundingClientRect();
+  const openNavMenu = (key) => {
+    clearTimeout(navMenuTimer.current);
+    const r = navMenuWrapRefs.current[key]?.getBoundingClientRect();
     if (r) {
       const z = rootZoom();
-      setMarketMenuPos({ top: r.bottom / z, left: r.left / z });
+      setNavMenuPos({ top: r.bottom / z, left: r.left / z });
     }
-    setMarketMenuOpen(true);
+    setNavMenu(key);
   };
 
-  const closeMarketMenuSoon = () => {
-    clearTimeout(marketMenuTimer.current);
-    marketMenuTimer.current = setTimeout(() => setMarketMenuOpen(false), 140);
+  const closeNavMenuSoon = () => {
+    clearTimeout(navMenuTimer.current);
+    navMenuTimer.current = setTimeout(() => setNavMenu(null), 140);
   };
 
-  const closeMarketMenu = () => {
-    clearTimeout(marketMenuTimer.current);
-    setMarketMenuOpen(false);
+  const closeNavMenu = () => {
+    clearTimeout(navMenuTimer.current);
+    setNavMenu(null);
   };
 
   useEffect(() => {
-    if (!marketMenuOpen) return undefined;
-    const close = () => { clearTimeout(marketMenuTimer.current); setMarketMenuOpen(false); };
+    if (!navMenu) return undefined;
+    const close = () => { clearTimeout(navMenuTimer.current); setNavMenu(null); };
     window.addEventListener("scroll", close, { passive: true, capture: true });
     return () => window.removeEventListener("scroll", close, { capture: true });
-  }, [marketMenuOpen]);
+  }, [navMenu]);
+
+  // Portaled to <body>, and clamped into the viewport once the width is known —
+  // the trigger can sit far enough right (compact band, long translations) that
+  // a left-anchored panel runs off-screen.
+  const navMenuPanel = (key, columns) => navMenu === key && navMenuPos && createPortal(
+    <div
+      className="nav-dd-panel"
+      role="menu"
+      style={{ top: navMenuPos.top, left: navMenuPos.left }}
+      ref={(el) => {
+        if (!el) return;
+        const { vw } = zoomedViewport();
+        el.style.left = `${Math.max(8, Math.min(navMenuPos.left, vw - el.offsetWidth - 8))}px`;
+      }}
+      onMouseEnter={() => openNavMenu(key)}
+      onMouseLeave={closeNavMenuSoon}
+    >
+      {columns.map(({ head, items }) => (
+        <div className="nav-dd-col" key={head}>
+          <div className="nav-dd-head">{head}</div>
+          {items.map(({ label, onSelect }) => (
+            <button key={label} type="button" className="nav-dd-item" role="menuitem"
+              onClick={() => { onSelect(); closeNavMenu(); }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>,
+    document.body
+  );
 
   const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
 
@@ -135,57 +167,29 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
               <div
                 key={key}
                 className="nav-dd-wrap"
-                ref={marketMenuWrapRef}
-                onMouseEnter={openMarketMenu}
-                onMouseLeave={closeMarketMenuSoon}
+                ref={(el) => { navMenuWrapRefs.current.market = el; }}
+                onMouseEnter={() => openNavMenu("market")}
+                onMouseLeave={closeNavMenuSoon}
               >
                 <button
                   className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" || activeView === "heatmap" ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
-                  aria-expanded={marketMenuOpen}
-                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); closeMarketMenu(); }}
+                  aria-expanded={navMenu === "market"}
+                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); closeNavMenu(); }}
                 >
                   {mt(language, "nav")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
                 </button>
-                {marketMenuOpen && marketMenuPos && createPortal(
-                  <div
-                    className="nav-dd-panel"
-                    role="menu"
-                    style={{ top: marketMenuPos.top, left: marketMenuPos.left }}
-                    ref={(el) => {
-                      // Clamp into the viewport once the width is known — the
-                      // trigger can sit far enough right (compact band, long
-                      // translations) that a left-anchored panel runs off-screen.
-                      if (!el) return;
-                      const { vw } = zoomedViewport();
-                      el.style.left = `${Math.max(8, Math.min(marketMenuPos.left, vw - el.offsetWidth - 8))}px`;
-                    }}
-                    onMouseEnter={openMarketMenu}
-                    onMouseLeave={closeMarketMenuSoon}
-                  >
-                    <div className="nav-dd-col">
-                      <div className="nav-dd-head">{navDdLabel("Биржа", "Birja", "Exchange")}</div>
-                      <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("market"); closeMarketMenu(); }}>
-                        {navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments")}
-                      </button>
-                      <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("heatmap"); closeMarketMenu(); }}>
-                        {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
-                      </button>
-                    </div>
-                    <div className="nav-dd-col">
-                      <div className="nav-dd-head">{navDdLabel("Валюта", "Valyuta", "Currency")}</div>
-                      <button type="button" className="nav-dd-item" role="menuitem"
-                        onClick={() => { setActiveView("bankfx"); closeMarketMenu(); }}>
-                        {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
-                      </button>
-                    </div>
-                  </div>,
-                  document.body
-                )}
+                {navMenuPanel("market", [
+                  { head: navDdLabel("Биржа", "Birja", "Exchange"), items: [
+                    { label: navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments"), onSelect: () => setActiveView("market") },
+                    { label: navDdLabel("Карта рынка", "Bozor xaritasi", "Market map"), onSelect: () => setActiveView("heatmap") },
+                  ] },
+                  { head: navDdLabel("Валюта", "Valyuta", "Currency"), items: [
+                    { label: navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates"), onSelect: () => setActiveView("bankfx") },
+                  ] },
+                ])}
                 {/* Drawer counterpart of the drop-down: indented rows. The
                     board itself is the parent item, so only the destinations
                     that live inside the panel need a way in. */}
@@ -202,6 +206,51 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   onClick={() => { setActiveView("bankfx"); setMobileNavOpen(false); }}
                 >
                   {navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates")}
+                </button>
+              </div>
+            ) : key === "news" ? (
+              <div
+                key={key}
+                className="nav-dd-wrap"
+                ref={(el) => { navMenuWrapRefs.current.news = el; }}
+                onMouseEnter={() => openNavMenu("news")}
+                onMouseLeave={closeNavMenuSoon}
+              >
+                <button
+                  className={`topbar-nav-btn ${["news", "newsArticle", "announcementArticle"].includes(activeView) ? "active" : ""}`}
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={navMenu === "news"}
+                  onClick={() => { openNewsTab("all"); setMobileNavOpen(false); closeNavMenu(); }}
+                >
+                  {t(language, "nav.news")}
+                  <span className="nav-dd-caret" aria-hidden="true">▾</span>
+                </button>
+                {/* The tab row of /news, grouped into sections. */}
+                {navMenuPanel("news", [
+                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: [
+                    { label: navDdLabel("Все новости", "Barcha yangiliklar", "All news"), onSelect: () => openNewsTab("all") },
+                    { label: navDdLabel("Экономика", "Iqtisodiyot", "Economy"), onSelect: () => openNewsTab("economy") },
+                    { label: navDdLabel("Рынки", "Bozorlar", "Markets"), onSelect: () => openNewsTab("markets") },
+                    { label: navDdLabel("Политика", "Siyosat", "Politics"), onSelect: () => openNewsTab("politics") },
+                    { label: navDdLabel("Технологии", "Texnologiyalar", "Technology"), onSelect: () => openNewsTab("technology") },
+                    { label: navDdLabel("Прочее", "Boshqa", "Other"), onSelect: () => openNewsTab("other") },
+                  ] },
+                  { head: navDdLabel("Эмитенты", "Emitentlar", "Issuers"), items: [
+                    { label: navDdLabel("Корпоративные", "Korporativ", "Corporate"), onSelect: () => openNewsTab("corporate") },
+                    { label: navDdLabel("Финотчётность", "Moliyaviy hisobot", "Financial reports"), onSelect: () => openNewsTab("reporting") },
+                    { label: navDdLabel("Компании", "Kompaniyalar", "Companies"), onSelect: () => openNewsTab("companies") },
+                  ] },
+                  { head: navDdLabel("События", "Voqealar", "Events"), items: [
+                    { label: navDdLabel("Календарь", "Taqvim", "Calendar"), onSelect: () => openNewsTab("calendar") },
+                  ] },
+                ])}
+                <button
+                  className="topbar-nav-btn nav-dd-mobile-item"
+                  type="button"
+                  onClick={() => { openNewsTab("calendar"); setMobileNavOpen(false); }}
+                >
+                  {navDdLabel("Календарь", "Taqvim", "Calendar")}
                 </button>
               </div>
             ) : (
