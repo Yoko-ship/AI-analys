@@ -19,6 +19,7 @@ const NEWS_TX = {
     latest: "Свежее", empty: "Пока нет свежих новостей. Загляните позже.",
     loadingText: "Загружаем ленту…", error: "Не удалось загрузить новости.",
     tabs: { all: "Все", economy: "Экономика", corporate: "Корпоративные", reporting: "Финотчётность", markets: "Рынки", companies: "Компании", politics: "Политика", technology: "Технологии", other: "Прочее", calendar: "Календарь" },
+    moreTabs: "Ещё",
     tabHint: {
       all: "Все новости экономики, рынка и эмитентов в одной ленте",
       economy: "Макроэкономика, торговля, инвестиции и отраслевая конъюнктура",
@@ -52,6 +53,7 @@ const NEWS_TX = {
     latest: "Latest", empty: "No recent news yet. Check back soon.",
     loadingText: "Loading the feed…", error: "Could not load the news feed.",
     tabs: { all: "All", economy: "Economy", corporate: "Corporate", reporting: "Financial reports", markets: "Markets", companies: "Companies", politics: "Politics", technology: "Technology", other: "Other", calendar: "Calendar" },
+    moreTabs: "More",
     tabHint: {
       all: "Economy, market and issuer news in one feed",
       economy: "Macro, trade, investment and sector conditions",
@@ -85,6 +87,7 @@ const NEWS_TX = {
     latest: "So'nggi", empty: "Hozircha yangi yangiliklar yo'q. Keyinroq qayting.",
     loadingText: "Lenta yuklanmoqda…", error: "Yangiliklarni yuklab bo'lmadi.",
     tabs: { all: "Barchasi", economy: "Iqtisodiyot", corporate: "Korporativ", reporting: "Moliyaviy hisobot", markets: "Bozorlar", companies: "Kompaniyalar", politics: "Siyosat", technology: "Texnologiyalar", other: "Boshqa", calendar: "Taqvim" },
+    moreTabs: "Yana",
     tabHint: {
       all: "Iqtisodiyot, bozor va emitentlar yangiliklari bitta lentada",
       economy: "Makroiqtisodiyot, savdo, investitsiyalar va tarmoq holati",

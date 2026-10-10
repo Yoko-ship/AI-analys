@@ -1,5 +1,7 @@
 // The news section's category tabs (customer, 2026-10-08): one compact row, the
 // active tab highlighted, each tab asking the feed for its own category.
+// Since 2026-10-10 the row holds five headings; the narrower sections fold into
+// an «Ещё» menu, and the menu button wears the open section's name.
 import { test, expect } from "@playwright/test";
 
 const item = (id, category, title) => ({
@@ -34,19 +36,50 @@ async function openNews(page, path = "/news", { admin = false } = {}) {
 test("every category is a tab that asks the feed for its own stories", async ({ page }) => {
   const asked = await openNews(page);
   const tabs = page.locator(".newsdesk-tabs .newsdesk-tab");
-  await expect(tabs).toHaveText(["Все", "Экономика", "Корпоративные", "Финотчётность", "Рынки", "Компании",
-    "Политика", "Технологии", "Прочее", "Календарь"]);
+  const more = page.locator(".newsdesk-tab-more");
+  await expect(tabs).toHaveText(["Все", "Экономика", "Рынки", "Корпоративные", "Календарь", "Ещё"]);
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Все");
-  for (const [label, key, category] of [["Экономика", "economy", "economy"], ["Финотчётность", "reporting", "reports"],
-    ["Рынки", "markets", "markets"], ["Технологии", "technology", "technology"], ["Прочее", "other", "other"]]) {
+  for (const [label, key, category] of [["Экономика", "economy", "economy"], ["Рынки", "markets", "markets"]]) {
     await tabs.filter({ hasText: label }).click();
     await expect(page.locator(".newsdesk-tab.active")).toHaveText(label);
+    await expect(page).toHaveURL(new RegExp(`tab=${key}$`));
+    await expect.poll(() => asked.at(-1)).toBe(category);
+  }
+  // The folded sections: each one is a menu item, and once chosen the menu
+  // button carries its name as the active tab.
+  for (const [label, key, category] of [["Финотчётность", "reporting", "reports"], ["Компании", "companies", "companies"],
+    ["Политика", "politics", "politics"], ["Технологии", "technology", "technology"], ["Прочее", "other", "other"]]) {
+    await more.click();
+    const menu = page.locator(".newsdesk-more-menu");
+    await expect(menu.getByRole("menuitem")).toHaveText(["Финотчётность", "Компании", "Политика", "Технологии", "Прочее"]);
+    await menu.getByRole("menuitem", { name: label }).click();
+    await expect(menu).toHaveCount(0);
+    await expect(page.locator(".newsdesk-tab.active")).toHaveText(label);
+    await expect(more).toHaveText(label);
     await expect(page).toHaveURL(new RegExp(`tab=${key}$`));
     await expect.poll(() => asked.at(-1)).toBe(category);
   }
   // The active tab is filled, the others are not.
   const fill = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(await fill(page.locator(".newsdesk-tab.active"))).not.toBe(await fill(tabs.first()));
+  // Back on a bar tab, the button goes back to «Ещё».
+  await tabs.filter({ hasText: "Все" }).click();
+  await expect(more).toHaveText("Ещё");
+});
+
+test("the «Ещё» menu closes on Escape and on a click outside", async ({ page }) => {
+  await openNews(page);
+  const more = page.locator(".newsdesk-tab-more");
+  const menu = page.locator(".newsdesk-more-menu");
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await page.screenshot({ path: "test-results/news-more-menu.png" });
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(more).toBeFocused();
+  await more.click();
+  await page.locator(".newsdesk-head h1").click();
+  await expect(menu).toHaveCount(0);
 });
 
 test("an old «Регулятор» link opens «Политика»", async ({ page }) => {
@@ -58,6 +91,7 @@ test("an old «Регулятор» link opens «Политика»", async ({ p
 test("on a phone the tabs stay one row that pans, without widening the page", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await openNews(page, "/news?tab=technology");
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Технологии");
   const bar = page.locator(".newsdesk-tabs");
   const box = await bar.boundingBox();
   expect(box.height).toBeLessThan(50);
@@ -65,6 +99,14 @@ test("on a phone the tabs stay one row that pans, without widening the page", as
   const active = await page.locator(".newsdesk-tab.active").boundingBox();
   expect(active.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(active.x + active.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  // The menu opens inside the screen, not clipped by the panning bar.
+  await page.locator(".newsdesk-tab-more").click();
+  const menu = await page.locator(".newsdesk-more-menu").boundingBox();
+  expect(menu.x).toBeGreaterThanOrEqual(0);
+  expect(menu.x + menu.width).toBeLessThanOrEqual(390);
+  await expect(page.locator(".newsdesk-more-menu").getByRole("menuitem", { name: "Прочее" })).toBeVisible();
+  await page.screenshot({ path: "test-results/news-more-menu-phone.png" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test("an administrator's news page carries no Grok agent panel (customer, 2026-10-10)", async ({ page }) => {

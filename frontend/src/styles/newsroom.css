@@ -13,8 +13,19 @@
 /* One compact row of tabs (customer, 2026-10-08): a segmented bar, the active
    tab filled. Ten headings do not fit a phone, so the row pans sideways
    instead of wrapping into a ragged second line. */
-.newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; margin-bottom: 14px; }
+.newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; }
 .newsdesk-tabs::-webkit-scrollbar { display: none; }
+/* Five headings in the bar, the narrower sections under «Ещё». The wrapper, not
+   the bar, anchors the menu: the bar pans on a phone and would clip it. */
+.newsdesk-tabbar { position: relative; width: fit-content; max-width: 100%; margin-bottom: 14px; }
+.newsdesk-tab-more { display: inline-flex; align-items: center; gap: 6px; }
+.newsdesk-tab-more::after { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+.newsdesk-tab-more.open::after { transform: translateY(1px) rotate(-135deg); }
+.newsdesk-more-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 180px; padding: 4px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2); box-shadow: 0 16px 44px rgba(0, 0, 0, .35); }
+.newsdesk-more-item { appearance: none; border: 0; border-radius: 7px; background: transparent; color: var(--text); padding: 9px 12px; font: inherit; font-size: 13px; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
+.newsdesk-more-item:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.newsdesk-more-item.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.newsdesk-more-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .newsdesk-tab { appearance: none; flex: 0 0 auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; cursor: pointer; transition: background-color .12s, color .12s; }
 .newsdesk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .newsdesk-tab.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -168,7 +179,7 @@
   .newsdesk-head { display: block; padding-top: 2px; }
   .newsdesk-head p { font-size: 13.5px; }
   .newsdesk-updated { margin-top: 12px; display: flex; justify-content: space-between; text-align: left; }
-  .newsdesk-tabs { width: 100%; }
+  .newsdesk-tabbar, .newsdesk-tabs { width: 100%; }
   .newsdesk-tab { font-size: 13px; padding: 7px 11px; }
   .newsdesk-priority-story--lead h2 { max-width: none; font-size: clamp(22px, 6.6vw, 28px); line-height: 1.12; }
   .newsdesk-secondary { grid-template-columns: 1fr; }

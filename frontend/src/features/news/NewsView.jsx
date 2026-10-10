@@ -55,6 +55,51 @@ export function NewsView({
   const focus = React.useMemo(() => newsDeskFocus(items), [items]);
   const dtx = tx.desk || NEWS_TX.ru.desk;
   const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
+  const moreTabs = NEWS_TABS.filter(t => !t.primary);
+  const moreActive = moreTabs.some(t => t.key === tab);
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const [moreMenuLeft, setMoreMenuLeft] = React.useState(null);
+  const moreBtnRef = React.useRef(null);
+  const moreMenuRef = React.useRef(null);
+  const centreInBar = el => {
+    if (!el) return;
+    requestAnimationFrame(() => {
+      const bar = el.parentElement;
+      if (bar && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
+    });
+  };
+  // The menu hangs under its button. It lives outside the bar because the bar
+  // pans sideways on a phone (overflow-x), which would clip it; offsets are
+  // layout pixels, so root `zoom` (A−/A+) needs no correction here.
+  React.useLayoutEffect(() => {
+    if (!moreOpen) return;
+    const btn = moreBtnRef.current;
+    const menu = moreMenuRef.current;
+    if (!btn || !menu) return;
+    const bar = btn.parentElement;
+    const wrap = bar.parentElement;
+    const left = bar.offsetLeft + btn.offsetLeft - bar.scrollLeft;
+    setMoreMenuLeft(Math.max(0, Math.min(left, wrap.clientWidth - menu.offsetWidth)));
+  }, [moreOpen]);
+  React.useEffect(() => {
+    if (!moreOpen) return;
+    const close = e => {
+      if (e.type === "keydown") {
+        if (e.key !== "Escape") return;
+        setMoreOpen(false);
+        moreBtnRef.current?.focus();
+        return;
+      }
+      if (moreMenuRef.current?.contains(e.target) || moreBtnRef.current?.contains(e.target)) return;
+      setMoreOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [moreOpen]);
   return <div className="news-view led newsdesk">
       <header className="newsdesk-head">
         <div>
@@ -67,8 +112,9 @@ export function NewsView({
           </div>}
       </header>
 
+      <div className="newsdesk-tabbar">
       <nav className="newsdesk-tabs" aria-label={tx.title}>
-        {NEWS_TABS.map(t => <button
+        {NEWS_TABS.filter(t => t.primary).map(t => <button
           key={t.key}
           type="button"
           data-tab={t.key}
@@ -76,18 +122,46 @@ export function NewsView({
           aria-current={tab === t.key ? "page" : undefined}
           // On a phone the bar pans sideways; centre the chosen tab in it. Set on
           // the bar itself — scrollIntoView would also scroll the page.
-          ref={tab === t.key ? (el) => {
-            if (!el) return;
-            requestAnimationFrame(() => {
-              const bar = el.parentElement;
-              if (bar && bar.scrollWidth > bar.clientWidth) bar.scrollLeft = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;
-            });
-          } : undefined}
+          ref={tab === t.key ? centreInBar : undefined}
           onClick={() => selectTab(t.key)}
         >
             {tx.tabs && tx.tabs[t.key] || t.key}
           </button>)}
+        {/* The narrower sections fold in here. While one of them is open the
+            button wears its name, so the bar still says where the reader is. */}
+        <button
+          ref={el => {
+            moreBtnRef.current = el;
+            if (moreActive) centreInBar(el);
+          }}
+          type="button"
+          data-tab={moreActive ? tab : "more"}
+          className={`newsdesk-tab newsdesk-tab-more ${moreActive ? "active" : ""} ${moreOpen ? "open" : ""}`}
+          aria-current={moreActive ? "page" : undefined}
+          aria-haspopup="menu"
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen(o => !o)}
+        >
+            {moreActive ? tx.tabs && tx.tabs[tab] || tab : tx.moreTabs || "More"}
+          </button>
       </nav>
+      {moreOpen && <div className="newsdesk-more-menu" role="menu" ref={moreMenuRef} style={moreMenuLeft != null ? { left: moreMenuLeft } : undefined}>
+          {moreTabs.map(t => <button
+            key={t.key}
+            type="button"
+            role="menuitem"
+            data-tab={t.key}
+            className={`newsdesk-more-item ${tab === t.key ? "active" : ""}`}
+            aria-current={tab === t.key ? "page" : undefined}
+            onClick={() => {
+              setMoreOpen(false);
+              selectTab(t.key);
+            }}
+          >
+              {tx.tabs && tx.tabs[t.key] || t.key}
+            </button>)}
+        </div>}
+      </div>
 
       {/* A second row, not three more tabs beside the first: this narrows
           «Корпоративные», it is not a fourth peer of it. */}

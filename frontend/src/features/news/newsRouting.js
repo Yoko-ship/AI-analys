@@ -1,17 +1,19 @@
 // The news section's tabs (customer, 2026-10-08). Each one is a server-side
 // category (news_store.NEWS_CATEGORIES): every story sits under exactly one.
 // «Все» asks for no category; «Календарь» is not a feed and fetches its own.
+// `primary` tabs sit in the bar; the rest fold into its «Ещё» menu so the bar
+// stays one short row. Every tab stays reachable and linkable either way.
 export const NEWS_TABS = [
-  { key: "all", category: null },
-  { key: "economy", category: "economy" },
-  { key: "corporate", category: "corporate" },
+  { key: "all", category: null, primary: true },
+  { key: "economy", category: "economy", primary: true },
+  { key: "markets", category: "markets", primary: true },
+  { key: "corporate", category: "corporate", primary: true },
   { key: "reporting", category: "reports" },
-  { key: "markets", category: "markets" },
   { key: "companies", category: "companies" },
   { key: "politics", category: "politics" },
   { key: "technology", category: "technology" },
   { key: "other", category: "other" },
-  { key: "calendar", category: null },
+  { key: "calendar", category: null, primary: true },
 ];
 // Links written before the tabs were renamed keep landing on the same stories.
 const LEGACY_TABS = { regulator: "politics" };
