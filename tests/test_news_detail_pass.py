@@ -243,11 +243,79 @@ class TestTheModelContract:
         assert sent["max_tokens"] == 2400
 
 
+class TestTheRightAlphabet:
+    """/news story "Саратовская область и Узбекистан…" (2026-10-10): the model returned the
+    Russian long read transliterated into Latin — "Saratovskaya oblast' Rossii…" — and the
+    story page printed it under a Cyrillic headline."""
+
+    _LATIN_RU = "Saratovskaya oblast' Rossii i Uzbekistan planiruют rasshiryat' sotrudnichestvo."
+    _RU = "Саратовская область России и Узбекистан планируют расширять сотрудничество."
+
+    def test_a_transliterated_russian_body_is_dropped(self):
+        class _Client:
+            def complete_json(self, *a, **k):
+                return {"detail_ru": TestTheRightAlphabet._LATIN_RU,
+                        "detail_en": "Saratov region and Uzbekistan plan closer ties.",
+                        "detail_uz": "Saratov viloyati va O'zbekiston hamkorlikni kengaytiradi."}
+
+        assert news_classifier.write_detail({"title": "x"}, "s" * 300, client=_Client()) == \
+            {"ru": "", "en": "", "uz": ""}
+
+    def test_cyrillic_uzbek_is_dropped_too(self):
+        class _Client:
+            def complete_json(self, *a, **k):
+                return {"detail_ru": TestTheRightAlphabet._RU, "detail_en": "Ties grow.",
+                        "detail_uz": "Саратов вилояти ва Ўзбекистон ҳамкорликни кенгайтиради."}
+
+        assert news_classifier.write_brief_detail(
+            {"title": "x", "summary_ru": "s" * 300}, client=_Client())["ru"] == ""
+
+    def test_russian_with_latin_names_is_fine(self):
+        class _Client:
+            def complete_json(self, *a, **k):
+                return {"detail_ru": "Uzbekistan Airways и China Southern запустили код-шеринг.",
+                        "detail_en": "Uzbekistan Airways and China Southern launched a codeshare.",
+                        "detail_uz": "Uzbekistan Airways va China Southern kodsheringni boshladi."}
+
+        assert news_classifier.write_detail({"title": "x"}, "s" * 300, client=_Client())["ru"]
+
+    def test_a_stored_wrong_script_body_reads_as_none_and_is_rewritten(self, tmp_path, monkeypatch):
+        row = {"id": 1, "url": "u", "source": "s", "source_id": "uza", "lang": "ru",
+               "title": "t", "snippet": "", "summary_ru": "s", "summary_en": "", "summary_uz": "",
+               "detail_ru": self._LATIN_RU, "detail_en": "", "detail_uz": "",
+               "image_url": None, "published_at": "2026-10-10", "type": "market",
+               "tone": "neutral", "tone_score": 0.0, "impact": "low", "direction": "unclear",
+               "sectors_json": None, "relevance_score": 0.6, "coverage_weight": 0.7,
+               "tickers_csv": ""}
+        assert news_store._row_to_item(_Row(row))["has_detail"] is False
+        assert news_store.detail_for(row, "en") == ""
+
+        import sqlite3
+        db = tmp_path / "n.db"
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE news (url TEXT, detail_ru TEXT, detail_en TEXT, detail_uz TEXT)")
+        conn.execute("INSERT INTO news VALUES ('u', ?, 'old en', 'old uz')", (self._LATIN_RU,))
+        conn.execute("INSERT INTO news VALUES ('ok', 'Старый текст.', 'old en', 'old uz')")
+        conn.commit()
+        conn.close()
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", lambda: sqlite3.connect(db))
+
+        fresh = {"ru": self._RU, "en": "new en", "uz": "new uz"}
+        news_store.set_details({"u": fresh, "ok": fresh})
+
+        conn = sqlite3.connect(db)
+        got = dict((r[0], r[1:]) for r in conn.execute("SELECT * FROM news"))
+        conn.close()
+        assert got["u"] == (self._RU, "new en", "new uz")
+        # A correct stored body is still never overwritten by a normal run.
+        assert got["ok"] == ("Старый текст.", "old en", "old uz")
+
+
 class TestTheFeedDoesNotCarryIt:
     def test_the_list_reports_only_whether_a_long_read_exists(self):
         row = {"id": 1, "url": "u", "source": "s", "source_id": "uza", "lang": "en",
                "title": "t", "snippet": "", "summary_ru": "s", "summary_en": "", "summary_uz": "",
-               "detail_ru": "para one\n\npara two", "detail_en": "", "detail_uz": "",
+               "detail_ru": "абзац один\n\nабзац два", "detail_en": "", "detail_uz": "",
                "image_url": None, "published_at": "2026-08-07", "type": "market",
                "tone": "neutral", "tone_score": 0.0, "impact": "low", "direction": "unclear",
                "sectors_json": None, "relevance_score": 0.6, "coverage_weight": 0.7,
@@ -314,7 +382,7 @@ class TestEveryItemCanHaveABody:
         class _Client:
             def complete_json(self, system, user, **kw):
                 sent["system"], sent["user"] = system, user
-                return {"detail_ru": "p", "detail_en": "p", "detail_uz": "p"}
+                return {"detail_ru": "п", "detail_en": "p", "detail_uz": "p"}
 
         out = news_classifier.write_brief_detail(
             {"title": "Uzbek Insurers Benefit From Stronger Operating Environment",
@@ -322,7 +390,7 @@ class TestEveryItemCanHaveABody:
              "tickers": ["ALSM", "KASU", "UZINP"]},
             client=_Client())
 
-        assert out["ru"] == "p"
+        assert out["ru"] == "п"
         assert "ALSM" in sent["user"]
 
     def test_the_prompt_forbids_summarising_research_it_was_not_given(self):

@@ -479,16 +479,28 @@ def set_details(details: dict[str, dict[str, str]], *, replace: bool = False) ->
         for url, langs in details.items():
             if not url or not isinstance(langs, dict):
                 continue
+            # A stored long read in the wrong alphabet is replaced as a whole, all three
+            # languages together, like an empty one would be filled.
+            replace_url = replace or _has_wrong_script_detail(conn, url)
             for code in SUMMARY_LANGS:
                 text = (langs.get(code) or "").strip()
                 if not text:
                     continue
-                where = "WHERE url = ?" if replace else \
+                where = "WHERE url = ?" if replace_url else \
                     f"WHERE url = ? AND COALESCE(detail_{code}, '') = ''"
                 cur = conn.execute(f"UPDATE news SET detail_{code} = ? {where}", (text, url))
                 changed += cur.rowcount
     conn.close()
     return changed
+
+
+def _has_wrong_script_detail(conn: Any, url: str) -> bool:
+    row = conn.execute("SELECT detail_ru, detail_en, detail_uz FROM news WHERE url = ?",
+                       (url,)).fetchone()
+    if row is None:
+        return False
+    return any((row[i] or "").strip() and not _stored_detail(row[i], code)
+               for i, code in enumerate(SUMMARY_LANGS))
 
 
 def detail_for(item: dict[str, Any], lang: str) -> str:
@@ -498,10 +510,22 @@ def detail_for(item: dict[str, Any], lang: str) -> str:
     another language gets the wrong language rather than an empty page.
     """
     if lang in SUMMARY_LANGS:
-        text = (item.get(f"detail_{lang}") or "").strip()
+        text = _stored_detail(item.get(f"detail_{lang}"), lang)
         if text:
             return text
-    return (item.get("detail_ru") or "").strip()
+    return _stored_detail(item.get("detail_ru"), "ru")
+
+
+def _stored_detail(text: Any, lang: str) -> str:
+    """A stored long read, or "" when it is in the wrong alphabet.
+
+    Rows written before news_classifier checked the script can hold Russian transliterated
+    into Latin (/news story "Саратовская область и Узбекистан…", 2026-10-10). Treated as
+    absent, they drop out of ``has_detail``, the next detail pass writes them again, and
+    :func:`set_details` lets that write replace them.
+    """
+    text = str(text or "").strip()
+    return text if news_lang.in_own_script(text, lang) else ""
 
 
 def set_snippets(snippets: dict[str, str]) -> int:
@@ -662,7 +686,7 @@ def _row_to_item(r: Any) -> dict[str, Any]:
         # Whether this item HAS a long read, not the text of it: three languages of
         # multi-paragraph prose is ~5KB per item, and the feed returns up to 200. The text
         # itself is added by get_news_item, which serves exactly one story.
-        "has_detail": bool("detail_ru" in keys and (r["detail_ru"] or "").strip()),
+        "has_detail": bool("detail_ru" in keys and _stored_detail(r["detail_ru"], "ru")),
         "image_url": r["image_url"], "published_at": r["published_at"],
         "type": r["type"], "tone": r["tone"], "tone_score": r["tone_score"],
         "impact": r["impact"], "direction": r["direction"],
@@ -1302,9 +1326,9 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
         "classified_at": row["classified_at"],
         "collected_at": row["collected_at"],
         # The long read, only on the page that shows it (see _row_to_item).
-        "detail_ru": row["detail_ru"] if "detail_ru" in keys else None,
-        "detail_en": row["detail_en"] if "detail_en" in keys else None,
-        "detail_uz": row["detail_uz"] if "detail_uz" in keys else None,
+        "detail_ru": _stored_detail(row["detail_ru"], "ru") if "detail_ru" in keys else None,
+        "detail_en": _stored_detail(row["detail_en"], "en") if "detail_en" in keys else None,
+        "detail_uz": _stored_detail(row["detail_uz"], "uz") if "detail_uz" in keys else None,
     })
     item["rank"] = rank_score(item)
     return item

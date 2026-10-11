@@ -36,6 +36,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+import news_lang
 from claude_client import ClaudeCodeClient, ClaudeGatewayClient
 from llm_client import Usage
 
@@ -666,8 +667,9 @@ mention.
 Do NOT translate the article and do NOT copy its sentences. Rewrite. If a phrase must be
 quoted because it is an official formulation, keep it under ten words.
 
-Write the SAME text in three languages: Russian, English, and Uzbek in Latin script (never
-Cyrillic). Same facts, same figures, same length in each.
+Write the SAME text in three languages: Russian in Cyrillic script, English, and Uzbek in
+Latin script (never Cyrillic). Never transliterate the Russian text into Latin letters. Same
+facts, same figures, same length in each.
 
 If the text you are given is not an article — a paywall notice, a cookie banner, a navigation
 menu, an error page, or fewer than three sentences of substance — return empty strings rather
@@ -726,8 +728,9 @@ expect" is a sentence you are inventing.
 
 If there is neither material nor a security this concerns, return empty strings.
 
-Write the SAME text in three languages: Russian, English, and Uzbek in Latin script (never
-Cyrillic). Same facts, same figures, same length in each.
+Write the SAME text in three languages: Russian in Cyrillic script, English, and Uzbek in
+Latin script (never Cyrillic). Never transliterate the Russian text into Latin letters. Same
+facts, same figures, same length in each.
 
 Reply with ONLY a JSON object: {"detail_ru": "...", "detail_en": "...", "detail_uz": "..."}"""
 
@@ -752,6 +755,24 @@ def brief_material(item: dict[str, Any]) -> str:
             continue
         seen.append(text)
     return "\n\n".join(seen)
+
+
+def _detail_out(raw: dict[str, Any], item: dict[str, Any]) -> dict[str, str]:
+    """The model's three long reads, or three empty strings.
+
+    Empty when Russian is missing, and empty when any language came back in the wrong
+    alphabet — the Russian text once arrived transliterated into Latin and went onto the story
+    page as is. An empty result leaves the item without a long read, so the next pass retries.
+    """
+    out = {code: str(raw.get(f"detail_{code}") or "").strip() for code in ("ru", "en", "uz")}
+    if not out["ru"]:
+        return {"ru": "", "en": "", "uz": ""}
+    wrong = [code for code, text in out.items() if not news_lang.in_own_script(text, code)]
+    if wrong:
+        logger.warning("detail for %s came back in the wrong script (%s); dropped",
+                       item.get("url"), ", ".join(wrong))
+        return {"ru": "", "en": "", "uz": ""}
+    return out
 
 
 def write_brief_detail(item: dict[str, Any], *, client: ClassifierClient | None = None,
@@ -783,11 +804,8 @@ def write_brief_detail(item: dict[str, Any], *, client: ClassifierClient | None 
     except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
         logger.warning("brief detail failed for %s: %s", item.get("url"), exc)
         return {"ru": "", "en": "", "uz": ""}
-    out = {code: str(raw.get(f"detail_{code}") or "").strip() for code in ("ru", "en", "uz")}
     # All three or none, for the same reason as write_detail.
-    if not out["ru"]:
-        return {"ru": "", "en": "", "uz": ""}
-    return out
+    return _detail_out(raw, item)
 
 
 def write_detail(item: dict[str, Any], article_text: str, *,
@@ -815,12 +833,9 @@ def write_detail(item: dict[str, Any], article_text: str, *,
     except Exception as exc:  # noqa: BLE001 — a story page without a long read is the old page
         logger.warning("detail write failed for %s: %s", item.get("url"), exc)
         return {"ru": "", "en": "", "uz": ""}
-    out = {code: str(raw.get(f"detail_{code}") or "").strip() for code in ("ru", "en", "uz")}
     # All three or none: a page that shows Russian paragraphs to an English reader because the
     # other two came back empty is worse than the summary-only page it replaces.
-    if not out["ru"]:
-        return {"ru": "", "en": "", "uz": ""}
-    return out
+    return _detail_out(raw, item)
 
 
 def _format_universe(universe: dict[str, str] | None, limit: int = 120) -> str:

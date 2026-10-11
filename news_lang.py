@@ -115,6 +115,24 @@ def detect_lang(*texts: str | None) -> str | None:
     return None
 
 
+def in_own_script(text: str | None, lang: str) -> bool:
+    """False when model prose for ``lang`` came back in the wrong alphabet.
+
+    The model that writes the story-page long read was asked for "Russian, English, and
+    Uzbek in Latin script" and once returned the RUSSIAN text transliterated into Latin
+    ("Saratovskaya oblast' Rossii i Uzbekistan planiruют…") — the "Latin" leaked onto the
+    wrong language. Russian must read as Cyrillic, English and Uzbek as Latin, by the same
+    lopsided share :func:`detect_lang` uses. Text without letters is not wrong.
+    """
+    text = text or ""
+    cyrillic = len(_CYRILLIC_RE.findall(text))
+    latin = len(_LATIN_RE.findall(text))
+    if not cyrillic and not latin:
+        return True
+    is_cyrillic = cyrillic >= _CYRILLIC_SHARE * (cyrillic + latin)
+    return is_cyrillic if lang == RU else not is_cyrillic
+
+
 def is_foreign(lang: str | None) -> bool:
     """True when an item would show a non-Russian headline on our Russian-first feed."""
     return bool(lang) and lang != RU
