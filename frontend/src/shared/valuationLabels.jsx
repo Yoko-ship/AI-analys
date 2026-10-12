@@ -58,8 +58,18 @@ function multipleStatusText(status, lang) {
 // (no usable price for that class — NOT «нет торгов»: openinfo's archive holds
 // one negotiated AGMK block, 19.11.2024, that our quote feed never carried) or
 // «цена от 31.10.2019» (DRBK's last trade is too old for a multiple) rather
-// than a bare «нет капитализации».
-function missingCapReason(unavailable, lang) {
+// than a bare «нет капитализации». A missing share count is said ONCE: every
+// bank whose count the charter check refused printed «нет числа акций HMKB;
+// нет числа акций HMKBP» in a P/E cell four lines tall on a phone. When no
+// class of the issuer has a count the tickers add nothing, so none are named.
+function capGap(item) {
+  const reason = String(item?.limitation_reason || "");
+  if (!item?.price_as_of && reason.includes("price")) return "never";
+  if (item?.price_as_of && Number(item?.price_age_days) > Number(item?.max_price_age_days)) return "stale";
+  return reason.includes("share count") ? "shares" : null;
+}
+
+function missingCapReason(unavailable, lang, classCount) {
   const words = {
     never: ["нет цены", "narx yo'q", "no price"],
     stale: ["цена от", "narx", "price of"],
@@ -72,15 +82,19 @@ function missingCapReason(unavailable, lang) {
   };
   const parts = [];
   const never = [];
+  const noShares = [];
   for (const item of unavailable) {
     const name = String(item?.ticker || "").toUpperCase();
-    const reason = String(item?.limitation_reason || "");
-    if (!item?.price_as_of && reason.includes("price")) never.push(name);
-    else if (item?.price_as_of && Number(item?.price_age_days) > Number(item?.max_price_age_days)) {
+    const gap = capGap(item);
+    if (gap === "never") never.push(name);
+    else if (gap === "stale") {
       parts.push(`${pick("stale")} ${ruDate(item.price_as_of)}${unavailable.length > 1 ? ` (${name})` : ""}`);
-    } else if (reason.includes("share count")) parts.push(`${pick("shares")} ${name}`);
+    } else if (gap === "shares") noShares.push(name);
   }
   if (never.length) parts.unshift(`${pick("never")} ${never.join(", ")}`);
+  if (noShares.length) {
+    parts.push(noShares.length >= classCount ? pick("shares") : `${pick("shares")} ${noShares.join(", ")}`);
+  }
   return parts.length ? parts.join("; ") : null;
 }
 
@@ -98,7 +112,10 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
   const ownInput = inputs.find((item) => String(item?.ticker || "").toUpperCase() === currentTicker);
   const ownCapAvailable = ownInput?.usable_for_issuer_cap === true
     && Number.isFinite(Number(ownInput?.market_cap));
-  const details = unavailable.map((item) => {
+  const priceGaps = unavailable.filter((item) => capGap(item) !== "shares");
+  const shareGaps = unavailable.filter((item) => capGap(item) === "shares")
+    .map((item) => String(item?.ticker || "").toUpperCase()).filter(Boolean);
+  const details = priceGaps.map((item) => {
     const name = String(item?.ticker || "").toUpperCase() || "—";
     const date = item?.price_as_of ? String(item.price_as_of) : null;
     // Number(null) is 0: a class that never traded must not read «0 дн.».
@@ -113,24 +130,30 @@ function incompleteIssuerCapAvailability(metric, issuerCap, ticker, lang) {
       : null;
     return [name, date, [ageText, limitText].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   });
-  const classes = (details.length ? details.join("; ") : classNames.join(", ")).replace(/\.$/, "");
-  const label = missingCapReason(unavailable, lang);
+  // A class short of its share count needs a count, not a price: HMKB traded
+  // three days earlier and the tooltip still asked for «свежая цена HMKB».
+  const priced = (details.length ? details.join("; ") : shareGaps.length ? "" : classNames.join(", ")).replace(/\.$/, "");
+  const counted = shareGaps.join(", ");
+  const label = missingCapReason(unavailable, lang, inputs.length || classNames.length);
 
   if (lang === "uz") {
+    const needs = [priced && `${priced} bo'yicha yangiroq narx`, counted && `${counted} aksiyalari soni`].filter(Boolean);
     return {
       label: label || "emitent kapitalizatsiyasi to'liq emas",
-      title: `${ownCapAvailable ? `${currentTicker} kapitalizatsiyasi mavjud. ` : ""}Emitentning P/E, P/B va P/S ko'rsatkichlari uchun ${classes} bo'yicha yangiroq narx kerak.`,
+      title: `${ownCapAvailable ? `${currentTicker} kapitalizatsiyasi mavjud. ` : ""}Emitentning P/E, P/B va P/S ko'rsatkichlari uchun kerak: ${needs.join("; ")}.`,
     };
   }
   if (lang === "en") {
+    const needs = [priced && `a current price for ${priced}`, counted && `the share count of ${counted}`].filter(Boolean);
     return {
       label: label || "issuer market cap incomplete",
-      title: `${ownCapAvailable ? `${currentTicker} market cap is available. ` : ""}A current price for ${classes} is required to calculate issuer P/E, P/B and P/S.`,
+      title: `${ownCapAvailable ? `${currentTicker} market cap is available. ` : ""}Issuer P/E, P/B and P/S need ${needs.join(" and ")}.`,
     };
   }
+  const needs = [priced && `свежая цена ${priced}`, counted && `число акций ${counted}`].filter(Boolean);
   return {
     label: label || "неполная капитализация эмитента",
-    title: `${ownCapAvailable ? `Капитализация ${currentTicker} доступна. ` : ""}Для расчёта P/E, P/B и P/S эмитента нужна свежая цена ${classes}.`,
+    title: `${ownCapAvailable ? `Капитализация ${currentTicker} доступна. ` : ""}Для расчёта P/E, P/B и P/S эмитента нужны: ${needs.join("; ")}.`,
   };
 }
 

@@ -450,6 +450,44 @@ def _org_detail(session: Any, org_id: str) -> dict:
     return first
 
 
+_CHARTER_LINE = re.compile(r"^(?:\d+\.\s*)?устав(?:ный|ной) капитал")
+
+
+def _filed_charters(session: Any, org_id: str) -> list[float]:
+    """«Уставный капитал» from the issuer's last three quarterly balances, in soum.
+
+    The card's ``ustav_capitalization`` is not kept current: on 2026-10-12 it
+    gave Hamkorbank 107,8 млрд (its count before profit was capitalised into
+    shares) while the bank's own Q2 2026 balance — and the exchange's register —
+    stood at 646,6 млрд. The upsert holds the share counts to these figures as
+    well as to the card's. Three quarters, both columns, because a filing can
+    carry a typo (GRBK's Q2 2026 dropped a zero: 50 млрд for 500 млрд); an
+    exact fit to any of them is still a fit to a charter the issuer filed.
+    Lines are in thousands of soum; «Задолженность учредителей по вкладам в
+    уставный капитал» is a receivable, not the charter, and does not match.
+    """
+    try:
+        reports = _json_get(session, f"/reports/accounting-report/{org_id}/",
+                            {"accounting_type": "form1", "report_type": "quarter"})
+    except Exception:  # noqa: BLE001 — the card's charter still judges alone
+        log.warning("org %s: balance sheets unreadable — charter from the card only", org_id)
+        return []
+    if isinstance(reports, dict):
+        reports = reports.get("results") or []
+
+    def when(report: dict) -> tuple[int, int]:
+        quarter = re.search(r"Q(\d)", str(report.get("period") or ""))
+        return int(report.get("reporting_year") or 0), int(quarter.group(1)) if quarter else 0
+
+    charters: set[float] = set()
+    for report in sorted((r for r in reports or [] if isinstance(r, dict)), key=when)[-3:]:
+        for line in report.get("accounting_report") or []:
+            if _CHARTER_LINE.match(str(line.get("title") or "").strip().lower()):
+                charters.update(v * 1000 for v in (_num(line.get("value1")), _num(line.get("value2")))
+                                if v and v > 0)
+    return sorted(charters)
+
+
 def _discover_org(session: Any, ticker: str, isin: str,
                   cache: dict[str, dict]) -> str | None:
     """The openinfo org whose card lists ``isin``, searched for by ticker.
@@ -495,6 +533,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
     org_ids = _org_ids()
     known_equities = _known_equities()
     org_detail_cache: dict[str, dict] = {}
+    filed_charter_cache: dict[str, list[float]] = {}
     seen_tickers: set[str] = set()
     rows: list[dict[str, Any]] = []
 
@@ -529,6 +568,8 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # make up the charter capital the upsert holds the counts to.
             equity_classes = len({str(ic.get("isu_cd") or "").strip().upper() for ic in isin_codes
                                   if str(ic.get("isu_cd") or "").strip().upper().startswith("UZ7")})
+            if equity_classes and not pinned_isin and org_id not in filed_charter_cache:
+                filed_charter_cache[org_id] = _filed_charters(session, org_id)
             for ic in isin_codes:
                 tk = str(ic.get("ticker") or "").strip().upper()
                 isin = str(ic.get("isu_cd") or "").strip().upper()
@@ -616,6 +657,7 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                     # charter capital is another issuer's (DRBK's org carries AISK).
                     "shares_source": shares_source,
                     "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
+                    "filed_charter_capital": None if pinned_isin else filed_charter_cache.get(org_id),
                     # Not stored either: which classes are one issuer, for that check.
                     "org_id": None if pinned_isin else org_id,
                     "org_equity_classes": equity_classes,

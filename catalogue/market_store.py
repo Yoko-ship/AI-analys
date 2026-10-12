@@ -478,7 +478,10 @@ def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
       * openinfo's count only fills a gap — nothing stored, or nothing plausible.
 
     Plausible: shares × par within the charter capital, since a class's shares
-    at par are part of it and never more (UZMT: 5 000× over). Without a charter
+    at par are part of it and never more (UZMT: 5 000× over). The ceiling is the
+    larger of the card's charter and the ones the issuer filed on its balance
+    sheet (``filed_charter_capital``): the card lags a capitalisation of profit
+    into shares, so it would hold every bank's current count above it. Without a charter
     to judge by, any positive count is taken as plausible. The last resort is
     no count at all — an empty cap is honest, an absurd one is not.
     ``stored`` is the row's (shares_outstanding, nominal) before this upsert.
@@ -491,7 +494,9 @@ def _plausible_shares(ticker: str, row: dict, stored: tuple | None) -> dict:
         return v if v > 0 else None
 
     old_shares, old_nominal = stored if stored else (None, None)
-    charter = num(row.get("charter_capital"))
+    charter = max([c for c in [num(row.get("charter_capital")),
+                               *(num(v) for v in row.get("filed_charter_capital") or [])] if c],
+                  default=None)
     nominal = num(row.get("nominal")) or num(old_nominal)
 
     def fits(shares: float | None) -> bool:
@@ -605,13 +610,31 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     ``_plausible_shares`` judges a class alone and only from above, so a count
     from before the issuer's last share issue passes it for ever: openinfo still
     lists UZMK at 43 322 393 shares against a charter of 3,73 трлн at a 5 000 par
-    (745 192 635 shares), and the board priced the company 15x too cheap. The
-    charter openinfo publishes on the same card IS current, so:
+    (745 192 635 shares), and the board priced the company 15x too cheap. An
+    issuer's classes at par add up to its charter, so:
 
-      * the classes at par already add up to the charter — keep them;
-      * else the share registry, if its counts still add up to this charter;
-      * else a single class of share is charter / par, exactly;
+      * the share registry, if its counts add up to a charter, or if no charter
+        shows more capital than they account for (an issue the exchange has
+        registered and the next balance has not reached yet);
+      * else the classes at par already add up to the charter — keep them;
+      * else a single class of share is the card's charter / par, exactly;
       * else (two classes, split unknown) no count — an empty cap, not a stale one.
+
+    The charter is the card's ``ustav_capitalization`` or any the issuer filed
+    on its recent balance sheets (``filed_charter_capital``). The card is not
+    kept current: on 2026-10-12 it held HMKB, ALKB, MCBA and GRBK at charters
+    from before their last capitalisation of profit — Hamkorbank at 107,8 млрд
+    against the 646,6 млрд on its own Q2 2026 balance and in the exchange's
+    register — so the exchange's counts were refused and the banks lost their
+    capitalisation, P/E and P/B. The registry
+    goes first for the same reason: openinfo's counts fit the stale card (GRBK
+    1 297 млн shares against a 130 млрд card; 4 997 млн on the exchange and a
+    500 млрд charter on its balance), and a fit to a stale charter is no proof.
+    The register is also ahead of the balances: TRSB's 2 000 млн shares on
+    10-07 against 1 000 млн on its Q2 2026 balance. A charter ABOVE the register
+    is the one sign it went stale, so that alone sets it aside — and an issuer
+    the register holds takes openinfo's counts only against the card, never
+    against a balance older than the register.
 
     ``group`` is the issuer's equity rows (UZ7… ISINs) from one collector pass.
     """
@@ -624,13 +647,15 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
             return None
         return v if v > 0 else None
 
-    charters = {num(r.get("charter_capital")) for r in group} - {None}
-    if len(charters) != 1:
+    cards = {num(r.get("charter_capital")) for r in group} - {None}
+    filed = {num(v) for r in group for v in r.get("filed_charter_capital") or []} - {None}
+    if len(cards) > 1 or not (cards or filed):
         return group
-    charter = charters.pop()
+    card = next(iter(cards), None)
+    charters = sorted(({card} if card else set()) | filed)
 
     def fits(total: float) -> bool:
-        return abs(total - charter) <= _CHARTER_TOLERANCE * charter
+        return any(abs(total - c) <= _CHARTER_TOLERANCE * c for c in charters)
 
     pars = [num(r.get("nominal")) or num((stored.get(r["ticker"]) or (None, None))[1])
             for r in group]
@@ -639,11 +664,6 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     def with_count(row: dict, shares: float | None, source: str | None) -> dict:
         return {**row, "shares_outstanding": shares, "shares_source": source,
                 "market_cap": _traded_cap(row, shares)}
-
-    if complete and fits(sum(c * p for c, p in zip(counts, pars))):
-        # The counts stand; the cap is rebuilt from a traded price all the same
-        # (UZIN's ordinary line fits its charter but has only ever had its par).
-        return [with_count(r, c, r.get("shares_source")) for r, c in zip(group, counts)]
 
     tickers = [r["ticker"] for r in group]
     registry = _share_registry()
@@ -659,14 +679,21 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     # The card's own equity list, not just the rows that reached this batch: a
     # delisted preferred class still holds its share of the charter.
     classes_on_card = max(int(r.get("org_equity_classes") or 0) for r in group)
-    if None not in entries and len(issuer_entries) >= classes_on_card and fits(
-            sum(float(e["shares"]) * float(e["par"]) for e in issuer_entries.values())):
-        log.info("listings: %s share counts from the registry (charter %s)", tickers, charter)
+    registered = sum(float(e["shares"]) * float(e["par"]) for e in issuer_entries.values())
+    if None not in entries and len(issuer_entries) >= classes_on_card and (
+            fits(registered) or registered >= max(charters) * (1 - _CHARTER_TOLERANCE)):
+        log.info("listings: %s share counts from the registry (charter %s)", tickers, charters)
         return [with_count(r, float(e["shares"]), "registry") for r, e in zip(group, entries)]
-    if len(group) == 1 and classes_on_card == 1 and pars[0]:
-        shares = round(charter / pars[0])
+    if issuer_entries:
+        charters = [card] if card else []
+    if complete and fits(sum(c * p for c, p in zip(counts, pars))):
+        # The counts stand; the cap is rebuilt from a traded price all the same
+        # (UZIN's ordinary line fits its charter but has only ever had its par).
+        return [with_count(r, c, r.get("shares_source")) for r, c in zip(group, counts)]
+    if len(group) == 1 and classes_on_card == 1 and pars[0] and card:
+        shares = round(card / pars[0])
         log.info("listings: %s share count %s = charter %s / par %s (was %s)",
-                 tickers[0], shares, charter, pars[0], counts[0])
+                 tickers[0], shares, card, pars[0], counts[0])
         return [with_count(group[0], float(shares), "charter")]
     if not complete:
         # A class with no count or no par gives the charter nothing to be
@@ -674,7 +701,7 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
         return group
     log.warning("listings: %s share counts %s at par %s do not add up to charter %s "
                 "and no registry entry fits — capitalisation withheld",
-                tickers, counts, pars, charter)
+                tickers, counts, pars, charters)
     return [with_count(r, None, None) for r in group]
 
 

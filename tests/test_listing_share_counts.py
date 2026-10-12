@@ -394,3 +394,91 @@ def test_the_walk_reads_the_found_card(monkeypatch) -> None:
     (row,) = lc.collect_listing_rows()
     assert row["ticker"] == "EQQU" and row["shares_outstanding"] == 162897.0
     assert row["org_id"] == "553" and row["charter_capital"] == 814_485_000.0
+
+
+# --- The card's charter lags; the issuer's own balance does not ----------------
+# openinfo's card, 2026-10-12: Hamkorbank's charter 107,8 млрд and openinfo's
+# counts that fit it; the bank's Q2 2026 balance and the exchange: 646,6 млрд.
+
+HMKB_CARD, HMKB_FILED = 107_774_830_000.0, 646_648_980_000.0
+
+
+def _bank(ticker, isin, shares, par, card, filed, price=None):
+    return {**_cls(ticker, isin, shares, par, card, price=price), "filed_charter_capital": filed}
+
+
+def test_a_registry_that_fits_the_filed_charter_beats_counts_that_fit_a_stale_card(monkeypatch) -> None:
+    _registry(monkeypatch, {"HMKB": (125_289_246_000, 5, "UZ7011340005"),
+                            "HMKBP": (4_040_550_000, 5, "UZ701134K017")})
+    group = [_bank("HMKB", "UZ7011340005", 20_881_541_000.0, 5.0, HMKB_CARD, [HMKB_FILED], price=98.0),
+             _bank("HMKBP", "UZ701134K017", 673_425_000.0, 5.0, HMKB_CARD, [HMKB_FILED], price=108.1)]
+    ordinary, preferred = store._charter_counts(group, {})
+    assert ordinary["shares_outstanding"] == 125_289_246_000.0 and ordinary["shares_source"] == "registry"
+    assert ordinary["market_cap"] == 125_289_246_000.0 * 98.0
+    assert preferred["shares_outstanding"] == 4_040_550_000.0
+
+
+def test_counts_that_fit_the_filed_charter_stand_when_the_card_disagrees(monkeypatch) -> None:
+    """SQBN: no registry entry; openinfo's counts at par 19 are the filed 4,63 трлн."""
+    _registry(monkeypatch, {})
+    card, filed = 9_316_609_924_345.0, [4_628_941_928_000.0]
+    group = [_bank("SQBN", "UZ7037560008", 243_258_522_516.0, 19.0, card, filed, price=41.75),
+             _bank("SQBNP", "UZ703756K015", 370_000_000.0, 19.0, card, filed, price=89.9)]
+    out = store._charter_counts(group, {})
+    assert [r["shares_outstanding"] for r in out] == [243_258_522_516.0, 370_000_000.0]
+
+
+def test_a_filed_charter_alone_still_judges(monkeypatch) -> None:
+    _registry(monkeypatch, {})
+    group = [_bank("A", "UZ7000000001", 1_000.0, 10.0, None, [20_000.0]),
+             _bank("AP", "UZ700000K001", 1_000.0, 10.0, None, [20_000.0])]
+    assert [r["shares_outstanding"] for r in store._charter_counts(group, {})] == [1_000.0, 1_000.0]
+
+
+def test_an_exchange_count_above_a_stale_card_is_kept_inside_the_filed_charter() -> None:
+    row = {"ticker": "HMKB", "nominal": 5.0, "charter_capital": HMKB_CARD,
+           "filed_charter_capital": [HMKB_FILED], "shares_outstanding": 125_289_246_000.0,
+           "shares_source": "registry", "last_price": 98.0}
+    assert store._plausible_shares("HMKB", row, (20_881_541_000.0, 5.0)) is row
+
+
+def test_the_filed_charter_is_read_off_the_last_three_balances(monkeypatch) -> None:
+    def report(year, quarter, value1, value2):
+        return {"reporting_year": year, "period": f"Q{quarter} {year}", "accounting_report": [
+            {"title": "Задолженность учредителей по вкладам в уставный капитал (4600)",
+             "value1": 9.0, "value2": 9.0},
+            {"title": "26. Уставный капитал" if year < 2026 else "Уставной капитал (8300)",
+             "value1": value1, "value2": value2}]}
+
+    reports = [report(2026, 2, 50_000_000.0, 50_000_000.0), report(2024, 4, 1.0, 1.0),
+               report(2025, 3, 500_000_000.0, 500_000_000.0),
+               report(2026, 1, 500_000_000.0, 50_000_000.0)]
+    monkeypatch.setattr(lc, "_json_get", lambda s, path, params=None: reports)
+    assert lc._filed_charters(None, "11") == [50_000_000_000.0, 500_000_000_000.0]
+
+
+def test_an_unreadable_balance_leaves_the_card_to_judge(monkeypatch) -> None:
+    def fail(*a, **k):
+        raise RuntimeError("openinfo down")
+    monkeypatch.setattr(lc, "_json_get", fail)
+    assert lc._filed_charters(None, "11") == []
+
+
+def test_a_register_ahead_of_the_last_balance_stands(monkeypatch) -> None:
+    """TRSB: 2 000 млн shares on the exchange 10-07, 1 000 млн on the Q2 2026 balance."""
+    _registry(monkeypatch, {"TRSB": (2_000_454_000, 1000, "UZ7033480003"),
+                            "TRSBP": (46_000, 1000, "UZ703348K011")})
+    card, filed = 225_250_000_000.0, [1_000_250_000_000.0]
+    group = [_bank("TRSB", "UZ7033480003", 1_000_227_000.0, 1000.0, card, filed, price=9200.0),
+             _bank("TRSBP", "UZ703348K011", 23_000.0, 1000.0, card, filed)]
+    out = store._charter_counts(group, {})
+    assert [r["shares_outstanding"] for r in out] == [2_000_454_000.0, 46_000.0]
+
+
+def test_counts_older_than_the_register_do_not_stand_on_an_old_balance(monkeypatch) -> None:
+    """A balance above the register sets it aside; openinfo's counts may then
+    fit only the card — a balance older than the register proves nothing."""
+    _registry(monkeypatch, {"X": (1_000, 10, "UZ7000000001"), "XP": (100, 10, "UZ700000K001")})
+    group = [_bank("X", "UZ7000000001", 1_500.0, 10.0, 1_000.0, [20_000.0, 25_000.0]),
+             _bank("XP", "UZ700000K001", 500.0, 10.0, 1_000.0, [20_000.0, 25_000.0])]
+    assert [r["shares_outstanding"] for r in store._charter_counts(group, {})] == [None, None]

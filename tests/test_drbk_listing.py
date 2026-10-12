@@ -91,6 +91,7 @@ def test_pinned_drbk_listing_replaces_openinfo_foreign_security(monkeypatch) -> 
         "market_cap": 500_000_000_000,
         "shares_source": "uzse",
         "charter_capital": None,
+        "filed_charter_capital": None,
         "org_id": None,
         "org_equity_classes": 1,
     }
