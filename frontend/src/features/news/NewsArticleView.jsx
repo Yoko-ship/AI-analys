@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import { useNewsArticle } from "./useNewsArticle.js";
 import { EDNEWS_TX, edHeadline, interceptNav, newsRelTime } from "./editorial.jsx";
@@ -309,7 +310,7 @@ export function NewsArticleView({
               <p className="led-art-note">
                 {isDisclosure ? tx.disclosureNote : detail.length > 0 ? tx.detailNote : tx.summaryNote}
               </p>
-              {item.url && <a className="led-art-cta" href={item.url} target="_blank" rel="noopener noreferrer nofollow">
+              {item.url && <a className="led-art-cta" href={safeHref(item.url)} target="_blank" rel="noopener noreferrer nofollow">
                   {isDisclosure ? tx.openDisclosure : tx.readSource}
                   {host && <span className="led-art-host">{host}</span>}
                 </a>}

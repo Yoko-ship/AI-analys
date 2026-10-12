@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import React, { useEffect, useState } from "react";
 import { formatCatalogDate } from "../../shared/format.jsx";
@@ -1009,8 +1010,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                       <small>{formatCatalogDate(currentReport.published_at, lang)} · openinfo.uz</small>
                     </div>
                     <div className="catalog-selected-files">
-                      {currentReport.excel_url && <a className="ghost-btn" href={currentReport.excel_url} target="_blank" rel="noreferrer">{clg(lang, "excelReport")}</a>}
-                      {currentReport.pdf_url && !currentReport.pdf_url.includes("/reports/to_pdf") && <a className="ghost-btn" href={currentReport.pdf_url} target="_blank" rel="noreferrer">{clg(lang, "pdfReport")}</a>}
+                      {currentReport.excel_url && <a className="ghost-btn" href={safeHref(currentReport.excel_url)} target="_blank" rel="noreferrer">{clg(lang, "excelReport")}</a>}
+                      {currentReport.pdf_url && !currentReport.pdf_url.includes("/reports/to_pdf") && <a className="ghost-btn" href={safeHref(currentReport.pdf_url)} target="_blank" rel="noreferrer">{clg(lang, "pdfReport")}</a>}
                     </div>
                   </div>
 
@@ -1136,8 +1137,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                               <td><a className="catalog-source-link" href="https://openinfo.uz" target="_blank" rel="noreferrer">openinfo.uz</a></td>
                               <td>
                                 <div className="catalog-file-actions">
-                                  {report.excel_url && <a href={report.excel_url} target="_blank" rel="noreferrer">XLSX</a>}
-                                  {safePdf && <a href={report.pdf_url} target="_blank" rel="noreferrer">PDF</a>}
+                                  {report.excel_url && <a href={safeHref(report.excel_url)} target="_blank" rel="noreferrer">XLSX</a>}
+                                  {safePdf && <a href={safeHref(report.pdf_url)} target="_blank" rel="noreferrer">PDF</a>}
                                   {!report.excel_url && !safePdf && <span>—</span>}
                                 </div>
                               </td>

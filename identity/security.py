@@ -37,15 +37,26 @@ class Security:
 
 
     def begin_two_factor(self, user_id: int) -> dict[str, str]:
+        """Issue a pending secret, only while two-factor is off.
+
+        Setup must never replace an active secret: a stolen session could
+        otherwise swap in its own authenticator without knowing the current
+        code, and so pass the admin step-up. Re-enrolling goes through
+        ``disable_two_factor``, which demands the current code.
+        """
         secret = base64.b32encode(secrets.token_bytes(20)).decode("ascii").rstrip("=")
         with self.database.connect() as conn:
-            row = conn.execute("SELECT email FROM web_users WHERE id = %s", (user_id,)).fetchone()
+            row = conn.execute("SELECT email, two_factor_enabled FROM web_users WHERE id = %s", (user_id,)).fetchone()
             if not row:
                 raise ValueError("User not found")
-            conn.execute(
-                "UPDATE web_users SET two_factor_secret = %s, two_factor_enabled = FALSE WHERE id = %s",
+            if row.get("two_factor_enabled"):
+                raise ValueError("Two-factor authentication is already enabled")
+            cursor = conn.execute(
+                "UPDATE web_users SET two_factor_secret = %s WHERE id = %s AND two_factor_enabled IS NOT TRUE",
                 (secret, user_id),
             )
+            if not cursor.rowcount:
+                raise ValueError("Two-factor authentication is already enabled")
         label = row["email"].replace(" ", "%20")
         uri = f"otpauth://totp/UZ%20Stock%20Analyzer:{label}?secret={secret}&issuer=UZ%20Stock%20Analyzer"
         return {"secret": secret, "otpauth_uri": uri}

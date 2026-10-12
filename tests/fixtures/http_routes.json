@@ -61,7 +61,9 @@
       "POST"
     ],
     "name": "create_comparison",
-    "dependencies": []
+    "dependencies": [
+      "_require_user"
+    ]
   },
   {
     "path": "/api/v1/comparisons/{run_id}",
@@ -2233,7 +2235,9 @@
       "POST"
     ],
     "name": "create_comparison__v2",
-    "dependencies": []
+    "dependencies": [
+      "_require_user"
+    ]
   },
   {
     "path": "/api/v2/v1/comparisons/{run_id}",

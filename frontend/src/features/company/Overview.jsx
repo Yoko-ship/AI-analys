@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { formatMarketNumber, safeNumber } from "../../shared/format.jsx";
 import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
 import { QuickCompareStrip } from "../../shared/QuickCompareStrip.jsx";
@@ -43,7 +44,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
               <>
                 <p className="company-description-text">{sec.company_description}</p>
                 {sec.source_url && (
-                  <a href={sec.source_url} target="_blank" rel="noreferrer" className="wiki-link">
+                  <a href={safeHref(sec.source_url)} target="_blank" rel="noreferrer" className="wiki-link">
                     {sec.info_source === "wikipedia"
                       ? (lang === "ru" ? "Читать на Википедии →" : lang === "uz" ? "Vikipediyada o'qish →" : "Read on Wikipedia →")
                       : (lang === "ru" ? "Официальный сайт →" : lang === "uz" ? "Rasmiy sayt →" : "Official website →")}
@@ -138,9 +139,9 @@ function CompanyReportsTab({ reports, lang }) {
                   {presentation.description && <div className="company-report-description">{presentation.description}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  {r.excel_url && <a href={r.excel_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
-                  {r.excel_url_form1 && r.excel_url_form1 !== r.excel_url && <a href={r.excel_url_form1} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
-                  {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={r.pdf_url} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
+                  {r.excel_url && <a href={safeHref(r.excel_url)} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>Excel →</a>}
+                  {r.excel_url_form1 && r.excel_url_form1 !== r.excel_url && <a href={safeHref(r.excel_url_form1)} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>{lang === "ru" ? "Баланс →" : lang === "uz" ? "Balans →" : "Balance →"}</a>}
+                  {r.pdf_url && !r.pdf_url.includes("/reports/to_pdf") && <a href={safeHref(r.pdf_url)} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>PDF →</a>}
                 </div>
               </div>
             );

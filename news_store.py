@@ -16,6 +16,7 @@ import os
 import re
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 import news_lang
 import reports_catalog as rc
@@ -179,6 +180,16 @@ _STOPWORDS = {
 _WORD_RE = re.compile(r"[\wЀ-ӿ]+", re.UNICODE)
 
 
+def _is_web_url(url: str) -> bool:
+    """Only http(s) links are stored: the URL becomes a link the reader clicks, and
+    a scraped or model-written ``javascript:`` URL would run in their session."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
+
+
 def upsert_news(items: list[dict[str, Any]]) -> int:
     """Insert/refresh news items with their NLP output and ticker links.
 
@@ -194,6 +205,9 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
         for it in items:
             url = (it.get("url") or "").strip()
             if not url or not (it.get("title") or "").strip():
+                continue
+            if not _is_web_url(url):
+                logger.warning("news: skipping item with a non-web url %r", url[:120])
                 continue
             cur = conn.execute(
                 """

@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import React from "react";
 import { createPortal } from "react-dom";
 import { NEWS_TX, interceptNav, newsArticlePath } from "./editorial.jsx";
@@ -311,9 +312,9 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
               {tx.d.openNews}
             </a>
           )}
-          {d.pdf_url && <a className="newscal-act" href={d.pdf_url} target="_blank" rel="noreferrer">{tx.d.pdf}</a>}
-          {d.excel_url && <a className="newscal-act" href={d.excel_url} target="_blank" rel="noreferrer">{tx.d.excel}</a>}
-          {external && <a className="newscal-act" href={external} target="_blank" rel="noreferrer">{tx.d.openSource} ↗</a>}
+          {d.pdf_url && <a className="newscal-act" href={safeHref(d.pdf_url)} target="_blank" rel="noreferrer">{tx.d.pdf}</a>}
+          {d.excel_url && <a className="newscal-act" href={safeHref(d.excel_url)} target="_blank" rel="noreferrer">{tx.d.excel}</a>}
+          {external && <a className="newscal-act" href={safeHref(external)} target="_blank" rel="noreferrer">{tx.d.openSource} ↗</a>}
         </div>
       </div>
     </div>,

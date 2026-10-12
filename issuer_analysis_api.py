@@ -24,18 +24,21 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from fastapi.routing import APIRoute
 
 import issuer_financials as financials
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 import bonds as bond_math
 import corporate_actions
 import dividends
 import news_store
 import provenance
+import identity.users as identity_users
+import server.auth.access as auth_access
+import server.auth.limits as auth_limits
 
 
 class IssuerRoute(APIRoute):
@@ -118,6 +121,12 @@ METRIC_DEFINITIONS: dict[str, dict[str, Any]] = {
 }
 
 
+_FREE_FORM_MAX_CHARS = 2048
+
+# Every created run is written to disk, so creation is per-account and paced.
+COMPARISON_RATE_LIMIT_PER_MINUTE = int(os.getenv("COMPARISON_RATE_LIMIT_PER_MINUTE", "10"))
+
+
 class ComparisonRequest(BaseModel):
     object_type: Literal["issuer", "stock", "bond", "sector"] = "issuer"
     ids: list[str] | None = Field(default=None, max_length=3)
@@ -130,6 +139,15 @@ class ComparisonRequest(BaseModel):
     metrics: list[str] | None = Field(default=None, max_length=8)
     normalization_options: dict[str, Any] = Field(default_factory=dict)
     language: Literal["ru", "uz", "en"] = "ru"
+
+    @field_validator("peer_rule", "normalization_options")
+    @classmethod
+    def bound_free_form(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        # Both are stored verbatim with every run, so their size is the caller's
+        # to choose unless capped here.
+        if value is not None and len(json.dumps(value, ensure_ascii=False, default=str)) > _FREE_FORM_MAX_CHARS:
+            raise ValueError(f"must serialize to at most {_FREE_FORM_MAX_CHARS} characters")
+        return value
 
     @model_validator(mode="after")
     def validate_selection(self) -> "ComparisonRequest":
@@ -838,7 +856,14 @@ def issuer_bonds(issuer_id: str) -> dict[str, Any]:
 
 
 @router.post("/comparisons", status_code=201)
-def create_comparison(payload: ComparisonRequest) -> dict[str, Any]:
+def create_comparison(
+    payload: ComparisonRequest,
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
+) -> dict[str, Any]:
+    if not auth_limits._rate_limiter.allow(
+        f"comparison:{current_user.id}", COMPARISON_RATE_LIMIT_PER_MINUTE, 60.0,
+    ):
+        raise HTTPException(status_code=429, detail="Too many comparison requests — try again in a minute")
     return _comparison_run(payload)
 
 

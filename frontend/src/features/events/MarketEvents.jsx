@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import React from "react";
 import { reportFormLabel } from "../../lib/reportPresentation.js";
 import { createPortal } from "react-dom";
@@ -123,10 +124,10 @@ function MarketEventsFeed({ lang, onOpenCompany }) {
                 both forms in one workbook, so one link is the whole filing. */}
             <span className="ev-links" onClick={(e) => e.stopPropagation()}>
               {i.pdf_url && (
-                <a href={i.pdf_url} target="_blank" rel="noopener noreferrer">PDF</a>
+                <a href={safeHref(i.pdf_url)} target="_blank" rel="noopener noreferrer">PDF</a>
               )}
               {i.excel_url && (
-                <a href={i.excel_url} target="_blank" rel="noopener noreferrer">XLS</a>
+                <a href={safeHref(i.excel_url)} target="_blank" rel="noopener noreferrer">XLS</a>
               )}
             </span>
           </li>
@@ -308,8 +309,8 @@ function MarketEventDetail({ item, lang, headline, period, day, form, onClose, o
           {(item.pdf_url || item.excel_url) && (
             <span className="ev-detail-src">
               <span className="muted">{t("Источник — openinfo.uz:", "Manba — openinfo.uz:", "Source — openinfo.uz:")}</span>
-              {item.pdf_url && <a href={item.pdf_url} target="_blank" rel="noopener noreferrer">PDF</a>}
-              {item.excel_url && <a href={item.excel_url} target="_blank" rel="noopener noreferrer">XLS</a>}
+              {item.pdf_url && <a href={safeHref(item.pdf_url)} target="_blank" rel="noopener noreferrer">PDF</a>}
+              {item.excel_url && <a href={safeHref(item.excel_url)} target="_blank" rel="noopener noreferrer">XLS</a>}
             </span>
           )}
         </div>

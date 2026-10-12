@@ -7,6 +7,12 @@ from fastapi.testclient import TestClient
 import pytest
 
 import issuer_analysis_api as subject
+from identity.users import WebUser
+from datetime import datetime, timezone
+
+
+_USER = WebUser(id=7, email="analyst@example.test", full_name="Analyst", avatar_data_url=None,
+                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc), last_login_at=None, is_active=True)
 
 
 @pytest.fixture()
@@ -118,6 +124,8 @@ def client(monkeypatch, tmp_path) -> TestClient:
 
     app = FastAPI()
     app.include_router(subject.router)
+    app.dependency_overrides[subject.auth_access._require_user] = lambda: _USER
+    monkeypatch.setattr(subject.auth_limits, "_rate_limiter", subject.auth_limits._SlidingWindowLimiter())
     return TestClient(app)
 
 
@@ -441,3 +449,25 @@ def test_bond_comparison_with_no_cashflows_never_publishes_ytm(client, monkeypat
         column = next(item for item in body["table"]["columns"] if item["metric"] == metric)
         assert all(value["raw"] is None and value["rank"] is None for value in column["values"])
     assert any(warning["code"] == "metric_unavailable" and warning.get("metric") == "ytm_pct" for warning in body["warnings"])
+
+
+_LITE = {"object_type": "issuer", "ids": ["FACT", "FAC2"], "standard": "nsbu", "period": "2026Q2", "metrics": ["revenue"]}
+
+
+def test_creating_a_comparison_requires_an_account(client):
+    client.app.dependency_overrides.clear()
+    response = client.post("/api/v1/comparisons", json=_LITE)
+    assert response.status_code == 401
+
+
+def test_free_form_comparison_options_are_size_capped(client):
+    response = client.post("/api/v1/comparisons", json={**_LITE, "normalization_options": {"pad": "x" * 5000}})
+    assert response.status_code == 422
+    peer = {"peer_rule": {"sector": "industry", "pad": "x" * 5000}}
+    response = client.post("/api/v1/comparisons", json={**{k: v for k, v in _LITE.items() if k != "ids"}, **peer})
+    assert response.status_code == 422
+
+
+def test_comparison_creation_is_paced_per_account(client, monkeypatch):
+    monkeypatch.setattr(subject, "COMPARISON_RATE_LIMIT_PER_MINUTE", 2)
+    assert [client.post("/api/v1/comparisons", json=_LITE).status_code for _ in range(3)] == [201, 201, 429]

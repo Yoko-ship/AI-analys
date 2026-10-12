@@ -106,6 +106,13 @@ def _esc(value: Any) -> str:
     return html.escape(str(value if value is not None else ""), quote=True)
 
 
+def _web_url(value: Any) -> str | None:
+    """The URL if it is an http(s) link, else None. Escaping keeps an attribute
+    closed but does not stop a ``javascript:`` href from running when clicked."""
+    url = str(value or "").strip()
+    return url if re.match(r"https?://", url, re.IGNORECASE) else None
+
+
 def _num(value: Any) -> float | None:
     try:
         number = float(value)
@@ -406,8 +413,8 @@ async def _news_page(news_id: str) -> PageMeta | None:
                  f" · {_esc(item.get('source') or '')}</p>")
               + paragraphs
               + (f"<p>Эмитенты:</p><ul>{tickers}</ul>" if tickers else "")
-              + (f"<p><a href=\"{_esc(item['url'])}\" rel=\"nofollow noopener\">Источник</a></p>"
-                 if item.get("url") else "")
+              + (f"<p><a href=\"{_esc(_web_url(item.get('url')))}\" rel=\"nofollow noopener\">Источник</a></p>"
+                 if _web_url(item.get("url")) else "")
               + "</article>"),
     )
 

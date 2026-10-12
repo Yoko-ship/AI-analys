@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { useAnnouncementArticle } from "./useAnnouncementArticle.js";
 import { interceptNav } from "./editorial.jsx";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
@@ -97,10 +98,10 @@ export function AnnouncementArticleView({
             <div className="led-art-source announcement-actions">
               <p className="led-art-note">{tx.source}</p>
               <div>
-                {item.pdf_url && <a className="announcement-secondary" href={item.pdf_url} target="_blank" rel="noopener noreferrer nofollow">
+                {item.pdf_url && <a className="announcement-secondary" href={safeHref(item.pdf_url)} target="_blank" rel="noopener noreferrer nofollow">
                     {tx.pdf}
                   </a>}
-                {item.source_url && <a className="led-art-cta" href={item.source_url} target="_blank" rel="noopener noreferrer nofollow">
+                {item.source_url && <a className="led-art-cta" href={safeHref(item.source_url)} target="_blank" rel="noopener noreferrer nofollow">
                     {tx.original}<span className="led-art-host">openinfo.uz</span>
                   </a>}
               </div>

@@ -102,6 +102,20 @@ class TestSlidingWindowLimiter:
             limiter.allow(f"k{i}", 5, 0.0)  # window 0 -> everything is instantly stale
         assert len(limiter._events) <= 11
 
+    def test_eviction_keeps_buckets_whose_own_window_is_still_open(self, monkeypatch) -> None:
+        # A short-window auth call used to trigger a sweep that judged every bucket by
+        # its own 60 s window, wiping the 24 h LLM caps (the global one included).
+        monkeypatch.setattr(subject_server_auth_limits, '_LIMITER_MAX_KEYS', 10)
+        clock = [1000.0]
+        monkeypatch.setattr(subject_server_auth_limits.time, 'monotonic', lambda: clock[0])
+        limiter = subject_server_auth_limits._SlidingWindowLimiter()
+        assert limiter.allow("llm-day:__global__", 1, 86400.0)
+        clock[0] += 120.0
+        for i in range(50):
+            limiter.allow(f"login:{i}", 5, 60.0)
+        assert "llm-day:__global__" in limiter._events
+        assert limiter.allow("llm-day:__global__", 1, 86400.0) is False
+
 
 class TestOauthState:
     def test_a_matching_state_verifies(self) -> None:

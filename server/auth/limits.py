@@ -32,6 +32,10 @@ LLM_GLOBAL_DAILY_LIMIT = int(os.getenv("LLM_GLOBAL_DAILY_LIMIT", "500"))
 class _SlidingWindowLimiter:
     def __init__(self) -> None:
         self._events: dict[str, list[float]] = {}
+        # Each bucket's own window. Eviction must judge a bucket by it, not by the
+        # window of whichever call happened to trigger the sweep: a 60 s login call
+        # would otherwise drop every 24 h LLM bucket, the global spend cap included.
+        self._windows: dict[str, float] = {}
         self._lock = threading.Lock()
 
     def allow(self, key: str, limit: int, window_seconds: float) -> bool:
@@ -45,11 +49,12 @@ class _SlidingWindowLimiter:
                 return False
             events.append(now)
             self._events[key] = events
+            self._windows[key] = window_seconds
             if len(self._events) > _LIMITER_MAX_KEYS:
-                self._evict_expired(now, window_seconds)
+                self._evict_expired(now)
             return True
 
-    def _evict_expired(self, now: float, window_seconds: float) -> None:
+    def _evict_expired(self, now: float) -> None:
         """Drop buckets with nothing left in the window (caller holds the lock).
 
         Without this the dict grows one entry per distinct key forever, which on a
@@ -57,9 +62,10 @@ class _SlidingWindowLimiter:
         untrusted input (one bucket per client IP that ever hit an auth endpoint).
         """
         stale = [k for k, ts in self._events.items()
-                 if not ts or now - ts[-1] >= window_seconds]
+                 if not ts or now - ts[-1] >= self._windows.get(k, 0.0)]
         for k in stale:
             self._events.pop(k, None)
+            self._windows.pop(k, None)
 
 
 # Guard-rail before eviction runs — high enough that normal traffic never pays

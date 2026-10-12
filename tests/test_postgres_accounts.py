@@ -65,6 +65,29 @@ def test_password_change_revocation_expiry_and_inactive_user(pg_store):
     assert pg_store.sessions.get_user_by_token(token) is None
 
 
+def test_two_factor_setup_cannot_replace_an_active_secret(pg_store):
+    from identity.credentials import _totp_code
+    user, _ = pg_store.accounts.register_user("mfa@example.test", "example-pass-123")
+    first = pg_store.security.begin_two_factor(user.id)["secret"]
+    # A pending, unconfirmed secret may be reissued.
+    secret = pg_store.security.begin_two_factor(user.id)["secret"]
+    assert secret != first
+    assert pg_store.security.enable_two_factor(user.id, _totp_code(secret))
+
+    with pytest.raises(ValueError, match="already enabled"):
+        pg_store.security.begin_two_factor(user.id)
+    with pg_store.database.connect() as conn:
+        row = conn.execute(
+            "SELECT two_factor_enabled, two_factor_secret FROM web_users WHERE id = %s", (user.id,),
+        ).fetchone()
+    assert row["two_factor_enabled"] is True and row["two_factor_secret"] == secret
+    assert pg_store.security.verify_admin_two_factor(user.id, _totp_code(secret))
+
+    # Re-enrolment requires proving the current code first.
+    assert pg_store.security.disable_two_factor(user.id, _totp_code(secret))
+    assert pg_store.security.begin_two_factor(user.id)["secret"] != secret
+
+
 def test_jsonb_preferences_research_zero_values_and_ownership(pg_store):
     user, _ = pg_store.accounts.register_user("research@example.test", "example-pass-123")
     stranger, _ = pg_store.accounts.register_user("stranger@example.test", "example-pass-123")

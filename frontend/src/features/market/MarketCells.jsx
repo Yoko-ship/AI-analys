@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, finValue, marketDisplayPrice, sessionCountLabel, tradeCountLabel } from "../../shared/marketModel.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
@@ -347,7 +348,7 @@ export function createMarketCells({
         {row.close_date && <span>{mt(lang, "closeDate")} {row.close_date}</span>}
       </td>,
     source: row => <td>
-        {row.url ? <a className="market-source-link" href={row.url} target="_blank" rel="noreferrer">{mt(lang, "source")}</a> : "—"}
+        {row.url ? <a className="market-source-link" href={safeHref(row.url)} target="_blank" rel="noreferrer">{mt(lang, "source")}</a> : "—"}
       </td>
   };
   return {

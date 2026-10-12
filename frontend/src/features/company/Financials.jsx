@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import { nearestPointIndex } from "../../lib/geometry.js";
 import React from "react";
@@ -463,7 +464,7 @@ function CompanySplitsTable({ items, lang }) {
                 <td className="num">{`1 → ${fmtN(r.ratio)}`}</td>
                 <td className="splits-effect">{effectLabel(r)}</td>
                 <td className="splits-src">{r.source
-                  ? <a href={r.source} target="_blank" rel="noreferrer">openinfo ↗</a>
+                  ? <a href={safeHref(r.source)} target="_blank" rel="noreferrer">openinfo ↗</a>
                   : "—"}</td>
               </tr>
             ))}
@@ -556,8 +557,8 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
               <p className="financial-passport-reason">{passport?.reason || t("Для этого значения нет проверяемой связи с исходным документом.", "Bu qiymat uchun asl hujjat bilan tekshiriladigan bog‘lanish yo‘q.", "This value has no verifiable link to a source document.")}</p>
             )}
             {passport?.reason && passport?.status === "SOURCED" && <p className="financial-passport-reason">{passport.reason}</p>}
-            {source?.excel_url && <a className="company-insight-action" href={source.excel_url} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
-            {!source?.excel_url && (source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={source.archived_url || source.pdf_url} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
+            {source?.excel_url && <a className="company-insight-action" href={safeHref(source.excel_url)} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
+            {!source?.excel_url && (source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={safeHref(source.archived_url || source.pdf_url)} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
           </div>
         )}
       </article>
@@ -1144,7 +1145,7 @@ function CompanyDividendsTab({ items, loading, lang, isPreferred, lastPrice }) {
                   const end = isPreferred ? (r.preferred_end || r.ordinary_end) : r.ordinary_end;
                   return (start || end) ? `${fmtDate(start)} – ${fmtDate(end)}` : "—";
                 })()}</td>
-                <td>{r.link && <a href={r.link} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>→</a>}</td>
+                <td>{r.link && <a href={safeHref(r.link)} target="_blank" rel="noreferrer" className="ghost-btn" style={{ fontSize: 12 }}>→</a>}</td>
               </tr>
             ))}
           </tbody>

@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import React, { Suspense } from "react";
 import { ReportAvailability, VerifiedReport } from "../../shared/VerifiedReport.jsx";
 import { createPortal } from "react-dom";
@@ -231,7 +232,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
               {sources.map((source, index) => {
                 const label = `${tx.source} ${report.standard?.toUpperCase() || ""} · ${source.period || report.period || "—"}`;
                 return source.url ? (
-                  <a key={source.document_id || source.url || index} href={source.url} target="_blank" rel="noreferrer">{label} ↗</a>
+                  <a key={source.document_id || source.url || index} href={safeHref(source.url)} target="_blank" rel="noreferrer">{label} ↗</a>
                 ) : <span key={source.document_id || index}>{label}</span>;
               })}
             </div>

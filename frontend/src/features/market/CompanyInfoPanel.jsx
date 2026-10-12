@@ -1,3 +1,4 @@
+import { safeHref } from "../../lib/safeHref.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useEffect, useRef } from "react";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
@@ -97,7 +98,7 @@ function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loadin
             <>
               <p className="company-panel-wiki">{wikiInfo.extract}</p>
               {wikiInfo.page_url && (
-                <a href={wikiInfo.page_url} target="_blank" rel="noreferrer" className="company-panel-wiki-link">
+                <a href={safeHref(wikiInfo.page_url)} target="_blank" rel="noreferrer" className="company-panel-wiki-link">
                   {wikiInfo.source === "wikipedia"
                     ? (lang === "en" ? "Read on Wikipedia →" : lang === "uz" ? "Vikipediyada o'qish →" : "Читать на Википедии →")
                     : (lang === "en" ? "Official website →" : lang === "uz" ? "Rasmiy sayt →" : "Официальный сайт →")}
