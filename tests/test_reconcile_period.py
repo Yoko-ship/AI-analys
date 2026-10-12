@@ -79,6 +79,45 @@ class TestPeriodFromStamp:
                                        pub_date="2026-12-31T00:00:00") == expected
 
 
+class TestPeriodFromQuarterNo:
+    def test_a_late_half_year_stamped_inside_q3_is_still_the_half_year(self) -> None:
+        # Qizilqumsement: the Excel header says "Период квартала: 2", the JSON
+        # says quarter_no=5, and the stamp 2026-07-27 alone reads as Q3 because
+        # the filing (2026-10-09) came after Q3 had closed.
+        assert orc.period_year_quarter("2026-07-27", "quarter", today=dt.date(2026, 10, 12),
+                                       pub_date="2026-10-09T16:32:28",
+                                       quarter_no="5") == (2026, 2)
+
+    def test_a_q3_refiling_stamped_on_the_first_day_of_q4_is_q3(self) -> None:
+        # Qizilqumsement refiled 9M 2024 on 2025-03-06, stamped 2024-10-01.
+        assert orc.period_year_quarter("2024-10-01", "quarter", today=TODAY,
+                                       pub_date="2025-03-06T00:00:00",
+                                       quarter_no="7") == (2024, 3)
+
+    def test_a_q4_filed_in_the_new_year_belongs_to_the_old_one(self) -> None:
+        assert orc.period_year_quarter("2021-02-02", "quarter", today=TODAY,
+                                       pub_date="2021-02-02T00:00:00",
+                                       quarter_no="10") == (2020, 4)
+
+    @pytest.mark.parametrize(("quarter_no", "expected"), [
+        ("2", (2026, 1)), ("5", (2026, 2)), (7, (2026, 3)), ("10", (2026, 4)),
+    ])
+    def test_every_known_code_names_its_quarter(self, quarter_no, expected) -> None:
+        assert orc.period_year_quarter("2026-12-31", "quarter", today=dt.date(2027, 6, 1),
+                                       pub_date="2027-01-20T00:00:00",
+                                       quarter_no=quarter_no) == expected
+
+    def test_an_unknown_code_falls_back_to_the_stamp(self) -> None:
+        assert orc.period_year_quarter("2026-04-27", "quarter", today=TODAY,
+                                       pub_date="2026-05-13T14:33:04",
+                                       quarter_no="99") == (2026, 1)
+
+    def test_an_annual_ignores_the_code(self) -> None:
+        assert orc.period_year_quarter("2025-12-31", "annual", today=TODAY,
+                                       pub_date="2026-07-13T14:49:44",
+                                       quarter_no="5") == (2025, 0)
+
+
 class TestPeriodRank:
     def test_an_annual_outranks_its_own_fourth_quarter(self) -> None:
         assert orc.period_rank(2025, 0) > orc.period_rank(2025, 4)

@@ -15,8 +15,12 @@ and applies the report-reading rules that the legacy path got wrong:
     position.
   * Balance (liabilities, cash): value2 (end of period), fallback value1 / value.
   * All openinfo amounts are in thousands -> multiply by 1000 for the full sum.
-  * Period = reporting_year (period-end date). quarter_no is a FORM code, not a
-    quarter number, and is ignored. The chosen report is the one covering the
+  * Period: quarter_no is openinfo's code for the quarter the filing covers
+    (2/5/7/10 = Q1-Q4, the "Период квартала" of the Excel export) and names the
+    quarter; reporting_year only places it in a year — issuers routinely stamp it
+    with the filing day, which is how a half-year filed in October became Q3.
+    Without a known code the quarter falls back to reporting_year's own quarter.
+    The chosen report is the one covering the
     latest reporting PERIOD, not the one published last — publication date only
     breaks ties between versions of the same period (a restated or audited
     refiling). Filing order and period order come apart every summer: an issuer
@@ -773,7 +777,8 @@ def select_reports(ticker, today=None, max_fetch=8):
         if not _has_data(metrics):
             continue
         year, quarter = period_year_quarter(d.get("reporting_year"), c["period_type"],
-                                            today=today, pub_date=c["pub_date"])
+                                            today=today, pub_date=c["pub_date"],
+                                            quarter_no=d.get("quarter_no"))
         if year is None:
             log.warning("%s: report %s has no readable period (%r) — skipped",
                         ticker, c["object_id"], d.get("reporting_year"))
@@ -830,6 +835,11 @@ NSBU_THOUSANDS = 1000.0
 
 
 _Q_END = {1: (3, 31), 2: (6, 30), 3: (9, 30), 4: (12, 31)}
+
+# openinfo's quarter_no on a quarterly filing -> the quarter it covers. Verified
+# against bank, jsc and insurance filings 2020-2026 and the Excel export's
+# "Период квартала" header; an unknown code falls back to the reporting_year stamp.
+_QUARTER_NO = {"2": 1, "5": 2, "7": 3, "10": 4}
 
 
 def _quarter_of(d):
@@ -901,7 +911,8 @@ def period_end(year, quarter):
     return _quarter_end(int(year), int(quarter) if quarter else 4)
 
 
-def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
+def period_year_quarter(reporting_year, period_type, today=None, pub_date=None,
+                        quarter_no=None):
     """Map an openinfo reporting_year date + form type to the site's (year, quarter).
 
     Annual -> quarter 0. Quarterly -> the quarter whose end the period-end date
@@ -921,6 +932,12 @@ def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
         that has not happened and outranked every real filing forever.
 
     A stamp EARLIER than the bound is left alone — late filings are normal.
+
+    A quarterly filing's ``quarter_no`` names its quarter outright, and wins over
+    the stamp: Qizilqumsement filed its 2026 half-year (quarter_no 5) on
+    2026-10-09 stamped 2026-07-27, which the stamp alone reads as Q3. The year is
+    then the latest one in which that quarter had ended by the stamp (or the
+    filing day, whichever is earlier).
     """
     d = _parse_date(reporting_year)
     if d is None:
@@ -934,6 +951,10 @@ def period_year_quarter(reporting_year, period_type, today=None, pub_date=None):
             log.info("openinfo annual mis-stamped %s (filed %s) — reading it as FY%d",
                      reporting_year, pub_date or "?", year)
         return (year, 0) if year >= 1990 else (None, None)
+    q = _QUARTER_NO.get(str(quarter_no or "").strip())
+    if q:
+        asof = min(d, bound)
+        return (asof.year if _quarter_end(asof.year, q) <= asof else asof.year - 1), q
     year, q = d.year, _quarter_of(d)
     if _quarter_end(year, q) > bound:
         snapped = _last_complete_quarter(bound)
