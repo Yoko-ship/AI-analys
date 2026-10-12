@@ -752,6 +752,34 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
   body .advanced-chart.is-fullscreen .ac-body { flex: 1 1 0; min-height: 180px; }
   body .advanced-chart.is-fullscreen .ac-plot { min-height: 0; }
 }
+/* A phone held upright: the header and the compare strip kept the plot at the
+   ~360 px it has on the page, so «На весь экран» looked like it did nothing.
+   Here too the chart takes the screen under one line of name and price and the
+   toolbar; the toolbar's own button is the way back. The notes and pattern
+   list stay one scroll below it (--ac-fs-plot-top is set in AdvancedChart). */
+@media (orientation: portrait) and (max-width: 620px) {
+  body .advanced-chart.is-fullscreen { gap: 8px; }
+  /* The phone header is a two-row grid; one line needs it back as a flex row. */
+  body .advanced-chart.is-fullscreen .ac-head { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 10px; }
+  body .advanced-chart.is-fullscreen .ac-back,
+  body .advanced-chart.is-fullscreen .ac-head .chip-logo,
+  body .advanced-chart.is-fullscreen .ac-head .chip-logo-fallback,
+  body .advanced-chart.is-fullscreen .ac-meta,
+  body .advanced-chart.is-fullscreen .ac-open-company,
+  body .advanced-chart.is-fullscreen .ac-window-change,
+  body .advanced-chart.is-fullscreen .ac-compare { display: none; }
+  body .advanced-chart.is-fullscreen .ac-details { max-height: none; overflow: visible; }
+  body .advanced-chart.is-fullscreen .ac-title { flex: 1 1 auto; }
+  body .advanced-chart.is-fullscreen .ac-title h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body .advanced-chart.is-fullscreen .ac-quote { width: auto; margin-left: auto; flex-wrap: nowrap; white-space: nowrap; }
+  body .advanced-chart.is-fullscreen .ac-price { font-size: 17px; }
+  body .advanced-chart.is-fullscreen .ac-body {
+    flex: 0 0 auto;
+    height: calc(100dvh - var(--ac-fs-plot-top, 200px) - 8px);
+    min-height: 240px;
+  }
+  body .advanced-chart.is-fullscreen .ac-plot { min-height: 0; }
+}
 .ac-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; text-align: center; padding: 24px; }
 .ac-legend { position: absolute; z-index: 3; top: 8px; left: 10px; display: flex; flex-wrap: wrap; gap: 5px; max-width: calc(100% - 90px); }
 .ac-legend-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; color: var(--text-primary); background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--ac-color, var(--border)); cursor: pointer; }

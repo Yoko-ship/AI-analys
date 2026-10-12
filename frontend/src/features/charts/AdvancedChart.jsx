@@ -69,9 +69,21 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
   // Full-screen here means the chart workspace fills the browser viewport,
   // while keeping every period, indicator and comparison control reachable.
   // Lock the page underneath it and make Escape behave like a native dialog.
+  // The workspace layout is the full screen; the browser's own full screen only
+  // adds hiding its chrome where it is offered. Leaving the native one (Esc,
+  // Android back) leaves the workspace too, but only once it was entered.
+  const nativeFullscreenRef = React.useRef(false);
   React.useEffect(() => {
     if (typeof document === "undefined") return undefined;
-    const onFullscreenChange = () => setIsFullscreen(document.fullscreenElement === chartShellRef.current);
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement === chartShellRef.current) {
+        nativeFullscreenRef.current = true;
+        setIsFullscreen(true);
+      } else if (nativeFullscreenRef.current) {
+        nativeFullscreenRef.current = false;
+        setIsFullscreen(false);
+      }
+    };
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
   }, []);
@@ -97,15 +109,22 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     };
   }, [isFullscreen]);
 
-  const toggleFullscreen = async () => {
+  // The layout switches on the tap itself. Waiting for requestFullscreen left
+  // the button dead in in-app browsers (Telegram and other Android WebViews),
+  // whose request can stay pending forever; iPhone Safari has no API at all.
+  const toggleFullscreen = () => {
     const node = chartShellRef.current;
     if (!node || typeof document === "undefined") return;
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      return;
+    }
+    setIsFullscreen(true);
     try {
-      if (document.fullscreenElement === node) await document.exitFullscreen();
-      else if (node.requestFullscreen) await node.requestFullscreen();
-      else setIsFullscreen((value) => !value);
+      node.requestFullscreen?.()?.catch?.(() => {});
     } catch {
-      setIsFullscreen((value) => !value);
+      // The workspace layout already fills the viewport.
     }
   };
 
@@ -551,6 +570,25 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     observer.observe(plot);
     return () => observer.disconnect();
   }, []);
+  // Upright on a phone, full screen gives the plot the rest of the first screen
+  // under the header and toolbar, and the notes follow one scroll below. How
+  // far down the plot starts depends on how the toolbar wraps, so it is measured.
+  React.useLayoutEffect(() => {
+    const shell = chartShellRef.current;
+    const plot = plotRef.current;
+    if (!isFullscreen || !shell || !plot) return undefined;
+    const measure = () => {
+      const top = plot.getBoundingClientRect().top - shell.getBoundingClientRect().top + shell.scrollTop;
+      shell.style.setProperty("--ac-fs-plot-top", `${top}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    shell.querySelectorAll(".ac-head, .ac-toolbar").forEach((el) => observer.observe(el));
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty("--ac-fs-plot-top");
+    };
+  }, [isFullscreen]);
   const canvasH = measuredPlotH ?? plotH;
   // Volume is a supporting pane: at most a fifth of what the oscillators leave.
   // A fixed 130 px took half the canvas in full screen on a phone held sideways,

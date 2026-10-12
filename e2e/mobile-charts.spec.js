@@ -99,3 +99,33 @@ test('landscape phone full screen keeps the price pane dominant', async ({ page 
   }).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('landscape-fullscreen.png') });
 });
+
+// Upright on a phone, full screen once only hid the topbar: the header and the
+// compare strip kept the plot at its page height, so the tap looked dead. In
+// an in-app browser (Telegram's WebView) requestFullscreen can stay pending
+// forever, and waiting for it left the button doing nothing at all.
+test('portrait phone full screen gives the plot the screen even if the native request hangs', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = function () { return new Promise(() => {}); };
+  });
+  await mockChartApi(page, 'UNVB', 8200);
+  await page.goto('/chart/UNVB?type=line&range=1y');
+  await expect(page.locator('.ac-canvas')).toBeVisible();
+  const before = (await page.locator('.ac-plot').boundingBox()).height;
+
+  await page.getByRole('button', { name: 'Развернуть график на весь экран' }).click();
+  await expect(page.locator('.advanced-chart')).toHaveClass(/is-fullscreen/);
+  await expect(page.locator('.ac-compare')).toBeHidden();
+  const plot = await page.locator('.ac-plot').boundingBox();
+  expect(plot.height).toBeGreaterThan(before + 150);
+  expect(plot.y + plot.height).toBeLessThanOrEqual(844);
+  // The notes and pattern list stay one scroll below the plot.
+  await page.locator('.ac-details').scrollIntoViewIfNeeded();
+  await expect(page.locator('.ac-details')).toBeInViewport();
+  expect((await page.locator('.ac-head').boundingBox()).height).toBeLessThanOrEqual(32);
+
+  await page.getByRole('button', { name: 'Выйти из полноэкранного режима' }).click();
+  await expect(page.locator('.advanced-chart')).not.toHaveClass(/is-fullscreen/);
+  await expect(page.locator('.ac-compare')).toBeVisible();
+});
