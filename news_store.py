@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -142,6 +142,21 @@ _DEDUP_MIN_SUMMARY_WORDS = 5
 # «$64,3 млрд» both say 64. Fragments after the decimal separator are NOT tokens — \d+
 # alone would read «64,34» as a 64 and a 34, and the 34 could match anything.
 _NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
+# Below the band, a retelling can still be told apart by its figures alone, when it quotes
+# TWO of them that are distinctive. Measured 2026-10-13: the Uzbekistan Airways fare cut
+# carded by spot and kun overlapped only 0.30 — Russian inflects every retold word
+# (внутренние/внутренних, авиабилеты/авиабилетов) — yet both stated «16 октября» and «20%»,
+# and the cards sat side by side, one «негатив» and one «позитив». Over 535 served items
+# this band merged exactly two pairs (that one and Uzum's 600 млрд / $50 млн bond
+# placement), both true duplicates. Its false candidates shared only a year or a single
+# digit, which is why those do not count as figures here. 0 disables the band.
+_DEDUP_FIGURES_BAND = float(os.getenv("NEWS_DEDUP_FIGURES_BAND", "0.25"))
+_DEDUP_MIN_SHARED_FIGURES = 2
+_YEAR_RE = re.compile(r"(?:19|20)\d\d")
+# A merged card's tone is the mean of its copies' scores; inside ±this it reads neutral.
+# The same band the issuer card colours its 90-day tone by (NewsIssuerContext.jsx).
+_TONE_NEUTRAL_BAND = 0.15
+_TONE_LABEL_SCORE = {"positive": 0.5, "neutral": 0.0, "negative": -0.5}
 # Rating actions are syndicated especially often, and the republished headline may be in a
 # different language from the agency original.  Word-overlap cannot connect «Fitch повысило
 # рейтинг» with “Fitch Upgrades …”, so keep one small event vocabulary for this factual,
@@ -823,6 +838,56 @@ def _rating_event_signature(it: dict[str, Any]) -> tuple[str, str, frozenset[str
     return agency, action, tickers
 
 
+def _story_key(it: dict[str, Any]) -> tuple[Any, ...]:
+    """What :func:`_same_story` compares, computed once per item."""
+    s_words = _title_words(it.get("summary_ru"))
+    if len(s_words) < _DEDUP_MIN_SUMMARY_WORDS:
+        s_words = set()
+    numbers = _number_tokens(it)
+    figures = {n for n in numbers if len(n) > 1 and not _YEAR_RE.fullmatch(n)}
+    return (_title_words(it.get("title")), s_words, numbers, figures,
+            _parse_dt(it.get("published_at")), _rating_event_signature(it))
+
+
+def _same_story(a: tuple[Any, ...], b: tuple[Any, ...], threshold: float) -> bool:
+    """Whether two :func:`_story_key` s are one story; the rules are on _dedupe_stories."""
+    a_t, a_s, a_nums, a_figs, a_when, a_rating = a
+    b_t, b_s, b_nums, b_figs, b_when, b_rating = b
+    if a_when and b_when and abs((a_when - b_when).total_seconds()) / 3600.0 > _DEDUP_WINDOW_H:
+        return False
+    if a_rating and b_rating and a_rating[:2] == b_rating[:2] and a_rating[2] & b_rating[2]:
+        return True
+    score = _jaccard(a_t, b_t) if a_t and b_t else 0.0
+    if a_s and b_s:
+        score = max(score, _jaccard(a_s, b_s))
+    return (score >= threshold
+            or (0 < _DEDUP_BAND <= score and bool(a_nums & b_nums))
+            or (0 < _DEDUP_FIGURES_BAND <= score
+                and len(a_figs & b_figs) >= _DEDUP_MIN_SHARED_FIGURES))
+
+
+def _reconcile_tone(item: dict[str, Any], copies: list[dict[str, Any]]) -> dict[str, Any]:
+    """The one tone a story shows, whichever of its copies is the card.
+
+    Each copy was classified on its own, and one event can read «позитив» from one outlet's
+    wording and «негатив» from another's. When the copies agree, the card keeps its own
+    reading; when they disagree, it shows their mean score — so the badge no longer depends
+    on which copy happened to rank first — and a direction they disagree on is «mixed».
+    Returns a new dict; the rows passed in are not touched.
+    """
+    group = [item, *copies]
+    if len({it.get("tone") for it in group}) < 2:
+        return item
+    scores = [float(it["tone_score"]) if isinstance(it.get("tone_score"), (int, float))
+              else _TONE_LABEL_SCORE.get(str(it.get("tone")), 0.0) for it in group]
+    mean = sum(scores) / len(scores)
+    tone = ("positive" if mean > _TONE_NEUTRAL_BAND
+            else "negative" if mean < -_TONE_NEUTRAL_BAND else "neutral")
+    directions = {it.get("direction") for it in group}
+    return {**item, "tone": tone, "tone_score": round(mean, 2),
+            "direction": directions.pop() if len(directions) == 1 else "mixed"}
+
+
 def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
     """Collapse the same story reported by several outlets, keeping the best-ranked copy.
 
@@ -843,7 +908,8 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     FIGURE: two tellings of one fact quote the same number (резервы «$64,3 млрд» / «64,34
     млрд долларов», ставка «14%» twice, «27 скважин» twice), while two same-shaped stories
     never do — different meetings, different sums. So in the band a shared number token is
-    required, and without one both items stay.
+    required, and without one both items stay. Lower still (``_DEDUP_FIGURES_BAND``),
+    two shared distinctive figures — not a year, not a single digit — are required.
 
     Compared only between items published within ``NEWS_DEDUP_WINDOW_H`` of each other —
     the same wording months apart is a different story (a weekly banks-open-Sunday note,
@@ -853,53 +919,31 @@ def _dedupe_stories(items: list[dict[str, Any]], threshold: float) -> list[dict[
     same issuer files «Сделка с аффилированным лицом» week after week — identical titles,
     identical summaries, DISTINCT facts. Similarity between filings means nothing, so
     merging them would silently drop a real disclosure. Items are expected pre-sorted best
-    first, so the survivor is the one that already ranked highest.
+    first, so the survivor is the one that already ranked highest — and it speaks for the
+    copies it absorbed: see :func:`_reconcile_tone`.
     """
     if threshold <= 0 or len(items) < 2:
         return items
     disclosures = disclosure_source_ids()
-    kept: list[tuple[
-        set[str], set[str], set[str], datetime | None,
-        tuple[str, str, frozenset[str]] | None,
-    ]] = []
+    kept: list[tuple[tuple[Any, ...], int]] = []
     out: list[dict[str, Any]] = []
-    dropped = 0
+    copies: dict[int, list[dict[str, Any]]] = {}
     for it in items:
         if str(it.get("source_id") or "") in disclosures:
             out.append(it)
             continue
-        t_words = _title_words(it.get("title"))
-        s_words = _title_words(it.get("summary_ru"))
-        if len(s_words) < _DEDUP_MIN_SUMMARY_WORDS:
-            s_words = set()
-        numbers = _number_tokens(it)
-        when = _parse_dt(it.get("published_at"))
-        rating_event = _rating_event_signature(it)
-        duplicate = False
-        for prev_t, prev_s, prev_nums, prev_when, prev_rating_event in kept:
-            if when and prev_when:
-                gap_h = abs((when - prev_when).total_seconds()) / 3600.0
-                if gap_h > _DEDUP_WINDOW_H:
-                    continue
-            score = _jaccard(t_words, prev_t) if t_words and prev_t else 0.0
-            if s_words and prev_s:
-                score = max(score, _jaccard(s_words, prev_s))
-            same_rating_event = bool(
-                rating_event and prev_rating_event
-                and rating_event[:2] == prev_rating_event[:2]
-                and rating_event[2] & prev_rating_event[2]
-            )
-            if same_rating_event or score >= threshold or (
-                    0 < _DEDUP_BAND <= score and numbers & prev_nums):
-                duplicate = True
-                break
-        if duplicate:
-            dropped += 1
-        else:
-            kept.append((t_words, s_words, numbers, when, rating_event))
+        key = _story_key(it)
+        match = next((pos for prev, pos in kept if _same_story(key, prev, threshold)), None)
+        if match is None:
+            kept.append((key, len(out)))
             out.append(it)
-    if dropped:
-        logger.info("news feed: merged %d duplicate cross-source story/stories", dropped)
+        else:
+            copies.setdefault(match, []).append(it)
+    if copies:
+        for pos, dupes in copies.items():
+            out[pos] = _reconcile_tone(out[pos], dupes)
+        logger.info("news feed: merged %d duplicate cross-source story/stories",
+                    sum(len(d) for d in copies.values()))
     return out
 
 
@@ -1344,8 +1388,44 @@ def get_news_item(news_id: int) -> dict[str, Any] | None:
         "detail_en": _stored_detail(row["detail_en"], "en") if "detail_en" in keys else None,
         "detail_uz": _stored_detail(row["detail_uz"], "uz") if "detail_uz" in keys else None,
     })
+    item = _reconcile_tone(item, _story_copies(item))
     item["rank"] = rank_score(item)
     return item
+
+
+def _story_copies(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """The other stored tellings of ``item``'s story — the copies the feed merges into one
+    card — so the story page can show the tone that card shows."""
+    if str(item.get("source_id") or "") in disclosure_source_ids():
+        return []
+    when = _parse_dt(item.get("published_at"))
+    if when is None:
+        return []
+    span = timedelta(hours=_DEDUP_WINDOW_H)
+    # Whole-day bounds compared as text: stored timestamps are written with a 'T' or a
+    # space, and a date-only bound orders both. _same_story applies the exact window.
+    since = (when - span).strftime("%Y-%m-%d")
+    until = (when + span + timedelta(days=1)).strftime("%Y-%m-%d")
+    conn = catalogue_storage.get_catalog_conn()
+    rows = conn.execute(
+        """
+        SELECT n.*, p.type, p.tone, p.tone_score, p.impact, p.direction, p.sectors_json, p.topic,
+               p.relevance_score,
+               (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e
+                 WHERE e.news_id = n.id) AS tickers_csv
+        FROM news n JOIN news_nlp p ON p.news_id = n.id
+        WHERE n.id <> ? AND p.relevant = 1 AND n.published_at >= ? AND n.published_at < ?
+        LIMIT 500
+        """,
+        (item["id"], since, until),
+    ).fetchall()
+    conn.close()
+    disclosures = disclosure_source_ids()
+    candidates = _drop_noise(drop_hidden([_row_to_item(r) for r in rows]), _MIN_RELEVANCE)
+    key = _story_key(item)
+    return [c for c in candidates
+            if str(c.get("source_id") or "") not in disclosures
+            and _same_story(key, _story_key(c), _DEDUP_SIMILARITY)]
 
 
 def get_related_news(news_id: int, *, limit: int = 6, days: int = 180) -> list[dict[str, Any]]:

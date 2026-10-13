@@ -197,3 +197,143 @@ class TestTwoRealStoriesNeverMerge:
                   "Ставки снизились в июле.", "2026-08-10T12:00:00"),
         ]
         assert _ids(_dedupe(items)) == [1, 2]
+
+
+# The 2026-10-12 Uzbekistan Airways fare cut, as three outlets carded it. spot and kun
+# sat side by side in the served feed, one «негатив», the other «позитив»: a retold
+# headline whose Russian inflects differently (внутренние/внутренних, авиабилеты/
+# авиабилетов) overlaps only 0.30 — below the band — although both quote the same two
+# figures, «16 октября» and «20%».
+_AIRLINE_SPOT = {
+    **_item(5774, "spot", "Uzbekistan Airways с 16 октября снизит цены на внутренние рейсы до 20%",
+            "Uzbekistan Airways снизит цены на внутренние авиабилеты на 20% с 16 октября "
+            "вследствие оптимизации расходов по инициативе Комитета по конкуренции.",
+            "2026-10-12T07:58:00"),
+    "tone": "negative", "tone_score": -0.3, "direction": "down",
+}
+_AIRLINE_KUN = {
+    **_item(5783, "kun", "Билеты на внутренние авиарейсы Uzbekistan Airways подешевеют.",
+            "Uzbekistan Airways снизит стоимость авиабилетов на внутренних рейсах в среднем "
+            "на 20% с 16 октября 2026 года.", "2026-10-12T07:43:13"),
+    "tone": "positive", "tone_score": 0.4, "direction": "mixed",
+}
+_AIRLINE_UZDAILY = {
+    **_item(5788, "uzdaily", "Uzbekistan Airways снижает цены на внутренние авиарейсы",
+            "Uzbekistan Airways объявила о снижении тарифов на внутренних авиарейсах в среднем "
+            "на 20% с минимальной стоимостью билета 201 062 сума с 16 октября.",
+            "2026-10-12T06:15:00"),
+    "tone": "positive", "tone_score": 0.4, "direction": "mixed",
+}
+
+
+class TestARetellingThatQuotesTheSameFiguresMerges:
+    def test_the_airline_fare_cut_told_by_spot_and_kun_is_one_story(self) -> None:
+        assert _ids(_dedupe([_AIRLINE_SPOT, _AIRLINE_KUN])) == [5774]
+
+    def test_all_three_copies_collapse_in_the_order_the_feed_ranked_them(self) -> None:
+        """The served order: spot, kun, uzdaily. uzdaily matched spot on its own, but
+        kun was compared first and kept — the card pair the reader saw."""
+        assert _ids(_dedupe([_AIRLINE_SPOT, _AIRLINE_KUN, _AIRLINE_UZDAILY])) == [5774]
+
+    def test_the_uzum_bond_placement_is_one_story(self) -> None:
+        """Overlap 0.38, two shared figures: 600 млрд and $50 млн."""
+        items = [
+            _item(2650, "uzdaily", "Uzum разместил облигации на 600 млрд. сумов",
+                  "Uzum разместил пятый выпуск корпоративных облигаций на 600 млрд сумов и "
+                  "зарегистрировал первый валютный выпуск на $50 млн. Привлеченное "
+                  "финансирование усиливает возможности крупного финансово-технологического "
+                  "игрока.", "2026-09-17T07:00:00"),
+            _item(2427, "spot",
+                  "Uzum разместил пятый выпуск корпоративных облигаций на 600 млрд сумов",
+                  "Uzum разместил пятый выпуск корпоративных облигаций на 600 млрд сумов. "
+                  "Ранее компания зарегистрировала валютные облигации на 50 млн долларов с "
+                  "доходностью 8,5%.", "2026-09-16T11:14:00"),
+        ]
+        assert _ids(_dedupe(items)) == [2650]
+
+
+class TestAYearOrASingleDigitIsNotASharedFigure:
+    """Audited 2026-10-13 over 535 served items: at the lower overlap every false pair
+    shared only a year (2026) or the integer part of a small decimal («1» of 1,23 and
+    1,8) — figures half the corpus states."""
+
+    def test_two_uzdaily_statistics_releases_stay_apart(self) -> None:
+        items = [
+            _item(5582, "uzdaily", "Активы микрофинансовых организаций достигли 20,8 трлн. сумов",
+                  "Активы 141 микрофинансовой организации Узбекистана на 1 сентября 2026 года "
+                  "составили 20,8 трлн сумов, почти удвоившись с 11,1 трлн годом ранее.",
+                  "2026-10-10T04:45:00"),
+            _item(5792, "uzdaily", "Доля проблемных кредитов в банках Узбекистана составила 3,7%",
+                  "На 1 сентября 2026 года проблемные кредиты банков Узбекистана составили "
+                  "24 трлн сумов, или 3,7% от кредитного портфеля в размере 648,9 трлн сумов.",
+                  "2026-10-12T04:15:00"),
+        ]
+        assert _ids(_dedupe(items)) == [5582, 5792]
+
+    def test_car_imports_and_oil_imports_stay_apart(self) -> None:
+        items = [
+            _item(4918, "uzdaily",
+                  "Узбекистан импортировал легковых автомобилей на $1,23 млрд за девять месяцев",
+                  "За девять месяцев 2026 года Узбекистан импортировал легковые автомобили на "
+                  "1,23 млрд долларов. Импорт гибридных автомобилей увеличился в 4,1 раза.",
+                  "2026-10-05T10:30:00"),
+            _item(4917, "uzdaily", "Узбекистан увеличил импорт нефти и нефтепродуктов на 1,8%",
+                  "В январе–сентябре 2026 года Узбекистан импортировал нефть и нефтепродукты на "
+                  "1,165 млрд долларов, что на 1,8% больше. Импорт сжиженного газа вырос в "
+                  "3,1 раза.", "2026-10-05T10:45:00"),
+        ]
+        assert _ids(_dedupe(items)) == [4918, 4917]
+
+
+class TestAMergedStoryCarriesOneToneForAllItsCopies:
+    """Each copy was classified alone, so copies of one event can disagree — and the card
+    used to show whichever copy happened to rank first. The card now speaks for all of
+    them: the mean of their scores, on the same ±0.15 neutral band the issuer card uses."""
+
+    def test_the_three_airline_copies_settle_on_their_mean(self) -> None:
+        [card] = _dedupe([_AIRLINE_SPOT, _AIRLINE_KUN, _AIRLINE_UZDAILY])
+        assert card["id"] == 5774
+        assert (card["tone"], card["tone_score"], card["direction"]) == (
+            "positive", 0.17, "mixed")
+
+    def test_two_copies_that_cancel_out_read_neutral(self) -> None:
+        [card] = _dedupe([_AIRLINE_SPOT, _AIRLINE_KUN])
+        assert (card["tone"], card["tone_score"], card["direction"]) == (
+            "neutral", 0.05, "mixed")
+
+    def test_copies_that_agree_keep_the_survivors_own_reading(self) -> None:
+        first = {**_AIRLINE_KUN, "tone_score": 0.4, "direction": "up"}
+        second = {**_AIRLINE_UZDAILY, "tone_score": 0.2, "direction": "mixed"}
+        [card] = _dedupe([first, second])
+        assert (card["tone"], card["tone_score"], card["direction"]) == (
+            "positive", 0.4, "up")
+
+    def test_the_rows_passed_in_are_not_rewritten(self) -> None:
+        spot = dict(_AIRLINE_SPOT)
+        _dedupe([spot, dict(_AIRLINE_KUN)])
+        assert spot == _AIRLINE_SPOT
+
+    def test_the_story_page_shows_the_tone_its_card_shows(self, tmp_path, monkeypatch) -> None:
+        """Clicking the «позитив» card must not open a «негатив» page."""
+        import catalogue.storage as catalogue_storage
+        monkeypatch.setattr(catalogue_storage, "_catalog_db_path",
+                            lambda: str(tmp_path / "catalog.db"))
+        stored = [
+            {**it, "url": f"https://example.test/{it['id']}", "source": it["source_id"],
+             "lang": "ru", "type": "market", "impact": "medium", "relevant": 1,
+             "relevance_score": 0.7, "tickers": [], "sectors": ["transport"], "model": "test"}
+            for it in (_AIRLINE_SPOT, _AIRLINE_KUN, _AIRLINE_UZDAILY)
+        ]
+        assert ns.upsert_news(stored) == 3
+        feed = ns.get_news_feed(days=0)
+        assert len(feed) == 1
+        page = ns.get_news_item(feed[0]["id"])
+        assert (page["tone"], page["tone_score"], page["direction"]) == (
+            feed[0]["tone"], feed[0]["tone_score"], feed[0]["direction"]) == (
+            "positive", 0.17, "mixed")
+        # Every copy's page, not only the survivor's: related lists and old links open them.
+        for it in stored:
+            conn = catalogue_storage.get_catalog_conn()
+            news_id = conn.execute("SELECT id FROM news WHERE url = ?", (it["url"],)).fetchone()["id"]
+            conn.close()
+            assert ns.get_news_item(news_id)["tone"] == "positive"
