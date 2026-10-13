@@ -78,6 +78,34 @@ class TestWindowChange:
     def test_no_history_yields_nothing(self) -> None:
         assert subject_server_market_history._window_change([], 7, date(2026, 8, 17)) is None
 
+
+class TestNoTradesInThePeriodIsZero:
+    """Audit of 12.10.2026 («1Н/1М без сделок в периоде», 30 cells; 49 in all
+    windows): a security with no session inside the period was shown «—». Its
+    price did not change over the period — the base close is still the latest —
+    so the change is 0 %, measured from that close."""
+
+    AS_OF = date(2026, 10, 12)
+
+    def _change(self, points, code):
+        span = subject_server_market_history.MARKET_CHANGE_WINDOWS[code]
+        return subject_server_market_history._window_change(points, span, self.AS_OF)
+
+    def test_uzpn_untraded_since_29_september_is_flat_over_a_week(self) -> None:
+        points = _points(("20260812", 2272.4), ("20260929", 2726.88))
+        assert self._change(points, "1w") == {"pct": 0.0, "from": "20260929", "base": 2726.88}
+        # 29.09 is inside the month, so the month did move.
+        assert self._change(points, "1m")["pct"] == 20.0
+
+    @pytest.mark.parametrize("code", ["1w", "1m", "3m", "6m", "1y", "ytd"])
+    def test_drbk_untraded_for_over_a_year_is_flat_in_every_window(self, code) -> None:
+        points = _points(("20250610", 5100.0), ("20250902", 5000.0))
+        assert self._change(points, code)["pct"] == 0.0
+
+    def test_a_history_that_starts_after_the_cutoff_still_yields_nothing(self) -> None:
+        # «нет истории» in the register: no close before the period, no base.
+        assert self._change(_points(("20260920", 100.0)), "1m") is None
+
     @pytest.mark.parametrize(("code", "span"), [("1w", {"days": 7}), ("1m", {"months": 1}),
                                                ("3m", {"months": 3}), ("6m", {"months": 6}),
                                                ("1y", {"months": 12}), ("ytd", None)])
@@ -348,8 +376,10 @@ class TestTheEndpointServesThePeriodsFigures:
 
         old = body["changes"]["OLDX"]
         for code in ("1w", "1m"):
-            assert code not in old, f"nothing traded inside the market's {code}"
-            assert code not in old.get("stats", {})
+            # Nothing traded inside the market's window: no turnover, and a
+            # price that has not moved from its 24.08 close (audit 12.10.2026).
+            assert code not in old.get("stats", {}), f"nothing traded inside the market's {code}"
+            assert old[code] == {"pct": 0.0, "from": "20260824", "base": 1250.0}
         assert old["stats"]["3m"]["value"] == 8750, "24.08 IS inside three months of 09.10"
         assert old["as_of"] == "20260824", "the line still says when it last traded"
         assert body["changes"]["LIVE"]["stats"]["1w"]["value"] == 22

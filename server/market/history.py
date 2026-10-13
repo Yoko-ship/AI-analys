@@ -57,6 +57,10 @@ def _window_change(points: list[dict[str, Any]], span_days: dict[str, int] | int
     Where the store reaches no further back than the cutoff there is no base and
     no figure — an issuer whose history starts inside the window has not moved
     over it, it simply was not there.
+
+    A security with no session after the cutoff did not move: its base close is
+    still its latest, and the change is 0 %. The audit of 12.10.2026 found 49
+    cells (30 of them 1Н/1М) printing «—» for that instead.
     """
     if not points:
         return None
@@ -70,7 +74,7 @@ def _window_change(points: list[dict[str, Any]], span_days: dict[str, int] | int
         else:
             break
     last = points[-1]
-    if base is None or last is base or not base["close"]:
+    if base is None or not base["close"]:
         return None
     return {"pct": round((last["close"] - base["close"]) / abs(base["close"]) * 100.0, 2),
             "from": base["date"], "base": base["close"]}
