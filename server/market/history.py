@@ -7,25 +7,43 @@ from datetime import timedelta
 from functools import partial
 from typing import Any
 import asyncio
+import formulas
 import reports_catalog as catalog_store
 import catalogue.market_store as catalogue_market_store
 import securities_catalog as securities_store
 import time
 
 
-# The periods the board can measure a change over, in calendar days back from the
-# last settled session. Calendar, not sessions: «за неделю» means the price seven
-# days ago, and on a market where a security can go a fortnight without a trade,
-# counting sessions would call a three-month-old price a week old. YTD carries no
-# span — its base is 1 January, however far back that is today.
-MARKET_CHANGE_WINDOWS: dict[str, int | None] = {
-    "1w": 7, "1m": 30, "3m": 91, "6m": 182, "1y": 365, "ytd": None,
+# The periods the board can measure a change over, back from the last settled
+# session. Calendar, not sessions: «за неделю» means the price seven days ago, and
+# on a market where a security can go a fortnight without a trade, counting
+# sessions would call a three-month-old price a week old. And calendar MONTHS, not
+# day counts: «3М» from 12.10 starts on 12.07. Written as 91 days it started on
+# 13.07, the base became the first session inside the period, and the audit of
+# 12.10.2026 found 104 cells off by up to 64 points (ALSMP 3М: 191.57 % against
+# 143.53 %). YTD carries no span — its base is 1 January, however far back.
+MARKET_CHANGE_WINDOWS: dict[str, dict[str, int] | None] = {
+    "1w": {"days": 7}, "1m": {"months": 1}, "3m": {"months": 3},
+    "6m": {"months": 6}, "1y": {"months": 12}, "ytd": None,
 }
 
 
-def _window_change(points: list[dict[str, Any]], span_days: int | None,
+def window_cutoff(span: dict[str, int] | int | None, as_of: date) -> date:
+    """The date a window's base is taken at or before: ``{"days": n}``, ``{"months":
+    n}``, a bare day count, or ``None`` for 1 January."""
+    if span is None:
+        return date(as_of.year, 1, 1)
+    if isinstance(span, int):
+        return as_of - timedelta(days=span)
+    if span.get("months"):
+        return formulas.months_before(as_of, int(span["months"]))
+    return as_of - timedelta(days=int(span.get("days") or 0))
+
+
+def _window_change(points: list[dict[str, Any]], span_days: dict[str, int] | int | None,
                    as_of: date) -> dict[str, Any] | None:
-    """The change from the price ``span_days`` ago to the latest close.
+    """The change from the price one window ago (see :func:`window_cutoff`) to the
+    latest close.
 
     The base is the LAST close at or before the cutoff — the price the security
     was worth then — not the first close after it. On a market where a security
@@ -41,7 +59,7 @@ def _window_change(points: list[dict[str, Any]], span_days: int | None,
     """
     if not points:
         return None
-    cutoff = date(as_of.year, 1, 1) if span_days is None else as_of - timedelta(days=span_days)
+    cutoff = window_cutoff(span_days, as_of)
     if cutoff >= as_of:
         return None
     base = None
@@ -57,7 +75,7 @@ def _window_change(points: list[dict[str, Any]], span_days: int | None,
             "from": base["date"], "base": base["close"]}
 
 
-def _window_stats(points: list[dict[str, Any]], span_days: int | None,
+def _window_stats(points: list[dict[str, Any]], span_days: dict[str, int] | int | None,
                   as_of: date) -> dict[str, Any] | None:
     """What the security DID over the window, stated the way a session is stated.
 
@@ -87,7 +105,7 @@ def _window_stats(points: list[dict[str, Any]], span_days: int | None,
     """
     if not points:
         return None
-    cutoff = date(as_of.year, 1, 1) if span_days is None else as_of - timedelta(days=span_days)
+    cutoff = window_cutoff(span_days, as_of)
     if cutoff >= as_of:
         return None
     inside = [p for p in points if p["d"] > cutoff]
@@ -232,11 +250,47 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
         data = await loop.run_in_executor(
             None, partial(fetch_price_history, isin, None, months),
         )
+        data = await loop.run_in_executor(None, partial(_with_stored_sessions, isin, data))
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
             _HISTORY_CACHE.pop(oldest, None)
         _HISTORY_CACHE[key] = (time.time(), data)
         return data
+
+
+def _with_stored_sessions(isin: str, data: dict[str, Any]) -> dict[str, Any]:
+    """The archive, completed by the exchange sessions it has not published yet.
+
+    openinfo publishes a session about a day after it closes, while the board's own
+    store has it within the hour. So on the day itself every company card measured
+    its period through YESTERDAY beside a header price from today — the audit of
+    12.10.2026 found 64 cards ending on 09.10, and KFSKP's 5 656,33 «outside» a
+    year's range that simply did not include the session it was struck in. Sessions
+    the store holds AFTER the archive's last date are appended; nothing the archive
+    has is replaced. Only traded sessions: the exchange carries a close forward at
+    zero turnover, and that is not a session the archive would have.
+    """
+    points = data.get("points") or []
+    last = max((str(p.get("date") or "")[:10] for p in points), default="")
+    try:
+        stored = catalogue_market_store.get_quote_history([isin], 10).get(str(isin).upper()) or []
+    except Exception:  # noqa: BLE001 — the archive alone is still an answer
+        return data
+    newer = []
+    for r in stored:
+        stamp = str(r.get("trade_date") or "")
+        if len(stamp) != 8 or not stamp.isdigit() or r.get("close_price") is None:
+            continue
+        day = f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}"
+        if day <= last or not ((r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0):
+            continue
+        newer.append({"date": day, "open": r.get("open_price"), "high": r.get("high_price"),
+                      "low": r.get("low_price"), "close": r.get("close_price"),
+                      "change": r.get("change_value"), "trading_volume": r.get("quantity"),
+                      "trading_value": r.get("turnover"), "trade_count": r.get("trade_count")})
+    if not newer:
+        return data
+    return {**data, "points": [*points, *newer]}
 
 
 # Names for the day-based windows. formulas.WINDOW_LABELS_RU is keyed by month

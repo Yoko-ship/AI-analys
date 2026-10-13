@@ -531,3 +531,35 @@ def test_no_configured_mirror_builds_the_board_without_a_request(monkeypatch):
     assert board["ok"] is True
     assert board["source"] == "stored-openinfo-listings+uzse-quotes"
     assert board["source_url"] is None
+
+
+class TestThePreviousCloseIsDatedToItsOwnSession:
+    """Audit of 12.10.2026 («Неверная дата закрытия», 15 rows): the mirror stamps its
+    row with the session it quotes, but its ``close_price`` is the PREVIOUS close — so
+    BECMP read «28 000 · закр. 09.10» against 28 620, a close the exchange last printed
+    on 25.09. A previous close cannot share its date with the trade it is the base of."""
+
+    def test_becmp_previous_close_takes_the_date_of_the_session_that_printed_it(self) -> None:
+        row = {"isin": "UZ7027830042", "last_price": 28000.0, "last_trade_date": "2026-10-09",
+               "close_price": 28620.0, "close_date": "2026-10-09"}
+        history = {"UZ7027830042": [
+            {"trade_date": "20260923", "close_price": 28620.0},
+            {"trade_date": "20260925", "close_price": 28620.0},
+            {"trade_date": "20261009", "close_price": 28000.0},
+        ]}
+        subject_server_market_board._date_previous_closes([row], history)
+        assert row["close_date"] == "2026-09-25"
+
+    def test_without_a_session_that_printed_it_the_date_is_left_empty(self) -> None:
+        """DRBK: one trade in 2019, the close and the trade the same price and date."""
+        row = {"isin": "UZ7004510002", "last_price": 5000.0, "last_trade_date": "2019-10-31",
+               "close_price": 5000.0, "close_date": "2019-10-31"}
+        history = {"UZ7004510002": [{"trade_date": "20191031", "close_price": 5000.0}]}
+        subject_server_market_board._date_previous_closes([row], history)
+        assert row["close_date"] is None
+
+    def test_a_correctly_dated_previous_close_is_left_alone(self) -> None:
+        row = {"isin": "UZ0001", "last_price": 120.0, "last_trade_date": "2026-10-12",
+               "close_price": 100.0, "close_date": "2026-10-09"}
+        subject_server_market_board._date_previous_closes([row], {})
+        assert row["close_date"] == "2026-10-09"

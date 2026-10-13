@@ -78,10 +78,53 @@ class TestWindowChange:
     def test_no_history_yields_nothing(self) -> None:
         assert subject_server_market_history._window_change([], 7, date(2026, 8, 17)) is None
 
-    @pytest.mark.parametrize(("code", "span"), [("1w", 7), ("1m", 30), ("3m", 91),
-                                               ("6m", 182), ("1y", 365), ("ytd", None)])
+    @pytest.mark.parametrize(("code", "span"), [("1w", {"days": 7}), ("1m", {"months": 1}),
+                                               ("3m", {"months": 3}), ("6m", {"months": 6}),
+                                               ("1y", {"months": 12}), ("ytd", None)])
     def test_every_offered_window_has_a_span(self, code, span) -> None:
         assert subject_server_market_history.MARKET_CHANGE_WINDOWS[code] == span
+
+
+class TestAMonthWindowIsACalendarMonth:
+    """Audit of 12.10.2026 («Неверная база периода», 104 cells, every one 3М or 6М).
+
+    The windows were day counts — 91 for three months, 182 for six — so on 12.10 the
+    3М cutoff fell on 13.07 instead of 12.07 and the base became the first session
+    INSIDE the period. On a market where a thin line moves 20 % in one session, that
+    one day was a 48-point error. 1Н/1М/1Г were right only because 7, 30 and 365
+    days happened to land on the calendar date that week.
+    """
+
+    AS_OF = date(2026, 10, 12)
+
+    def _change(self, points, code):
+        span = subject_server_market_history.MARKET_CHANGE_WINDOWS[code]
+        return subject_server_market_history._window_change(points, span, self.AS_OF)
+
+    def test_alsmp_three_months_is_measured_from_the_close_before_12_july(self) -> None:
+        points = _points(("20260710", 10655.88), ("20260713", 8900.01), ("20261012", 25950.0))
+        got = self._change(points, "3m")
+        assert (got["from"], got["pct"]) == ("20260710", 143.53)
+
+    def test_alsm_six_months_is_measured_from_the_close_before_12_april(self) -> None:
+        points = _points(("20260410", 1039.0), ("20260413", 950.0), ("20261012", 1300.0))
+        got = self._change(points, "6m")
+        assert (got["from"], got["pct"]) == ("20260410", 25.12)
+
+    @pytest.mark.parametrize(("code", "cutoff"), [
+        ("1w", date(2026, 10, 5)), ("1m", date(2026, 9, 12)), ("3m", date(2026, 7, 12)),
+        ("6m", date(2026, 4, 12)), ("1y", date(2025, 10, 12)), ("ytd", date(2026, 1, 1)),
+    ])
+    def test_every_window_starts_on_the_date_its_label_names(self, code, cutoff) -> None:
+        span = subject_server_market_history.MARKET_CHANGE_WINDOWS[code]
+        assert subject_server_market_history.window_cutoff(span, self.AS_OF) == cutoff
+
+    def test_the_session_figures_cover_the_same_calendar_as_the_percent(self) -> None:
+        points = _turnover_points(("20260710", 10655.88, 100.0), ("20260713", 8900.01, 200.0),
+                                  ("20261012", 25950.0, 300.0))
+        span = subject_server_market_history.MARKET_CHANGE_WINDOWS["3m"]
+        got = subject_server_market_history._window_stats(points, span, self.AS_OF)
+        assert (got["from"], got["value"]) == ("20260713", 500)
 
 
 class TestWindowTurnover:

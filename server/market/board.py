@@ -254,6 +254,44 @@ def _apply_quote(row: dict[str, Any], quote: dict[str, Any]) -> None:
     row["inactive"] = None
 
 
+def _same_price(a: Any, b: Any) -> bool:
+    try:
+        x, y = float(a), float(b)
+    except (TypeError, ValueError):
+        return False
+    scale = max(abs(x), abs(y))
+    return scale == 0 or abs(x - y) / scale <= 1e-9
+
+
+def _date_previous_closes(rows: list[dict[str, Any]],
+                          history: dict[str, list[dict[str, Any]]]) -> int:
+    """Date every previous close to the session that printed it, in place.
+
+    The mirror stamps ``close_date`` with the session it QUOTES, but its
+    ``close_price`` is the close BEFORE that session — the base of the day's move.
+    Left as it came, BECMP read «28 000 · закр. 09.10» against 28 620, a close the
+    exchange last printed on 25.09; the audit of 12.10.2026 found 15 such rows. A
+    base cannot share its date with the trade it is the base of, so wherever it
+    does, the date is taken from the stored session before the trade that closed at
+    that price — and where no stored session did, it is left empty rather than
+    wrong. Returns rows changed.
+    """
+    changed = 0
+    for row in rows:
+        trade_day = market_dates._iso_trade_date(row.get("last_trade_date"))
+        close_day = market_dates._iso_trade_date(row.get("close_date"))
+        if not trade_day or not close_day or close_day < trade_day:
+            continue
+        stamp = trade_day.replace("-", "")
+        earlier = [r for r in history.get(str(row.get("isin") or "").upper()) or []
+                   if str(r.get("trade_date") or "") < stamp]
+        source = next((r for r in reversed(earlier)
+                       if _same_price(row.get("close_price"), r.get("close_price"))), None)
+        row["close_date"] = market_dates._iso_trade_date(source["trade_date"]) if source else None
+        changed += 1
+    return changed
+
+
 def _exchange_url(isin: Any, is_bond: bool) -> str | None:
     """The exchange's own page for a security — the board's «источник» link.
 
@@ -508,6 +546,19 @@ async def _build_board(security_type: str = "") -> dict[str, Any]:
         _fill_source_urls(quoted_rows)
         if quoted_rows:
             loop.run_in_executor(None, partial(securities_store.sync_securities, quoted_rows, settings._load_logos()))
+
+    misdated = [str(r.get("isin") or "").upper() for r in merged
+                if r.get("isin") and r.get("close_date") and r.get("last_trade_date")
+                and market_dates._iso_trade_date(r["close_date"])
+                >= market_dates._iso_trade_date(r["last_trade_date"])]
+    if misdated:
+        try:
+            history = await loop.run_in_executor(
+                None, partial(catalogue_market_store.get_quote_history, misdated, 60))
+        except Exception:
+            http.logger.exception("market/stocks: quote history read failed")
+            history = {}
+        _date_previous_closes(merged, history)
 
     # Drop board-suppressed tickers (dormant registry lines) from the view. Applied
     # to the fully merged list so it holds regardless of source (live feed, the

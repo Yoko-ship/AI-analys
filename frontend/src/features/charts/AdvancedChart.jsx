@@ -13,7 +13,7 @@ import { LineType as LwLineType } from "lightweight-charts";
 import { compact as fmtCompact } from "../../lib/format.js";
 import { finLabel } from "../../shared/financialLabels.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
-import { formatMarketNumber } from "../../shared/format.jsx";
+import { formatMarketChange, formatMarketNumber } from "../../shared/format.jsx";
 import { AdvancedChartRail, AdvancedCompareBar } from "./CompareRail.jsx";
 import LwCanvas from "../../charts/LwCanvas.jsx";
 import { patternName } from "../../lib/patterns.js";
@@ -835,7 +835,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
           <span className="ac-price">{lastPrice != null ? formatMarketNumber(lastPrice, lang) : "—"}</span>
           {dayChange && (
             <span className={`ac-change ${dayChange.p >= 0 ? "pos" : "neg"}`}>
-              {dayChange.v >= 0 ? "+" : ""}{fmtFull(dayChange.v)} ({signedFixed(dayChange.p)}%)
+              {formatMarketChange(dayChange.v, dayChange.p, lang)}
             </span>
           )}
           {windowChange != null && (

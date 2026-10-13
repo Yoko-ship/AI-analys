@@ -43,3 +43,11 @@ export function signedFixed(value, digits = 2) {
   const rounded = Number(number.toFixed(digits)) + 0; // Normalize negative zero.
   return `${rounded > 0 ? "+" : ""}${rounded.toFixed(digits)}`;
 }
+
+/** A session move as the board writes it — «-1 699 · -5,16%» — so the company
+ * header cannot print the same move in another notation. */
+export function formatMarketChange(value, percent, language) {
+  const v = safeNumber(value), p = safeNumber(percent);
+  if (v === null || p === null) return "—";
+  return `${v > 0 ? "+" : ""}${formatMarketNumber(v, language)} · ${p > 0 ? "+" : ""}${formatRatio(p, 2, language)}%`;
+}

@@ -129,3 +129,47 @@ describe("market data shared by the board, company, chart and landing", () => {
     assert.equal(source.ts, undefined);
   });
 });
+
+describe("audit of 12.10.2026", () => {
+  it("states the average share price as turnover ÷ volume, as its tooltip says", () => {
+    // AGMKP: 51 425 616,02 сум over 1 667 shares is 30 849,20. The stored avg_price,
+    // 31 360,78, is the plain mean of the trade prices — 50 rows showed it as VWAP.
+    const [row] = prepareMarketRows([quote({ isin: "UZ7004340004", last_trade_date: "2026-10-12" })], {
+      UZ7004340004: trades({ trade_date: "20261012", total_value: 51425616.02, total_qty: 1667,
+        trade_count: 30, avg_price: 31360.78, vwap: 30849.2 }),
+    });
+    assert.equal(row.avgPrice, 30849.2);
+  });
+
+  it("derives the volume-weighted price when the statistic lacks one", () => {
+    const [row] = prepareMarketRows([quote({ last_trade_date: "2026-10-12" })], {
+      UZ0001: trades({ trade_date: "20261012", total_value: 9143595.03, total_qty: 1961,
+        avg_price: 4710.79, vwap: null }),
+    });
+    assert.equal(Math.round(row.avgPrice * 100) / 100, 4662.72);
+  });
+
+  it("shows no session change for a security that sat out the market's latest session", () => {
+    // BECMP last traded 09.10; on 12.10 its «−620 (−2,17 %)» was the 09.10 move
+    // printed in the column for today's session. AGBA traded on 12.10 and keeps its own.
+    const rows = prepareMarketRows([
+      quote({ isin: "UZ7011030002", ticker: "AGBA", last_price: 599.99, close_price: 590,
+        last_trade_date: "2026-10-12", close_date: "2026-10-09" }),
+      quote({ isin: "UZ7027830042", ticker: "BECMP", last_price: 28000, close_price: 28620,
+        last_trade_date: "2026-10-09", close_date: "2026-09-25" }),
+    ]);
+    const [agba, becmp] = rows;
+    assert.ok(Math.abs(agba.changePercent - 1.6932) < 1e-3);
+    assert.equal(becmp.changeValue, null);
+    assert.equal(becmp.changePercent, null);
+    assert.equal(becmp.tone, "neutral");
+    assert.equal(becmp.lastPrice, 28000, "the price itself still stands");
+  });
+
+  it("measures the market's latest session from the statistics too", () => {
+    const [row] = prepareMarketRows([quote({ last_trade_date: "2026-10-09" })], {
+      UZ0002: trades({ trade_date: "20261012" }),
+    });
+    assert.equal(row.changePercent, null);
+  });
+});

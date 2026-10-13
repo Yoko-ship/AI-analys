@@ -377,10 +377,10 @@ test("shared market data keeps all four market views aligned", async ({ page }, 
   await page.screenshot({ path: testInfo.outputPath("market.png") });
   await page.goto("/company/AGBA");
   await expect(page.locator(".company-page-price-val")).toHaveText("144 сум");
-  await expect(page.locator(".company-page-price-change")).toContainText("20.00%");
+  await expect(page.locator(".company-page-price-change")).toContainText(/\+20(?:[,.]00)?%/);
   await page.goto("/chart/AGBA");
   await expect(page.locator(".ac-price")).toHaveText("144");
-  await expect(page.locator(".ac-change")).toContainText("20.00%");
+  await expect(page.locator(".ac-change")).toContainText(/\+20(?:[,.]00)?%/);
   await page.goto("/");
   const company = page.locator(".lv-company-card").filter({ hasText: "AGBA" });
   await expect(company.locator(".lv-cc-pr")).toContainText("144");

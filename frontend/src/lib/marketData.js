@@ -115,7 +115,13 @@ function applyTradeStats(r, tmap, latestTsDay) {
   if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
   if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
   if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
-  if (Number.isFinite(t.avg_price)) out.avgPrice = t.avg_price;
+  // «Ср. цена акции» is defined as turnover ÷ volume, and its tooltip says so.
+  // `avg_price` is the plain mean of the trade prices — a different number, and
+  // on 12.10.2026 it stood in for VWAP on 50 rows (AGMKP 31 360,78 against
+  // 30 849,20). It is never shown under that name.
+  const vwap = Number.isFinite(t.vwap) ? t.vwap
+    : Number.isFinite(t.total_value) && t.total_qty > 0 ? t.total_value / t.total_qty : null;
+  if (vwap !== null) out.avgPrice = vwap;
   if (Number.isFinite(t.vwap)) out.vwap = t.vwap;
   // The feed lags for thin names — SANE still carried its 13.07 trade
   // while today's executions existed (and sometimes last_price is null
@@ -175,11 +181,27 @@ function applyTradeStats(r, tmap, latestTsDay) {
   return out;
 }
 
+// The session column describes the MARKET's latest session. A security that sat
+// it out has no move in it: its last change belongs to an older session, and
+// printed here it read as today's — 17 rows on 12.10.2026, BECMP's 09.10 move
+// among them, and ORFI's 2021 one at −54 %, past any limit the exchange allows.
+// The period columns are anchored the same way (see /api/market/changes).
+function withoutStaleChange(row, marketDay) {
+  const day = normalizeMarketDay(row.last_trade_date);
+  if (!marketDay || !day || day >= marketDay || row.changePercent === null) return row;
+  return { ...row, changeValue: null, changePercent: null, tone: marketTone(null) };
+}
+
 /** Prepare independent display rows without changing the source snapshots. */
 export function prepareMarketRows(rows, tradeStats = {}) {
   const stats = tradeStats || {};
   const latestDay = latestTradeStatsDay(stats);
-  return (Array.isArray(rows) ? rows : [])
+  const prepared = (Array.isArray(rows) ? rows : [])
     .map(enrichMarketStock)
     .map((row) => applyTradeStats(row, stats, latestDay));
+  const marketDay = prepared.reduce((m, r) => {
+    const d = normalizeMarketDay(r.last_trade_date);
+    return d && (!m || d > m) ? d : m;
+  }, latestDay);
+  return prepared.map((row) => withoutStaleChange(row, marketDay));
 }

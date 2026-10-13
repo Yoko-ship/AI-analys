@@ -280,13 +280,30 @@ def _trading_days(start: date, end: date) -> int:
 # Window metrics — these MAY depend on the selected period
 # ---------------------------------------------------------------------------
 
+def months_before(day: date, months: int) -> date:
+    """The same calendar day ``months`` earlier — «3М» from 12.10 is 12.07.
+
+    A day the earlier month does not have becomes that month's last day (31.05
+    less three months is 28.02). Every period labelled in months is measured from
+    here — the board's change columns, the card's window and the chart's archive —
+    because a month written as 30 days, or three as 91, moves the start off the
+    date the label names, and on a thin market one day can move a figure by fifty
+    points.
+    """
+    total = day.year * 12 + (day.month - 1) - int(months)
+    year, month = divmod(total, 12)
+    month += 1
+    nxt = date(year + (month == 12), month % 12 + 1, 1)
+    return date(year, month, min(day.day, (nxt - timedelta(days=1)).day))
+
+
 def window_slice(points: Sequence[dict[str, Any]], months: int,
                  today: date | None = None, days: int | None = None) -> list[dict[str, Any]]:
     """The slice the period button selects.
 
-    ``months * 30`` days back from today reproduces exactly what
-    ``fetch_price_history`` asks openinfo for, so the window measured here and
-    the series drawn on the chart cannot describe different spans.
+    Calendar months back from today (:func:`months_before`) — the same start
+    ``fetch_price_history`` asks openinfo for, so the window measured here and the
+    series drawn on the chart cannot describe different spans.
 
     ``days`` overrides that for the two buttons a month cannot express: «1Н» is
     seven days and YTD is however many have passed since 1 January. The chart
@@ -294,8 +311,9 @@ def window_slice(points: Sequence[dict[str, Any]], months: int,
     month — twenty-one sessions and a range four times too wide — under a label
     that said one week.
     """
-    span = int(days) if days else max(1, int(months)) * 30
-    start = (today or date.today()) - timedelta(days=max(1, span))
+    today = today or date.today()
+    start = (today - timedelta(days=max(1, int(days))) if days
+             else months_before(today, max(1, int(months))))
     return [p for p in points if p["d"] >= start]
 
 

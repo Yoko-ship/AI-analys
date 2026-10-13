@@ -6,7 +6,7 @@ import { QC_COLORS, QC_MAX, chartRangeMonths, chartRangeWindowQuery, quickCompar
 import { CompanyWatchRail, watchRailLists } from "../../shared/CompanyWatchRail.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
-import { signedFixed } from "../../shared/format.jsx";
+import { formatMarketChange } from "../../shared/format.jsx";
 import { CompanyInsightCard, CompanyInsightDialog } from "./Insights.jsx";
 import { CompanyOverviewTab, CompanyReportsTab } from "./Overview.jsx";
 import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
@@ -494,7 +494,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
                 <div className="company-page-price-val">{Number(lastPrice).toLocaleString("ru-RU")} сум</div>
                 {priceChange && (
                   <div className={`company-page-price-change ${priceChange.value >= 0 ? "pos" : "neg"}`}>
-                    {signedFixed(priceChange.value)} ({signedFixed(priceChange.pct)}%)
+                    {formatMarketChange(priceChange.value, priceChange.pct, lang)}
                   </div>
                 )}
               </>

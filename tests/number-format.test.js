@@ -30,3 +30,13 @@ test("display precision, signs and locales are preserved", () => {
   assert.equal(formatRatio(1.2345, 2, "ru"), "1,23");
   assert.equal(formatMarketNumber(12.5, "en"), "12.5");
 });
+
+test("a session change reads the same on the board and in the company header", async () => {
+  // Audit of 12.10.2026: 90 headers read «-1699.00 (-5.16%)» — a point, no digit
+  // groups — beside a board that writes «-1 699 · -5,16%».
+  const { formatMarketChange } = await import("../frontend/src/lib/numberFormat.js");
+  assert.equal(formatMarketChange(-1699, -5.16, "ru"), "-1 699 · -5,16%");
+  assert.equal(formatMarketChange(9.99, 1.69, "ru"), "+9,99 · +1,69%");
+  assert.equal(formatMarketChange(-1699, -5.16, "en"), "-1,699 · -5.16%");
+  assert.equal(formatMarketChange(null, 1, "ru"), "—");
+});

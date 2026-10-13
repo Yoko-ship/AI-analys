@@ -11,6 +11,7 @@ import collectors.openinfo.cells as collectors_openinfo_cells
 import collectors.openinfo.issuers as collectors_openinfo_issuers
 import collectors.openinfo.settings as collectors_openinfo_settings
 import collectors.openinfo.transport as collectors_openinfo_transport
+import formulas
 
 
 def fetch_stock_screener(
@@ -59,7 +60,7 @@ def fetch_price_history(
 ) -> dict[str, Any]:
     client = session or collectors_openinfo_transport._make_session()
     end_date = date.today()
-    start_date = end_date - timedelta(days=max(1, months) * 30)
+    start_date = formulas.months_before(end_date, max(1, months))
     params = {
         "isu_cd": isin_code,
         "start_date": start_date.isoformat(),
