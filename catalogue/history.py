@@ -231,7 +231,8 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
 
         quarter = catalogue_periods._stated_quarter(parsed) or catalogue_periods._PUB_MONTH_QUARTER[pub.month]
 
-        year, quarter = catalogue_periods._quarter_period_from_publication(quarter, pub)
+        year, quarter = catalogue_periods._quarter_period_from_publication(
+            quarter, pub, catalogue_periods._stated_reporting_date(parsed))
 
         if catalogue_periods._is_future_period(year, quarter):
 

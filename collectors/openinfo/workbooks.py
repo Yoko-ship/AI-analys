@@ -68,6 +68,7 @@ def _parse_excel_workbook(
     sheets: list[dict[str, Any]] = []
     facts_count = 0
     warnings: list[str] = []
+    reporting_date: str | None = None
 
     for sheet_name in workbook.sheet_names[:max_sheets]:
         try:
@@ -86,6 +87,12 @@ def _parse_excel_workbook(
             values = [value for value in raw_values if value not in ("", None)]
             if not values:
                 continue
+
+            # The header's «Дата отчетности» has no number in it, so the row
+            # filter below drops it — but it is the only date in the workbook
+            # that belongs to the period rather than to the upload.
+            if reporting_date is None and str(values[0]).strip().lower().startswith("дата отчетности") and len(values) > 1:
+                reporting_date = str(values[1]).strip()[:10] or None
 
             label = _excel_row_label(values)
             numeric_cells = []
@@ -128,6 +135,7 @@ def _parse_excel_workbook(
         "sheet_count": len(workbook.sheet_names),
         "sheets_read": len(sheets),
         "facts_count": facts_count,
+        "reporting_date": reporting_date,
         "sheets": sheets,
         "warnings": warnings[:5],
     }

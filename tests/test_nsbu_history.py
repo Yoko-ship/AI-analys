@@ -183,3 +183,31 @@ def test_bank_optional_fields_do_not_invalidate_successful_checkpoint(catalog):
     catalogue_financial_store.upsert_financials_cache("UZIR", "NSBU", 2018, 3, {"current_assets": 50})
     assert history.run()["complete"] == 1
     assert history.run()["skipped"] == 1
+
+
+def test_a_half_year_disclosed_over_a_year_late_keeps_its_stated_year():
+    # UQEQ disclosed its 2021 half-year on 2022-09-14; the publication date
+    # alone filed it as 2022Q2 and broke that year's cumulative revenue chain.
+    from datetime import datetime
+    from io import BytesIO
+    import pandas as pd
+    import catalogue.periods as catalogue_periods
+    from collectors.openinfo.workbooks import _parse_excel_workbook
+
+    buf = BytesIO()
+    pd.DataFrame([["Период квартала:", 2], ["Дата отчетности:", "2021-07-29"],
+                  ["Дата раскрытия эмитентом:", "2022-09-14"],
+                  ["Чистая выручка от реализации продукции", 10, 66216368, 111441498]]
+                 ).to_excel(buf, header=False, index=False)
+    parsed = _parse_excel_workbook(buf.getvalue())
+    pub = datetime(2022, 9, 14, 10, 58, 39)
+
+    assert parsed["reporting_date"] == "2021-07-29"
+    quarter = catalogue_periods._stated_quarter(parsed)
+    stated = catalogue_periods._stated_reporting_date(parsed)
+    assert catalogue_periods._quarter_period_from_publication(quarter, pub, stated) == (2021, 2)
+    # A stamp later than the publication (the filing day) cannot move the year on.
+    later = datetime(2023, 1, 5).date()
+    assert catalogue_periods._quarter_period_from_publication(quarter, pub, later) == (2022, 2)
+    # Without a stated date the publication rule is unchanged.
+    assert catalogue_periods._quarter_period_from_publication(quarter, pub) == (2022, 2)

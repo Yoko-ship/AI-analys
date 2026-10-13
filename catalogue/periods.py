@@ -287,13 +287,29 @@ def _stated_quarter(parsed: dict[str, Any] | None) -> int | None:
     return None
 
 
-def _quarter_period_from_publication(quarter: int, pub: datetime) -> tuple[int, int]:
+def _stated_reporting_date(parsed: dict[str, Any] | None) -> date | None:
+    """The workbook header's «Дата отчетности», or None if it has none."""
+    try:
+        return date.fromisoformat(str((parsed or {}).get("reporting_date") or "")[:10])
+    except ValueError:
+        return None
+
+
+def _quarter_period_from_publication(quarter: int, pub: datetime,
+                                     stated: date | None = None) -> tuple[int, int]:
     """(fiscal year, quarter) for a filing published on ``pub``.
 
     A period cannot end after the report describing it was published — the same
     invariant :func:`_effective_annual_year` applies to annuals. So the year is
     the publication year when the quarter had already closed by then, and the
     year before it otherwise (a late filing).
+
+    The publication date alone assumes a filing is less than a year late.
+    UQEQ disclosed its 2021 half-year on 2022-09-14, which the publication
+    date alone files as 2022Q2. Its header states «Дата отчетности: 2021-07-29»,
+    so when the workbook states an earlier date, that date places the year — the
+    rule period_year_quarter (openinfo_reconcile) applies to the same stamp.
     """
-    year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
+    asof = min(pub.date(), stated) if stated else pub.date()
+    year = asof.year if asof.month > _QUARTER_END_MONTH[quarter] else asof.year - 1
     return year, quarter
