@@ -727,6 +727,16 @@ class Writer(FactView):
         paragraph = Paragraph(self.lang)
         lang = self.lang
         if self.family == "fund":
+            assets, liabilities = self.value("total_assets"), self.value("total_liabilities")
+            if assets is not None and liabilities is not None:
+                nav = self.money(assets - liabilities)
+                paragraph.add(Sentence(self.tr(f"Чистые активы фонда (NAV) — {nav}.", f"Fondning sof aktivlari (NAV) — {nav}.",
+                                               f"Net asset value (NAV): {nav}."), (), "level"))
+            largest = self.share_of("largest_holding", "portfolio_fair_value")
+            if largest is not None and largest <= 100:
+                paragraph.add(Sentence(self.tr(f"Крупнейшая позиция составляет {vocab.share_phrase(largest, 'ru', 'acc')} портфеля.",
+                                               f"Eng yirik pozitsiya portfelning {vocab.share_phrase(largest, 'uz', 'acc')} tashkil etadi.",
+                                               f"The largest holding makes up {vocab.share_phrase(largest, 'en')} of the portfolio."), (), "share"))
             for part, whole, ru, uz, en in (
                     ("level3_investments", "portfolio_fair_value", "Инвестиции уровня 3, оцениваемые по моделям, составляют {acc} портфеля.", "Modellar bo‘yicha baholanadigan 3-darajali investitsiyalar portfelning {share_acc} tashkil etadi.", "Level 3 investments, valued by models, make up {share} of the portfolio."),
                     ("top5_holdings", "portfolio_fair_value", "Пять крупнейших позиций формируют {acc} портфеля.", "Beshta eng yirik pozitsiya portfelning {share_acc} tashkil etadi.", "The five largest holdings make up {share} of the portfolio."),
@@ -735,6 +745,15 @@ class Writer(FactView):
                 if share is not None and share <= 100:
                     paragraph.add(Sentence(self.tr(ru, uz, en).format(acc=vocab.share_phrase(share, lang, "acc"), share=vocab.share_phrase(share, lang),
                                                                          share_acc=vocab.share_phrase(share, lang, "acc")), (), "share"))
+            for event in (self.filing.snapshot.get("fund_record") or {}).get("subsequent_events") or []:
+                effect = vocab.decimal_or_none(event.get("estimated_nav_effect_mln_uzs"))
+                if event.get("code") == "PORTFOLIO_SWAP" and effect is not None:
+                    amount = self.money(effect * 1000)
+                    kept = not event.get("changes_reported_nav")
+                    paragraph.add(Sentence(self.tr(
+                        f"После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — {amount}" + (", отчётный NAV не изменён." if kept else "."),
+                        f"Hisobot sanasidan keyin fond portfelning bir qismini almashtirdi: NAVga baholangan ta’sir — {amount}" + (", hisobotdagi NAV o‘zgarmagan." if kept else "."),
+                        f"After the reporting date the fund swapped part of its portfolio: the estimated effect on NAV is {amount}" + ("; the reported NAV is unchanged." if kept else ".")), (), "statement"))
             return paragraph
         equity_share = self.share_of("total_equity", "total_assets")
         if equity_share is not None and "equity_share" not in self.shares_stated:
@@ -857,6 +876,10 @@ class Writer(FactView):
             notes.append(self.tr("Денежные средства биржи могут включать средства клиентов.",
                                  "Birja pul mablag‘lari mijozlar mablag‘larini ham o‘z ichiga olishi mumkin.",
                                  "The exchange's cash may include client funds."))
+        if self.family == "fund":
+            notes.append(self.tr("Цена/NAV не рассчитывается до сверки количества и номинала акций.",
+                                 "Aksiyalar soni va nominali tekshirilguncha narx/NAV hisoblanmaydi.",
+                                 "Price/NAV is not calculated until the share count and nominal are reconciled."))
         if self.family == "bank":
             notes.append(self.tr("Нормативы ЦБ по этим данным не рассчитываются.",
                                  "Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi.",

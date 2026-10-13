@@ -272,3 +272,20 @@ def test_every_report_can_be_published_as_json(ticker):
     # TGPG's red flag carried a Decimal share and its publication failed with
     # a 500; a published report must serialise without a custom encoder.
     json.dumps(_report(ticker))
+
+
+def test_fund_facts_go_through_the_writer_and_its_checks():
+    # UZNF: an enrichment step appended «NAV: 29 861 539.00 млн сум; Level 3:
+    # 100.00%; Top-5: 68.23%» after the text checks had run.
+    import fund_analysis
+    issuer = {"id": "UZNF", "ticker": "UZNF", "name": "National Fund"}
+    data = fund_analysis.audited_snapshot(issuer)
+    report = fund_analysis.enrich(report_module.make_report(data, issuer, "ru", today=TODAY), data)
+    assert report["status"] == "available"
+    assert "29 861 539" not in report["text"] and "100.00%" not in report["text"] and "Top-5" not in report["text"]
+    strength = next(s["text"] for s in report["sections"] if s["id"] == "strength")
+    assert "Чистые активы фонда (NAV) — 29,9 трлн сум." in strength
+    assert "После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — −769 млрд сум, отчётный NAV не изменён." in strength
+    assert "Цена/NAV не рассчитывается до сверки количества и номинала акций." in report["footnote"]
+    assert report["sections"] == report["task1_sections"] and report["text_checks"]["status"] == "passed"
+    assert report["portfolio"]["top_5_pct"] == pytest.approx(68.23, abs=.01)   # the data fields stay

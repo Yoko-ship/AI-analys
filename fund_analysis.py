@@ -4,7 +4,6 @@ from datetime import date
 from pathlib import Path
 
 from financial_analysis.sector_numbers import decimal, difference, number, ratio
-from financial_analysis.sector_language import tr, format_number
 
 
 def audited_snapshot(issuer, period=None):
@@ -59,19 +58,9 @@ def enrich(report, snapshot, market=None):
     for risk in report["risks"]:
         risk["source_line_ids"] = [record["source_lines"].get(k, k) for k in
                                     ([risk["metric_code"], "net_income"] if risk["code"] == "profit_quality" else [risk["metric_code"]])]
-    portfolio = report["portfolio"]
-    paragraph = (f"NAV: {format_number(nav)} " + tr(lang, "млн сум", "mln so‘m", "million UZS") +
-                 f"; Level 3: {format_number(portfolio['level_3_share_pct'])}%; Top-1: {format_number(portfolio['top_1_pct'])}%; Top-5: {format_number(portfolio['top_5_pct'])}%. " +
-                 tr(lang, "Первый отчётный период 24.12.2024–31.12.2025; сопоставимого ряда нет. Цена/NAV скрыта до сверки количества и номинала акций.",
-                    "Birinchi hisobot davri 24.12.2024–31.12.2025; taqqoslanadigan qator yo‘q. Aksiyalar soni va nominali tekshirilguncha narx/NAV yashirilgan.",
-                    "First reporting period: 24 December 2024–31 December 2025; no comparable series exists. Price/NAV is withheld pending share-count and nominal reconciliation."))
-    event = tr(lang, "После отчётной даты обмен портфеля имеет оценочный эффект", "Hisobotdan keyingi portfel almashinuvi baholangan ta’siri", "The post-reporting portfolio swap has an estimated effect")
-    paragraph += f" {event}: −769 377 " + tr(lang, "млн сум; официальный NAV не изменён.", "mln so‘m; rasmiy NAV o‘zgartirilmagan.", "million UZS; reported NAV is unchanged.")
-    report["paragraphs"].insert(-1, paragraph)
-    report["text"] = "\n\n".join(report["paragraphs"])
-    report["paragraph_count"] = len(report["paragraphs"])
-    report["word_count"] = len(report["text"].split())
-    report["sections"] = [{"id": f"section-{i}", "text": p} for i, p in enumerate(report["paragraphs"])]
+    # The NAV, holdings and the post-reporting event are stated by the
+    # analysis writer from the same record, under the text rules and checks;
+    # this step adds data fields only and leaves the written text as it is.
     return report
 
 

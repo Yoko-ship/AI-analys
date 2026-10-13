@@ -88,6 +88,13 @@ def classify(current, previous, *, profit_like=False, floor=None):
     return {**result, "kind": "trend", "pct": pct, "tier": tier, "direction": direction, "ratio": ratio}
 
 
+def decimal_or_none(value):
+    try:
+        return Decimal(str(value)) if value is not None else None
+    except Exception:
+        return None
+
+
 def pick(lang, ru, uz, en):
     return (ru, uz, en)[LANGS.index(lang) if lang in LANGS else 0]
 
