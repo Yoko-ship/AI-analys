@@ -64,78 +64,20 @@ function CompanyInsightIcon({ small = false }) {
   );
 }
 
-function companyInsightTeaser(report, lang) {
-  if (!report) return "";
-  const rows = Object.values(report.replacement_blocks || {}).flatMap((items) => Array.isArray(items) ? items : []);
-  const candidates = ["revenue", "operating_income", "net_income"];
-  const labels = {
-    revenue: ["выручка", "tushum", "revenue"],
-    operating_income: ["операционная прибыль", "operatsion foyda", "operating profit"],
-    net_income: ["чистая прибыль", "sof foyda", "net profit"],
-  };
-  const languageIndex = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
-  const comparable = candidates.map((code) => rows.find((row) => row.metric_code === code))
-    .filter((row) => Number.isFinite(Number(row?.change_pct)))
-    .slice(0, 2);
-  if (comparable.length) {
-    const movement = Object.fromEntries(comparable.map((row) => [row.metric_code, Number(row.change_pct)]));
-    let thesis;
-    if (movement.revenue > 0 && (movement.operating_income < 0 || movement.net_income < 0)) {
-      if (movement.operating_income < 0) {
-        thesis = [
-          "рост выручки при падении операционной прибыли указывает на сжатие маржи и ухудшение эффективности",
-          "tushum o‘sib, operatsion foyda pasayishi marja qisqarishi va samaradorlik yomonlashganini ko‘rsatadi",
-          "revenue growth alongside falling operating profit indicates margin compression and weaker efficiency",
-        ][languageIndex];
-      } else {
-        thesis = [
-          "рост выручки при падении чистой прибыли указывает на снижение чистой маржи и качества результата",
-          "tushum o‘sib, sof foyda pasayishi sof marja va natija sifati yomonlashganini ko‘rsatadi",
-          "revenue growth alongside falling net profit indicates lower net margins and weaker earnings quality",
-        ][languageIndex];
-      }
-    } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) >= 0)) {
-      thesis = [
-        "доходы и прибыль растут — финансовая динамика положительная",
-        "daromad va foyda o‘smoqda — moliyaviy dinamika ijobiy",
-        "income and profit are growing — financial momentum is positive",
-      ][languageIndex];
-    } else if (comparable.length >= 2 && comparable.every((row) => Number(row.change_pct) < 0)) {
-      thesis = [
-        "доходы и прибыль снижаются — финансовые результаты ослабевают",
-        "daromad va foyda pasaymoqda — moliyaviy natijalar zaiflashmoqda",
-        "income and profit are declining — financial performance is weakening",
-      ][languageIndex];
-    } else if (comparable.length >= 2) {
-      thesis = [
-        "ключевые показатели разнонаправленные — устойчивого улучшения пока нет",
-        "asosiy ko‘rsatkichlar turli yo‘nalishda — barqaror yaxshilanish hali yo‘q",
-        "key metrics are mixed — there is no sustained improvement yet",
-      ][languageIndex];
-    } else {
-      const row = comparable[0];
-      const labelText = labels[row.metric_code][languageIndex];
-      const rising = Number(row.change_pct) >= 0;
-      thesis = [
-        `${labelText} ${rising ? "растёт" : "снижается"} — это главный подтверждённый сигнал периода`,
-        `${labelText} ${rising ? "o‘smoqda" : "pasaymoqda"} — bu davrning asosiy tasdiqlangan signali`,
-        `${labelText} is ${rising ? "growing" : "declining"} — the period’s main verified signal`,
-      ][languageIndex];
-    }
-    const detailedTeaser = `${report.issuer?.ticker || ""}: ${thesis}.`.trim();
-    const detailedWords = detailedTeaser.split(/\s+/).filter(Boolean);
-    return detailedWords.length > 18
-      ? `${detailedWords.slice(0, 18).join(" ").replace(/[\s,;:]+$/, "")}…`
-      : detailedTeaser;
-  }
-  const teaser = report.card_text || report.short_summary || report.headline || "";
-  const words = String(teaser).trim().split(/\s+/).filter(Boolean);
-  return words.length > 22 ? `${words.slice(0, 22).join(" ").replace(/[\s,;:]+$/, "")}…` : teaser;
+// The card is the analysis's own first line: one headline sentence and the
+// verdict with its reason, exactly as the server wrote them. The page does not
+// compose a second wording of the result from the figures.
+function companyInsightTeaser(report) {
+  if (!report) return { headline: "", verdict: "" };
+  const verdict = report.verdict_line || "";
+  const card = report.card_text || report.short_summary || report.headline || "";
+  const headline = verdict && card.endsWith(verdict) ? card.slice(0, card.length - verdict.length).trim() : card;
+  return { headline, verdict };
 }
 
 function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef, lang }) {
   const tx = COMPANY_INSIGHT_TX[lang] || COMPANY_INSIGHT_TX.ru;
-  const teaser = companyInsightTeaser(report, lang);
+  const teaser = companyInsightTeaser(report);
   const isReadable = report && ["available", "stale"].includes(report.status);
   return (
     <section className={`company-insight-card tone-${report?.headline_tone || "neutral"}`} data-testid="company-insight-card" aria-live="polite" aria-busy={loading ? "true" : "false"}>
@@ -145,8 +87,13 @@ function CompanyInsightCard({ report, loading, error, onOpen, onRetry, buttonRef
           <p className="muted">{tx.loading}</p>
         ) : report?.status && !isReadable && !error ? (
           <Suspense fallback={null}><ReportAvailability report={report} lang={lang} /></Suspense>
+        ) : error ? (
+          <p>{tx.unavailable}</p>
         ) : (
-          <p>{error ? tx.unavailable : teaser}</p>
+          <>
+            <p>{teaser.headline}</p>
+            {teaser.verdict && <p className="company-insight-verdict">{teaser.verdict}</p>}
+          </>
         )}
       </div>
       {!loading && error && (
@@ -239,12 +186,15 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
           </section>
         )}
         <div id={bodyId} className="company-insight-report-copy">
-          {report.abstract && !report.task1_sections?.length && <aside className="company-insight-abstract"><span>{lang === "ru" ? "Аннотация" : lang === "uz" ? "Annotatsiya" : "Abstract"}</span><p>{companyInsightTeaser(report, lang)}</p></aside>}
           {narrativeSections.map((section, index) => (
-            <section className="company-insight-report-section" key={section.id || index}>
+            <section className={`company-insight-report-section${section.style ? ` is-${section.style}` : ""}`} key={section.id || index}>
               {section.title && <header><span>{section.number || String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3></header>}
-              {section.blocks?.length ? section.blocks.map((block, blockIndex) => (
-                <p key={`${section.id || index}-block-${blockIndex}`}>
+              {section.style === "list" ? (
+                <ul>{section.blocks.map((block, blockIndex) => <li key={`${section.id || index}-item-${blockIndex}`}>{block.text}</li>)}</ul>
+              ) : section.style === "footnote" ? (
+                <p><em>{section.text}</em></p>
+              ) : section.blocks?.length ? section.blocks.map((block, blockIndex) => (
+                <p key={`${section.id || index}-block-${blockIndex}`} className={block.style === "verdict" ? "company-insight-verdict" : undefined}>
                   {block.lead && <><strong>{block.lead.replace(/[.!?]+$/, "")}.</strong>{" "}</>}
                   {block.text}
                 </p>

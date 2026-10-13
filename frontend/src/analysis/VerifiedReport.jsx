@@ -37,7 +37,7 @@ export function ReportAvailability({ report, lang = "ru" }) {
   const comparativeUnitConflict = (report.data_quality || []).some(
     (item) => item.code === "COMPARATIVE_VALUES_UNIT_MISMATCH",
   );
-  const heading = comparativeUnitConflict
+  const heading = report.availability?.reason_text ? report.headline : comparativeUnitConflict
     ? pick(
       lang,
       "Данные требуют подтверждения: расхождение сравнительных значений и единиц измерения",
@@ -56,7 +56,9 @@ export function ReportAvailability({ report, lang = "ru" }) {
   return <div className="verified-availability" role="status">
     <strong>{heading}</strong>
     <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || report.period || "—"}</p>
-    {(report.data_quality || [])
+    {/* A blocked filing states its one reason in the heading; the raw check
+        messages are not repeated beside it. */}
+    {!report.availability?.reason_text && (report.data_quality || [])
       .filter((item) => !(comparativeUnitConflict && item.code === "COMPARATIVE_VALUES_UNIT_MISMATCH"))
       .map((item) => <p key={item.code}>{qualityMessage(item)}</p>)}
     {report.availability?.next_action && <p>{mappingFailed

@@ -214,23 +214,26 @@ def test_complete_ai_report_meets_length_and_traceability_contract(client, lang)
     assert len(body["headline"].split()) <= 40
     assert body["headline_tone"] in {"positive", "warning", "danger", "neutral"}
     assert 3 <= body["paragraph_count"] <= 7
-    assert 200 <= body["word_count"] <= 250
-    assert 1 <= body["card_word_count"] <= 22
-    assert body["card_text"] == body["short_summary"]
+    # «AI-анализ отчётности» (2026-10-12): six blocks, at most 450 words, the
+    # card is the one-sentence headline plus the verdict with its reason.
+    assert body["word_count"] <= 450
+    assert body["text_checks"]["status"] == "passed"
+    assert 1 <= body["card_word_count"] <= 45
+    assert body["card_text"] == body["short_summary"] == f"{body['headline']} {body['verdict_line']}"
     assert body["abstract"] == body["headline"]
-    assert body["narrative_structure"] == "ielts-task-1-v1"
-    assert [section["id"] for section in body["task1_sections"]] == [
-        "introduction", "overview", "details_performance", "details_position",
-    ]
+    assert body["narrative_structure"] == "six-blocks-v1"
+    ids = [section["id"] for section in body["task1_sections"]]
+    assert ids[:2] == ["headline", "key_points"] and ids[-1] == "footnote"
     expected_titles = {
-        "ru": ["Введение", "Общий обзор", "Детали I — финансовые результаты", "Детали II — финансовое положение"],
-        "uz": ["Kirish", "Umumiy ko‘rinish", "I tafsilot — moliyaviy natijalar", "II tafsilot — moliyaviy holat"],
-        "en": ["Introduction", "Overview", "Details I — Financial performance", "Details II — Financial position"],
+        "ru": ["Главное", "Результаты", "Баланс", "Устойчивость", "Риски и что смотреть дальше"],
+        "uz": ["Asosiy", "Natijalar", "Balans", "Barqarorlik", "Xatarlar va nimani kuzatish kerak"],
+        "en": ["Key points", "Results", "Balance sheet", "Financial strength", "Risks and what to watch"],
     }
-    assert [section["title"] for section in body["task1_sections"]] == expected_titles[lang]
-    assert all(section["number"] and section["text"] for section in body["task1_sections"])
-    assert body["sections"]  # Detailed sector narrative remains available to non-company-page consumers.
-    assert all(section["number"] and section["title"] and section["text"] for section in body["sections"])
+    titled = [section for section in body["task1_sections"] if section["title"]]
+    assert [section["title"] for section in titled] == [t for t in expected_titles[lang] if t in {s["title"] for s in titled}]
+    assert all(section["number"] and section["text"] for section in titled)
+    assert body["sections"] == body["task1_sections"]
+    assert "тыс. сум" not in body["text"] and "ming so‘m" not in body["text"] and "thousand UZS" not in body["text"]
     assert len(body["monitoring_points"]) == 2
     assert all(point["current_baseline"]["period"] == body["period"] for point in body["monitoring_points"])
     assert body["verification_summary"]["checked"]
@@ -471,3 +474,44 @@ def test_free_form_comparison_options_are_size_capped(client):
 def test_comparison_creation_is_paced_per_account(client, monkeypatch):
     monkeypatch.setattr(subject, "COMPARISON_RATE_LIMIT_PER_MINUTE", 2)
     assert [client.post("/api/v1/comparisons", json=_LITE).status_code for _ in range(3)] == [201, 201, 429]
+
+
+def test_summary_card_is_the_published_analysis_headline_and_verdict(client, monkeypatch):
+    from reporting import store
+    published = {
+        "narrative_structure": "six-blocks-v1", "period": "2026Q2", "headline_tone": "warning",
+        "headline": "Выручка выросла на 9%, но операционная прибыль сократилась на четверть.",
+        "verdict_line": "Вердикт: смешанно — выручка растёт, но маржа снижается.",
+    }
+    published["card_text"] = f"{published['headline']} {published['verdict_line']}"
+    monkeypatch.setattr(store, "latest_publication", lambda *args: published)
+    body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true").json()
+    assert body["card_text"] == body["short_summary"] == published["card_text"]
+    assert body["verdict_line"] == published["verdict_line"]
+    assert body["headline_tone"] == "warning"
+    assert body["deferred_full_report"] is True
+
+    # A publication of another period (or the old text structure) is not shown.
+    monkeypatch.setattr(store, "latest_publication", lambda *args: {**published, "period": "2026Q1"})
+    body = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true").json()
+    assert body["card_text"] != published["card_text"]
+
+
+def test_blocked_filing_shows_a_snapshot_and_one_reason_on_the_card_and_report(client, monkeypatch):
+    original = issuer_sources.get_financials_series_quarterly
+
+    def mismatched(ticker, form="NSBU"):
+        rows = {key: dict(value) for key, value in original(ticker, form).items()}
+        if ticker == "FACT":
+            rows["2026Q2"]["total_assets"] = 99999
+        return rows
+
+    monkeypatch.setattr(issuer_sources, 'get_financials_series_quarterly', mismatched)
+    full = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru").json()
+    card = client.get("/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true").json()
+    for body in (full, card):
+        assert body["status"] == "quality_blocked"
+        assert body["headline"].startswith("Срез на 30.06.2026: выручка за период —")
+        assert "Анализ не публикуется: баланс в отчёте не сходится на" in body["headline"]
+        assert "временно недоступен" not in body["headline"]
+        assert body["availability"]["reason_text"].startswith("баланс в отчёте не сходится на")

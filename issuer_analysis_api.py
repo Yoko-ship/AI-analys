@@ -9,6 +9,7 @@ The legacy ``/api/compare`` endpoint remains available for the interactive UI.
 This router adds reproducible, snapshot-backed runs suitable for API clients.
 """
 from __future__ import annotations
+import logging
 
 import csv
 import io
@@ -752,6 +753,34 @@ def _ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope:
     }
 
 
+def _blocked_line(issuer: dict[str, Any], snapshot: dict[str, Any], lang: str) -> dict[str, Any] | None:
+    """The dated snapshot and the one reason a blocked filing is not analysed."""
+    from financial_analysis.sector_narrative import blocked_text
+    from financial_analysis.sector_validation import validate_filing
+    try:
+        filing = validate_filing(snapshot, issuer, lang, financials.now().date(), None, financials.period_label(snapshot.get('period'), lang))
+    except Exception:
+        logging.getLogger(__name__).warning("Blocked snapshot unavailable for %s", issuer.get("ticker"), exc_info=True)
+        return None
+    if filing.publishable:
+        return None
+    text, snapshot_line, reason = blocked_text(filing)
+    return {'text': text, 'snapshot': snapshot_line, 'reason': reason}
+
+
+def _published_analysis(issuer: dict[str, Any], standard: str, lang: str, period: str | None) -> dict[str, Any] | None:
+    """The issuer's published six-block analysis for this period, if any."""
+    try:
+        from reporting import store
+        report = store.latest_publication(issuer["id"], lang, standard)
+    except Exception:
+        logging.getLogger(__name__).warning("Published analysis unavailable for %s", issuer.get("ticker"), exc_info=True)
+        return None
+    if not report or report.get("narrative_structure") != "six-blocks-v1" or report.get("period") != period or not report.get("card_text"):
+        return None
+    return report
+
+
 def _sector_ai_report(issuer: dict[str, Any], standard: str, period: str | None, scope: str, lang: str) -> dict[str, Any]:
     from sector_report_service import public_report, sector_report
     return public_report(sector_report(issuer, standard, period, scope, lang))
@@ -822,7 +851,19 @@ def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...
     commodity_override_only = organization_type == 'commodity_exchange' and bool(quality_blockers) and (not blocking_quality)
     available = bool(snapshot.get('period')) and available and (not blocking_quality) and (quality.get('verification_status') != 'blocked' or commodity_override_only)
     headline, headline_tone = _ai_report_headline(issuer, normalized, available, lang)
-    return {'ok': True, 'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name')}, 'standard': standard, 'period': snapshot.get('period'), 'period_label': financials.period_label(snapshot.get('period'), lang), 'scope': scope, 'language': lang, 'status': 'available' if available else 'quality_blocked', 'content_status': 'complete' if available else 'shortened', 'headline': headline, 'headline_tone': headline_tone, 'card_text': headline, 'short_summary': headline, 'card_word_count': len(str(headline or '').split()), 'deferred_full_report': available, 'availability': {'reason_code': 'available' if available else 'quality_blocked', 'last_source_period': snapshot.get('period'), 'last_successful_period': snapshot.get('period') if available else None, 'next_action': None}, 'source_snapshot_hash': snapshot.get('source_snapshot_hash')}
+    card_text, verdict_line = headline, None
+    blocked = None if available else _blocked_line(issuer, snapshot, lang)
+    if blocked:
+        headline, headline_tone = blocked['text'], 'neutral'
+        card_text = headline
+    published = _published_analysis(issuer, standard, lang, snapshot.get('period'))
+    if published:
+        # The card shows the analysis's own headline and verdict, the same
+        # line the full report opens with, not a second wording of it.
+        available = True
+        headline, headline_tone = published['headline'], published['headline_tone']
+        card_text, verdict_line = published['card_text'], published.get('verdict_line')
+    return {'ok': True, 'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name')}, 'standard': standard, 'period': snapshot.get('period'), 'period_label': financials.period_label(snapshot.get('period'), lang), 'scope': scope, 'language': lang, 'status': 'available' if available else 'quality_blocked', 'content_status': 'complete' if available else 'shortened', 'headline': headline, 'headline_tone': headline_tone, 'verdict_line': verdict_line, 'card_text': card_text, 'short_summary': card_text, 'card_word_count': len(str(card_text or '').split()), 'deferred_full_report': available, 'availability': {'reason_code': 'available' if available else 'quality_blocked', 'last_source_period': snapshot.get('period'), 'last_successful_period': snapshot.get('period') if available else None, 'next_action': None, 'snapshot_text': (blocked or {}).get('snapshot'), 'reason_text': (blocked or {}).get('reason')}, 'source_snapshot_hash': snapshot.get('source_snapshot_hash')}
 
 
 @router.get("/issuers/{issuer_id}/credit-profile")

@@ -51,6 +51,9 @@ class SectorAssessment:
     positives: Any
     verdict_status: Any
     verdict_label: Any
+    verdict_reason: Any
+    verdict_axes: Any
+    red_flags: Any
     issues: Any
     risks: Any
     monitoring_points: Any
@@ -70,3 +73,7 @@ class ReportNarrative:
     text: Any
     report_sections: Any
     card_text: Any
+    verdict_line: Any
+    footnote: Any
+    sentences: Any
+    blocked: Any

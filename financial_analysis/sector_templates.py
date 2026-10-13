@@ -5,7 +5,7 @@ from datetime import date
 import re
 
 
-VERSION = "sector-analysis-2.10"  # 2.10: bank/insurance formulation library (2026-09-24)
+VERSION = "sector-analysis-3.0"  # 3.0: six-block text by «AI-анализ отчётности: ТЗ по секторам» (2026-10-12)
 
 
 CALCULATION_VERSION = "nsbu-core-2.1"
@@ -169,3 +169,10 @@ def block_codes(template):
     return {"financial_result": result, "cash_and_working_capital": balance,
             "investment_base": ["portfolio_fair_value", "level3_investments", "largest_holding", "top5_holdings"] if template == "investment_fund_ifrs_annual" else ["fixed_assets", "construction_in_progress", "long_term_investments"],
             "sector_operating_facts": [], "market_facts": []}
+
+
+def balance_line(key, template):
+    """Whether a line is a balance amount (compared with the start of the year)."""
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    return (key in financial_analysis_sector_inputs.FORM1.values() or key in block_codes(template)["cash_and_working_capital"]
+            or key in block_codes(template)["investment_base"] or key in SECTOR_PHRASE_BALANCE_LINES)

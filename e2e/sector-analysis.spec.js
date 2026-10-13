@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 const REPORT = JSON.parse(readFileSync(new URL("../tests/fixtures/sector_ui_report.json", import.meta.url), "utf8"));
 const PUBLIC_REPORT = {
   ...REPORT,
-  card_text: "UZMK: выручка выросла на 6,55%, но прибыль основной деятельности снизилась на 8,90%. Рост чистой прибыли во многом связан с курсовыми разницами, поэтому устойчивость результата ещё не подтверждена. Денежные средства выросли, одновременно увеличились обязательства. В следующем отчёте важно проверить основной результат и движение денежных средств.",
   ratios: (REPORT.ratios || []).filter((item) => !["current_ratio", "quick_ratio"].includes(item.metric_code)),
   monitoring_points: [
     { id: "operating-income", metric_code: "operating_income", label: "Прибыль основной деятельности", current_baseline: { value: 373505355, period: "2026Q2" }, improvement_signal: "рост в сопоставимом периоде", risk_signal: "повторное снижение", required_disclosure: "форма 2 и объяснение изменения" },
@@ -48,15 +47,21 @@ test("sector report opens from the company card and exposes sourced formulas", a
   await api(page);
   await page.goto("/company/UZMK");
   const details = page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" });
-  await expect(page.getByTestId("company-insight-card")).toContainText("рост выручки при падении операционной прибыли");
-  await expect(page.getByTestId("company-insight-card")).toContainText("сжатие маржи и ухудшение эффективности");
-  await expect(page.getByTestId("company-insight-card")).not.toContainText("8,90%");
-  await expect(page.getByTestId("company-insight-card")).not.toContainText("Ограничение:");
-  const teaserWords = await page.getByTestId("company-insight-card").locator(".company-insight-card-copy p").evaluate((node) => node.textContent.trim().split(/\s+/).length);
-  expect(teaserWords).toBeLessThanOrEqual(18);
+  // The card is the analysis's own headline and verdict, as the server wrote them.
+  const card = page.getByTestId("company-insight-card");
+  await expect(card.locator(".company-insight-card-copy p").first()).toHaveText(REPORT.headline);
+  await expect(card.locator(".company-insight-verdict")).toHaveText(REPORT.verdict_line);
+  await expect(card).toContainText("Вердикт: смешанно — выручка растёт, но маржа снижается.");
+  await expect(card).not.toContainText(/тыс\. сум|Картина смешанная/);
   await details.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByTestId("verified-report")).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Главное", exact: true })).toBeVisible();
+  const points = dialog.locator(".company-insight-report-section.is-list li");
+  expect(await points.count()).toBeGreaterThanOrEqual(3);
+  expect(await points.count()).toBeLessThanOrEqual(5);
+  await expect(dialog.locator(".company-insight-report-section.is-footnote em")).toContainText("Причины изменений можно подтвердить только примечаниями к отчётности.");
+  await expect(dialog.locator(".company-insight-report-copy")).not.toContainText(/тыс\. сум|Аналитический профиль|Точную операционную причину/);
   await page.waitForTimeout(300);
   const drawerBox = await dialog.boundingBox();
   const viewport = page.viewportSize();
@@ -142,14 +147,21 @@ test("company page defers the full analysis until the reader opens it", async ({
 
 test("blocked reports keep a dated prior report and never open empty details", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await api(page, { ...REPORT, status: "quality_blocked", headline: "Анализ временно недоступен: данные не прошли сверку.",
-    data_quality: [{ code: "BALANCE_IDENTITY_FAILED", message: "Баланс не сходится" }],
-    availability: {},
+  // Instead of «Анализ временно недоступен»: the snapshot on the date from the
+  // figures that passed, and one line with the reason.
+  await api(page, { ...REPORT, status: "quality_blocked",
+    headline: "Срез на 30.06.2026: выручка за период — 3,21 трлн сум, чистая прибыль — 316 млрд сум. Анализ не публикуется: баланс в отчёте не сходится на 1 млрд сум.",
+    data_quality: [{ code: "BALANCE_IDENTITY_FAILED", message: "Баланс не прошёл сверку: проверьте компоненты и единицы." }],
+    availability: { last_source_period: "2026Q2", reason_text: "баланс в отчёте не сходится на 1 млрд сум",
+      snapshot_text: "Срез на 30.06.2026: выручка за период — 3,21 трлн сум, чистая прибыль — 316 млрд сум." },
     last_successful_report: { period: "2026Q1", paragraphs: ["Проверенный отчёт за I квартал 2026 года."] },
   });
   await page.goto("/company/UZMK");
   const card = page.getByTestId("company-insight-card");
-  await expect(card).toContainText("Баланс не сходится");
+  await expect(card).toContainText("Срез на 30.06.2026: выручка за период — 3,21 трлн сум");
+  await expect(card).toContainText("Анализ не публикуется: баланс в отчёте не сходится на 1 млрд сум.");
+  await expect(card).not.toContainText("проверьте компоненты");
+  await expect(card).not.toContainText("временно недоступен");
   await expect(card).toContainText("Доступный период: 2026Q2");
   await expect(card).not.toContainText("BALANCE_IDENTITY_FAILED");
   await expect(card.getByRole("button", { name: "Открыть полный анализ" })).toHaveCount(0);

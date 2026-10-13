@@ -5,6 +5,7 @@ from copy import deepcopy
 from datetime import date, timedelta
 from decimal import Decimal
 import json
+import re
 
 import pytest
 
@@ -141,10 +142,14 @@ def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
     data["previous_values"].update(net_income=10, operating_income=100, fx_income=10, fx_expenses=100)
     report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY, lang="en")
     assert report["profit_quality"]["net_fx_result_change"] == 160
-    assert report["verdict"]["status"] == "mixed"
+    # Net profit up on exchange gains does not hide the shrinking operating margin.
+    assert report["verdict"]["status"] == "negative"
+    assert report["verdict"]["reason"] == "the margin is falling and the equity share is falling"
     assert report["profit_quality"]["driver"] == "FX-driven"
-    assert "100.00 → 91.10" in report["headline"]
-    assert "Low-base" in report["headline"]
+    # A profit up from a negligible base is stated as two amounts, never as «+1394%».
+    assert "net profit increased from UZS 0.01mn to UZS 0.149mn" in report["headline"]
+    assert "%," not in report["headline"].split("net profit")[1].split(",")[0]
+    assert "operating profit" in report["text"].lower() and "exchange differences" in report["text"]
     assert report["profit_quality"]["cash_confirmation"] == "not_available"
     assert report["analytical_issues"]
     assert all(i["solution_code"] and i["evidence_fact_ids"] and i["source_ids"] for i in report["analytical_issues"])
@@ -152,12 +157,18 @@ def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
 
 
 def test_no_signal_does_not_invent_an_issue():
-    data = snapshot(previous_values={"net_income": 100}, opening_values={})
+    # «Без динамики» only when no comparison exists at all; the text is then a snapshot.
+    data = snapshot(previous_values={}, opening_values={})
     report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY)
     assert report["verdict"]["status"] == "no_signal"
+    assert report["verdict_line"] == "Вердикт: без динамики — нет сопоставимого периода."
     assert not report["analytical_issues"] and not report["risks"]
+    assert "%" not in report["text"].split("Сравнение")[0].replace("% активов", "")
+    # A generic (unclassified) issuer still gets a verdict with a reason; a
+    # third of the old analyses had none.
     generic = financial_analysis_sector_report.make_report(snapshot(), {**ISSUER, "oked_code": None}, today=TODAY)
-    assert generic["verdict"]["status"] == "no_signal"
+    assert generic["verdict"]["status"] in {"positive", "mixed", "negative"}
+    assert generic["verdict"]["reason"]
 
 
 def test_vertical_analysis_explains_comparison_and_implication_instead_of_listing_shares():
@@ -173,13 +184,14 @@ def test_vertical_analysis_explains_comparison_and_implication_instead_of_listin
         },
     )
     report = financial_analysis_sector_report.make_report(data, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
-    vertical = next(section["text"] for section in report["sections"] if section["id"] == "vertical_balance")
+    balance = next(section["text"] for section in report["sections"] if section["id"] == "balance")
+    strength = next(section["text"] for section in report["sections"] if section["id"] == "strength")
 
-    assert "доминирует статья «Основные средства» — 48.00%" in vertical
-    assert "с 40.00% до 48.00% (8.00 п.п.)" in vertical
-    assert "подтверждает капиталоёмкость бизнеса" in vertical
-    assert "собственный капитал покрывает 70.00% активов" in vertical
-    assert "Точную операционную причину" in vertical
+    # A share shift is stated in percentage points of the whole, not as a list of shares.
+    assert "Доля основных средств выросла с 40% до 48% активов." in balance
+    assert "Собственный капитал составляет большую часть активов." in strength
+    assert "Точную операционную причину" not in report["text"]
+    assert report["text"].count("примечаниями к отчётности") == 1
 
     falling = snapshot(
         current_values={"total_assets": 1000, "total_equity": 700, "total_liabilities": 300,
@@ -189,9 +201,9 @@ def test_vertical_analysis_explains_comparison_and_implication_instead_of_listin
                         "receivables": 450, "fixed_assets": 180, "cash": 27},
     )
     falling_report = financial_analysis_sector_report.make_report(falling, {**ISSUER, "oked_code": "24100"}, today=TODAY, lang="ru")
-    falling_vertical = next(section["text"] for section in falling_report["sections"] if section["id"] == "vertical_balance")
-    assert "Снижение доли дебиторской задолженности уменьшает объём средств" in falling_vertical
-    assert "Рост доли дебиторской задолженности" not in falling_vertical
+    falling_balance = next(section["text"] for section in falling_report["sections"] if section["id"] == "balance")
+    assert "Доля дебиторской задолженности снизилась с 50% до 40% активов." in falling_balance
+    assert "Доля дебиторской задолженности выросла" not in falling_balance
 
 
 def test_trend_requires_comparable_points_and_four_points_for_three_declines():
@@ -222,7 +234,12 @@ def test_bank_without_prior_income_uses_required_comparison_limit():
     bank = {"id": "BANK", "ticker": "BANK", "name": "Bank", "special_legal_type": "bank"}
     report = financial_analysis_sector_report.make_report(data, bank, today=TODAY, lang="ru")
     assert report["content_status"] == "complete"
-    assert "Динамика баланса — относительно начала года; изменение прибыли и рентабельности не оценивается" in report["text"]
+    # Without a prior income column the results are levels, the balance is
+    # compared with the start of the year, and the footnote says only that.
+    assert "Сравнение: баланс — с 1 января 2026 года." in report["footnote"]
+    assert "результаты —" not in report["footnote"]
+    assert "Процентные доходы за период — 90 тыс." not in report["text"]
+    assert "а активы выросли на 11%" in report["headline"]
 
 
 def test_zero_insurance_assets_are_not_replaced_by_previous_year():
@@ -271,11 +288,11 @@ def test_fund_task1_uses_portfolio_not_corporate_editorial_logic():
     data = fund_analysis.audited_snapshot(issuer)
     report = financial_analysis_sector_report.make_report(data, issuer, today=TODAY)
     sections = {section["id"]: section for section in report["task1_sections"]}
-    assert [block["lead"] for block in sections["overview"]["blocks"]] == [
-        "Инвестиционный портфель", "Качество прибыли", "Концентрация портфеля", "Качество оценки",
-    ]
-    assert "99.45% активов" in sections["overview"]["blocks"][0]["text"]
-    assert "Деньги»" not in sections["overview"]["text"]
+    assert sections["key_points"]["blocks"][0]["text"] == "Крупнейшая статья активов — инвестиционный портфель: подавляющая часть активов."
+    assert "Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля." in sections["strength"]["text"]
+    assert "Пять крупнейших позиций формируют около двух третей портфеля." in sections["strength"]["text"]
+    assert "нереализованной переоценкой" in sections["risks"]["text"]
+    assert report["verdict"]["status"] == "no_signal"
     assert "универсальный профиль" not in report["text"]
     assert report["financial_as_of"] == "2025-12-31"
 
@@ -561,14 +578,15 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert steel["verdict"]["status"] == "mixed"
     assert next(r for r in steel["ratios"] if r["metric"] == "quick_ratio")["value"] == pytest.approx(1.01913778)
     assert steel["capital_analysis"]["reconciliation_status"] == "passed"
-    assert steel["key_changes"][1]["code"] == "profit_bridge"
-    assert any(change["code"] == "asset_concentration" and "62.06%" in change["text"] for change in steel["key_changes"])
-    assert "Незавершённые вложения" in financial_analysis_sector_report.make_report(
+    assert steel["verdict"]["reason"] == "revenue is growing, but the margin is falling"
+    assert 3 <= len(steel["key_changes"]) <= 5
+    assert all(change["evidence_fact_ids"] for change in steel["key_changes"])
+    assert "Крупнейшая статья активов — незавершённое строительство: более половины активов." in financial_analysis_sector_report.make_report(
         snapshot(current_values={}, previous_values={}, opening_values={},
                  organization_type="non_financial", source=filings["UZMK"]["source"]),
         {**filings["UZMK"]["issuer"], "oked_code": "24100"}, "ru", TODAY,
         filings["UZMK"]["workbook"],
-    )["task1_sections"][1]["text"]
+    )["text"]
     assert results["UZAS"]["balance_check"]["status"] == "passed"
     insurance = {f["metric"]: f["value"] for f in results["UZAS"]["verified_facts"]}
     assert insurance["total_liabilities"] == pytest.approx(184886318.3)
@@ -584,22 +602,22 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     assert bank["net_revenue_before_operating_expenses"] == 2296912825
     assert bank["total_assets"] == bank["total_liabilities"] + bank["total_equity"]
     bank_text = results["HMKB"]["text"]
-    assert "LDR =" in bank_text and "Cost-to-Income" in bank_text and "ROA" in bank_text and "ROE" in bank_text
-    assert "Funding cost =" not in bank_text
-    assert "not by itself evidence of excessive external-funding dependence" in bank_text
+    assert "The loan portfolio exceeds customer funds 1.7-fold." in bank_text
+    assert "Operating expenses absorb about half of the bank's net revenue." in bank_text
+    assert "Funding cost =" not in bank_text and "LDR =" not in bank_text
+    assert "Central bank prudential ratios are not calculated from these data." in bank_text
     insurance_text = results["UZAS"]["text"]
-    assert "reserve retention" in insurance_text
-    assert "the loss ratio is not calculated from the available data" in insurance_text
+    assert "of premiums went to reinsurers" in insurance_text
+    assert "loss ratio" not in insurance_text
     assert "general profile" not in insurance_text
     assert 3 <= len(results["UZAS"]["key_changes"]) <= 5
     for ticker in ("UZMK", "HMKB", "UZAS"):
         task_sections = {section["id"]: section for section in results[ticker]["task1_sections"]}
-        assert 3 <= len(task_sections["overview"]["blocks"]) <= 5
-        assert all(block.get("lead") and block.get("text") for block in task_sections["overview"]["blocks"])
-        assert len(task_sections["details_performance"]["blocks"]) >= 2
-        # Banks split position into assets, reserves, funding and structure.
-        expected_position_blocks = 4 if ticker == "HMKB" else 2
-        assert len(task_sections["details_position"]["blocks"]) == expected_position_blocks
+        assert 3 <= len(task_sections["key_points"]["blocks"]) <= 5
+        assert task_sections["key_points"]["style"] == "list"
+        assert results[ticker]["text_checks"]["status"] == "passed"
+        # The balance block keeps four lines at most in one paragraph.
+        assert all(len(re.split(r"(?<=\.) (?=[A-Z])", block["text"])) <= 6 for block in task_sections["balance"]["blocks"])
 
 
 def test_bank_mapper_preserves_reconciled_catalog_totals():

@@ -202,6 +202,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                                                            "message": "Source documents contain conflicting OKED codes."})
             if org in {"bank", "microfinance_bank", "microfinance", "insurance"}:
                 map_special_lines(snapshot, workbook, org)
+            fill_from_earlier_filings(issuer, snapshot, reports, org)
         except Exception as exc:
             logger.warning("Workbook enrichment failed for %s %s", issuer.get("ticker"), selected,
                            exc_info=True)
@@ -291,6 +292,73 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     return report
 
 
+def _earlier_workbook(issuer, reports, period):
+    """The source workbook of another filing of the same issuer, or None."""
+    doc = next((r for r in reports if r.get("period") == period), None)
+    if not doc or not (doc.get("excel_url") or doc.get("excel_url_form1")):
+        return None
+    year, quarter = financials.period_key(period)
+    try:
+        workbook = financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter if "Q" in period else 0)
+    except Exception:
+        logger.warning("Comparison workbook unavailable for %s %s", issuer.get("ticker"), period, exc_info=True)
+        return None
+    return deepcopy(workbook) if workbook and workbook.get("ok") else None
+
+
+def _filed_lines(workbook, org):
+    """Current-column amounts of a workbook, mapped as the report maps them."""
+    if org in {"bank", "microfinance_bank", "microfinance", "insurance"}:
+        mapped = {"current_values": {}, "previous_values": {}, "opening_values": {}, "quality": {"data_quality": []}}
+        map_special_lines(mapped, workbook, org)
+        return mapped["current_values"]
+    values = {}
+    for form, table, mapping in (("form1", workbook.get("balance"), financial_analysis_sector_inputs.FORM1),
+                                 ("form2", workbook.get("income"), financial_analysis_sector_inputs.FORM2)):
+        for code, row in financial_analysis_sector_inputs.source_line_pairs(table, form).items():
+            if code in mapping:
+                values[mapping[code]] = row.get("raw_current")
+    return values
+
+
+def fill_from_earlier_filings(issuer, snapshot, reports, org):
+    """Take a missing comparison from the issuer's other filings.
+
+    Results are compared with the same period a year earlier and the balance
+    with the start of the year.  When the filing itself has no usable
+    comparison column (a bank's one-column income form, a blank or zeroed
+    column), the same-period filing of the previous year and the previous
+    annual filing supply it.  This applies to every sector; nothing is filled
+    where the filing already states a comparison.
+    """
+    period = snapshot.get("period")
+    if not period or snapshot.get("standard", "nsbu") != "nsbu":
+        return
+    template = (snapshot.get("template_resolution") or {}).get("selected_template") or "generic_nsbu"
+    current = snapshot.get("current_values") or {}
+    sources = snapshot.setdefault("comparison_sources", {})
+    year = financials.period_key(period)[0]
+    for target, earlier in (("previous_values", snapshot.get("previous_comparable_period")),
+                            ("opening_values", str(year - 1) if year else None)):
+        balance = target == "opening_values"
+        missing = [key for key, value in current.items() if value is not None
+                   and financial_analysis_sector_templates.balance_line(key, template) == balance
+                   and financial_analysis_sector_numbers.decimal((snapshot.get(target) or {}).get(key)) is None]
+        if not missing or not earlier:
+            continue
+        workbook = _earlier_workbook(issuer, reports, earlier)
+        if not workbook:
+            continue
+        filed = _filed_lines(workbook, org)
+        if financial_analysis_sector_inputs.blank_column(filed.get(key) for key in missing):
+            continue
+        filled = [key for key in missing if financial_analysis_sector_numbers.decimal(filed.get(key)) is not None]
+        for key in filled:
+            snapshot.setdefault(target, {})[key] = financial_analysis_sector_numbers.number(filed[key])
+        if filled:
+            sources["opening_fallback" if balance else "previous_fallback"] = earlier
+
+
 def source_oked_codes(workbook):
     codes = set()
     for form in ("balance", "income"):
@@ -377,11 +445,40 @@ SPECIAL_LABELS = {
 }
 
 
+# Lines without which a bank's balance sheet is not a bank's: a zero here,
+# beside positive assets, is a missed line, never a real amount.
+BANK_CORE_LINES = ("loan_portfolio", "customer_funds")
+
+
+def _apply_columns(snapshot, staged, protected=()):
+    """Write staged statement columns, skipping a blank one.
+
+    A column whose every amount is zero is an empty column in the filing (or
+    a parser miss), so it is not written over the comparison the catalogue
+    already holds.  Returns which targets were taken from the filing.
+    """
+    used = {}
+    for target, rows in staged.items():
+        amounts = [value for key, value in rows.items() if key not in protected]
+        if financial_analysis_sector_inputs.blank_column(amounts):
+            used[target] = False
+            continue
+        assets = financial_analysis_sector_numbers.decimal(rows.get("total_assets", snapshot[target].get("total_assets")))
+        for key, value in rows.items():
+            if key in BANK_CORE_LINES and assets and assets > 0 and financial_analysis_sector_numbers.decimal(value) == 0:
+                continue
+            snapshot[target][key] = value
+        used[target] = True
+    return used
+
+
 def map_special_lines(snapshot, workbook, org):
     # Label-anchored direct lines only. Bank pre-tax profit is not operating profit.
     if org == "insurance":
         return map_insurance_lines(snapshot, workbook)
     snapshot["current_values"].pop("operating_income", None) if org != "insurance" else None
+    staged = {"current_values": {}, "opening_values": {}, "previous_values": {}}
+    preserved = set()
     for form in ("balance", "income"):
         for sheet in (workbook.get(form) or {}).get("sheets") or []:
             for row in financial_analysis_sector_inputs.statement_rows(sheet, "form1" if form == "balance" else "form2"):
@@ -410,20 +507,24 @@ def map_special_lines(snapshot, workbook, org):
                 # totals and incorrectly block an otherwise complete report.
                 # Keep the reconciled values and use the workbook mapper for
                 # the bank-specific detail lines around them.
-                preserve_current = False
                 if matched in {"total_assets", "total_equity", "total_liabilities"}:
                     existing = financial_analysis_sector_numbers.decimal(snapshot["current_values"].get(matched))
                     if existing is not None and existing > 0:
-                        preserve_current = True
-                if not preserve_current:
-                    snapshot["current_values"][matched] = financial_analysis_sector_numbers.number(current)
+                        preserved.add(matched)
+                if matched not in preserved:
+                    staged["current_values"][matched] = financial_analysis_sector_numbers.number(current)
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
-                    snapshot[target][matched] = financial_analysis_sector_numbers.number(prior)
+                    staged[target][matched] = financial_analysis_sector_numbers.number(prior)
                 snapshot.setdefault("field_sources", {})[matched] = {
                     "source_line_id": f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}",
                     "raw_current": str(current) if financial_analysis_sector_numbers.decimal(current) is not None else None,
                 }
+    used = _apply_columns(snapshot, staged)
+    sources = snapshot.setdefault("comparison_sources", {})
+    sources["opening_from_filing"] = used.get("opening_values", False)
+    if any(staged["previous_values"].values()):
+        sources["previous_from_filing"] = used.get("previous_values", False)
 
     # The statutory bank form exposes customer deposits as three adjacent
     # verified lines rather than one total.  Aggregate only when every
@@ -431,7 +532,8 @@ def map_special_lines(snapshot, workbook, org):
     deposit_keys = ("demand_deposits", "savings_deposits", "term_deposits")
     for target in ("current_values", "opening_values"):
         deposit_total = financial_analysis_sector_numbers.total(*(snapshot[target].get(key) for key in deposit_keys))
-        if deposit_total is not None:
+        assets = financial_analysis_sector_numbers.decimal(snapshot[target].get("total_assets"))
+        if deposit_total is not None and not (deposit_total == 0 and assets and assets > 0):
             snapshot[target]["customer_funds"] = financial_analysis_sector_numbers.number(deposit_total)
     if snapshot["current_values"].get("customer_funds") is not None:
         snapshot.setdefault("field_sources", {})["customer_funds"] = {
@@ -454,6 +556,7 @@ def map_insurance_lines(snapshot, workbook):
                    "c190": "receivables", "c410": "cash", "c490": "total_assets", "c570": "total_equity",
                    "c580": "gross_insurance_reserves", "c670": "reinsurer_share_in_reserves",
                    "c720": "net_insurance_reserves", "c1190": "other_liabilities"}
+    staged = {"current_values": {}, "previous_values": {}, "opening_values": {}}
     for form, mapping, target in (("income", income_map, "previous_values"), ("balance", balance_map, "opening_values")):
         lines = financial_analysis_sector_inputs.source_line_pairs(workbook.get(form), "form2" if form == "income" else "form1", set(mapping))
         for code, field in mapping.items():
@@ -464,8 +567,14 @@ def map_insurance_lines(snapshot, workbook):
                 value = financial_analysis_sector_numbers.decimal(row[source_key])
                 if field in {"insurance_service_cost", "ceded_premiums", "expenses", "financial_expenses", "fx_expenses"} and value is not None:
                     value = abs(value)
-                snapshot[key][field] = str(value) if value is not None else None
+                # A blank cell stays missing rather than erasing the comparison.
+                if value is not None:
+                    staged[key][field] = str(value)
             snapshot.setdefault("field_sources", {})[field] = {"source_line_id": f"insurance:{form}:{code}"}
+    used = _apply_columns(snapshot, staged)
+    sources = snapshot.setdefault("comparison_sources", {})
+    sources["opening_from_filing"] = used.get("opening_values", False)
+    sources["previous_from_filing"] = used.get("previous_values", False)
     for target in ("current_values", "previous_values", "opening_values"):
         values = snapshot[target]
         if target != "previous_values":

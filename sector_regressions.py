@@ -68,11 +68,6 @@ def _run(fingerprint):
         {"id": "bank-fixture", "ticker": "BANK", "name": "Fixture Bank"},
         lang="ru", today=date(2026, 4, 10),
     )
-    bank_text = bank.get("text") or ""
-    check("bank_detailed_narrative", bank.get("paragraph_count") == 6 and "Совокупные раскрытые доходы банка" in bank_text)
-    check("bank_html_structure", [item.get("id") for item in bank.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
-    check("bank_interest_expense_share", "доля расходов в доходах, а не стоимость фондирования" in bank_text and "Стоимость фондирования =" not in bank_text)
-    check("bank_tax_caveat", "не доказывает наличие льгот" in bank_text)
     company = financial_analysis_sector_report.make_report(
         {
             "organization_type": "non_financial", "standard": "nsbu", "period": "2026Q1",
@@ -92,16 +87,22 @@ def _run(fingerprint):
         {"id": "company-fixture", "ticker": "COMP", "name": "Fixture Company", "oked_code": "10"},
         lang="ru", today=date(2026, 4, 10),
     )
+    # The written analysis must pass every publication check of the text
+    # specification on both fixtures, and keep its six-block order.
+    for name, report in (("bank", bank), ("company", company)):
+        text_checks = report.get("text_checks") or {}
+        check(f"{name}_published", report.get("status") == "available")
+        for item in text_checks.get("checks") or [{"code": "missing", "status": "failed"}]:
+            check(f"{name}_{item['code']}", item["status"] != "failed")
+        ids = [section.get("id") for section in report.get("sections", [])]
+        check(f"{name}_block_order", ids[:2] == ["headline", "key_points"] and ids[-1] == "footnote"
+              and ids == sorted(ids, key=["headline", "key_points", "results", "balance", "strength", "risks", "footnote"].index))
+        check(f"{name}_verdict_reason", bool(report.get("verdict", {}).get("reason")) and "—" in (report.get("verdict_line") or ""))
+        check(f"{name}_card_is_headline", (report.get("card_text") or "").startswith(report.get("headline") or "\0"))
     company_text = company.get("text") or ""
-    check("company_detailed_narrative", company.get("paragraph_count") == 6 and "Доходы и прямые затраты" in company_text)
-    check("company_html_structure", [item.get("id") for item in company.get("sections", [])] == ["methodology", "horizontal_balance", "vertical_balance", "financial_results", "ratios", "summary"])
-    check("company_margin_analysis", "чистая маржа" in company_text and "обязательства составляют" in company_text)
-    check("company_executive_analysis", "рост масштаба не улучшил эффективность" in company_text)
-    check("company_oked_basis", "ОКЭД 10" in company_text and "Аналитический профиль: производство" in company_text)
-    check("company_sector_result_lens", "Для производства ключевой вопрос" in company_text)
-    check("company_sector_ratio", "Основные средства / активы" not in company_text or company["industry_analysis_basis"] == {"oked_code": "10", "profile": "industry", "matched": True})
-    check("company_verdict_title", company.get("sections", [])[-1].get("title") == "Вердикт")
-    check("company_card_mixed_verdict", "Картина смешанная" in (company.get("card_text") or ""))
+    check("company_no_profile_meta_text", "Аналитический профиль" not in company_text and "Для производства ключевой вопрос" not in company_text)
+    check("company_amounts_scaled", "млн сум" in company_text and "тыс. сум" not in company_text)
+    check("company_verdict_mixed_with_reason", company["verdict"]["status"] == "mixed" and "но" in company["verdict"]["reason"])
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}
 

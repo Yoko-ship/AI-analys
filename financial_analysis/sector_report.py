@@ -4,7 +4,9 @@ from financial_analysis.sector_validation import validate_filing
 from financial_analysis.sector_evidence import collect_evidence
 from financial_analysis.sector_assessment import assess_filing
 from financial_analysis.sector_narrative import render_narrative
+from dataclasses import replace
 from datetime import date
+import financial_analysis.sector_text_checks as financial_analysis_sector_text_checks
 import financial_analysis.sector_language as financial_analysis_sector_language
 import financial_analysis.sector_numbers as financial_analysis_sector_numbers
 import financial_analysis.sector_templates as financial_analysis_sector_templates
@@ -16,6 +18,24 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
     evidence = collect_evidence(filing)
     assessment = assess_filing(filing, evidence)
     narrative = render_narrative(filing, evidence, assessment)
+    text_checks = None
+    if filing.publishable:
+        sources = dict(snapshot.get("comparison_sources") or {})
+        present = lambda values, keys: any(financial_analysis_sector_numbers.decimal(values.get(key)) is not None for key in keys)
+        sources["previous_used"] = present(filing.previous, ("revenue", "net_income"))
+        sources["opening_used"] = present(filing.opening, ("total_assets",))
+        text_checks = financial_analysis_sector_text_checks.run(
+            narrative.sentences, lang=lang, verdict_status=assessment.verdict_status,
+            complete=narrative.complete_content, comparison_sources=sources)
+        if text_checks["status"] != "passed":
+            # A text that fails a publication check is not published; the
+            # reader gets the snapshot on the date and the reason instead.
+            failed = [check["code"] for check in text_checks["checks"] if check["status"] != "passed"]
+            filing = replace(filing, status="quality_blocked", publishable=False, ratios=[], data_quality=[
+                *filing.data_quality, {"code": "TEXT_CHECK_FAILED", "severity": "blocking", "message": ", ".join(failed)}])
+            evidence = collect_evidence(filing)
+            assessment = assess_filing(filing, evidence)
+            narrative = render_narrative(filing, evidence, assessment)
     refs = [{**f, "raw": financial_analysis_sector_numbers.number(f["raw"])} for f in evidence.verified]
     report = {"ok": True, "issuer": {"id": issuer["id"], "ticker": issuer["ticker"], "name": issuer.get("name"), "organization_type": filing.org, "sector": filing.template},
               "report": {"standard": filing.standard.upper(), "template_basis": snapshot.get("template_basis"), "period": filing.period, "period_end": filing.end.isoformat(), "status": filing.status},
@@ -31,8 +51,10 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "calculation_version": financial_analysis_sector_templates.CALCULATION_VERSION, "mapping_version": financial_analysis_sector_templates.MAPPING_VERSION,
               "headline": narrative.headline, "short_summary": narrative.card_text, "card_text": narrative.card_text,
               "card_word_count": len(narrative.card_text.split()) if narrative.card_text else 0,
-              "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "no_signal": "neutral"}[assessment.verdict_status],
-              "narrative_structure": "ielts-task-1-v1", "task1_sections": narrative.task1_sections,
+              "headline_tone": {"positive": "positive", "mixed": "warning", "negative": "danger", "attention": "danger", "no_signal": "neutral"}[assessment.verdict_status],
+              "verdict_line": narrative.verdict_line, "footnote": narrative.footnote,
+              "narrative_structure": "six-blocks-v1", "task1_sections": narrative.task1_sections,
+              "text_checks": text_checks,
               "key_changes": narrative.key_changes,
               "paragraphs": narrative.paragraphs, "text": narrative.text, "paragraph_count": len(narrative.paragraphs), "word_count": len(narrative.text.split()),
               "abstract": narrative.headline if filing.publishable else None,
@@ -44,10 +66,13 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
               "analytical_signals": assessment.signals, "analytical_issues": assessment.issues, "risks": assessment.risks,
               "monitoring_points": assessment.monitoring_points if filing.publishable else [], "trend": assessment.trend,
               "verification_summary": assessment.verification_summary,
-              "verdict": {"status": assessment.verdict_status, "headline": narrative.headline if filing.publishable else None, "evidence_signal_ids": [s["id"] for s in assessment.signals] if assessment.verdict_status != "no_signal" else [], "period_end": filing.end.isoformat()},
+              "verdict": {"status": assessment.verdict_status, "headline": narrative.headline if filing.publishable else None,
+                          "reason": assessment.verdict_reason if filing.publishable else None, "line": narrative.verdict_line,
+                          "axes": assessment.verdict_axes if filing.publishable else {}, "red_flags": assessment.red_flags, "evidence_signal_ids": [s["id"] for s in assessment.signals] if assessment.verdict_status != "no_signal" else [], "period_end": filing.end.isoformat()},
               "data_quality": filing.data_quality, "balance_check": filing.balance, "financial_as_of": filing.end.isoformat() if filing.period else None,
               "market_as_of": None, "sources": [filing.source] if filing.source_url else [],
               "availability": {"reason_code": filing.status, "last_source_period": filing.period, "last_successful_period": filing.period if filing.publishable else None,
+                               "snapshot_text": (narrative.blocked or {}).get("snapshot"), "reason_text": (narrative.blocked or {}).get("reason"),
                                "next_action": financial_analysis_sector_language.tr(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.") if filing.status == "stale" or not filing.publishable else None},
               "source_snapshot_hash": financial_analysis_sector_numbers.digest([issuer["id"], filing.standard, filing.period, filing.values, filing.previous, filing.opening, filing.lines, filing.source]),
               "generated_at": snapshot.get("generated_at")}

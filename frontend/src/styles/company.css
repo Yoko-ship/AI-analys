@@ -154,6 +154,15 @@
 .company-insight-report-section > header h3 { margin: 0; color: var(--text); font-size: 17px; line-height: 1.35; }
 .company-insight-report-section > p { margin-left: 43px; }
 .company-insight-report-section > p strong { color: var(--text); font-weight: 700; }
+/* The six-block analysis: a lead sentence with its verdict, a list of the main
+   changes, and one footnote that carries every caveat. */
+.company-insight-card-copy p.company-insight-verdict { margin-top: 4px; color: var(--text-secondary); font-size: 14px; font-weight: 600; }
+.company-insight-report-section.is-lead { padding-top: 4px; border-top: 0; }
+.company-insight-report-section.is-lead > p { margin-left: 0; color: var(--text); font-size: 16.5px; font-weight: 600; line-height: 1.55; }
+.company-insight-report-section.is-lead > p.company-insight-verdict { margin-top: -8px; color: var(--text-secondary); font-size: 14.5px; font-weight: 600; }
+.company-insight-report-section.is-list > ul { margin: 0 0 0 43px; padding-left: 18px; color: var(--text-secondary); font-size: 15px; line-height: 1.7; }
+.company-insight-report-section.is-list li + li { margin-top: 6px; }
+.company-insight-report-section.is-footnote > p { margin-left: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .company-insight-dialog-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
 .company-insight-dialog-foot > span { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 600; }
 .company-insight-dialog-foot p { max-width: 56ch; margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.55; text-align: right; }
@@ -206,6 +215,7 @@
   .company-insight-dialog-head { top:-24px; padding-right: 42px; }
   .company-insight-dialog-head .company-insight-icon { display: none; }
   .company-insight-report-section > p { margin-left: 0; }
+  .company-insight-report-section.is-list > ul { margin-left: 0; }
   .company-insight-dialog-foot { flex-direction: column; gap: 10px; }
   .company-insight-dialog-foot p { text-align: left; }
   .financial-passport-grid { grid-template-columns: 1fr; gap: 11px; }

@@ -27,7 +27,7 @@ def collect_evidence(filing: ValidatedFiling):
         raw = line_row.get("raw_current", str(filing.values[key]))
         fact_url = line_row.get("source_url") or filing.source_url
         fact_doc_id = "filing:" + financial_analysis_sector_numbers.digest([filing.issuer["id"], filing.standard, filing.period, fact_url])[:24] if fact_url else filing.source.get("document_id")
-        base = filing.opening if key in financial_analysis_sector_inputs.FORM1.values() or key in filing.codes["cash_and_working_capital"] or key in financial_analysis_sector_templates.SECTOR_PHRASE_BALANCE_LINES else filing.previous
+        base = filing.opening if financial_analysis_sector_templates.balance_line(key, filing.template) else filing.previous
         fact = {"id": financial_analysis_sector_numbers.digest([filing.issuer["id"], filing.standard, filing.period, key, raw, fact_doc_id])[:24],
                 "issuer_id": filing.issuer["id"], "metric": key, "metric_code": key, "label": metric_label(key),
                 "raw": raw, "value_raw": raw, "value": value, "value_normalized": str(financial_analysis_sector_numbers.decimal(raw)),
@@ -48,6 +48,7 @@ def collect_evidence(filing: ValidatedFiling):
                 "source_original_line": line_row.get("label") or line_row.get("original_line"),
                 "mapping_rule_version": financial_analysis_sector_templates.MAPPING_VERSION, "parser_version": filing.snapshot.get("parser_version", "catalog"),
                 "verification_status": "verified" if filing.publishable else "blocked", "confidence": "high" if filing.source_url else "low",
+                "comparison_basis": "opening" if base is filing.opening else "previous",
                 **financial_analysis_sector_numbers.change(value, base.get(key))}
         facts.append(fact)
         by_code[key] = fact

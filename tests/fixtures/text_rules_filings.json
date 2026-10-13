@@ -1,0 +1,714 @@
+{
+ "_source": "Inputs rebuilt from the published facts of /api/v1/issuers/<ticker>/ai-report on uzstock.uz, 2026-10-13 (the audit set of «AI-анализ отчётности: ТЗ по секторам», 2026-10-12).",
+ "filings": {
+  "ALSM": {
+   "issuer": {
+    "id": "683",
+    "ticker": "ALSM",
+    "name": "\"Alskom sug'urta kompaniyasi\" aksiyadorlik jamiyati"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "insurance",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "cash": 8618397.65,
+     "ceded_premiums": 1120866.59,
+     "construction_in_progress": 0.0,
+     "expenses": 26117718.52,
+     "financial_expenses": 127961.97,
+     "financial_income": 3853418.33,
+     "fixed_assets": 50356341.84,
+     "fx_expenses": 49715.4,
+     "fx_income": 48127.06,
+     "gross_insurance_reserves": 153866018.26,
+     "insurance_premiums": 135717311.86,
+     "insurance_service_cost": 146065638.26,
+     "insurance_service_result": 13658074.7,
+     "long_term_investments": 33594413.89,
+     "net_income": -2211687.64,
+     "net_insurance_reserves": 144167933.59,
+     "operating_income": -5937144.0,
+     "other_liabilities": 56149257.14,
+     "profit_before_tax": -2211687.64,
+     "receivables": 43754976.98,
+     "reinsurer_share_in_reserves": 9698084.67,
+     "revenue": 159723712.96,
+     "total_assets": 271433512.26,
+     "total_equity": 71116321.52,
+     "total_liabilities": 200317190.73
+    },
+    "previous_values": {
+     "ceded_premiums": 18764082.8,
+     "expenses": 14179729.5,
+     "financial_expenses": 58540.03,
+     "financial_income": 6276018.02,
+     "fx_expenses": 58540.03,
+     "fx_income": 18929.15,
+     "insurance_premiums": 136875616.89,
+     "insurance_service_cost": 118160306.04,
+     "insurance_service_result": -10918848.91,
+     "net_income": 13475032.18,
+     "operating_income": 9713620.7,
+     "profit_before_tax": 15931098.69,
+     "revenue": 107241457.12
+    },
+    "opening_values": {
+     "cash": 3865039.73,
+     "construction_in_progress": 0.0,
+     "fixed_assets": 47955016.96,
+     "gross_insurance_reserves": 182316277.06,
+     "long_term_investments": 33504517.99,
+     "net_insurance_reserves": 169295201.27,
+     "other_liabilities": 44302389.57,
+     "receivables": 33606568.68,
+     "reinsurer_share_in_reserves": 13021075.79,
+     "total_assets": 287094223.79,
+     "total_equity": 73496632.95,
+     "total_liabilities": 213597590.84
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31094/",
+     "document_id": "filing:2387172cf3e53c168d2c86e9"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "insurance",
+     "resolution_status": "special_override",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "special_legal_type"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "ALSM · I полугодие 2026 года. Картина смешанная. Чистая прибыль (убыток): 13 475 032.18 → -2 211 687.64 тыс. сум (-116.41%); Прибыль основной деятельности: 9 713 620.70 → -5 937 144.00 тыс. сум (-161.12%); Эффект низкой базы / смены знака. Страховые премии изменились на -0.85%. В страховании важно не смешивать начисленные премии, признанную выручку от страховых услуг, страховой результат и чистую прибыль: это разные показатели и этапы учёта.\n\nБаланс и технические резервы. Активы: 287 094 223.79 → 271 433 512.26 тыс. сум (-5.45%); Валовые страховые резервы: 182 316 277.06 → 153 866 018.26 тыс. "
+  },
+  "CBSK": {
+   "issuer": {
+    "id": "633",
+    "ticker": "CBSK",
+    "name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 0.0,
+     "cash": 20096536.0,
+     "construction_in_progress": 13954237.0,
+     "cost_of_sales": 0.0,
+     "current_liabilities": 51514234.0,
+     "financial_expenses": 0.0,
+     "financial_income": 31248.0,
+     "fixed_assets": 116150625.0,
+     "fx_expenses": 0.0,
+     "fx_income": 0.0,
+     "gross_profit": 50932971.0,
+     "inventories": 3368686.0,
+     "long_term_investments": 17857.0,
+     "net_income": 24957922.0,
+     "operating_income": 31166154.0,
+     "period_expenses": 19766817.0,
+     "profit_before_tax": 31197402.0,
+     "receivables": 21698431.0,
+     "retained_earnings": 47787413.0,
+     "revenue": 50932971.0,
+     "share_capital": 87879167.0,
+     "short_term_investments": 42288079.0,
+     "total_assets": 225288666.0,
+     "total_equity": 173774432.0,
+     "total_liabilities": 51514234.0
+    },
+    "previous_values": {
+     "cost_of_sales": 0.0,
+     "financial_expenses": 0.0,
+     "financial_income": 0.0,
+     "fx_expenses": 0.0,
+     "fx_income": 0.0,
+     "gross_profit": 48558942.0,
+     "net_income": 21456090.0,
+     "operating_income": 26820112.0,
+     "period_expenses": 22565303.0,
+     "profit_before_tax": 26820112.0,
+     "revenue": 48558942.0
+    },
+    "opening_values": {
+     "additional_capital": 0.0,
+     "cash": 190894.0,
+     "construction_in_progress": 8244015.0,
+     "current_liabilities": 17432555.0,
+     "fixed_assets": 120785564.0,
+     "inventories": 2149635.0,
+     "long_term_investments": 17857.0,
+     "receivables": 33247144.0,
+     "retained_earnings": 58655795.0,
+     "share_capital": 87879167.0,
+     "short_term_investments": 31439000.0,
+     "total_assets": 202075369.0,
+     "total_equity": 184642814.0,
+     "total_liabilities": 17432555.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf30944/",
+     "document_id": "filing:26ee5efe0e83ffb4b6dbee7c"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "trade",
+     "resolution_status": "sector_catalog_fallback",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "catalog_sector"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "CBSK · I полугодие 2026 года. Картина смешанная. Чистая прибыль (убыток): 21 456 090.00 → 24 957 922.00 тыс. сум (16.32%); Прибыль основной деятельности: 26 820 112.00 → 31 166 154.00 тыс. сум (16.20%). Аналитический профиль: торговля. Доходы изменились на 4.89%, чистая прибыль — на 16.32%. Разница между темпами показывает, улучшается ли конверсия выручки в итоговый результат.\n\nАктивы и оборотный капитал. Активы: 202 075 369.00 → 225 288 666.00 тыс. сум (11.49%); Запасы: 2 149 635.00 → 3 368 686.00 тыс. сум (56.71%); Дебиторская задолженность: 33 247 144.00 → 21 698 431.00 тыс. сум (-34.74%); "
+  },
+  "UZTL": {
+   "issuer": {
+    "id": "666",
+    "ticker": "UZTL",
+    "name": "\"O'zbektelekom\" aksiyadorlik kompaniyasi"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 26856755.0,
+     "cash": 16923036.0,
+     "construction_in_progress": 1266806075.0,
+     "cost_of_sales": 3411513889.0,
+     "current_liabilities": 5872570450.0,
+     "financial_expenses": 665223426.0,
+     "financial_income": 462633983.0,
+     "fixed_assets": 7844005691.0,
+     "fx_expenses": 380486007.0,
+     "fx_income": 428963070.0,
+     "gross_profit": 2355338160.0,
+     "inventories": 764042107.0,
+     "long_term_investments": 2578138366.0,
+     "net_income": 896004259.0,
+     "operating_income": 1236657832.0,
+     "period_expenses": 1209882806.0,
+     "profit_before_tax": 1034068389.0,
+     "receivables": 1605562707.0,
+     "retained_earnings": 1486910340.0,
+     "revenue": 5766852049.0,
+     "share_capital": 326171556.0,
+     "short_term_investments": 243399016.0,
+     "total_assets": 17281869775.0,
+     "total_equity": 3282658197.0,
+     "total_liabilities": 13999211578.0
+    },
+    "previous_values": {
+     "cost_of_sales": 3291217969.0,
+     "financial_expenses": 1094499680.0,
+     "financial_income": 268446339.0,
+     "fx_expenses": 801220884.0,
+     "fx_income": 241378418.0,
+     "gross_profit": 1832293869.0,
+     "net_income": 10010649.0,
+     "operating_income": 848398644.0,
+     "period_expenses": 1047357128.0,
+     "profit_before_tax": 22345303.0,
+     "revenue": 5123511838.0
+    },
+    "opening_values": {
+     "additional_capital": 26856755.0,
+     "cash": 28021846.0,
+     "construction_in_progress": 1254946978.0,
+     "current_liabilities": 4454606112.0,
+     "fixed_assets": 7337891981.0,
+     "inventories": 889252507.0,
+     "long_term_investments": 653365162.0,
+     "receivables": 1529232185.0,
+     "retained_earnings": 590906080.0,
+     "share_capital": 326171556.0,
+     "short_term_investments": 248388016.0,
+     "total_assets": 13530348888.0,
+     "total_equity": 3030753112.0,
+     "total_liabilities": 10499595776.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31090/",
+     "document_id": "filing:72db13b9f8306209bdc9c36a"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "telecom",
+     "resolution_status": "sector_catalog_fallback",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "catalog_sector"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "UZTL · I полугодие 2026 года. Картина смешанная. Чистая прибыль (убыток): 10 010 649.00 → 896 004 259.00 тыс. сум (8 850.51%); Прибыль основной деятельности: 848 398 644.00 → 1 236 657 832.00 тыс. сум (45.76%); Драйвер — курсовые разницы… Аналитический профиль: телекоммуникации. Доходы изменились на 12.56%, чистая прибыль — на 8 850.51%. Разница между темпами показывает, улучшается ли конверсия выручки в итоговый результат. Одновременно деньги сократились на 39.61%, а обязательства выросли на 33.33%, поэтому главный риск периода — ослабление ликвидной позиции.\n\nАктивы и оборотный капитал. Акти"
+  },
+  "URTS": {
+   "issuer": {
+    "id": "717",
+    "ticker": "URTS",
+    "name": "\"O'zRTXB\" AJ"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 564835.0,
+     "cash": 6095241350.0,
+     "construction_in_progress": 137030.0,
+     "cost_of_sales": 33883416.0,
+     "current_liabilities": 6847597151.0,
+     "financial_expenses": 22061481.0,
+     "financial_income": 125945986.0,
+     "fixed_assets": 31806220.0,
+     "fx_expenses": 22061481.0,
+     "fx_income": 22085565.0,
+     "gross_profit": 230854431.0,
+     "inventories": 125923.0,
+     "long_term_investments": 253302462.0,
+     "net_income": 221484280.0,
+     "operating_income": 157748082.0,
+     "period_expenses": 74200155.0,
+     "profit_before_tax": 261632587.0,
+     "receivables": 31348587.0,
+     "retained_earnings": 241167035.0,
+     "revenue": 264737847.0,
+     "share_capital": 236119023.0,
+     "short_term_investments": 968000000.0,
+     "total_assets": 7382902408.0,
+     "total_equity": 535305257.0,
+     "total_liabilities": 6847597151.0
+    },
+    "previous_values": {
+     "cost_of_sales": 28451551.0,
+     "financial_expenses": 18604629.0,
+     "financial_income": 105092112.0,
+     "fx_expenses": 18604629.0,
+     "fx_income": 18741734.0,
+     "gross_profit": 209183367.0,
+     "net_income": 186787068.0,
+     "operating_income": 135029437.0,
+     "period_expenses": 75691485.0,
+     "profit_before_tax": 221516920.0,
+     "revenue": 237634918.0
+    },
+    "opening_values": {
+     "additional_capital": 564835.0,
+     "cash": 4368693091.0,
+     "construction_in_progress": 216271.0,
+     "current_liabilities": 5052794369.0,
+     "fixed_assets": 32411570.0,
+     "inventories": 48377.0,
+     "long_term_investments": 224484395.0,
+     "receivables": 33362197.0,
+     "retained_earnings": 344033639.0,
+     "share_capital": 236119023.0,
+     "short_term_investments": 1010000000.0,
+     "total_assets": 5672748945.0,
+     "total_equity": 619954576.0,
+     "total_liabilities": 5052794369.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31003/",
+     "document_id": "filing:f8e53109145635863ef79b62"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "commodity_exchange",
+     "resolution_status": "special_override",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": "https://uzse.uz/isu_infos?locale=ru",
+     "reason_code": "exchange_legal_type"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "URTS · I полугодие 2026 года. Картина смешанная. Чистая прибыль (убыток): 186 787 068.00 → 221 484 280.00 тыс. сум (18.58%); Прибыль основной деятельности: 135 029 437.00 → 157 748 082.00 тыс. сум (16.82%). Аналитический профиль: товарная биржа. Доходы изменились на 11.41%, чистая прибыль — на 18.58%. Разница между темпами показывает, улучшается ли конверсия выручки в итоговый результат.\n\nАктивы и оборотный капитал. Активы: 5 672 748 945.00 → 7 382 902 408.00 тыс. сум (30.15%); Деньги: 4 368 693 091.00 → 6 095 241 350.00 тыс. сум (39.52%); short_term_investments: 1 010 000 000.00 → 968 000 000"
+  },
+  "METQ": {
+   "issuer": {
+    "id": "733",
+    "ticker": "METQ",
+    "name": "\"Maxsuselektrtarmoqqurilish\" aksiyadorlik jamiyati"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 981.0,
+     "cash": 105870634.0,
+     "construction_in_progress": 0.0,
+     "cost_of_sales": 110866823.0,
+     "current_liabilities": 213657718.0,
+     "financial_expenses": 656020.0,
+     "financial_income": 535478.0,
+     "fixed_assets": 16344409.0,
+     "fx_expenses": 606658.0,
+     "fx_income": 527145.0,
+     "gross_profit": 23694447.0,
+     "inventories": 68602316.0,
+     "long_term_investments": 525622.0,
+     "net_income": 12312324.0,
+     "operating_income": 14606506.0,
+     "period_expenses": 9087941.0,
+     "profit_before_tax": 14485964.0,
+     "receivables": 85468256.0,
+     "retained_earnings": 48635305.0,
+     "revenue": 134561270.0,
+     "share_capital": 7348680.0,
+     "short_term_investments": 240395.0,
+     "total_assets": 280234517.0,
+     "total_equity": 66576799.0,
+     "total_liabilities": 213657718.0
+    },
+    "previous_values": {
+     "cost_of_sales": 96566163.0,
+     "financial_expenses": 693092.0,
+     "financial_income": 687360.0,
+     "fx_expenses": 550783.0,
+     "fx_income": 686843.0,
+     "gross_profit": 27141823.0,
+     "net_income": 16441983.0,
+     "operating_income": 19373608.0,
+     "period_expenses": 8100732.0,
+     "profit_before_tax": 19367876.0,
+     "revenue": 123707986.0
+    },
+    "opening_values": {
+     "additional_capital": 981.0,
+     "cash": 130851649.0,
+     "construction_in_progress": 0.0,
+     "current_liabilities": 199461510.0,
+     "fixed_assets": 15728293.0,
+     "inventories": 29300353.0,
+     "long_term_investments": 525622.0,
+     "receivables": 73967342.0,
+     "retained_earnings": 36322981.0,
+     "share_capital": 7348680.0,
+     "short_term_investments": 240395.0,
+     "total_assets": 253725985.0,
+     "total_equity": 54264475.0,
+     "total_liabilities": 199461510.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31071/",
+     "document_id": "filing:aa61f8ce715d9cf48eafd955"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "generic_nsbu",
+     "resolution_status": "generic_fallback",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "unknown_oked"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "METQ · I полугодие 2026 года. Недостаточно сопоставимых данных для вердикта. Чистая прибыль (убыток): 16 441 983.00 → 12 312 324.00 тыс. сум (-25.12%); Прибыль основной деятельности: 19 373 608.00 → 14 606 506.00 тыс. сум (-24.61%). Аналитический профиль: универсальный профиль. Выручка выросла на 8.77%, однако операционная прибыль снизилась на 24.61%; операционная маржа составила 10.85%. Это означает, что рост масштаба не улучшил эффективность основной деятельности. Одновременно деньги сократились на 19.09%, а обязательства выросли на 7.12%, поэтому главный риск периода — ослабление ликвидной "
+  },
+  "TGPG": {
+   "issuer": {
+    "id": "650",
+    "ticker": "TGPG",
+    "name": "«TASHGIPROGOR» Aksiyadorlik jamiyati"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 26512.7,
+     "cash": 330257.05,
+     "construction_in_progress": 0.0,
+     "cost_of_sales": 3447603.08,
+     "current_liabilities": 3022267.7,
+     "financial_expenses": 4301.25,
+     "financial_income": 4813.02,
+     "fixed_assets": 1069412.33,
+     "fx_expenses": 4301.25,
+     "fx_income": 4813.02,
+     "gross_profit": -1751404.94,
+     "inventories": 137285.91,
+     "long_term_investments": 0.0,
+     "net_income": -5151007.6,
+     "operating_income": -5151519.37,
+     "period_expenses": 3579731.65,
+     "profit_before_tax": -5151007.6,
+     "receivables": 3002839.14,
+     "retained_earnings": -2141240.68,
+     "revenue": 1696198.14,
+     "share_capital": 1362078.73,
+     "short_term_investments": 0.0,
+     "total_assets": 4540923.5,
+     "total_equity": 1518655.8,
+     "total_liabilities": 3022267.7
+    },
+    "previous_values": {
+     "cost_of_sales": 3378538.42,
+     "financial_expenses": 5169.14,
+     "financial_income": 1330.51,
+     "fx_expenses": 5169.14,
+     "fx_income": 1330.51,
+     "gross_profit": 2207613.76,
+     "net_income": -884963.95,
+     "operating_income": -881125.32,
+     "period_expenses": 3194997.75,
+     "profit_before_tax": -884963.95,
+     "revenue": 5586152.18
+    },
+    "opening_values": {
+     "additional_capital": 26512.7,
+     "cash": 2313024.9,
+     "construction_in_progress": 0.0,
+     "current_liabilities": 1641885.52,
+     "fixed_assets": 1149073.72,
+     "inventories": 181150.58,
+     "long_term_investments": 0.0,
+     "receivables": 4665538.92,
+     "retained_earnings": 3009766.93,
+     "share_capital": 1362078.73,
+     "short_term_investments": 0.0,
+     "total_assets": 8312319.05,
+     "total_equity": 6670433.53,
+     "total_liabilities": 1641885.52
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31121/",
+     "document_id": "filing:dbf9fc34f9b9c867ed6aa45e"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "generic_nsbu",
+     "resolution_status": "generic_fallback",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "unknown_oked"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "TGPG · I полугодие 2026 года. Недостаточно сопоставимых данных для вердикта. Чистая прибыль (убыток): -884 963.95 → -5 151 007.60 тыс. сум (-482.06%); Прибыль основной деятельности: -881 125.32 → -5 151 519.37 тыс. сум (-484.65%). Аналитический профиль: универсальный профиль. Доходы изменились на -69.64%, чистая прибыль — на -482.06%. Разница между темпами показывает, улучшается ли конверсия выручки в итоговый результат. Одновременно деньги сократились на 85.72%, а обязательства выросли на 84.07%, поэтому главный риск периода — ослабление ликвидной позиции.\n\nАктивы и оборотный капитал. Активы:"
+  },
+  "UZMK": {
+   "issuer": {
+    "id": "383",
+    "ticker": "UZMK",
+    "name": "O'zmetkombinat AJ"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "non_financial",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 285253424.0,
+     "cash": 1181472863.0,
+     "construction_in_progress": 9148388491.0,
+     "cost_of_sales": 2621090650.0,
+     "current_liabilities": 2896064498.0,
+     "financial_expenses": 398993222.0,
+     "financial_income": 400790771.0,
+     "fixed_assets": 550946661.0,
+     "fx_expenses": 221724247.0,
+     "fx_income": 399420849.0,
+     "gross_profit": 584814086.0,
+     "inventories": 1394849684.0,
+     "long_term_investments": 440770192.0,
+     "net_income": 315887100.0,
+     "operating_income": 373505355.0,
+     "period_expenses": 216609786.0,
+     "profit_before_tax": 375302904.0,
+     "receivables": 1682877559.0,
+     "retained_earnings": 1884094159.0,
+     "revenue": 3205904736.0,
+     "share_capital": 3725963175.0,
+     "short_term_investments": 87138322.0,
+     "total_assets": 14740093864.0,
+     "total_equity": 6375622697.23,
+     "total_liabilities": 8364471166.0
+    },
+    "previous_values": {
+     "cost_of_sales": 2490671351.0,
+     "financial_expenses": 528304699.0,
+     "financial_income": 143845438.0,
+     "fx_expenses": 448062091.0,
+     "fx_income": 126187356.0,
+     "gross_profit": 518019843.0,
+     "net_income": 21137276.0,
+     "operating_income": 409979351.0,
+     "period_expenses": 329311069.0,
+     "profit_before_tax": 25520089.0,
+     "revenue": 3008691193.0
+    },
+    "opening_values": {
+     "additional_capital": 285253424.0,
+     "cash": 433602666.0,
+     "construction_in_progress": 8600711067.0,
+     "current_liabilities": 1987014922.0,
+     "fixed_assets": 591864996.0,
+     "inventories": 1234936200.0,
+     "long_term_investments": 440770192.0,
+     "receivables": 1747762321.0,
+     "retained_earnings": 1568207059.0,
+     "share_capital": 3725963175.0,
+     "short_term_investments": 352705106.0,
+     "total_assets": 13693255014.0,
+     "total_equity": 6059780470.0,
+     "total_liabilities": 7633474543.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf31166/",
+     "document_id": "filing:dd3ba5f1a4c56052fa281b32"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "industry",
+     "resolution_status": "sector_catalog_fallback",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "catalog_sector"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "UZMK · I полугодие 2026 года. Картина смешанная. Чистая прибыль (убыток): 21 137 276.00 → 315 887 100.00 тыс. сум (1 394.46%); Прибыль основной деятельности: 409 979 351.00 → 373 505 355.00 тыс. сум (-8.90%); Драйвер — курсовые разницы: Δ… Аналитический профиль: производство. Выручка выросла на 6.55%, однако операционная прибыль снизилась на 8.90%; операционная маржа составила 11.65%. Это означает, что рост масштаба не улучшил эффективность основной деятельности. При этом чистая прибыль выросла не вслед за основной деятельностью: чистый финансовый результат улучшился на 386 256 810.00 тыс. сум"
+  },
+  "IPTB": {
+   "issuer": {
+    "id": "17",
+    "ticker": "IPTB",
+    "name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki"
+   },
+   "period_label": "I полугодие 2026 года",
+   "snapshot": {
+    "organization_type": "bank",
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2026Q2",
+    "period_basis": "cumulative_ytd",
+    "previous_comparable_period": "2025Q2",
+    "current_values": {
+     "additional_capital": 37244982.0,
+     "cash": 688495841.0,
+     "central_bank_balances": 2495753278.0,
+     "credit_loss_provisions": 969465482.0,
+     "customer_funds": 28835081494.0,
+     "demand_deposits": 8770399208.0,
+     "due_from_banks": 5504342676.0,
+     "fee_expenses": 113090672.0,
+     "fee_income": 494295687.0,
+     "fx_expenses": 452511511.0,
+     "fx_income": 559988338.0,
+     "interest_expenses": 4108173356.0,
+     "interest_income": 6233796888.0,
+     "loan_portfolio": 35592353663.0,
+     "loan_reserves": 660940812.0,
+     "net_income": 1388686374.0,
+     "net_interest_income_after_provisions": 1156158050.0,
+     "net_interest_income_before_provisions": 2125623532.0,
+     "net_revenue_before_operating_expenses": 2696070587.0,
+     "noninterest_expenses": 585309489.0,
+     "noninterest_income": 2125222026.0,
+     "operating_expenses": 1120783570.0,
+     "profit_before_tax": 1575287017.0,
+     "retained_earnings": 4327969664.0,
+     "savings_deposits": 0.0,
+     "share_capital": 4199123112.0,
+     "term_deposits": 20064682286.0,
+     "total_assets": 56735734359.0,
+     "total_equity": 9524773677.0,
+     "total_liabilities": 47210960682.0
+    },
+    "previous_values": {
+     "net_income": -392524474.0,
+     "operating_expenses": 854461930.0
+    },
+    "opening_values": {
+     "additional_capital": 754434.0,
+     "cash": 920824892.0,
+     "central_bank_balances": 1757795485.0,
+     "customer_funds": 28193249430.0,
+     "demand_deposits": 8583933665.0,
+     "due_from_banks": 5990865225.0,
+     "loan_portfolio": 35048827088.0,
+     "loan_reserves": 590705809.0,
+     "retained_earnings": 3785461436.0,
+     "savings_deposits": 0.0,
+     "share_capital": 3834217639.0,
+     "term_deposits": 19609315765.0,
+     "total_assets": 56342801342.0,
+     "total_equity": 8581121045.0,
+     "total_liabilities": 47761680297.0
+    },
+    "source": {
+     "url": "https://openinfo.uz/ru/reports/to_pdf30828/",
+     "document_id": "filing:e38d75e1fe741bf6a4c810de"
+    },
+    "quality": {
+     "data_quality": []
+    },
+    "template_resolution": {
+     "selected_template": "bank",
+     "resolution_status": "special_override",
+     "input_oked": null,
+     "rule_version": "sector-analysis-2.10",
+     "evidence_source": null,
+     "reason_code": "special_legal_type"
+    },
+    "display_divisor": 1.0
+   },
+   "published_text": "IPTB · I полугодие 2026 года. Недостаточно сопоставимых данных для вердикта. Чистая прибыль (убыток): -392 524 474.00 → 1 388 686 374.00 тыс. сум (453.78%); Эффект низкой базы / смены знака. Чистая прибыль изменилась на 453.78%. Чистый процентный доход составил 2 125 623 532.00 тыс. сум. Cost-to-Income составил 41.57%.\n\nГоризонтальный анализ баланса. Активы: 56 342 801 342.00 → 56 735 734 359.00 тыс. сум (0.70%); Кредитный портфель: 35 048 827 088.00 → 35 592 353 663.00 тыс. сум (1.55%); Резервы по кредитам: 590 705 809.00 → 660 940 812.00 тыс. сум (11.89%); Деньги: 920 824 892.00 → 688 495 84"
+  }
+ }
+}

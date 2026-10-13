@@ -7,6 +7,8 @@ import financial_analysis.sector_calculations as financial_analysis_sector_calcu
 import financial_analysis.sector_issues as financial_analysis_sector_issues
 import financial_analysis.sector_language as financial_analysis_sector_language
 import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+import financial_analysis.sector_verdict as financial_analysis_sector_verdict
+import financial_analysis.sector_vocabulary as financial_analysis_sector_vocabulary
 
 
 def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
@@ -59,13 +61,9 @@ def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
         signal("claims_outpace_premiums", ["insurance_claims", "insurance_premiums"], "negative", claims["current"], claims["previous"], "growth exceeds premiums by 10pp")
     negatives = [s for s in signals if s["direction"] == "negative"]
     positives = [s for s in signals if s["direction"] == "positive"]
-    verdict_status = "no_signal" if len(signals) < 2 or filing.template == "generic_nsbu" else "mixed" if positives and negatives else "negative" if negatives else "positive"
-    if filing.quality["net_profit_change"]["base_effect"] and verdict_status == "positive":
-        verdict_status = "mixed"
-    verdict_label = {"positive": financial_analysis_sector_language.tr(filing.lang, "Финансовая динамика положительная", "Moliyaviy dinamika ijobiy", "Financial trends are positive"),
-                     "negative": financial_analysis_sector_language.tr(filing.lang, "Финансовая динамика отрицательная", "Moliyaviy dinamika salbiy", "Financial trends are negative"),
-                     "mixed": financial_analysis_sector_language.tr(filing.lang, "Картина смешанная", "Natijalar aralash", "Financial trends are mixed"),
-                     "no_signal": financial_analysis_sector_language.tr(filing.lang, "Недостаточно сопоставимых данных для вердикта", "Xulosa uchun taqqoslanadigan ma’lumotlar yetarli emas", "Insufficient comparable data for a verdict")}[verdict_status]
+    outcome = financial_analysis_sector_verdict.verdict(filing, evidence)
+    verdict_status, verdict_reason = outcome["status"], outcome["reason"]
+    verdict_label = financial_analysis_sector_vocabulary.capital(financial_analysis_sector_vocabulary.pick(filing.lang, *financial_analysis_sector_vocabulary.VERDICT_WORDS[verdict_status])) + (": " + verdict_reason if verdict_reason else "")
     issues, risks = financial_analysis_sector_issues.make_issues(negatives, evidence.by_code, filing.quality, verdict_status, filing.lang, filing.period)
     watch_candidates = {
         "bank": ("net_income", "loan_portfolio", "customer_funds", "total_equity"),
@@ -152,4 +150,4 @@ def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
         "missing": missing_metrics,
         "cannot_assess": cannot_assess,
     }
-    return SectorAssessment(signals=signals, negatives=negatives, positives=positives, verdict_status=verdict_status, verdict_label=verdict_label, issues=issues, risks=risks, monitoring_points=monitoring_points, trend=trend, verification_summary=verification_summary)
+    return SectorAssessment(signals=signals, negatives=negatives, positives=positives, verdict_status=verdict_status, verdict_label=verdict_label, verdict_reason=verdict_reason, verdict_axes=outcome["axes"], red_flags=outcome["red_flags"], issues=issues, risks=risks, monitoring_points=monitoring_points, trend=trend, verification_summary=verification_summary)

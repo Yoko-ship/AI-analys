@@ -96,6 +96,26 @@ def source_line_pairs(workbook, form, known_codes=None):
     return result
 
 
+def blank_column(values):
+    """Whether a statement column carries no amounts.
+
+    A column in which every mapped amount is zero, or none is filled, is how
+    a filing leaves its comparison (or, after a parser miss, its current)
+    column empty.  Reading it as a set of real zeros produced «снизился на
+    100%» and «−100%» for whole balance sheets, so such a column is treated as
+    absent and the comparison comes from the issuer's other filings.
+    """
+    amounts = [financial_analysis_sector_numbers.decimal(value) for value in values]
+    amounts = [amount for amount in amounts if amount is not None]
+    return not amounts or all(amount == 0 for amount in amounts)
+
+
+def prior_column_blank(lines, form):
+    mapping = FORM1 if form == "form1" else FORM2
+    rows = [lines.get(f"{form}:{code}") for code in mapping]
+    return blank_column(row.get("raw_previous", row.get("previous")) for row in rows if row is not None)
+
+
 def prepare_inputs(snapshot, workbook=None):
     """Add exact form lines without changing the independent comparison API."""
     values = dict(snapshot.get("current_values") or {})
@@ -108,6 +128,9 @@ def prepare_inputs(snapshot, workbook=None):
         for form, table in (("form1", workbook.get("balance")), ("form2", workbook.get("income"))):
             lines.update({f"{form}:{key}": row for key, row in source_line_pairs(table, form).items()})
     for form, mapping in (("form1", FORM1), ("form2", FORM2)):
+        # A blank comparison column leaves the catalogue's comparison (the
+        # issuer's previous filings) in place instead of replacing it by zeros.
+        prior_blank = prior_column_blank(lines, form)
         for code, key in mapping.items():
             row = lines.get(f"{form}:{code}")
             if row is not None and org == "non_financial":
@@ -117,6 +140,7 @@ def prepare_inputs(snapshot, workbook=None):
                 # correction that the public financial data already uses.
                 if key not in reviewed:
                     values[key] = row.get("raw_current", row.get("current"))
-                if form == "form1" or key not in reviewed:
-                    (opening if form == "form1" else previous)[key] = row.get("raw_previous", row.get("previous"))
+                prior = row.get("raw_previous", row.get("previous"))
+                if (form == "form1" or key not in reviewed) and not prior_blank and prior is not None:
+                    (opening if form == "form1" else previous)[key] = prior
     return values, previous, opening, lines

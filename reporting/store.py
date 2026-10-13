@@ -181,6 +181,15 @@ def overview(limit=50):
             "overrides": overrides, "regression": run()}
 
 
+def latest_publication(issuer_id, language, standard):
+    """The published report an issuer's page currently shows, or None."""
+    with connect() as connection:
+        row = connection.execute(
+            "SELECT r.payload FROM sector_publications p JOIN sector_runs r ON r.version=p.version "
+            "WHERE p.issuer_id=? AND p.language=? AND p.standard=?", (str(issuer_id), language, standard)).fetchone()
+    return json.loads(row["payload"]) if row else None
+
+
 def get_run(version):
     with connect() as connection:
         row = connection.execute("SELECT payload FROM sector_runs WHERE version=?", (version,)).fetchone()
