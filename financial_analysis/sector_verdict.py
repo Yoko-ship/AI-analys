@@ -90,8 +90,9 @@ def red_flags(view):
     if equity is not None and equity < 0:
         flags.append({"code": "negative_equity", "metric_code": "total_equity", "materiality": "high"})
     elif equity and equity > 0 and net is not None and net < 0 and -net / equity * 100 >= LOSS_EQUITY_SHARE:
+        # Published as JSON: a float, not the Decimal it was computed in.
         flags.append({"code": "loss_consumes_equity", "metric_code": "net_income", "materiality": "high",
-                      "share": -net / equity * 100})
+                      "share": float(-net / equity * 100)})
     return flags
 
 

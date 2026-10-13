@@ -265,3 +265,10 @@ def test_unbalanced_filing_names_the_gap():
     assert report["headline"].endswith("Анализ не публикуется: баланс в отчёте не сходится на 3 млрд сум.")
     assert "выручка за период — 50,9 млрд сум" in report["headline"]
     assert "активы —" not in report["headline"]   # the failed balance is not shown
+
+
+@pytest.mark.parametrize("ticker", sorted(FILINGS))
+def test_every_report_can_be_published_as_json(ticker):
+    # TGPG's red flag carried a Decimal share and its publication failed with
+    # a 500; a published report must serialise without a custom encoder.
+    json.dumps(_report(ticker))
