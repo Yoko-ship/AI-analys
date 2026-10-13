@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { notificationPath } from "../lib/notificationTarget.js";
+import { pathToView } from "./routing.jsx";
 
 export function useNotifications({ session: sessionModule, toasts: toastsModule, navigation: navigationModule }) {
   const { user, token, profile, apiFetch } = sessionModule;
@@ -47,11 +49,12 @@ export function useNotifications({ session: sessionModule, toasts: toastsModule,
   const openNotification = (notification) => {
     updateNotificationState([notification.id]);
     setNotifOpen(false);
-    if (notification.kind === "feedback" && (user?.is_admin || user?.admin_role === "administrator")) {
-      setAdminSection("feedback");
-      setActiveView("admin");
-    }
-    if (notification.kind === "pattern" && notification.ticker) openCompanyPage(notification.ticker);
+    const path = notificationPath(notification);
+    if (!path) return;
+    const { view, ticker, adminSection } = pathToView(path);
+    if (view === "company" && ticker) return openCompanyPage(ticker);
+    if (view === "admin") setAdminSection(adminSection);
+    setActiveView(view);
   };
   return { notifCount, notifItems, notifOpen, openNotification, setNotifOpen, updateNotificationState };
 }

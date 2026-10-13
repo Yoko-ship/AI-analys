@@ -1,9 +1,15 @@
 /* ── Notification bell ───────────────────────────────────────────────────── */
-.notif-wrap { position: relative; }
+.notif-wrap { position: relative; flex-shrink: 0; }
 .notif-bell { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 8px; display: flex; align-items: center; position: relative; transition: color 0.15s; }
 .notif-bell:hover { color: var(--text-primary); }
 .notif-badge { position: absolute; top: 2px; right: 2px; background: #f59e0b; color: #000; border-radius: 99px; font-size: 10px; font-weight: 700; min-width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; padding: 0 3px; line-height: 1; }
 .notif-panel { position: absolute; top: calc(100% + 8px); right: 0; width: 320px; z-index: 200; padding: 0; overflow: hidden; }
+/* In the compact topbar (mobile.css, ≤1180px) the bell sits beside the burger,
+   on the left, so a 320px panel hung from its right edge ran off the screen.
+   Pin it to the viewport instead, inside the same 12px gutter as the topbar. */
+@media (max-width: 1180px) {
+  .notif-panel { position: fixed; top: 68px; right: 12px; left: auto; width: min(360px, calc(100vw - 24px)); }
+}
 
 /* Account in the top bar: initials (or avatar) opening a small menu with the
    profile and sign-out, and a plain «Войти» when nobody is signed in. */
