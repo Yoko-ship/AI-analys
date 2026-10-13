@@ -71,7 +71,10 @@ export function ReportAvailability({ report, lang = "ru" }) {
   </div>;
 }
 
-export default function VerifiedReport({ report, lang = "ru", narrative = false, hideMeta = false }) {
+// `withCommentary={false}`: the company page's analysis already states its risks
+// and carries every caveat in its one footnote, so the issue cards and the
+// «Проверено / Не хватает» summary would repeat them in other words.
+export default function VerifiedReport({ report, lang = "ru", narrative = false, hideMeta = false, withCommentary = true }) {
   if (!report) return null;
   if (!["available", "stale"].includes(report.status)) return <ReportAvailability report={report} lang={lang} />;
   const t = (ru, uz, en) => pick(lang, ru, uz, en);
@@ -145,7 +148,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
         </article>)}
       </div>
     </details>}
-    {report.analytical_issues?.length > 0 && <section className="verified-issues">
+    {withCommentary && report.analytical_issues?.length > 0 && <section className="verified-issues">
       <h3>{t("Проблемы и выводы", "Muammolar va xulosalar", "Issues and conclusions")}</h3>
       {report.analytical_issues.map((issue) => <article key={issue.issue_code}>
         <h4>{issue.title}</h4>
@@ -155,7 +158,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
         {safeUrl(issue.source_url) && <a href={safeUrl(issue.source_url)} target="_blank" rel="noreferrer">{t("Проверить источник", "Manbani tekshirish", "View evidence")} ↗</a>}
       </article>)}
     </section>}
-    {report.verification_summary && <aside className="verified-checks">
+    {withCommentary && report.verification_summary && <aside className="verified-checks">
       <p><strong>{t("Проверено", "Tekshirildi", "Checked")}:</strong> {(report.verification_summary.checked || []).join("; ") || "—"}.</p>
       <p><strong>{t("Не хватает", "Yetishmaydi", "Missing")}:</strong> {(report.verification_summary.missing || []).join("; ") || t("существенных строк не выявлено", "muhim satrlar yetishmaydi deb topilmadi", "no material line gaps identified")}.</p>
       <p><strong>{t("Поэтому нельзя оценить", "Shuning uchun baholab bo‘lmaydi", "Therefore cannot assess")}:</strong> {(report.verification_summary.cannot_assess || []).join("; ") || "—"}.</p>

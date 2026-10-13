@@ -5029,10 +5029,10 @@
           "id": "balance",
           "number": "03",
           "title": "Баланс",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
           "blocks": [
             {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
             }
           ]
         },
@@ -5191,14 +5191,14 @@
         "Выручка значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — выручка растёт, но доля капитала снижается.",
         "Выручка значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Обязательства существенно прибавили 20% — до 0,6 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль значительно выросла на 25% — до 0,1 млн сум.",
         "Чистая маржа выросла с 10% до 16%.",
-        "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+        "На долю денежных средств приходится небольшая доля (5%) активов.",
         "Собственный капитал составляет более трети активов; доля снизилась с 44% до 40%. На каждый сум капитала приходится 1,5 сум обязательств. Собственный капитал остался практически неизменным — 0,4 млн сум.",
         "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
         "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности."
       ],
-      "text": "Выручка значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — выручка растёт, но доля капитала снижается.\n\nВыручка значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Обязательства существенно прибавили 20% — до 0,6 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль значительно выросла на 25% — до 0,1 млн сум.\n\nЧистая маржа выросла с 10% до 16%.\n\nКрупнейшая статья активов — денежные средства: небольшая доля (5%) активов.\n\nСобственный капитал составляет более трети активов; доля снизилась с 44% до 40%. На каждый сум капитала приходится 1,5 сум обязательств. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
+      "text": "Выручка значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — выручка растёт, но доля капитала снижается.\n\nВыручка значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Обязательства существенно прибавили 20% — до 0,6 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль значительно выросла на 25% — до 0,1 млн сум.\n\nЧистая маржа выросла с 10% до 16%.\n\nНа долю денежных средств приходится небольшая доля (5%) активов.\n\nСобственный капитал составляет более трети активов; доля снизилась с 44% до 40%. На каждый сум капитала приходится 1,5 сум обязательств. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
       "paragraph_count": 7,
-      "word_count": 150,
+      "word_count": 149,
       "abstract": "Выручка значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%.",
       "sections": [
         {
@@ -5256,10 +5256,10 @@
           "id": "balance",
           "number": "03",
           "title": "Баланс",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
           "blocks": [
             {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
             }
           ]
         },
@@ -7310,10 +7310,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balans",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
           "blocks": [
             {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
             }
           ]
         },
@@ -7355,7 +7355,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 107,
+        "word_count": 105,
         "checks": [
           {
             "code": "text_number_format",
@@ -7386,7 +7386,7 @@
             "code": "sentence_length",
             "status": "warning",
             "failures": [
-              "107 words, below the 250-word target"
+              "105 words, below the 250-word target"
             ]
           },
           {
@@ -7472,14 +7472,14 @@
         "Tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — tushum o‘smoqda, ammo kapital ulushi kamaymoqda.",
         "Tushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Majburiyatlar 20%ga salmoqli ko‘paydi — 0,6 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga sezilarli o‘sdi — 0,1 mln so‘mgacha.",
         "Sof marja 10%dan 16%gacha oshdi.",
-        "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+        "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
         "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Har bir so‘m kapitalga 1,5 so‘m majburiyat to‘g‘ri keladi. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
         "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
         "Taqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi."
       ],
-      "text": "Tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — tushum o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nTushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Majburiyatlar 20%ga salmoqli ko‘paydi — 0,6 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga sezilarli o‘sdi — 0,1 mln so‘mgacha.\n\nSof marja 10%dan 16%gacha oshdi.\n\nEng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).\n\nO‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Har bir so‘m kapitalga 1,5 so‘m majburiyat to‘g‘ri keladi. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi.",
+      "text": "Tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — tushum o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nTushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Majburiyatlar 20%ga salmoqli ko‘paydi — 0,6 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga sezilarli o‘sdi — 0,1 mln so‘mgacha.\n\nSof marja 10%dan 16%gacha oshdi.\n\nAktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.\n\nO‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Har bir so‘m kapitalga 1,5 so‘m majburiyat to‘g‘ri keladi. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi.",
       "paragraph_count": 7,
-      "word_count": 138,
+      "word_count": 135,
       "abstract": "Tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%.",
       "sections": [
         {
@@ -7537,10 +7537,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balans",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
           "blocks": [
             {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
             }
           ]
         },
@@ -9591,10 +9591,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balance sheet",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
+          "text": "Cash makes up a small share (5%) of total assets.",
           "blocks": [
             {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
+              "text": "Cash makes up a small share (5%) of total assets."
             }
           ]
         },
@@ -9636,7 +9636,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 126,
+        "word_count": 124,
         "checks": [
           {
             "code": "text_number_format",
@@ -9667,7 +9667,7 @@
             "code": "sentence_length",
             "status": "warning",
             "failures": [
-              "126 words, below the 250-word target"
+              "124 words, below the 250-word target"
             ]
           },
           {
@@ -9753,14 +9753,14 @@
         "Revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — revenue is growing, but the equity share is falling.",
         "Revenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Liabilities grew substantially by 20% to UZS 0.6mn. Net profit doubled to UZS 0.08mn. Operating profit rose significantly by 25% to UZS 0.1mn.",
         "The net margin rose from 10% to 16%.",
-        "The largest asset is cash: a small share (5%) of total assets.",
+        "Cash makes up a small share (5%) of total assets.",
         "Equity makes up more than a third of total assets; its share fell from 44% to 40%. Each sum of equity carries 1.5 sum of liabilities. Equity was virtually unchanged at UZS 0.4mn.",
         "Liabilities are growing faster than equity — leverage is rising.",
         "Compared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements."
       ],
-      "text": "Revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — revenue is growing, but the equity share is falling.\n\nRevenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Liabilities grew substantially by 20% to UZS 0.6mn. Net profit doubled to UZS 0.08mn. Operating profit rose significantly by 25% to UZS 0.1mn.\n\nThe net margin rose from 10% to 16%.\n\nThe largest asset is cash: a small share (5%) of total assets.\n\nEquity makes up more than a third of total assets; its share fell from 44% to 40%. Each sum of equity carries 1.5 sum of liabilities. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements.",
+      "text": "Revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — revenue is growing, but the equity share is falling.\n\nRevenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Liabilities grew substantially by 20% to UZS 0.6mn. Net profit doubled to UZS 0.08mn. Operating profit rose significantly by 25% to UZS 0.1mn.\n\nThe net margin rose from 10% to 16%.\n\nCash makes up a small share (5%) of total assets.\n\nEquity makes up more than a third of total assets; its share fell from 44% to 40%. Each sum of equity carries 1.5 sum of liabilities. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements.",
       "paragraph_count": 7,
-      "word_count": 160,
+      "word_count": 158,
       "abstract": "Revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%.",
       "sections": [
         {
@@ -9818,10 +9818,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balance sheet",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
+          "text": "Cash makes up a small share (5%) of total assets.",
           "blocks": [
             {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
+              "text": "Cash makes up a small share (5%) of total assets."
             }
           ]
         },
@@ -12717,13 +12717,10 @@
           "number": "01",
           "title": "Главное",
           "style": "list",
-          "text": "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+          "text": "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
           "blocks": [
             {
               "text": "Активы выросли на 11% — до 1 млн сум."
-            },
-            {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
             },
             {
               "text": "Собственный капитал составляет более трети активов."
@@ -12731,8 +12728,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Баланс",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
+          "blocks": [
+            {
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Устойчивость",
           "text": "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
           "blocks": [
@@ -12743,7 +12751,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Риски и что смотреть дальше",
           "text": "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
           "blocks": [
@@ -12827,19 +12835,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -12855,14 +12850,15 @@
       ],
       "paragraphs": [
         "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.",
-        "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+        "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
+        "На долю денежных средств приходится небольшая доля (5%) активов.",
         "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
         "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
         "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются."
       ],
-      "text": "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.\n\nАктивы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.\n\nОбязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
-      "paragraph_count": 5,
-      "word_count": 103,
+      "text": "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.\n\nАктивы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.\n\nНа долю денежных средств приходится небольшая доля (5%) активов.\n\nОбязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
+      "paragraph_count": 6,
+      "word_count": 102,
       "abstract": "Чистая прибыль удвоилась — до 0,08 млн сум.",
       "sections": [
         {
@@ -12886,13 +12882,10 @@
           "number": "01",
           "title": "Главное",
           "style": "list",
-          "text": "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+          "text": "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
           "blocks": [
             {
               "text": "Активы выросли на 11% — до 1 млн сум."
-            },
-            {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
             },
             {
               "text": "Собственный капитал составляет более трети активов."
@@ -12900,8 +12893,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Баланс",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
+          "blocks": [
+            {
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Устойчивость",
           "text": "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
           "blocks": [
@@ -12912,7 +12916,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Риски и что смотреть дальше",
           "text": "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
           "blocks": [
@@ -14120,13 +14124,10 @@
           "number": "01",
           "title": "Asosiy",
           "style": "list",
-          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
           "blocks": [
             {
               "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha."
-            },
-            {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
             },
             {
               "text": "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi."
@@ -14134,8 +14135,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balans",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
+          "blocks": [
+            {
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Barqarorlik",
           "text": "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
           "blocks": [
@@ -14146,7 +14158,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Xatarlar va nimani kuzatish kerak",
           "text": "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
           "blocks": [
@@ -14171,7 +14183,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 61,
+        "word_count": 59,
         "checks": [
           {
             "code": "text_number_format",
@@ -14230,19 +14242,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -14258,14 +14257,15 @@
       ],
       "paragraphs": [
         "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.",
-        "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+        "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+        "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
         "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
         "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
         "Taqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi."
       ],
-      "text": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nAktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.\n\nMajburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi.",
-      "paragraph_count": 5,
-      "word_count": 96,
+      "text": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nAktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.\n\nAktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.\n\nMajburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi.",
+      "paragraph_count": 6,
+      "word_count": 93,
       "abstract": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha.",
       "sections": [
         {
@@ -14289,13 +14289,10 @@
           "number": "01",
           "title": "Asosiy",
           "style": "list",
-          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
           "blocks": [
             {
               "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha."
-            },
-            {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
             },
             {
               "text": "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi."
@@ -14303,8 +14300,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balans",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
+          "blocks": [
+            {
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Barqarorlik",
           "text": "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
           "blocks": [
@@ -14315,7 +14323,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Xatarlar va nimani kuzatish kerak",
           "text": "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
           "blocks": [
@@ -15523,13 +15531,10 @@
           "number": "01",
           "title": "Key points",
           "style": "list",
-          "text": "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+          "text": "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
           "blocks": [
             {
               "text": "Total assets rose 11% to UZS 1mn."
-            },
-            {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
             },
             {
               "text": "Equity makes up more than a third of total assets."
@@ -15537,8 +15542,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balance sheet",
+          "text": "Cash makes up a small share (5%) of total assets.",
+          "blocks": [
+            {
+              "text": "Cash makes up a small share (5%) of total assets."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Financial strength",
           "text": "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
           "blocks": [
@@ -15549,7 +15565,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Risks and what to watch",
           "text": "Liabilities are growing faster than equity — leverage is rising.",
           "blocks": [
@@ -15574,7 +15590,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 70,
+        "word_count": 68,
         "checks": [
           {
             "code": "text_number_format",
@@ -15633,19 +15649,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -15661,14 +15664,15 @@
       ],
       "paragraphs": [
         "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.",
-        "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+        "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
+        "Cash makes up a small share (5%) of total assets.",
         "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
         "Liabilities are growing faster than equity — leverage is rising.",
         "Compared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data."
       ],
-      "text": "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.\n\nTotal assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.\n\nLiabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data.",
-      "paragraph_count": 5,
-      "word_count": 114,
+      "text": "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.\n\nTotal assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.\n\nCash makes up a small share (5%) of total assets.\n\nLiabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data.",
+      "paragraph_count": 6,
+      "word_count": 112,
       "abstract": "Net profit doubled to UZS 0.08mn.",
       "sections": [
         {
@@ -15692,13 +15696,10 @@
           "number": "01",
           "title": "Key points",
           "style": "list",
-          "text": "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+          "text": "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
           "blocks": [
             {
               "text": "Total assets rose 11% to UZS 1mn."
-            },
-            {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
             },
             {
               "text": "Equity makes up more than a third of total assets."
@@ -15706,8 +15707,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balance sheet",
+          "text": "Cash makes up a small share (5%) of total assets.",
+          "blocks": [
+            {
+              "text": "Cash makes up a small share (5%) of total assets."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Financial strength",
           "text": "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
           "blocks": [
@@ -15718,7 +15730,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Risks and what to watch",
           "text": "Liabilities are growing faster than equity — leverage is rising.",
           "blocks": [
@@ -17836,10 +17848,10 @@
           "id": "balance",
           "number": "03",
           "title": "Баланс",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
           "blocks": [
             {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
             }
           ]
         },
@@ -17985,14 +17997,14 @@
         "Чистая выручка от страховых услуг значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — чистая выручка от страховых услуг растёт, но доля капитала снижается.",
         "Чистая выручка от страховых услуг значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль существенно прибавила 25% — до 0,1 млн сум.",
         "Чистая маржа выросла с 10% до 16%.",
-        "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+        "На долю денежных средств приходится небольшая доля (5%) активов.",
         "Собственный капитал составляет более трети активов; доля снизилась с 44% до 40%. Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
         "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
         "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности."
       ],
-      "text": "Чистая выручка от страховых услуг значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — чистая выручка от страховых услуг растёт, но доля капитала снижается.\n\nЧистая выручка от страховых услуг значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль существенно прибавила 25% — до 0,1 млн сум.\n\nЧистая маржа выросла с 10% до 16%.\n\nКрупнейшая статья активов — денежные средства: небольшая доля (5%) активов.\n\nСобственный капитал составляет более трети активов; доля снизилась с 44% до 40%. Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
+      "text": "Чистая выручка от страховых услуг значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%. Вердикт: смешанно — чистая выручка от страховых услуг растёт, но доля капитала снижается.\n\nЧистая выручка от страховых услуг значительно выросла на 25% — до 0,5 млн сум. Активы увеличились на 11% — до 1 млн сум. Чистая прибыль удвоилась — до 0,08 млн сум. Операционная прибыль существенно прибавила 25% — до 0,1 млн сум.\n\nЧистая маржа выросла с 10% до 16%.\n\nНа долю денежных средств приходится небольшая доля (5%) активов.\n\nСобственный капитал составляет более трети активов; доля снизилась с 44% до 40%. Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
       "paragraph_count": 7,
-      "word_count": 154,
+      "word_count": 153,
       "abstract": "Чистая выручка от страховых услуг значительно выросла на 25%, и чистая прибыль удвоилась, при чистой марже 16%.",
       "sections": [
         {
@@ -18047,10 +18059,10 @@
           "id": "balance",
           "number": "03",
           "title": "Баланс",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
           "blocks": [
             {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
             }
           ]
         },
@@ -19600,10 +19612,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balans",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
           "blocks": [
             {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
             }
           ]
         },
@@ -19645,7 +19657,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 107,
+        "word_count": 105,
         "checks": [
           {
             "code": "text_number_format",
@@ -19676,7 +19688,7 @@
             "code": "sentence_length",
             "status": "warning",
             "failures": [
-              "107 words, below the 250-word target"
+              "105 words, below the 250-word target"
             ]
           },
           {
@@ -19749,14 +19761,14 @@
         "Sug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — sug‘urta xizmatlaridan sof tushum o‘smoqda, ammo kapital ulushi kamaymoqda.",
         "Sug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga salmoqli ko‘paydi — 0,1 mln so‘mgacha.",
         "Sof marja 10%dan 16%gacha oshdi.",
-        "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+        "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
         "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
         "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
         "Taqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi."
       ],
-      "text": "Sug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — sug‘urta xizmatlaridan sof tushum o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nSug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga salmoqli ko‘paydi — 0,1 mln so‘mgacha.\n\nSof marja 10%dan 16%gacha oshdi.\n\nEng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).\n\nO‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi.",
+      "text": "Sug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%. Xulosa: aralash — sug‘urta xizmatlaridan sof tushum o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nSug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi — 0,5 mln so‘mgacha. Aktivlar 11%ga oshdi — 1 mln so‘mgacha. Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Operatsion foyda 25%ga salmoqli ko‘paydi — 0,1 mln so‘mgacha.\n\nSof marja 10%dan 16%gacha oshdi.\n\nAktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.\n\nO‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi; ulushi 44%dan 40%gacha kamaydi. Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi.",
       "paragraph_count": 7,
-      "word_count": 138,
+      "word_count": 135,
       "abstract": "Sug‘urta xizmatlaridan sof tushum 25%ga sezilarli o‘sdi va sof foyda ikki baravar oshdi, sof marja — 16%.",
       "sections": [
         {
@@ -19811,10 +19823,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balans",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
           "blocks": [
             {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
             }
           ]
         },
@@ -21364,10 +21376,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balance sheet",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
+          "text": "Cash makes up a small share (5%) of total assets.",
           "blocks": [
             {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
+              "text": "Cash makes up a small share (5%) of total assets."
             }
           ]
         },
@@ -21409,7 +21421,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 123,
+        "word_count": 121,
         "checks": [
           {
             "code": "text_number_format",
@@ -21440,7 +21452,7 @@
             "code": "sentence_length",
             "status": "warning",
             "failures": [
-              "123 words, below the 250-word target"
+              "121 words, below the 250-word target"
             ]
           },
           {
@@ -21513,14 +21525,14 @@
         "Net insurance-service revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — net insurance-service revenue is growing, but the equity share is falling.",
         "Net insurance-service revenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Net profit doubled to UZS 0.08mn. Operating profit grew substantially by 25% to UZS 0.1mn.",
         "The net margin rose from 10% to 16%.",
-        "The largest asset is cash: a small share (5%) of total assets.",
+        "Cash makes up a small share (5%) of total assets.",
         "Equity makes up more than a third of total assets; its share fell from 44% to 40%. Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
         "Liabilities are growing faster than equity — leverage is rising.",
         "Compared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements."
       ],
-      "text": "Net insurance-service revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — net insurance-service revenue is growing, but the equity share is falling.\n\nNet insurance-service revenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Net profit doubled to UZS 0.08mn. Operating profit grew substantially by 25% to UZS 0.1mn.\n\nThe net margin rose from 10% to 16%.\n\nThe largest asset is cash: a small share (5%) of total assets.\n\nEquity makes up more than a third of total assets; its share fell from 44% to 40%. Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements.",
+      "text": "Net insurance-service revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%. Verdict: mixed — net insurance-service revenue is growing, but the equity share is falling.\n\nNet insurance-service revenue rose significantly by 25% to UZS 0.5mn. Total assets increased 11% to UZS 1mn. Net profit doubled to UZS 0.08mn. Operating profit grew substantially by 25% to UZS 0.1mn.\n\nThe net margin rose from 10% to 16%.\n\nCash makes up a small share (5%) of total assets.\n\nEquity makes up more than a third of total assets; its share fell from 44% to 40%. Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements.",
       "paragraph_count": 7,
-      "word_count": 157,
+      "word_count": 155,
       "abstract": "Net insurance-service revenue rose significantly by 25%, and net profit doubled, with a net margin of 16%.",
       "sections": [
         {
@@ -21575,10 +21587,10 @@
           "id": "balance",
           "number": "03",
           "title": "Balance sheet",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
+          "text": "Cash makes up a small share (5%) of total assets.",
           "blocks": [
             {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
+              "text": "Cash makes up a small share (5%) of total assets."
             }
           ]
         },
@@ -23976,13 +23988,10 @@
           "number": "01",
           "title": "Главное",
           "style": "list",
-          "text": "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+          "text": "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
           "blocks": [
             {
               "text": "Активы выросли на 11% — до 1 млн сум."
-            },
-            {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
             },
             {
               "text": "Собственный капитал составляет более трети активов."
@@ -23990,8 +23999,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Баланс",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
+          "blocks": [
+            {
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Устойчивость",
           "text": "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
           "blocks": [
@@ -24002,7 +24022,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Риски и что смотреть дальше",
           "text": "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
           "blocks": [
@@ -24086,19 +24106,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов.",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -24114,14 +24121,15 @@
       ],
       "paragraphs": [
         "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.",
-        "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+        "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
+        "На долю денежных средств приходится небольшая доля (5%) активов.",
         "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
         "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
         "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются."
       ],
-      "text": "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.\n\nАктивы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.\n\nОбязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
-      "paragraph_count": 5,
-      "word_count": 103,
+      "text": "Чистая прибыль удвоилась — до 0,08 млн сум. Вердикт: смешанно — прибыль растёт, но доля капитала снижается.\n\nАктивы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.\n\nНа долю денежных средств приходится небольшая доля (5%) активов.\n\nОбязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.\n\nОбязательства растут быстрее капитала — долговая нагрузка повышается.\n\nСравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
+      "paragraph_count": 6,
+      "word_count": 102,
       "abstract": "Чистая прибыль удвоилась — до 0,08 млн сум.",
       "sections": [
         {
@@ -24145,13 +24153,10 @@
           "number": "01",
           "title": "Главное",
           "style": "list",
-          "text": "Активы выросли на 11% — до 1 млн сум. Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов. Собственный капитал составляет более трети активов.",
+          "text": "Активы выросли на 11% — до 1 млн сум. Собственный капитал составляет более трети активов.",
           "blocks": [
             {
               "text": "Активы выросли на 11% — до 1 млн сум."
-            },
-            {
-              "text": "Крупнейшая статья активов — денежные средства: небольшая доля (5%) активов."
             },
             {
               "text": "Собственный капитал составляет более трети активов."
@@ -24159,8 +24164,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Баланс",
+          "text": "На долю денежных средств приходится небольшая доля (5%) активов.",
+          "blocks": [
+            {
+              "text": "На долю денежных средств приходится небольшая доля (5%) активов."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Устойчивость",
           "text": "Обязательства значительно выросли на 20% — до 0,6 млн сум. Собственный капитал остался практически неизменным — 0,4 млн сум.",
           "blocks": [
@@ -24171,7 +24187,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Риски и что смотреть дальше",
           "text": "Обязательства растут быстрее капитала — долговая нагрузка повышается.",
           "blocks": [
@@ -25379,13 +25395,10 @@
           "number": "01",
           "title": "Asosiy",
           "style": "list",
-          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
           "blocks": [
             {
               "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha."
-            },
-            {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
             },
             {
               "text": "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi."
@@ -25393,8 +25406,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balans",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
+          "blocks": [
+            {
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Barqarorlik",
           "text": "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
           "blocks": [
@@ -25405,7 +25429,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Xatarlar va nimani kuzatish kerak",
           "text": "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
           "blocks": [
@@ -25430,7 +25454,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 61,
+        "word_count": 59,
         "checks": [
           {
             "code": "text_number_format",
@@ -25489,19 +25513,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%).",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -25517,14 +25528,15 @@
       ],
       "paragraphs": [
         "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.",
-        "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+        "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+        "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
         "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
         "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
         "Taqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi."
       ],
-      "text": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nAktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.\n\nMajburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi.",
-      "paragraph_count": 5,
-      "word_count": 96,
+      "text": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha. Xulosa: aralash — foyda o‘smoqda, ammo kapital ulushi kamaymoqda.\n\nAktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.\n\nAktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.\n\nMajburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.\n\nMajburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.\n\nTaqqoslash: balans — 2026-yil 1-yanvar bilan; natijalar — 2025-yilning shu davri bilan. BHMS, alohida hisobot. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi. Markaziy bank normativlari bu ma’lumotlar bo‘yicha hisoblanmaydi.",
+      "paragraph_count": 6,
+      "word_count": 93,
       "abstract": "Sof foyda ikki baravar oshdi — 0,08 mln so‘mgacha.",
       "sections": [
         {
@@ -25548,13 +25560,10 @@
           "number": "01",
           "title": "Asosiy",
           "style": "list",
-          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%). O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
+          "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha. O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi.",
           "blocks": [
             {
               "text": "Aktivlar 11%ga o‘sdi — 1 mln so‘mgacha."
-            },
-            {
-              "text": "Eng yirik aktiv moddasi — pul mablag‘lari: aktivlarning kichik ulush (5%)."
             },
             {
               "text": "O‘z kapitali aktivlarning uchdan biridan ko‘pini tashkil etadi."
@@ -25562,8 +25571,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balans",
+          "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi.",
+          "blocks": [
+            {
+              "text": "Aktivlarning kichik ulush (5%) pul mablag‘lariga to‘g‘ri keladi."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Barqarorlik",
           "text": "Majburiyatlar 20%ga sezilarli o‘sdi — 0,6 mln so‘mgacha. O‘z kapitali deyarli o‘zgarmadi — 0,4 mln so‘m.",
           "blocks": [
@@ -25574,7 +25594,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Xatarlar va nimani kuzatish kerak",
           "text": "Majburiyatlar kapitaldan tezroq o‘smoqda — qarz yuki oshmoqda.",
           "blocks": [
@@ -26782,13 +26802,10 @@
           "number": "01",
           "title": "Key points",
           "style": "list",
-          "text": "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+          "text": "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
           "blocks": [
             {
               "text": "Total assets rose 11% to UZS 1mn."
-            },
-            {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
             },
             {
               "text": "Equity makes up more than a third of total assets."
@@ -26796,8 +26813,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balance sheet",
+          "text": "Cash makes up a small share (5%) of total assets.",
+          "blocks": [
+            {
+              "text": "Cash makes up a small share (5%) of total assets."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Financial strength",
           "text": "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
           "blocks": [
@@ -26808,7 +26836,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Risks and what to watch",
           "text": "Liabilities are growing faster than equity — leverage is rising.",
           "blocks": [
@@ -26833,7 +26861,7 @@
       ],
       "text_checks": {
         "status": "passed",
-        "word_count": 70,
+        "word_count": 68,
         "checks": [
           {
             "code": "text_number_format",
@@ -26892,19 +26920,6 @@
           "verification_status": "verified"
         },
         {
-          "id": "6b07382d498d300036df696f",
-          "code": "cash",
-          "category": "change",
-          "text": "The largest asset is cash: a small share (5%) of total assets.",
-          "metric_codes": [
-            "cash"
-          ],
-          "evidence_fact_ids": [
-            "1f85f904b7b66c4d542c70cb"
-          ],
-          "verification_status": "verified"
-        },
-        {
           "id": "f3748686a146a298a2580ceb",
           "code": "total_equity",
           "category": "change",
@@ -26920,14 +26935,15 @@
       ],
       "paragraphs": [
         "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.",
-        "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+        "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
+        "Cash makes up a small share (5%) of total assets.",
         "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
         "Liabilities are growing faster than equity — leverage is rising.",
         "Compared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data."
       ],
-      "text": "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.\n\nTotal assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.\n\nLiabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data.",
-      "paragraph_count": 5,
-      "word_count": 114,
+      "text": "Net profit doubled to UZS 0.08mn. Verdict: mixed — profit is growing, but the equity share is falling.\n\nTotal assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.\n\nCash makes up a small share (5%) of total assets.\n\nLiabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.\n\nLiabilities are growing faster than equity — leverage is rising.\n\nCompared: balance sheet against 1 January 2026; results against the same period of 2025. NSBU, separate statements. The causes of the changes can only be confirmed by the notes to the statements. Central bank prudential ratios are not calculated from these data.",
+      "paragraph_count": 6,
+      "word_count": 112,
       "abstract": "Net profit doubled to UZS 0.08mn.",
       "sections": [
         {
@@ -26951,13 +26967,10 @@
           "number": "01",
           "title": "Key points",
           "style": "list",
-          "text": "Total assets rose 11% to UZS 1mn. The largest asset is cash: a small share (5%) of total assets. Equity makes up more than a third of total assets.",
+          "text": "Total assets rose 11% to UZS 1mn. Equity makes up more than a third of total assets.",
           "blocks": [
             {
               "text": "Total assets rose 11% to UZS 1mn."
-            },
-            {
-              "text": "The largest asset is cash: a small share (5%) of total assets."
             },
             {
               "text": "Equity makes up more than a third of total assets."
@@ -26965,8 +26978,19 @@
           ]
         },
         {
-          "id": "strength",
+          "id": "balance",
           "number": "02",
+          "title": "Balance sheet",
+          "text": "Cash makes up a small share (5%) of total assets.",
+          "blocks": [
+            {
+              "text": "Cash makes up a small share (5%) of total assets."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "03",
           "title": "Financial strength",
           "text": "Liabilities rose significantly by 20% to UZS 0.6mn. Equity was virtually unchanged at UZS 0.4mn.",
           "blocks": [
@@ -26977,7 +27001,7 @@
         },
         {
           "id": "risks",
-          "number": "03",
+          "number": "04",
           "title": "Risks and what to watch",
           "text": "Liabilities are growing faster than equity — leverage is rising.",
           "blocks": [

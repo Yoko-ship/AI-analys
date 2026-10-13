@@ -289,3 +289,27 @@ def test_fund_facts_go_through_the_writer_and_its_checks():
     assert "Цена/NAV не рассчитывается до сверки количества и номинала акций." in report["footnote"]
     assert report["sections"] == report["task1_sections"] and report["text_checks"]["status"] == "passed"
     assert report["portfolio"]["top_5_pct"] == pytest.approx(68.23, abs=.01)   # the data fields stay
+
+
+def test_profit_bridge_only_when_the_listed_lines_explain_the_gap():
+    # Finance costs take almost all of the operating profit (UZAL 2026Q2 shape).
+    report = _report("CBSK", current_values={**FILINGS["CBSK"]["snapshot"]["current_values"],
+                                             "financial_expenses": 5000000, "net_income": 26200000 - 5000000 - 4000000})
+    results = next(s["text"] for s in report["sections"] if s["id"] == "results")
+    assert "Между операционной прибылью 31,2 млрд сум и чистой прибылью 17,2 млрд сум стоят финансовые расходы — 5 млрд сум." not in results
+    # 31.2 − 5 = 26.2 → 17.2: a 14 bn gap of which 5 bn is listed — not explained.
+    explained = _report("CBSK", current_values={**FILINGS["CBSK"]["snapshot"]["current_values"],
+                                                "financial_expenses": 12000000, "net_income": 19200000})
+    results = next(s["text"] for s in explained["sections"] if s["id"] == "results")
+    assert "Между операционной прибылью 31,2 млрд сум и чистой прибылью 19,2 млрд сум стоят финансовые расходы — 12 млрд сум." in results
+    # METQ: finance lines net 0.1 bn against a 2.3 bn gap (tax not disclosed).
+    assert "Между операционной" not in _report("METQ")["text"]
+
+
+def test_no_revenue_is_said_once_and_first():
+    current = {**FILINGS["CBSK"]["snapshot"]["current_values"], "revenue": 0, "gross_profit": 0, "cost_of_sales": 0}
+    previous = {**FILINGS["CBSK"]["snapshot"]["previous_values"], "revenue": 0, "gross_profit": 0, "cost_of_sales": 0}
+    report = _report("CBSK", current_values=current, previous_values=previous)
+    results = next(s["text"] for s in report["sections"] if s["id"] == "results")
+    assert results.startswith("Выручки не было ни в этом периоде, ни годом ранее.")
+    assert report["text"].count("Выручки не было") == 1

@@ -131,3 +131,43 @@ def test_start_of_year_balance_comes_from_the_previous_annual_filing(monkeypatch
     assert snapshot["opening_values"] == {"total_assets": 950, "total_equity": 390, "total_liabilities": 560, "cash": 40}
     assert snapshot["comparison_sources"] == {"previous_period": "2025Q2", "previous_available": True,
                                               "opening_period": "2025", "opening_available": True}
+
+
+def test_balance_amounts_one_column_early_are_the_period_end(monkeypatch):
+    # BRBN/SQBN/UNVB 2026Q2: the filled column carries exactly the reconciled
+    # period-end totals and the «current» column is zeros; the published text
+    # said «Денежные средства: ноль против 900 млрд сум на начало года».
+    data = _bank_snapshot()
+    workbook = _bank_workbook([
+        ("Итого активов", 41000, 0), ("Кассовая наличность", 899, 0), ("К получению из ЦБРУ", 1136, 0),
+        ("Кредиты и лизинговые операции", 25498, 0),
+    ])
+    workbook["income"] = {"sheets": [{"sheet": "p", "table_rows": [
+        {"row": 1, "label": "Итого процентных доходов", "source_cells": ["Итого процентных доходов", 3640]}]}]}
+    service.map_special_lines(data, workbook, "bank")
+    assert data["current_values"]["cash"] == 899
+    assert data["current_values"]["loan_portfolio"] == 25498
+    assert data["current_values"]["interest_income"] == 3640
+    assert "cash" not in data["opening_values"] and "total_assets" not in data["opening_values"]
+
+
+def test_income_amounts_do_not_hide_a_blank_balance_column():
+    data = _bank_snapshot()
+    workbook = _bank_workbook([("Кассовая наличность", 899, 0), ("Срочные депозиты", 14387, 0)])
+    workbook["income"] = {"sheets": [{"sheet": "p", "table_rows": [
+        {"row": 1, "label": "Итого процентных доходов", "source_cells": ["Итого процентных доходов", 3640]}]}]}
+    service.map_special_lines(data, workbook, "bank")
+    assert "cash" not in data["current_values"] and "term_deposits" not in data["current_values"]
+
+
+def test_a_bank_never_holds_zero_cash_equity_or_central_bank_balances():
+    # UNVB cash and TNBN equity of zero beside billions of assets.
+    data = _bank_snapshot()
+    data["current_values"]["total_equity"] = 0
+    service.map_special_lines(data, _bank_workbook([
+        ("Кассовая наличность", 422, 0), ("К получению из ЦБРУ", 960, 0), ("Кредиты и лизинговые операции", 300, 410),
+    ]), "bank")
+    assert "cash" not in data["current_values"]
+    assert "central_bank_balances" not in data["current_values"]
+    assert "total_equity" not in data["current_values"]
+    assert data["current_values"]["loan_portfolio"] == 410

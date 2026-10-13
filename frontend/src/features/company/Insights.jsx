@@ -202,7 +202,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
             </section>
           ))}
         </div>
-        <Suspense fallback={null}><VerifiedReport report={report} lang={lang} /></Suspense>
+        <Suspense fallback={null}><VerifiedReport report={report} lang={lang} withCommentary={false} /></Suspense>
         <footer className="company-insight-dialog-foot">
           <span><CompanyInsightIcon small />{tx.generated}</span>
           <p>{tx.disclaimer}</p>

@@ -38,11 +38,12 @@ KEY_CANDIDATES = {
 }
 
 RESULT_LINES = {
-    "general": ("revenue", "cost_of_sales", "gross_profit", "period_expenses", "operating_income", "net_income"),
+    "general": ("revenue", "cost_of_sales", "gross_profit", "period_expenses", "operating_income", "net_income",
+                "financial_income", "financial_expenses"),
     "bank": ("interest_income", "interest_expenses", "net_interest_income_before_provisions", "noninterest_income",
-             "operating_expenses", "credit_loss_provisions", "net_income"),
+             "operating_expenses", "credit_loss_provisions", "net_income", "fee_income"),
     "insurance": ("insurance_premiums", "revenue", "insurance_service_cost", "insurance_service_result",
-                  "operating_income", "net_income"),
+                  "operating_income", "net_income", "financial_income", "financial_expenses"),
     "fund": ("dividend_income", "unrealized_fair_value_gain", "management_expenses", "net_income"),
 }
 
@@ -53,6 +54,10 @@ PACE_PAIRS = {
     "insurance": (("insurance_service_cost", "revenue"),),
     "fund": (),
 }
+
+# A line is named «крупнейшая статья» only when it is at least a quarter of
+# the assets; below that the disclosed lines do not cover the balance sheet.
+LARGEST_SHARE = Decimal(25)
 
 LIABILITY_LINES = {
     "general": ("current_liabilities", "long_term_liabilities"),
@@ -493,16 +498,24 @@ class Writer(FactView):
         # A fired signal is always in the list; the rest is filled by weight.
         forced = list(dict.fromkeys(s["metric_code"] for s in [*self.assessment.red_flags, *self.assessment.negatives]
                                     if s["metric_code"] in available))[:5]
-        chosen = forced + [code for _, code in candidates if code not in forced][:max(0, 5 - len(forced))]
         order = {code: index for index, (_, code) in enumerate(candidates)}
-        chosen = sorted(chosen, key=lambda code: order[code])
+        rest = [code for _, code in candidates if code not in forced]
         paragraph = Paragraph(self.lang)
-        for code in chosen:
-            # A line already named as the driver of a larger one is not listed twice.
+        written = []
+        # Fired signals first, then by weight, until five points stand; a line
+        # already named as the driver of a larger one is not listed twice.
+        for code in forced + rest:
+            if len(written) >= 5:
+                break
             if code in self.described:
                 continue
-            pace = self.pace_clause(code)
-            self.change(paragraph, code, driver=True, pace_with=pace)
+            written.append(code)
+            self.change(Paragraph(self.lang), code, driver=True, pace_with=self.pace_clause(code))
+            self.described.discard(code)
+            for child, _ in DRIVERS.get(code, ()):
+                self.described.discard(child)
+        for code in sorted(written, key=lambda code: order[code]):
+            self.change(paragraph, code, driver=True, pace_with=self.pace_clause(code))
         if len(paragraph.sentences) < 3:
             self.structure_points(paragraph)
         return paragraph
@@ -521,7 +534,7 @@ class Writer(FactView):
         assets = [code for code in ASSET_LINES[self.family] if self.share_of(code, "total_assets")]
         if assets and self.assets:
             largest = max(assets, key=lambda code: self.value(code))
-            if largest not in {s.metrics[0] for s in paragraph.sentences if s.metrics}:
+            if self.share_of(largest, "total_assets") >= LARGEST_SHARE and largest not in {s.metrics[0] for s in paragraph.sentences if s.metrics}:
                 self.shares_stated.add(largest)
                 share = vocab.share_phrase(self.share_of(largest, "total_assets"), self.lang)
                 paragraph.add(Sentence(self.tr(f"Крупнейшая статья активов — {self.nom(largest)}: {share} активов.",
@@ -539,27 +552,60 @@ class Writer(FactView):
 
     def results(self):
         paragraph = Paragraph(self.lang)
+        if self.top == "revenue" and self.move("revenue")["kind"] == "zero_both":
+            paragraph.add(Sentence(self.tr("Выручки не было ни в этом периоде, ни годом ранее.",
+                                           "Bu davrda ham, bir yil oldin ham tushum bo‘lmagan.",
+                                           "There was no revenue in this period or a year earlier."), ("revenue",), "level"))
         lines = [code for code in RESULT_LINES[self.family] if code in self.facts]
         for code in lines:
-            if code in self.described or len(paragraph.sentences) >= 5:
+            if code in self.described or len(paragraph.sentences) >= 6:
                 continue
             if self.move(code)["kind"] == "none":
                 self.level(paragraph, code)
             elif self.move(code)["kind"] != "zero_both":
                 self.change(paragraph, code)
-        pace = None
-        for cost, income in PACE_PAIRS[self.family]:
-            sentence = self.pace(cost, income)
-            if sentence:
-                paragraph.add(sentence)
-                pace = (cost, sentence)
-                break
-        margin = self.margin_sentence(pace)
-        if margin:
-            paragraph.add(margin)
-        for sentence in self.sector_result_facts():
+        paces = [(cost, sentence) for cost, income in PACE_PAIRS[self.family] for sentence in [self.pace(cost, income)] if sentence]
+        for _, sentence in paces[:2]:
             paragraph.add(sentence)
+        used_margins = set()
+        for pace in (paces[:2] or [None]):
+            margin = self.margin_sentence(pace, skip=used_margins)
+            if margin:
+                paragraph.add(margin)
+        bridge = self.profit_bridge()
+        for sentence in self.sector_result_facts():
+            # The bridge states the finance costs in amounts; their share of
+            # operating profit beside it would say the same thing twice.
+            if not (bridge and sentence.kind == "finance_share"):
+                paragraph.add(sentence)
+        paragraph.add(bridge)
         return paragraph
+
+    def profit_bridge(self):
+        """What lies between the operating and the net result, when it is material."""
+        operating, net = self.value("operating_income"), self.value("net_income")
+        if operating is None or net is None or operating == 0 or abs(operating - net) < abs(operating) * Decimal("0.1"):
+            return None
+        parts, explained = [], Decimal(0)
+        for code, sign, ru, uz, en in (("financial_income", 1, "финансовые доходы", "moliyaviy daromadlar", "finance income"),
+                                       ("financial_expenses", -1, "финансовые расходы", "moliyaviy xarajatlar", "finance costs"),
+                                       ("tax", -1, "налог на прибыль", "foyda solig‘i", "income tax")):
+            value = self.value(code)
+            if value and abs(value) >= abs(operating - net) * Decimal("0.05"):
+                explained += sign * abs(value)
+                parts.append(f"{self.tr(ru, uz, en)} — {self.money(abs(value))}" if self.lang != "en" else f"{en} {self.money(abs(value))}")
+        # Named only when the listed lines account for most of the gap; a gap
+        # made of lines the filing does not disclose is not explained by them.
+        gap = net - operating
+        if not parts or explained * gap <= 0 or abs(explained) < abs(gap) / 2:
+            return None
+        listed = ", ".join(parts)
+        result = lambda value, ru_profit, ru_loss, uz_profit, uz_loss, en_profit, en_loss: (
+            self.tr(ru_profit, uz_profit, en_profit) if value > 0 else self.tr(ru_loss, uz_loss, en_loss)) + f" {self.money(abs(value))}"
+        first = result(operating, "операционной прибылью", "операционным убытком", "operatsion foyda", "operatsion zarar", "operating profit of", "an operating loss of")
+        second = result(net, "чистой прибылью", "чистым убытком", "sof foyda", "sof zarar", "net profit of", "a net loss of")
+        return Sentence(self.tr(f"Между {first} и {second} стоят {listed}.", f"{vocab.capital(first)} va {second} orasida: {listed}.",
+                                f"Between {first} and {second} stand {listed}."), (), "bridge")
 
     def pace(self, cost, income):
         """Paces first, then their relation; only when they differ by more than 5 p.p."""
@@ -588,12 +634,15 @@ class Writer(FactView):
                ("operating_income", "period_expenses", ("операционная маржа", "operatsion marja", "operating margin")),
                ("net_income", None, ("чистая маржа", "sof marja", "net margin")))
 
-    def margin_sentence(self, pace=None):
+    def margin_sentence(self, pace=None, skip=None):
         """A margin shift of 1 p.p. or more; «в результате» only when the pace explains it."""
         if self.top != "revenue":
             return None
+        skip = set() if skip is None else skip
         margins = sorted(self.MARGINS, key=lambda item: pace is None or item[1] != pace[0])
         for code, cost, (ru, uz, en) in margins:
+            if code in skip:
+                continue
             now = self.share_of(code, "revenue")
             before_part, before_whole = self.base(code), self.base("revenue")
             if now is None or before_part is None or not before_whole or before_whole <= 0 or before_part <= 0:
@@ -612,6 +661,7 @@ class Writer(FactView):
             text = self.tr(f"{lead}{ru} {'выросла' if up else 'снизилась'} с {a} до {b}.",
                            f"{lead}{uz} {a}dan {b}gacha {'oshdi' if up else 'kamaydi'}.",
                            f"{lead}{en} {'rose' if up else 'fell'} from {a} to {b}.")
+            skip.add(code)
             return Sentence(vocab.capital(text), (), "margin")
         return None
 
@@ -636,8 +686,11 @@ class Writer(FactView):
                                             f"Operatsion xarajatlar bank sof daromadining {vocab.share_phrase(share, 'uz', 'acc')} tashkil etadi.",
                                             f"Operating expenses absorb {vocab.share_phrase(share, 'en')} of the bank's net revenue."), (), "share"))
         elif self.family == "general" and (self.value("operating_income") or 0) > 0:
-            out.append(self.absorbs("financial_expenses", "operating_income", "Финансовые расходы забирают {acc} операционной прибыли.",
-                                    "Moliyaviy xarajatlar operatsion foydaning {share} oladi.", "Finance costs take {share} of operating profit."))
+            finance = self.absorbs("financial_expenses", "operating_income", "Финансовые расходы забирают {acc} операционной прибыли.",
+                                   "Moliyaviy xarajatlar operatsion foydaning {share} oladi.", "Finance costs take {share} of operating profit.")
+            if finance:
+                finance.kind = "finance_share"
+            out.append(finance)
         elif self.family == "insurance":
             ceded = self.share_of("ceded_premiums", "insurance_premiums")
             if ceded is not None and ceded <= 100:
@@ -674,7 +727,7 @@ class Writer(FactView):
                 pass
             elif shift:
                 paragraph.add(Sentence(shift + ".", (), "share"))
-            elif index == 0:
+            elif index == 0 and share >= LARGEST_SHARE:
                 paragraph.add(Sentence(self.tr(f"Крупнейшая статья активов — {self.nom(code)}: {phrase} активов.",
                                                f"Eng yirik aktiv moddasi — {self.nom(code)}: aktivlarning {phrase}.",
                                                f"The largest asset is {self.nom(code)}: {phrase} of total assets."), (), "share"))
@@ -816,6 +869,21 @@ class Writer(FactView):
         for code in ("total_liabilities", "total_equity"):
             if code not in self.described and len(paragraph.sentences) < 5:
                 self.change(paragraph, code, driver=True)
+        retained, equity = self.value("retained_earnings"), self.value("total_equity")
+        if retained is not None and equity and equity > 0:
+            share = retained / equity * 100
+            if 5 <= share <= 100:
+                paragraph.add(Sentence(self.tr(f"Нераспределённая прибыль формирует {vocab.share_phrase(share, 'ru', 'acc')} собственного капитала.",
+                                               f"Taqsimlanmagan foyda o‘z kapitalining {vocab.share_phrase(share, 'uz', 'acc')} tashkil etadi.",
+                                               f"Retained earnings make up {vocab.share_phrase(share, 'en')} of equity."), (), "share"))
+            elif retained < 0:
+                paragraph.add(Sentence(self.tr(f"В капитале накоплен непокрытый убыток {self.money(-retained)}.",
+                                               f"Kapitalda {self.money(-retained)} qoplanmagan zarar to‘plangan.",
+                                               f"Equity carries an accumulated deficit of {self.money(-retained)}."), (), "level"))
+        if self.family == "bank":
+            pace = self.pace("loan_portfolio", "customer_funds")
+            if pace:
+                paragraph.add(pace)
         return paragraph
 
     def risks(self):

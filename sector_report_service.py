@@ -447,7 +447,7 @@ SPECIAL_LABELS = {
 
 # Lines without which a bank's balance sheet is not a bank's: a zero here,
 # beside positive assets, is a missed line, never a real amount.
-BANK_CORE_LINES = ("loan_portfolio", "customer_funds")
+BANK_CORE_LINES = ("loan_portfolio", "customer_funds", "cash", "central_bank_balances", "total_equity")
 
 
 def _apply_columns(snapshot, staged, protected=()):
@@ -460,16 +460,29 @@ def _apply_columns(snapshot, staged, protected=()):
     used = {}
     for target, rows in staged.items():
         amounts = [value for key, value in rows.items() if key not in protected]
-        if financial_analysis_sector_inputs.blank_column(amounts):
+        if not rows or financial_analysis_sector_inputs.blank_column(amounts):
             used[target] = False
             continue
-        assets = financial_analysis_sector_numbers.decimal(rows.get("total_assets", snapshot[target].get("total_assets")))
         for key, value in rows.items():
-            if key in BANK_CORE_LINES and assets and assets > 0 and financial_analysis_sector_numbers.decimal(value) == 0:
-                continue
             snapshot[target][key] = value
         used[target] = True
     return used
+
+
+def _drop_missed_bank_lines(snapshot):
+    """A bank never holds zero cash, central-bank balances, loans, deposits or equity.
+
+    Beside positive assets such a zero is a line the parser missed, so it is
+    removed rather than published as «снизился до нуля».
+    """
+    for target in ("current_values", "opening_values"):
+        values = snapshot.get(target) or {}
+        assets = financial_analysis_sector_numbers.decimal(values.get("total_assets"))
+        if not assets or assets <= 0:
+            continue
+        for key in BANK_CORE_LINES:
+            if financial_analysis_sector_numbers.decimal(values.get(key)) == 0:
+                values.pop(key, None)
 
 
 def map_special_lines(snapshot, workbook, org):
@@ -477,7 +490,9 @@ def map_special_lines(snapshot, workbook, org):
     if org == "insurance":
         return map_insurance_lines(snapshot, workbook)
     snapshot["current_values"].pop("operating_income", None) if org != "insurance" else None
-    staged = {"current_values": {}, "opening_values": {}, "previous_values": {}}
+    # Staged per statement: a blank balance column must not be hidden by the
+    # amounts of the income statement read in the same pass.
+    staged = {form: {"current_values": {}, "opening_values": {}, "previous_values": {}} for form in ("balance", "income")}
     preserved = set()
     for form in ("balance", "income"):
         for sheet in (workbook.get(form) or {}).get("sheets") or []:
@@ -512,18 +527,29 @@ def map_special_lines(snapshot, workbook, org):
                     if existing is not None and existing > 0:
                         preserved.add(matched)
                 if matched not in preserved:
-                    staged["current_values"][matched] = financial_analysis_sector_numbers.number(current)
+                    staged[form]["current_values"][matched] = financial_analysis_sector_numbers.number(current)
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
-                    staged[target][matched] = financial_analysis_sector_numbers.number(prior)
+                    staged[form][target][matched] = financial_analysis_sector_numbers.number(prior)
                 snapshot.setdefault("field_sources", {})[matched] = {
                     "source_line_id": f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}",
                     "raw_current": str(current) if financial_analysis_sector_numbers.decimal(current) is not None else None,
                 }
-    used = _apply_columns(snapshot, staged)
+    balance = staged["balance"]
+    reconciled = financial_analysis_sector_numbers.decimal(snapshot["current_values"].get("total_assets"))
+    filed_opening = financial_analysis_sector_numbers.decimal(balance["opening_values"].get("total_assets"))
+    if (financial_analysis_sector_inputs.blank_column(balance["current_values"].values()) and reconciled and filed_opening is not None
+            and abs(filed_opening - reconciled) <= 1):
+        # The amounts sit one column early: the only filled column carries
+        # exactly the reconciled period-end totals, so it is the period end,
+        # and the start of the year comes from the previous annual filing.
+        balance["current_values"] = {key: value for key, value in balance["opening_values"].items() if key not in preserved}
+        balance["opening_values"] = {}
+    used = {**_apply_columns(snapshot, staged["income"]), **_apply_columns(snapshot, balance)}
+    _drop_missed_bank_lines(snapshot)
     sources = snapshot.setdefault("comparison_sources", {})
     sources["opening_from_filing"] = used.get("opening_values", False)
-    if any(staged["previous_values"].values()):
+    if any(staged["income"]["previous_values"].values()):
         sources["previous_from_filing"] = used.get("previous_values", False)
 
     # The statutory bank form exposes customer deposits as three adjacent

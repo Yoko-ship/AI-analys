@@ -78,12 +78,11 @@ test("sector report opens from the company card and exposes sourced formulas", a
   await roa.getByText("Как рассчитано", { exact: true }).click();
   await expect(roa.getByText(/form2:c270/)).toBeVisible();
   await expect(dialog.getByText(/quick_ratio:/)).toHaveCount(0);
-  for (const issue of PUBLIC_REPORT.analytical_issues || []) {
-    const card = dialog.locator(".verified-issues article").filter({ has: page.getByRole("heading", { name: issue.title, exact: true }) });
-    await expect(card.getByText(issue.next_trigger, { exact: true })).toBeVisible();
-  }
-  await expect(dialog.getByText(/^Проверено:/)).toBeVisible();
-  await dialog.locator(".verified-checks").scrollIntoViewIfNeeded();
+  // Risks and caveats live in the analysis itself; the panels that repeated
+  // them in other words are not shown on the company page.
+  await expect(dialog.locator(".verified-issues")).toHaveCount(0);
+  await expect(dialog.getByText(/^Проверено:/)).toHaveCount(0);
+  await dialog.locator(".verified-block").last().scrollIntoViewIfNeeded();
   await page.screenshot({ path: "audit/sector-v2.3/report-monitoring.png" });
   await dialog.getByText("Финансовый результат", { exact: true }).click();
   await expect(dialog.locator("table").first()).toContainText("315");
