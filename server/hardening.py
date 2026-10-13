@@ -69,9 +69,12 @@ def content_security_policy(script_hashes: list[str]) -> str:
 
 
 def security_headers(csp: str) -> list[tuple[bytes, bytes]]:
+    # No Strict-Transport-Security here: the TLS-terminating edge proxy already
+    # sends a stronger one (two years, includeSubDomains, preload), and a browser
+    # honours only the FIRST such header — a second, weaker one from the app
+    # would override it.
     return [
         (b"content-security-policy", csp.encode("ascii")),
-        (b"strict-transport-security", b"max-age=31536000"),
         (b"x-content-type-options", b"nosniff"),
         (b"x-frame-options", b"DENY"),
         (b"referrer-policy", b"strict-origin-when-cross-origin"),

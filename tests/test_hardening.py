@@ -44,7 +44,8 @@ def test_every_response_carries_the_security_headers(tmp_path):
     assert headers["x-content-type-options"] == "nosniff"
     assert headers["x-frame-options"] == "DENY"
     assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
-    assert headers["strict-transport-security"].startswith("max-age=")
+    # HSTS belongs to the TLS edge, which sends the stronger policy.
+    assert "strict-transport-security" not in headers
     csp = headers["content-security-policy"]
     assert "frame-ancestors 'none'" in csp
     assert "object-src 'none'" in csp
