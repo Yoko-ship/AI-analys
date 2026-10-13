@@ -209,5 +209,13 @@ def test_a_half_year_disclosed_over_a_year_late_keeps_its_stated_year():
     # A stamp later than the publication (the filing day) cannot move the year on.
     later = datetime(2023, 1, 5).date()
     assert catalogue_periods._quarter_period_from_publication(quarter, pub, later) == (2022, 2)
+    # A stamp on the quarter's last day is that quarter, not the year before
+    # (UQEQ's 9M 2021 says 2021-09-30; its 2023 half-year, 2023-06-30).
+    assert catalogue_periods._quarter_period_from_publication(
+        3, datetime(2021, 10, 31), datetime(2021, 9, 30).date()) == (2021, 3)
+    assert catalogue_periods._quarter_period_from_publication(
+        2, datetime(2023, 8, 4), datetime(2023, 6, 30).date()) == (2023, 2)
+    assert catalogue_periods._quarter_period_from_publication(
+        4, datetime(2024, 3, 1), datetime(2023, 12, 31).date()) == (2023, 4)
     # Without a stated date the publication rule is unchanged.
     assert catalogue_periods._quarter_period_from_publication(quarter, pub) == (2022, 2)

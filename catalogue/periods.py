@@ -310,6 +310,11 @@ def _quarter_period_from_publication(quarter: int, pub: datetime,
     so when the workbook states an earlier date, that date places the year — the
     rule period_year_quarter (openinfo_reconcile) applies to the same stamp.
     """
-    asof = min(pub.date(), stated) if stated else pub.date()
-    year = asof.year if asof.month > _QUARTER_END_MONTH[quarter] else asof.year - 1
+    year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
+    if stated:
+        # A stated date is often the period end itself (2021-09-30 for a
+        # nine-month), so the quarter's own last day counts as ended — the
+        # month test above would push it a year back.
+        end = date(stated.year, _QUARTER_END_MONTH[quarter], 30 if quarter in (2, 3) else 31)
+        year = min(year, stated.year if end <= stated else stated.year - 1)
     return year, quarter
