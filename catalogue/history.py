@@ -173,25 +173,12 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
 
     def _is_fresh_record(rec: dict[str, Any]) -> bool:
 
-        if rec["accounting_id"] in seen or not rec["excel_url"]:
+        # Whether a filing is an older revision of a period we hold is decided
+        # after the workbook states its period: guessed from the publication
+        # date, AGMKP's Q1 2023 (filed 2023-07-05) read as a Q2 older than the
+        # Q2 already held, and was never downloaded.
 
-            return False
-
-        # The period from the publication date alone — the workbook has the
-
-        # authoritative answer, but reading it is the download this skips.
-
-        try:
-
-            pub = datetime.fromisoformat(rec["pub_date"].replace("Z", "+00:00"))
-
-        except ValueError:
-
-            return True
-
-        key = catalogue_periods._quarter_period_from_publication(catalogue_periods._PUB_MONTH_QUARTER[pub.month], pub)
-
-        return held.get(key, "") < rec["pub_date"]
+        return rec["accounting_id"] not in seen and bool(rec["excel_url"])
 
 
 
@@ -200,6 +187,8 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
     errors: list[str] = []
 
     rows: list[dict[str, Any]] = []
+
+    superseded = 0
 
     for rec in fresh[:limit]:
 
@@ -237,6 +226,12 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
         if catalogue_periods._is_future_period(year, quarter):
 
             errors.append(f"{rec['accounting_id']}: derived {year}Q{quarter} has not ended")
+
+            continue
+
+        if held.get((year, quarter), "") >= rec["pub_date"]:
+
+            superseded += 1
 
             continue
 
@@ -296,6 +291,8 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
 
             conn.close()
 
+        held[(year, quarter)] = rec["pub_date"]
+
         if publish:
 
             report_id = catalogue_refresh._register_parse(t, "NSBU", year, quarter, parsed, values)
@@ -312,7 +309,7 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
 
     return {"ticker": t, "rows": rows, "added": len(rows),
 
-            "skipped": len(records) - len(fresh), "errors": errors}
+            "skipped": len(records) - len(fresh) + superseded, "errors": errors}
 
 
 def get_financial_history_coverage(form: str = "NSBU") -> dict[str, dict[str, Any]]:

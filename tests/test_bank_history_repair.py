@@ -351,3 +351,33 @@ def test_newly_discovered_statement_gets_a_source_passport_on_its_first_parse(ca
     assert passport["status"] == "SOURCED"
     assert passport["source"]["report_id"] == report_id
     assert passport["source"]["stated_period"] == "2019Q4"
+
+
+def test_a_late_q1_filed_after_the_q2_is_downloaded_and_an_older_q2_revision_is_not_kept(catalog, monkeypatch):
+    # AGMKP filed its Q1 2023 on 2023-07-05, after the Q2 held (2023-07-31 in
+    # its own row). Guessed from the publication date it read as an older Q2
+    # revision and was never downloaded, leaving 2023Q1 empty.
+    filing(catalog, "BANK", "12", 2023, 2)
+    conn = catalog()
+    with conn:
+        conn.execute("UPDATE catalog_reports SET published_at='2023-07-31'")
+    conn.close()
+    headers = {"q1": ("Период квартала:", 1, "2023-03-31"), "old-q2": ("Период квартала:", 2, "2023-06-30")}
+    monkeypatch.setattr(catalogue_history, "unified_quarterly_records", lambda *args: [
+        {"accounting_id": "14398", "pdf_id": "1", "pub_date": "2023-07-05", "excel_url": "q1", "title": "Q1"},
+        {"accounting_id": "14390", "pdf_id": "2", "pub_date": "2023-07-20", "excel_url": "old-q2", "title": "Q2"},
+    ])
+
+    def parse(session, url):
+        label, quarter, stated = headers[url]
+        return {"ok": True, "reporting_date": stated,
+                "sheets": [{"table_rows": [{"label": label, "numeric_values": [quarter]}]}]}
+
+    monkeypatch.setattr(catalogue_history, "_parse_workbook_uncached", parse)
+    monkeypatch.setattr(catalogue_parsing, "compute_financial_ratios", lambda *args: {"source_values": {"revenue": 1000}})
+    monkeypatch.setattr(catalogue_refresh, "_register_parse", lambda *args: None)
+    result = catalogue_history.harvest_historical_quarters("BANK", session=object(), pace=0)
+    assert [(r["year"], r["quarter"]) for r in result["rows"]] == [(2023, 1)]
+    assert result["skipped"] == 1
+    assert catalogue_filings.get_report_urls("BANK", "NSBU", 2023, 1)["excel_url"] == "q1"
+    assert catalogue_filings.get_report_urls("BANK", "NSBU", 2023, 2)["excel_url"] != "old-q2"
