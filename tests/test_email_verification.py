@@ -218,6 +218,33 @@ def test_smtp_failure_raises_a_delivery_error(smtp_env, monkeypatch):
         email_delivery.send_code("reader@example.test", "verify", "123456", "ru")
 
 
+@pytest.mark.parametrize("address", [
+    "reader@example.test,victim@example.test",
+    "reader@example.test; victim@example.test",
+    "Reader <reader@example.test>",
+    "reader@example.test\nBcc: victim@example.test",
+    "reader@localhost",
+])
+def test_one_stored_address_never_reaches_several_recipients(smtp_env, address):
+    with pytest.raises(email_delivery.EmailDeliveryError, match="single valid address"):
+        email_delivery.send_code(address, "verify", "123456", "ru")
+    assert not any(smtp.sent for smtp in _FakeSMTP.instances)
+
+
+@pytest.mark.parametrize("address, valid", [
+    ("reader@example.test", True),
+    ("first.last+tag@mail.example.uz", True),
+    ("иван@mail.uz", True),
+    ("a@b.uz,c@d.uz", False),
+    ("a b@c.uz", False),
+    ("a@b", False),
+    ("a@-b.uz", False),
+    ("", False),
+])
+def test_email_format(address, valid):
+    assert identity_users.is_valid_email(address) is valid
+
+
 # ── HTTP contract ───────────────────────────────────────────────────────────
 
 @pytest.fixture

@@ -36,6 +36,7 @@ import server.company.routes as company_routes
 import server.currency.routes as currency_routes
 import server.http as http
 import server.ingestion.routes as ingestion_routes
+import server.hardening as hardening
 import server.lifecycle as lifecycle
 import server.market.routes as market_routes
 import server.news.routes as news_routes
@@ -89,6 +90,11 @@ WEB_DIR = WEB_DIST_DIR if (WEB_DIST_DIR / "index.html").exists() else WEB_SOURCE
 
 
 ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
+
+
+# Security headers on every response, and 500s that carry an error id instead
+# of exception text (see server/hardening.py).
+hardening.install(app, WEB_DIR / "index.html")
 
 
 class _ImmutableAssets(StaticFiles):

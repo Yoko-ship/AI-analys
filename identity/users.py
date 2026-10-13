@@ -6,10 +6,25 @@ from typing import Optional
 from dataclasses import dataclass
 import identity.clock as identity_clock
 import os
+import re
 
 
 def _normalize_email(email: str) -> str:
     return (email or "").strip().lower()
+
+
+# One mailbox: no whitespace, list separators or display-name syntax in the local
+# part, and a dotted DNS domain. "a@x.uz,victim@y.uz" otherwise reaches SMTP as two
+# recipients, and every such string is a fresh account with its own send throttle.
+_EMAIL_RE = re.compile(
+    r"[^@\s,;:<>()\[\]\\\"']{1,64}"
+    r"@(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+"
+)
+
+
+def is_valid_email(email: str | None) -> bool:
+    return bool(email) and _EMAIL_RE.fullmatch(email) is not None
 
 
 def _admin_emails() -> set[str]:

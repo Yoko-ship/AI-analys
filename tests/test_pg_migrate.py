@@ -169,3 +169,20 @@ class TestIdentitySync:
         import inspect
         source = inspect.getsource(pg_migrate.copy_table)
         assert "sync_identity" in source
+
+
+@pytest.mark.parametrize("schema", [
+    'x"; DROP TABLE web_users; --', "Public", "1abc", "a-b", "", "a" * 64, None,
+])
+def test_schema_names_outside_a_plain_identifier_are_refused(schema):
+    # The name is interpolated into SET search_path / CREATE SCHEMA, so anything
+    # but a plain identifier must stop before a connection is opened.
+    with pytest.raises(ValueError, match="invalid schema name"):
+        pg_migrate.migrate("postgresql://unused.invalid/db", schema=schema)
+    with pytest.raises(ValueError, match="invalid schema name"):
+        pg_migrate.sync_all_identities("postgresql://unused.invalid/db", schema=schema)
+
+
+def test_rehearsal_schema_names_are_accepted():
+    for schema in ("public", "rehearsal_2026_10", "_tmp"):
+        assert pg_migrate._schema(schema) == schema

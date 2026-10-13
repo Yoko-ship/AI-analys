@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
@@ -88,11 +89,14 @@ async def api_admin_pg_copy(payload: dict[str, Any] | None = None,
 
     payload = payload or {}
     loop = asyncio.get_running_loop()
-    report = await loop.run_in_executor(None, partial(
-        pg_migrate.migrate,
-        schema=str(payload.get("schema") or "public"),
-        dry_run=bool(payload.get("dry_run")),
-        only=payload.get("only")))
+    try:
+        report = await loop.run_in_executor(None, partial(
+            pg_migrate.migrate,
+            schema=str(payload.get("schema") or "public"),
+            dry_run=bool(payload.get("dry_run")),
+            only=payload.get("only")))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not report.get("ok"):
         # A partial copy that reports success is how a bad cutover happens.
         return JSONResponse(http._json_safe(report), status_code=500)

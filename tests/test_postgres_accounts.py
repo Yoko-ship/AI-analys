@@ -65,6 +65,16 @@ def test_password_change_revocation_expiry_and_inactive_user(pg_store):
     assert pg_store.sessions.get_user_by_token(token) is None
 
 
+def test_registration_refuses_an_address_that_is_not_one_mailbox(pg_store):
+    for email in ("a@example.test,victim@example.test", "Name <a@example.test>", "a b@example.test"):
+        with pytest.raises(ValueError, match="valid email"):
+            pg_store.accounts.register_user(email, "example-pass-123")
+        with pytest.raises(ValueError, match="valid email"):
+            pg_store.accounts.start_registration(email, "example-pass-123")
+    with pg_store.database.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) AS n FROM web_users").fetchone()["n"] == 0
+
+
 def test_two_factor_setup_cannot_replace_an_active_secret(pg_store):
     from identity.credentials import _totp_code
     user, _ = pg_store.accounts.register_user("mfa@example.test", "example-pass-123")

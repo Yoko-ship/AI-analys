@@ -48,6 +48,8 @@ class Accounts:
         normalized = identity_users._normalize_email(email)
         if not normalized:
             raise ValueError("Email is required")
+        if not identity_users.is_valid_email(normalized):
+            raise ValueError("Enter a valid email address")
         validate_new_password(password, email=normalized, full_name=full_name)
 
         full_name = (full_name or "").strip()
@@ -345,6 +347,8 @@ class Accounts:
         normalized = identity_users._normalize_email(email)
         if not normalized:
             raise ValueError("Email is required")
+        if not identity_users.is_valid_email(normalized):
+            raise ValueError("Enter a valid email address")
         validate_new_password(password, email=normalized, full_name=full_name)
         with self.database.connect() as conn:
             row = conn.execute(

@@ -24,6 +24,8 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid, parseaddr
 
+import identity.users as identity_users
+
 logger = logging.getLogger(__name__)
 
 CODE_TTL_MINUTES = 15
@@ -106,6 +108,9 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None) -
     """Deliver one message over SMTP or raise ``EmailDeliveryError``."""
     if not is_configured():
         raise EmailDeliveryError("Email delivery is not configured")
+    if not identity_users.is_valid_email(to):
+        # A To header is a list: never let one stored address fan out to several.
+        raise EmailDeliveryError("Recipient is not a single valid address")
     sender = _env("SMTP_FROM")
     name, address = parseaddr(sender)
     message = EmailMessage()

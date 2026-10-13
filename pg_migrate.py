@@ -63,6 +63,18 @@ _TYPE_MAP = (
 )
 
 
+# The schema name reaches SQL as an identifier, which cannot be a bound
+# parameter. It arrives from an admin request body, so it is held to a plain
+# lower-case identifier rather than trusted inside quotes.
+_SCHEMA_RE = re.compile(r"[a-z_][a-z0-9_]{0,62}")
+
+
+def _schema(schema: str) -> str:
+    if not isinstance(schema, str) or not _SCHEMA_RE.fullmatch(schema):
+        raise ValueError(f"invalid schema name: {schema!r}")
+    return schema
+
+
 def _sqlite(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
@@ -109,7 +121,7 @@ def create_table(sqlite_conn: sqlite3.Connection, pg: Any, table: str,
     if not ddl_row or not ddl_row[0]:
         return
     with pg.cursor() as cur:
-        cur.execute(f'SET search_path TO "{schema}"')
+        cur.execute(f'SET search_path TO "{_schema(schema)}"')
         cur.execute(translate_ddl(ddl_row[0]))
 
 
@@ -117,7 +129,7 @@ def copy_table(sqlite_conn: sqlite3.Connection, pg: Any, table: str,
                batch: int = 1000, schema: str = "public") -> dict[str, Any]:
     """Fill one table. Existing rows are replaced, not appended."""
     with pg.cursor() as cur:
-        cur.execute(f'SET search_path TO "{schema}"')
+        cur.execute(f'SET search_path TO "{_schema(schema)}"')
         cur.execute(f'TRUNCATE TABLE "{table}" CASCADE')
 
     columns = [r[1] for r in sqlite_conn.execute(f"PRAGMA table_info({table})")]
@@ -171,7 +183,7 @@ def sync_identity(pg: Any, table: str, schema: str = "public") -> list[dict[str,
         if tbl != table:
             continue
         with pg.cursor() as cur:
-            cur.execute(f'SET search_path TO "{schema}"')
+            cur.execute(f'SET search_path TO "{_schema(schema)}"')
             # is_called=false when the table is empty, so the first id is 1, not 2.
             cur.execute(
                 f'SELECT setval(pg_get_serial_sequence(%s, %s), '
@@ -188,6 +200,7 @@ def sync_all_identities(url: str | None = None, schema: str = "public") -> dict[
     """Repair every generated key in an existing database (see :func:`sync_identity`)."""
     import psycopg
 
+    _schema(schema)
     url = url or os.getenv("DATABASE_URL") or ""
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
@@ -239,7 +252,7 @@ def verify_table(sqlite_conn: sqlite3.Connection, pg: Any, table: str,
     quoted = ", ".join(f'"{c}"' for c in columns)
     src = [tuple(r) for r in sqlite_conn.execute(f'SELECT {quoted} FROM "{table}"')]
     with pg.cursor() as cur:
-        cur.execute(f'SET search_path TO "{schema}"')
+        cur.execute(f'SET search_path TO "{_schema(schema)}"')
         cur.execute(f'SELECT {quoted} FROM "{table}"')
         dst = [tuple(r) for r in cur.fetchall()]
 
@@ -317,6 +330,7 @@ def migrate(url: str | None = None, *, only: Sequence[str] | None = None,
     """
     import psycopg
 
+    _schema(schema)
     url = url or os.getenv("DATABASE_URL") or os.getenv("DATABASE_PUBLIC_URL") or ""
     if not url:
         raise RuntimeError("no PostgreSQL URL: set DATABASE_URL")
@@ -348,7 +362,7 @@ def migrate(url: str | None = None, *, only: Sequence[str] | None = None,
     with psycopg.connect(url, connect_timeout=30) as pg:
         if schema != "public":
             with pg.cursor() as cur:
-                cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+                cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{_schema(schema)}"')
             pg.commit()
         def _create(item):
             path, table = item
