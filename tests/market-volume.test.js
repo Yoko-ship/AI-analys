@@ -28,3 +28,16 @@ test("average price and trade value work for bond and equity quantities without 
   assert.equal(metrics.avgShare, 1000.05 / 3);
   assert.equal(metrics.avgTrade, 500.025);
 });
+
+test("a period's average deal is the server's, measured over the sessions that counted deals", async () => {
+  // BNGPP over a month on 12.10.2026: 135 578 469 сум in 20 sessions, but deals were
+  // counted in only 19 of them (276). The whole month's сумы over 19 sessions' deals
+  // printed 491 226; the average over the sessions that counted is 453 719. 291
+  // cells across 1М–YTD were overstated this way.
+  const { avgTradeValue } = await import("../frontend/src/lib/marketVolume.js");
+  const row = { stockVolume: 135578469, stockTradeCount: 276, avgTrade: 453719 };
+  assert.equal(avgTradeValue(row), 453719);
+  assert.equal(marketVolumeMetrics(row, {}).avgTrade, 453719);
+  // A session, where every deal is counted, still divides.
+  assert.equal(avgTradeValue({ stockVolume: 1000000, stockTradeCount: 4 }), 250000);
+});

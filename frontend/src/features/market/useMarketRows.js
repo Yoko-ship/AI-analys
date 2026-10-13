@@ -83,6 +83,9 @@ export function useMarketRows({
       // The window's volume-weighted price. Cleared rather than left as the
       // session's, so «Ср. цена акции» can never quote one morning under a year.
       avgPrice: Number.isFinite(st?.vwap) ? st.vwap : undefined,
+      // The period's own average deal (see avgTradeValue): `stockTradeCount`
+      // above counts deals only over the sessions that kept them.
+      avgTrade: orNull(st?.avg_trade),
       vwap: orNull(st?.vwap),
       // `undefined`, not null: the session renderers fall back to the last price
       // when these are exactly null, and a window with no stored open must show
