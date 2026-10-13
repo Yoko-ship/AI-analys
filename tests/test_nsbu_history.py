@@ -219,3 +219,20 @@ def test_a_half_year_disclosed_over_a_year_late_keeps_its_stated_year():
         4, datetime(2024, 3, 1), datetime(2023, 12, 31).date()) == (2023, 4)
     # Without a stated date the publication rule is unchanged.
     assert catalogue_periods._quarter_period_from_publication(quarter, pub) == (2022, 2)
+
+
+def test_a_stated_date_on_the_last_working_day_stays_in_its_quarter():
+    # The fleet dry run: banks stamp Q1 as 2025-03-28 and Q4 as 2024-12-27,
+    # and catalog rows from the structured feed carry no publication date.
+    from datetime import date, datetime
+    import catalogue.periods as catalogue_periods
+    period = catalogue_periods._quarter_period_from_publication
+    assert period(1, datetime(2025, 4, 29), date(2025, 3, 28)) == (2025, 1)
+    assert period(4, datetime(2025, 1, 15), date(2024, 12, 27)) == (2024, 4)
+    assert period(1, None, date(2023, 3, 31)) == (2023, 1)
+    assert period(2, None, date(2023, 6, 30)) == (2023, 2)
+    # The genuinely late ones still move: AGMKP's Q1 2022 filed in May 2023,
+    # BFMT's 2022 quarters all filed on 2024-11-20.
+    assert period(1, datetime(2023, 5, 12), date(2022, 3, 31)) == (2022, 1)
+    assert period(1, datetime(2024, 11, 20), date(2022, 3, 31)) == (2022, 1)
+    assert period(4, datetime(2024, 11, 20), date(2022, 12, 31)) == (2022, 4)

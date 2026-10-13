@@ -47,7 +47,6 @@ def stated_period(parsed: dict[str, Any], published_at: str | None) -> tuple[int
         pub = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")) if published_at else None
     except ValueError:
         pub = None
-    pub = pub or datetime.combine(stated, datetime.min.time())
     return catalogue_periods._quarter_period_from_publication(quarter, pub, stated)
 
 

@@ -295,7 +295,7 @@ def _stated_reporting_date(parsed: dict[str, Any] | None) -> date | None:
         return None
 
 
-def _quarter_period_from_publication(quarter: int, pub: datetime,
+def _quarter_period_from_publication(quarter: int, pub: datetime | None,
                                      stated: date | None = None) -> tuple[int, int]:
     """(fiscal year, quarter) for a filing published on ``pub``.
 
@@ -310,11 +310,15 @@ def _quarter_period_from_publication(quarter: int, pub: datetime,
     so when the workbook states an earlier date, that date places the year — the
     rule period_year_quarter (openinfo_reconcile) applies to the same stamp.
     """
-    year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
+    year = None
+    if pub is not None:
+        year = pub.year if pub.month > _QUARTER_END_MONTH[quarter] else pub.year - 1
     if stated:
-        # A stated date is often the period end itself (2021-09-30 for a
-        # nine-month), so the quarter's own last day counts as ended — the
-        # month test above would push it a year back.
+        # A stated date is the period end (2021-09-30 for a nine-month) or the
+        # last working day before it — banks stamp 2025-03-28 on a Q1 — or the
+        # filing day after it. A month's grace keeps the first two in their
+        # own year; the year before ends twelve months earlier.
         end = date(stated.year, _QUARTER_END_MONTH[quarter], 30 if quarter in (2, 3) else 31)
-        year = min(year, stated.year if end <= stated else stated.year - 1)
+        own = stated.year if end <= stated + timedelta(days=31) else stated.year - 1
+        year = own if year is None else min(year, own)
     return year, quarter
