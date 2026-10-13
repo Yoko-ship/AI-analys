@@ -21,7 +21,7 @@ import time
 # day counts: «3М» from 12.10 starts on 12.07. Written as 91 days it started on
 # 13.07, the base became the first session inside the period, and the audit of
 # 12.10.2026 found 104 cells off by up to 64 points (ALSMP 3М: 191.57 % against
-# 143.53 %). YTD carries no span — its base is 1 January, however far back.
+# 143.53 %). YTD carries no span — its base is the close of 31 December.
 MARKET_CHANGE_WINDOWS: dict[str, dict[str, int] | None] = {
     "1w": {"days": 7}, "1m": {"months": 1}, "3m": {"months": 3},
     "6m": {"months": 6}, "1y": {"months": 12}, "ytd": None,
@@ -30,9 +30,10 @@ MARKET_CHANGE_WINDOWS: dict[str, dict[str, int] | None] = {
 
 def window_cutoff(span: dict[str, int] | int | None, as_of: date) -> date:
     """The date a window's base is taken at or before: ``{"days": n}``, ``{"months":
-    n}``, a bare day count, or ``None`` for 1 January."""
+    n}``, a bare day count, or ``None`` for the year to date — whose base is the last
+    close of the previous year, so a session on 1 January belongs to the year."""
     if span is None:
-        return date(as_of.year, 1, 1)
+        return date(as_of.year - 1, 12, 31)
     if isinstance(span, int):
         return as_of - timedelta(days=span)
     if span.get("months"):

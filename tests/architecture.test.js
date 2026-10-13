@@ -78,3 +78,14 @@ test("the landing entry does not eagerly load large feature views", () => {
     assert.ok(!loaded.has(path.join(root, `features/${view}.jsx`)), `${view} should load when opened`);
   }
 });
+
+test("no screen writes a percent change without the reader's locale", () => {
+  // signedFixed knows no locale: it printed «-3.22%» in the company page's side
+  // lists beside a board that writes «-3,22%». Percent changes go through
+  // formatChangePercent (lib/numberFormat.js), which also settles a rounded −0.
+  const offenders = sourceFiles(root)
+    .filter((file) => !file.endsWith(path.join("lib", "numberFormat.js")))
+    .filter((file) => /signedFixed\(/.test(fs.readFileSync(file, "utf8")))
+    .map((file) => path.relative(root, file));
+  assert.deepEqual(offenders, []);
+});

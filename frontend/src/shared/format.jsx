@@ -1,7 +1,7 @@
 import { t } from "./i18n.jsx";
 
 export { safeNumber, formatCompactNumber, formatSignedPercent, formatRatio,
-  formatMarketNumber, formatMarketChange, signedFixed } from "../lib/numberFormat.js";
+  formatMarketNumber, formatMarketChange, formatChangePercent, signedFixed } from "../lib/numberFormat.js";
 
 function formatDateLabel(value, language) {
   if (!value) return t(language, "analysis.noData");

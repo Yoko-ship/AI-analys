@@ -40,3 +40,17 @@ test("a session change reads the same on the board and in the company header", a
   assert.equal(formatMarketChange(-1699, -5.16, "en"), "-1,699 · -5.16%");
   assert.equal(formatMarketChange(null, 1, "ru"), "—");
 });
+
+test("a percent change is written one way everywhere, and never as «−0%»", async () => {
+  // ТЗ 12.10.2026, задачи 4–5: the card's side lists printed «-3.22%» with a point,
+  // and a move that rounds to nothing printed «−0%» (URTS −0,02 сум, PLST 1Н).
+  const { formatChangePercent, formatMarketChange } = await import("../frontend/src/lib/numberFormat.js");
+  assert.equal(formatChangePercent(-3.22, "ru"), "-3,22%");
+  assert.equal(formatChangePercent(1.694, "ru"), "+1,69%");
+  assert.equal(formatChangePercent(-3.22, "en"), "-3.22%");
+  assert.equal(formatChangePercent(-0.0001, "ru"), "0%");
+  assert.equal(formatChangePercent(-0.004, "ru"), "0%");
+  assert.equal(formatChangePercent(null, "ru"), "—");
+  assert.equal(formatMarketChange(-0.02, -0.0021, "ru"), "-0,02 · 0%");
+  assert.equal(formatMarketChange(-0.001, -0.0001, "ru"), "0,00 · 0%");
+});

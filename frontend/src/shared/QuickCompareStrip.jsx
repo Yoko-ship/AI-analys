@@ -2,7 +2,7 @@ import React from "react";
 import { QC_MAX } from "./priceChartModel.jsx";
 import { CompanyLogo } from "./CompanyLogo.jsx";
 import { formatMarketNumber } from "./format.jsx";
-import { signedFixed } from "./format.jsx";
+import { formatChangePercent } from "./format.jsx";
 
 // The strip itself: the peers on offer, and the ones already on the chart as
 // removable chips. Cards carry price and the day's move so the click is an
@@ -85,7 +85,7 @@ function QuickCompareStrip({ peers, securitiesMap, selected, colors, onToggle, l
                   <span className="qc-card-price">{formatMarketNumber(r.lastPrice, lang)}</span>
                   <span className={`qc-card-change ${tone}`}>
                     {Number.isFinite(r.changePercent)
-                      ? `${signedFixed(r.changePercent)}%`
+                      ? formatChangePercent(r.changePercent, lang)
                       : "—"}
                   </span>
                 </span>

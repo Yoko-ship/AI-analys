@@ -44,10 +44,26 @@ export function signedFixed(value, digits = 2) {
   return `${rounded > 0 ? "+" : ""}${rounded.toFixed(digits)}`;
 }
 
+// Rounded to what will be printed BEFORE the sign is chosen: −0,0001 % is
+// printed as 0, and a sign on it read «−0%» (URTS's −0,02 сум, PLST over a week).
+function settled(number, digits) {
+  return Number(number.toFixed(digits)) + 0; // + 0 turns −0 into 0
+}
+
+/** A percent change in the reader's locale — «+1,69%», «-3,22%», «0%». Every
+ * screen writes a change this way; architecture.test.js keeps it so. */
+export function formatChangePercent(value, language, digits = 2) {
+  const number = safeNumber(value);
+  if (number === null) return "—";
+  const r = settled(number, digits);
+  return `${r > 0 ? "+" : ""}${formatRatio(r, digits, language)}%`;
+}
+
 /** A session move as the board writes it — «-1 699 · -5,16%» — so the company
  * header cannot print the same move in another notation. */
 export function formatMarketChange(value, percent, language) {
   const v = safeNumber(value), p = safeNumber(percent);
   if (v === null || p === null) return "—";
-  return `${v > 0 ? "+" : ""}${formatMarketNumber(v, language)} · ${p > 0 ? "+" : ""}${formatRatio(p, 2, language)}%`;
+  const r = settled(v, 2);
+  return `${r > 0 ? "+" : ""}${formatMarketNumber(r, language)} · ${formatChangePercent(p, language)}`;
 }

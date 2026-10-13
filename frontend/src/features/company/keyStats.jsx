@@ -209,7 +209,12 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   // because it is the price actually paid, and the label says how it is made.
   const pWin = (metricsWindow || metrics12)?.window;
   const periodBar = rangeBar(pWin?.min_close?.value, pWin?.max_close?.value, lastPrice);
-  if (periodBar) {
+  // The block answers whenever the server answered. It used to stand or fall with
+  // the range bar, so a period of ONE session (ORFIP, PLSTP — high equals low, no
+  // bar) lost its turnover and average price too, and a period with none (DRBK)
+  // left a hole nobody explained: six cards on 12.10.2026.
+  const noTrades = Number.isFinite(pWin?.points) && pWin.points === 0;
+  if (pWin && (pWin.points > 0 || noTrades)) {
     put(t("Оборот", "Aylanma", "Turnover"),
         compact(pWin?.turnover?.value) ? `${compact(pWin.turnover.value)} UZS` : null);
     put(t("Бумаг", "Qog'ozlar", "Shares traded"), count(pWin?.volume?.value));
@@ -233,12 +238,17 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
         </h3>
         {periodBar}
         {periodRows.length > 0 && <div className="company-metrics-list">{periodRows}</div>}
-        <div className="keystat-note muted">
+        {noTrades && (
+          <div className="keystat-note muted">
+            {t("Сделок за период не было", "Davr mobaynida savdo bo'lmagan", "No trades in this period")}
+          </div>
+        )}
+        {!noTrades && <div className="keystat-note muted">
           {t("по ценам закрытия", "yopilish narxlari bo'yicha", "on closing prices")}
           {pWin?.points ? ` · ${pWin.points} ${sessionsWord(pWin.points, lang)}` : ""}
           {pWin?.first_date && pWin?.last_date ? ` · ${pWin.first_date} — ${pWin.last_date}` : ""}
           {yearNote ? <><br />{yearNote}</> : null}
-        </div>
+        </div>}
       </div>,
     );
   }

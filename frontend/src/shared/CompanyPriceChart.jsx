@@ -6,7 +6,7 @@ import { threshold as cfgThreshold } from "../lib/flags.js";
 import { LineType as LwLineType } from "lightweight-charts";
 import { compact as fmtCompact } from "../lib/format.js";
 import { fmtRelVol, peerVolumeAt, relativeVolume } from "./volume.js";
-import { signedFixed } from "./format.jsx";
+import { formatChangePercent } from "./format.jsx";
 import LwCanvas from "../charts/LwCanvas.jsx";
 import { patternName } from "../lib/patterns.js";
 
@@ -517,7 +517,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     return new Date(d).toLocaleDateString(dateLocale, withYear ? { year: "2-digit", month: "short", day: "numeric" } : { month: "short", day: "numeric" });
   };
   const fmtFull = (v) => (v == null ? "—" : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
-  const fmtPct = (v) => `${signedFixed(v, 1)}%`;
+  const fmtPct = (v) => formatChangePercent(v, lang, 1);
 
   const onChartClick = ({ index, pane }) => {
     if (!drawMode || pane !== 0 || synthetic) return;

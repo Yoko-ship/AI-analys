@@ -8,7 +8,7 @@ import { PatternList, PatternMenuItems, applyPatternOverlay, patternKey, pattern
 import { alignToDates as indAlign, bollinger as indBollinger, calendarSeries as indCalendar, ema as indEma, macd as indMacd, rsi as indRsi, sma as indSma, stochastic as indStochastic } from "../../lib/indicators.js";
 
 import { fmtRelVol, peerVolumeAt, relativeVolume } from "../../shared/volume.js";
-import { signedFixed } from "../../shared/format.jsx";
+import { formatChangePercent } from "../../shared/format.jsx";
 import { LineType as LwLineType } from "lightweight-charts";
 import { compact as fmtCompact } from "../../lib/format.js";
 import { finLabel } from "../../shared/financialLabels.jsx";
@@ -496,7 +496,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
         : { month: "short", day: "numeric" }));
   const fmtFull = (v) => (v == null || !Number.isFinite(v) ? "—"
     : Number(v).toLocaleString(dateLocale, { maximumFractionDigits: 2 }));
-  const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : `${signedFixed(v, 1)}%`);
+  const fmtPctVal = (v) => (v == null || !Number.isFinite(v) ? "—" : formatChangePercent(v, lang, 1));
   const abbrev = (v) => (v == null ? "—" : Math.abs(v) >= 1e9 ? `${(v / 1e9).toFixed(2)}B`
     : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}M`
     : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : `${v.toFixed(0)}`);

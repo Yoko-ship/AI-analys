@@ -8,7 +8,7 @@ import { finLabel } from "../../shared/financialLabels.jsx";
 import { createPortal } from "react-dom";
 import { TermInfo } from "../../shared/TermInfo.jsx";
 import { dividendSummary } from "./keyStats.jsx";
-import { signedFixed } from "../../shared/format.jsx";
+import { formatChangePercent } from "../../shared/format.jsx";
 
 // The Финансы tab, on the reference page's shape: sub-tabs across the statement,
 // a multi-series chart of the section's headline lines, then a table with one
@@ -890,7 +890,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
                       `${g.missing} uchun hisobot yo'q`,
                       `No filing for ${g.missing} — a year-on-year change cannot be formed`)
                   : undefined}>
-                {v == null ? "—" : `${signedFixed(v)}%`}
+                {v == null ? "—" : formatChangePercent(v, lang)}
               </td>
             );
           })}
@@ -904,7 +904,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
             const v = g ? g.value : null;
             return (
               <td key={p} className={`num ${v == null ? "" : v >= 0 ? "pos" : "neg"}`}>
-                {v == null ? "—" : `${signedFixed(v)}%`}
+                {v == null ? "—" : formatChangePercent(v, lang)}
               </td>
             );
           })}

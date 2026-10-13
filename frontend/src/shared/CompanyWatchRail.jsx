@@ -1,7 +1,7 @@
 import { sectorOf } from "../lib/sectors.js";
 import { sectorLabel } from "./marketCopy.jsx";
 import { formatMarketNumber } from "./format.jsx";
-import { signedFixed } from "./format.jsx";
+import { formatChangePercent } from "./format.jsx";
 
 // A row's price line, drawn from stored settled closes (/api/quotes/series).
 // Deliberately axis-less and label-less: at this size the only readable claim is
@@ -94,7 +94,7 @@ function CompanyWatchRail({ ticker, rows, securitiesMap, series, favorites, onTo
           <span className="rail-row-price">{formatMarketNumber(r.lastPrice, lang)}</span>
           <span className={`rail-row-change ${tone}`}>
             {Number.isFinite(r.changePercent)
-              ? `${signedFixed(r.changePercent)}%`
+              ? formatChangePercent(r.changePercent, lang)
               : "—"}
           </span>
         </span>

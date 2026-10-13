@@ -1,7 +1,7 @@
 import React from "react";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { formatMarketNumber } from "../../shared/format.jsx";
-import { signedFixed } from "../../shared/format.jsx";
+import { formatChangePercent } from "../../shared/format.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
 import { sectorOf } from "../../lib/sectors.js";
 
@@ -101,7 +101,7 @@ function AdvancedCompareBar({ peers, allRows, securitiesMap, selected, colors, o
                 <span className="ac-cmp-price">{formatMarketNumber(r.lastPrice, lang)}</span>
                 <span className={`ac-cmp-chg ${tone}`}>
                   {Number.isFinite(r.changePercent)
-                    ? `${signedFixed(r.changePercent)}%` : "—"}
+                    ? formatChangePercent(r.changePercent, lang) : "—"}
                 </span>
               </button>
             );
@@ -145,7 +145,7 @@ function AdvancedChartRail({ rows, securitiesMap, ticker, favorites, onToggleFav
           <span className="ac-rail-price">{formatMarketNumber(r.lastPrice, lang)}</span>
           <span className={`ac-rail-chg ${tone}`}>
             {Number.isFinite(r.changePercent)
-              ? `${signedFixed(r.changePercent)}%` : "—"}
+              ? formatChangePercent(r.changePercent, lang) : "—"}
           </span>
         </span>
         <button type="button" className={`rail-fav ${isFav ? "on" : ""}`}

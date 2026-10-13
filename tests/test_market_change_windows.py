@@ -113,7 +113,7 @@ class TestAMonthWindowIsACalendarMonth:
 
     @pytest.mark.parametrize(("code", "cutoff"), [
         ("1w", date(2026, 10, 5)), ("1m", date(2026, 9, 12)), ("3m", date(2026, 7, 12)),
-        ("6m", date(2026, 4, 12)), ("1y", date(2025, 10, 12)), ("ytd", date(2026, 1, 1)),
+        ("6m", date(2026, 4, 12)), ("1y", date(2025, 10, 12)), ("ytd", date(2025, 12, 31)),
     ])
     def test_every_window_starts_on_the_date_its_label_names(self, code, cutoff) -> None:
         span = subject_server_market_history.MARKET_CHANGE_WINDOWS[code]
