@@ -650,7 +650,17 @@ def sync_company(
 
                     props = rec.get("properties") or {}
 
-                    q = catalogue_periods._extract_quarter(str(props.get("report_title") or "")) or 0
+                    q = catalogue_periods._extract_quarter(str(props.get("report_title") or ""))
+
+                    # «Квартальный отчет ООО» names no quarter, and quarter 0 is
+
+                    # the annual slot: BFMT's Q1 2024 became its FY2024 there.
+
+                    # The history sweep files these by the workbook's header.
+
+                    if q is None:
+
+                        continue
 
                 new = catalogue_filings._upsert_report(
 

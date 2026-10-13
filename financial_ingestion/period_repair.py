@@ -15,6 +15,7 @@ moved filing and rediscovers any genuine filing the misfiled one displaced.
 
     python -m financial_ingestion.period_repair [--ticker UQEQ]          # dry run
     python -m financial_ingestion.period_repair [--ticker UQEQ] --apply
+    python -m financial_ingestion.period_repair --unlabelled [--apply]   # quarter-0 quarterlies
 """
 from __future__ import annotations
 
@@ -155,7 +156,61 @@ def refile(misfiled: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return done
 
 
-def run(tickers: list[str] | None = None, apply: bool = False, pace: float = 0.2) -> dict[str, Any]:
+def drop_unlabelled_quarters(tickers: list[str] | None = None, apply: bool = False) -> list[dict[str, Any]]:
+    """Quarterly filings catalogued in quarter 0 — the annual slot — and, with
+    apply, remove them with the annual figures and passports read from them.
+
+    The /reports/main/ fallback for LLC issuers stored «Квартальный отчет ООО»,
+    a title with no quarter in it, as quarter 0, so BFMT's Q1 2024 became its
+    FY2024. An annual figure is removed only when its passport names that very
+    workbook; the history sweep files the filing again by its header.
+    """
+    wanted = {t.strip().upper() for t in tickers or []}
+    conn = catalogue_storage.get_catalog_conn()
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT r.id, r.ticker, r.year, COALESCE(r.excel_url, r.excel_url_form1) AS excel, "
+            "r.openinfo_report_id, c.org_id FROM catalog_reports r "
+            "LEFT JOIN catalog_companies c ON c.ticker = r.ticker "
+            "WHERE r.report_form='NSBU' AND r.period_type='quarter' AND r.quarter=0 ORDER BY r.ticker, r.year")]
+        rows = [r for r in rows if not wanted or r["ticker"] in wanted]
+        # Every passport is looked up before anything is deleted: share classes
+        # of one issuer share them, and the first deletion would hide the proof
+        # the next share class needs.
+        for row in rows:
+            row["passports"] = [p["id"] for p in conn.execute(
+                "SELECT id FROM source_reports WHERE org_id=? AND report_form='NSBU' AND period_year=? "
+                "AND IFNULL(period_quarter, 0)=0 AND excel_url=?",
+                (str(row["org_id"] or f"ticker:{row['ticker']}"), row["year"], row["excel"])).fetchall()]
+        if apply:
+            with conn:
+                for row in rows:
+                    marks = ",".join("?" for _ in row["passports"])
+                    if marks and conn.execute(
+                            f"DELETE FROM catalog_financials WHERE ticker=? AND form='NSBU' AND year=? AND quarter=0 "
+                            f"AND report_id IN ({marks})", (row["ticker"], row["year"], *row["passports"])).rowcount:
+                        conn.execute("DELETE FROM catalog_ratios WHERE ticker=? AND form='NSBU' AND year=? AND quarter=0",
+                                     (row["ticker"], row["year"]))
+                for report_id in {p for row in rows for p in row["passports"]}:
+                    conn.execute("DELETE FROM report_figures WHERE report_id=?", (report_id,))
+                    conn.execute("DELETE FROM source_reports WHERE id=?", (report_id,))
+                for row in rows:
+                    conn.execute("DELETE FROM catalog_reports WHERE id=?", (row["id"],))
+    finally:
+        conn.close()
+    return [{"ticker": r["ticker"], "year": r["year"], "openinfo_report_id": r["openinfo_report_id"],
+             "passports": r["passports"]} for r in rows]
+
+
+def run(tickers: list[str] | None = None, apply: bool = False, pace: float = 0.2,
+        unlabelled_only: bool = False) -> dict[str, Any]:
+    if unlabelled_only:
+        dropped = drop_unlabelled_quarters(tickers, apply)
+        report: dict[str, Any] = {"unlabelled": dropped, "unreadable": [], "applied": apply and bool(dropped)}
+        if report["applied"]:
+            from . import nsbu_history
+            report["history"] = nsbu_history.run(sorted({d["ticker"] for d in dropped}))
+        return report
     found = scan(tickers, pace=pace)
     report: dict[str, Any] = {"workbooks": found["workbooks"], "rows": found["rows"],
                               "misfiled": [{"ticker": m["ticker"], "from": f"{m['year']}Q{m['quarter']}",
@@ -178,10 +233,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ticker", action="append")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--pace", type=float, default=0.2)
+    parser.add_argument("--unlabelled", action="store_true",
+                        help="only the quarterly filings stuck in quarter 0; no workbook scan")
     parser.add_argument("--report", default="data/period-repair-report.json")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    report = run(args.ticker, args.apply, args.pace)
+    report = run(args.ticker, args.apply, args.pace, args.unlabelled)
     from .bulk import write_report
     write_report(args.report, report)
     print(json.dumps({k: v for k, v in report.items() if k not in {"unreadable", "history"}},

@@ -90,3 +90,57 @@ def test_a_header_without_a_reporting_date_is_never_acted_on(catalog):
     report(2022, 2, "bare", "1", "2022-09-14T10:58:39")
     found = period_repair.scan(pace=0)
     assert found["misfiled"] == [] and found["unreadable"][0]["error"] == "header states no period"
+
+
+def test_an_llc_quarterly_without_a_quarter_in_its_title_is_not_filed_as_the_annual(catalog, monkeypatch):
+    import catalogue.sources as catalogue_sources
+    import catalogue.sync as catalogue_sync
+    import catalogue.financial_store as store
+    monkeypatch.setattr(store, "_maybe_seed_financials", lambda *args: None)
+    monkeypatch.setattr(catalogue_sources, "_make_session", lambda: object())
+    monkeypatch.setattr(catalogue_sources, "_json_get", lambda *args, **kwargs: [])
+    monkeypatch.setattr(catalogue_sources, "_unified_pdf_id_map", lambda *args: {})
+    llc_q1 = {"id": 22355, "object_id": 15592, "organization": 922, "report_type": "NSBU",
+              "pub_date": "2024-04-30T12:36:10",
+              "properties": {"org_type": "jsc", "report_type": "quarter", "reporting_year": 2024,
+                             "report_title": "Квартальный отчет ООО"}}
+    monkeypatch.setattr(catalogue_sources, "_fetch_main_results", lambda *args: ([llc_q1], "jsc"))
+    catalogue_sync.sync_company("BFMT2B5", "Biznes Finans", force=True, org_id="922")
+    c = catalogue_storage.get_catalog_conn()
+    try:
+        assert c.execute("SELECT count(*) FROM catalog_reports WHERE ticker='BFMT2B5' AND quarter=0").fetchone()[0] == 0
+    finally:
+        c.close()
+
+
+def test_quarter_zero_quarterlies_go_with_only_the_annual_figures_read_from_them(catalog):
+    c = catalogue_storage.get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES('UQEQP','Q','7')")
+    c.close()
+    for ticker in ("UQEQ", "UQEQP"):
+        c = catalogue_storage.get_catalog_conn()
+        with c:
+            catalogue_filings._upsert_report(c, ticker, report_form="NSBU", period_type="quarter", year=2024, quarter=0,
+                                             title="Квартальный отчет ООО", published_at="2024-04-30", pdf_url=None,
+                                             excel_url="q1", excel_url_form1=None, openinfo_report_id="22355", object_id="15592")
+        c.close()
+    bogus = provenance.upsert_report("7", "NSBU", "annual", 2024, None, excel_url="q1")
+    genuine = provenance.upsert_report("7", "NSBU", "annual", 2023, None, excel_url="fy2023")
+    for ticker in ("UQEQ", "UQEQP"):
+        catalogue_financial_store.upsert_financials_cache(ticker, "NSBU", 2024, 0, {"revenue": 13.0}, bogus)
+        catalogue_financial_store.upsert_financials_cache(ticker, "NSBU", 2023, 0, {"revenue": 38.5}, genuine)
+
+    found = period_repair.drop_unlabelled_quarters()
+    assert [(d["ticker"], d["year"]) for d in found] == [("UQEQ", 2024), ("UQEQP", 2024)]
+    assert periods() == {(2024, 0): "22355"}  # a dry run changes nothing
+
+    period_repair.drop_unlabelled_quarters(apply=True)
+    c = catalogue_storage.get_catalog_conn()
+    try:
+        assert c.execute("SELECT count(*) FROM catalog_reports WHERE quarter=0").fetchone()[0] == 0
+        assert {(r[0], r[1]) for r in c.execute("SELECT ticker, year FROM catalog_financials WHERE quarter=0")} == {
+            ("UQEQ", 2023), ("UQEQP", 2023)}
+        assert [r[0] for r in c.execute("SELECT id FROM source_reports")] == [genuine]
+    finally:
+        c.close()
