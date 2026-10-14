@@ -3,6 +3,8 @@
 import asyncio
 import json
 import re
+import struct
+from pathlib import Path
 
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -96,18 +98,47 @@ def test_company_snapshot_is_cached(tmp_path, monkeypatch):
     assert calls == ["UZTL"]
 
 
-def test_unknown_ticker_and_failures_fall_back_to_the_generic_shell(tmp_path, monkeypatch):
+def _is_not_found(page):
+    return (page.status_code == 404 and '<meta name="robots" content="noindex, nofollow" />' in page.text
+            and "<title>Страница не найдена | UZStock</title>" in page.text
+            and '<script type="module" src="/assets/index.js"></script>' in page.text)
+
+
+def test_unknown_ticker_is_404_but_a_failing_store_is_not(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     _fake_company(monkeypatch)
-    page = client.get("/company/NOPE")
-    assert page.status_code == 200 and f"<title>{seo.DEFAULT_TITLE}</title>" in page.text
+    assert _is_not_found(client.get("/company/NOPE"))
 
+    # A store that fails says nothing about whether the company exists: the
+    # page keeps its 200, and the failure is not cached as a missing company.
     async def broken(*args, **kwargs):
-        raise RuntimeError("store down")
+        raise company_routes.HTTPException(status_code=500, detail="store down")
     monkeypatch.setattr(company_routes, "api_securities_info", broken)
     seo._cache.clear()
     page = client.get("/company/UZTL")
-    assert page.status_code == 200 and '<div id="root">' in page.text
+    assert page.status_code == 200 and f"<title>{seo.DEFAULT_TITLE}</title>" in page.text
+    _fake_company(monkeypatch)
+    assert "Uztelecom (UZTL)" in client.get("/company/UZTL").text
+
+
+def test_paths_the_app_has_no_page_for_are_404(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for path in ("/site.webmanifest", "/wp-login.php", "/company", "/marketx", "/market/extra"):
+        assert _is_not_found(client.get(path)), path
+
+
+def test_every_route_the_app_opens_is_not_404(tmp_path, monkeypatch):
+    # Read from the app's own route table, so a page added there cannot start
+    # answering 404 to crawlers unnoticed.
+    client = _client(tmp_path, monkeypatch)
+    routing = (Path(__file__).resolve().parents[1] / "frontend/src/app/routing.jsx").read_text(encoding="utf-8")
+    table = re.search(r"const VIEW_PATHS = \{(.*?)\};", routing, re.S).group(1)
+    paths = re.findall(r'^\s*\w+:\s*"(/[^"]*)"', table, re.M)
+    assert {"/", "/market", "/feedback", "/currency", "/admin"} <= set(paths)
+    for path in paths + ["/bonds", "/market/", "/admin/users", "/chart/UZTL", "/news/announcement/5"]:
+        assert client.get(path).status_code == 200, path
+    bonds = client.get("/bonds").text
+    assert '<link rel="canonical" href="https://uzstock.uz/market" />' in bonds
 
 
 def test_render_failure_serves_the_bare_shell(tmp_path, monkeypatch):
@@ -126,6 +157,8 @@ def test_static_and_private_pages(tmp_path, monkeypatch):
     assert "<title>Акции Узбекистана — котировки UZSE сегодня | UZStock</title>" in market
     home = client.get("/").text
     assert {b["@type"] for b in _ldjson(home)} >= {"WebSite", "Organization"}
+    org = next(b for b in _ldjson(home) if b["@type"] == "Organization")
+    assert org["logo"] == f"https://uzstock.uz{seo.LOGO_PATH}"
     for path in ("/admin", "/profile", "/login"):
         text = client.get(path).text
         assert '<meta name="robots" content="noindex, nofollow" />' in text, path
@@ -146,6 +179,14 @@ def test_bond_page(tmp_path, monkeypatch):
     assert "<title>Облигация ACMT1B2 — «AGAT CREDIT»: купон, доходность, цена | UZStock</title>" in text
     assert "100 000,01 сум" in text and "100,00% от номинала" in text
     assert "28,00% годовых" in text and "23.07.2027" in text and "27,40%" in text
+    assert _is_not_found(client.get("/bond/NOPE1B1"))
+
+    # An empty board cannot tell a missing bond from a failed read.
+    async def empty(request):
+        return JSONResponse({"items": []})
+    monkeypatch.setattr(bonds_routes, "api_bonds", empty)
+    seo._cache.clear()
+    assert client.get("/bond/NOPE1B1").status_code == 200
 
 
 def test_news_page(tmp_path, monkeypatch):
@@ -159,8 +200,14 @@ def test_news_page(tmp_path, monkeypatch):
     assert '<a href="/company/UZTL">UZTL</a>' in text
     article = next(b for b in _ldjson(text) if b["@type"] == "NewsArticle")
     assert article["datePublished"] == "2026-09-11T18:08:33"
-    assert f"<title>{seo.DEFAULT_TITLE}</title>" in client.get("/news/8").text
-    assert f"<title>{seo.DEFAULT_TITLE}</title>" in client.get("/news/abc").text
+    assert _is_not_found(client.get("/news/8"))
+    assert _is_not_found(client.get("/news/abc"))
+
+    def down(news_id):
+        raise RuntimeError("db locked")
+    monkeypatch.setattr(news_store, "get_news_item", down)
+    seo._cache.clear()
+    assert client.get("/news/7").status_code == 200
 
 
 def test_robots_txt_allows_search_and_ai_crawlers(tmp_path, monkeypatch):
@@ -258,3 +305,12 @@ def test_plain_company_link_does_not_load_the_analysis(tmp_path, monkeypatch):
     _fake_ai_report(monkeypatch, {"status": "available", "headline": "x"}, calls)
     _client(tmp_path, monkeypatch).get("/company/UZTL")
     assert calls == []
+
+
+def test_organization_logo_is_a_size_google_accepts():
+    # Google ignores an organisation logo under 112×112; the 96-px favicon was.
+    logo = Path(__file__).resolve().parents[1] / "frontend/public" / seo.LOGO_PATH.lstrip("/")
+    head = logo.read_bytes()[:24]
+    assert head[:8] == b"\x89PNG\r\n\x1a\n"
+    width, height = struct.unpack(">II", head[16:24])
+    assert width >= 112 and height >= 112 and width == height

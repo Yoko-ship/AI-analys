@@ -24,9 +24,12 @@ def test_public_root_files_are_served_not_the_shell(tmp_path, monkeypatch):
     assert logo.status_code == 200
     assert logo.headers["content-type"] == "image/png"
 
-    # Client-side routes, directories and escapes still get the SPA shell.
+    # Client-side routes get the SPA shell; directories and escapes get the
+    # shell too, never the file, with the 404 of a path the app has no page for.
+    assert client.get("/market").status_code == 200
     for path in ("/market", "/bank-logos/", "/..%2Fsecret.txt", "/%2e%2e/secret.txt"):
         response = client.get(path)
-        assert response.status_code == 200, path
-        assert "shell" in response.text, path
+        assert "shell" in response.text and "nope" not in response.text, path
+    for path in ("/bank-logos/", "/..%2Fsecret.txt", "/%2e%2e/secret.txt"):
+        assert client.get(path).status_code == 404, path
     assert client.get("/api/nope").status_code == 404

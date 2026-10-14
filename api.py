@@ -158,12 +158,15 @@ async def _spa_shell(full_path: str, query: dict[str, str] | None = None) -> Res
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend is not built yet")
     try:
-        page = seo.render(seo.template(index_path), await seo.page_meta(full_path, query))
+        meta = await seo.page_meta(full_path, query)
+        page = seo.render(seo.template(index_path), meta)
     except Exception:
         http.logger.warning("seo: serving the bare shell for /%s", full_path, exc_info=True)
         return FileResponse(index_path, media_type="text/html; charset=utf-8",
                             headers={"Cache-Control": "no-store"})
-    return HTMLResponse(page, headers={"Cache-Control": "no-store"})
+    # A path the app has no page for still gets the shell (the app opens its home
+    # page there), but with a 404 so search engines drop it instead of indexing it.
+    return HTMLResponse(page, status_code=meta.status, headers={"Cache-Control": "no-store"})
 
 
 # ---------------------------------------------------------------------------

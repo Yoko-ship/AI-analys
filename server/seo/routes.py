@@ -29,7 +29,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse, Response
 from starlette.requests import Request
 
@@ -47,6 +47,17 @@ DEFAULT_DESCRIPTION = (
 
 # Pages a search result should never point at.
 _PRIVATE_PREFIXES = ("/admin", "/profile", "/login")
+
+# Pages with one id after the prefix (frontend/src/app/routing.jsx, pathToView).
+_ENTITY_PREFIXES = ("/company/", "/chart/", "/bond/", "/news/")
+# Routes the app opens that need no snapshot of their own, and old paths the app
+# still opens as another page. Every other path is answered 404: the app would
+# show the home page there, and a 200 for it is a soft 404 to Google.
+_PLAIN_PAGES = frozenset({"/feedback"})
+_ALIASES = {"/bonds": "/market"}
+# Google shows an organisation logo only from 112×112 up (tests/test_seo.py
+# reads the file's real size).
+LOGO_PATH = "/apple-touch-icon.png"
 
 _STATIC_PAGES: dict[str, tuple[str, str]] = {
     "/": (DEFAULT_TITLE, DEFAULT_DESCRIPTION),
@@ -88,12 +99,17 @@ _cache: dict[str, tuple[float, Any]] = {}
 _pending: dict[str, asyncio.Task] = {}
 
 
+class _Missing(Exception):
+    """The data source says the page's company, bond or story does not exist."""
+
+
 @dataclass
 class PageMeta:
     title: str = DEFAULT_TITLE
     description: str = DEFAULT_DESCRIPTION
     canonical: str | None = None
     noindex: bool = False
+    status: int = 200
     og_type: str = "website"
     image: str | None = None
     jsonld: list[dict[str, Any]] = field(default_factory=list)
@@ -232,8 +248,12 @@ async def _company_page(ticker: str) -> PageMeta | None:
     async def load() -> dict[str, Any] | None:
         try:
             info = await api_securities_info(ticker)
-        except Exception:  # 404 for an unknown ticker, or a store hiccup
-            return None
+        except HTTPException as exc:
+            # A store hiccup raises out of here, is not cached, and serves the
+            # generic shell: only the handler's own 404 makes the page missing.
+            if exc.status_code == 404:
+                return {"missing": True}
+            raise
         fin, mult = await asyncio.gather(
             api_market_financials(ticker), api_market_multiples(_internal_request(), "board", ticker),
             return_exceptions=True)
@@ -246,6 +266,8 @@ async def _company_page(ticker: str) -> PageMeta | None:
     data = await _cached(f"company:{ticker}", load)
     if not data:
         return None
+    if data.get("missing"):
+        raise _Missing(ticker)
     sec = (data["info"] or {}).get("security") or {}
     wiki = (data["info"] or {}).get("wiki") or {}
     if str(sec.get("type") or "") == "bond":
@@ -344,8 +366,12 @@ async def _bonds_board() -> list[dict[str, Any]]:
 
 
 async def _bond_page(ticker: str) -> PageMeta | None:
-    row = next((r for r in await _bonds_board() if str(r.get("ticker")).upper() == ticker), None)
+    board = await _bonds_board()
+    row = next((r for r in board if str(r.get("ticker")).upper() == ticker), None)
     if not row:
+        # An empty board says nothing about this bond; a full one without it does.
+        if board:
+            raise _Missing(ticker)
         return None
     ref = row.get("reference") or {}
     issuer = _clean_name(row.get("issuer") or row.get("name") or ticker)
@@ -380,14 +406,14 @@ async def _bond_page(ticker: str) -> PageMeta | None:
 
 async def _news_page(news_id: str) -> PageMeta | None:
     if not news_id.isdigit():
-        return None
+        raise _Missing(news_id)
     import news_store
 
     async def load() -> dict[str, Any] | None:
         return await asyncio.get_running_loop().run_in_executor(None, news_store.get_news_item, int(news_id))
     item = await _cached(f"news:{news_id}", load)
     if not item:
-        return None
+        raise _Missing(news_id)
     title = _clean_name(item.get("title_ru") or item.get("title"))
     summary = str(item.get("summary_ru") or item.get("snippet") or "").strip()
     detail = str(item.get("detail_ru") or "").strip()
@@ -447,6 +473,9 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
     path = "/" + (full_path or "").strip("/")
     if path.startswith(_PRIVATE_PREFIXES):
         return PageMeta(noindex=True)
+    path = _ALIASES.get(path, path)
+    if not (path in _STATIC_PAGES or path in _PLAIN_PAGES or path.startswith(_ENTITY_PREFIXES)):
+        return _not_found()
     meta: PageMeta | None = None
     try:
         if path.startswith("/company/"):
@@ -465,6 +494,8 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
             meta = PageMeta(title=f"Корпоративное событие | {SITE_NAME}", canonical=path)
         elif path.startswith("/news/"):
             meta = await _news_page(path[len("/news/"):].split("/")[0])
+    except _Missing:
+        return _not_found()
     except Exception:
         http.logger.warning("seo: snapshot for %s failed", path, exc_info=True)
         meta = None
@@ -476,10 +507,12 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
                 {"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME,
                  "url": SITE_URL, "inLanguage": "ru"},
                 {"@context": "https://schema.org", "@type": "Organization", "name": SITE_NAME,
-                 "url": SITE_URL, "logo": f"{SITE_URL}/favicon-96x96.png"},
+                 "url": SITE_URL, "logo": f"{SITE_URL}{LOGO_PATH}"},
             ]
-    if meta is None:
-        meta = PageMeta()
+    return _with_body(meta or PageMeta())
+
+
+def _with_body(meta: PageMeta) -> PageMeta:
     if not meta.body:
         meta.body = f"<h1>{_esc(meta.title.split(' | ')[0])}</h1><p>{_esc(meta.description)}</p>"
     meta.body = (
@@ -487,6 +520,13 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
         "font-family:system-ui,sans-serif;line-height:1.5\">" + meta.body + _nav() + "</div>"
     )
     return meta
+
+
+def _not_found() -> PageMeta:
+    return _with_body(PageMeta(
+        title=f"Страница не найдена | {SITE_NAME}",
+        description="Такой страницы на UZStock нет. Акции, облигации и новости рынка Узбекистана — по ссылкам ниже.",
+        noindex=True, status=404))
 
 
 def render(template: str, meta: PageMeta) -> str:
