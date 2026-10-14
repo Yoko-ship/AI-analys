@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mt } from "../../shared/marketCopy.jsx";
+import { splitLanguagePath } from "../../lib/languagePath.js";
 
 export function useMarketData({ toasts: toastsModule, preferences: preferencesModule, session: sessionModule, navigation: navigationModule }) {
   const { addToast } = toastsModule;
@@ -15,7 +16,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketMeta, setMarketMeta] = useState({ updated_at: null, count: 0 });
 
   const [marketType, setMarketType] = useState(() => (
-    window.location.pathname.replace(/\/+$/, "") === "/bonds" ? "bond" : "stock"));
+    splitLanguagePath(window.location.pathname).path.replace(/\/+$/, "") === "/bonds" ? "bond" : "stock"));
 
   const [marketQuery, setMarketQuery] = useState("");
 

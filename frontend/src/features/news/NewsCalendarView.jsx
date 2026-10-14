@@ -253,8 +253,8 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
     add(tx.d.nominal, d.nominal ? `${formatAmount(d.nominal, locale)} ${tx.d.sum}` : null);
   }
   const about = ev.type === "dividend" ? (isBondIncome(ev) ? tx.about.bond : tx.about.dividend)[ev.kind] : tx.about[ev.type];
-  const announcement = (ev.type === "meeting" || ev.type === "notice") ? calendarAnnouncementPath(ev) : "";
-  const newsPath = ev.type === "fact" && ev.news_id ? newsArticlePath({ id: ev.news_id }) : "";
+  const announcement = (ev.type === "meeting" || ev.type === "notice") ? calendarAnnouncementPath(ev, lang) : "";
+  const newsPath = ev.type === "fact" && ev.news_id ? newsArticlePath({ id: ev.news_id }, lang) : "";
   const external = d.link || null;
   return createPortal(
     <div className="newscal-modal" role="presentation" onClick={close}>

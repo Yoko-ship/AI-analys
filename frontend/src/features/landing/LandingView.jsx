@@ -686,7 +686,7 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
             <p className="lv-sec-sub lv-reveal">{LT.s4Sub}</p>
             <div className="lv-news-grid">
               {news.map((item) => (
-                <a className="lv-news-card lv-reveal" key={item.id || item.url} href={newsArticlePath(item)}
+                <a className="lv-news-card lv-reveal" key={item.id || item.url} href={newsArticlePath(item, language)}
                   onClick={interceptNav(() => onOpenNews(item))}>
                   <div className="lv-nc-meta">
                     {item.impact && item.impact !== "none" && (

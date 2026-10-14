@@ -25,13 +25,39 @@ def _client(tmp_path, monkeypatch):
     (tmp_path / "index.html").write_text(SHELL, encoding="utf-8")
     monkeypatch.setattr(api, "WEB_DIR", tmp_path)
     seo._cache.clear()
+
+    # The list pages read these; a test that needs rows fakes them again.
+    async def no_rows(*args, **kwargs):
+        return JSONResponse({"stocks": [], "items": []})
+    monkeypatch.setattr(market_routes, "api_market_stocks", no_rows)
+    monkeypatch.setattr(bonds_routes, "api_bonds", no_rows)
+    monkeypatch.setattr(news_store, "get_news_feed", lambda **kw: [])
     return TestClient(api.app)
 
 
-def _fake_company(monkeypatch, calls=None):
+def _fake_boards(monkeypatch):
+    async def stocks(request, type=None, refresh=False):
+        return JSONResponse({"stocks": [
+            {"ticker": "SQBN", "name": "\"O'zsanoatqurilishbank\" ATB", "last_price": 9.5,
+             "last_trade_date": "2026-10-13", "market_cap": 2.4e12},
+            {"ticker": "UZTL", "name": "\"O'zbektelekom\" <AK>", "last_price": 17999.0,
+             "last_trade_date": "2026-10-09", "market_cap": 1.419e13},
+            {"ticker": "QUIET", "name": "Quiet", "last_price": None, "market_cap": None},
+            {"ticker": "BAD/../X", "name": "Bad"}]})
+
+    async def bonds(request):
+        return JSONResponse({"items": [{"ticker": "ACMT1B2", "issuer": "AGAT CREDIT",
+                                        "reference": {"coupon_rate": 28.0, "maturity_date": "2027-07-23"}}]})
+    monkeypatch.setattr(market_routes, "api_market_stocks", stocks)
+    monkeypatch.setattr(bonds_routes, "api_bonds", bonds)
+
+
+def _fake_company(monkeypatch, calls=None, languages=None):
     async def info(ticker, language="ru"):
         if calls is not None:
             calls.append(ticker)
+        if languages is not None:
+            languages.append(language)
         if ticker != "UZTL":
             raise company_routes.HTTPException(status_code=404)
         return {"ok": True, "security": {
@@ -154,7 +180,7 @@ def test_render_failure_serves_the_bare_shell(tmp_path, monkeypatch):
 def test_static_and_private_pages(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     market = client.get("/market").text
-    assert "<title>Акции Узбекистана — котировки UZSE сегодня | UZStock</title>" in market
+    assert "<title>Акции компаний Узбекистана — котировки UZSE сегодня | UZStock</title>" in market
     home = client.get("/").text
     assert {b["@type"] for b in _ldjson(home)} >= {"WebSite", "Organization"}
     org = next(b for b in _ldjson(home) if b["@type"] == "Organization")
@@ -314,3 +340,125 @@ def test_organization_logo_is_a_size_google_accepts():
     assert head[:8] == b"\x89PNG\r\n\x1a\n"
     width, height = struct.unpack(">II", head[16:24])
     assert width >= 112 and height >= 112 and width == height
+
+
+# --------------------------------------------------------------------------- lists
+
+def test_market_page_lists_every_company_by_size_with_links(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _fake_boards(monkeypatch)
+    text = client.get("/market").text
+    root = text.split('<div id="root">', 1)[1]
+    assert "<h1>Акции компаний Узбекистана — котировки UZSE сегодня</h1>" in root
+    assert "Акции 3 компаний Узбекистана" in root
+    links = re.findall(r'<a href="(/company/[A-Z0-9]+)">', root)
+    # Largest first; a company without a capitalisation still gets its link.
+    assert links == ["/company/UZTL", "/company/SQBN", "/company/QUIET"]
+    assert "14,19 трлн сум" in root and "Телекоммуникации" in root
+    assert "&lt;AK&gt;" not in root and "<AK>" not in root and "«AK»" in root
+    assert "BAD" not in root
+    assert '<a href="/bond/ACMT1B2">ACMT1B2</a>' in root and "28,00% годовых" in root
+
+
+def test_market_page_keeps_its_title_when_the_board_fails(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    async def down(*args, **kwargs):
+        raise RuntimeError("board down")
+    monkeypatch.setattr(market_routes, "api_market_stocks", down)
+    monkeypatch.setattr(bonds_routes, "api_bonds", down)
+    page = client.get("/market")
+    assert page.status_code == 200
+    assert "<title>Акции компаний Узбекистана — котировки UZSE сегодня | UZStock</title>" in page.text
+
+
+def test_home_page_lists_the_largest_companies_and_latest_news(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _fake_boards(monkeypatch)
+    monkeypatch.setattr(news_store, "get_news_feed",
+                        lambda **kw: [{"id": 393, "title_ru": "UZTL отчитался"}])
+    root = client.get("/").text.split('<div id="root">', 1)[1]
+    assert root.index("/company/UZTL") < root.index("/company/SQBN")
+    assert '<a href="/news/393">UZTL отчитался</a>' in root
+    uz = client.get("/uz").text.split('<div id="root">', 1)[1]
+    assert '<a href="/uz/company/UZTL">' in uz
+    assert "/news/393" not in uz           # the news is Russian; the Uzbek page does not borrow it
+
+
+# --------------------------------------------------------------------------- languages
+
+def test_every_language_has_every_text():
+    for lang in seo.URL_LANGUAGES:
+        assert seo._TX[lang].keys() == seo._TX["ru"].keys(), lang
+        assert seo._PAGES[lang].keys() == seo._STATIC_PAGES.keys(), lang
+        assert seo._SECTORS[lang].keys() == seo.SECTOR_NAMES.keys(), lang
+        assert lang in seo._OG_LOCALE and lang in seo._LANGUAGE_NAMES
+
+
+def test_language_prefix_is_a_whole_path_segment():
+    assert seo.split_language("/uz") == ("uz", "/")
+    assert seo.split_language("/uz/company/AGBA") == ("uz", "/company/AGBA")
+    assert seo.split_language("/uzbek") == ("ru", "/uzbek")
+    assert seo.localized("/", "uz") == "/uz" and seo.localized("/market", "ru") == "/market"
+
+
+def test_uzbek_company_page(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    languages = []
+    _fake_company(monkeypatch, languages=languages)
+    page = client.get("/uz/company/UZTL")
+    assert page.status_code == 200
+    text = page.text
+    assert "<title>Uztelecom (UZTL) — aksiyalar, narx, hisobot, P/E | UZStock</title>" in text
+    assert '<html lang="uz">' in text and 'content="uz_UZ"' in text
+    assert '<link rel="canonical" href="https://uzstock.uz/uz/company/UZTL" />' in text
+    for lang, url in (("ru", "/company/UZTL"), ("uz", "/uz/company/UZTL"), ("x-default", "/company/UZTL")):
+        assert f'<link rel="alternate" hreflang="{lang}" href="https://uzstock.uz{url}" />' in text
+    root = text.split('<div id="root">', 1)[1]
+    assert "Kapitallashuv 14,19 trln so‘m" in root and "Telekommunikatsiyalar" in root
+    assert "Asosiy ko‘rsatkichlar" in root and "сум" not in root
+    assert '<a href="/uz/market">' in root and '<a href="/uz/chart/UZTL">' in root
+    assert '<a href="/" hreflang="ru">Русский</a>' in root
+    assert "uz" in languages                # the Wikipedia extract is asked for in Uzbek
+
+    ru = client.get("/company/UZTL").text
+    assert '<html lang="ru">' in ru
+    assert '<link rel="alternate" hreflang="uz" href="https://uzstock.uz/uz/company/UZTL" />' in ru
+    assert '<a href="/uz" hreflang="uz">O‘zbekcha</a>' in ru
+
+
+def test_uzbek_static_missing_and_private_pages(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for path, (title, _) in seo._STATIC_PAGES_UZ.items():
+        page = client.get(seo.localized(path, "uz"))
+        assert page.status_code == 200 and f"<title>{title}</title>" in page.text, path
+    assert client.get("/uz/feedback").status_code == 200
+    missing = client.get("/uz/nope")
+    assert missing.status_code == 404 and "<title>Sahifa topilmadi | UZStock</title>" in missing.text
+    assert client.get("/uzbek").status_code == 404
+    admin = client.get("/uz/admin").text
+    assert '<meta name="robots" content="noindex, nofollow" />' in admin and "hreflang" not in admin
+
+
+def test_uzbek_news_link_points_at_the_russian_story(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    monkeypatch.setattr(news_store, "get_news_item", lambda news_id: {
+        "id": news_id, "title_ru": "UZTL отчитался", "summary_ru": "Выручка выросла."})
+    text = client.get("/uz/news/7").text
+    assert '<link rel="canonical" href="https://uzstock.uz/news/7" />' in text
+    assert "hreflang=\"uz\" href" not in text
+
+
+def test_robots_and_sitemap_cover_the_uzbek_pages(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    robots = client.get("/robots.txt").text
+    assert "Disallow: /uz/admin" in robots and "Disallow: /uz/login" in robots
+
+    async def instruments(request, include_inactive=True):
+        return JSONResponse({"items": [{"ticker": "UZTL", "type": "stock", "is_active": True}]})
+    monkeypatch.setattr(market_routes, "api_instruments", instruments)
+    monkeypatch.setattr(news_store, "get_news_feed", lambda **kw: [{"id": 393}])
+    xml = client.get("/sitemap.xml").text
+    for path in ("/uz", "/uz/market", "/uz/company/UZTL", "/company/UZTL", "/news/393"):
+        assert f"<loc>https://uzstock.uz{path}</loc>" in xml, path
+    assert "/uz/news/393" not in xml

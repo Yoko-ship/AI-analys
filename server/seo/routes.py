@@ -45,6 +45,15 @@ DEFAULT_DESCRIPTION = (
     "отчётность эмитентов, мультипликаторы P/E и P/B, дивиденды и новости рынка Узбекистана."
 )
 
+# Languages with URLs of their own. Russian is the default and has no prefix;
+# each other language lives under "/{lang}" (frontend/src/app/routing.jsx keeps
+# the same list). A page that exists in every language names the others with
+# hreflang, so Google shows each searcher the version in their language.
+DEFAULT_LANGUAGE = "ru"
+URL_LANGUAGES = ("uz",)
+LANGUAGES = (DEFAULT_LANGUAGE, *URL_LANGUAGES)
+_OG_LOCALE = {"ru": "ru_RU", "uz": "uz_UZ"}
+
 # Pages a search result should never point at.
 _PRIVATE_PREFIXES = ("/admin", "/profile", "/login")
 
@@ -62,8 +71,8 @@ LOGO_PATH = "/apple-touch-icon.png"
 _STATIC_PAGES: dict[str, tuple[str, str]] = {
     "/": (DEFAULT_TITLE, DEFAULT_DESCRIPTION),
     "/market": (
-        "Акции Узбекистана — котировки UZSE сегодня | UZStock",
-        "Все акции и облигации Ташкентской фондовой биржи: цены, изменения, обороты, "
+        "Акции компаний Узбекистана — котировки UZSE сегодня | UZStock",
+        "Все акции и облигации компаний Узбекистана на Ташкентской фондовой бирже: цены, "
         "капитализация, P/E, P/B и ROE эмитентов.",
     ),
     "/heatmap": (
@@ -86,12 +95,154 @@ _STATIC_PAGES: dict[str, tuple[str, str]] = {
     ),
 }
 
+_STATIC_PAGES_UZ: dict[str, tuple[str, str]] = {
+    "/": (
+        "UZStock — O‘zbekiston fond bozori",
+        "Toshkent fond birjasi (UZSE) aksiyalari va obligatsiyalari kotirovkalari, emitentlarning "
+        "moliyaviy hisobotlari, P/E va P/B multiplikatorlari, dividendlar va bozor yangiliklari.",
+    ),
+    "/market": (
+        "O‘zbekiston kompaniyalari aksiyalari — bugungi UZSE kotirovkalari | UZStock",
+        "Toshkent fond birjasidagi O‘zbekiston kompaniyalarining barcha aksiyalari va obligatsiyalari: "
+        "narxlar, kapitallashuv, emitentlarning P/E, P/B va ROE ko‘rsatkichlari.",
+    ),
+    "/heatmap": (
+        "O‘zbekiston aksiyalar bozorining issiqlik xaritasi | UZStock",
+        "UZSE aksiyalari narxlarining sektorlar va kapitallashuv bo‘yicha o‘zgarishi xaritasi.",
+    ),
+    "/catalog": (
+        "O‘zbekiston emitentlarining moliyaviy hisobotlari | UZStock",
+        "O‘zbekiston aksiyadorlik jamiyatlarining BHMS va MHXS bo‘yicha yillik va choraklik "
+        "hisobotlari katalogi.",
+    ),
+    "/news": (
+        "O‘zbekiston fond bozori yangiliklari | UZStock",
+        "Korporativ voqealar, emitentlarning oshkor qilingan ma’lumotlari va O‘zbekiston iqtisodiyoti yangiliklari.",
+    ),
+    "/currency": (
+        "O‘zbekiston banklaridagi valyuta kurslari | UZStock",
+        "Tijorat banklarida dollar, yevro va rublning sotib olish va sotish kurslari hamda "
+        "Markaziy bankning rasmiy kursi.",
+    ),
+}
+_PAGES = {"ru": _STATIC_PAGES, "uz": _STATIC_PAGES_UZ}
+
 SECTOR_NAMES = {
     "finance": "Финансы", "funds": "Фонды", "energy": "Энергетика",
     "manufacturing": "Промышленность", "mining": "Добыча", "telecom": "Телекоммуникации",
     "transport": "Транспорт", "logistics": "Логистика", "trade": "Торговля",
     "professional": "Профессиональные услуги",
 }
+SECTOR_NAMES_UZ = {
+    "finance": "Moliya", "funds": "Fondlar", "energy": "Energetika",
+    "manufacturing": "Sanoat", "mining": "Qazib olish", "telecom": "Telekommunikatsiyalar",
+    "transport": "Transport", "logistics": "Logistika", "trade": "Savdo",
+    "professional": "Professional xizmatlar",
+}
+_SECTORS = {"ru": SECTOR_NAMES, "uz": SECTOR_NAMES_UZ}
+
+# Every sentence a snapshot writes, per language. Russian is the original;
+# tests/test_seo.py checks the other languages carry the same keys.
+_TX: dict[str, dict[str, str]] = {
+    "ru": {
+        "home": "Главная", "stocks": "Акции", "bonds": "Облигации", "news": "Новости",
+        "reports": "Отчётность", "currency": "Курсы валют",
+        "money_units": "трлн|млрд|млн|сум",
+        "ticker": "Тикер", "security_type": "Тип бумаги",
+        "preferred_share": "Привилегированная акция", "ordinary_share": "Обыкновенная акция",
+        "preferred_marker": "привилегирован", "preferred_suffix": "(привилегированные)",
+        "sector": "Сектор", "last_price": "Последняя цена", "market_cap": "Рыночная капитализация",
+        "shares_out": "Акций в обращении", "nominal": "Номинал", "listing_date": "Дата листинга",
+        "revenue_year": "Выручка за {y} год", "net_income_year": "Чистая прибыль за {y} год",
+        "assets_year": "Активы на конец {y} года", "equity_year": "Собственный капитал на конец {y} года",
+        "period": "{m} мес. {y} г.", "revenue": "Выручка", "net_income": "Чистая прибыль",
+        "for_period": "{title} за {label}", "yoy": "г/г",
+        "company_lead": "{short} ({ticker}) — акции на Ташкентской фондовой бирже (UZSE).",
+        "price_on": "Цена {price} сум", "on_date": " на {date}",
+        "cap_lead": "Капитализация {cap}.",
+        "key_figures": "Ключевые показатели", "fin_report": "Финансовая отчётность (НСБУ)",
+        "chart_of": "График цены {ticker}", "all_stocks": "Все акции UZSE",
+        "company_title": "{short} ({ticker}) — акции, цена, отчётность, P/E",
+        "company_tail": " Финансовая отчётность, мультипликаторы, дивиденды и график цены.",
+        "issuer": "Эмитент", "price": "Цена", "quote": "Котировка", "of_nominal": "{pct}% от номинала",
+        "last_trade": "Последняя сделка", "coupon": "Купон", "per_year": "{rate}% годовых",
+        "maturity": "Дата погашения", "ytm": "Доходность к погашению",
+        "bond_lead": "Облигация {ticker} — {issuer}, торгуется на Ташкентской фондовой бирже.",
+        "bond_coupon": " Купон {rate}%.", "bond_maturity": " Погашение {date}.",
+        "bond_title": "Облигация {ticker} — {issuer}: купон, доходность, цена",
+        "bond_h1": "Облигация {ticker} — {issuer}", "all_bonds": "Все облигации UZSE",
+        "chart_title": "{ticker} — график цены акций",
+        "chart_description": "Интерактивный график цены {ticker} на UZSE с индикаторами.",
+        "event_title": "Корпоративное событие",
+        "not_found_title": "Страница не найдена",
+        "not_found_description": "Такой страницы на UZStock нет. Акции, облигации и новости рынка Узбекистана — по ссылкам ниже.",
+        "market_intro": ("Акции {count} компаний Узбекистана, которые торгуются на Ташкентской "
+                         "фондовой бирже (UZSE): последняя цена, дата сделки, сектор и рыночная "
+                         "капитализация. Нажмите на компанию, чтобы открыть её отчётность, "
+                         "мультипликаторы P/E и P/B, дивиденды и график цены."),
+        "company": "Компания", "price_uzs": "Цена, сум", "trade_date": "Дата сделки",
+        "bonds_heading": "Облигации на UZSE", "maturity_short": "Погашение",
+        "largest": "Крупнейшие компании Узбекистана по капитализации",
+        "latest_news": "Последние новости рынка",
+    },
+    "uz": {
+        "home": "Bosh sahifa", "stocks": "Aksiyalar", "bonds": "Obligatsiyalar", "news": "Yangiliklar",
+        "reports": "Hisobotlar", "currency": "Valyuta kurslari",
+        "money_units": "trln|mlrd|mln|so‘m",
+        "ticker": "Tiker", "security_type": "Qimmatli qog‘oz turi",
+        "preferred_share": "Imtiyozli aksiya", "ordinary_share": "Oddiy aksiya",
+        "preferred_marker": "imtiyozli", "preferred_suffix": "(imtiyozli)",
+        "sector": "Sektor", "last_price": "So‘nggi narx", "market_cap": "Bozor kapitallashuvi",
+        "shares_out": "Muomaladagi aksiyalar", "nominal": "Nominal", "listing_date": "Listingga kiritilgan sana",
+        "revenue_year": "{y} yil tushumi", "net_income_year": "{y} yil sof foydasi",
+        "assets_year": "{y} yil oxiridagi aktivlar", "equity_year": "{y} yil oxiridagi xususiy kapital",
+        "period": "{y} yil {m} oy", "revenue": "Tushum", "net_income": "Sof foyda",
+        "for_period": "{title} ({label})", "yoy": "yillik",
+        "company_lead": "{short} ({ticker}) — Toshkent fond birjasidagi (UZSE) aksiyalar.",
+        "price_on": "Narx {price} so‘m", "on_date": " ({date} holatiga)",
+        "cap_lead": "Kapitallashuv {cap}.",
+        "key_figures": "Asosiy ko‘rsatkichlar", "fin_report": "Moliyaviy hisobot (BHMS)",
+        "chart_of": "{ticker} narx grafigi", "all_stocks": "UZSE barcha aksiyalari",
+        "company_title": "{short} ({ticker}) — aksiyalar, narx, hisobot, P/E",
+        "company_tail": " Moliyaviy hisobot, multiplikatorlar, dividendlar va narx grafigi.",
+        "issuer": "Emitent", "price": "Narx", "quote": "Kotirovka", "of_nominal": "nominalning {pct}%",
+        "last_trade": "So‘nggi bitim", "coupon": "Kupon", "per_year": "yillik {rate}%",
+        "maturity": "So‘ndirish sanasi", "ytm": "So‘ndirishgacha daromadlilik",
+        "bond_lead": "{ticker} obligatsiyasi — {issuer}, Toshkent fond birjasida savdo qilinadi.",
+        "bond_coupon": " Kupon {rate}%.", "bond_maturity": " So‘ndirish {date}.",
+        "bond_title": "{ticker} obligatsiyasi — {issuer}: kupon, daromadlilik, narx",
+        "bond_h1": "{ticker} obligatsiyasi — {issuer}", "all_bonds": "UZSE barcha obligatsiyalari",
+        "chart_title": "{ticker} — aksiya narxi grafigi",
+        "chart_description": "{ticker} aksiyasining UZSE dagi indikatorli interaktiv narx grafigi.",
+        "event_title": "Korporativ voqea",
+        "not_found_title": "Sahifa topilmadi",
+        "not_found_description": "UZStock’da bunday sahifa yo‘q. O‘zbekiston bozori aksiyalari, obligatsiyalari va yangiliklari — quyidagi havolalarda.",
+        "market_intro": ("Toshkent fond birjasida (UZSE) savdo qilinadigan {count} ta O‘zbekiston "
+                         "kompaniyasining aksiyalari: so‘nggi narx, bitim sanasi, sektor va bozor "
+                         "kapitallashuvi. Kompaniyaning hisobotlari, P/E va P/B multiplikatorlari, "
+                         "dividendlari va narx grafigini ochish uchun uning nomini bosing."),
+        "company": "Kompaniya", "price_uzs": "Narx, so‘m", "trade_date": "Bitim sanasi",
+        "bonds_heading": "UZSE dagi obligatsiyalar", "maturity_short": "So‘ndirish",
+        "largest": "Kapitallashuv bo‘yicha O‘zbekistonning eng yirik kompaniyalari",
+        "latest_news": "Bozorning so‘nggi yangiliklari",
+    },
+}
+
+
+def split_language(path: str) -> tuple[str, str]:
+    """("uz", "/market") for "/uz/market"; ("ru", path) for an unprefixed path."""
+    for lang in URL_LANGUAGES:
+        prefix = f"/{lang}"
+        if path == prefix or path.startswith(prefix + "/"):
+            return lang, path[len(prefix):] or "/"
+    return DEFAULT_LANGUAGE, path
+
+
+def localized(path: str, lang: str) -> str:
+    """The URL of `path` (an unprefixed site path) in `lang`."""
+    if lang == DEFAULT_LANGUAGE:
+        return path
+    return f"/{lang}" + ("" if path == "/" else path)
 
 _CACHE_TTL = 600.0
 _DATA_TIMEOUT = 6.0
@@ -110,6 +261,10 @@ class PageMeta:
     canonical: str | None = None
     noindex: bool = False
     status: int = 200
+    lang: str = DEFAULT_LANGUAGE
+    # The unprefixed path of a page that exists in every language: render()
+    # names each language's URL for it with hreflang.
+    alternate: str | None = None
     og_type: str = "website"
     image: str | None = None
     jsonld: list[dict[str, Any]] = field(default_factory=list)
@@ -144,15 +299,16 @@ def _fmt_num(value: Any, digits: int = 0) -> str:
     return f"{number:,.{digits}f}".replace(",", "\u00a0").replace(".", ",")
 
 
-def _fmt_money(value: Any) -> str:
-    """Sums in UZS, read the way a Russian financial page writes them."""
+def _fmt_money(value: Any, lang: str = DEFAULT_LANGUAGE) -> str:
+    """Sums in UZS, read the way a financial page in `lang` writes them."""
     number = _num(value)
     if number is None:
         return "—"
-    for scale, unit in ((1e12, "трлн"), (1e9, "млрд"), (1e6, "млн")):
+    trln, mlrd, mln, currency = _TX[lang]["money_units"].split("|")
+    for scale, unit in ((1e12, trln), (1e9, mlrd), (1e6, mln)):
         if abs(number) >= scale:
-            return f"{_fmt_num(number / scale, 2)} {unit} сум"
-    return f"{_fmt_num(number)} сум"
+            return f"{_fmt_num(number / scale, 2)} {unit} {currency}"
+    return f"{_fmt_num(number)} {currency}"
 
 
 def _fmt_date(value: Any) -> str | None:
@@ -233,21 +389,30 @@ def _table(rows: list[tuple[str, str]]) -> str:
     return f"<table>{cells}</table>" if cells else ""
 
 
-def _nav() -> str:
-    links = [("/", "Главная"), ("/market", "Акции"), ("/news", "Новости"),
-             ("/catalog", "Отчётность"), ("/currency", "Курсы валют")]
-    return "<nav>" + " · ".join(f"<a href=\"{p}\">{_esc(t)}</a>" for p, t in links) + "</nav>"
+def _nav(lang: str = DEFAULT_LANGUAGE) -> str:
+    tx = _TX[lang]
+    links = [("/", tx["home"]), ("/market", tx["stocks"]), ("/news", tx["news"]),
+             ("/catalog", tx["reports"]), ("/currency", tx["currency"])]
+    out = " · ".join(f"<a href=\"{localized(p, lang)}\">{_esc(t)}</a>" for p, t in links)
+    # Each language's snapshot links to the other, so a crawler that lands on
+    # one finds every version.
+    others = " · ".join(f"<a href=\"{localized('/', other)}\" hreflang=\"{other}\">{_LANGUAGE_NAMES[other]}</a>"
+                        for other in LANGUAGES if other != lang)
+    return f"<nav>{out}</nav><p>{others}</p>"
+
+
+_LANGUAGE_NAMES = {"ru": "Русский", "uz": "O‘zbekcha"}
 
 
 # --------------------------------------------------------------------------- pages
 
-async def _company_page(ticker: str) -> PageMeta | None:
+async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta | None:
     from server.company.routes import api_securities_info
     from server.market.routes import api_market_financials, api_market_multiples
 
     async def load() -> dict[str, Any] | None:
         try:
-            info = await api_securities_info(ticker)
+            info = await api_securities_info(ticker, lang)
         except HTTPException as exc:
             # A store hiccup raises out of here, is not cached, and serves the
             # generic shell: only the handler's own 404 makes the page missing.
@@ -263,7 +428,7 @@ async def _company_page(ticker: str) -> PageMeta | None:
         return {"info": info, "fin": fin_row,
                 "mult": next((r for r in mult_items if str(r.get("ticker")).upper() == ticker), None)}
 
-    data = await _cached(f"company:{ticker}", load)
+    data = await _cached(f"company:{lang}:{ticker}", load)
     if not data:
         return None
     if data.get("missing"):
@@ -272,72 +437,77 @@ async def _company_page(ticker: str) -> PageMeta | None:
     wiki = (data["info"] or {}).get("wiki") or {}
     if str(sec.get("type") or "") == "bond":
         return None
+    tx = _TX[lang]
     name = _clean_name(sec.get("company_name") or sec.get("security_name") or ticker)
     preferred = sec.get("share_type") == "preferred" or sec.get("is_preferred") is True
-    if preferred and "привилегирован" not in name.lower():
-        name = f"{name} (привилегированные)"
+    if preferred and tx["preferred_marker"] not in name.lower():
+        name = f"{name} {tx['preferred_suffix']}"
     short = _clean_name(wiki.get("title")) or name
-    sector = SECTOR_NAMES.get(str(sec.get("sector") or ""), None)
+    sector = _SECTORS[lang].get(str(sec.get("sector") or ""), None)
     price, trade_date = _num(sec.get("last_price")), _fmt_date(sec.get("last_trade_date"))
     cap = _num(sec.get("market_cap"))
     mult, fin = data["mult"], data["fin"] or {}
     pe, pb, roe = _metric(mult, "pe"), _metric(mult, "pb"), _metric(mult, "roe")
 
+    currency = tx["money_units"].split("|")[-1]
     facts = [
-        ("Тикер", ticker), ("ISIN", sec.get("isin") or ""),
-        ("Тип бумаги", "Привилегированная акция" if preferred else "Обыкновенная акция"),
-        ("Сектор", sector or ""),
-        ("Последняя цена", f"{_fmt_num(price, 2)} сум" + (f" ({trade_date})" if trade_date else "")
+        (tx["ticker"], ticker), ("ISIN", sec.get("isin") or ""),
+        (tx["security_type"], tx["preferred_share"] if preferred else tx["ordinary_share"]),
+        (tx["sector"], sector or ""),
+        (tx["last_price"], f"{_fmt_num(price, 2)} {currency}" + (f" ({trade_date})" if trade_date else "")
          if price else ""),
-        ("Рыночная капитализация", _fmt_money(cap) if cap else ""),
-        ("Акций в обращении", _fmt_num(sec.get("shares_outstanding")) if sec.get("shares_outstanding") else ""),
-        ("Номинал", f"{_fmt_num(sec.get('nominal'))} сум" if _num(sec.get("nominal")) else ""),
+        (tx["market_cap"], _fmt_money(cap, lang) if cap else ""),
+        (tx["shares_out"], _fmt_num(sec.get("shares_outstanding")) if sec.get("shares_outstanding") else ""),
+        (tx["nominal"], f"{_fmt_num(sec.get('nominal'))} {currency}" if _num(sec.get("nominal")) else ""),
         ("P/E", _fmt_num(pe, 2) if pe is not None else ""),
         ("P/B", _fmt_num(pb, 2) if pb is not None else ""),
         ("ROE", f"{_fmt_num(roe, 1)}%" if roe is not None else ""),
-        ("Дата листинга", _fmt_date(sec.get("listing_date")) or ""),
+        (tx["listing_date"], _fmt_date(sec.get("listing_date")) or ""),
     ]
 
     fin_rows: list[tuple[str, str]] = []
     annual = fin.get("annual") or (fin if fin.get("period_months") == 12 else None)
     if annual and annual.get("year"):
         y = annual["year"]
+        money = lambda key: _fmt_money(annual.get(key), lang)  # noqa: E731
         fin_rows += [
-            (f"Выручка за {y} год", _fmt_money(annual.get("revenue")) if _num(annual.get("revenue")) else ""),
-            (f"Чистая прибыль за {y} год", _fmt_money(annual.get("net_income")) if _num(annual.get("net_income")) is not None else ""),
-            (f"Активы на конец {y} года", _fmt_money(annual.get("total_assets")) if _num(annual.get("total_assets")) else ""),
-            (f"Собственный капитал на конец {y} года", _fmt_money(annual.get("total_equity")) if _num(annual.get("total_equity")) else ""),
+            (tx["revenue_year"].format(y=y), money("revenue") if _num(annual.get("revenue")) else ""),
+            (tx["net_income_year"].format(y=y), money("net_income") if _num(annual.get("net_income")) is not None else ""),
+            (tx["assets_year"].format(y=y), money("total_assets") if _num(annual.get("total_assets")) else ""),
+            (tx["equity_year"].format(y=y), money("total_equity") if _num(annual.get("total_equity")) else ""),
         ]
     if fin.get("year") and fin.get("period_months") and fin.get("period_months") != 12:
-        label = f"{fin['period_months']} мес. {fin['year']} г."
+        label = tx["period"].format(m=fin["period_months"], y=fin["year"])
         prior = fin.get("prior") or {}
-        for key, title in (("revenue", "Выручка"), ("net_income", "Чистая прибыль")):
+        for key, title in (("revenue", tx["revenue"]), ("net_income", tx["net_income"])):
             value = _num(fin.get(key))
             if value is None:
                 continue
-            text = _fmt_money(value)
+            text = _fmt_money(value, lang)
             base = _num(prior.get(key))
             if base and base > 0 and value is not None:
-                text += f" ({'+' if value >= base else ''}{_fmt_num((value / base - 1) * 100, 1)}% г/г)"
-            fin_rows.append((f"{title} за {label}", text))
+                text += f" ({'+' if value >= base else ''}{_fmt_num((value / base - 1) * 100, 1)}% {tx['yoy']})"
+            fin_rows.append((tx["for_period"].format(title=title, label=label), text))
 
-    lead_bits = [f"{short} ({ticker}) — акции на Ташкентской фондовой бирже (UZSE)."]
+    lead_bits = [tx["company_lead"].format(short=short, ticker=ticker)]
     if price:
-        lead_bits.append(f"Цена {_fmt_num(price, 2)} сум" + (f" на {trade_date}" if trade_date else "") + ".")
+        lead_bits.append(tx["price_on"].format(price=_fmt_num(price, 2))
+                         + (tx["on_date"].format(date=trade_date) if trade_date else "") + ".")
     if cap:
-        lead_bits.append(f"Капитализация {_fmt_money(cap)}.")
+        lead_bits.append(tx["cap_lead"].format(cap=_fmt_money(cap, lang)))
     if pe is not None:
         lead_bits.append(f"P/E {_fmt_num(pe, 2)}.")
     lead = " ".join(lead_bits)
 
-    path = f"/company/{ticker}"
+    base_path = f"/company/{ticker}"
+    path = localized(base_path, lang)
     body = (
         f"<article><h1>{_esc(name)} ({_esc(ticker)})</h1><p>{_esc(lead)}</p>"
         + (f"<p>{_esc(wiki.get('extract'))}</p>" if wiki.get("extract") else "")
-        + "<h2>Ключевые показатели</h2>" + _table(facts)
-        + (("<h2>Финансовая отчётность (НСБУ)</h2>" + _table(fin_rows)) if _table(fin_rows) else "")
-        + f"<p><a href=\"/chart/{_esc(ticker)}\">График цены {_esc(ticker)}</a> · "
-          f"<a href=\"/market\">Все акции UZSE</a></p></article>"
+        + f"<h2>{_esc(tx['key_figures'])}</h2>" + _table(facts)
+        + ((f"<h2>{_esc(tx['fin_report'])}</h2>" + _table(fin_rows)) if _table(fin_rows) else "")
+        + f"<p><a href=\"{localized('/chart/' + _esc(ticker), lang)}\">{_esc(tx['chart_of'].format(ticker=ticker))}</a> · "
+          f"<a href=\"{localized('/market', lang)}\">{_esc(tx['all_stocks'])}</a></p></article>"
     )
     org = {"@context": "https://schema.org", "@type": "Corporation", "name": name,
            "tickerSymbol": ticker, "url": f"{SITE_URL}{path}"}
@@ -348,11 +518,12 @@ async def _company_page(ticker: str) -> PageMeta | None:
     if sec.get("isin"):
         org["identifier"] = {"@type": "PropertyValue", "propertyID": "ISIN", "value": sec["isin"]}
     return PageMeta(
-        title=f"{short} ({ticker}) — акции, цена, отчётность, P/E | {SITE_NAME}",
-        description=_clip(lead + " Финансовая отчётность, мультипликаторы, дивиденды и график цены."),
-        canonical=path, og_type="website",
+        title=f"{tx['company_title'].format(short=short, ticker=ticker)} | {SITE_NAME}",
+        description=_clip(lead + tx["company_tail"]),
+        canonical=path, og_type="website", lang=lang, alternate=base_path,
         image=f"{SITE_URL}{sec['logo_url']}" if str(sec.get("logo_url") or "").startswith("/") else None,
-        jsonld=[org, _breadcrumbs(("Главная", "/"), ("Акции", "/market"), (short, path))],
+        jsonld=[org, _breadcrumbs((tx["home"], localized("/", lang)), (tx["stocks"], localized("/market", lang)),
+                                  (short, path))],
         body=body,
     )
 
@@ -365,7 +536,7 @@ async def _bonds_board() -> list[dict[str, Any]]:
     return await _cached("bonds", load)
 
 
-async def _bond_page(ticker: str) -> PageMeta | None:
+async def _bond_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta | None:
     board = await _bonds_board()
     row = next((r for r in board if str(r.get("ticker")).upper() == ticker), None)
     if not row:
@@ -373,34 +544,38 @@ async def _bond_page(ticker: str) -> PageMeta | None:
         if board:
             raise _Missing(ticker)
         return None
+    tx = _TX[lang]
+    currency = tx["money_units"].split("|")[-1]
     ref = row.get("reference") or {}
     issuer = _clean_name(row.get("issuer") or row.get("name") or ticker)
     ytm = row.get("ytm") or {}
     ytm_value = _num(ytm.get("value")) if ytm.get("status") == "ok" else None
     rate, maturity = _num(ref.get("coupon_rate")), _fmt_date(ref.get("maturity_date"))
     facts = [
-        ("Тикер", ticker), ("ISIN", row.get("isin") or ""), ("Эмитент", issuer),
-        ("Цена", f"{_fmt_num(row.get('price'), 2)} сум" if _num(row.get("price")) else ""),
-        ("Котировка", f"{_fmt_num(_metric(row, 'price_pct'), 2)}% от номинала"
+        (tx["ticker"], ticker), ("ISIN", row.get("isin") or ""), (tx["issuer"], issuer),
+        (tx["price"], f"{_fmt_num(row.get('price'), 2)} {currency}" if _num(row.get("price")) else ""),
+        (tx["quote"], tx["of_nominal"].format(pct=_fmt_num(_metric(row, "price_pct"), 2))
          if _metric(row, "price_pct") is not None else ""),
-        ("Последняя сделка", _fmt_date(row.get("last_trade_date")) or ""),
-        ("Номинал", f"{_fmt_num(ref.get('nominal'))} сум" if _num(ref.get("nominal")) else ""),
-        ("Купон", f"{_fmt_num(rate, 2)}% годовых" if rate is not None else ""),
-        ("Дата погашения", maturity or ""),
-        ("Доходность к погашению", f"{_fmt_num(ytm_value, 2)}%" if ytm_value is not None else ""),
+        (tx["last_trade"], _fmt_date(row.get("last_trade_date")) or ""),
+        (tx["nominal"], f"{_fmt_num(ref.get('nominal'))} {currency}" if _num(ref.get("nominal")) else ""),
+        (tx["coupon"], tx["per_year"].format(rate=_fmt_num(rate, 2)) if rate is not None else ""),
+        (tx["maturity"], maturity or ""),
+        (tx["ytm"], f"{_fmt_num(ytm_value, 2)}%" if ytm_value is not None else ""),
     ]
-    lead = f"Облигация {ticker} — {issuer}, торгуется на Ташкентской фондовой бирже."
+    lead = tx["bond_lead"].format(ticker=ticker, issuer=issuer)
     if rate is not None:
-        lead += f" Купон {_fmt_num(rate, 2)}%."
+        lead += tx["bond_coupon"].format(rate=_fmt_num(rate, 2))
     if maturity:
-        lead += f" Погашение {maturity}."
-    path = f"/bond/{ticker}"
+        lead += tx["bond_maturity"].format(date=maturity)
+    base_path = f"/bond/{ticker}"
+    path = localized(base_path, lang)
     return PageMeta(
-        title=f"Облигация {ticker} — {issuer}: купон, доходность, цена | {SITE_NAME}",
-        description=_clip(lead), canonical=path,
-        jsonld=[_breadcrumbs(("Главная", "/"), ("Облигации", "/market"), (ticker, path))],
-        body=f"<article><h1>Облигация {_esc(ticker)} — {_esc(issuer)}</h1><p>{_esc(lead)}</p>"
-             + _table(facts) + "<p><a href=\"/market\">Все облигации UZSE</a></p></article>",
+        title=f"{tx['bond_title'].format(ticker=ticker, issuer=issuer)} | {SITE_NAME}",
+        description=_clip(lead), canonical=path, lang=lang, alternate=base_path,
+        jsonld=[_breadcrumbs((tx["home"], localized("/", lang)), (tx["bonds"], localized("/market", lang)),
+                             (ticker, path))],
+        body=f"<article><h1>{_esc(tx['bond_h1'].format(ticker=ticker, issuer=issuer))}</h1><p>{_esc(lead)}</p>"
+             + _table(facts) + f"<p><a href=\"{localized('/market', lang)}\">{_esc(tx['all_bonds'])}</a></p></article>",
     )
 
 
@@ -469,47 +644,186 @@ async def _ai_report_page(ticker: str, meta: PageMeta) -> PageMeta:
     return meta
 
 
+async def _stock_board() -> list[dict[str, Any]]:
+    from server.market.routes import api_market_stocks
+
+    async def load() -> list[dict[str, Any]]:
+        return _json_body(await api_market_stocks(_internal_request(), "stock")).get("stocks") or []
+    return await _cached("stocks", load)
+
+
+def _listed(rows: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    """(ticker, row) for each row whose ticker can sit in a URL."""
+    out = []
+    for row in rows:
+        ticker = str(row.get("ticker") or "").strip().upper()
+        if re.fullmatch(r"[A-Z0-9]+", ticker):
+            out.append((ticker, row))
+    return out
+
+
+def _by_cap(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(rows, key=lambda r: (-(_num(r.get("market_cap")) or 0), str(r.get("ticker"))))
+
+
+def _stocks_table(rows: list[dict[str, Any]], lang: str) -> str:
+    """Every listed company, linked to its own page: the list a search for
+    "акции компаний Узбекистана" expects, and the internal links that tell
+    Google the company pages matter."""
+    from company_catalog import COMPANY_SECTORS
+
+    tx, sectors = _TX[lang], _SECTORS[lang]
+    head = "".join(f"<th scope=\"col\">{_esc(h)}</th>" for h in (
+        tx["company"], tx["ticker"], tx["sector"], tx["price_uzs"], tx["trade_date"], tx["market_cap"]))
+    body = []
+    for ticker, row in _listed(rows):
+        name = _clean_name(row.get("name") or ticker)
+        price = _num(row.get("last_price"))
+        cap = _num(row.get("market_cap"))
+        cells = (
+            f"<a href=\"{localized('/company/' + ticker, lang)}\">{_esc(name)}</a>", _esc(ticker),
+            _esc(sectors.get(COMPANY_SECTORS.get(ticker, ""), "")),
+            _fmt_num(price, 2) if price else "—", _esc(_fmt_date(row.get("last_trade_date")) or "—"),
+            _esc(_fmt_money(cap, lang)) if cap else "—",
+        )
+        body.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>" if body else ""
+
+
+def _bonds_table(rows: list[dict[str, Any]], lang: str) -> str:
+    tx = _TX[lang]
+    head = "".join(f"<th scope=\"col\">{_esc(h)}</th>" for h in (
+        tx["ticker"], tx["issuer"], tx["coupon"], tx["maturity_short"]))
+    body = []
+    for ticker, row in _listed(rows):
+        ref = row.get("reference") or {}
+        rate = _num(ref.get("coupon_rate"))
+        cells = (
+            f"<a href=\"{localized('/bond/' + ticker, lang)}\">{_esc(ticker)}</a>",
+            _esc(_clean_name(row.get("issuer") or row.get("name") or "")),
+            _esc(tx["per_year"].format(rate=_fmt_num(rate, 2))) if rate is not None else "—",
+            _esc(_fmt_date(ref.get("maturity_date")) or "—"),
+        )
+        body.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>" if body else ""
+
+
+async def _settled(*loaders: Awaitable[Any]) -> list[Any]:
+    """Each loader's value, or an empty list where it failed or was slow: a
+    list that cannot be read leaves the page's own title and text standing."""
+    out = []
+    for value in await asyncio.gather(*loaders, return_exceptions=True):
+        if isinstance(value, BaseException):
+            http.logger.warning("seo: list snapshot failed", exc_info=value)
+            value = []
+        out.append(value or [])
+    return out
+
+
+def _static_page(path: str, lang: str) -> PageMeta:
+    title, description = _PAGES[lang][path]
+    meta = PageMeta(title=title, description=description, canonical=localized(path, lang),
+                    lang=lang, alternate=path)
+    if path == "/":
+        meta.jsonld = [
+            {"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME,
+             "url": f"{SITE_URL}{localized('/', lang)}", "inLanguage": lang},
+            {"@context": "https://schema.org", "@type": "Organization", "name": SITE_NAME,
+             "url": SITE_URL, "logo": f"{SITE_URL}{LOGO_PATH}"},
+        ]
+    return meta
+
+
+async def _market_page(lang: str) -> PageMeta:
+    tx = _TX[lang]
+    meta = _static_page("/market", lang)
+    stocks, bonds = await _settled(_stock_board(), _bonds_board())
+    stocks_html, bonds_html = _stocks_table(_by_cap(stocks), lang), _bonds_table(bonds, lang)
+    if not stocks_html and not bonds_html:
+        return meta
+    meta.body = (
+        f"<h1>{_esc(meta.title.split(' | ')[0])}</h1>"
+        + f"<p>{_esc(tx['market_intro'].format(count=len(_listed(stocks))) if stocks_html else meta.description)}</p>"
+        + stocks_html
+        + (f"<h2>{_esc(tx['bonds_heading'])}</h2>{bonds_html}" if bonds_html else "")
+    )
+    return meta
+
+
+async def _latest_news() -> list[dict[str, Any]]:
+    import news_store
+
+    async def load() -> list[dict[str, Any]]:
+        return await asyncio.get_running_loop().run_in_executor(
+            None, lambda: news_store.get_news_feed(limit=8, days=60, order="recent"))
+    return await _cached("home-news", load)
+
+
+async def _home_page(lang: str) -> PageMeta:
+    tx = _TX[lang]
+    meta = _static_page("/", lang)
+
+    async def no_news() -> list[Any]:
+        return []
+    # News is written in Russian only; the Uzbek page does not borrow it.
+    stocks, news = await _settled(_stock_board(), _latest_news() if lang == DEFAULT_LANGUAGE else no_news())
+    top = _stocks_table(_by_cap(stocks)[:15], lang)
+    items = "".join(
+        f"<li><a href=\"/news/{_esc(n['id'])}\">{_esc(_clean_name(n.get('title_ru') or n.get('title')))}</a></li>"
+        for n in news if n.get("id") is not None and (n.get("title_ru") or n.get("title")))
+    if not top and not items:
+        return meta
+    meta.body = (
+        f"<h1>{_esc(meta.title.split(' | ')[0])}</h1><p>{_esc(meta.description)}</p>"
+        + (f"<h2>{_esc(tx['largest'])}</h2>{top}"
+           f"<p><a href=\"{localized('/market', lang)}\">{_esc(tx['all_stocks'])}</a></p>" if top else "")
+        + (f"<h2>{_esc(tx['latest_news'])}</h2><ul>{items}</ul>" if items else "")
+    )
+    return meta
+
+
 async def page_meta(full_path: str, query: dict[str, str] | None = None) -> PageMeta:
-    path = "/" + (full_path or "").strip("/")
+    lang, path = split_language("/" + (full_path or "").strip("/"))
+    tx = _TX[lang]
     if path.startswith(_PRIVATE_PREFIXES):
-        return PageMeta(noindex=True)
+        return PageMeta(title=_PAGES[lang]["/"][0], description=_PAGES[lang]["/"][1], noindex=True, lang=lang)
     path = _ALIASES.get(path, path)
     if not (path in _STATIC_PAGES or path in _PLAIN_PAGES or path.startswith(_ENTITY_PREFIXES)):
-        return _not_found()
+        return _not_found(lang)
     meta: PageMeta | None = None
     try:
-        if path.startswith("/company/"):
+        if path == "/":
+            meta = await _home_page(lang)
+        elif path == "/market":
+            meta = await _market_page(lang)
+        elif path.startswith("/company/"):
             ticker = path[len("/company/"):].split("/")[0].upper()
-            meta = await _company_page(ticker)
-            if meta is not None and (query or {}).get("report") == "ai":
+            meta = await _company_page(ticker, lang)
+            # The AI report is written in Russian; other languages keep the company card.
+            if meta is not None and lang == DEFAULT_LANGUAGE and (query or {}).get("report") == "ai":
                 meta = await _ai_report_page(ticker, meta)
         elif path.startswith("/bond/"):
-            meta = await _bond_page(path[len("/bond/"):].split("/")[0].upper())
+            meta = await _bond_page(path[len("/bond/"):].split("/")[0].upper(), lang)
         elif path.startswith("/chart/"):
             ticker = path[len("/chart/"):].split("/")[0].upper()
-            meta = PageMeta(title=f"{ticker} — график цены акций | {SITE_NAME}",
-                            description=f"Интерактивный график цены {ticker} на UZSE с индикаторами.",
-                            canonical=f"/chart/{ticker}")
+            meta = PageMeta(title=f"{tx['chart_title'].format(ticker=ticker)} | {SITE_NAME}",
+                            description=tx["chart_description"].format(ticker=ticker),
+                            canonical=localized(f"/chart/{ticker}", lang), lang=lang,
+                            alternate=f"/chart/{ticker}")
+        # News and corporate events exist in Russian only: under any language
+        # prefix they name the Russian page as canonical, so nothing is indexed twice.
         elif path.startswith("/news/announcement/"):
-            meta = PageMeta(title=f"Корпоративное событие | {SITE_NAME}", canonical=path)
+            meta = PageMeta(title=f"{_TX[DEFAULT_LANGUAGE]['event_title']} | {SITE_NAME}", canonical=path)
         elif path.startswith("/news/"):
             meta = await _news_page(path[len("/news/"):].split("/")[0])
     except _Missing:
-        return _not_found()
+        return _not_found(lang)
     except Exception:
         http.logger.warning("seo: snapshot for %s failed", path, exc_info=True)
         meta = None
     if meta is None and path in _STATIC_PAGES:
-        title, description = _STATIC_PAGES[path]
-        meta = PageMeta(title=title, description=description, canonical=path)
-        if path == "/":
-            meta.jsonld = [
-                {"@context": "https://schema.org", "@type": "WebSite", "name": SITE_NAME,
-                 "url": SITE_URL, "inLanguage": "ru"},
-                {"@context": "https://schema.org", "@type": "Organization", "name": SITE_NAME,
-                 "url": SITE_URL, "logo": f"{SITE_URL}{LOGO_PATH}"},
-            ]
-    return _with_body(meta or PageMeta())
+        meta = _static_page(path, lang)
+    return _with_body(meta or PageMeta(title=_PAGES[lang]["/"][0], description=_PAGES[lang]["/"][1], lang=lang))
 
 
 def _with_body(meta: PageMeta) -> PageMeta:
@@ -517,16 +831,16 @@ def _with_body(meta: PageMeta) -> PageMeta:
         meta.body = f"<h1>{_esc(meta.title.split(' | ')[0])}</h1><p>{_esc(meta.description)}</p>"
     meta.body = (
         "<div class=\"seo-snapshot\" style=\"max-width:960px;margin:0 auto;padding:16px;"
-        "font-family:system-ui,sans-serif;line-height:1.5\">" + meta.body + _nav() + "</div>"
+        "font-family:system-ui,sans-serif;line-height:1.5\">" + meta.body + _nav(meta.lang) + "</div>"
     )
     return meta
 
 
-def _not_found() -> PageMeta:
+def _not_found(lang: str = DEFAULT_LANGUAGE) -> PageMeta:
+    tx = _TX[lang]
     return _with_body(PageMeta(
-        title=f"Страница не найдена | {SITE_NAME}",
-        description="Такой страницы на UZStock нет. Акции, облигации и новости рынка Узбекистана — по ссылкам ниже.",
-        noindex=True, status=404))
+        title=f"{tx['not_found_title']} | {SITE_NAME}", description=tx["not_found_description"],
+        noindex=True, status=404, lang=lang))
 
 
 def render(template: str, meta: PageMeta) -> str:
@@ -538,12 +852,17 @@ def render(template: str, meta: PageMeta) -> str:
         url = f"{SITE_URL}{meta.canonical}"
         head += [f"<link rel=\"canonical\" href=\"{_esc(url)}\" />",
                  f"<meta property=\"og:url\" content=\"{_esc(url)}\" />"]
+    if meta.alternate and not meta.noindex:
+        head += [f"<link rel=\"alternate\" hreflang=\"{lang}\" href=\"{_esc(SITE_URL + localized(meta.alternate, lang))}\" />"
+                 for lang in LANGUAGES]
+        head.append(f"<link rel=\"alternate\" hreflang=\"x-default\" "
+                    f"href=\"{_esc(SITE_URL + localized(meta.alternate, DEFAULT_LANGUAGE))}\" />")
     head += [
         f"<meta property=\"og:site_name\" content=\"{SITE_NAME}\" />",
         f"<meta property=\"og:type\" content=\"{_esc(meta.og_type)}\" />",
         f"<meta property=\"og:title\" content=\"{_esc(meta.title)}\" />",
         f"<meta property=\"og:description\" content=\"{_esc(meta.description)}\" />",
-        "<meta property=\"og:locale\" content=\"ru_RU\" />",
+        f"<meta property=\"og:locale\" content=\"{_OG_LOCALE[meta.lang]}\" />",
         f"<meta name=\"twitter:card\" content=\"{'summary_large_image' if meta.image else 'summary'}\" />",
     ]
     if meta.image:
@@ -555,6 +874,7 @@ def render(template: str, meta: PageMeta) -> str:
                            count=1, flags=re.S)
     if not swapped:
         out = out.replace("</head>", "    " + "\n    ".join(head) + "\n  </head>", 1)
+    out = re.sub(r'<html lang="[^"]*"', f'<html lang="{meta.lang}"', out, count=1)
     if meta.body:
         out = out.replace('<div id="root"></div>', f'<div id="root">{meta.body}</div>', 1)
     return out
@@ -563,25 +883,19 @@ def render(template: str, meta: PageMeta) -> str:
 # --------------------------------------------------------------------------- robots / sitemap
 
 def robots_txt() -> str:
+    rules = "Allow: /\nDisallow: /api/\n" + "".join(
+        f"Disallow: {localized(prefix, lang)}\n" for lang in LANGUAGES for prefix in _PRIVATE_PREFIXES)
     return (
         "User-agent: *\n"
-        "Allow: /\n"
-        "Disallow: /api/\n"
-        "Disallow: /admin\n"
-        "Disallow: /profile\n"
-        "Disallow: /login\n"
-        "\n"
+        + rules
+        + "\n"
         # Named so nobody wonders whether a blanket rule covers them: these are
         # the crawlers behind ChatGPT, Claude, Perplexity and Gemini answers.
         "User-agent: GPTBot\nUser-agent: OAI-SearchBot\nUser-agent: ChatGPT-User\n"
         "User-agent: ClaudeBot\nUser-agent: Claude-SearchBot\nUser-agent: Claude-User\n"
         "User-agent: PerplexityBot\nUser-agent: Google-Extended\n"
-        "Allow: /\n"
-        "Disallow: /api/\n"
-        "Disallow: /admin\n"
-        "Disallow: /profile\n"
-        "Disallow: /login\n"
-        "\n"
+        + rules
+        + "\n"
         f"Sitemap: {SITE_URL}/sitemap.xml\n"
     )
 
@@ -619,6 +933,9 @@ async def sitemap_xml() -> str:
         except Exception:
             http.logger.warning("seo: sitemap news failed", exc_info=True)
             news = []
+        entries += [(localized(path, lang), lastmod, freq)
+                    for lang in URL_LANGUAGES for path, lastmod, freq in list(entries)]
+        # News is written in Russian only, so it is listed once.
         for item in news:
             if item.get("id") is not None:
                 entries.append((f"/news/{item['id']}", _iso(item.get("published_at")), "monthly"))

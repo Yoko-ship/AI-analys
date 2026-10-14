@@ -1,9 +1,19 @@
-import React, { useEffect, useState } from "react";
-import { HIDDEN_VIEWS, pathToView, viewToPath } from "./routing.jsx";
+import React, { useEffect, useRef, useState } from "react";
+import { HIDDEN_VIEWS, localizedPath, pathToView, splitLanguagePath, viewToPath } from "./routing.jsx";
 import { endPageview, trackPageview } from "../lib/track.js";
 import { applyPageTitle } from "./pageTitle.js";
 
-export function useNavigation() {
+// `language` is the reader's UI language: every URL this hook writes is that
+// language's form of the page (/uz/market for Uzbek), and a Back/Forward onto an
+// entry written before a language switch is rewritten to it. usePreferences owns
+// the switch itself and rewrites the current URL when it happens.
+export function useNavigation({ language } = {}) {
+
+  // Read at the moment a URL is written, not a dependency of the effect below:
+  // a language switch only rewrites the current entry (usePreferences), it is not
+  // a navigation and must neither push a history entry nor count a pageview.
+  const languageRef = useRef(language);
+  languageRef.current = language;
 
   const [activeView, setActiveViewState] = useState(() => pathToView(window.location.pathname).view);
 
@@ -36,7 +46,7 @@ export function useNavigation() {
   const [prevView, setPrevView] = useState("market");
 
   useEffect(() => {
-    const target = viewToPath(activeView, companyTicker, newsId, adminSection);
+    const target = viewToPath(activeView, companyTicker, newsId, adminSection, languageRef.current);
     if (window.location.pathname !== target) {
       window.history.pushState({ view: activeView }, "", target);
     }
@@ -44,8 +54,10 @@ export function useNavigation() {
     // Count the view once the URL settles. The admin's own walks through the
     // panel are not audience and would only pollute its numbers.
     if (activeView !== "admin") {
+      // Analytics groups pages by their bare path (/news/{id}, /company/{T});
+      // the reader's language is sent alongside, not folded into the path.
       trackPageview({
-        path: target,
+        path: splitLanguagePath(target).path,
         view: activeView,
         ticker: ["company", "chart", "bond"].includes(activeView) ? companyTicker : "",
       });
@@ -56,7 +68,12 @@ export function useNavigation() {
 
   useEffect(() => {
     const onPop = () => {
-      const { view, ticker, newsId: popNewsId, adminSection: popSection } = pathToView(window.location.pathname);
+      const { pathname, search, hash } = window.location;
+      const localized = localizedPath(pathname, languageRef.current);
+      if (localized !== pathname) {
+        try { window.history.replaceState(window.history.state, "", `${localized}${search}${hash}`); } catch { /* noop */ }
+      }
+      const { view, ticker, newsId: popNewsId, adminSection: popSection } = pathToView(pathname);
       if (ticker) setCompanyTicker(ticker);
       if (popNewsId) setNewsId(popNewsId);
       if (popSection) setAdminSection(popSection);
@@ -104,14 +121,14 @@ export function useNavigation() {
   const backToNewsCalendar = () => {
     // Replace the detail URL before mounting NewsView so its first render reads
     // the calendar tab from the query string instead of flashing the main feed.
-    try { window.history.replaceState({}, "", "/news?tab=calendar"); } catch { /* noop */ }
+    try { window.history.replaceState({}, "", localizedPath("/news?tab=calendar", languageRef.current)); } catch { /* noop */ }
     setActiveView("news");
   };
   // A section of /news, from the topbar's drop-down. The tab lives in the query
   // string, which the page reads on mount and on popstate — so when the page is
   // already open, the same event switches it.
   const openNewsTab = (tab) => {
-    const target = tab === "all" ? "/news" : `/news?tab=${tab}`;
+    const target = localizedPath(tab === "all" ? "/news" : `/news?tab=${tab}`, languageRef.current);
     try {
       if (window.location.pathname + window.location.search !== target) window.history.pushState({ view: "news" }, "", target);
     } catch { /* noop */ }

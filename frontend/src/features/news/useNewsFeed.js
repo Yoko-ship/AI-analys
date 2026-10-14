@@ -1,5 +1,6 @@
 import React from "react";
 import { NEWS_TABS, newsInstrumentFromLocation, newsTabFromLocation } from "./newsRouting.js";
+import { localizedPath, locationLanguage } from "../../lib/languagePath.js";
 export function useNewsFeed({}) {
   const [state, setState] = React.useState({
     loading: true,
@@ -23,7 +24,7 @@ export function useNewsFeed({}) {
     if (nextTab === "corporate" && nextInstrument !== "all") p.set("instrument", nextInstrument);
     const q = p.toString();
     try {
-      window.history.replaceState({}, "", q ? `/news?${q}` : "/news");
+      window.history.replaceState({}, "", localizedPath(q ? `/news?${q}` : "/news", locationLanguage()));
     } catch {/* history is unavailable in some embedded views */}
   }, []);
   const selectTab = React.useCallback(key => {

@@ -3,6 +3,7 @@ import React, { Suspense } from "react";
 import { ReportAvailability, VerifiedReport } from "../../shared/VerifiedReport.jsx";
 import { createPortal } from "react-dom";
 import { SharePanel, ShareIcon, canShareNatively, shareNatively } from "./Share.jsx";
+import { localizedPath } from "../../lib/languagePath.js";
 
 const COMPANY_INSIGHT_TX = {
   ru: {
@@ -118,8 +119,9 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   const bodyId = `${titleId}-body`;
   const shareId = `${titleId}-share`;
   const [shareOpen, setShareOpen] = React.useState(false);
-  // The link opens this same report: CompanyPage reads ?report=ai on load.
-  const shareUrl = `${window.location.origin}/company/${encodeURIComponent(ticker)}?report=ai`;
+  // The link opens this same report, in the language it is read in: CompanyPage
+  // reads ?report=ai on load, the /uz prefix opens it in Uzbek.
+  const shareUrl = `${window.location.origin}${localizedPath(`/company/${encodeURIComponent(ticker)}`, lang)}?report=ai`;
   const shareTitle = `${tx.title} ${ticker} | UZStock`;
   const shareText = [`${tx.title} ${ticker}`, companyInsightTeaser(report).headline || report?.headline].filter(Boolean).join(": ");
   const openShare = () => {

@@ -55,7 +55,7 @@ export function NewsIssuerContext({
               {sentiment && sentiment.count > 0 && <div className="led-iss-basis">{sentiment.count} {tx.basedOn}</div>}
               {others.length > 0 && <div className="led-iss-news">
                   <h4 className="led-panel-h">{tx.moreNews}</h4>
-                  {others.map(n => <a key={n.id} className="led-lt" href={newsArticlePath(n)} {...n.id && onOpenNews ? {
+                  {others.map(n => <a key={n.id} className="led-lt" href={newsArticlePath(n, language)} {...n.id && onOpenNews ? {
               onClick: interceptNav(() => onOpenNews(n))
             } : {
               target: "_blank",

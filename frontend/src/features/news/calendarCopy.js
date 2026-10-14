@@ -1,6 +1,8 @@
 // Every string of the news «Календарь» in the three interface languages.
 // Event types are the server's (calendar_events.py); their order here is the
 // order of the filter chips and the legend.
+import { localizedPath } from "../../lib/languagePath.js";
+
 export const EVENT_TYPES = ["meeting", "dividend", "report", "fact", "notice", "listing"];
 
 export const NEWSCAL_TX = {
@@ -304,8 +306,8 @@ function plural(n, one, few, many) {
 
 export const NEWS_CALENDAR_POLL_MS = 5 * 60 * 1000;
 
-export function calendarAnnouncementPath(item) {
+export function calendarAnnouncementPath(item, language) {
   const id = String(item?.announcement_id || "").trim();
   if (!id) return "";
-  return `/news/announcement/${encodeURIComponent(id)}`;
+  return localizedPath(`/news/announcement/${encodeURIComponent(id)}`, language);
 }

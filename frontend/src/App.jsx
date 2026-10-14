@@ -38,7 +38,7 @@ function App() {
    loadProfile: sessionState.refreshProfile, endSession: sessionState.logout,
   };
   useEffect(() => { setTrackedUser(session.user && session.user.id); }, [session.user]);
-  const navigation = useNavigation();
+  const navigation = useNavigation({ language: preferences.language });
   const toasts = useToasts();
   const market = useMarketData({ toasts, preferences, session, navigation });
   const auth = useAuthentication({ navigation, session, toasts, preferences, market });

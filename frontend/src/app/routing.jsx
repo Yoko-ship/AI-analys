@@ -1,6 +1,12 @@
 
+import {
+  DEFAULT_URL_LANGUAGE, URL_LANGUAGES, localizedPath, locationLanguage, splitLanguagePath,
+} from "../lib/languagePath.js";
 
 // --- Client-side routing: each view maps to a real URL path ------------------
+// The table holds the bare (Russian) paths. A language with URLs of its own
+// serves the same paths under its prefix (/uz/market): viewToPath adds it,
+// pathToView strips it, both through ../lib/languagePath.js.
 const VIEW_PATHS = {
   main: "/",
   market: "/market",
@@ -24,7 +30,13 @@ const VIEW_PATHS = {
 // page and prevents in-app callbacks from reopening a hidden workspace.
 const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
 
-function viewToPath(view, ticker, newsId, adminSection) {
+// The URL of a view in `language`; without one (or for a language that has no
+// URLs of its own) the bare path.
+function viewToPath(view, ticker, newsId, adminSection, language) {
+  return localizedPath(viewToBarePath(view, ticker, newsId, adminSection), language);
+}
+
+function viewToBarePath(view, ticker, newsId, adminSection) {
   if (HIDDEN_VIEWS.has(view)) return "/";
   if (view === "company" && ticker) return `/company/${encodeURIComponent(ticker)}`;
   // The advanced chart is a page, not a tab: it has its own toolbar state and
@@ -42,8 +54,9 @@ function viewToPath(view, ticker, newsId, adminSection) {
   return VIEW_PATHS[view] || "/";
 }
 
+// The view a pathname opens, whichever language's form it is in.
 function pathToView(pathname) {
-  const clean = (pathname || "/").replace(/\/+$/, "") || "/";
+  const clean = splitLanguagePath(pathname || "/").path.replace(/\/+$/, "") || "/";
   if (clean.startsWith("/company/")) {
     return { view: "company", ticker: decodeURIComponent(clean.slice("/company/".length)), newsId: null };
   }
@@ -81,4 +94,7 @@ function pathToView(pathname) {
   return { view: found ? found[0] : "main", ticker: null, newsId: null };
 }
 
-export { HIDDEN_VIEWS, VIEW_PATHS, pathToView, viewToPath };
+export {
+  DEFAULT_URL_LANGUAGE, HIDDEN_VIEWS, URL_LANGUAGES, VIEW_PATHS,
+  localizedPath, locationLanguage, pathToView, splitLanguagePath, viewToPath,
+};

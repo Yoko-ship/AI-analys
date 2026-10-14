@@ -1,6 +1,7 @@
 import { safeHref } from "../../lib/safeHref.js";
 import { useAnnouncementArticle } from "./useAnnouncementArticle.js";
 import { interceptNav } from "./editorial.jsx";
+import { localizedPath } from "../../lib/languagePath.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 export const ANNOUNCEMENT_ARTICLE_TX = {
   ru: {
@@ -56,7 +57,7 @@ export function AnnouncementArticleView({
     announcementId,
     lang
   });
-  const back = <a className="led-back" href="/news?tab=calendar" onClick={interceptNav(onBack)}>← {tx.back}</a>;
+  const back = <a className="led-back" href={localizedPath("/news?tab=calendar", lang)} onClick={interceptNav(onBack)}>← {tx.back}</a>;
   if (state.loading) {
     return <div className="news-view led announcement-article">
         {back}

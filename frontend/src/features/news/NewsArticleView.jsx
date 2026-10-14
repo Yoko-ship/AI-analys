@@ -2,7 +2,7 @@ import { safeHref } from "../../lib/safeHref.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import { useNewsArticle } from "./useNewsArticle.js";
 import { EDNEWS_TX, edHeadline, interceptNav, newsRelTime } from "./editorial.jsx";
-import { VIEW_PATHS } from "../../app/routing.jsx";
+import { VIEW_PATHS, localizedPath } from "../../app/routing.jsx";
 import { _TONE_CLS, edSummary, edDetail, newsAbsTime, newsHost, newsAddsDetail } from "./newsText.jsx";
 import { EdNewsCard } from "./NewsCards.jsx";
 import { NewsPriceReaction } from "./NewsPriceReaction.jsx";
@@ -213,7 +213,7 @@ export function NewsArticleView({
   // Above the loading/error returns below, because hooks cannot sit behind one. The hook
   // handles a null item by doing nothing, which is what the loading state needs anyway.
 
-  const back = <a className="led-back" href={VIEW_PATHS.news} onClick={interceptNav(onBack)}>← {tx.back}</a>;
+  const back = <a className="led-back" href={localizedPath(VIEW_PATHS.news, language)} onClick={interceptNav(onBack)}>← {tx.back}</a>;
   if (state.loading) {
     return <div className="news-view led">
         {back}

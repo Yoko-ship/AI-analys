@@ -10,6 +10,7 @@ import { alignToDates as indAlign, bollinger as indBollinger, calendarSeries as 
 
 import { fmtRelVol, peerVolumeAt, relativeVolume } from "../../shared/volume.js";
 import { formatChangePercent } from "../../shared/format.jsx";
+import { localizedPath, locationLanguage } from "../../lib/languagePath.js";
 import { LineType as LwLineType } from "lightweight-charts";
 import { compact as fmtCompact } from "../../lib/format.js";
 import { finLabel } from "../../shared/financialLabels.jsx";
@@ -255,7 +256,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     if (finFields.length) p.set("fin", finFields.join(","));
     if (compareTickers.length) p.set("cmp", compareTickers.join(","));
     const q = p.toString();
-    window.history.replaceState(null, "", `/chart/${encodeURIComponent(up)}${q ? `?${q}` : ""}`);
+    window.history.replaceState(null, "", localizedPath(`/chart/${encodeURIComponent(up)}${q ? `?${q}` : ""}`, locationLanguage()));
   }, [up, range, span, type, barInterval, indicators, finFields, compareTickers, custom]);
 
   // ── Data preparation ─────────────────────────────────────────────────────

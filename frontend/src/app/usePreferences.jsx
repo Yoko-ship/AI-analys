@@ -2,10 +2,22 @@ import { useEffect, useState } from "react";
 import { normalizeLanguage } from "../shared/i18n.jsx";
 import { LANGUAGE_KEY, TEXT_SCALES, TEXT_SCALE_KEY, THEME_KEY } from "./preferences.jsx";
 import { applyPageTitle } from "./pageTitle.js";
+import { localizedPath, splitLanguagePath } from "./routing.jsx";
+
+// A URL that names a language (/uz/...) decides it: that is the page a search
+// engine indexed and a link was shared as, so it opens in that language and the
+// choice is kept. A bare URL opens in the reader's saved language.
+function initialLanguage() {
+  const fromUrl = splitLanguagePath(window.location.pathname).language;
+  if (fromUrl) return normalizeLanguage(fromUrl);
+  let saved = null;
+  try { saved = localStorage.getItem(LANGUAGE_KEY); } catch (e) { /* ignore */ }
+  return normalizeLanguage(saved || "ru");
+}
 
 export function usePreferences() {
 
-  const [language, setLanguage] = useState(() => normalizeLanguage(localStorage.getItem(LANGUAGE_KEY) || "ru"));
+  const [language, setLanguage] = useState(initialLanguage);
 
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem(THEME_KEY);
@@ -37,8 +49,18 @@ export function usePreferences() {
 
   useEffect(() => {
     const lang = normalizeLanguage(language);
-    localStorage.setItem(LANGUAGE_KEY, lang);
+    try { localStorage.setItem(LANGUAGE_KEY, lang); } catch (e) { /* ignore */ }
     document.documentElement.lang = lang;
+    // The address bar follows the language — on load (a saved Uzbek reader who
+    // opened /market lands on /uz/market) and on every switch — by replacing the
+    // current entry: the page has not changed, only the language it is shown in.
+    // This runs before useNavigation's effect (App calls this hook first), so
+    // navigation always finds the URL already in the reader's language.
+    const { pathname, search, hash } = window.location;
+    const target = localizedPath(pathname, lang);
+    if (target !== pathname) {
+      try { window.history.replaceState(window.history.state, "", `${target}${search}${hash}`); } catch (e) { /* ignore */ }
+    }
     applyPageTitle(lang);
   }, [language]);
 

@@ -1,7 +1,11 @@
 
 
-function newsArticlePath(item) {
-  return item && item.id ? `/news/${encodeURIComponent(item.id)}` : (item && item.url) || "#";
+import { localizedPath } from "../../lib/languagePath.js";
+
+// A story's own page in the reader's language (/uz/news/{id} for Uzbek); an item
+// with no page of ours links to its source.
+function newsArticlePath(item, language) {
+  return item && item.id ? localizedPath(`/news/${encodeURIComponent(item.id)}`, language) : (item && item.url) || "#";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

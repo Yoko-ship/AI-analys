@@ -54,7 +54,7 @@ export function EdNewsCard({
   // than the headline on a phone — so an item without one simply has no figure and the
   // headline moves up into the space.
   const art = Boolean(item.image_url) && imgOk;
-  return <a className={`${isLead ? "led-lead" : "led-story"}${art ? "" : " led-noart"}`} href={newsArticlePath(item)} {...inApp ? {
+  return <a className={`${isLead ? "led-lead" : "led-story"}${art ? "" : " led-noart"}`} href={newsArticlePath(item, language)} {...inApp ? {
     onClick: interceptNav(() => onOpen(item))
   } : {
     target: "_blank",
@@ -105,7 +105,7 @@ export function NewsDeskPriorityStory({
   const [imgOk, setImgOk] = React.useState(true);
   React.useEffect(() => setImgOk(true), [item.image_url]);
   const art = Boolean(item.image_url) && imgOk;
-  return <a className={`newsdesk-priority-story newsdesk-priority-story--${variant}${art ? " has-art" : ""}`} href={newsArticlePath(item)} {...inApp ? {
+  return <a className={`newsdesk-priority-story newsdesk-priority-story--${variant}${art ? " has-art" : ""}`} href={newsArticlePath(item, language)} {...inApp ? {
     onClick: interceptNav(() => onOpen(item))
   } : {
     target: "_blank",
@@ -148,7 +148,7 @@ export function NewsDeskRow({
   const [imgOk, setImgOk] = React.useState(true);
   React.useEffect(() => setImgOk(true), [item.image_url]);
   const art = Boolean(item.image_url) && imgOk;
-  return <a className={`newsdesk-row${art ? " has-art" : ""}`} href={newsArticlePath(item)} {...inApp ? {
+  return <a className={`newsdesk-row${art ? " has-art" : ""}`} href={newsArticlePath(item, language)} {...inApp ? {
     onClick: interceptNav(() => onOpen(item))
   } : {
     target: "_blank",
