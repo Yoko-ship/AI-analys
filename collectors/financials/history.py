@@ -97,6 +97,12 @@ def backfill_quote_history(months: int = 12) -> int:
     for a per-security series: once, paced, for every listed code — not once per
     ticker every time somebody opens a page, which is the cost this whole table
     exists to remove.
+
+    The conclusions are the exchange's own daily figures, so the store ranks
+    them above a session rebuilt from executions (QUOTE_SOURCE_OFFICIAL): a run
+    over a span replaces rebuilt closes and turnovers with the official ones and
+    fills the sessions the store never saw. The daily collector runs it over the
+    last HISTORY_RECONCILE_MONTHS; ``--backfill-history 13`` repairs a year.
     """
     from collectors.openinfo.transport import _make_session
     from collectors.openinfo.market import fetch_price_history

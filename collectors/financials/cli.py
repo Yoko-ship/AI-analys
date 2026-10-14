@@ -497,6 +497,24 @@ def main() -> int:
 
             rc_status = rc_status or 1
 
+    # The daily-close store reconciled with the exchange's own daily conclusions
+    # for the recent past. The store is the one history the board, the card and
+    # the chart read, so a session it missed (a security outside the universe the
+    # day its page was read, an exchange page that was down) is a session every
+    # surface misses; the conclusions also settle the sessions rebuilt from
+    # executions, which they outrank (catalogue.market_store.QUOTE_SOURCE_*).
+    # Idempotent and cheap — one paced request per security. The full run only:
+    # the intraday quote passes have nothing new for it.
+    reconcile_months = int(os.getenv("HISTORY_RECONCILE_MONTHS", "1") or 0)
+    if reconcile_months > 0 and not (args.no_trades or args.no_push or args.trades_only
+                                     or args.facts_only or args.listings_only):
+        try:
+            rc_status = collectors_financials_history.backfill_quote_history(
+                reconcile_months) or rc_status
+        except Exception:
+            collectors_financials_settings.log.exception("history reconcile step failed")
+            rc_status = rc_status or 1
+
 
 
     if not (args.no_facts or args.no_push or args.trades_only or args.listings_only):

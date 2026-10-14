@@ -330,6 +330,15 @@ python collector_financials.py --gov-auctions-only # only ГЦБ auctions + key 
 python collector_financials.py --bank-fx-only # only commercial-bank exchange rates (~5 s)
 ```
 
+The full run also reconciles the daily-close store (`catalog_quote_history`, the
+one price history the board, the company card and the chart read) with the
+exchange's own daily conclusions for the last `HISTORY_RECONCILE_MONTHS` (default
+1; `0` disables). Those figures outrank sessions rebuilt from executions, so the
+pass both fills sessions the store missed and replaces rebuilt closes. To repair a
+whole year at once — after a deploy that changes how the store is written, or
+when `/api/market/audit` reports stored closes that disagree with the exchange's
+reference — run `python collector_financials.py --backfill-history 13` once.
+
 The ГЦБ step reads the Central Bank's fiscal-agent page (auction results: tenor,
 maturity, placed volume, weighted-average rate) and the key rate from the front
 page. Auctions are monthly, the read is cheap, and re-pushing what prod already

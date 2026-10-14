@@ -1,6 +1,7 @@
 import { prepareMarketRows } from "../../lib/marketData.js";
 import React from "react";
-import { CHART_RANGES, QC_COLORS, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff, chartRangeMonths, chartRangeSpan, quickComparePeers } from "../../shared/priceChartModel.jsx";
+import { CHART_RANGES, QC_COLORS, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff, chartRangeMonths, quickComparePeers } from "../../shared/priceChartModel.jsx";
+import { inPeriod, spanChange } from "../../lib/periods.js";
 import { DOWN as LW_DOWN, DOWN_FILL as LW_DOWN_FILL, DOWN_FILL_FAINT as LW_DOWN_FILL_FAINT, UP as LW_UP, UP_FILL as LW_UP_FILL, UP_FILL_FAINT as LW_UP_FILL_FAINT, customFormat as lwCustomFormat, heikinAshi as lwHeikinAshi, ohlcBar as lwOhlcBar, ohlcOk as lwOhlcOk, percentFormat as lwPercentFormat, priceFormatFor as lwPriceFormatFor, syntheticSeries as lwSyntheticSeries, toTime as lwTime, uniqueByTime as lwUniqueByTime } from "../../charts/lwCore.js";
 import { CompanyChartToolIcon, aggregateCompanyPricePoints } from "../../shared/CompanyPriceChart.jsx";
 import { AC_COMPARISON_TYPES, AC_FIN_COLORS, AC_FIN_FIELDS, AC_FIN_MAX, AC_INDICATORS, AC_OHLC_TYPES, AC_SYNTHETIC_TYPES, AC_TYPES, AC_TYPE_ICONS, acFinIsRate, acFinancialAtDates } from "../../shared/advancedChartModel.jsx";
@@ -130,6 +131,8 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
 
   const [history, setHistory] = React.useState(null);
   const [adjustments, setAdjustments] = React.useState([]);
+  // The market's latest session — the day every period ends on (the board's anchor).
+  const [asOf, setAsOf] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
   const [retry, setRetry] = React.useState(0);
@@ -164,7 +167,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
-        if (d.ok) { setHistory(d.points || []); setAdjustments(d.adjustments || []); }
+        if (d.ok) { setHistory(d.points || []); setAdjustments(d.adjustments || []); setAsOf(d.as_of || null); }
         else setFailed(true);
       })
       .catch(() => { if (alive) setFailed(true); })
@@ -296,28 +299,21 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       const lastDay = hourlyBars.length ? String(hourlyBars.at(-1).date).slice(0, 10) : null;
       return lastDay ? hourlyBars.filter((p) => String(p.date).startsWith(lastDay)) : [];
     }
-    let cutoff = chartRangeCutoff(range, daily.at(-1)?.date);
-    // Normally the API request itself enforces month-based presets. Candle
-    // mode deliberately fetches farther back for panning, so reproduce that
-    // preset boundary here before opening the interactive viewport.
-    if (!cutoff && range !== "max") {
-      const spanMonths = chartRangeSpan(range);
-      if (spanMonths) {
-        const d = new Date(daily.at(-1)?.date || Date.now());
-        d.setUTCMonth(d.getUTCMonth() - spanMonths);
-        cutoff = d.toISOString().slice(0, 10);
-      }
-    }
+    // The preset's period, cut by the rule the board uses (lib/periods.js): the
+    // sessions strictly after the cutoff, ending on the market's latest session.
+    // The whole archive is fetched for panning, so the preset boundary is applied
+    // here for every range but «Макс».
+    const cutoff = chartRangeCutoff(range, asOf || daily.at(-1)?.date);
     if (hourlyRange && hourlyBars.length && !peersWanted) {
       // Hourly bars where the bank has them, the settled daily close where it
       // does not. "2026-08-17" < "2026-08-17T10:00" as strings, so one sort holds.
       const covered = new Set(hourlyBars.map((p) => String(p.date).slice(0, 10)));
       const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourlyBars]
         .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      return cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
+      return inPeriod(merged, cutoff);
     }
-    return cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
-  }, [daily, custom, span.from, span.to, range, hourlyRange, sessionRange, hourlyBars, peersWanted]);
+    return inPeriod(daily, cutoff);
+  }, [daily, custom, span.from, span.to, range, hourlyRange, sessionRange, hourlyBars, peersWanted, asOf]);
 
   // A preset defines the view we open with, not a wall around the data: the
   // whole fetched archive stays on the canvas, so a zoomed view can be dragged
@@ -506,9 +502,15 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
     ? { v: marketRow.changeValue, p: marketRow.changePercent } : null;
   // What the VIEW did, which is not what the day did — the reference states
   // both, and on a range button they are different questions.
+  // Measured as the board measures a period (lib/periods.js spanChange): the last
+  // close in view against the last close BEFORE the view, never against the first
+  // close inside it — on a preset that is exactly the board's base, so «за период»
+  // here and the board's column are one number.
   const changeBase = visible && !synthetic ? points.slice(visible.from, visible.to + 1) : rangeWindow;
-  const windowChange = changeBase.length >= 2 && changeBase[0].close > 0
-    ? ((changeBase[changeBase.length - 1].close / changeBase[0].close) - 1) * 100 : null;
+  const windowChange = changeBase.length
+    ? spanChange(daily, changeBase[0].date, changeBase[changeBase.length - 1].date,
+      { fromFirst: !custom && range === "max" })?.pct ?? null
+    : null;
 
   const rangeBar = (
     <div className="ac-ranges">

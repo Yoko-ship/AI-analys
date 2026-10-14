@@ -18,6 +18,7 @@ import {
   finPeriodCoverage,
   finPeriodMonths,
   finRowPeriod,
+  issuerCapComposition,
   marketRowDay,
   normalizeMarketDay,
   previousClose,
@@ -377,5 +378,35 @@ describe("previousClose", () => {
   it("survives a row with no closes at all", () => {
     assert.equal(previousClose({}, "20260807"), null);
     assert.equal(previousClose(undefined, "20260807"), null);
+  });
+});
+
+describe("issuerCapComposition", () => {
+  // /api/market/multiples, 14.10.2026, trimmed to the fields the card reads.
+  const PLST = {
+    value: 97943742000, classes: ["PLST"], excluded_classes: ["PLSTP"],
+    class_inputs: [
+      { ticker: "PLST", price_as_of: "2026-10-13", included_in_issuer_cap: true },
+      { ticker: "PLSTP", price_as_of: "2026-01-08", included_in_issuer_cap: false,
+        limitation_reason: "class price is older than 90 days", exclusion_reason: "inactive_preferred" },
+    ],
+  };
+  const AGBA = { value: 6343339124040, classes: ["AGBA", "AGBAP"], class_inputs: [] };
+
+  it("names the classes summed and the one left out with its price date (PLSTP)", () => {
+    const got = issuerCapComposition(PLST, ["PLST", "PLSTP"]);
+    assert.deepEqual(got.included, ["PLST"]);
+    assert.deepEqual(got.excluded, [{ ticker: "PLSTP", priceAsOf: "2026-01-08",
+      reason: "class price is older than 90 days" }]);
+  });
+
+  it("leaves nothing out when every class is summed (AGBA + AGBAP)", () => {
+    const got = issuerCapComposition(AGBA, ["AGBA", "AGBAP"]);
+    assert.deepEqual(got.included, ["AGBA", "AGBAP"]);
+    assert.deepEqual(got.excluded, []);
+  });
+
+  it("falls back to the issuer's classes when the envelope does not list them", () => {
+    assert.deepEqual(issuerCapComposition({ value: 1 }, ["kfsk", "KFSKP"]).included, ["KFSK", "KFSKP"]);
   });
 });

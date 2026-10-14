@@ -310,7 +310,9 @@ def backfill_day_stats(days: int = 365) -> int:
             failed += 1
             continue
         # Days made only of off-session deals (board T1/NC) are not sessions.
-        sessions = [r for r in ts.aggregate_by_day(isin, trades)
+        # Tagged as rebuilt: the store keeps the exchange's own close and turnover
+        # where it has them, and these only fill the sessions it does not.
+        sessions = [{**r, "source": "executions"} for r in ts.aggregate_by_day(isin, trades)
                     if r.get("trade_count") or r.get("total_qty")]
         rows.extend(sessions)
         if index % 20 == 0:

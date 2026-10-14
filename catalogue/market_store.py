@@ -15,6 +15,9 @@ import os
 import re
 
 
+logger = logging.getLogger(__name__)
+
+
 _TRADE_STAT_KEYS = ("total_value", "total_qty", "trade_count", "avg_price",
                     "largest_qty", "largest_value", "largest_pct_value", "largest_pct_qty")
 
@@ -112,6 +115,9 @@ def trade_stats_as_history(rows: list[dict], trade_date: str | None = None) -> l
         out.append({
             "isin": isin,
             "trade_date": day,
+            # Rebuilt from executions: it fills a session the exchange's own
+            # figures have not reached yet and never overrides them.
+            "source": "executions",
             "close_price": r.get("close_price"),
             "quantity": r.get("total_qty"),
             "turnover": r.get("total_value"),
@@ -210,8 +216,85 @@ def bulk_upsert_quotes(rows: list[dict]) -> int:
 _QUOTE_HISTORY_COLS = ("close_price", "change_value", "quantity", "turnover")
 
 
-_QUOTE_HISTORY_DETAIL_COLS = ("open_price", "high_price", "low_price",
-                              "trade_count", "largest_value", "largest_qty")
+_QUOTE_HISTORY_RANGE_COLS = ("open_price", "high_price", "low_price")
+
+
+_QUOTE_HISTORY_DETAIL_COLS = ("trade_count", "largest_value", "largest_qty")
+
+
+# Who may set a session's figures, highest first. The store has three writers and
+# they do not see a session the same way:
+#
+#   OFFICIAL  — the exchange's own daily figures: the uzse.uz quote page's settled
+#               history and openinfo's daily conclusions (the two agree on every
+#               session since August 2026, 2 800+ of them, ties included);
+#   EXECUTIONS — a session rebuilt from its individual executions (the day
+#               statistics, live or backfilled from openinfo's trade archive).
+#
+# A rebuilt session is a fine stand-in until the official one lands, and never a
+# replacement for it: the archive carries no execution ids or order, so when one
+# order sweeps several price levels in the same millisecond the "last trade" is
+# whichever row it happened to list last. Under last-write-wins the year-long
+# day-statistics backfill overwrote the official close in 541 sessions of 60
+# securities (AGMKP 13.10.2025: 8 800 against the exchange's 8 701,01) and the
+# official turnover in a quarter of the sessions it touched — which is why the
+# board and the company card, reading the same exchange, described different
+# years. A writer may now replace a figure only at or above the rank of the one
+# that set it; a lower one only fills what is still empty.
+QUOTE_SOURCE_OFFICIAL = 2
+QUOTE_SOURCE_EXECUTIONS = 1
+
+
+def quote_history_source(row: dict) -> int:
+    """The rank of the writer a quote-history row came from.
+
+    Explicit ``source="executions"`` marks a rebuilt session; so does the
+    executions aggregate's own shape (``total_value`` / ``total_qty``), so a
+    collector built before the tag existed cannot pass its rebuilt sessions off
+    as official ones.
+    """
+    if str(row.get("source") or "").lower() == "executions":
+        return QUOTE_SOURCE_EXECUTIONS
+    if row.get("total_value") is not None or row.get("total_qty") is not None:
+        return QUOTE_SOURCE_EXECUTIONS
+    return QUOTE_SOURCE_OFFICIAL
+
+
+def _price_or_none(value: float | None) -> float | None:
+    """A price that is not positive is a source's placeholder, never a price."""
+    return value if value is not None and value > 0 else None
+
+
+def close_outside_range(close: float | None, low: float | None, high: float | None) -> bool:
+    """True when a row's close lies outside its own session's low–high.
+
+    A close is a trade of that session, so it cannot. openinfo's conclusions for
+    21.04.2026 carried a close of 0 for 25 securities and UZTL's previous close
+    (2 400) beside a session that traded only at 2 880 — the only rows out of
+    13 676 in a year of the archive that fail this. The tolerance absorbs the
+    archive's single-precision lows (8 640,2001953125 beside a close of 8 640,2).
+    """
+    if close is None or low is None or high is None or low > high:
+        return False
+    tol = max(0.01, abs(high) * 1e-6)
+    return close < low - tol or close > high + tol
+
+
+def _merge_quote_rows(old: list[Any], new: list[Any]) -> list[Any]:
+    """The ON CONFLICT rule below, for two rows of one session in one batch."""
+    out = list(old)
+    groups = ((range(2, 6), 12), (range(6, 9), 13))
+    for cols, rank_at in groups:
+        new_rank, old_rank = new[rank_at] or 0, old[rank_at] or 0
+        for i in cols:
+            if new_rank >= old_rank:
+                out[i] = new[i] if new[i] is not None else old[i]
+            else:
+                out[i] = old[i] if old[i] is not None else new[i]
+        out[rank_at] = new_rank if new_rank >= old_rank else old_rank
+    for i in range(9, 12):
+        out[i] = new[i] if new[i] is not None else old[i]
+    return out
 
 
 def bulk_upsert_quote_history(rows: list[dict]) -> int:
@@ -227,9 +310,14 @@ def bulk_upsert_quote_history(rows: list[dict]) -> int:
     same session legitimately arrives twice in a run — a security read once for
     its live quote and again for a settled row lands both.
 
-    A real value wins over an older one on a repeated session, deliberately: a
-    row read mid-session is provisional and a later read of the same day is
-    strictly more settled. A NULL never wins — see the ON CONFLICT below.
+    Which writer may change a figure is decided by rank, per group of columns —
+    the session figures (close, change, quantity, turnover) and its price range
+    (open, high, low) — see ``QUOTE_SOURCE_OFFICIAL``. Within a rank a real value
+    wins over an older one, deliberately: a row read mid-session is provisional
+    and a later read of the same day is strictly more settled. A NULL never wins.
+    A price that is not positive, or a close outside its own row's low–high, is
+    written as NULL: the source is saying it could not see the price, whatever
+    number it printed.
     """
     def _num(v: Any) -> float | None:
         try:
@@ -255,45 +343,64 @@ def bulk_upsert_quote_history(rows: list[dict]) -> int:
         m = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", s)
         return f"{m.group(3)}{m.group(2)}{m.group(1)}" if m else None
 
+    def _pick(r: dict, key: str, alt: str) -> float | None:
+        return _num(r.get(key) if r.get(key) is not None else r.get(alt))
+
     seen: dict[tuple[str, str], list[Any]] = {}
+    rejected = 0
     for r in rows or []:
         isin = str(r.get("isin") or "").strip().upper()
         day = _day(r.get("trade_date") or r.get("date"))
         if not isin or not day:
             continue
-        seen[(isin, day)] = [isin, day, _num(r.get("close_price") if r.get("close_price") is not None
-                                            else r.get("close")),
-                             _num(r.get("change_value") if r.get("change_value") is not None
-                                  else r.get("change")),
-                             _num(r.get("quantity") if r.get("quantity") is not None
-                                  else r.get("total_qty")),
-                             _num(r.get("turnover") if r.get("turnover") is not None
-                                  else r.get("total_value")),
-                             _num(r.get("open_price") if r.get("open_price") is not None
-                                  else r.get("open")),
-                             _num(r.get("high_price") if r.get("high_price") is not None
-                                  else r.get("high")),
-                             _num(r.get("low_price") if r.get("low_price") is not None
-                                  else r.get("low")),
-                             _num(r.get("trade_count")),
-                             _num(r.get("largest_value")), _num(r.get("largest_qty"))]
+        close = _price_or_none(_pick(r, "close_price", "close"))
+        open_ = _price_or_none(_pick(r, "open_price", "open"))
+        high = _price_or_none(_pick(r, "high_price", "high"))
+        low = _price_or_none(_pick(r, "low_price", "low"))
+        if close_outside_range(close, low, high):
+            close = None
+            rejected += 1
+        session = [close, _pick(r, "change_value", "change"),
+                   _pick(r, "quantity", "total_qty"), _pick(r, "turnover", "total_value")]
+        span = [open_, high, low]
+        rank = quote_history_source(r)
+        row = [isin, day, *session, *span,
+               _num(r.get("trade_count")), _num(r.get("largest_value")), _num(r.get("largest_qty")),
+               rank if any(v is not None for v in session) else 0,
+               rank if any(v is not None for v in span) else 0]
+        key = (isin, day)
+        seen[key] = _merge_quote_rows(seen[key], row) if key in seen else row
+    if rejected:
+        logger.warning("quote history: %d close(s) outside their own session's range "
+                       "written as unknown", rejected)
     if not seen:
         return 0
-    # COALESCE on every column, not last-write-wins: three sources now feed this
+
+    def _ranked(cols: tuple[str, ...], rank: str) -> list[str]:
+        wins = f"excluded.{rank} >= COALESCE(catalog_quote_history.{rank}, 0)"
+        return [f"{c}=CASE WHEN {wins} THEN COALESCE(excluded.{c}, catalog_quote_history.{c}) "
+                f"ELSE COALESCE(catalog_quote_history.{c}, excluded.{c}) END"
+                for c in cols] + [
+                f"{rank}=CASE WHEN {wins} THEN excluded.{rank} "
+                f"ELSE catalog_quote_history.{rank} END"]
+
+    # COALESCE on every column, not last-write-wins: three sources feed this
     # table and each sees a different part of a session — the exchange page has
     # the close and the turnover but no trade count, the day statistics have the
     # count and the largest deal, openinfo's archive has the OHLC. A source
     # writing NULL is saying «I cannot see this», never «this is not there», and
     # under plain last-write-wins the day statistics landing after the page push
-    # would have blanked every close on the board. A real value still always
-    # wins over an older one, which is what settling a provisional session needs.
+    # would have blanked every close on the board.
     assignments = ", ".join(
-        f"{c}=COALESCE(excluded.{c}, catalog_quote_history.{c})"
-        for c in _QUOTE_HISTORY_COLS + _QUOTE_HISTORY_DETAIL_COLS)
+        _ranked(_QUOTE_HISTORY_COLS, "close_rank")
+        + _ranked(_QUOTE_HISTORY_RANGE_COLS, "range_rank")
+        + [f"{c}=COALESCE(excluded.{c}, catalog_quote_history.{c})"
+           for c in _QUOTE_HISTORY_DETAIL_COLS])
+    all_cols = (_QUOTE_HISTORY_COLS + _QUOTE_HISTORY_RANGE_COLS + _QUOTE_HISTORY_DETAIL_COLS
+                + ("close_rank", "range_rank"))
     conn = catalogue_storage.get_catalog_conn()
     try:
         with conn:
-            all_cols = _QUOTE_HISTORY_COLS + _QUOTE_HISTORY_DETAIL_COLS
             conn.executemany(
                 f"""
                 INSERT INTO catalog_quote_history
@@ -342,6 +449,25 @@ def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[di
     # days: a quiet security would otherwise return an empty series and read as
     # "no data" when what it did was not trade.
     return {isin: series[-days:] for isin, series in out.items()}
+
+
+def latest_session_date() -> date | None:
+    """The market's newest stored session — the day every period on the site ends on.
+
+    The board's change columns end on it (not on each security's own last trade,
+    see server/market/routes.py), so the card's window must too: anchored on the
+    reader's calendar instead, a weekend or a holiday moved the card's «1Г» a
+    session away from the board's.
+    """
+    conn = catalogue_storage.get_catalog_conn()
+    try:
+        row = conn.execute("SELECT MAX(trade_date) AS d FROM catalog_quote_history").fetchone()
+    finally:
+        conn.close()
+    stamp = str((row["d"] if row else None) or "")
+    if len(stamp) != 8 or not stamp.isdigit():
+        return None
+    return date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:]))
 
 
 _INTRADAY_COLS = ("open_price", "high_price", "low_price", "close_price",

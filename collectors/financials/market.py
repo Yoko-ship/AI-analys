@@ -285,7 +285,8 @@ def audit_board() -> int:
 
     if not verdict.get("ok"):
 
-        failed = [c["name"] for c in verdict.get("checks") or [] if not c.get("ok")]
+        failed = [c["name"] for c in verdict.get("checks") or []
+                  if not c.get("ok") and c.get("blocking") is not False]
 
         collectors_financials_settings.log.error("the board disagrees with the exchange: %s", ", ".join(failed))
 

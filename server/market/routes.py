@@ -10,6 +10,7 @@ from fastapi import Request
 from fastapi.responses import Response
 from functools import partial
 from market_audit import audit_session
+import market_audit
 from typing import Any
 from typing import Literal
 import asyncio
@@ -82,8 +83,20 @@ async def api_market_audit() -> dict[str, Any]:
     # 13:00 audits a day that is still adding executions, and the two sides are
     # read minutes apart (see market_audit.audit_session).
     today = datetime.now(timezone(timedelta(hours=5))).strftime("%Y%m%d")
-    return http._json_safe(audit_session(stats, quotes, board,
-                                    denylist=settings.BOARD_DENYLIST, today=today))
+    verdict = audit_session(stats, quotes, board, denylist=settings.BOARD_DENYLIST, today=today)
+    # The stored history every period is measured over, checked against the
+    # exchange's own reference per session (market_audit.reference_breaks). It is
+    # reported, not blocking: what it finds is a share-count event to register or
+    # a close the reconcile pass replaces, and neither is fixed by a retry.
+    try:
+        tickers = {str(r.get("isin") or "").upper(): str(r.get("ticker") or "")
+                   for r in board if r.get("isin")}
+        history = await loop.run_in_executor(
+            None, partial(catalogue_market_store.get_quote_history, sorted(tickers), 400))
+        verdict["checks"].append(market_audit.history_check(history, tickers))
+    except Exception:  # noqa: BLE001 — the session verdict stands on its own
+        http.logger.exception("history reference audit failed")
+    return http._json_safe(verdict)
 
 
 @router.get("/api/market/trades")

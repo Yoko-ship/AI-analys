@@ -30,9 +30,11 @@ class TestADayBasedWindowMeasuresDays:
                                      today=TODAY, days=7, code="1w", label="за неделю")
         month = formulas.window_stats(formulas.normalize_points(pts), months=1, today=TODAY)
 
-        assert week["points"] == 8            # inclusive of both ends
-        assert month["points"] == 32           # 09.07 through 09.08: a calendar month
-        assert week["first_date"] == "2026-08-02"
+        # Strictly after the cutoff, as on the board: the session ON the cutoff
+        # (02.08 for the week, 09.07 for the month) is the period's base.
+        assert week["points"] == 7
+        assert month["points"] == 31           # 10.07 through 09.08: a calendar month
+        assert week["first_date"] == "2026-08-03"
 
     def test_the_window_carries_the_name_it_was_asked_for(self):
         """A month's label over a week's numbers is the whole bug."""
@@ -47,8 +49,8 @@ class TestADayBasedWindowMeasuresDays:
         pts = formulas.normalize_points(_points(400, TODAY))
 
         assert formulas.window_stats(pts, months=12, today=TODAY)["code"] == "1y"
-        assert formulas.window_stats(pts, months=12, today=TODAY)["points"] == 366
-        assert formulas.window_stats(pts, months=12, today=TODAY)["first_date"] == "2025-08-09"
+        assert formulas.window_stats(pts, months=12, today=TODAY)["points"] == 365
+        assert formulas.window_stats(pts, months=12, today=TODAY)["first_date"] == "2025-08-10"
 
     def test_a_narrower_window_cannot_report_a_wider_range(self):
         """The range is what a reader checks first — it must shrink with the span."""

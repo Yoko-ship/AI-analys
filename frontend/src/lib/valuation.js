@@ -223,3 +223,31 @@ export function previousClose({ lastPrice, lastTradeDate, closePrice, closeDate 
   if (!normalizeMarketDay(closeDate) && priced(closePrice)) return { price: closePrice, date: null };
   return null;
 }
+
+/**
+ * What an issuer's market cap is the sum of — and what it leaves out, and why.
+ *
+ * The card labelled the issuer figure «все классы: PLST, PLSTP» while the server
+ * had summed PLST alone: PLSTP's last price was 279 days old, past the 90-day
+ * limit, so the class was excluded (`market_cap_issuer.excluded_classes`). A reader
+ * adding the two class caps on the screen got a different number and filed it as
+ * «Кап. эмитента ≠ сумма бумаг» (audit of 12.10.2026). The label must name the
+ * classes actually summed, and the ones left out with the price date that ruled
+ * them out.
+ */
+export function issuerCapComposition(issuerCap, issuerClasses = []) {
+  const upper = (v) => String(v || "").toUpperCase();
+  const summed = Array.isArray(issuerCap?.classes) && issuerCap.classes.length
+    ? issuerCap.classes : (issuerClasses || []);
+  const inputs = Array.isArray(issuerCap?.class_inputs) ? issuerCap.class_inputs : [];
+  const excluded = (Array.isArray(issuerCap?.excluded_classes) ? issuerCap.excluded_classes : [])
+    .map((ticker) => {
+      const input = inputs.find((item) => upper(item?.ticker) === upper(ticker));
+      return {
+        ticker: upper(ticker),
+        priceAsOf: input?.price_as_of || null,
+        reason: input?.limitation_reason || input?.exclusion_reason || null,
+      };
+    });
+  return { included: summed.map(upper), excluded };
+}

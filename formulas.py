@@ -297,24 +297,101 @@ def months_before(day: date, months: int) -> date:
     return date(year, month, min(day.day, (nxt - timedelta(days=1)).day))
 
 
+# Every period the site measures, by the code the API and the interface share.
+# ONE table: the board's change columns, the card's «За период» block, the
+# chart's preset windows and the absolute returns all read their span from
+# here, through :func:`period_cutoff`. Before it existed each surface carried
+# its own spelling — 3М as 91 days on the board, 1Г as 360 on the card, QoQ as
+# 90 in the returns — and a period measured from a weekend or a holiday came
+# out a session apart on two screens (audit of 12.10.2026: 104 board cells).
+# A span is ``{"days": n}``, ``{"months": n}`` (calendar months, see
+# :func:`months_before`), or ``None`` for the year to date.
+PERIOD_SPANS: dict[str, dict[str, int] | None] = {
+    "1w": {"days": 7},
+    "1m": {"months": 1},
+    "3m": {"months": 3},
+    "6m": {"months": 6},
+    "1y": {"months": 12},
+    "3y": {"months": 36},
+    "5y": {"months": 60},
+    "ytd": None,
+}
+
+
+def period_cutoff(span: dict[str, int] | int | None, as_of: date) -> date:
+    """The day a period starts AFTER — the date its base close is taken at or before.
+
+    ``span`` is a :data:`PERIOD_SPANS` value, or a bare day count. YTD (``None``)
+    is measured from the close of 31 December, so a session on 1 January (there
+    is none on this exchange, but the rule must not depend on that) belongs to
+    the year.
+
+    The rule every period obeys, stated once:
+
+    * the BASE is the last close at or before the cutoff — what the security was
+      worth when the period began, whatever weekday or holiday that fell on;
+    * the WINDOW is every session strictly after the cutoff, through ``as_of``.
+
+    So «3М» on 12.10 (a Monday) has its cutoff on Sunday 12.07, its base on
+    Friday 10.07 and its first session on Monday 13.07 — on the board, the card
+    and the chart alike.
+    """
+    if span is None:
+        return date(as_of.year - 1, 12, 31)
+    if isinstance(span, int):
+        return as_of - timedelta(days=span)
+    if span.get("months"):
+        return months_before(as_of, int(span["months"]))
+    return as_of - timedelta(days=int(span.get("days") or 0))
+
+
+def base_point(points: Sequence[dict[str, Any]], cutoff: date) -> dict[str, Any] | None:
+    """The last point at or before ``cutoff`` (points ascending by ``d``) — a period's base."""
+    base = None
+    for p in points:
+        if p["d"] <= cutoff:
+            base = p
+        else:
+            break
+    return base
+
+
+def in_period(points: Sequence[dict[str, Any]], cutoff: date,
+              as_of: date | None = None) -> list[dict[str, Any]]:
+    """The sessions a period is made of: strictly after ``cutoff``, through ``as_of``."""
+    return [p for p in points if p["d"] > cutoff and (as_of is None or p["d"] <= as_of)]
+
+
+def resolve_span(months: int | None = None, days: int | None = None,
+                 code: str | None = None) -> dict[str, int] | None:
+    """The span a request names: a known period code wins, then days, then months."""
+    if code and code in PERIOD_SPANS:
+        return PERIOD_SPANS[code]
+    if days:
+        return {"days": max(1, int(days))}
+    return {"months": max(1, int(months or 1))}
+
+
 def window_slice(points: Sequence[dict[str, Any]], months: int,
-                 today: date | None = None, days: int | None = None) -> list[dict[str, Any]]:
-    """The slice the period button selects.
+                 today: date | None = None, days: int | None = None,
+                 code: str | None = None) -> list[dict[str, Any]]:
+    """The slice the period button selects — :func:`period_cutoff`'s window.
 
-    Calendar months back from today (:func:`months_before`) — the same start
-    ``fetch_price_history`` asks openinfo for, so the window measured here and the
-    series drawn on the chart cannot describe different spans.
+    ``today`` is the period's anchor. The card passes the MARKET's latest
+    session, the same anchor the board's change columns end on, so «1Г» on the
+    card and on the board are one set of sessions; ``date.today()`` is only the
+    fallback for a caller that has no session to anchor on.
 
-    ``days`` overrides that for the two buttons a month cannot express: «1Н» is
-    seven days and YTD is however many have passed since 1 January. The chart
-    already trims to exactly those; without this the card answered «1Н» with a
-    month — twenty-one sessions and a range four times too wide — under a label
-    that said one week.
+    ``code`` names a period from :data:`PERIOD_SPANS` and wins over ``months`` /
+    ``days``; ``days`` covers a span no code names. The window is every session
+    strictly AFTER the cutoff: the session on the cutoff is the period's base,
+    not its first day. Counted inclusively, the card's year on 13.10 began on
+    13.10.2025 while the board's began on 14.10 — one session apart on every
+    security (audit of 13.10.2026, «Число сессий ≠ истории»).
     """
     today = today or date.today()
-    start = (today - timedelta(days=max(1, int(days))) if days
-             else months_before(today, max(1, int(months))))
-    return [p for p in points if p["d"] >= start]
+    cutoff = period_cutoff(resolve_span(months, days, code), today)
+    return in_period(points, cutoff, today)
 
 
 def vwap(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
@@ -353,7 +430,7 @@ def window_stats(points: Sequence[dict[str, Any]], months: int,
     to be named after: the caller says «1w»/«ytd» and the window carries that
     name, so a reader cannot be shown a span under the wrong heading.
     """
-    window = window_slice(points, months, today, days=days)
+    window = window_slice(points, months, today, days=days, code=code)
     code = code or WINDOW_CODES.get(int(months), f"{int(months)}m")
     label = label or WINDOW_LABELS_RU.get(int(months), f"за {int(months)} мес.")
     if not window:
@@ -398,12 +475,7 @@ def _base_point(points: Sequence[dict[str, Any]], target: date,
     A base older than the staleness limit is not a comparison base: the number
     it produces measures a different span than its label claims.
     """
-    base = None
-    for p in points:
-        if p["d"] <= target:
-            base = p
-        else:
-            break
+    base = base_point(points, target)
     if base is None:
         return None, "no_base"
     if (target - base["d"]).days > max_stale_days:
@@ -417,17 +489,24 @@ def _pct_change(last: float, base: float) -> float | None:
     return (last - base) / base * 100.0
 
 
-def returns(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def returns(points: Sequence[dict[str, Any]], as_of: date | None = None) -> dict[str, Any]:
     """M1 / YTD / YOY / QOQ over the FULL history (ТЗ §5).
 
     Computed from every point we hold, never from the loaded slice, so the
     period button cannot move them.
 
     ``m1`` is the one-month horizon the key-stats rail shows next to QoQ (which
-    IS the three-month figure — 90 days — so there is no separate ``m3``). On a
-    market where a security can go a month without an execution it fails often,
-    and failing loudly with ``base_too_stale`` is the point: a 30-day return
-    measured against a quote from 70 days ago is not a 30-day return.
+    IS the three-month figure, so there is no separate ``m3``). On a market
+    where a security can go a month without an execution it fails often, and
+    failing loudly with ``base_too_stale`` is the point: a one-month return
+    measured against a quote from 70 days ago is not a one-month return.
+
+    The horizons are the board's own periods (:data:`PERIOD_SPANS`, calendar
+    months through :func:`period_cutoff`), not day counts: written as 90 days,
+    QoQ on 13.10.2026 was measured from 15.07 while the board's «3М» beside it
+    was measured from 13.07. ``as_of`` is the anchor the horizons count back
+    from — the card passes the market's latest session, the board's own anchor;
+    without it the security's last point is used.
     """
     cfg = thresholds()["returns"]
     max_stale = int(cfg["base_staleness_max_days"])
@@ -436,15 +515,16 @@ def returns(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
         return {"ytd": empty, "yoy": dict(empty), "qoq": dict(empty),
                 "m1": dict(empty)}
     last = points[-1]
+    anchor = max(as_of, last["d"]) if as_of else last["d"]
 
     # YTD — the previous year's closing price. ТЗ §5: when the instrument has
     # no prior-year close, fall back to the first trade of the current year and
     # say so, rather than showing nothing.
-    year_end = date(last["d"].year - 1, 12, 31)
+    year_end = period_cutoff(PERIOD_SPANS["ytd"], anchor)
     base, status = _base_point(points, year_end, max_stale)
     fallback = False
     if base is None:
-        this_year = [p for p in points if p["d"].year == last["d"].year]
+        this_year = [p for p in points if p["d"].year == anchor.year]
         if len(this_year) >= 2:
             base, status, fallback = this_year[0], "ok", True
     if base is None or base is last:
@@ -453,16 +533,16 @@ def returns(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
         ytd = _metric(_pct_change(last["close"], base["close"]), "ok",
                       base_date=base["date"], base_is_fallback=fallback or None)
 
-    def horizon(days: int, name: str) -> dict[str, Any]:
-        target = last["d"] - timedelta(days=days)
+    def horizon(code: str) -> dict[str, Any]:
+        target = period_cutoff(PERIOD_SPANS[code], anchor)
         b, st = _base_point(points, target, max_stale)
         if b is None or b is last:
             return _metric(None, st if b is None else "no_base",
                            note=f"нет сделок около {target.isoformat()}")
         return _metric(_pct_change(last["close"], b["close"]), "ok", base_date=b["date"])
 
-    return {"ytd": ytd, "yoy": horizon(365, "yoy"), "qoq": horizon(90, "qoq"),
-            "m1": horizon(30, "m1")}
+    return {"ytd": ytd, "yoy": horizon("1y"), "qoq": horizon("3m"),
+            "m1": horizon("1m")}
 
 
 def volatility(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
@@ -534,10 +614,11 @@ def day_change(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
                    trades=last.get("trades"))
 
 
-def absolute_metrics(points: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def absolute_metrics(points: Sequence[dict[str, Any]],
+                     as_of: date | None = None) -> dict[str, Any]:
     """The block that must be identical under every period button."""
     return {
-        **returns(points),
+        **returns(points, as_of),
         "volatility": volatility(points),
         "max_day_range": max_day_range(points),
         "day": day_change(points),
@@ -760,7 +841,7 @@ def company_metrics(raw_points: Iterable[dict[str, Any]] | None, months: int = 1
     ma_cfg = thresholds()["moving_average"]
     return {
         "window": window_stats(points, months, today, days=days, code=code, label=label),
-        "absolute": absolute_metrics(points),
+        "absolute": absolute_metrics(points, today),
         "quality": data_quality(points),
         # The chart draws the MA itself (it needs a value per plotted point),
         # so it is told the calendar lengths rather than left to guess them —

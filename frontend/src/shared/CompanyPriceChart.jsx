@@ -1,5 +1,6 @@
 import React from "react";
-import { CHART_RANGES, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff, chartRangeSpan } from "./priceChartModel.jsx";
+import { CHART_RANGES, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff } from "./priceChartModel.jsx";
+import { inPeriod } from "../lib/periods.js";
 import { DOWN as LW_DOWN, DOWN_FILL as LW_DOWN_FILL, DOWN_FILL_FAINT as LW_DOWN_FILL_FAINT, UP as LW_UP, UP_FILL as LW_UP_FILL, UP_FILL_FAINT as LW_UP_FILL_FAINT, calendarMA, customFormat as lwCustomFormat, heikinAshi as lwHeikinAshi, ohlcBar as lwOhlcBar, ohlcOk as lwOhlcOk, percentFormat as lwPercentFormat, priceFormatFor as lwPriceFormatFor, syntheticSeries as lwSyntheticSeries, toTime as lwTime, uniqueByTime as lwUniqueByTime } from "../charts/lwCore.js";
 import { PatternList, PatternMenuItems, applyPatternOverlay, patternKey, patternOverlay, usePatterns } from "./Patterns.jsx";
 import { threshold as cfgThreshold } from "../lib/flags.js";
@@ -110,7 +111,7 @@ const CPC_COMPARISON_TYPES = new Set(["line", "area", "baseline", "columns"]);
 const CPC_SYNTHETIC_TYPES = new Set(["kagi", "point_figure", "renko"]);
 
 function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments, lang, quality, metricsWindows,
-                             ticker, compare, compareLoading, compareTools, onExpand, intraday }) {
+                             ticker, compare, compareLoading, compareTools, onExpand, intraday, asOf }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const [hover, setHover] = React.useState(null);
   const [maOn, setMaOn] = React.useState({ ma20: false, ma50: false });
@@ -199,17 +200,10 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     }).filter((p) => p.close > 0 && p.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const daily = lwUniqueByTime(rawDaily);
 
-    // The endpoint's smallest unit is a month, so 1Н and YTD ask for the
-    // month(s) that contain them and are trimmed here.
-    let cutoff = chartRangeCutoff(range);
-    if (!cutoff && range !== "max") {
-      const spanMonths = chartRangeSpan(range);
-      if (spanMonths) {
-        const d = new Date(daily.at(-1)?.date || Date.now());
-        d.setUTCMonth(d.getUTCMonth() - spanMonths);
-        cutoff = d.toISOString().slice(0, 10);
-      }
-    }
+    // The preset's period by the rule the board uses (lib/periods.js): the
+    // sessions strictly after the cutoff, ending on the market's latest session
+    // (`asOf`, from the price-history response) rather than the reader's clock.
+    const cutoff = chartRangeCutoff(range, asOf || daily.at(-1)?.date);
     // Peer compare stays on daily closes: the peers arrive as daily series.
     // On 1Д the peers are dropped instead — a session of hourly bars has no
     // dates a daily peer series could be sampled on.
@@ -240,9 +234,9 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       const covered = new Set(hourly.map((p) => String(p.date).slice(0, 10)));
       const merged = [...daily.filter((p) => !covered.has(String(p.date).slice(0, 10))), ...hourly]
         .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-      windowed = cutoff ? merged.filter((p) => String(p.date) >= cutoff) : merged;
+      windowed = inPeriod(merged, cutoff);
     } else {
-      windowed = cutoff ? daily.filter((p) => String(p.date) >= cutoff) : daily;
+      windowed = inPeriod(daily, cutoff);
     }
     // Period buttons choose the first view; they do not discard the rest of
     // the daily archive, which stays reachable by dragging.
@@ -267,7 +261,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
     const source = historyNavigation ? aggregateCompanyPricePoints(daily, chartInterval) : windowed;
     const rangeWindow = historyNavigation ? aggregateCompanyPricePoints(windowed, chartInterval) : windowed;
     return { daily, cutoff, hourlyRange, windowed, historyNavigation, source, rangeWindow };
-  }, [history, intraday, range, compare, chartInterval, longIntraday]);
+  }, [history, intraday, range, compare, chartInterval, longIntraday, asOf]);
 
   const { daily, cutoff, windowed, historyNavigation } = model;
   const stepLine = quality ? quality.candles_enabled === false : false;

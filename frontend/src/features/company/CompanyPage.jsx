@@ -39,6 +39,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // Non-empty only for a series that spans a split or a bonus issue — the chart has to
   // say the older prices were restated, or they read as wrong against uzse.uz.
   const [priceAdjustments, setPriceAdjustments] = React.useState([]);
+  // The market's latest session: the chart's preset periods end on it, as the
+  // board's do (lib/periods.js).
+  const [priceAsOf, setPriceAsOf] = React.useState(null);
   // Hourly bars from the exchange's executions log (/api/intraday) — what 1Д
   // draws and what 1Н mixes with daily closes. They stay lazy until one of
   // those ranges is selected; the default annual chart cannot use them.
@@ -219,6 +222,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
         if (d.ok) {
           setPriceHistory(d.points || []);
           setPriceAdjustments(d.adjustments || []);
+          setPriceAsOf(d.as_of || null);
         } else setPriceError(true);
       })
       .catch(() => { if (alive) setPriceError(true); })
@@ -575,7 +579,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
         )}
         {tab === "overview" && (
           <CompanyOverviewTab sec={sec} ticker={ticker} priceHistory={priceHistory} priceLoading={priceLoading}
-            priceAdjustments={priceAdjustments} intraday={intraday}
+            priceAdjustments={priceAdjustments} priceAsOf={priceAsOf} intraday={intraday}
             compare={{
               peers: comparePeers, securitiesMap, selected: compareTickers,
               onToggle: toggleCompare, onClear: clearCompare,
@@ -603,6 +607,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
           <div className="panel" style={{ padding: 24 }}>
             <h3 className="section-heading" style={{ marginBottom: 16 }}>{lang === "ru" ? `История цен — ${ticker}` : `Price History — ${ticker}`}</h3>
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={setPriceRange} lang={lang}
+              asOf={priceAsOf}
               intraday={intraday} quality={metrics?.quality} metricsWindows={metrics?.ma_windows}
               ticker={ticker} compare={compareLines} compareLoading={compareLoading}
               compareTools={{ peers: comparePeers, securitiesMap, selected: compareTickers,

@@ -195,13 +195,111 @@ def audit_session(stats: dict[str, dict], quotes: dict[str, dict], board: list[d
     }
 
 
+# A share-count event moves the exchange's reference by a whole ratio (2, 3, 1.5…);
+# a stored close that merely disagrees with the exchange's own (a tie resolved the
+# other way) moves it by a fraction of one day's corridor. The line between the two
+# is the corridor itself: the exchange limits a session to ±20 % of its reference.
+SHARE_EVENT_MIN_RATIO_DEVIATION = 0.2
+
+
+def reference_breaks(history: dict[str, list[dict]], tickers: dict[str, str],
+                     actions_for=None) -> list[dict[str, Any]]:
+    """Sessions whose exchange reference is not the close stored before them.
+
+    Every session the exchange publishes carries its change, so ``close - change``
+    is the reference the exchange measured that session from — its previous
+    close. In the store that must be the close of the row before (carried-forward
+    rows included: they ARE the exchange's close of a day without trades). Over a
+    year of openinfo's archive the two agree in 13 563 of 13 587 consecutive pairs;
+    every exception is either a session the archive itself lost (21.04.2026) or a
+    reference the exchange RESET — a share-count event:
+
+    * UZTL 21.04.2026: closes 5 760, then 2 880 against a reference of 2 400 —
+      followed by four sessions of exactly +20 % from it;
+    * TRSB / TRSBP 25.08.2026: 16 500 / 190 000 before, references of 8 250 /
+      95 000 after — two for one.
+
+    Unregistered in corporate_actions.py, such an event stays in every period
+    that spans it: the board's «1Г» compares today's price with one in the old
+    unit, and a move across it reads as a 50 % crash or a 200 % rally.
+
+    A move the corridor does not allow is NOT, by itself, an error: ORFI printed
+    573,95 on 27.07.2021 against its previous close of 1 250 from 07.10.2016 —
+    −54 % — and the exchange's own reference that session was that 1 250. It is
+    the reference, not the size of the move, that tells a real print from a
+    broken history.
+
+    A break at a registered event's ex-date by that event's ratio is the event
+    itself and is not listed. ``actions_for(ticker)`` defaults to the register.
+    """
+    if actions_for is None:
+        import corporate_actions
+
+        actions_for = corporate_actions.actions_for
+    out: list[dict[str, Any]] = []
+    for isin, rows in (history or {}).items():
+        ticker = str(tickers.get(isin) or isin)
+        series = sorted((r for r in rows or [] if (_num(r.get("close_price")) or 0) > 0),
+                        key=lambda r: _day(r.get("trade_date")))
+        events = list(actions_for(ticker) or ())
+        for prev, cur in zip(series, series[1:]):
+            change = _num(cur.get("change_value"))
+            if change is None:
+                continue
+            before = _num(prev["close_price"])
+            reference = _num(cur["close_price"]) - change
+            if abs(reference - before) <= max(0.011, abs(before) * 1e-6):
+                continue
+            ratio = before / reference if reference > 0 else None
+            start, end = _day(prev.get("trade_date")), _day(cur.get("trade_date"))
+            factor = 1.0
+            for action in events:
+                if start < str(action.ex_date).replace("-", "") <= end:
+                    factor *= float(action.ratio)
+            if factor != 1.0 and ratio and abs(ratio / factor - 1) <= 0.02:
+                continue
+            out.append({
+                "ticker": ticker, "isin": isin, "date": end, "previous_date": start,
+                "previous_close": before, "reference": round(reference, 6),
+                "ratio": round(ratio, 4) if ratio else None,
+                "kind": ("share_event_suspected"
+                         if ratio is None or abs(ratio - 1) >= SHARE_EVENT_MIN_RATIO_DEVIATION
+                         else "close_disagrees_with_reference"),
+            })
+    return out
+
+
+def history_check(history: dict[str, list[dict]], tickers: dict[str, str],
+                  actions_for=None) -> dict[str, Any]:
+    """The reference-continuity audit as one verdict check (non-blocking).
+
+    Informational, not a reason to fail a collector run: what it finds is a
+    corporate action to verify and register, or a close the reconcile pass
+    (``--backfill-history``) replaces with the exchange's own — neither is fixed
+    by retrying the session.
+    """
+    breaks = reference_breaks(history, tickers, actions_for)
+    events = [b for b in breaks if b["kind"] == "share_event_suspected"]
+    closes = [b for b in breaks if b["kind"] != "share_event_suspected"]
+    check = _check(
+        "history_follows_the_exchange_reference", not breaks,
+        f"every stored session is measured by the exchange from the close stored before it; "
+        f"{len(events)} reference reset(s) look like an unregistered share-count event, "
+        f"{len(closes)} stored close(s) disagree with the exchange's next reference",
+        {f"{b['ticker']} {b['date']} ×{b['ratio']}" for b in events}
+        | {f"{b['ticker']} {b['previous_date']}" for b in closes})
+    check["blocking"] = False
+    check["breaks"] = breaks[:50]
+    return check
+
+
 def format_verdict(verdict: dict[str, Any]) -> str:
     """One log line per check — what a collector run prints when it disagrees."""
     lines = [f"market audit {'OK' if verdict.get('ok') else 'FAILED'} "
              f"for {verdict.get('trade_date')}: {verdict.get('audited')} traded securities, "
              f"{verdict.get('quoted')} quoted, {verdict.get('on_board')} on the board"]
     for check in verdict.get("checks") or []:
-        mark = "ok  " if check.get("ok") else "FAIL"
+        mark = "ok  " if check.get("ok") else ("WARN" if check.get("blocking") is False else "FAIL")
         lines.append(f"  [{mark}] {check['name']}: {check['detail']}"
                      + (f" — {', '.join(check['offenders'])}"
                         f"{' …' if check['offender_count'] > len(check['offenders']) else ''}"

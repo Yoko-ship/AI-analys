@@ -431,6 +431,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
             largest_qty  REAL,
 
+            -- Who set the session figures and the price range: 2 = the exchange's
+
+            -- own daily figures, 1 = rebuilt from executions (market_store's
+
+            -- QUOTE_SOURCE_*). A lower-ranked writer only fills what is empty.
+
+            close_rank   INTEGER,
+
+            range_rank   INTEGER,
+
             updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
 
             PRIMARY KEY (isin, trade_date)
@@ -866,6 +876,11 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         if col not in have_hist:
 
             conn.execute(f"ALTER TABLE catalog_quote_history ADD COLUMN {col} REAL")
+    for col in ("close_rank", "range_rank"):
+
+        if col not in have_hist:
+
+            conn.execute(f"ALTER TABLE catalog_quote_history ADD COLUMN {col} INTEGER")
 
     # The dividend calendar's bond line (coupon payouts). Shipped after the
 

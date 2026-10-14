@@ -40,3 +40,15 @@ def authenticated_reader(monkeypatch):
 
     monkeypatch.setitem(api.app.dependency_overrides, subject_server_auth_access._require_user,
                         lambda: SimpleNamespace(id=1, email="reader@example.test"))
+
+
+@pytest.fixture(autouse=True)
+def no_market_anchor_from_the_real_store(monkeypatch):
+    """Periods end on the market's latest stored session; a test must not read the
+    developer's catalogue for it. Tests about the anchor set their own."""
+    import server.market.history as market_history
+
+    async def no_anchor():
+        return None
+
+    monkeypatch.setattr(market_history, "_market_as_of", no_anchor)

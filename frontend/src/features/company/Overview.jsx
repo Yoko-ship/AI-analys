@@ -9,7 +9,7 @@ import { sectorLabel } from "../../shared/marketCopy.jsx";
 import React from "react";
 import { companyReportPresentation, reportFormLabel } from "../../lib/reportPresentation.js";
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, intraday, priceRange, onRangeChange, lang, infoLoading, registryData, registryLoading, registryError, onRegistryRetry, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
+function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceAsOf, intraday, priceRange, onRangeChange, lang, infoLoading, registryData, registryLoading, registryError, onRegistryRetry, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -27,6 +27,7 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
                 here (`quality`) and how long a moving average is (`ma_windows`);
                 only its numbers stopped being printed. */}
             <CompanyPriceChart history={priceHistory} loading={priceLoading} range={priceRange} onRangeChange={onRangeChange} adjustments={priceAdjustments} lang={lang}
+              asOf={priceAsOf}
               intraday={intraday} quality={priceMetrics?.quality} metricsWindows={priceMetrics?.ma_windows}
               ticker={ticker} compare={compare?.series} compareLoading={compare?.loading} compareTools={compare}
               onExpand={onExpandChart} />

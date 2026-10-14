@@ -3,15 +3,18 @@ from __future__ import annotations
 import server.settings as settings
 
 from datetime import date
-from datetime import timedelta
 from functools import partial
 from typing import Any
 import asyncio
 import formulas
+import logging
 import reports_catalog as catalog_store
 import catalogue.market_store as catalogue_market_store
 import securities_catalog as securities_store
 import time
+
+
+logger = logging.getLogger(__name__)
 
 
 # The periods the board can measure a change over, back from the last settled
@@ -22,23 +25,17 @@ import time
 # 13.07, the base became the first session inside the period, and the audit of
 # 12.10.2026 found 104 cells off by up to 64 points (ALSMP 3М: 191.57 % against
 # 143.53 %). YTD carries no span — its base is the close of 31 December.
+#
+# The spans are not spelled here: they are formulas.PERIOD_SPANS, the one table
+# the card's window, the chart's presets and the absolute returns read too, so a
+# period cannot mean one thing on the board and another a click away.
 MARKET_CHANGE_WINDOWS: dict[str, dict[str, int] | None] = {
-    "1w": {"days": 7}, "1m": {"months": 1}, "3m": {"months": 3},
-    "6m": {"months": 6}, "1y": {"months": 12}, "ytd": None,
+    code: formulas.PERIOD_SPANS[code] for code in ("1w", "1m", "3m", "6m", "1y", "ytd")
 }
 
 
-def window_cutoff(span: dict[str, int] | int | None, as_of: date) -> date:
-    """The date a window's base is taken at or before: ``{"days": n}``, ``{"months":
-    n}``, a bare day count, or ``None`` for the year to date — whose base is the last
-    close of the previous year, so a session on 1 January belongs to the year."""
-    if span is None:
-        return date(as_of.year - 1, 12, 31)
-    if isinstance(span, int):
-        return as_of - timedelta(days=span)
-    if span.get("months"):
-        return formulas.months_before(as_of, int(span["months"]))
-    return as_of - timedelta(days=int(span.get("days") or 0))
+# The board's name for the shared rule — see formulas.period_cutoff.
+window_cutoff = formulas.period_cutoff
 
 
 def _window_change(points: list[dict[str, Any]], span_days: dict[str, int] | int | None,
@@ -67,12 +64,7 @@ def _window_change(points: list[dict[str, Any]], span_days: dict[str, int] | int
     cutoff = window_cutoff(span_days, as_of)
     if cutoff >= as_of:
         return None
-    base = None
-    for p in points:
-        if p["d"] <= cutoff:
-            base = p
-        else:
-            break
+    base = formulas.base_point(points, cutoff)
     last = points[-1]
     if base is None or not base["close"]:
         return None
@@ -113,7 +105,7 @@ def _window_stats(points: list[dict[str, Any]], span_days: dict[str, int] | int 
     cutoff = window_cutoff(span_days, as_of)
     if cutoff >= as_of:
         return None
-    inside = [p for p in points if p["d"] > cutoff]
+    inside = formulas.in_period(points, cutoff)
     traded = [p for p in inside if (p.get("turnover") or 0) > 0 or (p.get("quantity") or 0) > 0]
     if not traded:
         return None
@@ -252,10 +244,20 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
         if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL:
             return hit[1]
         loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(
-            None, partial(fetch_price_history, isin, None, months),
-        )
-        data = await loop.run_in_executor(None, partial(_with_stored_sessions, isin, data))
+        try:
+            data = await loop.run_in_executor(
+                None, partial(fetch_price_history, isin, None, months),
+            )
+        except Exception:  # noqa: BLE001 — the store alone is still the board's answer
+            logger.warning("price archive unreadable for %s; serving the store alone", isin,
+                           exc_info=True)
+            data = None
+        merged = await loop.run_in_executor(
+            None, partial(_with_stored_sessions, isin, data or {"points": [], "adjustments": []},
+                          months))
+        if data is None and not merged.get("points"):
+            raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
+        data = merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
             _HISTORY_CACHE.pop(oldest, None)
@@ -263,39 +265,97 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
         return data
 
 
-def _with_stored_sessions(isin: str, data: dict[str, Any]) -> dict[str, Any]:
-    """The archive, completed by the exchange sessions it has not published yet.
+def _with_stored_sessions(isin: str, data: dict[str, Any],
+                          months: int | None = None) -> dict[str, Any]:
+    """The card's daily history: the board's store, and the archive only where the
+    store does not reach.
 
-    openinfo publishes a session about a day after it closes, while the board's own
-    store has it within the hour. So on the day itself every company card measured
-    its period through YESTERDAY beside a header price from today — the audit of
-    12.10.2026 found 64 cards ending on 09.10, and KFSKP's 5 656,33 «outside» a
-    year's range that simply did not include the session it was struck in. Sessions
-    the store holds AFTER the archive's last date are appended; nothing the archive
-    has is replaced. Only traded sessions: the exchange carries a close forward at
-    zero turnover, and that is not a session the archive would have.
+    The board measures every period from ``catalog_quote_history``; the card, its
+    chart and its «За период» block read openinfo's archive. Two histories of one
+    security disagreed — on 13.10.2026 in 541 sessions of 60 securities (AGMKP on
+    13.10.2025: 8 701,01 on the card, 8 800 on the board, one turnover), and the
+    archive's 21.04.2026 printed a close of 0 for 25 securities, which the card
+    dropped as no session at all: every «1Г» on those cards was one session short
+    of the board's. There is one history now. From the store's first session on,
+    every session is the store's — the same row the board, the sparklines and the
+    session counts read — and the archive answers only for the years before it
+    (the chart's «Макс»). A session the archive has inside that span and the store
+    lacks is a gap in the STORE, which the collector's reconcile pass fills from
+    the same archive (``--backfill-history``); showing it here alone is what made
+    the card and the board describe different years.
+
+    This is also why a session reaches the card the hour it settles: openinfo
+    publishes a day late, the store does not (64 cards ended on 09.10 on 12.10).
+
+    Only traded sessions are drawn: the exchange carries a close forward at zero
+    turnover, and that is not a session. Prices are restated onto today's share
+    exactly as the archive's are (corporate_actions.adjust_history), so the two
+    halves of a series meet in one unit.
     """
-    points = data.get("points") or []
-    last = max((str(p.get("date") or "")[:10] for p in points), default="")
+    import corporate_actions
+
+    points = list(data.get("points") or [])
     try:
-        stored = catalogue_market_store.get_quote_history([isin], 10).get(str(isin).upper()) or []
+        stored = catalogue_market_store.get_quote_history([isin], 3650).get(str(isin).upper()) or []
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
         return data
-    newer = []
-    for r in stored:
-        stamp = str(r.get("trade_date") or "")
-        if len(stamp) != 8 or not stamp.isdigit() or r.get("close_price") is None:
-            continue
-        day = f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}"
-        if day <= last or not ((r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0):
-            continue
-        newer.append({"date": day, "open": r.get("open_price"), "high": r.get("high_price"),
-                      "low": r.get("low_price"), "close": r.get("close_price"),
-                      "change": r.get("change_value"), "trading_volume": r.get("quantity"),
-                      "trading_value": r.get("turnover"), "trade_count": r.get("trade_count")})
-    if not newer:
+    start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
+             if months else "")
+    rows = [r for r in stored
+            if len(str(r.get("trade_date") or "")) == 8 and str(r["trade_date"]).isdigit()
+            and str(r["trade_date"]) >= start]
+    if not rows:
         return data
-    return {**data, "points": [*points, *newer]}
+    covered_from = min(str(r["trade_date"]) for r in rows)
+    covered_from = f"{covered_from[:4]}-{covered_from[4:6]}-{covered_from[6:]}"
+    sessions = []
+    for r in rows:
+        close = formulas.to_number(r.get("close_price"))
+        traded = (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0
+        if close is None or close <= 0 or not traded:
+            continue
+        stamp = str(r["trade_date"])
+        sessions.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}",
+                         "open": r.get("open_price"), "high": r.get("high_price"),
+                         "low": r.get("low_price"), "close": close,
+                         "change": r.get("change_value"), "trading_volume": r.get("quantity"),
+                         "trading_value": r.get("turnover"), "trade_count": r.get("trade_count")})
+    sessions, applied = corporate_actions.adjust_history(sessions, data.get("ticker"), isin)
+    older = [p for p in points if str(p.get("date") or "")[:10] < covered_from]
+    merged = sorted([*older, *sessions], key=lambda p: str(p.get("date") or ""))
+    adjustments = list(data.get("adjustments") or [])
+    known = {a.get("ex_date") for a in adjustments}
+    adjustments.extend(a for a in applied if a.get("ex_date") not in known)
+    return {**data, "points": merged, "adjustments": adjustments,
+            "store_from": covered_from}
+
+
+_MARKET_AS_OF: dict[str, Any] = {"at": 0.0, "value": None}
+
+
+_MARKET_AS_OF_TTL = 60.0
+
+
+async def _market_as_of() -> date | None:
+    """The market's latest stored session — every period's end (see formulas.period_cutoff).
+
+    The board ends its windows here (server/market/routes.py); the card and the
+    chart must end theirs on the same day, or a weekend moves one of them a
+    session. Kept a minute in-process: it changes once a session, and the card
+    asks on every period button. ``None`` when the store cannot say, and the
+    caller falls back to the calendar.
+    """
+    now = time.time()
+    if _MARKET_AS_OF["value"] is not None and now - _MARKET_AS_OF["at"] < _MARKET_AS_OF_TTL:
+        return _MARKET_AS_OF["value"]
+    try:
+        value = await asyncio.get_running_loop().run_in_executor(
+            None, catalogue_market_store.latest_session_date)
+    except Exception:  # noqa: BLE001 — the calendar is the documented fallback
+        logger.warning("market as-of unreadable; periods fall back to today", exc_info=True)
+        return None
+    _MARKET_AS_OF.update(at=now, value=value)
+    return value
 
 
 # Names for the day-based windows. formulas.WINDOW_LABELS_RU is keyed by month

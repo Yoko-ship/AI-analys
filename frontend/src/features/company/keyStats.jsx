@@ -3,6 +3,7 @@ import { formatMarketNumber, formatRatio, safeNumber } from "../../shared/format
 import { avgSharePrice, formatCompactVolume } from "../../shared/marketModel.jsx";
 import { RangeHelpIcon, incompleteIssuerCapAvailability, lossLabel, lossTitle, multipleStatusText, notApplicableTitle, outlierLabel, outlierTitle } from "../../shared/valuationLabels.jsx";
 import { chartRange } from "../../shared/priceChartModel.jsx";
+import { issuerCapComposition } from "../../lib/valuation.js";
 
 // The key-stats rail — what the session did, what the issuer is worth, and on
 // what basis. It sits beside the chart instead of below it because the numbers
@@ -280,9 +281,20 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   }
   if ((mult?.issuer_classes?.length || 0) > 1 && Number.isFinite(capIssuer)
       && (!Number.isFinite(capClass) || Math.abs(capIssuer - capClass) > 1)) {
+    // Name the classes the figure is actually the sum of, and the ones it leaves
+    // out ON the row: «все классы: PLST, PLSTP» over a sum of PLST alone is what
+    // made a reader's own addition disagree with it.
+    const { included, excluded } = issuerCapComposition(mult?.market_cap_issuer, mult.issuer_classes);
+    const without = excluded.map((c) => c.ticker).join(", ");
+    const why = excluded.map((c) => (c.priceAsOf
+      ? `${c.ticker}: ${t("последняя цена", "oxirgi narx", "last price")} ${c.priceAsOf}`
+      : c.ticker)).join("; ");
     put(t("Капитализация эмитента", "Emitent kapitalizatsiyasi", "Issuer market cap"),
-        `${compact(capIssuer)} UZS`,
-        `${t("все классы", "barcha sinflar", "all classes")}: ${mult.issuer_classes.join(", ")}`);
+        <>{compact(capIssuer)} UZS
+          {without ? <span className="co-metric-period"> · {t("без", "siz", "excl.")} {without}</span> : null}
+        </>,
+        `${t("сумма классов", "sinflar yig'indisi", "sum of classes")}: ${included.join(" + ")}`
+        + (why ? `; ${t("не включены", "kiritilmagan", "excluded")} — ${why}` : ""));
   }
   const valuationRows = rows.splice(0, rows.length);
   putMultiple("P/E", mult?.pe, 2, "×", mult?.pe?.base_period || mult?.base_period || undefined);

@@ -1,4 +1,5 @@
 import { sectorOf } from "../lib/sectors.js";
+import { periodCutoff, periodQuery } from "../lib/periods.js";
 
 // ---------------------------------------------------------------------------
 // The auditor's own screen used to live here as AuditAdminPage, authenticated by
@@ -55,35 +56,29 @@ function chartRangeSpan(key) {
 /**
  * The window the METRICS call should measure, as the endpoint understands it.
  *
- * The fetch is in months because that is openinfo's smallest unit, but two
- * buttons are not a whole number of months: «1Н» is seven days and YTD runs
- * from 1 January. Asking for months on those gave the rail a month's figures
- * under a week's label — twenty-one sessions and a range four times too wide.
- * The server takes `days` + a window name for exactly that reason.
+ * By NAME: the server measures a named period with the definition the board's
+ * change columns use (formulas.PERIOD_SPANS), ending on the market's latest
+ * session. The browser used to send a day count for YTD — computed from the
+ * reader's clock and time zone — and nothing for the month buttons, so the card's
+ * window and the board's could start on different days. `1d` has no server-side
+ * name and keeps its day count.
  */
 function chartRangeWindowQuery(key) {
   const r = chartRange(key);
-  if (r.ytd) {
-    const now = new Date();
-    const jan1 = new Date(now.getFullYear(), 0, 1);
-    // eslint-disable-next-line no-restricted-properties -- Calendar-day count for a request, not a price.
-    return `&days=${Math.max(1, Math.round((now - jan1) / 86400000))}&window=ytd`;
-  }
-  return r.days ? `&days=${r.days}&window=${r.key}` : "";
+  return periodQuery(r.key, r.days);
 }
 
-/** The first date the view keeps, or null when the whole fetch is shown. */
+/**
+ * The day the range's period starts AFTER (lib/periods.js), or null for «Макс».
+ * The view keeps the points strictly after it — `inPeriod` — and the period's
+ * change is measured from the last close on or before it. `anchorValue` is the
+ * market's latest session (the price-history `as_of`); without it, the reader's
+ * today.
+ */
 function chartRangeCutoff(key, anchorValue = null) {
   const r = chartRange(key);
-  const anchor = anchorValue ? new Date(anchorValue) : new Date();
-  if (Number.isNaN(anchor.getTime())) return null;
-  if (r.ytd) return `${anchor.getUTCFullYear()}-01-01`;
-  if (r.days) {
-    const d = new Date(anchor);
-    d.setUTCDate(d.getUTCDate() - r.days);
-    return d.toISOString().slice(0, 10);
-  }
-  return null;
+  if (r.key === "max") return null;
+  return periodCutoff(r.key, anchorValue || new Date());
 }
 
 /* ── Быстрое сравнение ──────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from functools import partial
 from typing import Any
 import asyncio
+import formulas
 import obs
 import reports_catalog as catalog_store
 import catalogue.market_store as catalogue_market_store
@@ -26,22 +27,26 @@ async def api_company_metrics(ticker: str, months: int = 12,
     The two blocks are the contract: ``window`` follows the period button,
     ``absolute`` never does.
 
-    ``days`` is for the two buttons a month count cannot express — «1Н» is seven
-    days, YTD is however many have passed since 1 January — and ``window`` names
-    the result (``1w`` / ``ytd``). Without them the card answered «1Н» with a
-    month: twenty-one sessions and a range four times too wide, under a label
-    that said one week. Both are computed by formulas.py from one full
-    history fetch, so the card, the market screen and the export cannot each
-    arrive at a different VWAP or a different YTD.
+    ``window`` names the period (``1w`` … ``5y``, ``ytd``); a name the site knows
+    is measured by formulas.PERIOD_SPANS — the definition the board's change
+    columns use — ending on the market's latest session. ``months`` / ``days``
+    remain for a client that does not send a name. Without a week's own span the
+    card answered «1Н» with a month: twenty-one sessions and a range four times
+    too wide, under a label that said one week. Everything is computed by
+    formulas.py from one full history fetch, so the card, the market screen and
+    the export cannot each arrive at a different VWAP or a different YTD.
     """
     from datetime import datetime, timezone
-
-    import formulas
 
     ticker = ticker.upper()
     months = max(1, min(months, 60))
     days = max(1, min(int(days), 3650)) if days else None
     code = str(window).strip().lower()[:12] or None if window else None
+    # A period the site knows by name is measured by the shared definition
+    # (formulas.PERIOD_SPANS) — the board's — whatever months/days came with it.
+    span = formulas.PERIOD_SPANS.get(code) if code else None
+    if span and span.get("months"):
+        months = int(span["months"])
     label = market_history._WINDOW_LABELS_RU.get(code) if code else None
     # ТЗ §12: every number on the card can be replayed step by step under one
     # trace_id — input, decision with its reason, output.
@@ -58,8 +63,13 @@ async def api_company_metrics(ticker: str, months: int = 12,
         data = await market_history._full_history(isin, months=240)
         points = data.get("points") or []
         trace.step("history_fetch", out={"points": len(points)})
+        # The window ends on the MARKET's latest session — the day the board's
+        # change columns end on — so «1Г» here and on the board are one set of
+        # sessions whatever weekday the reader opens the card on.
+        market_as_of = await market_history._market_as_of()
+        trace.step("anchor", out={"as_of": market_as_of.isoformat() if market_as_of else None})
         metrics = formulas.company_metrics(points, months=months, days=days,
-                                           code=code, label=label)
+                                           code=code, label=label, today=market_as_of)
         window, absolute, quality = metrics["window"], metrics["absolute"], metrics["quality"]
         trace.step("window_metrics", out={"code": window["code"], "points": window["points"],
                                           "vwap": window["vwap"].get("value"),
@@ -71,6 +81,7 @@ async def api_company_metrics(ticker: str, months: int = 12,
         return {
             "ok": True, "ticker": ticker, "isin": isin,
             "as_of": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "market_as_of": market_as_of.isoformat() if market_as_of else None,
             "trace_id": trace.trace_id,
             **metrics,
         }
@@ -117,12 +128,16 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
             for p in (data.get("points") or [])
             if p.get("date") and p.get("close") is not None
         ]
+        market_as_of = await market_history._market_as_of()
         # Non-empty only when the series spans a split or a bonus issue: the older prices
         # have been restated onto today's share, so the chart says so rather than let a
         # reader reconcile it against uzse.uz and conclude we are wrong.
         return {
             "ok": True, "ticker": ticker, "isin": isin, "points": points,
             "adjustments": data.get("adjustments") or [],
+            # The day every period ends on (the board's anchor): the chart's preset
+            # windows are cut from it, not from the reader's clock.
+            "as_of": market_as_of.isoformat() if market_as_of else None,
         }
     except Exception as exc:
         http.logger.exception("price-history failed for %s", ticker)

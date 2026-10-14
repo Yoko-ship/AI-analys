@@ -289,14 +289,14 @@ def archive_executions(isin: str, start: str, end: str,
     execution record, per security, and it is the only one that carries
     ``board_id`` for certain — which is what keeps negotiated deals out.
 
-    openinfo duplicates records; identical (datetime, price, quantity) triples
-    are the same trade and are folded together, exactly as the last-trading-day
-    backfill does.
+    Identical (datetime, price, quantity) records are kept: see
+    :func:`without_archive_surplus`.
     """
     from collectors.openinfo.transport import _json_get, _make_session
 
     client = session or _make_session()
     rows: list[dict] = []
+    advertised: int | None = None
     page = 1
     while True:
         try:
@@ -308,19 +308,57 @@ def archive_executions(isin: str, start: str, end: str,
             break
         if not isinstance(payload, dict):
             break
+        advertised = _advertised_count(payload, advertised)
         rows.extend(payload.get("results") or [])
         if not payload.get("has_next"):
             break
         page += 1
+    return without_archive_surplus(rows, advertised, label=f"{isin} {start}..{end}")
+
+
+def _advertised_count(payload: dict, known: int | None) -> int | None:
+    try:
+        count = int(payload.get("count"))
+    except (TypeError, ValueError):
+        return known
+    return count if known is None else max(known, count)
+
+
+def without_archive_surplus(rows: list[dict], advertised: int | None,
+                            label: str = "") -> list[dict]:
+    """The archive's executions, less only the rows it served beyond its own count.
+
+    openinfo's trade archive carries no execution id, and one order that sweeps
+    several resting orders at one price prints several records identical in
+    every visible field — each of them a real fill. Folding identical
+    (datetime, price, quantity) records as duplicates dropped those fills: ORFI's
+    27.07.2021 session is two fills of 46 172 373 shares that the exchange's
+    conclusion counts as 92 344 746, and over a sample of 95 sessions the archive
+    held 194 such records while its unfolded sum matched the official turnover in
+    88. The rebuilt sessions came out short in a quarter of the year's sessions.
+
+    The archive does occasionally list one record twice (09.10.2026: count 7 334,
+    rows 7 335, one BECMP execution repeated), and its own ``count`` is what
+    says so. Only that surplus is removed — later repeats of an identical record,
+    never more of them than the count is over by.
+    """
+    out = list(rows or [])
+    if advertised is None or len(out) <= advertised:
+        return out
+    surplus = len(out) - advertised
     seen: set = set()
-    out: list[dict] = []
-    for x in rows:
+    kept: list[dict] = []
+    for x in out:
         key = (x.get("trade_datetime"), x.get("trade_price"), x.get("trade_quantity"))
-        if key in seen:
+        if key in seen and surplus > 0:
+            surplus -= 1
             continue
         seen.add(key)
-        out.append(x)
-    return out
+        kept.append(x)
+    if surplus:
+        logger.warning("archive executions %s: %d record(s) beyond the archive's count "
+                       "and no repeated record to account for them", label, surplus)
+    return kept
 
 
 def aggregate_by_day(isin: str, trades: list[dict]) -> list[dict[str, Any]]:
@@ -346,8 +384,8 @@ def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, An
     same execution records for any past date, filtered by ISIN).
 
     ``targets``: [(isin, last_trade_date)] with the date as YYYY-MM-DD or
-    YYYYMMDD. openinfo duplicates execution records — identical
-    (datetime, price, qty) triples are the same trade and are deduped.
+    YYYYMMDD. Identical records are separate fills unless the archive served
+    more than its count — see :func:`without_archive_surplus`.
     """
     from collectors.openinfo.transport import _json_get, _make_session
     session = _make_session()
@@ -358,6 +396,7 @@ def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, An
             continue
         iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
         rows: list[dict] = []
+        advertised: int | None = None
         page = 1
         while True:
             try:
@@ -367,18 +406,13 @@ def backfill_last_day_stats(targets: list[tuple[str, str]]) -> list[dict[str, An
             except Exception:  # noqa: BLE001
                 payload = None
             results = (payload.get("results") or []) if isinstance(payload, dict) else []
+            if isinstance(payload, dict):
+                advertised = _advertised_count(payload, advertised)
             rows.extend(results)
             if not (isinstance(payload, dict) and payload.get("has_next")):
                 break
             page += 1
-        seen: set = set()
-        lst = []
-        for x in rows:
-            key = (x.get("trade_datetime"), x.get("trade_price"), x.get("trade_quantity"))
-            if key in seen:
-                continue
-            seen.add(key)
-            lst.append(x)
+        lst = without_archive_surplus(rows, advertised, label=f"{isin} {iso}")
         if lst:
             out.append(_aggregate(isin, lst, d))
     return out
