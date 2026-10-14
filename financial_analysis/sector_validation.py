@@ -58,7 +58,8 @@ def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=N
         data_quality.append({"code": "SOURCE_NOT_VERIFIED", "severity": "blocking", "message": financial_analysis_sector_language.tr(lang, "Нет ссылки на исходный документ.", "Asl hujjat havolasi yo‘q.", "The source document link is missing.")})
     capital = financial_analysis_sector_calculations.capital_analysis(values, opening)
     quality = financial_analysis_sector_calculations.profit_quality(values, previous)
-    computed_ratios = financial_analysis_sector_calculations.enterprise_ratios(lines, org, standard, period, methods=snapshot.get("formula_methods"))
+    computed_ratios = (financial_analysis_sector_calculations.enterprise_ratios(lines, org, standard, period, methods=snapshot.get("formula_methods"))
+                       or financial_analysis_sector_calculations.financial_ratios(values, previous, opening, org, standard, period))
     for item in computed_ratios:
         disclosed = financial_analysis_sector_numbers.decimal((snapshot.get("reported_ratios") or {}).get(item["metric"]))
         if item["unit"] == "percent" and disclosed is not None and item["raw_result"] is not None and abs(disclosed - financial_analysis_sector_numbers.decimal(item["raw_result"])) > Decimal("0.1"):

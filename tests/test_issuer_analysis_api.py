@@ -385,7 +385,9 @@ def test_bank_report_uses_bank_template_and_never_industrial_liquidity(client):
     assert body["period_basis"] == "cumulative_ytd"
     assert body["balance_check"]["status"] == "passed"
     assert "regulatory_compliance" not in body
-    assert not body["ratios"]
+    # A bank publishes its own indicators, never the enterprise form ratios.
+    assert body["ratios"]
+    assert not {item["metric_code"] for item in body["ratios"]} & {"P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "current_ratio", "quick_ratio", "absolute_liquidity"}
     forbidden = ("cfo", "capex", "fcf", "current ratio", "коэффициент текущей ликвидности", "валовая маржа", "cet1", "lcr", "regulatory_compliance")
     assert not any(token in body["text"].lower() for token in forbidden)
 

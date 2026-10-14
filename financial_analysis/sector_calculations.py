@@ -51,6 +51,91 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
     return results
 
 
+# A financial organization's form carries no enterprise line codes, so its
+# indicators are read from the named lines its own mapping produces.  Each
+# method: numerators, denominators, unit, and which base its prior value has
+# — "opening" for a balance-to-balance share, "previous" for flow-to-flow,
+# None where a flow is divided by a balance and no comparable prior exists.
+# None of these is a central-bank prudential ratio and none carries a
+# benchmark: the filing does not disclose the regulatory components.
+FINANCIAL_METHODS = {
+    "roa": (["net_income"], ["total_assets"], "percent", None),
+    "roe": (["net_income"], ["total_equity"], "percent", None),
+    "equity_to_assets": (["total_equity"], ["total_assets"], "percent", "opening"),
+    "loans_to_deposits": (["loan_portfolio"], ["customer_funds"], "ratio", "opening"),
+    "liquid_to_deposits": (["cash", "central_bank_balances", "due_from_banks"], ["customer_funds"], "percent", "opening"),
+    "loan_reserve_coverage": (["loan_reserves"], ["loan_portfolio"], "percent", "opening"),
+    "cost_to_income": (["operating_expenses"], ["net_revenue_before_operating_expenses"], "percent", "previous"),
+    "provisions_to_net_interest_income": (["credit_loss_provisions"], ["net_interest_income_before_provisions"], "percent", "previous"),
+    "reinsurer_share_of_reserves": (["reinsurer_share_in_reserves"], ["gross_insurance_reserves"], "percent", "opening"),
+    "insurance_reserves_to_liabilities": (["net_insurance_reserves"], ["total_liabilities"], "percent", "opening"),
+}
+
+_BANK_RATIOS = ("roa", "roe", "equity_to_assets", "loans_to_deposits", "liquid_to_deposits",
+                "loan_reserve_coverage", "cost_to_income", "provisions_to_net_interest_income")
+
+# Which indicators each organization type publishes.  Every type the report
+# can publish figures for is either here, enterprise (form line codes), or in
+# RATIOS_NOT_APPLICABLE with the reason — a type missing from all three is
+# how banks went without indicators.
+FINANCIAL_RATIOS = {
+    "bank": _BANK_RATIOS,
+    "microfinance_bank": _BANK_RATIOS,
+    # A microfinance organization takes no deposits.
+    "microfinance": ("roa", "roe", "equity_to_assets", "loan_reserve_coverage", "cost_to_income",
+                     "provisions_to_net_interest_income"),
+    # No loss ratio: the form does not separate claims from premiums earned.
+    "insurance": ("roa", "roe", "equity_to_assets", "reinsurer_share_of_reserves", "insurance_reserves_to_liabilities"),
+}
+
+# Only a result may be negative (a loss).  A negative reserve, cost or balance
+# line is a sign convention the mapping has not resolved — AGBA files its
+# credit-loss estimate negative where every other bank files it positive — so
+# a share built on it is withheld rather than printed as «−539%».
+SIGNED_RATIOS = frozenset({"roa", "roe"})
+
+RATIOS_NOT_APPLICABLE = {
+    "investment_fund_ifrs_annual": "the fund is described by its NAV block",
+    "spv": "an SPV report is blocked until its backing assets are verified",
+}
+
+
+def financial_ratios(values, previous, opening, organization_type, standard, period):
+    results = []
+    for code in FINANCIAL_RATIOS.get(organization_type, ()):
+        numerators, denominators, unit, basis = FINANCIAL_METHODS[code]
+        percent = unit == "percent"
+
+        def measure(data):
+            parts = [financial_analysis_sector_numbers.decimal(data.get(k)) for k in numerators]
+            if code not in SIGNED_RATIOS and any(part is not None and part < 0 for part in parts):
+                return None
+            return financial_analysis_sector_numbers.ratio(
+                financial_analysis_sector_numbers.total(*parts),
+                financial_analysis_sector_numbers.total(*(data.get(k) for k in denominators)), percent)
+
+        value = measure(values)
+        prior = measure({"opening": opening, "previous": previous}[basis]) if basis else None
+        numerator = financial_analysis_sector_numbers.total(*(values.get(k) for k in numerators))
+        denominator = financial_analysis_sector_numbers.total(*(values.get(k) for k in denominators))
+        results.append({"metric": code, "metric_code": code,
+                        "method_id": f"{standard.lower()}-{organization_type}-indicators-1.0:{code}",
+                        "accounting_standard": standard.upper(), "period": period,
+                        "numerator_value": financial_analysis_sector_numbers.number(numerator),
+                        "denominator_value": financial_analysis_sector_numbers.number(denominator),
+                        "component_facts": numerators + denominators,
+                        "formula": f"({' + '.join(numerators)}) / ({' + '.join(denominators)})" + (" * 100" if percent else ""),
+                        "raw_result": str(value) if value is not None else None,
+                        "value": financial_analysis_sector_numbers.number(value),
+                        "display_result": str(value.quantize(Decimal("0.01"))) if value is not None else None,
+                        "opening_value": financial_analysis_sector_numbers.number(prior),
+                        "change_value": financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.difference(value, prior)),
+                        "unit": unit, "benchmark_type": None, "benchmark_min": None, "benchmark_max": None,
+                        "calculation_status": "verified" if value is not None else "missing_or_invalid_components",
+                        "verification_status": "verified" if value is not None else "unavailable"})
+    return results
+
+
 def balance_gate(values, rounding_unit=1):
     assets, equity, liabilities = (financial_analysis_sector_numbers.decimal(values.get(k)) for k in ("total_assets", "total_equity", "total_liabilities"))
     if any(v is None for v in (assets, equity, liabilities)):
