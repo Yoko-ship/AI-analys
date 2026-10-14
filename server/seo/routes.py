@@ -419,14 +419,41 @@ async def _news_page(news_id: str) -> PageMeta | None:
     )
 
 
-async def page_meta(full_path: str) -> PageMeta:
+async def _ai_report_page(ticker: str, meta: PageMeta) -> PageMeta:
+    """A shared AI-report link previews the report's own headline and verdict.
+
+    The page stays the company page (same canonical, nothing new to index);
+    only the card a messenger draws for the link names what was shared.
+    """
+    from issuer_analysis_api import issuer_ai_report
+
+    async def load() -> dict[str, Any] | None:
+        try:
+            return await asyncio.to_thread(issuer_ai_report, ticker, standard="nsbu", period=None,
+                                           scope="separate", lang="ru", summary=True)
+        except Exception:  # unknown issuer, or no analysis yet
+            return None
+
+    report = await _cached(f"ai-report:{ticker}", load)
+    if not report or report.get("status") != "available" or not report.get("headline"):
+        return meta
+    period = f" · {report['period_label']}" if report.get("period_label") else ""
+    meta.title = f"AI-финансовый отчёт {ticker}{period} | {SITE_NAME}"
+    meta.description = _clip(" ".join(filter(None, (report.get("headline"), report.get("verdict_line")))), 300)
+    return meta
+
+
+async def page_meta(full_path: str, query: dict[str, str] | None = None) -> PageMeta:
     path = "/" + (full_path or "").strip("/")
     if path.startswith(_PRIVATE_PREFIXES):
         return PageMeta(noindex=True)
     meta: PageMeta | None = None
     try:
         if path.startswith("/company/"):
-            meta = await _company_page(path[len("/company/"):].split("/")[0].upper())
+            ticker = path[len("/company/"):].split("/")[0].upper()
+            meta = await _company_page(ticker)
+            if meta is not None and (query or {}).get("report") == "ai":
+                meta = await _ai_report_page(ticker, meta)
         elif path.startswith("/bond/"):
             meta = await _bond_page(path[len("/bond/"):].split("/")[0].upper())
         elif path.startswith("/chart/"):

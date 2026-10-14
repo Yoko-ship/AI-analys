@@ -127,6 +127,23 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     }
   }, [insightReport, insightLoading, insightDetailLoading, ticker, lang]);
 
+  // A shared report link (/company/{T}?report=ai) opens the report itself,
+  // once, as soon as its summary has loaded.
+  const reportLinkPending = React.useRef(companyQuery.get("report") === "ai");
+  React.useEffect(() => {
+    if (!reportLinkPending.current || insightLoading || !insightReport) return;
+    reportLinkPending.current = false;
+    openInsight();
+  }, [insightReport, insightLoading, openInsight]);
+  // The address bar follows the dialog, so the page's own URL shares the same view.
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    if ((url.searchParams.get("report") === "ai") === insightOpen) return;
+    if (insightOpen) url.searchParams.set("report", "ai");
+    else url.searchParams.delete("report");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [insightOpen]);
+
   // Every board row, reconciled against the stored day statistics exactly as the
   // market table does it — the watch rail quotes other securities and must quote
   // them the way the board does. Computed here, above the effects, because the

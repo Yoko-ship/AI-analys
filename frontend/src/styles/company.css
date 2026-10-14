@@ -131,6 +131,20 @@
 .company-insight-close:hover { color: var(--text); border-color: var(--border); background: var(--panel); }
 .company-insight-dialog-head { position:sticky; top:-24px; z-index:2; background:var(--bg-2); display: flex; align-items: flex-start; gap: 14px; padding: 12px 54px 20px 0; border-bottom: 1px solid var(--border); }
 .company-insight-dialog-head .company-insight-close { top:4px; right:0; background:var(--bg-2); }
+.company-insight-dialog-head { padding-right: 104px; }
+.company-insight-dialog-head .company-insight-share { right: 48px; }
+.company-insight-share svg { width: 19px; height: 19px; }
+.company-insight-share[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+/* Share panel: copy link, the system sheet, then one tile per messenger. */
+.share-panel { display: grid; gap: 10px; margin: 16px 0 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.share-panel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-panel-copy { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--accent); border-radius: 9px; background: transparent; color: var(--accent); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.share-panel-copy:hover { background: var(--accent); color: #fff; }
+.share-panel-copy svg { width: 16px; height: 16px; }
+.share-panel-channels { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.share-panel-channels a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: 13px; text-decoration: none; }
+.share-panel-channels a:hover { border-color: var(--accent); color: var(--accent); }
+.share-panel-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--border); font-size: 12px; font-weight: 700; }
 .company-insight-dialog-head > div { min-width: 0; }
 .company-insight-dialog-head h2 { margin: 3px 0 4px; font-size: clamp(21px, 3vw, 27px); line-height: 1.2; letter-spacing: -.015em; }
 .company-insight-dialog-head p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.4; }
@@ -212,7 +226,7 @@
   .company-insight-card-copy p { font-size: 14px; line-height: 1.5; }
   .company-insight-action { min-height: 44px; padding: 9px 12px; }
   .company-insight-dialog { width: 100%; height: 100dvh; max-height: none; padding: 24px 18px 20px; border-left: 0; }
-  .company-insight-dialog-head { top:-24px; padding-right: 42px; }
+  .company-insight-dialog-head { top:-24px; padding-right: 92px; }
   .company-insight-dialog-head .company-insight-icon { display: none; }
   .company-insight-report-section > p { margin-left: 0; }
   .company-insight-report-section.is-list > ul { margin-left: 0; }

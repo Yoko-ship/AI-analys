@@ -2,6 +2,7 @@ import { safeHref } from "../../lib/safeHref.js";
 import React, { Suspense } from "react";
 import { ReportAvailability, VerifiedReport } from "../../shared/VerifiedReport.jsx";
 import { createPortal } from "react-dom";
+import { SharePanel, ShareIcon, canShareNatively, shareNatively } from "./Share.jsx";
 
 const COMPANY_INSIGHT_TX = {
   ru: {
@@ -16,6 +17,7 @@ const COMPANY_INSIGHT_TX = {
     generated: "Сформировано AI",
     shortened: "Сокращённый отчёт",
     disclaimer: "Материал основан на публичной отчётности, носит информационный характер и не является инвестиционной рекомендацией.",
+    share: "Поделиться отчётом",
   },
   uz: {
     details: "To‘liq tahlilni ochish",
@@ -29,6 +31,7 @@ const COMPANY_INSIGHT_TX = {
     generated: "AI yordamida tayyorlandi",
     shortened: "Qisqartirilgan hisobot",
     disclaimer: "Material ochiq moliyaviy hisobotlarga asoslangan, faqat ma’lumot uchun berilgan va investitsiya tavsiyasi emas.",
+    share: "Hisobotni ulashish",
   },
   en: {
     details: "Open full analysis",
@@ -42,6 +45,7 @@ const COMPANY_INSIGHT_TX = {
     generated: "Generated with AI",
     shortened: "Shortened report",
     disclaimer: "This material is based on public filings, is for information only, and is not investment advice.",
+    share: "Share report",
   },
 };
 
@@ -112,6 +116,21 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
   const closeRef = React.useRef(null);
   const titleId = `company-insight-title-${String(ticker || "company").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   const bodyId = `${titleId}-body`;
+  const shareId = `${titleId}-share`;
+  const [shareOpen, setShareOpen] = React.useState(false);
+  // The link opens this same report: CompanyPage reads ?report=ai on load.
+  const shareUrl = `${window.location.origin}/company/${encodeURIComponent(ticker)}?report=ai`;
+  const shareTitle = `${tx.title} ${ticker} | UZStock`;
+  const shareText = [`${tx.title} ${ticker}`, companyInsightTeaser(report).headline || report?.headline].filter(Boolean).join(": ");
+  const openShare = () => {
+    // A phone's own share sheet reaches every messenger, Instagram included;
+    // a desktop gets the panel of links.
+    if (canShareNatively() && window.matchMedia?.("(pointer: coarse)").matches) {
+      shareNatively({ url: shareUrl, title: shareTitle, text: shareText }).then((done) => { if (!done) setShareOpen(true); });
+      return;
+    }
+    setShareOpen((value) => !value);
+  };
   const sources = React.useMemo(() => {
     const seen = new Set();
     return (report?.number_references || []).reduce((items, ref) => {
@@ -163,6 +182,8 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
     <div className="company-insight-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <article ref={dialogRef} className="company-insight-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
         <header className="company-insight-dialog-head">
+          <button className="company-insight-close company-insight-share" type="button" onClick={openShare}
+            aria-label={tx.share} title={tx.share} aria-expanded={shareOpen} aria-controls={shareId}><ShareIcon /></button>
           <button ref={closeRef} className="company-insight-close" type="button" onClick={onClose} aria-label={tx.close}>×</button>
           <CompanyInsightIcon />
           <div>
@@ -171,6 +192,7 @@ function CompanyInsightDialog({ report, ticker, companyName, lang, onClose }) {
             <p>{companyName}</p>
           </div>
         </header>
+        {shareOpen && <SharePanel id={shareId} url={shareUrl} title={shareTitle} text={shareText} lang={lang} />}
         {report.content_status === "shortened" && <div className="company-insight-status">{tx.shortened}</div>}
         {sources.length > 0 && (
           <section className="company-insight-sources" aria-label={tx.sources}>

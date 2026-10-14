@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import Depends
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import HTMLResponse
@@ -147,7 +148,7 @@ async def index() -> Response:
     return await _spa_shell("")
 
 
-async def _spa_shell(full_path: str) -> Response:
+async def _spa_shell(full_path: str, query: dict[str, str] | None = None) -> Response:
     """The SPA shell, filled with this URL's title, meta tags and a text snapshot.
 
     Crawlers read the snapshot; React replaces it on its first render (see
@@ -157,7 +158,7 @@ async def _spa_shell(full_path: str) -> Response:
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend is not built yet")
     try:
-        page = seo.render(seo.template(index_path), await seo.page_meta(full_path))
+        page = seo.render(seo.template(index_path), await seo.page_meta(full_path, query))
     except Exception:
         http.logger.warning("seo: serving the bare shell for /%s", full_path, exc_info=True)
         return FileResponse(index_path, media_type="text/html; charset=utf-8",
@@ -230,7 +231,7 @@ http.logger.info("api: %d routes also served under /api/v2", API_V2_ROUTES)
 
 
 @app.get("/{full_path:path}")
-async def spa_fallback(full_path: str) -> Response:
+async def spa_fallback(full_path: str, request: Request) -> Response:
     """Serve the SPA shell for client-side routes (/market, /heatmap, /catalog…).
 
     Registered last so real API and static routes match first; unknown /api
@@ -245,7 +246,7 @@ async def spa_fallback(full_path: str) -> Response:
     public_file = _public_file(full_path)
     if public_file is not None:
         return FileResponse(public_file, headers={"Cache-Control": "public, max-age=86400"})
-    return await _spa_shell(full_path)
+    return await _spa_shell(full_path, dict(request.query_params))
 
 
 def _public_file(full_path: str) -> Path | None:

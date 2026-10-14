@@ -214,3 +214,47 @@ def test_slow_snapshot_times_out_but_keeps_filling(monkeypatch):
         return await seo._cached("k", slow)
 
     assert asyncio.run(scenario()) == "value"
+
+
+def _fake_ai_report(monkeypatch, report, calls=None):
+    import issuer_analysis_api
+
+    def ai_report(issuer_id, **kwargs):
+        if calls is not None:
+            calls.append((issuer_id, kwargs))
+        if report is None:
+            raise issuer_analysis_api.HTTPException(status_code=404)
+        return report
+
+    monkeypatch.setattr(issuer_analysis_api, "issuer_ai_report", ai_report)
+
+
+def test_shared_ai_report_link_previews_the_reports_own_headline(tmp_path, monkeypatch):
+    _fake_company(monkeypatch)
+    calls = []
+    _fake_ai_report(monkeypatch, {
+        "ok": True, "status": "available", "period_label": "9 месяцев 2026 года",
+        "headline": "Выручка выросла на 12%, и чистая прибыль увеличилась на 8%.",
+        "verdict_line": "Вердикт: улучшение — растут и выручка, и прибыль."}, calls)
+    html = _client(tmp_path, monkeypatch).get("/company/uztl?report=ai").text
+    assert "<title>AI-финансовый отчёт UZTL · 9 месяцев 2026 года | UZStock</title>" in html
+    assert ('<meta property="og:description" content="Выручка выросла на 12%, и чистая прибыль '
+            'увеличилась на 8%. Вердикт: улучшение — растут и выручка, и прибыль." />') in html
+    # Still the company page for search: one canonical, nothing new indexed.
+    assert '<link rel="canonical" href="https://uzstock.uz/company/UZTL" />' in html
+    assert calls == [("UZTL", {"standard": "nsbu", "period": None, "scope": "separate", "lang": "ru", "summary": True})]
+
+
+def test_report_link_without_an_analysis_keeps_the_company_card(tmp_path, monkeypatch):
+    _fake_company(monkeypatch)
+    _fake_ai_report(monkeypatch, None)
+    html = _client(tmp_path, monkeypatch).get("/company/UZTL?report=ai").text
+    assert "<title>Uztelecom (UZTL) — акции, цена, отчётность, P/E | UZStock</title>" in html
+
+
+def test_plain_company_link_does_not_load_the_analysis(tmp_path, monkeypatch):
+    _fake_company(monkeypatch)
+    calls = []
+    _fake_ai_report(monkeypatch, {"status": "available", "headline": "x"}, calls)
+    _client(tmp_path, monkeypatch).get("/company/UZTL")
+    assert calls == []
