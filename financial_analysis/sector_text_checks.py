@@ -66,8 +66,12 @@ def run(sentences, *, lang, verdict_status, complete, comparison_sources=None):
     failures += [s.text for _, s in body if not s.evaluative and any(word in s.text.lower() for word in vocab.EVALUATIVE_WORDS)]
     checks.append(_check("no_banned_phrases", failures))
 
-    # no_duplicate_sentences: no sentence twice, no line's movement twice.
+    # no_duplicate_sentences: no sentence twice, no line's movement twice,
+    # no line's percent change twice (the headline's percent restated below).
     seen, failures, described = set(), [], {}
+    headline_percents = {code for section, s in sentences if section == "headline" for code in s.percent_codes}
+    failures += [s.text for section, s in body if section != "headline" and s.kind == "trend"
+                 and (s.percent_shown or s.tier == vocab.TIER_MULTIPLE) and any(code in headline_percents for code in s.metrics)]
     for section, s in body:
         for part in _SENTENCE_SPLIT.split(s.text):
             key = re.sub(r"\W+", " ", part.lower()).strip()

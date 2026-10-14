@@ -43,6 +43,7 @@ LABELS = {
     "net_interest_income_after_provisions": ("Чистый процентный доход после оценки кредитных потерь", "Kredit yo‘qotishlarini baholashdan keyingi sof foizli daromad", "Net interest income after the credit-loss estimate"),
     "fee_income": ("Комиссионные доходы", "Komission daromadlar", "Fee and commission income"),
     "fee_expenses": ("Комиссионные расходы", "Komission xarajatlar", "Fee and commission expense"),
+    "other_noninterest_income": ("Другие беспроцентные доходы", "Boshqa foizsiz daromadlar", "Other non-interest income"),
     "fx_income": ("Доходы по валютным операциям", "Valyuta operatsiyalari daromadi", "Foreign-exchange gains"),
     "fx_expenses": ("Расходы по валютным операциям", "Valyuta operatsiyalari xarajati", "Foreign-exchange losses"),
     "ceded_premiums": ("Премии, переданные в перестрахование", "Qayta sug‘urtaga berilgan mukofotlar", "Premiums ceded to reinsurers"),

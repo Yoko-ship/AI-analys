@@ -8,10 +8,10 @@ import re
 VERSION = "sector-analysis-3.0"  # 3.0: six-block text by «AI-анализ отчётности: ТЗ по секторам» (2026-10-12)
 
 
-CALCULATION_VERSION = "nsbu-core-2.1"
+CALCULATION_VERSION = "nsbu-core-2.2"  # 2.2: FX share of pre-tax profit, gross-up flag, leverage floor
 
 
-MAPPING_VERSION = "nsbu-lines-2.2"
+MAPPING_VERSION = "nsbu-lines-2.3"  # 2.3: bank loan book by components, signed provisions, dated comparison column
 
 
 FINANCIAL_TYPES = {"bank", "microfinance_bank", "microfinance", "insurance", "investment_fund_ifrs_annual", "spv"}
@@ -157,6 +157,7 @@ SECTOR_PHRASE_BALANCE_LINES = frozenset({"due_from_banks", "demand_deposits", "s
 SECTOR_PHRASE_FLOW_LINES = frozenset({
     "net_interest_income_before_provisions", "credit_loss_provisions", "net_interest_income_after_provisions",
     "fee_income", "fee_expenses", "ceded_premiums", "insurance_service_cost", "insurance_service_result",
+    "other_noninterest_income",
 })
 
 

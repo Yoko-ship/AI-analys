@@ -5,6 +5,11 @@ text uses (results with the same period a year earlier, the balance with the
 start of the year).  «Улучшение» — no axis worse; «Смешанно» — one axis
 worse; «Ухудшение» — two or three worse; «Требует внимания» — a red flag
 fired whatever the axes say; «Без динамики» — no comparison source at all.
+
+The axes are then held to what the text reports: a bottom line the text
+says fell is never «улучшение», one it says rose never «ухудшение», and a
+fired risk of medium or high materiality — a sentence in «Риски» — caps the
+verdict at «смешанно» and is named in the reason.
 """
 from __future__ import annotations
 
@@ -13,6 +18,7 @@ from decimal import Decimal
 import financial_analysis.sector_vocabulary as vocab
 from financial_analysis.sector_writer import SUBJECTS
 from financial_analysis.sector_writer import FactView
+from financial_analysis.sector_calculations import CLIENT_LIABILITIES
 
 # A move of less than 5% (the «немного» tier and below) is no change in an
 # axis; a share of equity is judged by a shift of 2 percentage points.
@@ -70,6 +76,11 @@ def axes(view):
         result["profitability"] = _trend_state(view.move(profit))
     equity, assets = view.value("total_equity"), view.value("total_assets")
     equity_before, assets_before = view.base("total_equity"), view.base("total_assets")
+    client = CLIENT_LIABILITIES.get(view.filing.template)
+    if client and None not in (assets, assets_before, view.value(client), view.base(client)):
+        # Money held for clients (an exchange's participants) is on both
+        # sides of the balance sheet; the equity share is of the own assets.
+        assets, assets_before = assets - view.value(client), assets_before - view.base(client)
     if None not in (equity, assets, equity_before, assets_before) and assets > 0 and assets_before > 0 \
             and view.basis("total_equity") == "opening":
         shift = equity / assets * 100 - equity_before / assets_before * 100
@@ -136,13 +147,84 @@ def _phrase(view, axis, state, profit_code):
     return vocab.pick(lang, "структура капитала прежняя", "kapital tuzilmasi o‘zgarmagan", "the capital structure is unchanged")
 
 
-def verdict(filing, evidence):
+def bottom_line(view):
+    """The line the verdict reads as «прибыль»: net income, else operating income."""
+    return "net_income" if "net_income" in view.facts else "operating_income" if "operating_income" in view.facts else None
+
+
+def profit_direction(view):
+    """Which way the bottom line moved, as the text words it: up, down or None.
+
+    A move the vocabulary calls «практически не изменилась» (under 1%) is no
+    direction; a narrowed loss is up and a widened one down.
+    """
+    code = bottom_line(view)
+    move = view.move(code) if code else {"kind": "none"}
+    kind = move["kind"]
+    if kind in {"none", "zero_both", "sign_change"}:
+        return None
+    if kind in {"to_profit", "loss_narrowed"}:
+        return "up"
+    if kind in {"to_loss", "loss_widened"}:
+        return "down"
+    direction = move.get("direction")
+    return direction if direction in {"up", "down"} else None
+
+
+# A fired risk, in the four to eight words the verdict line has for it.
+RISK_REASONS = {
+    "net_loss": ("период закрыт с убытком", "davr zarar bilan yopildi", "the period closed at a loss"),
+    "negative_operating_result": ("основная деятельность убыточна", "asosiy faoliyat zararli", "core operations are loss-making"),
+    "net_income_decline": ("прибыль упала более чем на пятую часть", "foyda beshdan biridan ko‘proq kamaydi", "profit fell by more than a fifth"),
+    "operating_income_decline": ("операционная прибыль снижается", "operatsion foyda kamaymoqda", "operating profit is falling"),
+    "revenue_decline": ("выручка упала более чем на пятую часть", "tushum beshdan biridan ko‘proq kamaydi", "revenue fell by more than a fifth"),
+    "profit_quality": ("прибыль во многом валютная", "foyda asosan valyuta hisobidan", "profit comes largely from FX"),
+    "profit_quality_revaluation": ("прибыль во многом из переоценки", "foyda asosan qayta baholashdan", "profit comes largely from revaluation"),
+    "receivables_outpace_revenue": ("дебиторка растёт быстрее выручки", "debitorlik tushumdan tezroq o‘smoqda", "receivables outpace revenue"),
+    "inventories_outpace_revenue": ("запасы растут быстрее выручки", "zaxiralar tushumdan tezroq o‘smoqda", "inventories outpace revenue"),
+    "receivables_against_falling_revenue": ("дебиторка растёт при падении выручки", "tushum kamayganda debitorlik o‘smoqda", "receivables grow as revenue falls"),
+    "inventories_against_falling_revenue": ("запасы растут при падении выручки", "tushum kamayganda zaxiralar o‘smoqda", "inventories grow as revenue falls"),
+    "liabilities_outpace_equity": ("обязательства растут быстрее капитала", "majburiyatlar kapitaldan tezroq o‘smoqda", "liabilities outpace equity"),
+    "claims_outpace_premiums": ("выплаты растут быстрее премий", "to‘lovlar mukofotlardan tezroq o‘smoqda", "claims outpace premiums"),
+    "provisions_offset_by_other_income": ("резервы перекрыты прочими доходами", "zaxiralar boshqa daromadlar bilan yopilgan", "provisions are offset by other income"),
+}
+
+# Which risks keep the verdict from «улучшение»: every risk of medium or high
+# materiality the text reports.  A positive word over a paragraph of risks
+# was the contradiction the audit found in 16 analyses.
+CAPPING_MATERIALITY = frozenset({"medium", "high"})
+
+
+def _risk_reason(view, signal):
+    code = signal["code"]
+    if code == "profit_quality" and view.filing.quality.get("driver") == "unrealized_revaluation":
+        code = "profit_quality_revaluation"
+    if code.endswith("_outpace_revenue") and view.move("revenue").get("direction") == "down":
+        code = code.replace("_outpace_revenue", "_against_falling_revenue")
+    return vocab.pick(view.lang, *RISK_REASONS[code]) if code in RISK_REASONS else None
+
+
+def verdict(filing, evidence, risks=()):
+    """The verdict on the three axes, held to the profit and to the risks.
+
+    ``risks`` are the fired negative signals.  On top of the axes: a fall in
+    the bottom line is never «улучшение», a rise never «ухудшение», and a
+    medium or high risk the text reports caps the verdict at «смешанно» with
+    the risk named in the reason.  Red flags that need attention remain the
+    only way to «требует внимания»; every flag the verdict weighed is listed
+    with its effect.
+    """
     if not filing.publishable:
         return {"status": "no_signal", "reason": None, "axes": {}, "red_flags": []}
+    from financial_analysis.sector_writer import RISK_PRIORITY
     view = FactView(filing, evidence)
     lang = view.lang
     states, profit_code = axes(view)
-    flags = red_flags(view) if filing.publishable else []
+    flags = [{**flag, "effect": "attention"} for flag in red_flags(view)] if filing.publishable else []
+    capping = sorted((s for s in risks if s.get("materiality") in CAPPING_MATERIALITY and s.get("direction", "negative") == "negative"),
+                     key=lambda s: RISK_PRIORITY.index(s["code"]) if s["code"] in RISK_PRIORITY else len(RISK_PRIORITY))
+    caps = [{"code": s["code"], "metric_code": s.get("metric_code"), "materiality": s["materiality"], "effect": "caps_at_mixed",
+             "signal_id": s.get("id")} for s in capping]
     known = {axis: state for axis, state in states.items() if state is not None}
     if flags:
         status = "attention"
@@ -177,4 +259,29 @@ def verdict(filing, evidence):
             reason = (phrase(good[0]) + joint + phrase(worse[0])) if good else phrase(worse[0])
         else:
             reason = vocab.pick(lang, " и ", " va ", " and ").join(phrase(axis) for axis in worse[:2])
-    return {"status": status, "reason": reason, "axes": states, "red_flags": flags}
+        joint = vocab.pick(lang, ", но ", ", ammo ", ", but ")
+        good_phrase = phrase(better[0]) if better else (phrase(same[0]) if same else None)
+        direction = profit_direction(view)
+        if status == "positive" and direction == "down":
+            # ORFI −4.2%: inside the axis's ±5% band, but the text says the
+            # profit fell; «улучшение» beside it contradicts the text.
+            status = "mixed"
+            # The bottom line in the words its own move takes: «прибыль
+            # снижается», «убыток растёт», «получен убыток».
+            falling = _phrase(view, "profitability", "worse", bottom_line(view))
+            positive = [axis for axis in better if axis != "profitability"]
+            lead = phrase(positive[0]) if positive else None
+            reason = (lead + joint + falling) if lead else falling
+        elif status == "negative" and direction == "up":
+            # OHDN +24.9%: revenue and the equity share fell, profit rose.
+            status = "mixed"
+            rising = _phrase(view, "profitability", "better", bottom_line(view))
+            reason = rising + joint + phrase(worse[0])
+        if status == "positive" and capping:
+            # The cap never depends on a phrase: a risk added later without an
+            # entry in RISK_REASONS still holds the verdict at «смешанно».
+            named = next((text for text in (_risk_reason(view, s) for s in capping) if text), None) \
+                or vocab.pick(lang, "в отчёте есть риски", "hisobotda xavflar bor", "the report shows risks")
+            status = "mixed"
+            reason = (good_phrase + joint + named) if good_phrase else named
+    return {"status": status, "reason": reason, "axes": states, "red_flags": flags + caps}

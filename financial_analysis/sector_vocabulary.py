@@ -229,6 +229,26 @@ def signed_change(move, lang):
     return ("+" if move["pct"] > 0 else MINUS) + percent(move["pct"], lang)
 
 
+_MONTHS = {
+    "ru": ("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"),
+    "uz": ("yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"),
+    "en": ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"),
+}
+
+
+def balance_date(iso, lang):
+    """The date a balance stands at, in words: «31 марта 2026 года».
+
+    A year-end balance is the next year's opening one and is named so:
+    2025-12-31 reads «1 января 2026 года», as the comparison «с начала года».
+    """
+    year, month, day = (int(part) for part in str(iso)[:10].split("-"))
+    if (month, day) == (12, 31):
+        year, month, day = year + 1, 1, 1
+    months = _MONTHS.get(lang, _MONTHS["ru"])
+    return pick(lang, f"{day} {months[month - 1]} {year} года", f"{year}-yil {day}-{months[month - 1]}", f"{day} {months[month - 1]} {year}")
+
+
 def near(ratio, target, tolerance=Decimal("0.05")):
     return abs(Decimal(str(ratio)) - target) <= tolerance
 
@@ -340,6 +360,7 @@ NAMES = {
     "interest_income": (("процентные доходы", "процентных доходов", "pl"), "foizli daromadlar", ("interest income", False)),
     "interest_expenses": (("процентные расходы", "процентных расходов", "pl"), "foizli xarajatlar", ("interest expense", False)),
     "noninterest_income": (("непроцентные доходы", "непроцентных доходов", "pl"), "foizsiz daromadlar", ("non-interest income", False)),
+    "other_noninterest_income": (("прочие непроцентные доходы", "прочих непроцентных доходов", "pl"), "boshqa foizsiz daromadlar", ("other non-interest income", False)),
     "noninterest_expenses": (("непроцентные расходы", "непроцентных расходов", "pl"), "foizsiz xarajatlar", ("non-interest expense", False)),
     "net_revenue_before_operating_expenses": (("чистый доход до операционных расходов", "чистого дохода до операционных расходов", "m"), "operatsion xarajatlargacha sof daromad", ("net revenue before operating expenses", False)),
     "operating_expenses": (("операционные расходы", "операционных расходов", "pl"), "operatsion xarajatlar", ("operating expenses", True)),

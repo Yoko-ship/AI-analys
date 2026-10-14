@@ -8,6 +8,28 @@ import financial_analysis.sector_numbers as financial_analysis_sector_numbers
 import financial_analysis.sector_templates as financial_analysis_sector_templates
 
 
+def _period_end(period):
+    text = str(period or "")
+    if not text[:4].isdigit():
+        return None
+    year, quarter = int(text[:4]), int(text[-1]) if "Q" in text else 4
+    return f"{year}-{quarter * 3:02d}-{(31, 30, 30, 31)[quarter - 1]}"
+
+
+def comparison_date(filing, basis):
+    """The date the comparison figure stands at, as the filing's sources say.
+
+    A balance line is compared with the date its comparison column was
+    reconciled to (``opening_date``), 1 January by default — the enterprise
+    form's own column head.  A result is compared with the same period a year
+    earlier and stands at that period's end.
+    """
+    sources = filing.snapshot.get("comparison_sources") or {}
+    if basis == "opening":
+        return sources.get("opening_date") or f"{filing.year - 1}-12-31"
+    return _period_end(filing.snapshot.get("previous_comparable_period"))
+
+
 def collect_evidence(filing: ValidatedFiling):
     facts, by_code = [], {}
     mapping = {key: f"form1:{code}" for code, key in financial_analysis_sector_inputs.FORM1.items()}
@@ -50,6 +72,7 @@ def collect_evidence(filing: ValidatedFiling):
                 "verification_status": "verified" if filing.publishable else "blocked", "confidence": "high" if filing.source_url else "low",
                 "comparison_basis": "opening" if base is filing.opening else "previous",
                 **financial_analysis_sector_numbers.change(value, base.get(key))}
+        fact["previous_date"] = comparison_date(filing, fact["comparison_basis"]) if fact.get("previous") is not None else None
         facts.append(fact)
         by_code[key] = fact
     verified = facts if filing.publishable else []

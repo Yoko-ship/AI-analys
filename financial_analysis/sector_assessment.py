@@ -1,5 +1,6 @@
 """Derive evidence-backed signals, risks and monitoring points."""
 from __future__ import annotations
+from decimal import Decimal
 from financial_analysis.sector_models import ReportEvidence
 from financial_analysis.sector_models import SectorAssessment
 from financial_analysis.sector_models import ValidatedFiling
@@ -11,10 +12,15 @@ import financial_analysis.sector_verdict as financial_analysis_sector_verdict
 import financial_analysis.sector_vocabulary as financial_analysis_sector_vocabulary
 
 
+# Liabilities per sum of equity below which a faster growth of liabilities is
+# no leverage signal (the writer states no ratio below it either).
+LEVERAGE_FLOOR = Decimal("0.1")
+
+
 def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
     signals = []
 
-    def signal(code, keys, direction, actual, prior=None, threshold=0, category="financial"):
+    def signal(code, keys, direction, actual, prior=None, threshold=0, category="financial", **extra):
         signal_facts = [evidence.by_code[k] for k in keys if k in evidence.by_code]
         if not filing.publishable or len(signal_facts) != len(keys) or any(not f.get("source_url") for f in signal_facts):
             return
@@ -24,9 +30,9 @@ def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
                         "value_current": actual, "value_previous": prior, "change_value": financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.difference(actual, prior)),
                         "threshold": threshold, "comparison_change_pct": financial_analysis_sector_numbers.change(actual, prior)["change_pct"],
                         "period_current": filing.period, "period_previous": filing.snapshot.get("previous_comparable_period"),
-                        "materiality": "high" if code in {"net_loss", "net_income_decline", "profit_quality"} else "medium",
+                        "materiality": "high" if code in {"net_loss", "net_income_decline", "profit_quality", "provisions_offset_by_other_income"} else "medium",
                         "evidence_fact_ids": [f["id"] for f in signal_facts], "source_url": filing.source_url,
-                        "verification_status": "verified"})
+                        "verification_status": "verified", **extra})
 
     for code in ("revenue", "net_income", "operating_income"):
         movement = financial_analysis_sector_numbers.change(filing.values.get(code), filing.previous.get(code))
@@ -41,27 +47,42 @@ def assess_filing(filing: ValidatedFiling, evidence: ReportEvidence):
         signal("net_loss", ["net_income"], "negative", financial_analysis_sector_numbers.number(filing.values["net_income"]), financial_analysis_sector_numbers.number(filing.previous.get("net_income")))
     if financial_analysis_sector_numbers.decimal(filing.values.get("operating_income")) is not None and financial_analysis_sector_numbers.decimal(filing.values["operating_income"]) < 0:
         signal("negative_operating_result", ["operating_income"], "negative", financial_analysis_sector_numbers.number(filing.values["operating_income"]), financial_analysis_sector_numbers.number(filing.previous.get("operating_income")))
-    if filing.quality["driver"] != "unknown":
-        keys = ["unrealized_fair_value_gain", "net_income"] if filing.quality["driver"] == "unrealized_revaluation" else ["fx_income", "fx_expenses", "net_income"]
-        signal("profit_quality", keys, "negative", financial_analysis_sector_numbers.number(filing.values.get(keys[0])), threshold="share_of_profit_growth >= 50%")
+    if filing.quality["driver"] == "unrealized_revaluation":
+        signal("profit_quality", ["unrealized_fair_value_gain", "net_income"], "negative",
+               financial_analysis_sector_numbers.number(filing.values.get("unrealized_fair_value_gain")), threshold="share_of_net_income >= 50%")
+    elif filing.quality["driver"] == "FX-driven":
+        signal("profit_quality", ["fx_income", "fx_expenses", "profit_before_tax"], "negative",
+               filing.quality.get("net_fx_result_current"), threshold=f"net_fx_share_of_pretax > {financial_analysis_sector_calculations.FX_SHARE_OF_PRETAX}%",
+               share=filing.quality.get("net_fx_share_of_pretax"))
     if filing.template == "investment_fund_ifrs_annual" and (financial_analysis_sector_numbers.decimal(filing.values.get("dividend_income")) or 0) > 0:
         signal("dividend_income_positive", ["dividend_income"], "positive", financial_analysis_sector_numbers.number(filing.values["dividend_income"]))
     for asset in ("receivables", "inventories"):
         growth, sales = financial_analysis_sector_numbers.change(filing.values.get(asset), filing.opening.get(asset)), financial_analysis_sector_numbers.change(filing.values.get("revenue"), filing.previous.get("revenue"))
         if growth["change_pct"] is not None and sales["change_pct"] is not None and growth["change_pct"] > max(20, sales["change_pct"] + 10):
             signal(f"{asset}_outpace_revenue", [asset, "revenue"], "negative", growth["current"], growth["previous"], "growth exceeds revenue by 10pp")
-    debt_growth = financial_analysis_sector_numbers.change(filing.values.get("total_liabilities"), filing.opening.get("total_liabilities"))
+    debt_growth = financial_analysis_sector_numbers.change(*financial_analysis_sector_calculations.own_liabilities(filing.values, filing.opening, filing.template))
     equity_growth = financial_analysis_sector_numbers.change(filing.values.get("total_equity"), filing.opening.get("total_equity"))
-    if debt_growth["change_pct"] is not None and equity_growth["change_pct"] is not None and debt_growth["change_pct"] > max(3, equity_growth["change_pct"] + 3):
+    # Leverage is a risk only where there is leverage: liabilities of less
+    # than a tenth of equity (the share the text itself calls negligible) do
+    # not «raise the debt load» — URTS's own liabilities, its participants'
+    # money aside, are 2% of its equity.
+    leverage = financial_analysis_sector_numbers.ratio(debt_growth["current"], equity_growth["current"])
+    if debt_growth["change_pct"] is not None and equity_growth["change_pct"] is not None and debt_growth["change_pct"] > max(3, equity_growth["change_pct"] + 3) \
+            and (leverage is None or leverage >= LEVERAGE_FLOOR):
         signal("liabilities_outpace_equity", ["total_liabilities", "total_equity"], "negative", debt_growth["current"], debt_growth["previous"], "growth exceeds equity by 3pp")
     if equity_growth["change_pct"] is not None and equity_growth["change_pct"] > 3:
         signal("equity_growth", ["total_equity"], "positive", equity_growth["current"], equity_growth["previous"], 3)
+    if financial_analysis_sector_calculations.provisions_offset_by_other_income(filing.values):
+        signal("provisions_offset_by_other_income", ["credit_loss_provisions", "other_noninterest_income"], "negative",
+               financial_analysis_sector_numbers.number(filing.values.get("credit_loss_provisions")),
+               financial_analysis_sector_numbers.number(filing.values.get("other_noninterest_income")),
+               threshold=f"other non-interest income within ±{int(financial_analysis_sector_calculations.GROSS_UP_TOLERANCE * 100)}% of provisions")
     claims, premiums = financial_analysis_sector_numbers.change(filing.values.get("insurance_claims"), filing.previous.get("insurance_claims")), financial_analysis_sector_numbers.change(filing.values.get("insurance_premiums"), filing.previous.get("insurance_premiums"))
     if claims["change_pct"] is not None and premiums["change_pct"] is not None and claims["change_pct"] > premiums["change_pct"] + 10:
         signal("claims_outpace_premiums", ["insurance_claims", "insurance_premiums"], "negative", claims["current"], claims["previous"], "growth exceeds premiums by 10pp")
     negatives = [s for s in signals if s["direction"] == "negative"]
     positives = [s for s in signals if s["direction"] == "positive"]
-    outcome = financial_analysis_sector_verdict.verdict(filing, evidence)
+    outcome = financial_analysis_sector_verdict.verdict(filing, evidence, negatives)
     verdict_status, verdict_reason = outcome["status"], outcome["reason"]
     verdict_label = financial_analysis_sector_vocabulary.capital(financial_analysis_sector_vocabulary.pick(filing.lang, *financial_analysis_sector_vocabulary.VERDICT_WORDS[verdict_status])) + (": " + verdict_reason if verdict_reason else "")
     issues, risks = financial_analysis_sector_issues.make_issues(negatives, evidence.by_code, filing.quality, verdict_status, filing.lang, filing.period)

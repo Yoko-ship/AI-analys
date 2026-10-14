@@ -186,6 +186,15 @@ def period_key(period: str) -> tuple[int, int]:
         return (0, 0)
     return int(match.group(1)), int(match.group(2) or 4)
 
+def period_end(period: str) -> str | None:
+    """The date a period's balance sheet stands at: «2026Q1» → 2026-03-31."""
+    year, quarter = period_key(period)
+    if not year:
+        return None
+    if "Q" not in str(period):
+        quarter = 4
+    return date(year, quarter * 3, (31, 30, 30, 31)[quarter - 1]).isoformat()
+
 # Balance lines whose previous-year closing amount is the opening balance.
 OPENING_BALANCE_KEYS = ('total_assets', 'total_equity', 'total_liabilities', 'cash', 'receivables', 'inventories',
                         'current_liabilities', 'fixed_assets', 'construction_in_progress', 'long_term_investments',
@@ -309,6 +318,18 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     annual = series if not is_quarterly else (get_financials_series(ticker, form) if opening_period else {})
     opening_reported = dict((annual or {}).get(opening_period) or {}) if opening_period else {}
     opening = {key: opening_reported[key] for key in OPENING_BALANCE_KEYS if safe_float(opening_reported.get(key)) is not None}
+    # The total assets every filing of the issuer states at its own period
+    # end.  A bank's form prints no date over its comparison column, and banks
+    # fill it with the end of the previous quarter, of the previous year or of
+    # the same quarter a year earlier; matching it to these totals is how the
+    # comparison is dated rather than assumed to be 1 January.
+    balance_history = {}
+    for history in ((annual or {}), (series if is_quarterly else {}) or {}):
+        for key, row in history.items():
+            assets = safe_float((row or {}).get('total_assets'))
+            end = period_end(str(key))
+            if assets is not None and end:
+                balance_history[str(key)] = {'date': end, 'total_assets': assets}
     comparison_sources = {
         'previous_period': previous_period,
         'previous_available': any(safe_float(previous_reported.get(key)) is not None for key in ('revenue', 'net_income')),
@@ -393,7 +414,7 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
             data_quality.append({'code': 'BALANCE_IDENTITY_FAILED', 'severity': 'blocking', 'message': 'Assets do not equal equity plus sector-correct liabilities', 'actual_difference': difference, 'tolerance': tolerance})
     elif selected and values:
         data_quality.append({'code': 'BALANCE_COMPONENTS_MISSING', 'severity': 'warning', 'message': 'The balance identity could not be checked because a component is missing'})
-    payload = {'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name', 'sector', 'isin')}, 'standard': standard, 'template_basis': 'NSBU_PRIMARY' if standard == 'nsbu' else 'IFRS_ANNUAL_SEPARATE', 'organization_type': organization_type, 'sector_template_code': template_code, 'template_version': (SECTOR_TEMPLATES.get(template_code) or {}).get('version'), 'scope': scope, 'period': selected, 'period_basis': period_basis, 'available_periods': available, 'previous_comparable_period': previous_period, 'observations': list(observations.values()), 'source': source, 'current_values': values, 'previous_values': previous, 'opening_values': opening, 'comparison_sources': comparison_sources, 'reviewed_correction_fields': sorted(reviewed_correction_fields), 'scope_verified': (source_doc or {}).get('scope') == scope, 'audited': (source_doc or {}).get('audited') is True}
+    payload = {'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name', 'sector', 'isin')}, 'standard': standard, 'template_basis': 'NSBU_PRIMARY' if standard == 'nsbu' else 'IFRS_ANNUAL_SEPARATE', 'organization_type': organization_type, 'sector_template_code': template_code, 'template_version': (SECTOR_TEMPLATES.get(template_code) or {}).get('version'), 'scope': scope, 'period': selected, 'period_basis': period_basis, 'available_periods': available, 'previous_comparable_period': previous_period, 'observations': list(observations.values()), 'source': source, 'current_values': values, 'previous_values': previous, 'opening_values': opening, 'balance_history': balance_history, 'comparison_sources': comparison_sources, 'reviewed_correction_fields': sorted(reviewed_correction_fields), 'scope_verified': (source_doc or {}).get('scope') == scope, 'audited': (source_doc or {}).get('audited') is True}
     payload['quality'] = {'traceable': all((item['source']['document_id'] for item in observations.values() if item['raw'] is not None)), 'missing_metrics': [code for code, item in observations.items() if item['normalized'] is None], 'verification_status': 'blocked' if any((item['severity'] == 'blocking' for item in data_quality)) else 'verified', 'balance_check': balance_check, 'data_quality': data_quality, 'warnings': (['requested period is unavailable'] if selected and (not values) else []) + ['NSBU and IFRS are separate layers; this response contains only one standard'] + ([insurance_mapping_error] if insurance_mapping_error else [])}
     payload['source_snapshot_hash'] = snapshot_hash(payload)
     return payload

@@ -6,6 +6,7 @@ import re
 import json
 from pathlib import Path
 from copy import deepcopy
+from decimal import Decimal
 from threading import RLock
 
 import sector_analysis as engine
@@ -200,9 +201,16 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             elif len(source_codes) > 1:
                 snapshot["quality"]["data_quality"].append({"code": "CLASSIFICATION_CONFLICT", "severity": "blocking",
                                                            "message": "Source documents contain conflicting OKED codes."})
+            earlier = {}
             if org in {"bank", "microfinance_bank", "microfinance", "insurance"}:
+                catalog_opening = deepcopy(snapshot.get("opening_values") or {})
                 map_special_lines(snapshot, workbook, org)
-            fill_from_earlier_filings(issuer, snapshot, reports, org)
+                if org in BANK_FORMS:
+                    date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, earlier)
+                    _record_missing_key_lines(snapshot, lang, org)
+            fill_from_earlier_filings(issuer, snapshot, reports, org, earlier)
+            if org in BANK_FORMS:
+                _drop_unbalanced_opening(snapshot)
         except Exception as exc:
             logger.warning("Workbook enrichment failed for %s %s", issuer.get("ticker"), selected,
                            exc_info=True)
@@ -292,8 +300,10 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     return report
 
 
-def _earlier_workbook(issuer, reports, period):
+def _earlier_workbook(issuer, reports, period, cache=None):
     """The source workbook of another filing of the same issuer, or None."""
+    if cache is not None and period in cache:
+        return cache[period]
     doc = next((r for r in reports if r.get("period") == period), None)
     if not doc or not (doc.get("excel_url") or doc.get("excel_url_form1")):
         return None
@@ -303,7 +313,83 @@ def _earlier_workbook(issuer, reports, period):
     except Exception:
         logger.warning("Comparison workbook unavailable for %s %s", issuer.get("ticker"), period, exc_info=True)
         return None
-    return deepcopy(workbook) if workbook and workbook.get("ok") else None
+    workbook = deepcopy(workbook) if workbook and workbook.get("ok") else None
+    if cache is not None:
+        cache[period] = workbook
+    return workbook
+
+
+# Forms that print no date over their comparison column (the bank family's
+# quarterly form).  The enterprise and insurance Form №1 heads the column
+# «на начало отчётного периода», which is 1 January by the form itself.
+BANK_FORMS = frozenset({"bank", "microfinance_bank", "microfinance"})
+
+
+def _same_amount(left, right):
+    left, right = financial_analysis_sector_numbers.decimal(left), financial_analysis_sector_numbers.decimal(right)
+    return left is not None and right is not None and abs(left - right) <= max(Decimal(1), abs(right) * Decimal("0.000001"))
+
+
+def year_start_date(period):
+    """The balance date «1 January» stands for: the previous year's end."""
+    year = financials.period_key(period)[0]
+    return f"{year - 1}-12-31" if year else None
+
+
+def date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, cache=None):
+    """Date the comparison column of a bank's balance sheet, or replace it.
+
+    The bank form gives no date for its comparison column and banks fill it
+    differently: AGBA and HMKB with the end of the previous quarter, OCBK with
+    1 January, ORFI with the same quarter a year earlier.  The column is
+    matched against the totals the issuer's own filings state at their period
+    ends; a match dates it.  A column that does not balance (MCBA 2026Q2:
+    assets of one date, liabilities of another) or that no filing dates is
+    not a comparison: the start of the year from the previous annual filing
+    takes its place, as the specification prescribes for a column that does
+    not reconcile.
+    """
+    sources = snapshot.setdefault("comparison_sources", {})
+    period = snapshot.get("period")
+    start = year_start_date(period)
+    opening = snapshot.get("opening_values") or {}
+    if not start:
+        return
+    if not sources.get("opening_from_filing"):
+        sources["opening_date"] = start
+        return
+    filed_assets = opening.get("total_assets")
+    balanced = financial_analysis_sector_calculations.balance_gate(opening).get("status") == "passed"
+    dated = None
+    if balanced:
+        end = financials.period_end(period)
+        known = sorted(((entry.get("date"), entry.get("total_assets")) for entry in (snapshot.get("balance_history") or {}).values()
+                        if entry.get("date") and entry["date"] < end), key=lambda item: item[0] != start)
+        dated = next((date for date, assets in known if _same_amount(filed_assets, assets)), None)
+        if dated is None:
+            annual = _earlier_workbook(issuer, reports, str(financials.period_key(period)[0] - 1), cache)
+            if annual and _same_amount(filed_assets, _filed_lines(annual, org).get("total_assets")):
+                dated = start
+    if dated:
+        sources["opening_date"] = dated
+        return
+    snapshot["opening_values"] = dict(catalog_opening)
+    sources["opening_from_filing"] = False
+    sources["opening_rejected"] = "unbalanced" if not balanced else "undated"
+    sources["opening_date"] = start
+
+
+def _drop_unbalanced_opening(snapshot):
+    """A start-of-year balance that does not balance is no comparison either."""
+    opening = snapshot.get("opening_values") or {}
+    if not opening or any(financial_analysis_sector_numbers.decimal(opening.get(key)) is None
+                          for key in ("total_assets", "total_equity", "total_liabilities")):
+        return
+    if financial_analysis_sector_calculations.balance_gate(opening).get("status") != "passed":
+        sources = snapshot.setdefault("comparison_sources", {})
+        snapshot["opening_values"] = {}
+        sources.update(opening_available=False, opening_rejected="unbalanced", opening_date=None)
+        sources.pop("opening_fallback", None)
 
 
 def _filed_lines(workbook, org):
@@ -321,7 +407,7 @@ def _filed_lines(workbook, org):
     return values
 
 
-def fill_from_earlier_filings(issuer, snapshot, reports, org):
+def fill_from_earlier_filings(issuer, snapshot, reports, org, cache=None):
     """Take a missing comparison from the issuer's other filings.
 
     Results are compared with the same period a year earlier and the balance
@@ -329,7 +415,9 @@ def fill_from_earlier_filings(issuer, snapshot, reports, org):
     comparison column (a bank's one-column income form, a blank or zeroed
     column), the same-period filing of the previous year and the previous
     annual filing supply it.  This applies to every sector; nothing is filled
-    where the filing already states a comparison.
+    where the filing already states a comparison, and a balance compared with
+    another date (the end of the previous quarter) is not completed with
+    start-of-year lines: one balance comparison has one date.
     """
     period = snapshot.get("period")
     if not period or snapshot.get("standard", "nsbu") != "nsbu":
@@ -341,12 +429,14 @@ def fill_from_earlier_filings(issuer, snapshot, reports, org):
     for target, earlier in (("previous_values", snapshot.get("previous_comparable_period")),
                             ("opening_values", str(year - 1) if year else None)):
         balance = target == "opening_values"
+        if balance and sources.get("opening_date") not in (None, year_start_date(period)):
+            continue
         missing = [key for key, value in current.items() if value is not None
                    and financial_analysis_sector_templates.balance_line(key, template) == balance
                    and financial_analysis_sector_numbers.decimal((snapshot.get(target) or {}).get(key)) is None]
         if not missing or not earlier:
             continue
-        workbook = _earlier_workbook(issuer, reports, earlier)
+        workbook = _earlier_workbook(issuer, reports, earlier, cache)
         if not workbook:
             continue
         filed = _filed_lines(workbook, org)
@@ -412,8 +502,13 @@ SPECIAL_LABELS = {
     "net_revenue_before_operating_expenses": (r"^чистый доход до операционных расходов$",),
     # Match the asset line exactly.  A prefix match also captured the bank's
     # liability line "Кредиты и лизинговые операции к оплате" and understated
-    # the loan book by more than half for HMKB.
+    # the loan book by more than half for HMKB.  The form carries the loan
+    # book twice (line 7 and its «г. …, чистые» subtotal) and banks leave
+    # either one blank or fill it with the gross amount; ``_net_loans`` picks
+    # the one that agrees with gross loans and leasing less the reserve.
     "loan_portfolio": (r"^(?:кредиты и лизинговые операции(?:,\s*чистые)?|кредиты клиентам|займы клиентам)$",),
+    "gross_loans": (r"^брутто кредиты$",),
+    "gross_leasing": (r"^лизинговые операции,\s*брутто$",),
     "customer_funds": (r"^(?:средства клиентов|депозиты клиентов)",),
     "demand_deposits": (r"^депозиты до востребования$",),
     "savings_deposits": (r"^сберегательные депозиты$",),
@@ -434,6 +529,9 @@ SPECIAL_LABELS = {
     "fee_expenses": (r"^комиссионные расходы и расходы за услуги$",),
     "fx_income": (r"^прибыль в иностранной валюте$",),
     "fx_expenses": (r"^убытки в иностранной валюте$",),
+    # The non-interest income outside fees, FX and trading: the line against
+    # which a credit-loss charge of the same size reads as a gross-up.
+    "other_noninterest_income": (r"^другие беспроцентные доходы$",),
     "total_assets": (r"^итого активов$",),
     "total_liabilities": (r"^итого обязательств$",),
     "total_equity": (r"^итого собственного капитала$",),
@@ -448,6 +546,121 @@ SPECIAL_LABELS = {
 # Lines without which a bank's balance sheet is not a bank's: a zero here,
 # beside positive assets, is a missed line, never a real amount.
 BANK_CORE_LINES = ("loan_portfolio", "customer_funds", "cash", "central_bank_balances", "total_equity")
+
+
+# Lines without which the bank analysis loses a section; a filing that does
+# not yield one is recorded in data_quality instead of passing in silence.
+BANK_KEY_LINES = ("total_assets", "total_liabilities", "total_equity", "loan_portfolio", "customer_funds",
+                  "interest_income", "net_income")
+
+# «Минус: …» lines are deductions whatever sign the bank typed: ORFI files its
+# loan-loss reserve as −90.6 bn and still nets it out of the loan book.
+DEDUCTION_LINES = frozenset({"loan_reserves"})
+
+
+def _first_filled(found):
+    """The first non-zero amount a key matched, else the first amount.
+
+    A subtotal the bank left at zero («г. Кредиты и лизинговые операции,
+    чистые» at AGBA and INFB) must not hide the filled line above it.
+    """
+    for value, line in found:
+        amount = financial_analysis_sector_numbers.decimal(value)
+        if amount is not None and amount != 0:
+            return value, line
+    return next(((value, line) for value, line in found if value is not None), found[0] if found else (None, None))
+
+
+def _net_loans(found, gross, leasing, reserve):
+    """The net loan book of one column, checked against its components.
+
+    The filed loan lines disagree with each other across banks (AGBA's line 7
+    is net and its «чистые» line gross or zero, OCBK's line 7 is gross, GRBK
+    files leasing only and leaves both totals at zero).  Gross loans plus
+    gross leasing less the reserve is the net book; the filed line that
+    equals it is taken, and without such a line the components themselves.
+    """
+    parts = [financial_analysis_sector_numbers.decimal(item) for item in (gross, leasing)]
+    reserve = financial_analysis_sector_numbers.decimal(reserve)
+    same = lambda a, b: abs(a - b) <= max(Decimal(1), abs(b) * Decimal("0.000001"))
+    if reserve is not None and any(part is not None and part > 0 for part in parts):
+        net = sum(part for part in parts if part is not None) - abs(reserve)
+        if net > 0:
+            for value, line in found:
+                amount = financial_analysis_sector_numbers.decimal(value)
+                if amount is not None and same(amount, net):
+                    return value, line
+            return financial_analysis_sector_numbers.number(net), "balance:gross_loans+gross_leasing-loan_reserves"
+    if reserve:
+        # No gross lines: of two filed totals one reserve apart, the smaller
+        # is the net book (SQBN 2025Q2: line 7 gross, «чистые» net).
+        amounts = [(financial_analysis_sector_numbers.decimal(value), value, line) for value, line in found]
+        for amount, value, line in amounts:
+            if amount and any(other and same(other - abs(reserve), amount) for other, _, _ in amounts):
+                return value, line
+    return _first_filled(found) if found else (None, None)
+
+
+def _resolve_bank_column(found, snapshot=None):
+    """One amount per key for one statement column."""
+    column, lines = {}, {}
+    for key, entries in found.items():
+        if key == "loan_portfolio":
+            continue
+        value, line = _first_filled(entries)
+        if key in DEDUCTION_LINES and financial_analysis_sector_numbers.decimal(value) is not None:
+            value = financial_analysis_sector_numbers.number(abs(financial_analysis_sector_numbers.decimal(value)))
+        column[key], lines[key] = value, line
+    if "loan_portfolio" in found or "gross_loans" in found or "gross_leasing" in found:
+        value, line = _net_loans(found.get("loan_portfolio") or [], column.get("gross_loans"), column.get("gross_leasing"),
+                                 column.get("loan_reserves"))
+        if value is not None or "loan_portfolio" in found:
+            column["loan_portfolio"], lines["loan_portfolio"] = value, line
+    if snapshot is not None:
+        for key, value in column.items():
+            snapshot.setdefault("field_sources", {})[key] = {
+                "source_line_id": lines[key],
+                "raw_current": str(value) if financial_analysis_sector_numbers.decimal(value) is not None else None,
+            }
+    return column
+
+
+def _sign_credit_loss_provisions(income):
+    """Read the credit-loss charge's sign from the form's own arithmetic.
+
+    Line 3 less line 3а is line 3б: a charge when 3б is below 3, a release
+    when above.  Banks type the charge with either sign (AGBA: −3.28 trn with
+    3б = 3 − 3.28 trn), so the sign of the cell says nothing; the identity
+    does.  Without it, or when neither reading reconciles, the filed amount
+    stands.
+    """
+    before = financial_analysis_sector_numbers.decimal(income.get("net_interest_income_before_provisions"))
+    after = financial_analysis_sector_numbers.decimal(income.get("net_interest_income_after_provisions"))
+    charge = financial_analysis_sector_numbers.decimal(income.get("credit_loss_provisions"))
+    if None in (before, after, charge) or charge == 0:
+        return
+    tolerance = max(Decimal(1), abs(charge) * Decimal("0.0001"))
+    if abs(before - abs(charge) - after) <= tolerance:
+        income["credit_loss_provisions"] = financial_analysis_sector_numbers.number(abs(charge))
+    elif abs(before + abs(charge) - after) <= tolerance:
+        income["credit_loss_provisions"] = financial_analysis_sector_numbers.number(-abs(charge))
+
+
+def _record_missing_key_lines(snapshot, lang="ru", org="bank"):
+    """A key bank line the filing did not yield is a data-quality finding."""
+    values = snapshot.get("current_values") or {}
+    # A microfinance organisation takes no deposits: no customer funds to miss.
+    expected = [key for key in BANK_KEY_LINES if not (org == "microfinance" and key == "customer_funds")]
+    missing = [key for key in expected if financial_analysis_sector_numbers.decimal(values.get(key)) is None]
+    quality = snapshot.setdefault("quality", {}).setdefault("data_quality", [])
+    quality[:] = [item for item in quality if item.get("code") != "KEY_LINE_MISSING"]
+    if missing:
+        names = ", ".join(financial_analysis_sector_language.label(key, lang) for key in missing)
+        quality.append({"code": "KEY_LINE_MISSING", "severity": "warning", "lines": missing,
+                        "message": financial_analysis_sector_language.tr(
+                            lang, f"В отчёте не найдены строки: {names}; разделы с ними не пишутся.",
+                            f"Hisobotda satrlar topilmadi: {names}; ular bilan bo‘limlar yozilmaydi.",
+                            f"Lines not found in the filing: {names}; sections that need them are omitted.")})
 
 
 def _apply_columns(snapshot, staged, protected=()):
@@ -493,6 +706,9 @@ def map_special_lines(snapshot, workbook, org):
     # Staged per statement: a blank balance column must not be hidden by the
     # amounts of the income statement read in the same pass.
     staged = {form: {"current_values": {}, "opening_values": {}, "previous_values": {}} for form in ("balance", "income")}
+    # Every row a key matched, per column, in the filing's order: a line the
+    # form carries twice must not be decided by whichever row came last.
+    candidates = {form: {"current_values": {}, "opening_values": {}, "previous_values": {}} for form in ("balance", "income")}
     preserved = set()
     for form in ("balance", "income"):
         for sheet in (workbook.get(form) or {}).get("sheets") or []:
@@ -508,11 +724,15 @@ def map_special_lines(snapshot, workbook, org):
                     code_index = next((i for i, v in enumerate(original) if financial_analysis_sector_numbers.decimal(v) is not None), None)
                     if code_index is not None:
                         nums = original[code_index:]
-                # The bank income form discloses one current cumulative column.
+                # The bank income form discloses one current cumulative
+                # column, and so does the annual balance sheet: its single
+                # amount is the year end, not a comparison.
                 if form == "income" and original and nums:
                     current, prior = nums[0], None
                 elif len(nums) in (2, 3):
                     prior, current = nums[-2:]
+                elif form == "balance" and len(nums) == 1:
+                    current, prior = nums[0], None
                 else:
                     continue
                 # The catalog snapshot has already reconciled these three
@@ -526,15 +746,16 @@ def map_special_lines(snapshot, workbook, org):
                     existing = financial_analysis_sector_numbers.decimal(snapshot["current_values"].get(matched))
                     if existing is not None and existing > 0:
                         preserved.add(matched)
+                line = f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}"
                 if matched not in preserved:
-                    staged[form]["current_values"][matched] = financial_analysis_sector_numbers.number(current)
+                    candidates[form]["current_values"].setdefault(matched, []).append((financial_analysis_sector_numbers.number(current), line))
                 target = "opening_values" if form == "balance" else "previous_values"
                 if prior is not None:
-                    staged[form][target][matched] = financial_analysis_sector_numbers.number(prior)
-                snapshot.setdefault("field_sources", {})[matched] = {
-                    "source_line_id": f"{form}:{sheet.get('sheet', sheet.get('name', ''))}:row{row.get('row', '')}",
-                    "raw_current": str(current) if financial_analysis_sector_numbers.decimal(current) is not None else None,
-                }
+                    candidates[form][target].setdefault(matched, []).append((financial_analysis_sector_numbers.number(prior), line))
+    for form, columns in candidates.items():
+        for target, found in columns.items():
+            staged[form][target] = _resolve_bank_column(found, snapshot if target == "current_values" else None)
+    _sign_credit_loss_provisions(staged["income"]["current_values"])
     balance = staged["balance"]
     reconciled = financial_analysis_sector_numbers.decimal(snapshot["current_values"].get("total_assets"))
     filed_opening = financial_analysis_sector_numbers.decimal(balance["opening_values"].get("total_assets"))

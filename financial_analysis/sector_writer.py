@@ -14,6 +14,7 @@ from dataclasses import field
 from decimal import Decimal
 
 import financial_analysis.sector_vocabulary as vocab
+from financial_analysis.sector_calculations import CLIENT_LIABILITIES
 
 BANKS = frozenset({"bank", "microfinance_bank", "microfinance"})
 
@@ -130,6 +131,8 @@ class Sentence:
     pct: Decimal | None = None
     percent_shown: bool = False
     evaluative: bool = False
+    # Lines whose percent change the sentence prints (the headline's clauses).
+    percent_codes: tuple = ()
 
 
 @dataclass
@@ -195,6 +198,10 @@ class FactView:
     def basis(self, code):
         return (self.facts.get(code) or {}).get("comparison_basis") or "previous"
 
+    def comparison_date(self, code):
+        """The date a line's comparison figure stands at (ISO), if known."""
+        return (self.facts.get(code) or {}).get("previous_date")
+
     def floor(self, code):
         """Smallest base a percent may be taken from (spec «Проценты»)."""
         if self.basis(code) == "opening":
@@ -222,6 +229,9 @@ class Writer(FactView):
         self.assessment = assessment
         self.described = set()
         self.shares_stated = set()
+        # Lines whose percent change the headline printed: the body adds their
+        # amount and driver, never the same percent a second time.
+        self.percent_stated = set()
 
     # -------------------------------------------------------------- names
     def names(self, code):
@@ -257,6 +267,10 @@ class Writer(FactView):
 
     def ago(self, code):
         if self.basis(code) == "opening":
+            date = self.comparison_date(code)
+            if date and date != f"{self.filing.year - 1}-12-31":
+                when = vocab.balance_date(date, self.lang)
+                return self.tr(f"на {when}", f"{when} holatiga", f"at {when}")
             return self.tr("на начало года", "yil boshida", "at the start of the year")
         return self.tr("годом ранее", "bir yil oldin", "a year earlier")
 
@@ -270,7 +284,26 @@ class Writer(FactView):
         name, gender = vocab.capital(self.nom(code)), self.gender(code)
         current, previous = move["current"], move["previous"]
         sentence = Sentence("", (code,), kind, direction=move.get("direction"))
-        if kind == "trend":
+        if code == "credit_loss_provisions" and current < 0:
+            # A credit-loss line that the form's own arithmetic shows as a
+            # release is a recovery of reserves, not «отчисления −X».
+            released = self.money(-current)
+            prior = ""
+            if previous > 0:
+                prior = self.tr(f"; {self.ago(code)} отчисления составили {self.money(previous)}",
+                                f"; {self.ago(code)} ajratmalar {self.money(previous)} bo‘lgan",
+                                f"; {self.ago(code)} provisions were {self.money(previous)}")
+            sentence.text = self.tr(f"Резервы восстановлены на {released}: это добавило к прибыли{prior}.",
+                                    f"Zaxiralar {released}ga tiklandi: bu foydaga qo‘shildi{prior}.",
+                                    f"Reserves of {released} were released, adding to profit{prior}.")
+            self.described.add(code)
+            return paragraph.add(sentence)
+        if kind == "trend" and code in self.percent_stated and move["tier"] != vocab.TIER_STABLE:
+            # The headline gave the percent; here the amount it came to.
+            verb = paragraph.plain_verb(move["direction"], gender)
+            amount = self.money(current)
+            text = self.tr(f"{name} {verb} до {amount}", f"{name} {amount}gacha {verb}", f"{name} {verb} to {amount}")
+        elif kind == "trend":
             verb, shown = paragraph.verb(move["direction"], move["tier"], move["pct"], move.get("ratio"), gender)
             sentence.tier, sentence.pct, sentence.percent_shown = move["tier"], move["pct"], shown
             amount = self.money(current)
@@ -427,6 +460,8 @@ class Writer(FactView):
             sentence = self.change(paragraph, code, tail=alone)
             if self.move(code)["kind"] == "trend" and not alone:
                 self.described.discard(code)
+            if sentence is not None and sentence.kind == "trend" and sentence.tier != vocab.TIER_STABLE:
+                self.percent_stated.add(code)
             clauses.append((code, sentence))
         if not clauses:
             return self.snapshot_headline(paragraph)
@@ -464,6 +499,8 @@ class Writer(FactView):
             self.described.add(code)
             clause = self.change(paragraph, "total_assets", tail=False)
             self.described.discard("total_assets")
+            if clause.tier != vocab.TIER_STABLE:
+                self.percent_stated.add("total_assets")
             return self.tr(f"{vocab.capital(self.nom(code))} за {period} — {amount}, а " + clause.text[:1].lower() + clause.text[1:],
                            f"{period} uchun {self.nom(code)} — {amount}, " + clause.text[:1].lower() + clause.text[1:],
                            f"{vocab.capital(self.nom(code))} for {period}: {amount}, while " + clause.text[:1].lower() + clause.text[1:]), (code, "total_assets")
@@ -496,7 +533,7 @@ class Writer(FactView):
         candidates.sort(key=lambda item: item[0], reverse=True)
         available = {code for _, code in candidates}
         # A fired signal is always in the list; the rest is filled by weight.
-        forced = list(dict.fromkeys(s["metric_code"] for s in [*self.assessment.red_flags, *self.assessment.negatives]
+        forced = list(dict.fromkeys(s["metric_code"] for s in [*self.hard_flags(), *self.assessment.negatives]
                                     if s["metric_code"] in available))[:5]
         order = {code: index for index, (_, code) in enumerate(candidates)}
         rest = [code for _, code in candidates if code not in forced]
@@ -524,9 +561,21 @@ class Writer(FactView):
         """«— быстрее выручки (+9%)» for a working-capital line flagged against sales."""
         for signal in self.assessment.negatives:
             if signal["code"] == f"{code}_outpace_revenue":
-                pace = vocab.signed_change(self.move("revenue"), self.lang)
-                if pace:
-                    return self.tr(f", быстрее выручки ({pace})", f", tushumdan tezroq ({pace})", f", faster than revenue ({pace})")
+                move = self.move("revenue")
+                pace = vocab.signed_change(move, self.lang)
+                if not pace:
+                    continue
+                if move.get("direction") == "down":
+                    # Paces of opposite sign are not compared: a line growing
+                    # while revenue falls is not «faster» than it.
+                    if move.get("tier") == vocab.TIER_MULTIPLE:
+                        return self.tr(f", хотя выручка сократилась {pace}", f", tushum esa {pace} kamaydi", f", while revenue fell {pace}")
+                    return self.tr(f", хотя выручка снизилась ({pace})", f", tushum esa kamaydi ({pace})", f", while revenue fell ({pace})")
+                if move.get("tier") == vocab.TIER_MULTIPLE:
+                    # «быстрее выручки (в 2,2 раза)» read as a fall (KASU): a
+                    # multiple carries its direction in words.
+                    return self.tr(f", быстрее выручки (она выросла {pace})", f", tushumdan tezroq (u {pace} o‘sdi)", f", faster than revenue (up {pace})")
+                return self.tr(f", быстрее выручки ({pace})", f", tushumdan tezroq ({pace})", f", faster than revenue ({pace})")
         return ""
 
     def structure_points(self, paragraph):
@@ -614,6 +663,9 @@ class Writer(FactView):
             return None
         if a["tier"] == vocab.TIER_MULTIPLE or b["tier"] == vocab.TIER_MULTIPLE:
             return None
+        # «Сначала темпы, потом их соотношение»: when both paces are already in
+        # the text, the relation is stated without printing them again.
+        stated = all(code in self.described or code in self.percent_stated for code in (cost, income))
         sign = lambda move: ("+" if move["pct"] > 0 else vocab.MINUS) + vocab.percent(move["pct"], self.lang)
         faster = abs(a["pct"]) > abs(b["pct"]) if (a["pct"] > 0) == (b["pct"] > 0) else None
         name, gender = vocab.capital(self.nom(cost)), self.gender(cost)
@@ -628,7 +680,9 @@ class Writer(FactView):
             text = f"{name} {self.nom(income)}dan {'tezroq' if faster else 'sekinroq'} {'o‘sdi' if a['pct'] > 0 else 'kamaydi'}: {sign(a)} va {sign(b)}"
         else:
             text = f"{name} {'grew' if a['pct'] > 0 else 'fell'} {'faster' if faster else 'more slowly'} than {self.nom(income)}: {sign(a)} against {sign(b)}"
-        return Sentence(text + ".", (), "pace", percent_shown=True)
+        if stated:
+            text = text.split(":")[0]
+        return Sentence(text + ".", (), "pace", percent_shown=not stated)
 
     MARGINS = (("gross_profit", "cost_of_sales", ("валовая маржа", "yalpi marja", "gross margin")),
                ("operating_income", "period_expenses", ("операционная маржа", "operatsion marja", "operating margin")),
@@ -678,8 +732,11 @@ class Writer(FactView):
         if self.family == "bank":
             out.append(self.absorbs("interest_expenses", "interest_income", "Процентные расходы забирают {acc} процентных доходов.",
                                     "Foizli xarajatlar foizli daromadlarning {share} tashkil etadi.", "Interest expense takes {share} of interest income."))
-            out.append(self.absorbs("credit_loss_provisions", "net_interest_income_before_provisions", "Отчисления в резервы забирают {acc} чистого процентного дохода.",
-                                    "Zaxiralarga ajratmalar sof foizli daromadning {share} oladi.", "Credit-loss provisions take {share} of net interest income."))
+            # A charge matched by other income (a gross-up) is no measure of
+            # credit risk; its share of interest income is not stated.
+            if not any(signal["code"] == "provisions_offset_by_other_income" for signal in self.assessment.negatives):
+                out.append(self.absorbs("credit_loss_provisions", "net_interest_income_before_provisions", "Отчисления в резервы забирают {acc} чистого процентного дохода.",
+                                        "Zaxiralarga ajratmalar sof foizli daromadning {share} oladi.", "Credit-loss provisions take {share} of net interest income."))
             share = self.share_of("operating_expenses", "net_revenue_before_operating_expenses")
             if share is not None and share <= 100:
                 out.append(Sentence(self.tr(f"Операционные расходы поглощают {vocab.share_phrase(share, 'ru', 'acc')} чистого дохода банка.",
@@ -833,7 +890,12 @@ class Writer(FactView):
                                                    f"Pul mablag‘lari hamda Markaziy bank va boshqa banklardagi qoldiqlar mijozlar mablag‘larining {vocab.share_phrase(share, 'uz', 'acc')} qoplaydi.",
                                                    f"Cash and balances with the central bank and other banks cover {vocab.share_phrase(share, 'en')} of customer funds."), (), "share"))
             reserves = self.share_of("loan_reserves", "loan_portfolio")
-            if reserves is not None and reserves <= 100:
+            if reserves is not None and reserves < Decimal("0.05"):
+                # GRBK: 0.4 bn against 1.67 trn would print «0%».
+                paragraph.add(Sentence(self.tr("Резервы по кредитам составляют менее 0,1% кредитного портфеля.",
+                                               "Kredit zaxiralari kredit portfelining 0,1% dan kamini tashkil etadi.",
+                                               "Loan-loss reserves are below 0.1% of the loan portfolio."), (), "share"))
+            elif reserves is not None and reserves <= 100:
                 paragraph.add(Sentence(self.tr(f"Резервы по кредитам равны {vocab.share_percent(reserves, 'ru')} кредитного портфеля.",
                                                f"Kredit zaxiralari kredit portfelining {vocab.share_percent(reserves, 'uz')}iga teng.",
                                                f"Loan-loss reserves equal {vocab.share_percent(reserves, 'en')} of the loan portfolio."), (), "share"))
@@ -850,12 +912,24 @@ class Writer(FactView):
                                                f"Net insurance reserves make up {vocab.share_phrase(reserves, 'en')} of liabilities."), (), "share"))
         else:
             liabilities, equity = self.value("total_liabilities"), self.value("total_equity")
+            client = CLIENT_LIABILITIES.get(self.filing.template)
+            held = self.value(client) if client else None
+            own = ""
+            if held is not None and liabilities and liabilities > 0 and 0 < held <= liabilities:
+                # An exchange's participants' money is held for them, not owed
+                # as its debt: it is stated, then left out of the leverage.
+                paragraph.add(Sentence(self.tr(f"Средства участников торгов составляют {vocab.share_phrase(held / liabilities * 100, 'ru', 'acc')} обязательств.",
+                                               f"Savdo ishtirokchilari mablag‘lari majburiyatlarning {vocab.share_phrase(held / liabilities * 100, 'uz', 'acc')} tashkil etadi.",
+                                               f"Trading participants' funds make up {vocab.share_phrase(held / liabilities * 100, 'en')} of liabilities."), (), "share"))
+                liabilities -= held
+                own = self.tr("Без них на", "Ularsiz har", "Without them, each")
             # Below a tenth of a sum the ratio rounds to nothing; the equity share says it.
             if liabilities is not None and equity and equity > 0 and Decimal("0.1") <= liabilities / equity < 100:
                 ratio = vocab._plain(liabilities / equity, 1 if liabilities / equity < 10 else 0, lang)
-                paragraph.add(Sentence(self.tr(f"На каждый сум капитала приходится {ratio} сум обязательств.",
-                                               f"Har bir so‘m kapitalga {ratio} so‘m majburiyat to‘g‘ri keladi.",
-                                               f"Each sum of equity carries {ratio} sum of liabilities."), (), "ratio"))
+                lead = own or self.tr("На", "Har", "Each")
+                paragraph.add(Sentence(self.tr(f"{lead} каждый сум капитала приходится {ratio} сум обязательств.",
+                                               f"{lead} bir so‘m kapitalga {ratio} so‘m majburiyat to‘g‘ri keladi.",
+                                               f"{lead} sum of equity carries {ratio} sum of liabilities."), (), "ratio"))
             cash, current = self.value("cash"), self.value("current_liabilities")
             if cash is not None and current and current > 0:
                 if cash >= current:
@@ -890,11 +964,11 @@ class Writer(FactView):
         """Up to three points, only from signals that fired; none — no block."""
         paragraph = Paragraph(self.lang)
         seen_codes, seen_lines = set(), set()
-        signals = sorted([*self.assessment.red_flags, *self.assessment.negatives],
+        signals = sorted([*self.hard_flags(), *self.assessment.negatives],
                          key=lambda s: RISK_PRIORITY.index(s["code"]) if s["code"] in RISK_PRIORITY else len(RISK_PRIORITY))
         for signal in signals:
             code = signal["code"]
-            text = RISK_TEXT.get(code)
+            text = self.risk_text(signal)
             if not text or code in seen_codes or signal["metric_code"] in seen_lines or len(paragraph.sentences) >= 3:
                 continue
             seen_codes.add(code)
@@ -902,15 +976,39 @@ class Writer(FactView):
             paragraph.add(Sentence(self.tr(*text).format(**self.risk_values(signal)), (), "risk", evaluative=True))
         return paragraph
 
+    def hard_flags(self):
+        """The red flags that set «требует внимания»; capping risks are among the negatives."""
+        return [flag for flag in self.assessment.red_flags if flag.get("effect", "attention") == "attention"]
+
+    def risk_text(self, signal):
+        """The sentence for a fired signal, in the variant its figures call for."""
+        code = signal["code"]
+        if code == "profit_quality" and self.filing.quality.get("driver") == "FX-driven":
+            share = vocab.decimal_or_none(signal.get("share"))
+            return RISK_TEXT["fx_exceeds_pretax"] if share is not None and share >= 100 else RISK_TEXT["fx_share_of_pretax"]
+        if code.endswith("_outpace_revenue") and self.move("revenue").get("direction") == "down":
+            # «Быстрее выручки» of a line that grows while revenue falls
+            # compares paces of opposite sign (KASU, UZHM).
+            return RISK_TEXT.get(code.replace("_outpace_revenue", "_against_falling_revenue"))
+        return RISK_TEXT.get(code)
+
     def risk_values(self, signal):
         share = signal.get("share")
         source = vocab.pick(self.lang, *PROFIT_SOURCES.get(self.filing.quality.get("driver"), PROFIT_SOURCES["FX-driven"]))
-        return {"share": vocab.share_phrase(share, self.lang, "acc") if share is not None else "", "source": source}
+        fx = vocab.decimal_or_none(self.filing.quality.get("net_fx_result_current"))
+        return {"share": vocab.share_phrase(share, self.lang, "acc") if share is not None else "",
+                "share_nom": vocab.share_phrase(share, self.lang) if share is not None else "",
+                "amount": self.money(fx) if fx is not None else "", "source": source,
+                **{key: self.money(self.value(code)) if self.value(code) is not None else ""
+                   for key, code in (("provisions", "credit_loss_provisions"), ("other", "other_noninterest_income"))}}
 
     def footnote(self):
         snapshot = self.filing.snapshot
-        year = self.filing.year
-        opening_date = f"1 января {year} года" if self.lang == "ru" else (f"{year}-yil 1-yanvar" if self.lang == "uz" else f"1 January {year}")
+        # The date the balance comparison really stands at — the end of the
+        # previous quarter for most bank forms — not 1 January by assumption.
+        dates = sorted({self.comparison_date(c) for c in self.facts if self.basis(c) == "opening" and self.base(c) is not None} - {None})
+        opening_date = ", ".join(vocab.balance_date(date, self.lang) for date in dates) or \
+            vocab.balance_date(f"{self.filing.year - 1}-12-31", self.lang)
         previous = snapshot.get("previous_comparable_period")
         previous_text = period_name(previous, self.lang) if previous else None
         standard = {"nsbu": self.tr("НСБУ", "BHMS", "NSBU"), "ifrs": self.tr("МСФО", "MHXS", "IFRS")}.get(self.filing.standard, self.filing.standard.upper())
@@ -931,12 +1029,17 @@ class Writer(FactView):
                                "Emitent hisobotlarida taqqoslanadigan davr yo‘q; matn hisobot sanasidagi holatni aks ettiradi.",
                                "The issuer's filings have no comparable period; the text is a snapshot at the reporting date.")
         sources = snapshot.get("comparison_sources") or {}
-        fallback = [period_name(item, self.lang) for item in (sources.get("previous_fallback"), sources.get("opening_fallback")) if item]
+        fallback = [period_name(item, self.lang, "acc") for item in (sources.get("previous_fallback"), sources.get("opening_fallback")) if item]
         notes = [compared]
-        if fallback:
-            notes.append(self.tr("Сравнительные данные взяты из отчёта за " + ", ".join(dict.fromkeys(fallback)) + ".",
-                                 "Taqqoslama ma’lumotlar " + ", ".join(dict.fromkeys(fallback)) + " hisobotidan olingan.",
-                                 "Comparative figures come from the " + ", ".join(dict.fromkeys(fallback)) + " filing."))
+        fallback = list(dict.fromkeys(fallback))
+        if len(fallback) == 1:
+            notes.append(self.tr(f"Сравнительные данные взяты из отчёта за {fallback[0]}.",
+                                 f"Taqqoslama ma’lumotlar {fallback[0]} hisobotidan olingan.",
+                                 f"Comparative figures come from the {fallback[0]} filing."))
+        elif fallback:
+            notes.append(self.tr(f"Сравнительные данные взяты из отчётов за {fallback[0]} и за {fallback[1]}.",
+                                 f"Taqqoslama ma’lumotlar {fallback[0]} va {fallback[1]} hisobotlaridan olingan.",
+                                 f"Comparative figures come from the {fallback[0]} and {fallback[1]} filings."))
         notes.append(self.tr(f"{standard}, {scope}. Причины изменений можно подтвердить только примечаниями к отчётности.",
                              f"{standard}, {scope}. O‘zgarishlar sababini faqat hisobotga izohlar tasdiqlaydi.",
                              f"{standard}, {scope}. The causes of the changes can only be confirmed by the notes to the statements."))
@@ -960,7 +1063,7 @@ PROFIT_SOURCES = {"FX-driven": ("курсовыми разницами", "kurs f
 
 # Which signal speaks for a line when several fired on it.
 RISK_PRIORITY = ("negative_equity", "loss_consumes_equity", "net_loss", "negative_operating_result", "net_income_decline",
-                 "profit_quality", "revenue_decline", "operating_income_decline", "receivables_outpace_revenue",
+                 "profit_quality", "provisions_offset_by_other_income", "revenue_decline", "operating_income_decline", "receivables_outpace_revenue",
                  "inventories_outpace_revenue", "liabilities_outpace_equity", "claims_outpace_premiums")
 
 RISK_TEXT = {
@@ -988,6 +1091,21 @@ RISK_TEXT = {
     "profit_quality": ("Прибыль во многом сформирована {source}, а не основной деятельностью: смотреть, повторится ли этот эффект.",
                        "Foyda asosan asosiy faoliyatdan emas, balki {source} hisobidan shakllangan: bu ta’sir takrorlanishini kuzatish kerak.",
                        "Profit comes largely from {source} rather than core operations: watch whether the effect repeats."),
+    "provisions_offset_by_other_income": ("Отчисления в резервы ({provisions}) почти равны прочим непроцентным доходам ({other}): возможно, одна операция отражена дважды — смотреть примечания.",
+                                          "Zaxiralarga ajratmalar ({provisions}) boshqa foizsiz daromadlarga ({other}) deyarli teng: bitta operatsiya ikki marta aks etgan bo‘lishi mumkin — izohlarni ko‘rish kerak.",
+                                          "Credit-loss provisions ({provisions}) nearly equal other non-interest income ({other}): one operation may be booked twice — check the notes."),
+    "fx_share_of_pretax": ("Чистый валютный доход — {share_nom} прибыли до налога: результат во многом зависит от курса, смотреть, повторится ли он.",
+                           "Sof valyuta daromadi soliqqacha foydaning {share} tashkil etadi: natija ko‘p jihatdan valyuta kursiga bog‘liq, u takrorlanishini kuzatish kerak.",
+                           "Net foreign-exchange income is {share_nom} of profit before tax: the result depends largely on the exchange rate; watch whether it repeats."),
+    "fx_exceeds_pretax": ("Чистый валютный доход ({amount}) больше прибыли до налога: без него период закрылся бы убытком, результат зависит от курса.",
+                          "Sof valyuta daromadi ({amount}) soliqqacha foydadan ko‘p: usiz davr zarar bilan yopilardi, natija valyuta kursiga bog‘liq.",
+                          "Net foreign-exchange income ({amount}) exceeds profit before tax: without it the period would have closed at a loss; the result depends on the exchange rate."),
+    "receivables_against_falling_revenue": ("Дебиторская задолженность растёт, хотя выручка снижается: смотреть, поступят ли деньги по ней.",
+                                            "Tushum kamayayotgan bo‘lsa-da, debitorlik qarzi o‘smoqda: u bo‘yicha pul tushishini kuzatish kerak.",
+                                            "Receivables are growing while revenue falls: watch whether they are collected."),
+    "inventories_against_falling_revenue": ("Запасы растут, хотя выручка снижается: смотреть, будут ли они проданы.",
+                                            "Tushum kamayayotgan bo‘lsa-da, zaxiralar o‘smoqda: ular sotilishini kuzatish kerak.",
+                                            "Inventories are growing while revenue falls: watch whether they are sold."),
     "receivables_outpace_revenue": ("Дебиторская задолженность растёт быстрее выручки: часть продаж ещё не оплачена — смотреть на поступление денег.",
                                     "Debitorlik qarzi tushumdan tezroq o‘smoqda: savdoning bir qismi hali to‘lanmagan — pul tushumini kuzatish kerak.",
                                     "Receivables are growing faster than revenue: part of sales is still unpaid — watch cash collection."),
@@ -1003,17 +1121,25 @@ RISK_TEXT = {
 }
 
 
-def period_name(period, lang):
-    """«2025 года» for the footnote: the period in the genitive."""
+# A period's name in each case it is used in.  Russian declines it: «из
+# отчёта за I полугодие» (accusative after «за»), «данные I полугодия»
+# (genitive); one table keeps the two from being mixed up again.
+PERIOD_NAMES = {
+    "ru": {"acc": {"": "{y} год", "1": "I квартал {y} года", "2": "I полугодие {y} года", "3": "9 месяцев {y} года", "4": "{y} год"},
+           "gen": {"": "{y} года", "1": "I квартала {y} года", "2": "I полугодия {y} года", "3": "9 месяцев {y} года", "4": "{y} года"}},
+    "uz": {"acc": {"": "{y} yil", "1": "{y} yil I chorak", "2": "{y} yil I yarim yillik", "3": "{y} yil 9 oy", "4": "{y} yil"}},
+    "en": {"acc": {"": "FY {y}", "1": "Q1 {y}", "2": "H1 {y}", "3": "9M {y}", "4": "FY {y}"}},
+}
+
+
+def period_name(period, lang, case="gen"):
+    """A period's name in a case: «I полугодие 2025 года» (acc), «I полугодия 2025 года» (gen)."""
     text = str(period or "")
     year = text[:4]
     quarter = text[5:] if "Q" in text else ""
-    names = {
-        "ru": {"": f"{year} года", "1": f"I квартала {year} года", "2": f"I полугодия {year} года", "3": f"9 месяцев {year} года", "4": f"{year} года"},
-        "uz": {"": f"{year} yil", "1": f"{year} yil I chorak", "2": f"{year} yil I yarim yillik", "3": f"{year} yil 9 oy", "4": f"{year} yil"},
-        "en": {"": f"FY {year}", "1": f"Q1 {year}", "2": f"H1 {year}", "3": f"9M {year}", "4": f"FY {year}"},
-    }
-    return names.get(lang, names["ru"]).get(quarter, text)
+    cases = PERIOD_NAMES.get(lang, PERIOD_NAMES["ru"])
+    template = (cases.get(case) or cases["acc"]).get(quarter)
+    return template.format(y=year) if template else text
 
 
 def write(filing, evidence, assessment):
@@ -1028,7 +1154,8 @@ def write(filing, evidence, assessment):
               ("strength", writer.strength()), ("risks", writer.risks())]
     sections = [{"id": "headline", "number": "", "title": None, "style": "lead", "text": f"{headline} {verdict}",
                  "blocks": [{"text": headline}, {"text": verdict, "style": "verdict"}],
-                 "sentences": [Sentence(headline, headline_codes, "headline"), Sentence(verdict, (), "verdict")]}]
+                 "sentences": [Sentence(headline, headline_codes, "headline", percent_codes=tuple(sorted(writer.percent_stated))),
+                               Sentence(verdict, (), "verdict")]}]
     number = 0
     for block_id, paragraphs in blocks:
         paragraphs = [p for p in (paragraphs if isinstance(paragraphs, list) else [paragraphs]) if p.sentences]

@@ -88,10 +88,11 @@ FINANCIAL_RATIOS = {
     "insurance": ("roa", "roe", "equity_to_assets", "reinsurer_share_of_reserves", "insurance_reserves_to_liabilities"),
 }
 
-# Only a result may be negative (a loss).  A negative reserve, cost or balance
-# line is a sign convention the mapping has not resolved — AGBA files its
-# credit-loss estimate negative where every other bank files it positive — so
-# a share built on it is withheld rather than printed as «−539%».
+# Only a result may be negative (a loss).  The mapping reads the sign of the
+# credit-loss charge from the form's arithmetic and takes «минус» reserve lines
+# by magnitude; a cost or balance line still negative after that is a release
+# or a sign the filing leaves unresolved, so a share built on it is withheld
+# rather than printed as «−539%».
 SIGNED_RATIOS = frozenset({"roa", "roe"})
 
 RATIOS_NOT_APPLICABLE = {
@@ -100,8 +101,32 @@ RATIOS_NOT_APPLICABLE = {
 }
 
 
+# A credit-loss charge within this share of the bank's «other» non-interest
+# income reads as a gross-up — one operation booked as a provision and as an
+# income — rather than as credit risk (bank sector tab: «одного порядка, ±10%»).
+GROSS_UP_TOLERANCE = Decimal("0.10")
+
+
+def provisions_offset_by_other_income(values):
+    """Whether the credit-loss charge is matched by other non-interest income.
+
+    Only a charge that at least consumes the net interest income counts: that
+    is when the match decides the result.  On the 2026 H1/9M bank filings it
+    fires for SQBN (9.70 trn of provisions against 9.55 trn of other income,
+    2.27 trn of net interest income) and for no other bank — AGBA (3.28 trn
+    against 4.31 trn) and the smaller banks' charges are not within 10%.
+    """
+    provisions = financial_analysis_sector_numbers.decimal(values.get("credit_loss_provisions"))
+    other = financial_analysis_sector_numbers.decimal(values.get("other_noninterest_income"))
+    interest = financial_analysis_sector_numbers.decimal(values.get("net_interest_income_before_provisions"))
+    if not provisions or not other or provisions <= 0 or other <= 0 or interest is None or provisions < interest:
+        return False
+    return abs(other / provisions - 1) <= GROSS_UP_TOLERANCE
+
+
 def financial_ratios(values, previous, opening, organization_type, standard, period):
     results = []
+    gross_up = provisions_offset_by_other_income(values)
     for code in FINANCIAL_RATIOS.get(organization_type, ()):
         numerators, denominators, unit, basis = FINANCIAL_METHODS[code]
         percent = unit == "percent"
@@ -116,6 +141,11 @@ def financial_ratios(values, previous, opening, organization_type, standard, per
 
         value = measure(values)
         prior = measure({"opening": opening, "previous": previous}[basis]) if basis else None
+        # A charge matched by other income is a gross-up, not credit risk:
+        # its share of interest income is not published without that caveat.
+        withheld = gross_up and "credit_loss_provisions" in numerators
+        if withheld:
+            value = prior = None
         numerator = financial_analysis_sector_numbers.total(*(values.get(k) for k in numerators))
         denominator = financial_analysis_sector_numbers.total(*(values.get(k) for k in denominators))
         results.append({"metric": code, "metric_code": code,
@@ -131,9 +161,28 @@ def financial_ratios(values, previous, opening, organization_type, standard, per
                         "opening_value": financial_analysis_sector_numbers.number(prior),
                         "change_value": financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.difference(value, prior)),
                         "unit": unit, "benchmark_type": None, "benchmark_min": None, "benchmark_max": None,
-                        "calculation_status": "verified" if value is not None else "missing_or_invalid_components",
+                        "calculation_status": "withheld_gross_up" if withheld else "verified" if value is not None else "missing_or_invalid_components",
                         "verification_status": "verified" if value is not None else "unavailable"})
     return results
+
+
+# Liabilities a template holds for others and that are no debt of its own:
+# an exchange's trading participants' money (URTS: 6.83 of 6.85 trn).
+CLIENT_LIABILITIES = {"commodity_exchange": "settlement_liabilities"}
+
+
+def own_liabilities(current, base, template):
+    """Liabilities at the period end and at the base less the money held for clients.
+
+    Both sides net, or neither: a client line known on one side only would
+    turn the change in liabilities into the change in what is deducted.
+    """
+    client = CLIENT_LIABILITIES.get(template)
+    sides = (current, base)
+    if not client or any(financial_analysis_sector_numbers.decimal(side.get(client)) is None for side in sides):
+        return tuple(side.get("total_liabilities") for side in sides)
+    return tuple(financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.difference(side.get("total_liabilities"), side.get(client)))
+                 for side in sides)
 
 
 def balance_gate(values, rounding_unit=1):
@@ -162,7 +211,24 @@ def capital_analysis(values, opening):
     sum_changes = financial_analysis_sector_numbers.total(*(item["change_value"] for item in result["change_sources"]))
     result["reconciliation_difference"] = financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.difference(result["equity_change"], sum_changes))
     result["reconciliation_status"] = "not_available" if result["reconciliation_difference"] is None else "passed" if abs(financial_analysis_sector_numbers.decimal(result["reconciliation_difference"])) <= 1 else "failed"
+    # The period-end equity must equal its own components whatever the
+    # comparison column holds: a comparison set aside as unbalanced must not
+    # take this check with it.
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    end_gap = financial_analysis_sector_inputs.equity_components_gap(values)
+    if end_gap is not None:
+        result["end_components_difference"] = financial_analysis_sector_numbers.number(end_gap)
+        if abs(end_gap) > 1:
+            result["reconciliation_status"] = "failed"
     return result
+
+
+# Profit is «formed by exchange differences» when the net FX result is more
+# than this share of profit before tax (bank sector tab of the specification).
+# Checked on the 2026 H1/9M filings: BRBN 31%, UNVB 31%, HMKB 33%, IPKY 46%,
+# UZMK 47%, SQBN 71%, GRBK 114%, KSCM 128%, QZSM 255%, OCBK 910% are caught;
+# ALKB 28%, MCBA 22%, UZAS 19%, UZMT 18%, INFB 17% and ORFI 13% are not.
+FX_SHARE_OF_PRETAX = Decimal(30)
 
 
 def profit_quality(values, previous):
@@ -170,15 +236,24 @@ def profit_quality(values, previous):
     profit = financial_analysis_sector_numbers.change(values.get("net_income"), previous.get("net_income"))
     fx, fx_prev = financial_analysis_sector_numbers.difference(values.get("fx_income"), values.get("fx_expenses")), financial_analysis_sector_numbers.difference(previous.get("fx_income"), previous.get("fx_expenses"))
     fx_delta = financial_analysis_sector_numbers.difference(fx, fx_prev)
+    pretax = financial_analysis_sector_numbers.decimal(values.get("profit_before_tax"))
+    # A share only of a positive FX result in a positive pre-tax profit: an
+    # FX loss forms no profit, and a share of a loss says nothing.  The old
+    # rule — FX change ≥ half of the profit change — called UTGA's shrinking
+    # FX loss and UZTL's 5% FX result «profit formed by exchange differences»
+    # and missed SQBN's 71%.
+    fx_share = fx / pretax * 100 if fx is not None and pretax and fx > 0 and pretax > 0 else None
     driver = "unknown"
     unrealized = financial_analysis_sector_numbers.decimal(values.get("unrealized_fair_value_gain"))
     if unrealized is not None and (financial_analysis_sector_numbers.decimal(values.get("net_income")) or 0) > 0 and unrealized > 0 and unrealized >= financial_analysis_sector_numbers.decimal(values["net_income"]) * Decimal("0.5"):
         driver = "unrealized_revaluation"
-    elif fx_delta is not None and profit["change_value"] is not None and fx_delta > 0 and profit["change_value"] > 0 and fx_delta >= financial_analysis_sector_numbers.decimal(profit["change_value"]) * Decimal("0.5"):
+    elif fx_share is not None and fx_share > FX_SHARE_OF_PRETAX:
         driver = "FX-driven"
-    return {"method_id": "nsbu-profit-quality-1.0", "operating_profit_change": op,
+    return {"method_id": "nsbu-profit-quality-1.1", "operating_profit_change": op,
             "net_profit_change": profit, "net_fx_result_current": financial_analysis_sector_numbers.number(fx), "net_fx_result_previous": financial_analysis_sector_numbers.number(fx_prev),
-            "net_fx_result_change": financial_analysis_sector_numbers.number(fx_delta), "driver": driver, "cash_confirmation": "not_available"}
+            "net_fx_result_change": financial_analysis_sector_numbers.number(fx_delta),
+            "net_fx_share_of_pretax": financial_analysis_sector_numbers.number(fx_share),
+            "driver": driver, "cash_confirmation": "not_available"}
 
 
 def trend_state(points):

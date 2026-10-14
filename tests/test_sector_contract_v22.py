@@ -138,18 +138,22 @@ def test_balance_requires_both_tolerances_and_percentage_reconciliation():
 
 def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
     data = snapshot()
-    data["current_values"].update(net_income=149.4, operating_income=91.1, fx_income=80, fx_expenses=10)
+    data["current_values"].update(net_income=149.4, operating_income=91.1, fx_income=80, fx_expenses=10, profit_before_tax=160)
     data["previous_values"].update(net_income=10, operating_income=100, fx_income=10, fx_expenses=100)
     report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY, lang="en")
     assert report["profit_quality"]["net_fx_result_change"] == 160
-    # Net profit up on exchange gains does not hide the shrinking operating margin.
-    assert report["verdict"]["status"] == "negative"
-    assert report["verdict"]["reason"] == "the margin is falling and the equity share is falling"
+    # Net profit up on exchange gains does not hide the shrinking operating
+    # margin; a rising profit is not «deteriorating» either, so the verdict
+    # is mixed and names both.
+    assert report["verdict"]["status"] == "mixed"
+    assert report["verdict"]["reason"] == "profit is growing, but the margin is falling"
+    # The FX result is 44% of profit before tax: profit is formed by FX.
     assert report["profit_quality"]["driver"] == "FX-driven"
+    assert round(report["profit_quality"]["net_fx_share_of_pretax"], 2) == 43.75
     # A profit up from a negligible base is stated as two amounts, never as «+1394%».
     assert "net profit increased from UZS 0.01mn to UZS 0.149mn" in report["headline"]
     assert "%," not in report["headline"].split("net profit")[1].split(",")[0]
-    assert "operating profit" in report["text"].lower() and "exchange differences" in report["text"]
+    assert "operating profit" in report["text"].lower() and "foreign-exchange income is more than a third of profit before tax" in report["text"]
     assert report["profit_quality"]["cash_confirmation"] == "not_available"
     assert report["analytical_issues"]
     assert all(i["solution_code"] and i["evidence_fact_ids"] and i["source_ids"] for i in report["analytical_issues"])

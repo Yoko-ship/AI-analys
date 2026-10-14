@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Any
 from typing import Iterable
+import re
 import sqlite3
 
 from company_catalog import COMPANY_SECTORS
@@ -261,14 +262,54 @@ def _org_siblings(conn, ticker: str) -> list[str]:
     ticker = (ticker or "").upper().strip()
     if not ticker:
         return []
-    row = conn.execute(
-        "SELECT org_id FROM catalog_companies WHERE ticker = ?", (ticker,)).fetchone()
-    org = str((row["org_id"] if row else "") or "").strip()
+    org = _issuer_org(conn, ticker)
     if not org:
         return [ticker]
     rows = conn.execute(
         "SELECT ticker FROM catalog_companies WHERE org_id = ?", (org,)).fetchall()
     return sorted({ticker} | {str(r["ticker"]).upper() for r in rows if r["ticker"]})
+
+
+def _registered_org(conn, ticker: str) -> str:
+    row = conn.execute(
+        "SELECT org_id FROM catalog_companies WHERE ticker = ?", (ticker,)).fetchone()
+    return str((row["org_id"] if row else "") or "").strip()
+
+
+# An Uzbek share ISIN is «UZ7» + the issuer's five-digit code + the class and
+# check digits: AGMK UZ7000550002 and AGMKP UZ700055K015 are one issuer, 00055.
+_ISIN_ISSUER = re.compile(r"^(UZ7\d{5})[0-9A-Z]{4}$")
+
+
+def _issuer_org(conn, ticker: str) -> str:
+    """The organisation behind a ticker, also for a share class the registry lacks.
+
+    Thirteen share classes (AGMK, GRBKP, IPKYP, KSCMP, PLSTP, QATTP, UZALP,
+    UZASP, UZIN, UZGF, UZNG, FRAZ, KFSKP) were missing from the company
+    registry while their other class was in it, so their analysis found no
+    filing and was blocked for «нет ссылки на исходный документ».  A class
+    absent from the registry takes the organisation of a registered ticker
+    whose ISIN carries the same issuer code — the exchange's own numbering,
+    not a guess from the ticker's shape.
+    """
+    org = _registered_org(conn, ticker)
+    if org:
+        return org
+    try:
+        from securities_catalog import get_securities_map
+        securities = get_securities_map()
+    except Exception:  # noqa: BLE001 — without the securities list the ticker stands alone
+        return ""
+    match = _ISIN_ISSUER.match(str((securities.get(ticker) or {}).get("isin") or "").upper())
+    if not match:
+        return ""
+    for peer, info in sorted(securities.items()):
+        peer_match = _ISIN_ISSUER.match(str((info or {}).get("isin") or "").upper())
+        if peer != ticker and peer_match and peer_match.group(1) == match.group(1):
+            peer_org = _registered_org(conn, peer)
+            if peer_org:
+                return peer_org
+    return ""
 
 
 def _canonical_ticker(tickers: Iterable[str]) -> str:
@@ -318,6 +359,8 @@ def get_company_index(ticker: str) -> dict[str, Any]:
     # under this ticker.
 
     siblings = _org_siblings(conn, ticker) or [ticker]
+
+    issuer_org = _issuer_org(conn, (ticker or "").upper().strip())
 
     placeholders = ",".join("?" * len(siblings))
 
@@ -441,7 +484,7 @@ def get_company_index(ticker: str) -> dict[str, Any]:
 
         "sector": imported.get("sector") or COMPANY_SECTORS.get(ticker),
 
-        "org_id": company_row["org_id"] if company_row else None,
+        "org_id": (company_row["org_id"] if company_row and company_row["org_id"] else None) or issuer_org or None,
 
         "last_synced_at": company_row["last_synced_at"] if company_row else None,
 

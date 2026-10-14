@@ -52,7 +52,10 @@ def insurer() -> str:
 # ── bank ────────────────────────────────────────────────────────────────────
 
 def test_bank_assets_and_loans(bank):
-    assert "Активы выросли на 7% — до 41,3 трлн сум, за счёт роста кредитного портфеля на 2,62 трлн сум." in bank
+    # The headline states «активы выросли на 7%»; the list adds the amount
+    # and the driver without the percent a second time.
+    assert "а активы выросли на 7%." in bank and bank.lower().count("активы выросли на 7%") == 1
+    assert "Активы выросли до 41,3 трлн сум, за счёт роста кредитного портфеля на 2,62 трлн сум." in bank
     assert "Крупнейшая статья активов — кредитный портфель: большая часть активов." in bank
 
 
@@ -85,7 +88,10 @@ def test_bank_efficiency_and_capital_are_not_presented_as_prudential_ratios(bank
 # ── insurer ─────────────────────────────────────────────────────────────────
 
 def test_insurance_premiums_are_not_mixed_with_revenue(insurer):
-    assert "Страховые премии сократились в 2,4 раза — до 94,6 млрд сум." in insurer
+    # The headline states «в 2,4 раза»; the list adds the amount, not the multiple again.
+    assert "Страховые премии сократились в 2,4 раза, и" in insurer
+    assert "Страховые премии снизились до 94,6 млрд сум." in insurer
+    assert insurer.count("в 2,4 раза") == 1
     assert "Чистая выручка от страховых услуг значительно выросла на 48% — до 112 млрд сум." in insurer
 
 
@@ -95,7 +101,9 @@ def test_insurance_premium_retention_is_calculated_from_ceded_premiums(insurer):
 
 def test_insurance_service_result_without_an_uncalculable_loss_ratio(insurer):
     assert "Результат от страховых услуг заметно увеличился на 38% — до 61 млрд сум." in insurer
-    assert "Расходы на страховые услуги росли быстрее, чем чистая выручка от страховых услуг: +61% против +48%." in insurer
+    # Both paces are stated just above; the relation follows without them.
+    assert "Расходы на страховые услуги резко выросли на 61% — до 50,9 млрд сум." in insurer
+    assert "Расходы на страховые услуги росли быстрее, чем чистая выручка от страховых услуг." in insurer
     assert "коэффициент убыточности" not in insurer.lower()
 
 
