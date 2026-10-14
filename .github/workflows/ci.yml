@@ -1011,11 +1011,18 @@ jobs:
           done
           REMOTE
 
+  # Two checks after a deploy. Public traffic reaches the VPS through the
+  # hosting provider's OpenResty front proxy, and from GitHub's runners that
+  # route sometimes answers nothing for minutes while the site itself is up
+  # (2026-10-14: 3 of 4 deploys failed on it, while the same page loaded in
+  # 2.4 s from Tashkent and from 12 countries). So the deploy is judged on the
+  # server — the same page, through an SSH tunnel to its own nginx — and the
+  # public route is checked separately and only warns.
   verify-production-market:
-    name: Verify public market after deployment
+    name: Verify market on the production server
     needs: deploy-production
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -1024,15 +1031,80 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Load public market with real assets and real data
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Open a tunnel to the server's nginx
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 \
+            -f -N -L 127.0.0.1:8443:127.0.0.1:443 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST"
+          for attempt in $(seq 1 30); do
+            if curl -ksS --max-time 5 --resolve uzstock.uz:8443:127.0.0.1 -o /dev/null https://uzstock.uz:8443/market; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The server's nginx did not answer /market through the tunnel."
+          exit 1
+      - name: Load the market with real assets and real data
         env:
           E2E_BASE_URL: https://uzstock.uz
+          E2E_ORIGIN: 127.0.0.1:8443
           E2E_PRODUCTION_SMOKE: "1"
         run: npx playwright test e2e/production-market.spec.js --workers=1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: production-market-verification
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  check-public-market:
+    name: Check market through the public address
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    # A failure here is the route to the site, not the site: it warns and
+    # never fails the run. The warning lands on the run page and its summary.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Load the public market from outside Uzbekistan
+        id: public
+        env:
+          E2E_BASE_URL: https://uzstock.uz
+          E2E_PRODUCTION_SMOKE: "1"
+        run: npx playwright test e2e/production-market.spec.js --workers=1 --retries=2
+      - name: Report an unreachable public route
+        if: failure() && steps.public.outcome == 'failure'
+        run: |
+          message="uzstock.uz/market did not load through the public address from GitHub's runner (3 tries). The site itself is judged by «Verify market on the production server»; this points at the route through the hosting provider's front proxy."
+          echo "::warning title=Public route to uzstock.uz::$message"
+          { echo "### ⚠️ Public route to uzstock.uz"; echo; echo "$message"; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-market-check
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore
