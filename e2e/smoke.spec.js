@@ -758,9 +758,27 @@ test("company report preserves public access without sign-in", async ({ page }) 
   page.on("request", request => { if (request.url().includes("/ai-report")) requests.push(request.url()); });
   await page.goto("/company/AGBA");
   await page.getByTestId("company-insight-card").getByRole("button", { name: "Открыть полный анализ" }).click();
-  await expect(page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" })).toBeVisible();
-  await expect(page).toHaveURL(/\/company\/AGBA$/);
+  const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
+  await expect(dialog).toBeVisible();
+  // The reader stays on the public company page; the address names the open
+  // report so it can be shared, and closing the report drops that again.
+  await expect(page).toHaveURL(/\/company\/AGBA\?report=ai$/);
   expect(requests.length).toBeGreaterThan(0);
+  await dialog.getByRole("button", { name: "Закрыть AI-финансовый отчёт" }).click();
+  await expect(page).toHaveURL(/\/company\/AGBA$/);
+  // The shared link opens the report itself.
+  await page.goto("/company/AGBA?report=ai");
+  await expect(page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" })).toBeVisible();
+});
+
+test("the AI report can be shared from its header", async ({ page }) => {
+  await page.goto("/company/AGBA?report=ai");
+  const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
+  await dialog.getByRole("button", { name: "Поделиться отчётом" }).click();
+  const telegram = dialog.getByRole("link", { name: /Telegram/ });
+  await expect(telegram).toHaveAttribute("href", /^https:\/\/t\.me\/share\/url\?url=.*%2Fcompany%2FAGBA%3Freport%3Dai/);
+  await expect(dialog.getByRole("button", { name: "Копировать ссылку" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("company overview opens the sourced AI financial report", async ({ page }, testInfo) => {
