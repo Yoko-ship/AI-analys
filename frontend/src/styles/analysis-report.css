@@ -662,6 +662,7 @@ body[data-theme="light"] .sections-wrap--nested .section-card {
 /* Results */
 .catalog-result-panel { margin-top: 4px; }
 .catalog-result-body { padding: 0; }
+.catalog-result-notes { margin: 0 0 12px; padding-left: 18px; font-size: 13px; line-height: 1.45; }
 
 .catalog-ratio-grid {
   display: grid;

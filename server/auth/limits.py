@@ -54,6 +54,15 @@ class _SlidingWindowLimiter:
                 self._evict_expired(now)
             return True
 
+    def retry_after(self, key: str, window_seconds: float) -> int:
+        """Whole seconds until the bucket admits its next request."""
+        now = time.monotonic()
+        with self._lock:
+            events = [t for t in self._events.get(key, []) if now - t < window_seconds]
+        if not events:
+            return 1
+        return max(1, int(window_seconds - (now - min(events)) + 0.999))
+
     def _evict_expired(self, now: float) -> None:
         """Drop buckets with nothing left in the window (caller holds the lock).
 
@@ -107,13 +116,65 @@ def _client_ip(request: Request) -> str:
     return chain[-TRUSTED_PROXY_HOPS]
 
 
+def _seconds_word(seconds: int) -> str:
+    """«1 секунду», «2 секунды», «5 секунд», «21 секунду»."""
+    if seconds % 10 == 1 and seconds % 100 != 11:
+        return "секунду"
+    if seconds % 10 in (2, 3, 4) and seconds % 100 not in (12, 13, 14):
+        return "секунды"
+    return "секунд"
+
+
+# Every 429 the limiter raises is worded here, in the reader's language when the
+# request says which it is, and always carries Retry-After so a client can word
+# it itself. The English fallback is what clients that send no language get.
+_LIMIT_MESSAGES = {
+    "window": {
+        "ru": lambda n: f"Превышен лимит запросов. Попробуйте через {n} {_seconds_word(n)}.",
+        "uz": lambda n: f"So‘rovlar chegarasidan oshildi. {n} soniyadan so‘ng qayta urinib ko‘ring.",
+        "en": lambda n: f"Request limit exceeded. Try again in {n} seconds.",
+    },
+    "daily": {
+        "ru": lambda n: "Дневной лимит анализов исчерпан. Попробуйте завтра.",
+        "uz": lambda n: "Kunlik tahlillar chegarasi tugadi. Ertaga qayta urinib ko‘ring.",
+        "en": lambda n: "Daily analysis limit reached — try again tomorrow",
+    },
+    "capacity": {
+        "ru": lambda n: "Сервис исчерпал дневной лимит анализов. Попробуйте завтра.",
+        "uz": lambda n: "Xizmatning kunlik tahlil imkoniyati tugadi. Ertaga qayta urinib ko‘ring.",
+        "en": lambda n: "The service reached its daily analysis capacity — please try again tomorrow",
+    },
+}
+
+
+def request_language(request: Request | None) -> str | None:
+    """The interface language a request states: X-UI-Language, then Accept-Language."""
+    if request is None:
+        return None
+    explicit = str(request.headers.get("x-ui-language") or "").strip().lower()[:2]
+    if explicit in ("ru", "uz", "en"):
+        return explicit
+    for part in str(request.headers.get("accept-language") or "").split(","):
+        tag = part.split(";")[0].strip().lower()[:2]
+        if tag in ("ru", "uz", "en"):
+            return tag
+    return None
+
+
+def _rate_limited(kind: str, seconds: int, language: str | None) -> HTTPException:
+    words = _LIMIT_MESSAGES[kind]
+    return HTTPException(status_code=429, detail=words.get(language or "en", words["en"])(seconds),
+                         headers={"Retry-After": str(seconds)})
+
+
 def _enforce_auth_rate_limit(request: Request, scope: str) -> None:
     """Per-IP limit on credential endpoints — blocks brute force and mass signup."""
-    if not _rate_limiter.allow(f"{scope}:{_client_ip(request)}", AUTH_RATE_LIMIT_PER_MINUTE, 60.0):
-        raise HTTPException(status_code=429, detail="Too many attempts — try again in a minute")
+    key = f"{scope}:{_client_ip(request)}"
+    if not _rate_limiter.allow(key, AUTH_RATE_LIMIT_PER_MINUTE, 60.0):
+        raise _rate_limited("window", _rate_limiter.retry_after(key, 60.0), request_language(request))
 
 
-def _enforce_llm_quota(user: identity_users.WebUser) -> None:
+def _enforce_llm_quota(user: identity_users.WebUser, language: str | None = None) -> None:
     """Per-user pacing + daily cap, and a deployment-wide daily ceiling.
 
     A per-user cap alone does not bound spend: registration is open and
@@ -125,11 +186,8 @@ def _enforce_llm_quota(user: identity_users.WebUser) -> None:
     if not _rate_limiter.allow("llm-day:__global__", LLM_GLOBAL_DAILY_LIMIT, 86400.0):
         http.logger.warning("global daily LLM cap (%d) reached — refusing paid analysis requests",
                        LLM_GLOBAL_DAILY_LIMIT)
-        raise HTTPException(
-            status_code=429,
-            detail="The service reached its daily analysis capacity — please try again tomorrow",
-        )
+        raise _rate_limited("capacity", _rate_limiter.retry_after("llm-day:__global__", 86400.0), language)
     if not _rate_limiter.allow(f"llm-min:{user.id}", LLM_RATE_LIMIT_PER_MINUTE, 60.0):
-        raise HTTPException(status_code=429, detail="Too many analysis requests — try again in a minute")
+        raise _rate_limited("window", _rate_limiter.retry_after(f"llm-min:{user.id}", 60.0), language)
     if not _rate_limiter.allow(f"llm-day:{user.id}", LLM_DAILY_LIMIT, 86400.0):
-        raise HTTPException(status_code=429, detail="Daily analysis limit reached — try again tomorrow")
+        raise _rate_limited("daily", _rate_limiter.retry_after(f"llm-day:{user.id}", 86400.0), language)

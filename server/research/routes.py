@@ -99,7 +99,7 @@ async def api_compare(
     payload: CompareRequest,
     current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
-    auth_limits._enforce_llm_quota(current_user)
+    auth_limits._enforce_llm_quota(current_user, payload.language)
     try:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(

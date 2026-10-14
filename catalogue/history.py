@@ -14,6 +14,7 @@ import catalogue.filings as catalogue_filings
 import catalogue.financial_store as catalogue_financial_store
 import catalogue.parsing as catalogue_parsing
 import catalogue.periods as catalogue_periods
+import catalogue.settings as catalogue_settings
 import catalogue.refresh as catalogue_refresh
 import catalogue.sources as catalogue_sources
 import catalogue.storage as catalogue_storage
@@ -70,6 +71,11 @@ def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
         return {}
     parsed = _parse_workbook_uncached(session or catalogue_sources._make_session(), excel)
     if not parsed.get("ok"):
+        return {}
+    conflict = catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"))
+    if conflict:
+        catalogue_settings.logger.warning("catalog: %s %s %s refused — %s", ticker, form,
+                                          f"{year}Q{quarter}" if quarter else year, conflict)
         return {}
     other = urls.get("excel_url_form1")
     second = parsed

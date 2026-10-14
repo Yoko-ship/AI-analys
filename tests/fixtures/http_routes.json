@@ -2074,6 +2074,14 @@
     ]
   },
   {
+    "path": "/api/catalog/peers/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_peers",
+    "dependencies": []
+  },
+  {
     "path": "/api/company/{ticker}/metrics",
     "methods": [
       "GET"
@@ -4092,6 +4100,14 @@
     "dependencies": [
       "_require_user"
     ]
+  },
+  {
+    "path": "/api/v2/catalog/peers/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_catalog_peers__v2",
+    "dependencies": []
   },
   {
     "path": "/api/v2/company/{ticker}/metrics",

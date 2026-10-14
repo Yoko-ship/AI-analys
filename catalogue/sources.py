@@ -21,6 +21,7 @@ from collectors.openinfo.spreadsheets import parse_excel_report_document
 from collectors.openinfo.issuers import resolve_company
 from urllib.parse import urlencode
 import catalogue.filings as catalogue_filings
+import catalogue.periods as catalogue_periods
 import re
 
 
@@ -257,7 +258,19 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
                       else catalogue_history._parse_workbook_uncached(session, doc["excel_url"]))
 
-            if parsed.get("ok"):
+            conflict = (catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get("published_at"))
+
+                        if parsed.get("ok") else None)
+
+            if conflict:
+
+                # Every figure writer reads workbooks through here; one whose
+
+                # header names another period must not be stored as this one.
+
+                errors.append(f"income/main: {conflict}")
+
+            elif parsed.get("ok"):
 
                 income = parsed
 
@@ -299,7 +312,15 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
                            else catalogue_history._parse_workbook_uncached(session, doc1["excel_url"]))
 
-                if parsed1.get("ok"):
+                conflict1 = (catalogue_periods.header_period_conflict(parsed1, year, quarter, urls.get("published_at"))
+
+                             if parsed1.get("ok") else None)
+
+                if conflict1:
+
+                    errors.append(f"balance: {conflict1}")
+
+                elif parsed1.get("ok"):
 
                     balance = parsed1
 

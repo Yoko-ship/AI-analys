@@ -295,6 +295,53 @@ def _stated_reporting_date(parsed: dict[str, Any] | None) -> date | None:
         return None
 
 
+# How far «Дата отчетности» may sit from the period end it is filed under.
+# Filers stamp either the period end or the day they file: across 236 dated
+# catalogue workbooks sampled from openinfo (2015–2026, 70 issuers) annuals
+# state the year end, the next 1 January or a filing day up to six months
+# later (BECM FY2024: 2025-06-26), and quarterlies the quarter end or a filing
+# day up to 31 days later. All of them pass but one: TKDM's annual catalogued
+# as 2026 states 2025-12-31 — a real mislabel. The same quarterly workbooks
+# relabelled one quarter either way fail 117 times in 117, and the annuals
+# relabelled a year later fail 136 in 139: the error this exists for is a 2020
+# statement filed as 2025.
+_HEADER_WINDOW_DAYS = {"annual": (-45, 300), "quarter": (-31, 75)}
+
+
+def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: int,
+                           published_at: Any = None) -> str | None:
+    """Why a workbook's own header contradicts the period it is filed under.
+
+    None when the header agrees, states no date, or states one that cannot be
+    trusted (a date after the filing was published — BIOK's FY2025 workbook,
+    published 2026-07-07, states 2026-12-31). Otherwise a sentence naming both
+    periods, so the figures are refused instead of stored under the wrong
+    year.
+    """
+    stated = _stated_reporting_date(parsed)
+    if stated is None or not year:
+        return None
+    try:
+        published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).date() if published_at else None
+    except ValueError:
+        published = None
+    if published is not None and stated > published + timedelta(days=1):
+        return None
+    quarter = int(quarter or 0)
+    if quarter:
+        month = quarter * 3
+        end = date(int(year), month, 30 if month in (6, 9) else 31)
+        low, high = _HEADER_WINDOW_DAYS["quarter"]
+    else:
+        end = date(int(year), 12, 31)
+        low, high = _HEADER_WINDOW_DAYS["annual"]
+    offset = (stated - end).days
+    if low <= offset <= high:
+        return None
+    label = f"{year}Q{quarter}" if quarter else str(year)
+    return f"workbook header states {stated.isoformat()}, catalogued as {label}"
+
+
 def _quarter_period_from_publication(quarter: int, pub: datetime | None,
                                      stated: date | None = None) -> tuple[int, int]:
     """(fiscal year, quarter) for a filing published on ``pub``.

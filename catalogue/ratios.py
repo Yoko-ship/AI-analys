@@ -9,6 +9,7 @@ from entity_resolver import ORG_OVERRIDES
 from entity_resolver import UNRELIABLE_FINANCIALS
 from typing import Any
 import catalogue.fields as catalogue_fields
+import catalogue.filings as catalogue_filings
 import catalogue.periods as catalogue_periods
 import catalogue.settings as catalogue_settings
 import catalogue.storage as catalogue_storage
@@ -431,12 +432,103 @@ def get_all_ratios_cached() -> dict[str, dict[str, Any]]:
 
 _CATALOG_ANALYSIS_VALUE_KEYS = (
     "revenue", "net_income", "total_assets", "total_equity",
-    "total_liabilities", "gross_profit", "operating_income", "cash",
-    "current_assets", "current_liabilities", "inventories",
+    "total_liabilities", "gross_profit", "operating_income", "operating_expenses",
+    "cash", "current_assets", "current_liabilities", "inventories",
+)
+
+# The statement lines a period's validity and identity are judged on.
+_CATALOG_MONEY_KEYS = (
+    "revenue", "net_income", "total_assets", "total_equity", "total_liabilities",
+    "gross_profit", "operating_income", "operating_expenses", "cash",
 )
 
 
-def _cached_catalog_ratio_payload(row: dict[str, Any] | None) -> dict[str, Any]:
+def catalog_period_months(quarter: int | None) -> int:
+    """Months a period's flows cover: NSBU and IFRS interims are cumulative YTD."""
+    quarter = int(quarter or 0)
+    return quarter * 3 if 1 <= quarter <= 4 else 12
+
+
+def catalog_period_problem(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Why a stored period must not be analysed, or None when it can be.
+
+    Three shapes of a filing that carries no usable statement, each seen in the
+    catalogue: every line nought (UZNGP's «2025» workbook is an empty form);
+    a balance whose total is nought or negative (SQBN's 2024 annual states
+    «Итого активов 0»); and the form's line numbers typed into the amount
+    column (the same SQBN filing: «Итого процентных доходов 1», «Чистая прибыль
+    13») — every amount below the plausibility floor the fact store already
+    applies to such rows.
+    """
+    if not row:
+        return {"code": "missing"}
+    money = [catalogue_codecs._financials_num(row.get(key)) for key in _CATALOG_MONEY_KEYS]
+    money = [value for value in money if value is not None]
+    if not money or not any(money):
+        return {"code": "empty_filing"}
+    assets = catalogue_codecs._financials_num(row.get("total_assets"))
+    if assets is not None and assets <= 0:
+        return {"code": "no_balance"}
+    if max(abs(value) for value in money) < catalogue_fields._MIN_PLAUSIBLE:
+        return {"code": "implausible_scale"}
+    return None
+
+
+def catalog_duplicate_periods(series: dict[str, dict[str, Any]],
+                              filed: set[str] | None = None) -> dict[str, str]:
+    """Periods whose figures are another period's copy: ``{copy: original}``.
+
+    A filing catalogued under one year and later under another leaves its
+    figures behind under the first label, so two «years» agree to the sum on
+    every line (the company page drops the same ghosts; UZNGP's «2025» carries
+    another year's statement). Two real reporting periods do not agree on three
+    or more lines at once. Which of the pair is the copy: the one without a
+    filing of its own when the registry can tell (``filed``), otherwise the
+    later label — a statement cannot describe a year before that year existed.
+    """
+    usable = {period: row for period, row in (series or {}).items()
+              if catalog_period_problem(row) is None}
+    ordered = sorted(usable)
+    copies: dict[str, str] = {}
+    for index, first in enumerate(ordered):
+        if first in copies:
+            continue
+        for second in ordered[index + 1:]:
+            if second in copies:
+                continue
+            pairs = [(catalogue_codecs._financials_num(usable[first].get(key)),
+                      catalogue_codecs._financials_num(usable[second].get(key)))
+                     for key in _CATALOG_MONEY_KEYS]
+            both = [(a, b) for a, b in pairs if a is not None and b is not None]
+            if len(both) < 3 or not all(a == b for a, b in both) or not any(a for a, _ in both):
+                continue
+            if filed is not None and (first in filed) != (second in filed):
+                copy, original = (second, first) if first in filed else (first, second)
+            else:
+                copy, original = second, first
+            copies[copy] = original
+            if copy == first:
+                break
+    return copies
+
+
+def _filed_periods(ticker: str, form: str) -> set[str] | None:
+    """Periods with a filing of their own in the report registry."""
+    try:
+        reports = catalogue_filings.get_company_reports(ticker) or []
+    except Exception:  # noqa: BLE001 — without the registry the later label is the copy
+        catalogue_settings.logger.exception("catalog: report registry read failed for %s", ticker)
+        return None
+    filed: set[str] = set()
+    for report in reports:
+        if report.get("report_form") != form or not report.get("year"):
+            continue
+        quarter = int(report.get("quarter") or 0)
+        filed.add(f"{report['year']}Q{quarter}" if quarter else str(report["year"]))
+    return filed
+
+
+def _cached_catalog_ratio_payload(row: dict[str, Any] | None, months: int = 12) -> dict[str, Any]:
     """Build the legacy catalog ratio shape from one cached filing row.
 
     The catalog UI predates the filing cache and expects ``metrics`` plus
@@ -444,6 +536,11 @@ def _cached_catalog_ratio_payload(row: dict[str, Any] | None) -> dict[str, Any]:
     already-collected, source-linked figures instead of downloading the same
     OpenInfo workbook on every button click (which is blocked from production
     datacenter IPs).
+
+    Interim flows are year-to-date, so a return on assets or equity built from
+    a half-year is half a year's return. Both are stated per year
+    (× 12 / months) and the payload says so; margins divide a flow by a flow
+    and need no scaling.
     """
     row = dict(row or {})
     values = {key: catalogue_codecs._financials_num(row.get(key)) for key in _CATALOG_ANALYSIS_VALUE_KEYS}
@@ -462,27 +559,35 @@ def _cached_catalog_ratio_payload(row: dict[str, Any] | None) -> dict[str, Any]:
     values["total_assets"] = assets
     values["total_equity"] = equity
     values["total_liabilities"] = liabilities
+    months = months if months in (3, 6, 9, 12) else 12
+    scale = 12 / months
 
-    def pct(numerator: float | None, denominator: float | None) -> float | None:
+    def pct(numerator: float | None, denominator: float | None, factor: float = 1.0) -> float | None:
         if numerator is None or denominator in (None, 0):
             return None
-        return round(numerator / denominator * 100, 2)
+        return round(numerator / denominator * 100 * factor, 2)
 
     def multiple(numerator: float | None, denominator: float | None) -> float | None:
         if numerator is None or denominator in (None, 0):
             return None
         return round(numerator / denominator, 4)
 
+    def stored(key: str) -> float | None:
+        # A stored coefficient is the annual filing's own; an interim one would
+        # be a year-to-date return and is recomputed from the sums instead.
+        return catalogue_codecs._financials_num(row.get(key)) if months == 12 else None
+
     net_income = values.get("net_income")
     revenue = values.get("revenue")
+    roa = pct(net_income, assets, scale)
+    roe = pct(net_income, equity, scale) if equity is None or equity > 0 else None
     metrics = {
-        "ROA": catalogue_codecs._financials_num(row.get("roa")) if row.get("roa") is not None else pct(net_income, assets),
-        "ROE": catalogue_codecs._financials_num(row.get("roe")) if row.get("roe") is not None else pct(net_income, equity),
+        "ROA": roa if roa is not None else stored("roa"),
+        "ROE": roe if roe is not None else stored("roe"),
         "net_margin": pct(net_income, revenue),
-        "debt_ratio": (catalogue_codecs._financials_num(row.get("debt_ratio"))
-                       if row.get("debt_ratio") is not None else pct(liabilities, assets)),
-        "debt_to_equity": (catalogue_codecs._financials_num(row.get("debt_to_equity"))
-                           if row.get("debt_to_equity") is not None else multiple(liabilities, equity)),
+        "debt_ratio": pct(liabilities, assets) if pct(liabilities, assets) is not None else stored("debt_ratio"),
+        "debt_to_equity": (multiple(liabilities, equity) if equity is not None and equity > 0
+                           else stored("debt_to_equity")),
     }
     source_values = {
         "revenue": revenue,
@@ -492,27 +597,97 @@ def _cached_catalog_ratio_payload(row: dict[str, Any] | None) -> dict[str, Any]:
         "total_liabilities": liabilities,
     }
     return {"metrics": metrics, "source_values": source_values,
-            "all_values": values, "has_data": any(value is not None for value in values.values())}
+            "all_values": values, "period_months": months, "annualized": months != 12,
+            "has_data": any(value is not None for value in values.values())}
+
+
+def _catalog_series(ticker: str, form: str, quarterly: bool) -> dict[str, dict[str, Any]]:
+    return (catalogue_snapshots.get_financials_series_quarterly(ticker, form)
+            if quarterly else catalogue_snapshots.get_financials_series(ticker, form)) or {}
 
 
 def get_cached_catalog_period(ticker: str, form: str, year: int,
                               quarter: int = 0) -> dict[str, Any]:
-    """Return one exact filing period from the local financial cache."""
+    """Return one exact filing period from the local financial cache.
+
+    A period the store holds but which carries no usable statement — an empty
+    or line-number filing, a balance without assets, another period's copy —
+    comes back with ``has_data`` False and the reason, so no lens can publish
+    it as that period's figures.
+    """
+    empty = {"metrics": {}, "source_values": {}, "all_values": {}, "has_data": False}
     if form not in {"NSBU", "MSFO"}:
-        return {"metrics": {}, "source_values": {}, "all_values": {}, "has_data": False}
-    period = f"{int(year)}Q{int(quarter)}" if quarter else str(int(year))
-    series = (catalogue_snapshots.get_financials_series_quarterly(ticker, form)
-              if quarter else catalogue_snapshots.get_financials_series(ticker, form))
-    return {"period": period, **_cached_catalog_ratio_payload(series.get(period))}
+        return empty
+    quarter = int(quarter or 0)
+    period = f"{int(year)}Q{quarter}" if quarter else str(int(year))
+    series = _catalog_series(ticker, form, bool(quarter))
+    row = series.get(period)
+    payload = {"period": period, **_cached_catalog_ratio_payload(row, catalog_period_months(quarter))}
+    if row is None:
+        return payload
+    problem = catalog_period_problem(row)
+    if problem is None:
+        original = catalog_duplicate_periods(series, _filed_periods(ticker, form)).get(period)
+        if original:
+            problem = {"code": "duplicate_period", "duplicate_of": original}
+    if problem:
+        catalogue_settings.logger.info("catalog: %s %s %s withheld — %s", ticker, form, period, problem)
+        return {**payload, "has_data": False, "unavailable": problem}
+    return payload
+
+
+def latest_cached_catalog_period(ticker: str, form: str, *, annual_only: bool = False,
+                                 not_after: tuple[int, int] | None = None) -> tuple[int, int] | None:
+    """(year, quarter) of the newest usable period, optionally capped."""
+    candidates: list[tuple[int, int]] = []
+    sources = [(False, _catalog_series(ticker, form, False))]
+    if not annual_only:
+        sources.append((True, _catalog_series(ticker, form, True)))
+    for quarterly, series in sources:
+        copies = catalog_duplicate_periods(series)
+        for period, row in series.items():
+            match = re.fullmatch(r"(\d{4})(?:Q([1-4]))?", str(period))
+            if not match or period in copies or catalog_period_problem(row) is not None:
+                continue
+            key = (int(match.group(1)), int(match.group(2) or 0))
+            if quarterly and key[1] == 0:
+                continue
+            candidates.append(key)
+    rank = lambda key: (key[0], key[1] or 5)  # noqa: E731 — an annual closes its year
+    if not_after is not None:
+        candidates = [key for key in candidates if rank(key) <= rank(not_after)]
+    return max(candidates, key=rank, default=None)
 
 
 def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, Any]:
-    """Build annual and quarterly catalog dynamics without upstream I/O."""
+    """Build annual and quarterly catalog dynamics without upstream I/O.
+
+    Periods with no usable statement and copies of another period are left out
+    of the series and listed in ``excluded_periods`` with the reason; a year of
+    zeros or line numbers drawn into a chart is a fabricated collapse.
+    """
     if form not in {"NSBU", "MSFO"}:
         return {"ticker": ticker, "form": form, "years": [], "series": {},
-                "quarterly": [], "seasonality": {"metric": "revenue", "years_covered": 0,
-                                                     "insufficient": True, "quarter_avg": {}}}
-    annual_source = catalogue_snapshots.get_financials_series(ticker, form)
+                "quarterly": [], "excluded_periods": [],
+                "seasonality": {"metric": "revenue", "years_covered": 0,
+                                "insufficient": True, "quarter_avg": {}}}
+    excluded: list[dict[str, Any]] = []
+    filed = _filed_periods(ticker, form)
+
+    def usable(series: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        copies = catalog_duplicate_periods(series, filed)
+        kept = {}
+        for period, row in series.items():
+            problem = catalog_period_problem(row)
+            if problem is None and period in copies:
+                problem = {"code": "duplicate_period", "duplicate_of": copies[period]}
+            if problem:
+                excluded.append({"period": str(period), **problem})
+            else:
+                kept[period] = row
+        return kept
+
+    annual_source = usable(catalogue_snapshots.get_financials_series(ticker, form) or {})
     annual_items = sorted(
         ((int(year), _cached_catalog_ratio_payload(row))
          for year, row in annual_source.items() if str(year).isdigit()),
@@ -525,13 +700,13 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
         for key in ("revenue", "net_income", "total_assets", "equity", "total_liabilities")
     }
 
-    quarterly_source = catalogue_snapshots.get_financials_series_quarterly(ticker, form)
+    quarterly_source = usable(catalogue_snapshots.get_financials_series_quarterly(ticker, form) or {})
     parsed_quarters: list[tuple[int, int, dict[str, Any]]] = []
     for period, row in quarterly_source.items():
         match = re.fullmatch(r"(\d{4})Q([1-4])", str(period))
         if not match:
             continue
-        payload = _cached_catalog_ratio_payload(row)
+        payload = _cached_catalog_ratio_payload(row, catalog_period_months(int(match.group(2))))
         if payload["has_data"]:
             parsed_quarters.append((int(match.group(1)), int(match.group(2)), payload))
     parsed_quarters.sort(key=lambda item: (item[0], item[1]))
@@ -572,5 +747,7 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
             for quarter, values in by_quarter.items()
         },
     }
+    excluded.sort(key=lambda item: item["period"])
     return {"ticker": ticker, "form": form, "years": years, "series": series,
-            "quarterly": quarterly, "seasonality": seasonality}
+            "quarterly": quarterly, "seasonality": seasonality,
+            "excluded_periods": excluded}

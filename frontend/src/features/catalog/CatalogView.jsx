@@ -1,4 +1,5 @@
 import { safeHref } from "../../lib/safeHref.js";
+import { apiErrorMessage, readApiResponse, unavailableMessage } from "../../lib/httpErrors.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import React, { useEffect, useState } from "react";
 import { formatCatalogDate } from "../../shared/format.jsx";
@@ -373,6 +374,9 @@ function CatalogRatioTable({ result, language }) {
     return new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
   };
 
+  // Returns over a part-year are stated per year by the server; say so on
+  // the card instead of printing a half-year ROE beside an annual one.
+  const ANNUALIZED_KEYS = ["ROA", "ROE", "nav_return", "expense_ratio"];
   const renderCard = (k, v) => {
     const prev = prevMetrics[k];
     const hasDelta = prev !== null && prev !== undefined && v !== null && v !== undefined;
@@ -384,6 +388,9 @@ function CatalogRatioTable({ result, language }) {
       <div key={k} className="catalog-ratio-card">
         <span className="ratio-name">{labelMap[k] || k}</span>
         <strong className="ratio-value">{k === "debt_to_equity" ? fmtDE(v) : fmt(v)}</strong>
+        {result.annualized && ANNUALIZED_KEYS.includes(k) && v !== null && v !== undefined && (
+          <span className="ratio-delta-label">{clg(lang, "annualized")}</span>
+        )}
         {delta !== null && (
           <div className={`ratio-delta ${up ? "pos" : down ? "neg" : "neutral"}`}>
             {up ? "↑" : down ? "↓" : "→"} {up ? "+" : ""}{delta}{k !== "debt_to_equity" ? "%" : ""}
@@ -391,8 +398,8 @@ function CatalogRatioTable({ result, language }) {
           </div>
         )}
         {sectorVal !== undefined && sectorVal !== null && (
-          <div className="ratio-sector-avg">
-            ∅ {k === "debt_to_equity" ? fmtDE(sectorVal) : fmt(sectorVal)}
+          <div className="ratio-sector-avg" title={clg(lang, "sectorMedian")}>
+            {clg(lang, "sectorMedian")}: {k === "debt_to_equity" ? fmtDE(sectorVal) : fmt(sectorVal)}
             {result.sector_avg?.n ? <span className="ratio-delta-label"> ({result.sector_avg.n})</span> : null}
           </div>
         )}
@@ -603,6 +610,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const [yearFilter, setYearFilter] = useState("all");
   const [chartMonths, setChartMonths] = useState(3);
   const [reportPage, setReportPage] = useState(0);
+  const [peers, setPeers] = useState(null);
 
   const apiFetch = React.useCallback((path, options = {}) => {
     const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || "";
@@ -666,8 +674,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     try {
       const body = { force: true, ...(specificTicker ? { ticker: specificTicker } : {}) };
       const res = await apiFetch("/api/catalog/sync", { method: "POST", body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Sync failed");
+      const { data } = await readApiResponse(res);
+      if (!res.ok || !data) throw new Error(apiErrorMessage(res, data, lang));
       await Promise.all([loadStatus(), loadCatalogComps(), ...(ticker ? [loadIndex(ticker)] : [])]);
       if (Array.isArray(data.errors) && data.errors.length) {
         addToast(clg(lang, "syncSourceError"), "error");
@@ -686,16 +694,40 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     try {
       const body = {
         ticker, year: parseInt(year), quarter, form, analysis_type: analysisType, language: lang,
-        ...(compareTicker ? { compare_ticker: compareTicker } : {}),
-        ...(compareYear ? { compare_year: parseInt(compareYear), compare_quarter: compareQuarter } : {}),
+        ...(analysisType === "multi_company" && compareTicker ? { compare_ticker: compareTicker } : {}),
+        // An annual comparison is annual on both sides, whatever quarter
+        // selector was left at; the server applies the same rule.
+        ...(compareYear ? {
+          compare_year: parseInt(compareYear),
+          compare_quarter: analysisType === "annual_compare" ? 0 : compareQuarter,
+        } : {}),
       };
       const res = await apiFetch("/api/catalog/analyze", { method: "POST", body: JSON.stringify(body) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Analysis failed");
+      const { data } = await readApiResponse(res);
+      if (!res.ok || !data) throw new Error(apiErrorMessage(res, data, lang));
       setResult(data);
-    } catch (err) { addToast(err.message, "error"); }
+    } catch (err) {
+      addToast(err instanceof TypeError ? unavailableMessage(0, lang) : err.message, "error");
+    }
     finally { setResultLoading(false); }
   };
+
+  useEffect(() => {
+    if (analysisType !== "multi_company" || !ticker || !year) { setPeers(null); return undefined; }
+    let cancelled = false;
+    setPeers(null);
+    const params = new URLSearchParams({ year: String(parseInt(year)), quarter: String(quarter || 0), form, language: lang });
+    apiFetch(`/api/catalog/peers/${encodeURIComponent(ticker)}?${params}`)
+      .then(async (res) => {
+        const { data } = await readApiResponse(res);
+        if (!cancelled) setPeers(res.ok && data?.peers ? data.peers : []);
+      })
+      .catch(() => { if (!cancelled) setPeers([]); });
+    return () => { cancelled = true; };
+  }, [analysisType, ticker, year, quarter, form, lang, apiFetch]);
+  useEffect(() => {
+    if (compareTicker && Array.isArray(peers) && !peers.some((p) => p.ticker === compareTicker)) setCompareTicker("");
+  }, [peers, compareTicker]);
 
   const handleSelectReport = (report) => {
     setForm(report.form);
@@ -803,8 +835,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     const sections = result.sections || {};
     const TYPE_SECTIONS = {
       financial: ["ДОСЬЕ", "ЧТО_С_ДЕНЬГАМИ", "ТРЕНД", "ЭФФЕКТИВНОСТЬ", "ОЦЕНКА_ЦЕНЫ", "РЫНОЧНЫЕ_ДАННЫЕ"],
-      swot: ["СИЛЬНЫЕ_СТОРОНЫ", "СЛАБЫЕ_СТОРОНЫ", "КАТАЛИЗАТОРЫ"],
-      recommendation: ["СКОРИНГ", "ОЦЕНКА_ЦЕНЫ", "ВЕРДИКТ", "ИТОГ"],
+      swot: ["СИЛЬНЫЕ_СТОРОНЫ", "СЛАБЫЕ_СТОРОНЫ", "ВОЗМОЖНОСТИ", "УГРОЗЫ", "КАТАЛИЗАТОРЫ"],
+      recommendation: ["СКОРИНГ", "КРАСНЫЕ_ФЛАГИ", "ОЦЕНКА_ЦЕНЫ", "ВЕРДИКТ", "ИТОГ"],
     };
     const wanted = TYPE_SECTIONS[type] || null;
 
@@ -1029,12 +1061,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   {needsCompareTicker && (
                     <label className="catalog-field">
                       <span>{clg(lang, "compareWith")}</span>
-                      <select value={compareTicker} onChange={(e) => setCompareTicker(e.target.value)}>
-                        <option value="">—</option>
-                        {filteredComps.filter((c) => (
-                          c.ticker !== ticker
-                          && ((index?.sector || selectedCompany?.sector) === "finance" || c.sector !== "finance")
-                        )).map((c) => (
+                      <select value={compareTicker} onChange={(e) => setCompareTicker(e.target.value)} disabled={!peers?.length}>
+                        <option value="">{peers === null ? clg(lang, "loading") : peers.length ? "—" : clg(lang, "noPeers")}</option>
+                        {(peers || []).map((c) => (
                           <option key={c.ticker} value={c.ticker}>{c.ticker} — {c.company_name}</option>
                         ))}
                       </select>
@@ -1049,7 +1078,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                           <option value="">—</option>
                           {availYears.map((y) => <option key={y} value={y}>{y}</option>)}
                         </select>
-                        {form === "NSBU" && (
+                        {form === "NSBU" && analysisType !== "annual_compare" && (
                           <select value={compareQuarter} onChange={(e) => setCompareQuarter(parseInt(e.target.value))}>
                             <option value={0}>{periodsObj.annual}</option>
                             {[1, 2, 3].map((q) => <option key={q} value={q}>{periodsObj[`q${q}`]}</option>)}
@@ -1079,6 +1108,11 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                       {clg(lang, "exportPdf")}
                     </button>
                   </div>
+                  {Array.isArray(result.notes) && result.notes.length > 0 && (
+                    <ul className="catalog-result-notes muted">
+                      {result.notes.map((note) => <li key={note}>{note}</li>)}
+                    </ul>
+                  )}
                   {renderResult()}
                 </article>
               )}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import server.catalog.analysis as catalog_analysis
+import server.catalog.service as catalog_service
 
 from company_catalog import COMPANY_CATALOG
 from company_catalog import COMPANY_SECTORS
@@ -13,9 +15,9 @@ from fastapi.responses import Response
 from functools import partial
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import field_validator
 from typing import Any
 from typing import Literal
-import analysis_service as analysis_service
 import asyncio
 import company_imports
 import functools
@@ -23,23 +25,16 @@ import openinfo_collector as openinfo_collector
 import collectors.openinfo.documents as collectors_openinfo_documents
 import provenance
 import reports_catalog as catalog_store
-import catalogue.ratios as catalogue_ratios
 import catalogue.settings as catalogue_settings
-import catalogue.dynamics as catalogue_dynamics
 import catalogue.facts as catalogue_facts
 import catalogue.filings as catalogue_filings
-import catalogue.financial_store as catalogue_financial_store
 import catalogue.market_store as catalogue_market_store
-import catalogue.parsing as catalogue_parsing
-import catalogue.ratios as catalogue_ratios
 import catalogue.settings as catalogue_settings
-import catalogue.sources as catalogue_sources
 import catalogue.storage as catalogue_storage
 import catalogue.sync as catalogue_sync
 import requests
 import securities_catalog as securities_store
 import server.auth.access as auth_access
-import server.auth.limits as auth_limits
 import server.catalog.jobs as catalog_jobs
 import server.http as http
 import server.market.board as market_board
@@ -78,6 +73,23 @@ class AdminCompanyVisibilityRequest(BaseModel):
     visible: bool
 
 
+def _annual_quarter(value: Any) -> Any:
+    """An annual report is quarter 0; clients also send it as null or 4.
+
+    The catalogue lists an annual filing with quarter 0, openinfo's cumulative
+    fourth quarter is the same twelve months, and a client that leaves the
+    field empty means the annual. Refusing those with a 422 (UZNGP's annual
+    arrived as quarter=null) helped nobody.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return value
+    return 0 if number == 4 else number
+
+
 class CatalogAnalyzeRequest(BaseModel):
     ticker: str = Field(..., min_length=1, max_length=40)
     year: int = Field(..., ge=2000, le=2100)
@@ -91,6 +103,17 @@ class CatalogAnalyzeRequest(BaseModel):
     compare_ticker: str | None = Field(default=None, max_length=40)
     compare_year: int | None = Field(default=None, ge=2000, le=2100)
     compare_quarter: int | None = Field(default=None, ge=0, le=3)
+
+    @field_validator("quarter", mode="before")
+    @classmethod
+    def _quarter(cls, value: Any) -> Any:
+        value = _annual_quarter(value)
+        return 0 if value is None else value
+
+    @field_validator("compare_quarter", mode="before")
+    @classmethod
+    def _compare_quarter(cls, value: Any) -> Any:
+        return _annual_quarter(value)
 
 
 @router.get("/api/companies")
@@ -708,256 +731,70 @@ async def api_catalog_sync(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+# One deadline for a catalogue analysis. The work is local reads only, so it
+# finishes in well under a second; the limit exists so that a stuck read comes
+# back as a JSON error the page can show, never as the proxy's HTML timeout.
+CATALOG_ANALYZE_TIMEOUT_SECONDS = float(os.getenv("CATALOG_ANALYZE_TIMEOUT_SECONDS", "25"))
+
+
+def _catalog_sectors(approved: dict[str, Any]) -> dict[str, Any]:
+    return {**COMPANY_SECTORS,
+            **{t: item.get("sector") for t, item in approved.items() if item.get("sector")}}
+
+
+async def _catalog_run(language: str, func, *args) -> dict[str, Any]:
+    """Run catalogue work off the loop; every outcome is a JSON response."""
+    loop = asyncio.get_running_loop()
+    try:
+        return http._json_safe(await asyncio.wait_for(
+            loop.run_in_executor(None, partial(func, *args)), timeout=CATALOG_ANALYZE_TIMEOUT_SECONDS))
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=catalog_analysis.tr(
+            language, "Анализ не уложился в отведённое время. Повторите запрос через минуту.",
+            "Tahlil ajratilgan vaqtga sig‘madi. Bir daqiqadan so‘ng qayta urinib ko‘ring.",
+            "The analysis did not finish in time. Please retry in a minute.")) from exc
+
+
 @router.post("/api/catalog/analyze")
 async def api_catalog_analyze(
     payload: CatalogAnalyzeRequest,
     current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
+    """Every issuer, bank or factory, is analysed from the verified filing cache.
+
+    The organization kind (bank, insurer, fund, other financial, industry) is
+    resolved before any figure is chosen; see :mod:`server.catalog.service`.
+    """
     ticker = payload.ticker.upper()
-    loop = asyncio.get_running_loop()
-    approved = await loop.run_in_executor(None, company_imports.approved_metadata_map)
-    company_name = catalogue_settings._TICKER_TO_NAME.get(ticker) or (approved.get(ticker) or {}).get("company_name") or ticker
-    form_map = {"NSBU": "NAS", "MSFO": "IFRS", "Audition": "Audit"}
-    sectors = {**COMPANY_SECTORS,
-               **{t: item.get("sector") for t, item in approved.items()
-                  if item.get("sector")}}
-    sector = sectors.get(ticker)
-
     try:
-        # Ordinary issuers use the verified filing cache.  The former path
-        # downloaded OpenInfo Excel files again for every click, so production
-        # returned empty/error results whenever OpenInfo blocked the datacenter
-        # address.  Financial-sector issuers deliberately remain on their
-        # existing bank-aware path until that separate flow is changed.
-        if sector and sector != "finance":
-            period = f"{payload.year}Q{payload.quarter}" if payload.quarter else str(payload.year)
-
-            if payload.analysis_type == "dynamics":
-                dynamics = await loop.run_in_executor(
-                    None, partial(catalogue_ratios.build_cached_catalog_dynamics, ticker, payload.form)
-                )
-                if not dynamics.get("years") and not dynamics.get("quarterly"):
-                    raise HTTPException(
-                        status_code=404,
-                        detail=catalog_analysis._catalog_no_cached_data(payload.language, payload.form, period),
-                    )
-                return http._json_safe({
-                    "ok": True, "analysis_type": "dynamics", "ticker": ticker,
-                    "company_name": company_name, "year": payload.year,
-                    "quarter": payload.quarter, "sector": sector,
-                    "data_source": "verified_cache", **dynamics,
-                })
-
-            current = await loop.run_in_executor(
-                None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
-                              payload.year, payload.quarter)
-            )
-            if not current.get("has_data"):
-                raise HTTPException(
-                    status_code=404,
-                    detail=catalog_analysis._catalog_no_cached_data(payload.language, payload.form, period),
-                )
-
-            if payload.analysis_type == "ratio":
-                previous = await loop.run_in_executor(
-                    None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
-                                  payload.year - 1, payload.quarter)
-                )
-                sector_peers = [t for t, peer_sector in sectors.items()
-                                if peer_sector == sector and t != ticker] if sector else []
-                sector_avg: dict[str, Any] = {}
-                if sector_peers:
-                    try:
-                        sector_avg = await loop.run_in_executor(
-                            None, partial(catalogue_ratios.get_sector_averages, sector_peers,
-                                          payload.form, payload.year)
-                        )
-                    except Exception:
-                        pass
-                return http._json_safe({
-                    "ok": True, "analysis_type": "ratio", "ticker": ticker,
-                    "company_name": company_name, "year": payload.year,
-                    "quarter": payload.quarter, "form": payload.form,
-                    "metrics": current.get("metrics"),
-                    "source_values": current.get("source_values"),
-                    "prev_year": payload.year - 1,
-                    "prev_metrics": previous.get("metrics") if previous.get("has_data") else {},
-                    "sector": sector, "sector_avg": sector_avg,
-                    "data_source": "verified_cache",
-                })
-
-            if payload.analysis_type in ("quarter_compare", "annual_compare"):
-                compare_year = payload.compare_year or (payload.year - 1)
-                compare_quarter = (payload.compare_quarter
-                                   if payload.compare_quarter is not None else payload.quarter)
-                compared = await loop.run_in_executor(
-                    None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
-                                  compare_year, compare_quarter)
-                )
-                compare_period = (f"{compare_year}Q{compare_quarter}"
-                                  if compare_quarter else str(compare_year))
-                if not compared.get("has_data"):
-                    raise HTTPException(
-                        status_code=404,
-                        detail=catalog_analysis._catalog_no_cached_data(
-                            payload.language, payload.form, compare_period),
-                    )
-                return http._json_safe({
-                    "ok": True, "analysis_type": payload.analysis_type,
-                    "ticker": ticker, "company_name": company_name,
-                    "year": payload.year, "quarter": payload.quarter,
-                    "sector": sector, "data_source": "verified_cache",
-                    "period1": {"year": payload.year, "quarter": payload.quarter,
-                                "form": payload.form, "metrics": current.get("metrics"),
-                                "source_values": current.get("source_values")},
-                    "period2": {"year": compare_year, "quarter": compare_quarter,
-                                "form": payload.form, "metrics": compared.get("metrics"),
-                                "source_values": compared.get("source_values")},
-                })
-
-            previous = await loop.run_in_executor(
-                None, partial(catalogue_ratios.get_cached_catalog_period, ticker, payload.form,
-                              payload.year - 1, payload.quarter)
-            )
-            compare_name = None
-            compared = None
-            if payload.analysis_type == "multi_company":
-                compare_ticker = str(payload.compare_ticker or "").strip().upper()
-                if not compare_ticker:
-                    raise HTTPException(status_code=400, detail="compare_ticker is required")
-                if sectors.get(compare_ticker) == "finance":
-                    raise HTTPException(
-                        status_code=400,
-                        detail=("Выберите нефинансовую компанию для сравнения."
-                                if payload.language == "ru" else
-                                "Taqqoslash uchun nomoliyaviy kompaniyani tanlang."
-                                if payload.language == "uz" else
-                                "Select a non-financial company for comparison."),
-                    )
-                compare_name = (catalogue_settings._TICKER_TO_NAME.get(compare_ticker)
-                                or (approved.get(compare_ticker) or {}).get("company_name")
-                                or compare_ticker)
-                compared = await loop.run_in_executor(
-                    None, partial(catalogue_ratios.get_cached_catalog_period, compare_ticker, payload.form,
-                                  payload.year, payload.quarter)
-                )
-                if not compared.get("has_data"):
-                    raise HTTPException(
-                        status_code=404,
-                        detail=catalog_analysis._catalog_no_cached_data(payload.language, payload.form, period),
-                    )
-
-            sections = catalog_analysis._catalog_nonfinance_sections(
-                payload.analysis_type, company_name, period, current, previous,
-                payload.language, compare_name=compare_name, compare=compared,
-            )
-            if not sections:
-                raise HTTPException(status_code=400, detail="Unsupported analysis type")
-            return http._json_safe({
-                "ok": True, "analysis_type": payload.analysis_type,
-                "ticker": ticker, "company_name": company_name,
-                "year": payload.year, "quarter": payload.quarter,
-                "form": payload.form, "language": payload.language,
-                "sector": sector, "sections": sections,
-                "metrics": current.get("metrics"),
-                "data_source": "verified_cache",
-            })
-
-        if payload.analysis_type == "ratio":
-            prev_year = payload.year - 1
-            excel, excel_prev = await asyncio.gather(
-                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
-                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, prev_year, payload.quarter)),
-            )
-            if not excel.get("ok"):
-                raise HTTPException(status_code=400, detail=excel.get("error") or "Could not fetch report")
-            ratios = catalogue_parsing.compute_financial_ratios(excel.get("income"), excel.get("balance"))
-            ratios_prev = catalogue_parsing.compute_financial_ratios(excel_prev.get("income"), excel_prev.get("balance")) if excel_prev.get("ok") else {}
-            # Cache ratios for sector averaging
-            if ratios.get("metrics"):
-                try:
-                    await loop.run_in_executor(None, partial(catalogue_financial_store.upsert_ratio_cache, ticker, payload.form, payload.year, payload.quarter, ratios["metrics"]))
-                except Exception:
-                    pass
-            # Approved imports extend the legacy static sector map immediately.
-            sector_peers = [t for t, s in sectors.items() if s == sector and t != ticker] if sector else []
-            sector_avg: dict = {}
-            if sector_peers:
-                try:
-                    sector_avg = await loop.run_in_executor(None, partial(catalogue_ratios.get_sector_averages, sector_peers, payload.form, payload.year))
-                except Exception:
-                    pass
-            return http._json_safe({
-                "ok": True, "analysis_type": "ratio", "ticker": ticker,
-                "year": payload.year, "quarter": payload.quarter, "form": payload.form,
-                **ratios,
-                "prev_year": prev_year,
-                "prev_metrics": ratios_prev.get("metrics"),
-                "sector": sector,
-                "sector_avg": sector_avg,
-            })
-
-        if payload.analysis_type == "dynamics":
-            dynamics = await loop.run_in_executor(
-                None, partial(catalogue_dynamics.build_dynamics_data, ticker, payload.form)
-            )
-            return http._json_safe({"ok": True, "analysis_type": "dynamics", "ticker": ticker, **dynamics})
-
-        if payload.analysis_type in ("quarter_compare", "annual_compare"):
-            q2 = payload.compare_quarter if payload.compare_quarter is not None else payload.quarter
-            y2 = payload.compare_year or (payload.year - 1)
-            excel1, excel2 = await asyncio.gather(
-                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, payload.year, payload.quarter)),
-                loop.run_in_executor(None, partial(catalogue_sources.fetch_report_excel_data, ticker, payload.form, y2, q2)),
-            )
-            ratios1 = catalogue_parsing.compute_financial_ratios(excel1.get("income"), excel1.get("balance")) if excel1.get("ok") else {}
-            ratios2 = catalogue_parsing.compute_financial_ratios(excel2.get("income"), excel2.get("balance")) if excel2.get("ok") else {}
-            return http._json_safe({
-                "ok": True, "analysis_type": payload.analysis_type, "ticker": ticker,
-                "period1": {"year": payload.year, "quarter": payload.quarter, "form": payload.form, **ratios1},
-                "period2": {"year": y2, "quarter": q2, "form": payload.form, **ratios2},
-            })
-
-        if payload.analysis_type == "multi_company":
-            auth_limits._enforce_llm_quota(current_user)
-            compare_ticker = (payload.compare_ticker or "").upper()
-            compare_name = (catalogue_settings._TICKER_TO_NAME.get(compare_ticker)
-                            or (approved.get(compare_ticker) or {}).get("company_name")
-                            or compare_ticker)
-            if not compare_name:
-                raise HTTPException(status_code=400, detail="compare_ticker is required")
-            result = await loop.run_in_executor(
-                None, partial(analysis_service.build_company_comparison, [company_name, compare_name], payload.language, True)
-            )
-            return http._json_safe({"ok": True, "analysis_type": "multi_company", **result})
-
-        # AI-based: financial / swot / recommendation
-        auth_limits._enforce_llm_quota(current_user)
-        period_type = "quarterly" if payload.quarter > 0 else "annual"
-        result = await analysis_service.run_company_analysis(
-            company_name,
-            language=payload.language,
-            report_analysis_type=period_type,
-            report_quarter=payload.quarter if payload.quarter > 0 else None,
-            report_current_year=payload.year,
-            report_previous_year=payload.year - 1,
-            report_form=form_map.get(payload.form, "NAS"),
-        )
-        return http._json_safe({
-            "ok": True, "analysis_type": payload.analysis_type, "ticker": ticker,
-            "company_name": result.get("company_name"),
-            "year": payload.year, "quarter": payload.quarter, "language": payload.language,
-            "sections": result.get("sections", {}),
-            "metrics": result.get("metrics"),
-            "summary": analysis_service.build_summary(result),
-            "article_report": result.get("article_report"),
-            "report_tables": result.get("report_tables"),
-        })
-
+        loop = asyncio.get_running_loop()
+        approved = await loop.run_in_executor(None, company_imports.approved_metadata_map)
+        return await _catalog_run(payload.language, catalog_service.analyze, payload, approved,
+                                  _catalog_sectors(approved))
     except HTTPException:
         raise
     except Exception as exc:
         http.logger.exception("Catalog analyze failed for %s", ticker)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/api/catalog/peers/{ticker}")
+async def api_catalog_peers(ticker: str, year: int, quarter: int | None = 0, form: str = "NSBU",
+                            language: str = "ru") -> dict[str, Any]:
+    """Issuers a «Сравнение компаний» may be run against for one filing period."""
+    language = language if language in ("ru", "uz", "en") else "ru"
+    quarter = _annual_quarter(quarter) or 0
+    if form not in ("NSBU", "MSFO") or not 2000 <= year <= 2100 or not 0 <= quarter <= 3:
+        raise HTTPException(status_code=422, detail="Unsupported period")
+    try:
+        loop = asyncio.get_running_loop()
+        approved = await loop.run_in_executor(None, company_imports.approved_metadata_map)
+        return await _catalog_run(language, catalog_service.peers, ticker, form, year, quarter, approved,
+                                  _catalog_sectors(approved))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        http.logger.exception("Catalog peers failed for %s", ticker)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 

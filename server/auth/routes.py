@@ -136,9 +136,16 @@ async def api_login(payload: LoginRequest, request: Request) -> dict[str, Any]:
             except Exception:  # noqa: BLE001 - the refusal must not depend on mail
                 http.logger.exception("login lock notice could not be sent")
         minutes = max(1, -(-exc.retry_after // 60))
+        # English unless the request names the interface language; the
+        # browser translates the English form (lib/passwordStrength.js).
+        detail = {
+            "ru": f"Слишком много неудачных попыток входа. Попробуйте через {minutes} мин или восстановите пароль.",
+            "uz": f"Kirishga juda ko‘p muvaffaqiyatsiz urinish. {minutes} daqiqadan so‘ng urinib ko‘ring yoki parolni tiklang.",
+        }.get(auth_limits.request_language(request) or "",
+              f"Too many failed sign-in attempts. Try again in {minutes} min or reset your password.")
         raise HTTPException(
             status_code=429,
-            detail=f"Too many failed sign-in attempts. Try again in {minutes} min or reset your password.",
+            detail=detail,
             headers={"Retry-After": str(exc.retry_after)},
         ) from exc
     except identity_users.EmailNotVerified as exc:
