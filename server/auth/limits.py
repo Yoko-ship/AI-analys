@@ -91,8 +91,11 @@ _rate_limiter = _SlidingWindowLimiter()
 # chose to send. Trusting the leftmost entry — as this did — let any client
 # supply "X-Forwarded-For: <random>" and get a brand-new rate-limit bucket on
 # every request, which defeats login brute-force and mass-signup protection
-# entirely. Railway terminates TLS and adds exactly one hop; set this to the real
-# number of trusted proxies if the topology changes, or 0 to ignore the header.
+# entirely. In production the provider's proxy terminates TLS and appends the
+# visitor; the VPS's nginx resolves that with realip (scripts/nginx_edge.py), so
+# whatever nginx then appends or forwards, the last entry is the visitor: one
+# hop. Set this to the real number of trusted proxies if the topology changes,
+# or 0 to ignore the header. This is the one place a client address is derived.
 TRUSTED_PROXY_HOPS = int(os.getenv("TRUSTED_PROXY_HOPS", "1"))
 
 

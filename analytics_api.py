@@ -21,6 +21,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
+import server.auth.limits as auth_limits
 import web_analytics
 from web_auth import web_auth_store
 
@@ -41,9 +42,7 @@ async def api_track(request: Request) -> Response:
             return Response(status_code=204)
         data = json.loads(body)
         headers = request.headers
-        forwarded = headers.get("x-forwarded-for", "")
-        ip = forwarded.split(",")[0].strip() if forwarded else (
-            request.client.host if request.client else "")
+        ip = auth_limits._client_ip(request)
         country = headers.get("cf-ipcountry") or headers.get("x-vercel-ip-country") \
             or headers.get("x-country-code")
         # ``uid`` is never trusted from this public body. A signed-in view is
@@ -171,14 +170,11 @@ async def api_admin_user_action(user_id: int, payload: dict[str, Any],
     actor = getattr(request.state, "admin_user", None)
     if actor is None:  # fail closed even if the router is mounted incorrectly
         raise HTTPException(status_code=403, detail="Admin access required")
-    forwarded = request.headers.get("x-forwarded-for", "")
-    ip = forwarded.split(",")[0].strip() if forwarded else (
-        request.client.host if request.client else "")
     result = await _run(
         web_analytics.user_action, user_id, action,
         actor_user_id=actor.id, actor_email=actor.email,
         request_id=uuid.uuid4().hex,
-        source_ip_hash=web_analytics.hash_ip(ip),
+        source_ip_hash=web_analytics.hash_ip(auth_limits._client_ip(request)),
     )
     if not result.get("ok") and result.get("reason") == "not found":
         raise HTTPException(status_code=404, detail="User not found")

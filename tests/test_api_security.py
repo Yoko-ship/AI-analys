@@ -81,6 +81,24 @@ class TestClientIp:
         assert subject_server_auth_limits._client_ip(_FakeRequest(peer=None)) == "unknown"
 
 
+def test_the_client_address_is_derived_in_one_place() -> None:
+    # Analytics and the admin audit trail each parsed X-Forwarded-For themselves,
+    # taking its client-written leftmost entry. Every reader of the header must go
+    # through _client_ip, so one rule decides which entry is trusted.
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    tracked = subprocess.run(["git", "ls-files", "*.py"], cwd=root, capture_output=True,
+                             text=True, check=True).stdout.split()
+    readers = [
+        path for path in tracked
+        if not path.startswith(("tests/", "scripts/nginx_edge.py", "server/auth/limits.py"))
+        and "x-forwarded-for" in (root / path).read_text(encoding="utf-8", errors="replace").lower()
+    ]
+    assert readers == [], f"read X-Forwarded-For outside server/auth/limits._client_ip: {readers}"
+
+
 class TestSlidingWindowLimiter:
     def test_it_blocks_past_the_limit(self) -> None:
         limiter = subject_server_auth_limits._SlidingWindowLimiter()

@@ -216,6 +216,35 @@ jobs:
               sys.exit('MISSING in the server image: ' + ', '.join(missing))
           print('all collector dependencies present')
           "
+      - name: Run the nginx edge configuration in a real nginx
+        # The deploy writes this into the live nginx; prove here that nginx
+        # accepts it and that it limits per visitor, not per proxy. Requests
+        # from this runner reach the container from the Docker gateway, a
+        # trusted private address, exactly as the provider's proxy reaches the VPS.
+        run: |
+          edge="$RUNNER_TEMP/edge"
+          mkdir -p "$edge/conf.d" "$edge/snippets"
+          PROBE_TOKEN=citoken python3 scripts/nginx_edge.py render "$edge/conf.d"
+          mv "$edge/conf.d/uzstock-monitor.conf" "$edge/snippets/"
+          printf 'server {\n    listen 8080;\n    include /etc/nginx/snippets/uzstock-monitor.conf;\n    location / { return 200 "ok\\n"; }\n}\n' > "$edge/conf.d/site.conf"
+          docker run -d --name edge -p 127.0.0.1:8080:8080 \
+            -v "$edge/conf.d:/etc/nginx/conf.d:ro" -v "$edge/snippets:/etc/nginx/snippets:ro" nginx:1.24.0
+          for attempt in $(seq 1 20); do curl -fsS -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
+          docker logs edge
+          probe="$(curl -fsS -H 'X-UZStock-Edge-Probe: citoken' -H 'X-Forwarded-For: 203.0.113.9' http://127.0.0.1:8080/__uzstock/edge-probe)"
+          echo "probe answered: $probe"
+          [ "$(echo "$probe" | awk '{print $2}')" = "203.0.113.9" ] || { echo "realip did not resolve the visitor"; exit 1; }
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/__uzstock/edge-probe)" = "404" ] || { echo "the probe answers without its token"; exit 1; }
+          # 700 requests at once against a burst of 400: a fresh bucket admits
+          # at least 400, a spent one only what refills while they run.
+          admitted() { curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: $1" $(seq -f 'http://127.0.0.1:8080/?%g' 1 700) | grep -c '^200$' || true; }
+          first="$(admitted 203.0.113.9)"; echo "one visitor, 700 at once: $first admitted"
+          [ "$first" -ge 400 ] && [ "$first" -lt 700 ] || { echo "a flood from one visitor was not limited at the burst"; exit 1; }
+          spoofed="$(admitted '1.2.3.4, 203.0.113.9')"; echo "same visitor, forged left-hand entry: $spoofed admitted"
+          [ "$spoofed" -lt 200 ] || { echo "a forged X-Forwarded-For entry bought a fresh bucket"; exit 1; }
+          [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 198.51.100.7' http://127.0.0.1:8080/)" = "200" ] \
+            || { echo "a second visitor was limited by the first one's flood"; exit 1; }
+          docker rm -f edge
 
   deploy-production:
     name: Deploy production
@@ -657,21 +686,11 @@ jobs:
           # Netdata is retired: with --pid=host and the Docker socket it was
           # root-equivalent, yet published at /monitor/ behind Basic auth alone.
           # The snippet keeps its old name and include marker so the live site
-          # config is not re-edited; only the gzip settings remain in it.
-          python3 - <<'PY'
-          from pathlib import Path
-
-          Path("/etc/nginx/snippets/uzstock-monitor.conf").write_text("""# Public traffic reaches this nginx through an OpenResty (Nginx Proxy Manager)
-          # front proxy outside the VPS. It passes compressed responses through
-          # (verified 2026-09-23: 40/40 gzip requests returned 200), so compress here.
-          gzip on;
-          gzip_vary on;
-          gzip_proxied any;
-          gzip_comp_level 5;
-          gzip_min_length 1024;
-          gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml;
-          """, encoding="utf-8")
-          PY
+          # config is not re-edited. It now carries gzip and the per-client
+          # request limit; scripts/nginx_edge.py writes it with its http-context
+          # half (realip, the limit zone) and restores both if nginx rejects them.
+          # A rejection warns rather than blocking the release.
+          python3 /root/uzstock/app/scripts/nginx_edge.py write || true
           nginx_site_backup="$(mktemp)"
           python3 - "$nginx_site_backup" <<'PY'
           import re
@@ -741,6 +760,10 @@ jobs:
           fi
           rm -f "$nginx_site_backup"
           systemctl reload nginx
+          # Ask the live site, through the provider's proxy, which address nginx
+          # takes for the visitor; the per-client limit is keyed only once that
+          # is the visitor's and not the proxy's (one bucket for everyone).
+          python3 /root/uzstock/app/scripts/nginx_edge.py probe || echo "::warning::The nginx edge probe failed; see the lines above."
           asset_probe_path="$(curl -ksS --resolve uzstock.uz:443:127.0.0.1 https://uzstock.uz/ | sed -n 's/.*src="\([^"?]*\/assets\/[^"?]*\.js\)".*/\1/p' | head -n 1)"
           if [ -n "$asset_probe_path" ]; then
             echo "Asset response probe (directly against this VPS):"
