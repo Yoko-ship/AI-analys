@@ -131,6 +131,14 @@ async def api_company_technical_backtest(
                        "source": "stored confirmed exchange sessions", **result})
 
 
+# The most history one series request may ask for, in tickers x calendar days.
+# The heaviest real caller is a compare chart: its ticker plus five compared,
+# ten years each (6 x 3650 = 21,900); a list's sparklines are ~90 x 30. Without
+# a bound one anonymous request could ask for 200 tickers x any number of years.
+SERIES_MAX_DAYS = 3650
+SERIES_MAX_TICKER_DAYS = 40_000
+
+
 @router.get("/api/quotes/series")
 async def api_quotes_series(request: Request, tickers: str = "", days: int = 30) -> Response:
     """Settled daily closes for several securities in ONE request.
@@ -146,7 +154,12 @@ async def api_quotes_series(request: Request, tickers: str = "", days: int = 30)
     security with no stored session yet is absent for the same reason — the
     interface renders no line rather than a flat invented one.
     """
-    wanted = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()][:200]
+    wanted = list(dict.fromkeys(t.strip().upper() for t in (tickers or "").split(",") if t.strip()))[:200]
+    days = max(1, min(int(days), SERIES_MAX_DAYS))
+    if len(wanted) * days > SERIES_MAX_TICKER_DAYS:
+        raise HTTPException(status_code=400, detail=(
+            f"Too much history in one request: {len(wanted)} tickers x {days} days; "
+            f"ask for at most {SERIES_MAX_TICKER_DAYS} ticker-days"))
     if not wanted:
         return http._etag_json(request, {"ok": True, "days": days, "count": 0, "series": {}}, max_age=300)
     try:

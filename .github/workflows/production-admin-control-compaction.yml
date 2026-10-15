@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   compact:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     if: inputs.confirm == 'COMPACT' || inputs.confirm == 'CLEANUP' || inputs.confirm == 'INSPECT'
     name: Compact the bounded admin-control revision history
     runs-on: ubuntu-latest

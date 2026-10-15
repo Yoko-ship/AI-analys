@@ -76,6 +76,12 @@ NEWS_DISCLAIMER = (
 )
 
 
+# Bounds on the public feed: the page asks for 120 items over 365 days. Without
+# them ?limit=100000000&days=100000 returned the whole filings table per call.
+NEWS_MAX_LIMIT = 200
+NEWS_MAX_DAYS = 3650
+
+
 @router.get("/api/news")
 async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
     """Public market-news feed (ТЗ §3.2, item 6). A single dated timeline of real
@@ -93,7 +99,8 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
         # pg_migrate mistranslated), which sorted above every real date and could
         # never age out — so the timeline was 195 undated items deep.
         filings, listings = await asyncio.gather(
-            loop.run_in_executor(None, partial(catalogue_filings.get_recent_filings, max(1, days), max(1, limit))),
+            loop.run_in_executor(None, partial(catalogue_filings.get_recent_filings,
+                                               max(1, min(days, NEWS_MAX_DAYS)), max(1, min(limit, NEWS_MAX_LIMIT)))),
             loop.run_in_executor(None, catalogue_market_store.get_all_listings),
         )
     except Exception as exc:

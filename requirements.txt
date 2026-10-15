@@ -27,7 +27,7 @@ hyperframe==6.1.0
 idna==3.11
 jiter==0.13.0
 kaitaistruct==0.11
-lxml==6.0.2
+lxml==6.1.0
 maxminddb==3.2.0
 numpy==2.4.0
 openai>=1.51
@@ -52,10 +52,10 @@ pypdfium2==5.4.0
 PySocks==1.7.1
 python-dateutil==2.9.0.post0
 python-docx==1.2.0
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 python-telegram-bot==22.6
 pytz==2025.2
-requests==2.32.5
+requests==2.33.0
 rsa==4.9.1
 selenium==4.39.0
 selenium-wire==5.1.0

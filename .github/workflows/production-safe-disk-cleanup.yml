@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   cleanup:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     if: inputs.confirm == 'CLEANUP'
     runs-on: ubuntu-latest
     timeout-minutes: 15

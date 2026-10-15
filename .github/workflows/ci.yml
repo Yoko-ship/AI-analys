@@ -107,6 +107,15 @@ jobs:
         # repo already broken because nobody added it here.
         run: python -m compileall -q .
 
+      - name: Audit server dependencies for known vulnerabilities
+        # Nothing used to look: requests, lxml and python-dotenv sat on versions
+        # with published advisories until a manual audit on 2026-10-15. A new
+        # advisory now fails the build; bump the pin, or for one with no fix yet,
+        # add --ignore-vuln <ID> here with the reason.
+        run: |
+          pip install pip-audit==2.10.1
+          pip-audit -r requirements-server.txt --progress-spinner off
+
       - name: Verify the server image declares every import it uses
         # The failure this catches: feedparser and pdfplumber were imported by
         # collector code but absent from requirements-server.txt, so the Railway
@@ -165,6 +174,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit shipped npm dependencies for known vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint (Rules of Hooks is an error)
         run: npm run lint
@@ -249,6 +261,9 @@ jobs:
           docker rm -f edge
 
   deploy-production:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Deploy production
     needs: [secret-scan, backend, frontend, docker]
     # Production is updated only from the deployment branch, and only after the
@@ -1044,6 +1059,9 @@ jobs:
   # server — the same page, through an SSH tunnel to its own nginx — and the
   # public route is checked separately and only warns.
   verify-production-market:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Verify market on the production server
     needs: deploy-production
     runs-on: ubuntu-latest
@@ -1135,6 +1153,9 @@ jobs:
           if-no-files-found: ignore
 
   publish-reviewed-bank-ifrs:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Publish and verify reviewed bank IFRS
     needs: deploy-production
     if: github.event_name == 'push' && github.ref == 'refs/heads/API' && contains(github.event.head_commit.message, '[publish-bank-ifrs]')
@@ -1182,6 +1203,9 @@ jobs:
           REMOTE
 
   test-news-collector:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Test production news collector
     needs: deploy-production
     # This is deliberately opt-in. Normal deployments leave the scheduled
@@ -1253,6 +1277,9 @@ jobs:
           REMOTE
 
   backfill-company-financials:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Backfill one company's financial history
     needs: deploy-production
     # Opt-in because this downloads and parses the issuer's published workbooks.
@@ -1330,6 +1357,9 @@ jobs:
           REMOTE
 
   refresh-market:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Refresh market data on production
     needs: deploy-production
     # Explicit repair only; ordinary deployments must not add another full crawl.
@@ -1378,6 +1408,9 @@ jobs:
           REMOTE
 
   compact-admin-control:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     name: Compact retained admin-control history
     needs: deploy-production
     # Explicit one-shot maintenance marker. Ordinary API deployments can never

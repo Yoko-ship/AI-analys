@@ -10,6 +10,9 @@ permissions:
 
 jobs:
   diagnose:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[diagnose-uzse]')
     runs-on: ubuntu-latest
     timeout-minutes: 8

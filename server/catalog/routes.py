@@ -35,6 +35,7 @@ import catalogue.sync as catalogue_sync
 import requests
 import securities_catalog as securities_store
 import server.auth.access as auth_access
+import server.auth.limits as auth_limits
 import server.catalog.jobs as catalog_jobs
 import server.http as http
 import server.market.board as market_board
@@ -695,8 +696,15 @@ async def api_catalog_index(ticker: str) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+# A reader's refresh reaches openinfo, which blocks hosts that scrape it. So a
+# reader's request respects the freshness window (a fresh issuer costs nothing
+# upstream) and is paced per account; only an administrator forces a re-fetch.
+CATALOG_SYNC_PER_USER_PER_HOUR = int(os.getenv("CATALOG_SYNC_PER_USER_PER_HOUR", "10"))
+
+
 @router.post("/api/catalog/sync")
 async def api_catalog_sync(
+    request: Request,
     payload: CatalogSyncRequest,
     current_user: identity_users.WebUser = Depends(auth_access._require_user),
     x_admin_secret: str | None = Header(default=None),
@@ -706,6 +714,13 @@ async def api_catalog_sync(
     # (X-Admin-Secret, same as /api/admin/catalog-sync).
     if not payload.ticker:
         auth_access._require_admin(x_admin_secret)
+    force = payload.force
+    if payload.ticker and auth_access._admin_role(current_user) != "administrator":
+        force = False
+        bucket = f"catalog-sync:{current_user.id}"
+        if not auth_limits._rate_limiter.allow(bucket, CATALOG_SYNC_PER_USER_PER_HOUR, 3600.0):
+            raise auth_limits._rate_limited("window", auth_limits._rate_limiter.retry_after(bucket, 3600.0),
+                                            auth_limits.request_language(request))
     loop = asyncio.get_running_loop()
     try:
         if payload.ticker:
@@ -716,7 +731,7 @@ async def api_catalog_sync(
             if not company_name:
                 raise HTTPException(status_code=404, detail=f"Unknown ticker: {ticker}")
             result = await loop.run_in_executor(
-                None, partial(catalogue_sync.sync_company, ticker, company_name, force=payload.force,
+                None, partial(catalogue_sync.sync_company, ticker, company_name, force=force,
                               org_id=imported.get("org_id"))
             )
         else:
