@@ -520,6 +520,38 @@ def extract_insurance_balance(balance_data: dict | None) -> dict[str, float | No
     }
 
 
+_CURRENT_SECTION_LINES = {"current_assets": "c390", "current_liabilities": "c600", "inventories": "c140"}
+
+
+def _current_section_check(table: dict | None) -> dict[str, dict[str, Any]]:
+    """Reporting-date reconciliation of the current-section subtotals, by field.
+
+    Each carries the label of the coded row it was read from, so a caller can
+    tell the commercial form's line from another form's line of that number.
+    """
+    import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    if not table:
+        return {}
+    rows = financial_analysis_sector_inputs.source_line_pairs(table, "form1", financial_analysis_balance_subtotals.ALL_CODES)
+    # All the liquidity lines, not only these three: a repaired receivables
+    # line is what confirms the stocks beside it.
+    checked = financial_analysis_balance_subtotals.reconcile(rows)
+    return {field: {**checked[code]["current"], "label": rows[code].get("label")}
+            for field, code in _CURRENT_SECTION_LINES.items() if code in checked}
+
+
+def _labelled_as(field: str, label: Any) -> bool:
+    """Whether a coded row is the line the label selectors read ``field`` from."""
+    if field == "current_assets":
+        squashed = _squash(label)
+        return "итого" in squashed and any(f in squashed for f in _CURRENT_ASSETS_SECTION_FORMULAS)
+    key = "cur_liabilities" if field == "current_liabilities" else field
+    text = str(label or "").lower()
+    return (any(p in text for p in _LABEL_PATTERNS.get(key, []))
+            and not any(x in text for x in _LABEL_EXCLUSIONS.get(key, ())))
+
+
 def compute_financial_ratios(income_data: dict | None, balance_data: dict | None) -> dict[str, Any]:
 
     income_rows = _gather_rows(income_data)
@@ -630,13 +662,23 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
 
     # coefficients at read time where the feed is silent.
 
-    current_assets = _extract_current_assets(balance_rows or all_rows)
-
-    current_liabilities = _extract_metric(balance_rows or all_rows, "cur_liabilities")
-
-    inventories = _extract_metric(balance_rows or all_rows, "inventories")
-
-
+    current = {
+        "current_assets": _extract_current_assets(balance_rows or all_rows),
+        "current_liabilities": _extract_metric(balance_rows or all_rows, "cur_liabilities"),
+        "inventories": _extract_metric(balance_rows or all_rows, "inventories"),
+    }
+    # Where the commercial form states the line, its reporting-date cell is
+    # read exactly — a nought stock is 0, not a blank to fill from the opening
+    # column — and held to the form's own arithmetic: a subtotal that
+    # disagrees is replaced by the amount its parts and its section total
+    # agree on, or withheld when they do not (MIQE 2026Q2: стр.600 repeated
+    # its opening balance). The bank and insurance forms number other lines
+    # 600 and 390, which is why the row's label is checked.
+    for field, check in _current_section_check(balance_data if balance_rows else income_data).items():
+        if check["status"] != "missing" and _labelled_as(field, check["label"]):
+            current[field] = float(check["value"]) if check["value"] is not None else None
+    current_assets, current_liabilities, inventories = (
+        current["current_assets"], current["current_liabilities"], current["inventories"])
 
     def _safe_ratio(num: float | None, den: float | None) -> float | None:
 

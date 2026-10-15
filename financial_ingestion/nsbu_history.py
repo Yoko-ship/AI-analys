@@ -22,9 +22,14 @@ import catalogue.periods as catalogue_periods
 import catalogue.refresh as catalogue_refresh
 import catalogue.sources as catalogue_sources
 import catalogue.storage as catalogue_storage
+import collectors.openinfo.workbooks as collectors_openinfo_workbooks
+import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
+import financial_analysis.sector_inputs as financial_analysis_sector_inputs
 from . import store
 
 log = logging.getLogger(__name__)
+_PARSE_MODULES = (catalogue_parsing, catalogue_sources, collectors_openinfo_workbooks,
+                  financial_analysis_balance_subtotals, financial_analysis_sector_inputs)
 _REQUIRED = ("revenue", "gross_profit", "net_income", "operating_income",
              "cash", "total_assets", "total_equity", "total_liabilities", "operating_expenses")
 
@@ -32,10 +37,14 @@ _REQUIRED = ("revenue", "gross_profit", "net_income", "operating_income",
 def implementation_digest():
     digest = hashlib.sha256()
     # Includes helper/parser changes, rather than just the orchestration version.
+    # The parse runs in the modules below, not in the reports_catalog and
+    # openinfo_collector facades: hashing only those left every period stored
+    # by an older parser marked complete after the parser itself was fixed.
     for path in (Path(__file__), Path(rc.__file__),
                  Path(rc.__file__).with_name("openinfo_collector.py"),
                  Path(rc.__file__).with_name("nsbu_periods.py"),
-                 Path(rc.__file__).with_name("reviewed_nsbu_periods.json")):
+                 Path(rc.__file__).with_name("reviewed_nsbu_periods.json"),
+                 *(Path(module.__file__) for module in _PARSE_MODULES)):
         digest.update(path.read_bytes())
     return digest.hexdigest()
 

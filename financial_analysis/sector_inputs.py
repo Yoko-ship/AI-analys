@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
 import financial_analysis.sector_numbers as financial_analysis_sector_numbers
 import re
 
@@ -171,6 +172,19 @@ def sign_retained_earnings(column):
         column["retained_earnings"] = financial_analysis_sector_numbers.number(-retained)
 
 
+def reconcile_subtotals(lines, balance_table=None):
+    """Check the liquidity subtotals of ``lines`` against the form's own formulas.
+
+    The parts of each subtotal (610…760 under 600) are read from the workbook
+    when it is at hand; lines prepared earlier were reconciled then, and are
+    checked again only against the totals they carry.
+    """
+    rows = {key.split(":", 1)[1]: row for key, row in lines.items() if key.startswith("form1:")}
+    if balance_table:
+        rows = {**source_line_pairs(balance_table, "form1", financial_analysis_balance_subtotals.ALL_CODES), **rows}
+    return financial_analysis_balance_subtotals.apply(lines, financial_analysis_balance_subtotals.reconcile(rows))
+
+
 def prepare_inputs(snapshot, workbook=None):
     """Add exact form lines without changing the independent comparison API."""
     values = dict(snapshot.get("current_values") or {})
@@ -185,6 +199,8 @@ def prepare_inputs(snapshot, workbook=None):
         for form, table in (("form1", workbook.get("balance")), ("form2", workbook.get("income"))):
             known = (set(FORM1) | {"c570", "c580"} | set(extra)) if form == "form1" else None
             lines.update({f"{form}:{key}": row for key, row in source_line_pairs(table, form, known).items()})
+    if org == "non_financial":
+        reconcile_subtotals(lines, workbook.get("balance") if workbook and not snapshot.get("control_lines_prepared") else None)
     for form, mapping in (("form1", {**FORM1, **extra}), ("form2", FORM2)):
         # A blank comparison column leaves the catalogue's comparison (the
         # issuer's previous filings) in place instead of replacing it by zeros;

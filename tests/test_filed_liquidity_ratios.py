@@ -158,3 +158,28 @@ class TestTheCurrentSectionIsParsed:
                 self._row("25. Итого обязательств", 4000)]
 
         assert catalogue_parsing._extract_current_assets(rows) is None
+
+
+class TestWithheldLines:
+    """A line withheld for contradicting its own form is a gap, not a nought."""
+
+    def test_withheld_stocks_leave_the_quick_ratio_to_the_period_that_states_them(self, catalog) -> None:
+        _fact(catalog, "roe", "2025", 12.0)
+        catalogue_financial_store.bulk_upsert_financials([
+            _filing(2025, quarter=1, current_assets=300.0, current_liabilities=150.0, inventories=60.0),
+            _filing(2025, quarter=2, current_assets=400.0, current_liabilities=200.0, inventories=None)])
+
+        got = catalogue_ratios.get_all_ratios()["AAA"]
+
+        assert (got["current_ratio"], got["periods"]["current_ratio"]) == (2.0, "2025Q2")
+        assert (got["quick_ratio"], got["periods"]["quick_ratio"]) == (1.6, "2025Q1")
+
+    def test_withheld_current_liabilities_leave_both_ratios_to_an_earlier_period(self, catalog) -> None:
+        _fact(catalog, "roe", "2025", 12.0)
+        catalogue_financial_store.bulk_upsert_financials([
+            _filing(2025, quarter=1, current_assets=300.0, current_liabilities=150.0, inventories=60.0),
+            _filing(2025, quarter=2, current_assets=400.0, current_liabilities=None, inventories=50.0)])
+
+        got = catalogue_ratios.get_all_ratios()["AAA"]
+
+        assert got["periods"]["current_ratio"] == got["periods"]["quick_ratio"] == "2025Q1"

@@ -11,6 +11,31 @@ import financial_analysis.sector_templates as financial_analysis_sector_template
 import re
 
 
+def subtotal_notes(lines, lang):
+    """One note per outcome and column for the Form №1 lines reconciliation changed."""
+    found = {}
+    for key, row in sorted(lines.items()):
+        for column, outcome in (row.get("reconciliation") or {}).items():
+            found.setdefault((outcome["status"], column), []).append(key.split(":c", 1)[-1])
+    notes = []
+    for (status, column), codes in sorted(found.items()):
+        listed = ", ".join(codes)
+        when = financial_analysis_sector_language.tr(lang, " на начало периода", " davr boshidagi", " at the start of the period") if column == "previous" else ""
+        if status == "repaired":
+            message = financial_analysis_sector_language.tr(
+                lang, f"Строка {listed} формы №1{when} не сходится с итогами самой формы; использована сумма, которую дают её слагаемые и итог раздела.",
+                f"1-shakl{when} {listed}-satri shaklning o‘z yakunlariga mos kelmaydi; uning tarkibiy qismlari va bo‘lim yakuni beradigan summa olindi.",
+                f"Form 1 line {listed}{when} disagrees with the form's own totals; the amount its parts and the section total give is used.")
+        else:
+            message = financial_analysis_sector_language.tr(
+                lang, f"Строка {listed} формы №1{when} противоречит итогам самой формы; показатели на её основе не рассчитываются.",
+                f"1-shakl{when} {listed}-satri shaklning o‘z yakunlariga zid; unga asoslangan ko‘rsatkichlar hisoblanmaydi.",
+                f"Form 1 line {listed}{when} contradicts the form's own totals; indicators built on it are not calculated.")
+        notes.append({"code": f"FORM1_SUBTOTAL_{status.upper()}" + ("_OPENING" if column == "previous" else ""),
+                      "severity": "warning", "lines": [f"form1:c{code}" for code in codes], "message": message})
+    return notes
+
+
 def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=None):
     today = today or date.today()
     values, previous, opening, lines = financial_analysis_sector_inputs.prepare_inputs(snapshot, workbook)
@@ -32,6 +57,7 @@ def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=N
     balance = financial_analysis_sector_calculations.balance_gate(values, snapshot.get("rounding_unit", 1))
     if balance["status"] != "passed" and values:
         data_quality.append({**balance, "message": financial_analysis_sector_language.tr(lang, "Баланс не прошёл сверку: проверьте компоненты и единицы.", "Balans tekshiruvdan o‘tmadi: tarkib va birliklarni tekshiring.", "Balance validation failed: check components and units.")})
+    data_quality.extend(subtotal_notes(lines, lang))
     if resolution["resolution_status"] == "classification_conflict":
         data_quality.append({"code": "CLASSIFICATION_CONFLICT", "severity": "blocking", "message": financial_analysis_sector_language.tr(lang, "Источники классификации противоречат друг другу.", "Tasnif manbalari bir-biriga zid.", "Classification sources conflict.")})
     if (template in financial_analysis_sector_templates.FINANCIAL_TYPES or org in financial_analysis_sector_templates.FINANCIAL_TYPES) and template != org:

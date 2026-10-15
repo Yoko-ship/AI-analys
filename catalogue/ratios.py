@@ -160,7 +160,10 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             derived: dict[str, float] = {}
             if ca is not None and cl:
                 derived["current_ratio"] = round(ca / cl, 2)
-                derived["quick_ratio"] = round((ca - (inv or 0.0)) / cl, 2)
+                # Stocks withheld as contradicting their own formula are not
+                # nought: the quick ratio is left to the period that states them.
+                if inv is not None:
+                    derived["quick_ratio"] = round((ca - inv) / cl, 2)
             # A cumulative quarter is three, six or nine months of revenue; over
             # a full-year balance it would read as a business a third the size it
             # is. The turnover comes off ANNUAL rows only — the balance ratios

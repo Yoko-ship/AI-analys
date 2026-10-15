@@ -125,17 +125,19 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
                 -- of these, and a re-parse of one must not blank what another
 
-                -- form's filing established for an earlier period.
+                -- form's filing established for an earlier period. A form that
 
-                current_assets=COALESCE(excluded.current_assets,
+                -- states its current section is taken whole: a line it withholds
 
-                                        catalog_financials.current_assets),
+                -- (a subtotal contradicting the form's own formula) clears the
 
-                current_liabilities=COALESCE(excluded.current_liabilities,
+                -- figure an earlier parse read off that cell.
 
-                                             catalog_financials.current_liabilities),
+                current_assets=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_assets ELSE excluded.current_assets END,
 
-                inventories=COALESCE(excluded.inventories, catalog_financials.inventories),
+                current_liabilities=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_liabilities ELSE excluded.current_liabilities END,
+
+                inventories=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.inventories ELSE excluded.inventories END,
 
                 field_periods=excluded.field_periods,
 
@@ -332,17 +334,11 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
 
                                                     catalog_financials.operating_expenses),
 
-                        current_assets=COALESCE(excluded.current_assets,
+                        current_assets=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_assets ELSE excluded.current_assets END,
 
-                                                catalog_financials.current_assets),
+                        current_liabilities=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_liabilities ELSE excluded.current_liabilities END,
 
-                        current_liabilities=COALESCE(excluded.current_liabilities,
-
-                                                     catalog_financials.current_liabilities),
-
-                        inventories=COALESCE(excluded.inventories,
-
-                                             catalog_financials.inventories),
+                        inventories=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.inventories ELSE excluded.inventories END,
 
                         noninterest_income=excluded.noninterest_income,
 
@@ -619,17 +615,11 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
 
                         total_equity=excluded.total_equity,
 
-                        current_assets=COALESCE(excluded.current_assets,
+                        current_assets=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_assets ELSE excluded.current_assets END,
 
-                                                catalog_financials.current_assets),
+                        current_liabilities=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.current_liabilities ELSE excluded.current_liabilities END,
 
-                        current_liabilities=COALESCE(excluded.current_liabilities,
-
-                                                     catalog_financials.current_liabilities),
-
-                        inventories=COALESCE(excluded.inventories,
-
-                                             catalog_financials.inventories),
+                        inventories=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.inventories ELSE excluded.inventories END,
 
                         noninterest_income=excluded.noninterest_income,
 

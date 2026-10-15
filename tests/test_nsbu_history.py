@@ -236,3 +236,19 @@ def test_a_stated_date_on_the_last_working_day_stays_in_its_quarter():
     assert period(1, datetime(2023, 5, 12), date(2022, 3, 31)) == (2022, 1)
     assert period(1, datetime(2024, 11, 20), date(2022, 3, 31)) == (2022, 1)
     assert period(4, datetime(2024, 11, 20), date(2022, 12, 31)) == (2022, 4)
+
+
+def test_a_parser_change_reopens_the_stored_periods(tmp_path, monkeypatch):
+    # The parse runs in catalogue.parsing and the modules it calls, not in the
+    # reports_catalog facade; a fix there must re-parse what an older parser
+    # stored, or its figures stay on the board marked complete.
+    import types
+    import catalogue.parsing as catalogue_parsing
+    import financial_analysis.balance_subtotals as balance_subtotals
+    assert {catalogue_parsing, balance_subtotals} <= set(history._PARSE_MODULES)
+    parser = tmp_path / "parser.py"
+    parser.write_text("v1")
+    monkeypatch.setattr(history, "_PARSE_MODULES", (types.SimpleNamespace(__file__=str(parser)),))
+    before = history.implementation_digest()
+    parser.write_text("v2")
+    assert history.implementation_digest() != before
