@@ -1,20 +1,62 @@
 export const TOKEN_KEY = "uz_stock_analyzer_token";
 export const REMEMBER_KEY = "uz_stock_analyzer_remember";
 
-/** Own one browser session. Storage and HTTP are replaceable adapters. */
-export function createSession({ persistentStorage, temporaryStorage, fetcher }) {
+const STEP_UP_PATH = "/api/auth/admin/step-up";
+const STEP_UP_TRIES = 3;
+const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+async function refusalCode(response) {
+  try {
+    const body = await response.clone().json();
+    return (body?.detail && typeof body.detail === "object" ? body.detail.code : null) || body?.error?.code || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Own one browser session. Storage and HTTP are replaceable adapters.
+ *
+ * requestStepUp({ message }) -> Promise<code | null>: when the server refuses an
+ * admin change with MFA_REQUIRED, the session asks for the authenticator code,
+ * proves it once for this session, and repeats the change. Every admin call
+ * goes through apiFetch, so no screen has to handle the refusal itself.
+ */
+export function createSession({ persistentStorage, temporaryStorage, fetcher, requestStepUp = null }) {
   let generation = 0;
   let validationVersion = 0;
   let profileVersion = 0;
   let mutationVersion = 0;
   const listeners = new Set();
   const requestWith = (token) => async (path, options = {}) => {
-    const headers = new Headers(options.headers || {});
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json");
+    const send = () => {
+      const headers = new Headers(options.headers || {});
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+      return fetcher(path, { ...options, headers });
+    };
+    const response = await send();
+    const method = String(options.method || "GET").toUpperCase();
+    if (!token || !requestStepUp || response.status !== 403 || READ_METHODS.has(method)
+        || await refusalCode(response) !== "MFA_REQUIRED") {
+      return response;
     }
-    return fetcher(path, { ...options, headers });
+    let message = "";
+    for (let attempt = 0; attempt < STEP_UP_TRIES; attempt += 1) {
+      const code = await requestStepUp({ message });
+      if (!code) return response;
+      const proved = await fetcher(STEP_UP_PATH, {
+        method: "POST",
+        headers: new Headers({ Authorization: `Bearer ${token}`, "Content-Type": "application/json" }),
+        body: JSON.stringify({ code }),
+      });
+      if (proved.ok) return send();
+      if (proved.status !== 400) return proved;
+      message = "invalid";
+    }
+    return response;
   };
   const token = persistentStorage.getItem(TOKEN_KEY) || temporaryStorage.getItem(TOKEN_KEY) || "";
   let snapshot = { token, user: null, profile: null, apiFetch: requestWith(token) };

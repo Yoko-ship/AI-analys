@@ -147,5 +147,14 @@ export function translateAuthError(message, language) {
   if (text === "Invalid email or password") {
     return { ru: "Неверный email или пароль.", uz: "Email yoki parol noto‘g‘ri.", en: "Invalid email or password." }[language] || text;
   }
+  if (text === "Two-factor code required") {
+    return { ru: "Введите код из приложения-аутентификатора.", uz: "Autentifikator ilovasidagi kodni kiriting.", en: "Enter the code from your authenticator app." }[language] || text;
+  }
+  if (text === "Invalid two-factor code") {
+    return { ru: "Неверный код из приложения. Попробуйте ещё раз.", uz: "Ilovadagi kod noto‘g‘ri. Qayta urinib ko‘ring.", en: "Invalid authenticator code. Try again." }[language] || text;
+  }
+  if (text === "Invalid or expired sign-in code") {
+    return { ru: "Время входа истекло. Войдите через Google ещё раз.", uz: "Kirish vaqti tugadi. Google orqali qayta kiring.", en: "The sign-in expired. Sign in with Google again." }[language] || text;
+  }
   return text;
 }

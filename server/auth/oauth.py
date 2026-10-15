@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 
+from dataclasses import dataclass, replace
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -25,7 +26,21 @@ import time
 _OAUTH_CODE_TTL_SECONDS = 120
 
 
-_oauth_codes: dict[str, tuple[str, str, float]] = {}  # code -> (provider, token, expires_at)
+# How long a code waits, once, for its account's authenticator code. Typing one
+# takes longer than the redirect's own 120 s should allow for a bare handoff.
+_OAUTH_TWO_FACTOR_TTL_SECONDS = 300
+
+
+@dataclass(frozen=True)
+class _OAuthHandoff:
+    provider: str
+    token: str
+    expires_at: float
+    otp_failures: int = 0
+    held: bool = False
+
+
+_oauth_codes: dict[str, _OAuthHandoff] = {}
 
 
 _oauth_codes_lock = threading.Lock()
@@ -35,18 +50,30 @@ def _issue_oauth_code(provider: str, token: str) -> str:
     code = secrets.token_urlsafe(32)
     now = time.monotonic()
     with _oauth_codes_lock:
-        for stale in [c for c, (_, _, exp) in _oauth_codes.items() if exp < now]:
+        for stale in [c for c, entry in _oauth_codes.items() if entry.expires_at < now]:
             _oauth_codes.pop(stale, None)
-        _oauth_codes[code] = (provider, token, now + _OAUTH_CODE_TTL_SECONDS)
+        _oauth_codes[code] = _OAuthHandoff(provider, token, now + _OAUTH_CODE_TTL_SECONDS)
     return code
 
 
-def _redeem_oauth_code(code: str) -> tuple[str, str] | None:
+def _redeem_oauth_code(code: str) -> _OAuthHandoff | None:
     with _oauth_codes_lock:
         entry = _oauth_codes.pop(code, None)
-    if not entry or entry[2] < time.monotonic():
+    if not entry or entry.expires_at < time.monotonic():
         return None
-    return entry[0], entry[1]
+    return entry
+
+
+def _hold_oauth_code(code: str, entry: _OAuthHandoff, otp_failures: int) -> None:
+    """Put a redeemed code back while its account's second factor is awaited.
+
+    The first hold extends the deadline once, to _OAUTH_TWO_FACTOR_TTL_SECONDS
+    from now; later holds keep that deadline, so asking again and again never
+    keeps a code alive for longer.
+    """
+    expires_at = entry.expires_at if entry.held else time.monotonic() + _OAUTH_TWO_FACTOR_TTL_SECONDS
+    with _oauth_codes_lock:
+        _oauth_codes[code] = replace(entry, expires_at=expires_at, otp_failures=otp_failures, held=True)
 
 
 def _oauth_failure(message: str) -> RedirectResponse:

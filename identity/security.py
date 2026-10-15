@@ -62,6 +62,12 @@ class Security:
         return {"secret": secret, "otpauth_uri": uri}
 
 
+    def two_factor_enabled(self, user_id: int) -> bool:
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT two_factor_enabled FROM web_users WHERE id=%s", (user_id,)).fetchone()
+        return bool(row and row.get("two_factor_enabled"))
+
+
     def verify_admin_two_factor(self, user_id: int, code: str) -> bool:
         """Step-up verification without disclosing or changing the MFA secret."""
         if not re.fullmatch(r"\d{6}", str(code or "")):

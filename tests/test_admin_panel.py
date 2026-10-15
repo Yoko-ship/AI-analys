@@ -116,7 +116,7 @@ class TestProductAdminGate:
         res = client.get("/api/admin/users", headers={"X-Admin-Secret": "s3cret"})
         assert res.status_code == 401
 
-    def test_user_action_gets_server_resolved_actor(self, client, monkeypatch):
+    def test_user_action_gets_server_resolved_actor(self, client, monkeypatch, admin_authenticator):
         _as_user(monkeypatch, "admin@example.com")
         monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
         captured = {}
@@ -128,7 +128,7 @@ class TestProductAdminGate:
         monkeypatch.setattr(analytics_api.web_analytics, "user_action", _action)
         res = client.post(
             "/api/admin/users/77/action",
-            headers={"Authorization": "Bearer tok"},
+            headers={"Authorization": "Bearer tok", **admin_authenticator},
             json={"action": "revoke_sessions"},
         )
         assert res.status_code == 200
@@ -138,7 +138,7 @@ class TestProductAdminGate:
         assert len(captured["request_id"]) == 32
         assert captured["source_ip_hash"]
 
-    def test_protected_admin_conflict_is_explicit(self, client, monkeypatch):
+    def test_protected_admin_conflict_is_explicit(self, client, monkeypatch, admin_authenticator):
         _as_user(monkeypatch, "admin@example.com")
         monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
         monkeypatch.setattr(
@@ -147,7 +147,7 @@ class TestProductAdminGate:
         )
         res = client.post(
             "/api/admin/users/41/action",
-            headers={"Authorization": "Bearer tok"},
+            headers={"Authorization": "Bearer tok", **admin_authenticator},
             json={"action": "deactivate"},
         )
         assert res.status_code == 409

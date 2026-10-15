@@ -138,7 +138,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
   const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
 
-  const render = (children) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2">
+  const render = (children, overlay = null) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2">
       <div className="bg-glow bg-glow-a" />
       <div className="bg-glow bg-glow-b" />
 
@@ -470,6 +470,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       {/* Keep staff tooling and authentication focused: a floating promotion
           must not cover findings or compete with credentials and recovery. */}
       {!["admin", "auth"].includes(activeView) && <SponsorOverlay language={language} />}
+      {overlay}
     </div>);
   return { render };
 }

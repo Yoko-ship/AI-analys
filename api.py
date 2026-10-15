@@ -96,6 +96,7 @@ ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
 # Security headers on every response, and 500s that carry an error id instead
 # of exception text (see server/hardening.py).
 hardening.install(app, WEB_DIR / "index.html")
+app.add_exception_handler(control_api.s.ControlError, control_api.control_error_handler)
 
 
 class _ImmutableAssets(StaticFiles):

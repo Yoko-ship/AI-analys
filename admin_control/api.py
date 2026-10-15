@@ -18,6 +18,26 @@ from . import store as s, service, documents
 log = logging.getLogger(__name__)
 
 
+def control_error_response(exc: s.ControlError | RequestValidationError, request_id: str) -> JSONResponse:
+    is_validation = isinstance(exc, RequestValidationError)
+    status = 422 if is_validation else exc.status
+    return JSONResponse(status_code=status, content={"ok": False, "error": {
+        "code": "VALIDATION_ERROR" if is_validation else exc.code,
+        "message": "Invalid request fields." if is_validation else exc.message,
+        "field_errors": [{"field": ".".join(str(x) for x in e["loc"]), "message": e["msg"]} for e in exc.errors()] if is_validation else [],
+        "request_id": request_id, "retryable": status >= 500}})
+
+
+async def control_error_handler(request: Request, exc: s.ControlError) -> JSONResponse:
+    """App-wide: the control gate also guards routers that are not ControlRoute
+    (the V3 /admin routes), where its refusal would otherwise be a 500."""
+    request_id = getattr(request.state, "control_request_id", None) or s.uid("req")
+    response = control_error_response(exc, request_id)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 class ControlRoute(APIRoute):
     def get_route_handler(self):
         original = super().get_route_handler()
@@ -27,13 +47,7 @@ class ControlRoute(APIRoute):
             try:
                 response = await original(request)
             except (s.ControlError, RequestValidationError) as exc:
-                is_validation = isinstance(exc, RequestValidationError)
-                status = 422 if is_validation else exc.status
-                response = JSONResponse(status_code=status, content={"ok": False, "error": {
-                    "code": "VALIDATION_ERROR" if is_validation else exc.code,
-                    "message": "Invalid request fields." if is_validation else exc.message,
-                    "field_errors": [{"field": ".".join(str(x) for x in e["loc"]), "message": e["msg"]} for e in exc.errors()] if is_validation else [],
-                    "request_id": request.state.control_request_id, "retryable": status >= 500}})
+                response = control_error_response(exc, request.state.control_request_id)
             except Exception:
                 log.exception("Control request failed: %s", request.state.control_request_id)
                 response = JSONResponse(status_code=500, content={"ok": False, "error": {
@@ -187,15 +201,17 @@ class Command(BaseModel):
 def verify_mfa(request, person):
     if person["role"] not in {"administrator", "rule_editor"}:
         return
-    from web_auth import web_auth_store
-    since = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+    since =(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     with s.connection() as c:
         n = c.execute("SELECT COUNT(*) AS n FROM control_audit WHERE environment=? AND actor=? AND action='mfa.denied' AND created_at>?",
                       (s.environment(), person["email"], since)).fetchone()["n"]
     if n >= 5:
         raise s.ControlError("RATE_LIMITED", "Too many verification attempts. Try again in a minute.", 429)
-    if not web_auth_store.security.verify_admin_two_factor(person["id"], request.headers.get("X-Admin-OTP", "")):
-        raise s.ControlError("MFA_REQUIRED", "Enter a current authenticator code. Enable two-factor authentication in your account settings first.", 403)
+    # The same proof every admin gate accepts: a recent step-up of this session,
+    # or a valid X-Admin-OTP on the request itself.
+    import server.auth.access as auth_access
+    if not auth_access._step_up_satisfied(request, person["id"]):
+        raise s.ControlError("MFA_REQUIRED", auth_access.MFA_REQUIRED_MESSAGE, 403)
 
 
 @router.post("/{collection}/{entity_id}/{action}")

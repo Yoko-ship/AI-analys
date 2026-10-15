@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createSession } from "./session.js";
+import { requestStepUpCode } from "./stepUp.js";
 
 /** React adapter; session ordering, persistence and races belong to session.js. */
 export function useSession(language) {
@@ -7,6 +8,7 @@ export function useSession(language) {
     persistentStorage: localStorage,
     temporaryStorage: sessionStorage,
     fetcher: (...args) => fetch(...args),
+    requestStepUp: requestStepUpCode,
   }));
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
 

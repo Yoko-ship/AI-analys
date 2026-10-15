@@ -4232,5 +4232,25 @@
     ],
     "name": "sitemap_route",
     "dependencies": []
+  },
+  {
+    "path": "/api/auth/admin/step-up",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_step_up",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/auth/admin/step-up",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_admin_step_up__v2",
+    "dependencies": [
+      "_require_user"
+    ]
   }
 ]

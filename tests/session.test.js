@@ -177,3 +177,43 @@ test("subscribers observe changes and can unsubscribe", () => {
   session.acceptSession({ token: "two" });
   assert.deepEqual(observed, ["one"]);
 });
+
+test("an admin change refused for its second factor asks once, proves it, and repeats the change", async () => {
+  const calls = [];
+  const replies = [json({ detail: { code: "MFA_REQUIRED" } }, 403), json({ ok: true }), json({ done: true })];
+  const asked = [];
+  const persistentStorage = storage({ [TOKEN_KEY]: "admin" });
+  const session = createSession({ persistentStorage, temporaryStorage: storage(),
+    fetcher: async (...args) => { calls.push(args); return replies.shift(); },
+    requestStepUp: async (prompt) => { asked.push(prompt); return "123456"; } });
+  const response = await session.getSnapshot().apiFetch("/api/admin/users/7/action", { method: "POST", body: "{}" });
+  assert.deepEqual(await response.json(), { done: true });
+  assert.deepEqual(calls.map(([path]) => path), ["/api/admin/users/7/action", "/api/auth/admin/step-up", "/api/admin/users/7/action"]);
+  assert.equal(calls[1][1].body, JSON.stringify({ code: "123456" }));
+  assert.equal(calls[1][1].headers.get("Authorization"), "Bearer admin");
+  assert.equal(asked.length, 1);
+});
+
+test("the control plane's refusal shape asks too, and a wrong code asks again", async () => {
+  const replies = [json({ error: { code: "MFA_REQUIRED" } }, 403), json({ detail: "Invalid two-factor code" }, 400),
+    json({ ok: true }), json({ done: true })];
+  const asked = [];
+  const session = createSession({ persistentStorage: storage({ [TOKEN_KEY]: "admin" }), temporaryStorage: storage(),
+    fetcher: async () => replies.shift(),
+    requestStepUp: async (prompt) => { asked.push(prompt.message); return "123456"; } });
+  const response = await session.getSnapshot().apiFetch("/admin/publications/1/rollback", { method: "POST" });
+  assert.deepEqual(await response.json(), { done: true });
+  assert.deepEqual(asked, ["", "invalid"]);
+});
+
+test("dismissing the prompt returns the refusal; reads and other refusals never prompt", async () => {
+  let asked = 0;
+  const refusal = () => json({ detail: { code: "MFA_REQUIRED" } }, 403);
+  const make = (reply) => createSession({ persistentStorage: storage({ [TOKEN_KEY]: "admin" }), temporaryStorage: storage(),
+    fetcher: async () => reply(), requestStepUp: async () => { asked += 1; return null; } });
+  assert.equal((await make(refusal).getSnapshot().apiFetch("/api/admin/x", { method: "POST" })).status, 403);
+  assert.equal(asked, 1);
+  await make(refusal).getSnapshot().apiFetch("/api/admin/x");
+  await make(() => json({ detail: "Admin access required" }, 403)).getSnapshot().apiFetch("/api/admin/x", { method: "POST" });
+  assert.equal(asked, 1);
+});

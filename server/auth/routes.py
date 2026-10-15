@@ -53,17 +53,63 @@ def _auth_payload(user: identity_users.WebUser, token: str) -> dict[str, Any]:
 
 class OAuthExchangeRequest(BaseModel):
     code: str = Field(..., min_length=8, max_length=128)
+    otp: str | None = Field(default=None, max_length=12)
+
+
+# Wrong authenticator codes one sign-in code survives before its session is
+# revoked; the password login locks the account after the same kind of failures.
+OAUTH_OTP_ATTEMPTS = 5
 
 
 @router.post("/api/auth/oauth/exchange")
 async def api_oauth_exchange(payload: OAuthExchangeRequest, request: Request) -> dict[str, Any]:
-    """Redeem the one-time code from the OAuth redirect for the access token."""
+    """Redeem the one-time code from the OAuth redirect for the access token.
+
+    The provider proves the inbox, not the second factor. An account with
+    two-factor on gets its token only with a current authenticator code, the
+    same as a password sign-in; until then the code is held, not spent.
+    """
     auth_limits._enforce_auth_rate_limit(request, "oauth-exchange")
-    redeemed = auth_oauth._redeem_oauth_code(payload.code)
-    if not redeemed:
+    entry = auth_oauth._redeem_oauth_code(payload.code)
+    if not entry:
         raise HTTPException(status_code=400, detail="Invalid or expired sign-in code")
-    provider, token = redeemed
-    return {"ok": True, "provider": provider, "token": token}
+    loop = asyncio.get_running_loop()
+    store = identity.web_auth_store
+    user = await loop.run_in_executor(None, store.sessions.get_user_by_token, entry.token)
+    if user and await loop.run_in_executor(None, store.security.two_factor_enabled, user.id):
+        if not payload.otp:
+            auth_oauth._hold_oauth_code(payload.code, entry, entry.otp_failures)
+            raise HTTPException(status_code=401, detail="Two-factor code required")
+        verified = await loop.run_in_executor(
+            None, store.security.verify_admin_two_factor, user.id, payload.otp)
+        if not verified:
+            failures = entry.otp_failures + 1
+            if failures >= OAUTH_OTP_ATTEMPTS:
+                await loop.run_in_executor(None, store.sessions.revoke_token, entry.token)
+            else:
+                auth_oauth._hold_oauth_code(payload.code, entry, failures)
+            raise HTTPException(status_code=401, detail="Invalid two-factor code")
+    return {"ok": True, "provider": entry.provider, "token": entry.token}
+
+
+class AdminStepUpRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=12)
+
+
+@router.post("/api/auth/admin/step-up")
+async def api_admin_step_up(payload: AdminStepUpRequest, request: Request,
+                            current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
+    """Prove the authenticator once; admin changes from this session are then
+    allowed for ADMIN_STEP_UP_SECONDS (see server/auth/access.py)."""
+    if not auth_access._step_up_attempt_allowed(current_user.id):
+        raise auth_limits._rate_limited("window", auth_limits._rate_limiter.retry_after(
+            f"step-up:{current_user.id}", 60.0), auth_limits.request_language(request))
+    loop = asyncio.get_running_loop()
+    verified = await loop.run_in_executor(
+        None, auth_access._verify_step_up_code, request, current_user.id, payload.code)
+    if not verified:
+        raise HTTPException(status_code=400, detail="Invalid two-factor code")
+    return {"ok": True, "expires_in": auth_access.ADMIN_STEP_UP_SECONDS}
 
 
 @router.post("/api/auth/register")

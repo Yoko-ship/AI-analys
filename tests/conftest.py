@@ -33,6 +33,36 @@ def no_geoip_download(monkeypatch):
     monkeypatch.setenv("GEOIP_REFRESH", "0")
 
 
+@pytest.fixture(autouse=True)
+def no_admin_step_up_carryover():
+    """An admin step-up lives in process memory, keyed by session token. One
+    test's proof (or its failed attempts) must not open or close another's gate."""
+    import server.auth.limits as auth_limits
+
+    def clear():
+        subject_server_auth_access._step_ups.clear()
+        for key in [k for k in auth_limits._rate_limiter._events if k.startswith("step-up:")]:
+            auth_limits._rate_limiter._events.pop(key, None)
+
+    clear()
+    yield
+    clear()
+
+
+ADMIN_OTP = "123456"
+
+
+@pytest.fixture
+def admin_authenticator(monkeypatch):
+    """The signed-in admin's authenticator: accepts ADMIN_OTP. Returns the header
+    an admin change carries to prove it (server/auth/access.py, step-up)."""
+    import web_auth
+
+    monkeypatch.setattr(web_auth.web_auth_store.security, "verify_admin_two_factor",
+                        lambda user_id, code: code == ADMIN_OTP)
+    return {"X-Admin-OTP": ADMIN_OTP}
+
+
 @pytest.fixture
 def authenticated_reader(monkeypatch):
     """Opt in only for data-contract tests; authorization tests use real guards."""

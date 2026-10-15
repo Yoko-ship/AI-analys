@@ -64,13 +64,6 @@ export function useAuthentication({ navigation: navigationModule, session: sessi
     const oauthCode = hash.get("oauth_code");
     const provider = hash.get("provider") || hash.get("oauth");
 
-    const finishLogin = (newToken, providerName) => {
-      acceptSession({ token: newToken }, { remember: rememberLogin });
-      const providerLabel = providerName === "google" ? "Google" : providerName || "";
-      addToast(providerLabel ? `${providerLabel}: ${t(language, "auth.messages.loginOk")}` : t(language, "auth.messages.loginOk"), "success");
-      setActiveView("profile");
-    };
-
     if (oauthError) {
       addToast(decodeURIComponent(oauthError.replace(/\+/g, " ")), "error");
       clearHash();
@@ -78,20 +71,59 @@ export function useAuthentication({ navigation: navigationModule, session: sessi
       // The redirect carries a short-lived one-time code, never the token
       // itself (a token in the URL survives in history/logs). Exchange it.
       clearHash();
-      fetch("/api/auth/oauth/exchange", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: oauthCode }),
-      })
-        .then((r) => r.json())
+      exchangeOauthCode(oauthCode)
         .then((d) => {
-          if (d.ok && d.token) finishLogin(d.token, d.provider || provider);
-          else addToast(d.detail || "Sign-in failed", "error");
+          if (d.ok && d.token) finishOauthLogin(d.token, d.provider || provider);
+          else if (/two-factor code required/i.test(d.detail || "")) {
+            // The provider proved the inbox, not the second factor: the
+            // server holds the code until the authenticator code arrives.
+            setAuthFlow({ kind: "oauth-otp", oauthCode, provider });
+            setAuthCode("");
+            setAuthMessage("");
+            setActiveView("auth");
+          } else addToast(d.detail || "Sign-in failed", "error");
         })
         .catch(() => addToast("Sign-in failed", "error"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function exchangeOauthCode(code, otp) {
+    return fetch("/api/auth/oauth/exchange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(otp ? { code, otp } : { code }),
+    }).then((r) => r.json());
+  }
+
+  function finishOauthLogin(newToken, providerName) {
+    acceptSession({ token: newToken }, { remember: rememberLogin });
+    const providerLabel = providerName === "google" ? "Google" : providerName || "";
+    addToast(providerLabel ? `${providerLabel}: ${t(language, "auth.messages.loginOk")}` : t(language, "auth.messages.loginOk"), "success");
+    setActiveView("profile");
+  }
+
+  const handleOauthOtp = async (event) => {
+    event.preventDefault();
+    setAuthMessage("...");
+    try {
+      const data = await exchangeOauthCode(authFlow.oauthCode, authCode);
+      if (data.ok && data.token) {
+        leaveAuthFlow();
+        finishOauthLogin(data.token, data.provider || authFlow.provider);
+        return;
+      }
+      if (/invalid two-factor code/i.test(data.detail || "")) {
+        setAuthCode("");
+        authFlowFailed(new Error(data.detail));
+        return;
+      }
+      // Spent or expired (or too many wrong codes): start the sign-in again.
+      leaveAuthFlow(translateAuthError(data.detail || "Sign-in failed", language));
+    } catch (error) {
+      authFlowFailed(error);
+    }
+  };
 
   const clearHash = () => {
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
@@ -320,9 +352,11 @@ export function useAuthentication({ navigation: navigationModule, session: sessi
                   ) : authFlow ? (
                     <div className="auth-code-flow">
                       <div className="auth-hub-heading">
-                        <h1 id="auth-page-title">{authFlow.kind === "verify" ? authCopy.verifyTitle : authCopy.forgotTitle}</h1>
+                        <h1 id="auth-page-title">{authFlow.kind === "oauth-otp" ? authCopy.otpTitle : authFlow.kind === "verify" ? authCopy.verifyTitle : authCopy.forgotTitle}</h1>
                         <p>
-                          {authFlow.kind === "verify"
+                          {authFlow.kind === "oauth-otp"
+                            ? authCopy.otpSubtitle
+                            : authFlow.kind === "verify"
                             ? authCopy.verifySubtitle.replace("{email}", authFlow.email)
                             : authFlow.step === "code"
                               ? authCopy.resetSubtitle.replace("{email}", authFlow.email)
@@ -349,9 +383,9 @@ export function useAuthentication({ navigation: navigationModule, session: sessi
                           </button>
                         </form>
                       ) : (
-                        <form className="auth-hub-form" onSubmit={authFlow.kind === "verify" ? handleVerifyEmail : handlePasswordReset}>
+                        <form className="auth-hub-form" onSubmit={authFlow.kind === "oauth-otp" ? handleOauthOtp : authFlow.kind === "verify" ? handleVerifyEmail : handlePasswordReset}>
                           <label className="auth-field">
-                            <span>{authCopy.codeLabel}</span>
+                            <span>{authFlow.kind === "oauth-otp" ? authCopy.otpLabel : authCopy.codeLabel}</span>
                             <input
                               className="auth-code-input"
                               type="text"
@@ -383,10 +417,10 @@ export function useAuthentication({ navigation: navigationModule, session: sessi
                           ) : null}
                           <button className="auth-primary-button" type="submit"
                             disabled={authCode.length !== 6 || (authFlow.kind === "forgot" && !passwordStrength(resetNewPassword, { email: authFlow.email }).acceptable)}>
-                            {authFlow.kind === "verify" ? authCopy.verifySubmit : authCopy.resetSubmit}
+                            {authFlow.kind === "forgot" ? authCopy.resetSubmit : authCopy.verifySubmit}
                             <span aria-hidden="true">→</span>
                           </button>
-                          {(() => {
+                          {authFlow.kind !== "oauth-otp" && (() => {
                             const wait = Math.max(0, Math.ceil((resendAt - Date.now()) / 1000));
                             return (
                               <button className="auth-link-button" type="button" disabled={wait > 0} onClick={handleResendCode}>

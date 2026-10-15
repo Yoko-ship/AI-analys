@@ -244,7 +244,7 @@ def test_company_import_endpoints_are_human_admin_only(monkeypatch):
     assert response.json()["summary"] == {"pending": 0, "approved": 0, "rejected": 0}
 
 
-def test_admin_can_preview_and_approve_without_starting_external_sync(monkeypatch):
+def test_admin_can_preview_and_approve_without_starting_external_sync(monkeypatch, admin_authenticator):
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
     _as_user(monkeypatch, "admin@example.com")
     monkeypatch.setattr(entity_resolver, "resolve_all", lambda: [_record()])
@@ -254,7 +254,7 @@ def test_admin_can_preview_and_approve_without_starting_external_sync(monkeypatc
         lambda _name: {"org_id": "777", "logo": None},
     )
     client = TestClient(api.app)
-    headers = {"Authorization": "Bearer token"}
+    headers = {"Authorization": "Bearer token", **admin_authenticator}
 
     preview = client.get("/api/admin/companies/ZZCO/preview", headers=headers)
     assert preview.status_code == 200
