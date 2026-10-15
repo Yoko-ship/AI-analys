@@ -662,17 +662,25 @@ def latest_cached_catalog_period(ticker: str, form: str, *, annual_only: bool = 
     return max(candidates, key=rank, default=None)
 
 
-def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, Any]:
+def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU",
+                                  top_line: str = "revenue") -> dict[str, Any]:
     """Build annual and quarterly catalog dynamics without upstream I/O.
 
     Periods with no usable statement and copies of another period are left out
     of the series and listed in ``excluded_periods`` with the reason; a year of
     zeros or line numbers drawn into a chart is a fabricated collapse.
+
+    ``top_line`` is the income line the series leads with: ``revenue`` for a
+    company that sells something, ``total_income`` (стр.010+090+110) for a fund,
+    whose revenue line is nought every year and whose income is dividends,
+    interest and gains on securities.
     """
+    flow_keys = (top_line, "net_income")
+    metric_keys = (top_line, "net_income", "total_assets", "equity", "total_liabilities")
     if form not in {"NSBU", "MSFO"}:
         return {"ticker": ticker, "form": form, "years": [], "series": {},
                 "quarterly": [], "excluded_periods": [],
-                "seasonality": {"metric": "revenue", "years_covered": 0,
+                "seasonality": {"metric": top_line, "years_covered": 0,
                                 "insufficient": True, "quarter_avg": {}}}
     excluded: list[dict[str, Any]] = []
     filed = _filed_periods(ticker, form)
@@ -690,9 +698,17 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
                 kept[period] = row
         return kept
 
+    def payload_of(row: dict[str, Any], months: int = 12) -> dict[str, Any]:
+        payload = _cached_catalog_ratio_payload(row, months)
+        # The analysis payload carries revenue; another top line is read off
+        # the cached row itself.
+        payload["source_values"].setdefault(
+            top_line, catalogue_codecs._financials_num(dict(row or {}).get(top_line)))
+        return payload
+
     annual_source = usable(catalogue_snapshots.get_financials_series(ticker, form) or {})
     annual_items = sorted(
-        ((int(year), _cached_catalog_ratio_payload(row))
+        ((int(year), payload_of(row))
          for year, row in annual_source.items() if str(year).isdigit()),
         key=lambda item: item[0],
     )
@@ -700,7 +716,7 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
     years = [year for year, _ in annual_items]
     series = {
         key: [payload["source_values"].get(key) for _, payload in annual_items]
-        for key in ("revenue", "net_income", "total_assets", "equity", "total_liabilities")
+        for key in metric_keys
     }
 
     quarterly_source = usable(catalogue_snapshots.get_financials_series_quarterly(ticker, form) or {})
@@ -709,7 +725,7 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
         match = re.fullmatch(r"(\d{4})Q([1-4])", str(period))
         if not match:
             continue
-        payload = _cached_catalog_ratio_payload(row, catalog_period_months(int(match.group(2))))
+        payload = payload_of(row, catalog_period_months(int(match.group(2))))
         if payload["has_data"]:
             parsed_quarters.append((int(match.group(1)), int(match.group(2)), payload))
     parsed_quarters.sort(key=lambda item: (item[0], item[1]))
@@ -719,14 +735,14 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
     for year, quarter, payload in parsed_quarters:
         values = payload["source_values"]
         entry: dict[str, Any] = {"label": f"Q{quarter} {year}", "year": year, "quarter": quarter}
-        for key in ("revenue", "net_income", "total_assets", "equity", "total_liabilities"):
+        for key in metric_keys:
             entry[key] = values.get(key)
-        for key in ("revenue", "net_income"):
+        for key in flow_keys:
             entry[f"{key}_ytd"] = entry.get(key)
-        ytd[(year, quarter)] = {key: entry.get(f"{key}_ytd") for key in ("revenue", "net_income")}
+        ytd[(year, quarter)] = {key: entry.get(f"{key}_ytd") for key in flow_keys}
         quarterly.append(entry)
     for entry in quarterly:
-        for key in ("revenue", "net_income"):
+        for key in flow_keys:
             value = entry.get(f"{key}_ytd")
             if not isinstance(value, (int, float)):
                 entry[key] = None
@@ -737,12 +753,12 @@ def build_cached_catalog_dynamics(ticker: str, form: str = "NSBU") -> dict[str, 
     by_quarter: dict[int, list[float]] = {1: [], 2: [], 3: [], 4: []}
     covered_years: set[int] = set()
     for entry in quarterly:
-        value = entry.get("revenue")
+        value = entry.get(top_line)
         if isinstance(value, (int, float)):
             by_quarter[entry["quarter"]].append(float(value))
             covered_years.add(entry["year"])
     seasonality = {
-        "metric": "revenue",
+        "metric": top_line,
         "years_covered": len(covered_years),
         "insufficient": len(covered_years) < 3,
         "quarter_avg": {

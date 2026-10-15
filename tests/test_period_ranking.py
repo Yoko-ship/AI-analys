@@ -409,6 +409,8 @@ class TestUnitScale:
             # the liquidity, quick and turnover coefficients can be computed for
             # the issuers whose indicator feed publishes none of them.
             "current_assets", "current_liabilities", "inventories",
+            # Every income line of the commercial form №2 — a fund's top line.
+            "total_income",
         }
         # The filed balance rides as a nested dict and is scaled key-by-key at
         # the same boundary (api._market_inputs._scale).

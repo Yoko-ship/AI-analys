@@ -25,7 +25,13 @@ NSBU_THOUSANDS_UZS = 1000.0
 
 _IFRS_BANK_FIELDS = ("interest_income", "interest_expense")
 
-FIN_MONEY_FIELDS = _FIN_FIELDS + ("noninterest_income",) + _FIN_CURRENT_FIELDS + _IFRS_BANK_FIELDS
+
+# Every income line of the commercial form №2 (стр.010+090+110): the top line
+# of an investment fund or holding, which sells nothing (catalogue.parsing).
+_FIN_INCOME_FIELDS = ("total_income",)
+
+FIN_MONEY_FIELDS = (_FIN_FIELDS + ("noninterest_income",) + _FIN_CURRENT_FIELDS + _IFRS_BANK_FIELDS
+                    + _FIN_INCOME_FIELDS)
 
 
 RATIO_MONEY_FIELDS = ("total_equity", "total_assets")

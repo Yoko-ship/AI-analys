@@ -1072,6 +1072,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
             conn.execute(f"ALTER TABLE catalog_financials ADD COLUMN {column} REAL")
 
+    # Every income line of the commercial form №2 (стр.010+090+110). A fund or
+
+    # holding sells nothing, so its revenue line is nought and this is its top
+
+    # line; nullable, filled by the next backfill or reconcile of each filing.
+
+    if "total_income" not in have_fin:
+
+        conn.execute("ALTER TABLE catalog_financials ADD COLUMN total_income REAL")
+
     # «Номинальная стоимость» of the security, as the exchange's own card states
 
     # it (`parval`). Every listed line has one and no page showed it.

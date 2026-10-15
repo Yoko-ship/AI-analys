@@ -103,11 +103,11 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
                  total_assets, total_equity,
 
-                 current_assets, current_liabilities, inventories,
+                 current_assets, current_liabilities, inventories, total_income,
 
                  field_periods, report_id, updated_at)
 
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
 
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
 
@@ -139,6 +139,8 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
                 inventories=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.inventories ELSE excluded.inventories END,
 
+                total_income=COALESCE(excluded.total_income, catalog_financials.total_income),
+
                 field_periods=excluded.field_periods,
 
                 -- A re-parse that cannot name its source must not erase the
@@ -165,7 +167,7 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
              values.get("current_assets"), values.get("current_liabilities"),
 
-             values.get("inventories"),
+             values.get("inventories"), values.get("total_income"),
 
              catalogue_codecs._encode_field_periods(values.get("field_periods")), report_id),
 
@@ -316,11 +318,11 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
 
                          current_assets, current_liabilities, inventories,
 
-                         noninterest_income, org_type, balance_period,
+                         noninterest_income, total_income, org_type, balance_period,
 
                          field_periods, prior_period, updated_at)
 
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
 
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
 
@@ -341,6 +343,12 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                         inventories=CASE WHEN excluded.current_assets IS NULL AND excluded.current_liabilities IS NULL AND excluded.inventories IS NULL THEN catalog_financials.inventories ELSE excluded.inventories END,
 
                         noninterest_income=excluded.noninterest_income,
+
+                        -- A pusher from before the column existed sends nothing
+
+                        -- for it; that nothing must not blank a parsed figure.
+
+                        total_income=COALESCE(excluded.total_income, catalog_financials.total_income),
 
                         -- An upsert that says nothing about the form or the
 
@@ -391,6 +399,8 @@ def bulk_upsert_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("inventories")),
 
                      _num(r.get("noninterest_income")),
+
+                     _num(r.get("total_income")),
 
                      (str(r.get("org_type")) if r.get("org_type") else None),
 
@@ -583,11 +593,11 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
 
                          current_assets, current_liabilities, inventories,
 
-                         noninterest_income, org_type, balance_period,
+                         noninterest_income, total_income, org_type, balance_period,
 
                          field_periods, prior_period, updated_at)
 
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
 
                     ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
 
@@ -623,6 +633,12 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
 
                         noninterest_income=excluded.noninterest_income,
 
+                        -- A pusher from before the column existed sends nothing
+
+                        -- for it; that nothing must not blank a parsed figure.
+
+                        total_income=COALESCE(excluded.total_income, catalog_financials.total_income),
+
                         org_type=excluded.org_type,
 
                         balance_period=excluded.balance_period,
@@ -654,6 +670,8 @@ def bulk_replace_financials(rows: list[dict], form: str = "NSBU") -> int:
                      _num(r.get("inventories")),
 
                      _num(r.get("noninterest_income")),
+
+                     _num(r.get("total_income")),
 
                      (str(r.get("org_type")) if r.get("org_type") else None),
 

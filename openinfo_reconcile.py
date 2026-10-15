@@ -425,6 +425,7 @@ def extract_metrics(detail):
         "operating_income": None,
         "operating_expenses": None,
         "noninterest_income": None,
+        "total_income": None,
         "prior": None,
         # Balance block (ТЗ мультипликаторов 2026-08-10, лист 09): equity and
         # assets straight from the filed balance sheet, start AND end of period,
@@ -489,6 +490,15 @@ def extract_metrics(detail):
         out["gross_profit"] = pl_value(gross_row)
         out["operating_income"] = pl_value(oper_row)
         out["operating_expenses"] = pl_value(expenses_row)
+        # Every income line of the commercial form: 010 sales + 090 other
+        # operating income + 110 financial income. A fund or holding sells
+        # nothing, so this is its top line (catalogue.parsing.commercial_total_income
+        # reads the same three lines off the Excel export). The insurance form
+        # numbers a line 010 too, with another meaning — hence the title check.
+        if rev_row is not None and "выручка" in _norm(rev_row.get("title")):
+            parts = [pl_value(_by_tnum(pl, tnum)) for tnum in ("010", "090", "110")]
+            parts = [v for v in parts if v is not None]
+            out["total_income"] = round(sum(parts), 2) if parts else None
         # ...and the comparative the same form prints beside each of them. Only
         # the P&L has one: the balance sheet's two columns are "на начало года"
         # and "на конец периода", which is a different statement, so cash and
@@ -829,7 +839,8 @@ def select_report(ticker, today=None, max_fetch=8):
 
 
 METRIC_KEYS = ("revenue", "gross_profit", "cash", "total_liabilities",
-               "net_income", "operating_income", "operating_expenses", "noninterest_income")
+               "net_income", "operating_income", "operating_expenses", "noninterest_income",
+               "total_income")
 
 NSBU_THOUSANDS = 1000.0
 

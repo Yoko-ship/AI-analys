@@ -979,7 +979,8 @@ def _fin_row_fields(row: Any) -> dict[str, Any]:
 
     available = set(row.keys())
 
-    fields = {k: row[k] for k in catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS if k in available and row[k] is not None}
+    fields = {k: row[k] for k in catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS + catalogue_fields._FIN_INCOME_FIELDS
+              if k in available and row[k] is not None}
 
     if fields.get("total_assets") is None or fields.get("total_equity") is None:
 
@@ -1052,7 +1053,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
         fin = conn.execute(
 
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS)} FROM catalog_financials "
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} FROM catalog_financials "
 
             f"WHERE ticker IN ({placeholders}) AND form=? "
 
@@ -1191,7 +1192,7 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
 
         fin = conn.execute(
 
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS)} "
+            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} "
 
             f"FROM catalog_financials "
 

@@ -430,7 +430,10 @@ function CatalogDynamicsTable({ result, language }) {
   const series = result.series || {};
   const quarterly = result.quarterly || [];
   const labels = (TEXTS[language] || TEXTS.ru).catalog.dynamicsLabels;
-  const metricKeys = Object.keys(labels);
+  // The server picks the rows: a fund leads with its total income, not a
+  // revenue line that is nought every year.
+  const metricKeys = Object.keys(series).length ? Object.keys(series) : Object.keys(labels);
+  const seasonLabel = (labels[result.seasonality?.metric] || labels.revenue).toLowerCase();
   const fmtN = (v) => {
     if (v === null || v === undefined) return "—";
     return new Intl.NumberFormat(language === "en" ? "en-US" : "ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(v);
@@ -486,7 +489,7 @@ function CatalogDynamicsTable({ result, language }) {
       {result.seasonality && (
         <div style={{ marginTop: 20 }}>
           <div className="panel-label" style={{ marginBottom: 8 }}>
-            {language === "ru" ? "Сезонность (выручка по кварталам)" : language === "uz" ? "Mavsumiylik (choraklar bo'yicha daromad)" : "Seasonality (revenue by quarter)"}
+            {language === "ru" ? `Сезонность (${seasonLabel} по кварталам)` : language === "uz" ? `Mavsumiylik (choraklar bo'yicha ${seasonLabel})` : `Seasonality (${seasonLabel} by quarter)`}
           </div>
           {result.seasonality.insufficient ? (
             <p className="muted">

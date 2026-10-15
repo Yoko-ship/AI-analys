@@ -358,7 +358,10 @@ def analyze(payload: Any, approved: dict[str, Any], sectors: dict[str, Any]) -> 
         raise _not_found(lang, form, payload.year, payload.quarter)
 
     if payload.analysis_type == "dynamics":
-        dynamics = catalogue_ratios.build_cached_catalog_dynamics(ticker, form)
+        # A fund sells nothing: its revenue line is nought every year, and its
+        # income is the dividends, interest and gains the form files below it.
+        top_line = "total_income" if kind == catalogue_organization.FUND else "revenue"
+        dynamics = catalogue_ratios.build_cached_catalog_dynamics(ticker, form, top_line=top_line)
         if not dynamics.get("years") and not dynamics.get("quarterly"):
             raise _not_found(lang, form, payload.year, payload.quarter)
         excluded = dynamics.get("excluded_periods") or []

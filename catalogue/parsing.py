@@ -541,6 +541,36 @@ def _current_section_check(table: dict | None) -> dict[str, dict[str, Any]]:
             for field, code in _CURRENT_SECTION_LINES.items() if code in checked}
 
 
+# Every income line the commercial form №2 states: «Чистая выручка от
+# реализации» (стр.010), «Прочие доходы от основной деятельности» (стр.090) and
+# «Доходы от финансовой деятельности, всего» (стр.110 = 120…160: dividends,
+# interest, lease, FX and other financial income).
+_TOTAL_INCOME_LINES = ("c010", "c090", "c110")
+
+
+def commercial_total_income(table: dict | None) -> float | None:
+    """The reporting-period income of the commercial form №2, every line of it.
+
+    An investment fund or a holding sells nothing: стр.010 is nought every year
+    and its whole income is dividends, interest and gains on securities, filed
+    under стр.110 (ODMP 2025: 010 = 0, 110 = 6 678 818,5). Revenue alone shows
+    such an issuer as having no income at all. Read by line code from the
+    reporting-period columns, so a nought current line stays nought rather than
+    borrowing last year's figure; only the jsc form numbers its lines this way,
+    and a form without стр.010 (bank, insurer) yields None.
+    """
+    import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+    if not table:
+        return None
+    lines = financial_analysis_sector_inputs.source_line_pairs(table, "form2")
+    # The insurance form also numbers a line 010, but with its own meaning.
+    if "c010" not in lines or "выручка" not in str(lines["c010"].get("label") or "").lower():
+        return None
+    parts = [lines[code]["current"] for code in _TOTAL_INCOME_LINES
+             if code in lines and lines[code]["current"] is not None]
+    return float(sum(parts)) if parts else None
+
+
 def _labelled_as(field: str, label: Any) -> bool:
     """Whether a coded row is the line the label selectors read ``field`` from."""
     if field == "current_assets":
@@ -743,6 +773,8 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "revenue": revenue,
 
         "noninterest_income": _extract_metric(income_rows or all_rows, "noninterest_income"),
+
+        "total_income": commercial_total_income(income_data or balance_data),
 
         "net_income": net_income,
 
