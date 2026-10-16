@@ -25,12 +25,26 @@ BIG = "https://cdn.uza.uz/2026/08/07/15/14/BHsTYKW_normal.jpg"
 
 
 class _Resp:
+    is_redirect = False
+    encoding = None
+
     def __init__(self, status=200, ctype="image/jpeg"):
         self.status_code = status
         self.headers = {"content-type": ctype}
 
+    def iter_content(self, size):
+        yield b""
+
     def close(self):
         pass
+
+
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    """Image hosts resolve to a public address; no live DNS in a unit test."""
+    import socket
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))])
 
 
 @pytest.fixture()
@@ -39,10 +53,11 @@ def head(monkeypatch):
     asked: list[str] = []
 
     def _serve(resp):
-        def _head(self, url, **kw):
+        def _request(self, method, url, **kw):
+            assert method == "HEAD"
             asked.append(url)
             return resp
-        monkeypatch.setattr(nc.requests.Session, "head", _head)
+        monkeypatch.setattr(nc.requests.Session, "request", _request)
         return asked
     return _serve
 
@@ -79,10 +94,10 @@ def test_a_source_with_no_rule_is_left_alone(head):
 
 
 def test_a_network_failure_keeps_the_thumbnail(monkeypatch):
-    def _boom(self, url, **kw):
+    def _boom(self, method, url, **kw):
         raise nc.requests.ConnectionError("down")
 
-    monkeypatch.setattr(nc.requests.Session, "head", _boom)
+    monkeypatch.setattr(nc.requests.Session, "request", _boom)
     assert collectors_news_images._upgrade_image(nc.requests.Session(), SMALL, UZA) == SMALL
 
 

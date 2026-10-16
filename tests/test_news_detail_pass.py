@@ -71,21 +71,39 @@ _FITCH_ITEM = {
 
 
 class _Resp:
+    is_redirect = False
+
     def __init__(self, body: str = "", status: int = 200, payload=None):
         self.content = body.encode("utf-8")
         self.status_code = status
         self.encoding = "utf-8"
+        self.headers = {}
         self._payload = payload
 
     def json(self):
         return self._payload if self._payload is not None else json.loads(self.content)
 
+    def iter_content(self, size):
+        yield self.content
+
+    def close(self):
+        pass
+
+
+def _public_dns(monkeypatch):
+    """Article hosts resolve to a public address; no live DNS in a unit test."""
+    import socket
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda *a, **kw: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))])
+
 
 @pytest.fixture()
 def served(monkeypatch):
+    _public_dns(monkeypatch)
+
     def _serve(body: str, status: int = 200):
-        monkeypatch.setattr(nc.requests.Session, "get",
-                            lambda self, url, **kw: _Resp(body, status))
+        monkeypatch.setattr(nc.requests.Session, "request",
+                            lambda self, method, url, **kw: _Resp(body, status))
     return _serve
 
 
@@ -120,7 +138,7 @@ class TestExtraction:
             return _Resp(payload={"data": {"getResearchItem": _FITCH_ITEM}})
 
         monkeypatch.setattr(nc.requests.Session, "post", _post)
-        monkeypatch.setattr(nc.requests.Session, "get",
+        monkeypatch.setattr(nc.requests.Session, "request",
                             lambda *a, **k: pytest.fail("do not fetch Fitch's empty HTML shell"))
         text = collectors_news_articles._article_text(
             nc.requests.Session(),

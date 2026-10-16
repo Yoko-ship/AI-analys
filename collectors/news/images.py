@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import collectors.news.http as collectors_news_http
 import collectors.news.settings as collectors_news_settings
 import html
+import public_fetch
 import os
 import re
 import requests
@@ -35,20 +36,17 @@ _BACKFILL_IMAGE_CAP = int(os.getenv("NEWS_BACKFILL_IMAGE_CAP", "12"))
 def _og_image(session: requests.Session, page_url: str, timeout: int = 15) -> str | None:
     """The article page's own preview image (og:image / twitter:image), or None."""
     try:
-        resp = session.get(page_url, timeout=timeout, stream=True)
+        resp = public_fetch.fetch(session, page_url, max_bytes=_HEAD_MAX_BYTES, timeout=timeout, truncate=True,
+                                  stop=lambda buf: b"</head" in buf.lower())
         if resp.status_code != 200:
-            resp.close()
             return None
-        buf = bytearray()
-        for chunk in resp.iter_content(8192):
-            buf += chunk
-            if len(buf) >= _HEAD_MAX_BYTES or b"</head" in buf.lower():
-                break
-        resp.close()
+    except public_fetch.FetchRefused as exc:
+        collectors_news_settings.logger.warning("page-image fetch refused for %s: %s", page_url, exc)
+        return None
     except requests.RequestException as exc:
         collectors_news_settings.logger.debug("page-image fetch failed for %s: %s", page_url, exc)
         return None
-    head = bytes(buf).decode("utf-8", "replace")
+    head = resp.content.decode("utf-8", "replace")
     for pattern in _OG_IMAGE_PATTERNS:
         match = re.search(pattern, head, re.I)
         if not match:
@@ -83,13 +81,15 @@ def _upgrade_image(session: requests.Session, url: str, source: dict[str, Any]) 
     if candidate == url:
         return url
     try:
-        resp = session.head(candidate, timeout=15, allow_redirects=True)
-        if resp.status_code in (403, 405, 501):  # HEAD not served — ask for one byte instead
-            resp = session.get(candidate, timeout=15, headers={"Range": "bytes=0-1023"},
-                               stream=True)
-            resp.close()
+        resp = public_fetch.fetch(session, candidate, method="HEAD", max_bytes=0, timeout=15)
+        if resp.status_code in (403, 405, 501):  # HEAD not served — ask for the first KB instead
+            resp = public_fetch.fetch(session, candidate, max_bytes=1024, timeout=15, truncate=True,
+                                      headers={"Range": "bytes=0-1023"})
         ok = (resp.status_code in (200, 206)
               and (resp.headers.get("content-type") or "").lower().startswith("image/"))
+    except public_fetch.FetchRefused as exc:
+        collectors_news_settings.logger.warning("image upgrade refused for %s: %s", candidate, exc)
+        return url
     except requests.RequestException as exc:
         collectors_news_settings.logger.debug("image upgrade check failed for %s: %s", candidate, exc)
         return url

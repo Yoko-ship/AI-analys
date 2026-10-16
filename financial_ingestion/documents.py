@@ -143,8 +143,7 @@ def register_issuer_source(*, ticker, url, source_page, actor, reason, processor
     file still follows FETCH → EXTRACT → review and cannot publish itself.
     """
     source_policy.require(url)
-    import ipaddress
-    import socket
+    import public_fetch
     import reports_catalog as rc
     import catalogue.filings as catalogue_filings
     import catalogue.storage as catalogue_storage
@@ -159,9 +158,10 @@ def register_issuer_source(*, ticker, url, source_page, actor, reason, processor
                 or target.username or target.password or target.fragment):
             raise ValueError("Issuer sources require public HTTPS URLs without credentials")
     for target in (parsed, origin):
-        addresses = socket.getaddrinfo(target.hostname, 443, type=socket.SOCK_STREAM)
-        if not addresses or any(not ipaddress.ip_address(record[4][0]).is_global for record in addresses):
-            raise ValueError("Issuer source must resolve to public addresses")
+        try:
+            public_fetch.require_public_host(target.hostname, 443)
+        except public_fetch.FetchRefused:
+            raise ValueError("Issuer source must resolve to public addresses") from None
     linked_origin = None
     page_sha = None
     if parsed.hostname != origin.hostname:

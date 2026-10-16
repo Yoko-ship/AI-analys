@@ -24,6 +24,7 @@ import math
 import os
 import re
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -246,7 +247,71 @@ def localized(path: str, lang: str) -> str:
 
 _CACHE_TTL = 600.0
 _DATA_TIMEOUT = 6.0
-_cache: dict[str, tuple[float, Any]] = {}
+# Ceilings on the page-data cache, whatever paths are asked for: about the site's
+# own page count (≈100 companies and bonds x 2 languages, the stories, the lists)
+# for pages that exist, and a smaller allowance for answers that a page does not.
+_CACHE_MAX_ENTRIES = 2000
+_CACHE_MAX_MISSES = 500
+
+
+def _is_miss(value: Any) -> bool:
+    """A loader's answer that the page does not exist: nothing, or a marked miss."""
+    return not value or (isinstance(value, dict) and bool(value.get("missing")))
+
+
+class _PageDataCache:
+    """Loaded page data by key, bounded however many distinct keys are asked for.
+
+    The keys come from the URL (a ticker, a story id), so whoever walks random
+    paths chooses how many there are. Expiry alone bounded nothing: stale entries
+    were only swept past 2000, and every one of them was still fresh. Now each
+    insert evicts the least recently used entry past the ceiling. A miss is still
+    cached, since a crawler re-probes the same dead link and each probe is a store
+    read, but misses have their own smaller allowance, so random paths can neither
+    grow memory nor push the real pages out.
+    """
+
+    def __init__(self, limit: int, miss_limit: int) -> None:
+        self.limit, self.miss_limit = limit, miss_limit
+        self._entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+        self._misses: OrderedDict[str, None] = OrderedDict()
+
+    def get(self, key: str, now: float) -> tuple[float, Any] | None:
+        entry = self._entries.get(key)
+        if entry is None:
+            return None
+        if entry[0] <= now:
+            self._drop(key)
+            return None
+        self._entries.move_to_end(key)
+        return entry
+
+    def put(self, key: str, value: Any, expires_at: float) -> None:
+        self._drop(key)
+        self._entries[key] = (expires_at, value)
+        if _is_miss(value):
+            self._misses[key] = None
+            while len(self._misses) > self.miss_limit:
+                self._drop(next(iter(self._misses)))
+        while len(self._entries) > self.limit:
+            self._drop(next(iter(self._entries)))
+
+    def _drop(self, key: str) -> None:
+        self._entries.pop(key, None)
+        self._misses.pop(key, None)
+
+    def clear(self) -> None:
+        self._entries.clear()
+        self._misses.clear()
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._entries
+
+
+_cache = _PageDataCache(_CACHE_MAX_ENTRIES, _CACHE_MAX_MISSES)
 _pending: dict[str, asyncio.Task] = {}
 
 
@@ -343,24 +408,20 @@ def _internal_request() -> Request:
 
 
 async def _cached(key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
-    hit = _cache.get(key)
-    now = time.monotonic()
-    if hit and hit[0] > now:
+    hit = _cache.get(key, time.monotonic())
+    if hit:
         return hit[1]
     task = _pending.get(key)
     if task is None:
         async def fill() -> Any:
             try:
                 value = await loader()
-                _cache[key] = (time.monotonic() + _CACHE_TTL, value)
+                _cache.put(key, value, time.monotonic() + _CACHE_TTL)
                 return value
             finally:
                 _pending.pop(key, None)
         task = _pending[key] = asyncio.ensure_future(fill())
         task.add_done_callback(lambda t: t.cancelled() or t.exception())
-    if len(_cache) > 2000:
-        for stale in [k for k, (exp, _) in _cache.items() if exp <= now]:
-            _cache.pop(stale, None)
     # A slow read times out this response only: the fill keeps running and the
     # crawler's next visit is served from the cache it leaves behind.
     return await asyncio.wait_for(asyncio.shield(task), timeout=_DATA_TIMEOUT)
@@ -681,7 +742,7 @@ def _stocks_table(rows: list[dict[str, Any]], lang: str) -> str:
         price = _num(row.get("last_price"))
         cap = _num(row.get("market_cap"))
         cells = (
-            f"<a href=\"{localized('/company/' + ticker, lang)}\">{_esc(name)}</a>", _esc(ticker),
+            f"<a href=\"{_esc(localized('/company/' + ticker, lang))}\">{_esc(name)}</a>", _esc(ticker),
             _esc(sectors.get(COMPANY_SECTORS.get(ticker, ""), "")),
             _fmt_num(price, 2) if price else "—", _esc(_fmt_date(row.get("last_trade_date")) or "—"),
             _esc(_fmt_money(cap, lang)) if cap else "—",
@@ -699,7 +760,7 @@ def _bonds_table(rows: list[dict[str, Any]], lang: str) -> str:
         ref = row.get("reference") or {}
         rate = _num(ref.get("coupon_rate"))
         cells = (
-            f"<a href=\"{localized('/bond/' + ticker, lang)}\">{_esc(ticker)}</a>",
+            f"<a href=\"{_esc(localized('/bond/' + ticker, lang))}\">{_esc(ticker)}</a>",
             _esc(_clean_name(row.get("issuer") or row.get("name") or "")),
             _esc(tx["per_year"].format(rate=_fmt_num(rate, 2))) if rate is not None else "—",
             _esc(_fmt_date(ref.get("maturity_date")) or "—"),

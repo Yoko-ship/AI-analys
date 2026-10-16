@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import urlsplit
 import collectors.news.settings as collectors_news_settings
 import collectors.news.sources as collectors_news_sources
+import public_fetch
 import re
 import requests
 
@@ -185,11 +186,17 @@ def _article_text(session: requests.Session, page_url: str, timeout: int = 20) -
     except ImportError:
         collectors_news_settings.logger.error("beautifulsoup4 is not installed — run: pip install beautifulsoup4")
         return ""
+    # The URL comes from a feed or a search result, not from us: it and every
+    # redirect must resolve to a public address, and the body stops at the cap
+    # instead of being read whole first.
     try:
-        resp = session.get(page_url, timeout=timeout)
+        resp = public_fetch.fetch(session, page_url, max_bytes=_ARTICLE_MAX_BYTES, timeout=timeout, truncate=True)
         if resp.status_code != 200:
             return ""
-        raw = resp.content[:_ARTICLE_MAX_BYTES]
+        raw = resp.content
+    except public_fetch.FetchRefused as exc:
+        collectors_news_settings.logger.warning("article fetch refused for %s: %s", page_url, exc)
+        return ""
     except requests.RequestException as exc:
         collectors_news_settings.logger.debug("article fetch failed for %s: %s", page_url, exc)
         return ""

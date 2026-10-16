@@ -462,3 +462,45 @@ def test_robots_and_sitemap_cover_the_uzbek_pages(tmp_path, monkeypatch):
     for path in ("/uz", "/uz/market", "/uz/company/UZTL", "/company/UZTL", "/news/393"):
         assert f"<loc>https://uzstock.uz{path}</loc>" in xml, path
     assert "/uz/news/393" not in xml
+
+
+def test_random_paths_cannot_grow_the_page_cache(tmp_path, monkeypatch):
+    # Cache keys come from the URL. Probing random story ids used to add a
+    # fresh entry per path, swept only once they had expired.
+    client = _client(tmp_path, monkeypatch)
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=20, miss_limit=5))
+    monkeypatch.setattr(news_store, "get_news_item", lambda news_id: {
+        "id": news_id, "title_ru": "UZTL отчитался", "summary_ru": "Выручка выросла.",
+        "published_at": "2026-09-11T18:08:33", "tickers": []} if news_id == 7 else None)
+    assert client.get("/news/7").status_code == 200
+    for probe in range(1000, 1200):
+        assert _is_not_found(client.get(f"/news/{probe}"))
+    assert len(seo._cache) <= 20 and len(seo._cache._misses) <= 5
+
+    # The real page kept its place: with the store down it is still served from
+    # the cache, so the misses never pushed it out.
+    def down(news_id):
+        raise RuntimeError("db locked")
+    monkeypatch.setattr(news_store, "get_news_item", down)
+    assert "<title>UZTL отчитался | UZStock</title>" in client.get("/news/7").text
+
+
+def test_the_page_cache_evicts_the_least_recent_and_drops_expired():
+    cache = seo._PageDataCache(limit=3, miss_limit=2)
+    for key in ("a", "b", "c"):
+        cache.put(key, {"page": key}, expires_at=100.0)
+    assert cache.get("a", now=1.0)  # touched, so "b" is now the least recent
+    cache.put("d", {"page": "d"}, expires_at=100.0)
+    assert "b" not in cache and all(k in cache for k in ("a", "c", "d"))
+    for key in ("x", "y", "z"):
+        cache.put(key, None, expires_at=100.0)
+    assert sum(k in cache for k in ("x", "y", "z")) == 2 and len(cache) == 3
+    assert cache.get("a", now=200.0) is None and "a" not in cache
+
+
+def test_list_links_carry_only_url_safe_tickers():
+    rows = [{"ticker": "UZTL", "name": "Uzbektelecom"}, {"ticker": 'X"><b>', "name": "Odd"}]
+    for table, prefix in ((seo._stocks_table, "/company/"), (seo._bonds_table, "/bond/")):
+        out = table(rows, "ru")
+        assert f'<a href="{prefix}UZTL">' in out
+        assert "<b>" not in out and "X&quot;" not in out

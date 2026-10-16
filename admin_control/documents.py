@@ -11,12 +11,11 @@ import io
 import os
 from pathlib import Path
 import re
-import socket
-import ipaddress
 from urllib.parse import urlparse
 import zipfile
 
 from db import APP_DATA_DIR
+import public_fetch
 from .store import ControlError
 
 MAX_BYTES = 25 * 1024 * 1024
@@ -70,16 +69,21 @@ def classify(metadata, header="", detected=None):
 
 
 def validate_source_url(url):
+    """An approved HTTPS document host, resolving only to public addresses.
+
+    The host allowlist is this module's own policy; the address rule is the
+    shared one (public_fetch), applied again to every redirect hop.
+    """
     parsed = urlparse(url)
     allowed = {s.strip().lower() for s in os.getenv("ADMIN_DOCUMENT_HOSTS", "openinfo.uz,api.openinfo.uz,uzse.uz").split(",") if s.strip()}
     if parsed.scheme != "https" or parsed.hostname not in allowed or parsed.port not in (None, 443) or parsed.username or parsed.password:
         raise ControlError("SOURCE_NOT_ALLOWED", "This document host is not an approved HTTPS source.", 422)
     try:
-        addresses = socket.getaddrinfo(parsed.hostname, 443)
-        if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
-            raise ControlError("SOURCE_NOT_ALLOWED", "The source resolves to a non-public address.", 422)
-    except socket.gaierror:
-        raise ControlError("SOURCE_UNAVAILABLE", "The source hostname could not be resolved.", 503) from None
+        public_fetch.require_public_host(parsed.hostname, 443)
+    except public_fetch.FetchRefused as exc:
+        if exc.code == "UNRESOLVED":
+            raise ControlError("SOURCE_UNAVAILABLE", "The source hostname could not be resolved.", 503) from None
+        raise ControlError("SOURCE_NOT_ALLOWED", "The source resolves to a non-public address.", 422) from None
 
 
 def fetch_original(url):
@@ -87,24 +91,20 @@ def fetch_original(url):
     session = requests.Session()
     session.trust_env = False
     try:
-        for _ in range(4):
-            validate_source_url(url)
-            with session.get(url, stream=True, timeout=(10, 45), allow_redirects=False) as response:
-                if response.is_redirect:
-                    from urllib.parse import urljoin
-                    url = urljoin(url, response.headers.get("Location", ""))
-                    continue
-                response.raise_for_status()
-                data = bytearray()
-                for chunk in response.iter_content(65536):
-                    data.extend(chunk)
-                    if len(data) > MAX_BYTES:
-                        raise ControlError("DOCUMENT_TOO_LARGE", "The document exceeds 25 MB.", 422)
-                detect_format(bytes(data))
-                return bytes(data)
-        raise ControlError("TOO_MANY_REDIRECTS", "The document source redirected too many times.", 422)
+        fetched = public_fetch.fetch(session, url, max_bytes=MAX_BYTES, timeout=(10, 45),
+                                     max_redirects=3, check=validate_source_url)
+    except public_fetch.BodyTooLarge:
+        raise ControlError("DOCUMENT_TOO_LARGE", "The document exceeds 25 MB.", 422) from None
+    except public_fetch.FetchRefused as exc:
+        if exc.code == "TOO_MANY_REDIRECTS":
+            raise ControlError("TOO_MANY_REDIRECTS", "The document source redirected too many times.", 422) from None
+        raise
     finally:
         session.close()
+    if not 200 <= fetched.status_code < 300:
+        raise requests.HTTPError(f"{fetched.status_code} fetching the document source")
+    detect_format(fetched.content)
+    return fetched.content
 
 
 def original_path(checksum):
