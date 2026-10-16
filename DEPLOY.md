@@ -120,6 +120,38 @@ backup of that data into the VPS `data` directory before the first start; never
 replace a live directory without making a backup. New or missing market data is
 then filled by the local collector.
 
+### Off-site backups
+
+`uzstock-offsite-backup.timer` (01:40 UTC, after the local backups) runs
+`scripts/offsite_backup.sh`: the Postgres dumps, a consistent snapshot of every
+SQLite database in the data volume, and the rest of the volume go to an
+S3-compatible bucket, encrypted by rclone before they leave the server.
+
+Turn it on with these secrets in the `uzstock-production` GitHub environment;
+the next deploy writes `/root/uzstock/offsite-backup.env`, proves the bucket
+accepts a write, and enables the timer:
+
+- `BACKUP_S3_ENDPOINT`: e.g. `https://<account>.r2.cloudflarestorage.com`
+- `BACKUP_S3_BUCKET`
+- `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`: a token for that bucket only
+- `BACKUP_S3_REGION`: only if the provider needs one
+- `BACKUP_ENCRYPTION_PASSWORD`: 20+ characters. Keep a copy outside GitHub and
+  the server: without it the backup cannot be read.
+
+Turn on object versioning or a retention lock on the bucket, so a compromised
+server cannot overwrite or delete what it already uploaded.
+
+Restore on any machine with Docker:
+
+```sh
+printf 'RCLONE_CONFIG_OFFSITE_TYPE=s3\nRCLONE_CONFIG_OFFSITE_PROVIDER=Other\nRCLONE_CONFIG_OFFSITE_ENDPOINT=%s\nRCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID=%s\nRCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY=%s\nRCLONE_CONFIG_SECURE_TYPE=crypt\nRCLONE_CONFIG_SECURE_REMOTE=offsite:%s/uzstock\nRCLONE_CONFIG_SECURE_PASSWORD=%s\n' \
+  "$ENDPOINT" "$KEY_ID" "$SECRET" "$BUCKET" "$(docker run --rm rclone/rclone:1.68.2 obscure "$PASSWORD")" > restore.env
+docker run --rm --env-file restore.env -v "$PWD/restore:/restore" rclone/rclone:1.68.2 copy secure: /restore
+```
+
+`restore/postgres/*.dump` restores with `pg_restore`; `restore/sqlite/<stamp>/`
+holds the databases to put back into the data volume over `restore/data/`.
+
 ## Recommended VPS
 
 Minimum:

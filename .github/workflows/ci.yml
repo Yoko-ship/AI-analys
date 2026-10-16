@@ -259,6 +259,36 @@ jobs:
           [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 198.51.100.7' http://127.0.0.1:8080/)" = "200" ] \
             || { echo "a second visitor was limited by the first one's flood"; exit 1; }
           docker rm -f edge
+      - name: Back up off-site and restore, end to end
+        # scripts/offsite_backup.sh against a local target instead of a bucket:
+        # only ciphertext may land there, and the password must bring back the
+        # dumps, the documents and a working copy of a live SQLite database.
+        run: |
+          work="$RUNNER_TEMP/offsite"
+          mkdir -p "$work/pg" "$work/bucket" "$work/restore"
+          docker volume create offsite-test-data >/dev/null
+          docker run --rm --user root -v offsite-test-data:/app/data --entrypoint python uz-stock-bot -c "
+          import os, sqlite3
+          db = sqlite3.connect('/app/data/admin_control.sqlite3')
+          db.execute('PRAGMA journal_mode=WAL'); db.execute('CREATE TABLE t (x)'); db.execute(\"INSERT INTO t VALUES ('plain-marker-7c1')\"); db.commit()
+          os.makedirs('/app/data/admin_documents', exist_ok=True)
+          open('/app/data/admin_documents/original.pdf', 'w').write('document-marker-7c1')
+          "
+          echo "dump-marker-7c1" > "$work/pg/uzstock-20261016T000000Z.dump"
+          password="$(docker run --rm rclone/rclone:1.68.2 obscure ci-only-password-long-enough)"
+          printf 'RCLONE_CONFIG_OFFSITE_TYPE=local\nRCLONE_CONFIG_SECURE_TYPE=crypt\nRCLONE_CONFIG_SECURE_REMOTE=offsite:/bucket\nRCLONE_CONFIG_SECURE_PASSWORD=%s\n' "$password" > "$work/rclone.env"
+          DOCKER=docker ENV_FILE="$work/rclone.env" APP_IMAGE=uz-stock-bot DATA_VOLUME=offsite-test-data \
+            PG_DIR="$work/pg" SCRIPTS="$PWD/scripts" RCLONE_DOCKER_ARGS="-v $work/bucket:/bucket" sh scripts/offsite_backup.sh
+          if sudo grep -rq "marker-7c1" "$work/bucket"; then echo "plaintext reached the backup target"; exit 1; fi
+          docker run --rm --env-file "$work/rclone.env" -v "$work/bucket:/bucket" -v "$work/restore:/restore" \
+            rclone/rclone:1.68.2 copy secure: /restore
+          sudo chmod -R a+rX "$work/restore"
+          grep -q dump-marker-7c1 "$work/restore/postgres/uzstock-20261016T000000Z.dump"
+          grep -q document-marker-7c1 "$work/restore/data/admin_documents/original.pdf"
+          snapshot="$(ls "$work"/restore/sqlite/*/admin_control.sqlite3)"
+          python3 -c "import sqlite3, sys; assert sqlite3.connect(sys.argv[1]).execute('SELECT x FROM t').fetchone()[0] == 'plain-marker-7c1'" "$snapshot"
+          if [ -e "$work/restore/data/admin_control.sqlite3" ]; then echo "a live database file was uploaded raw"; exit 1; fi
+          docker volume rm offsite-test-data >/dev/null
 
   deploy-production:
     # Production secrets live in this environment, which only the API
@@ -316,7 +346,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
-            'set -e; cd /root/uzstock/app; pwd -P; git rev-parse HEAD; docker inspect --format "{{.Config.Image}} {{.State.Status}}" uzstock-web; systemctl list-units "uzstock-*" --all --no-pager; ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; ss -ltnp "sport = :443" || true; docker ps --format "{{.Names}} {{.Image}} {{.Ports}}" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true'
+            'set -e; cd /root/uzstock/app; { pwd -P; git rev-parse HEAD; docker inspect --format "{{.Config.Image}} {{.State.Status}}" uzstock-web; systemctl list-units "uzstock-*" --all --no-pager; ps -eo pid,comm,args | grep -E "[n]ginx|[o]penresty" || true; ss -ltnp "sport = :443" || true; docker ps --format "{{.Names}} {{.Image}} {{.Ports}}" || true; systemctl is-active nginx || true; systemctl is-active openresty || true; command -v openresty || true; } 2>&1 | if [ -f scripts/ci_log.py ]; then python3 scripts/ci_log.py inspect 400; else cat; fi'
 
       - name: Synchronize Google OAuth configuration
         # OAuth credentials live only in GitHub Secrets and the production .env;
@@ -424,6 +454,11 @@ jobs:
           if [ -z "$ADMIN_API_SECRET" ]; then
             echo "Collector credential is not configured; skipping synchronization."
             exit 0
+          fi
+          # It opens every machine push endpoint, so it must not be guessable.
+          # Only its length is checked; the value is never printed.
+          if [ "${#ADMIN_API_SECRET}" -lt 32 ]; then
+            echo '::warning::ADMIN_API_SECRET is shorter than 32 characters. Replace it with a random one: gh secret set ADMIN_API_SECRET --env uzstock-production --body "$(openssl rand -hex 32)"'
           fi
           secret_file="$(mktemp)"
           trap 'shred -u "$secret_file"' EXIT
@@ -611,6 +646,86 @@ jobs:
           docker exec uzstock-web shred -u /tmp/admin-migration.json /tmp/admin-migration-result.json
           REMOTE
 
+      - name: Synchronize off-site backup storage
+        # The one backup that survives losing this server (scripts/offsite_backup.sh).
+        # Any S3-compatible bucket: Cloudflare R2, AWS S3, Backblaze B2. Files are
+        # encrypted with BACKUP_ENCRYPTION_PASSWORD before upload; keep that
+        # password outside GitHub too, or the backup cannot be read.
+        env:
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          if [ -z "$BACKUP_S3_ENDPOINT" ] || [ -z "$BACKUP_S3_BUCKET" ] || [ -z "$BACKUP_S3_ACCESS_KEY_ID" ] \
+             || [ -z "$BACKUP_S3_SECRET_ACCESS_KEY" ] || [ -z "$BACKUP_ENCRYPTION_PASSWORD" ]; then
+            echo "::warning::Off-site backups are not configured, so every backup is on the production server only. Set BACKUP_S3_ENDPOINT, BACKUP_S3_BUCKET, BACKUP_S3_ACCESS_KEY_ID, BACKUP_S3_SECRET_ACCESS_KEY and BACKUP_ENCRYPTION_PASSWORD (and BACKUP_S3_REGION if the provider needs one) in the uzstock-production environment."
+            exit 0
+          fi
+          if [ "${#BACKUP_ENCRYPTION_PASSWORD}" -lt 20 ]; then
+            echo "::error::BACKUP_ENCRYPTION_PASSWORD must be at least 20 characters."
+            exit 1
+          fi
+          config="$(mktemp)"
+          trap 'shred -u "$config"' EXIT
+          python3 - "$config" <<'PY'
+          import json, os, sys
+          keys = ("BACKUP_S3_ENDPOINT", "BACKUP_S3_BUCKET", "BACKUP_S3_REGION", "BACKUP_S3_ACCESS_KEY_ID",
+                  "BACKUP_S3_SECRET_ACCESS_KEY", "BACKUP_ENCRYPTION_PASSWORD")
+          values = {k: os.environ.get(k, "").strip() for k in keys}
+          if any("\n" in v or "\r" in v for v in values.values()):
+              sys.exit("backup settings must be single lines")
+          with open(sys.argv[1], "w", encoding="utf-8") as handle:
+              json.dump(values, handle)
+          PY
+          scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -P "$PROD_PORT" "$config" "$PROD_USER@$PROD_HOST:/root/uzstock/.offsite-config.json"
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          trap 'shred -u /root/uzstock/.offsite-config.json 2>/dev/null || true' EXIT
+          image=rclone/rclone:1.68.2
+          docker pull -q "$image" >/dev/null
+          python3 - "$image" <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+
+          image = sys.argv[1]
+          v = json.loads(Path("/root/uzstock/.offsite-config.json").read_text(encoding="utf-8"))
+          obscured = subprocess.run(["docker", "run", "--rm", "-i", image, "obscure", "-"],
+                                    input=v["BACKUP_ENCRYPTION_PASSWORD"], capture_output=True, text=True, check=True).stdout.strip()
+          lines = {
+              "RCLONE_CONFIG_OFFSITE_TYPE": "s3",
+              "RCLONE_CONFIG_OFFSITE_PROVIDER": "Other",
+              "RCLONE_CONFIG_OFFSITE_ENDPOINT": v["BACKUP_S3_ENDPOINT"],
+              "RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID": v["BACKUP_S3_ACCESS_KEY_ID"],
+              "RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY": v["BACKUP_S3_SECRET_ACCESS_KEY"],
+              # A token scoped to one bucket may not list or create buckets.
+              "RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET": "true",
+              "RCLONE_CONFIG_SECURE_TYPE": "crypt",
+              "RCLONE_CONFIG_SECURE_REMOTE": f"offsite:{v['BACKUP_S3_BUCKET']}/uzstock",
+              "RCLONE_CONFIG_SECURE_PASSWORD": obscured,
+          }
+          if v["BACKUP_S3_REGION"]:
+              lines["RCLONE_CONFIG_OFFSITE_REGION"] = v["BACKUP_S3_REGION"]
+          target = Path("/root/uzstock/offsite-backup.env")
+          fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+          with os.fdopen(fd, "w", encoding="utf-8") as handle:
+              handle.write("".join(f"{k}={val}\n" for k, val in lines.items()))
+          PY
+          # Prove the bucket accepts this credential now, not at 01:40 tonight.
+          probe="deploy-check-$(date -u +%s)"
+          docker run --rm --env-file /root/uzstock/offsite-backup.env "$image" touch "secure:checks/$probe" \
+            || { echo "::error::The off-site bucket refused the backup credential; check the BACKUP_S3_* secrets."; rm -f /root/uzstock/offsite-backup.env; exit 1; }
+          docker run --rm --env-file /root/uzstock/offsite-backup.env "$image" deletefile "secure:checks/$probe" >/dev/null 2>&1 || true
+          echo "Off-site backup storage is configured and writable."
+          REMOTE
+
       - name: Update VPS
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
@@ -682,7 +797,7 @@ jobs:
             sleep 2
           done
           if ! curl -fsS -H 'Host: uzstock.uz' http://127.0.0.1/ >/dev/null; then
-            docker logs --tail 100 uzstock-web >&2
+            docker logs --tail 100 uzstock-web 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py web-start 100 >&2
             exit 1
           fi
           # The home page is static and can answer while the API event loop is
@@ -695,7 +810,7 @@ jobs:
           done
           if ! curl --max-time 5 -fsS http://127.0.0.1:8001/health >/dev/null; then
             echo "UZStock API readiness check failed." >&2
-            docker logs --tail 160 uzstock-web >&2
+            docker logs --tail 160 uzstock-web 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py web-readiness 160 >&2
             exit 1
           fi
           install -d -m 755 /etc/nginx/snippets
@@ -855,7 +970,7 @@ jobs:
           done
           if [ -z "$gateway_health" ]; then
             echo "Claude gateway did not start." >&2
-            journalctl -t uzstock-claude-gateway -n 80 --no-pager >&2 || true
+            journalctl -t uzstock-claude-gateway -n 80 --no-pager 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py claude-gateway 80 >&2 || true
             exit 1
           fi
           echo "Claude gateway health: $gateway_health"
@@ -880,6 +995,9 @@ jobs:
           Type=oneshot
           TimeoutStartSec={timeout}
           ExecStartPre=-/snap/bin/docker rm -f {name}
+          # The app's .env minus web-only secrets, rebuilt at every start so a
+          # hand edit of .env reaches the next run (scripts/worker_env.py).
+          ExecStartPre=/usr/bin/python3 /root/uzstock/app/scripts/worker_env.py /root/uzstock/app/.env /root/uzstock/worker.env
           # A collector can parse a large exchange response immediately after a
           # deploy. Keep half a CPU free for the public web container so an
           # initial collection cannot stall /health, heatmap or finance routes.
@@ -889,7 +1007,7 @@ jobs:
           # uzse.uz blocked this host after ~30 crawls a day (2026-09-24). Pinned
           # off here, after the env file, so no .env on the server can turn a
           # collector back onto it; only openinfo is read (see uzse_access.py).
-          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/app/.env -e UZSE_ENABLED=0 -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
+          ExecStart=/snap/bin/docker run --rm --cpus {cpus} {resources} --name {name} --log-driver journald --log-opt tag={name} --network uzstock-internal --env-file /root/uzstock/worker.env -e UZSE_ENABLED=0 -e FINANCIALS_PUSH_URL=http://uzstock-web:8000{volume}{env} uzstock-web:latest {command}
           """
 
           def timer(description: str, *calendars: str) -> str:
@@ -954,6 +1072,21 @@ jobs:
           """,
               "/etc/systemd/system/uzstock-postgres-backup.timer": timer(
                   "Back up PostgreSQL daily", "*-*-* 00:40:00"),
+              # Every backup above stays on this server. This one copies them,
+              # every SQLite database and the data volume, encrypted, to the
+              # bucket in /root/uzstock/offsite-backup.env; see
+              # scripts/offsite_backup.sh. Enabled only when that file exists.
+              "/etc/systemd/system/uzstock-offsite-backup.service": """[Unit]
+          Description=Encrypted off-site copy of backups and data
+          After=snap.docker.dockerd.service
+
+          [Service]
+          Type=oneshot
+          TimeoutStartSec=4h
+          ExecStart=/bin/sh /root/uzstock/app/scripts/offsite_backup.sh
+          """,
+              "/etc/systemd/system/uzstock-offsite-backup.timer": timer(
+                  "Copy backups off-site daily, after the local backups", "*-*-* 01:40:00"),
               "/etc/systemd/system/uzstock-financial-monitor.service": worker(
                   "uzstock-financial-monitor", "Financial pipeline incidents and freshness checks",
                   "python -m financial_ingestion.worker monitor", data_volume=True,
@@ -1049,6 +1182,12 @@ jobs:
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done
+          if [ -s /root/uzstock/offsite-backup.env ]; then
+            systemctl enable --now uzstock-offsite-backup.timer
+            systemctl is-active --quiet uzstock-offsite-backup.timer
+          else
+            systemctl disable --now uzstock-offsite-backup.timer >/dev/null 2>&1 || true
+          fi
           REMOTE
 
   # Two checks after a deploy. Public traffic reaches the VPS through the
@@ -1074,26 +1213,29 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Configure deployment SSH key
+      - name: Open a tunnel to the server's nginx
+        # The key opens a root shell on the server, and the next step runs code
+        # from node_modules. So the key exists only for this step: `ssh -f`
+        # backgrounds after it has authenticated, the key file is shredded
+        # straight after, and the tunnel lives on without it.
         env:
           SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-      - name: Open a tunnel to the server's nginx
-        env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          key="$(mktemp)"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 \
             -f -N -L 127.0.0.1:8443:127.0.0.1:443 \
             -p "$PROD_PORT" "$PROD_USER@$PROD_HOST"
+          shred -u "$key"
           for attempt in $(seq 1 30); do
             if curl -ksS --max-time 5 --resolve uzstock.uz:8443:127.0.0.1 -o /dev/null https://uzstock.uz:8443/market; then
               exit 0
@@ -1243,7 +1385,7 @@ jobs:
             started_at="$(date --iso-8601=seconds)"
             print_log() {
               journalctl -u uzstock-news-collector.service --since "$started_at" \
-                --no-pager -o cat || true
+                --no-pager -o cat 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py news-collector 400 || true
             }
             trap print_log EXIT
             systemctl start uzstock-news-collector.service
@@ -1403,7 +1545,7 @@ jobs:
           done
           result=0
           systemctl start uzstock-quotes-2130.service || result=$?
-          journalctl -u uzstock-quotes-2130.service -n 100 --no-pager
+          journalctl -u uzstock-quotes-2130.service -n 100 --no-pager 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py quotes-refresh 100 || true
           exit "$result"
           REMOTE
 

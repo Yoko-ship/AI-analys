@@ -169,3 +169,31 @@ class TestOauthState:
     def test_secure_flag_follows_the_real_scheme(self, monkeypatch, base, scheme, expected) -> None:
         monkeypatch.setenv("PUBLIC_BASE_URL", base)
         assert subject_server_auth_oauth._cookies_are_secure(_FakeRequest(scheme=scheme)) is expected
+
+
+class TestMachineSecret:
+    """A secret published in this public repository opens nothing."""
+
+    def test_the_example_files_value_counts_as_unconfigured(self) -> None:
+        from pathlib import Path
+        import server.auth.access as access
+        example = Path(__file__).resolve().parent.parent / ".env.example"
+        value = next(line.split("=", 1)[1].strip() for line in example.read_text().splitlines()
+                     if line.startswith("ADMIN_API_SECRET="))
+        assert value.lower() in access.PUBLISHED_PLACEHOLDER_SECRETS
+
+    @pytest.mark.parametrize("value", ["your_admin_push_secret", "ChangeMe", " secret "])
+    def test_a_placeholder_is_refused_even_when_presented(self, monkeypatch, value) -> None:
+        from fastapi.testclient import TestClient
+        monkeypatch.setenv("ADMIN_API_SECRET", value)
+        response = TestClient(api.app).post("/api/admin/news", headers={"X-Admin-Secret": value.strip()}, json={"items": []})
+        assert response.status_code == 503
+
+    def test_a_real_secret_still_opens_the_push(self, monkeypatch) -> None:
+        from fastapi.testclient import TestClient
+        import news_store
+        monkeypatch.setenv("ADMIN_API_SECRET", "3f6c0a9e1d7b4c2a8e5f9d1b7c3a6e0f")
+        monkeypatch.setattr(news_store, "upsert_news", lambda items: 0)
+        response = TestClient(api.app).post("/api/admin/news", headers={"X-Admin-Secret": "3f6c0a9e1d7b4c2a8e5f9d1b7c3a6e0f"},
+                                            json={"items": []})
+        assert response.status_code == 200

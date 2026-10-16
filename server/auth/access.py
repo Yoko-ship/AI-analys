@@ -128,9 +128,22 @@ def _require_pro(current_user: identity_users.WebUser = Depends(_require_user)) 
     return current_user
 
 
+# Values published in this public repository (.env.example and the docs). A
+# deployment left on one is open to anyone who reads the repo, so it counts as
+# not configured: machine pushes answer 503 instead of accepting the world.
+PUBLISHED_PLACEHOLDER_SECRETS = frozenset({"your_admin_push_secret", "changeme", "change-me", "secret"})
+
+
+def _machine_secret() -> str:
+    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    if secret.lower() in PUBLISHED_PLACEHOLDER_SECRETS:
+        return ""
+    return secret
+
+
 def _require_admin(x_admin_secret: str | None = Header(default=None)) -> None:
     """Guard for machine-to-machine admin pushes via a shared secret header."""
-    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    secret = _machine_secret()
     if not secret:
         raise HTTPException(status_code=503, detail="Admin API is not configured")
     if not x_admin_secret or not hmac.compare_digest(x_admin_secret.strip(), secret):
@@ -148,7 +161,7 @@ def _admin_gate(request: Request,
     whether that person is an administrator. Neither path weakens the other:
     a wrong secret is still rejected, and a signed-in non-admin still gets 403.
     """
-    secret = os.getenv("ADMIN_API_SECRET", "").strip()
+    secret = _machine_secret()
     if x_admin_secret is not None:
         if not secret:
             raise HTTPException(status_code=503, detail="Admin API is not configured")
