@@ -10,9 +10,19 @@ const SECURITY = {
   industry: "Banks",
 };
 
+// The fixtures and the page share one fixed "now". Built from the real clock,
+// the sessions on screen moved with the weekday (weekends are skipped), and on
+// some days two different views rounded to the same turnover, so the pan
+// assertion failed on Fridays whatever the code did.
+const NOW = Date.UTC(2026, 9, 15, 12, 0, 0);
+
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(NOW);
+});
+
 function priceHistory() {
   const out = [];
-  const end = new Date();
+  const end = new Date(NOW);
   end.setUTCHours(0, 0, 0, 0);
   let price = 6100;
   for (let offset = 1450; offset >= 0; offset -= 1) {

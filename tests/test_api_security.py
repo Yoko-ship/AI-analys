@@ -190,10 +190,11 @@ class TestMachineSecret:
         assert response.status_code == 503
 
     def test_a_real_secret_still_opens_the_push(self, monkeypatch) -> None:
+        import secrets
         from fastapi.testclient import TestClient
         import news_store
-        monkeypatch.setenv("ADMIN_API_SECRET", "3f6c0a9e1d7b4c2a8e5f9d1b7c3a6e0f")
+        real = secrets.token_hex(16)  # made here, so no secret-looking literal trips the scanner
+        monkeypatch.setenv("ADMIN_API_SECRET", real)
         monkeypatch.setattr(news_store, "upsert_news", lambda items: 0)
-        response = TestClient(api.app).post("/api/admin/news", headers={"X-Admin-Secret": "3f6c0a9e1d7b4c2a8e5f9d1b7c3a6e0f"},
-                                            json={"items": []})
+        response = TestClient(api.app).post("/api/admin/news", headers={"X-Admin-Secret": real}, json={"items": []})
         assert response.status_code == 200
