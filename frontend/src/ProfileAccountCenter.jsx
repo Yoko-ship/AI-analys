@@ -145,6 +145,7 @@ export function ProfileAccountCenter({
   const [twoFactor, setTwoFactor] = useState(null);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [deleteProof, setDeleteProof] = useState({ password: "", otp: "" });
   const [helpDoc, setHelpDoc] = useState("");
   const [supportForm, setSupportForm] = useState({ subject: "", message: "" });
   const [status, setStatus] = useState("");
@@ -316,7 +317,7 @@ export function ProfileAccountCenter({
     try {
       await readJson(await apiFetch("/api/profile/account", {
         method: "DELETE",
-        body: JSON.stringify({ confirmation }),
+        body: JSON.stringify({ confirmation, password: deleteProof.password || undefined, otp: deleteProof.otp || undefined }),
       }));
       onLogout();
     } catch (error) {
@@ -525,7 +526,19 @@ export function ProfileAccountCenter({
                 <div className="acct-stack">
                   <label htmlFor="acct-delete-confirm">{tx("Для подтверждения введите ваш email", "Type your email to confirm", "Tasdiqlash uchun emailingizni kiriting")}</label>
                   <input id="acct-delete-confirm" className="acct-input" type="email" autoComplete="off" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} placeholder={user.email || ""} />
-                  <div><button className="acct-btn acct-btn-danger" type="button" onClick={deleteAccount} disabled={busy === "delete" || confirmation.toLowerCase() !== String(user.email || "").toLowerCase()}>{tx("Удалить аккаунт навсегда", "Delete account permanently", "Hisobni butunlay o'chirish")}</button></div>
+                  <label htmlFor="acct-delete-password">{tx("Текущий пароль", "Current password", "Joriy parol")}</label>
+                  <input id="acct-delete-password" className="acct-input" type="password" autoComplete="current-password" value={deleteProof.password} onChange={(e) => setDeleteProof({ ...deleteProof, password: e.target.value })} />
+                  {security.two_factor_enabled ? (<>
+                    <label htmlFor="acct-delete-otp">{tx("или код из приложения", "or authenticator code", "yoki ilovadagi kod")}</label>
+                    <input id="acct-delete-otp" className="acct-input acct-input-short" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" value={deleteProof.otp} onChange={(e) => setDeleteProof({ ...deleteProof, otp: e.target.value.replace(/\D/g, "").slice(0, 6) })} />
+                  </>) : null}
+                  {security.google_linked ? (
+                    <p className="acct-note">{tx(
+                      `Входили через Google и не знаете пароль? Войдите через Google ещё раз и удалите аккаунт в течение ${security.recent_sign_in_minutes || 10} минут — пароль не понадобится.`,
+                      `Signed up with Google and have no password? Sign in with Google again, then delete within ${security.recent_sign_in_minutes || 10} minutes — no password needed.`,
+                      `Google orqali kirganmisiz va parolni bilmaysizmi? Google orqali qayta kiring va ${security.recent_sign_in_minutes || 10} daqiqa ichida hisobni o'chiring — parol kerak bo'lmaydi.`)}</p>
+                  ) : null}
+                  <div><button className="acct-btn acct-btn-danger" type="button" onClick={deleteAccount} disabled={busy === "delete" || confirmation.toLowerCase() !== String(user.email || "").toLowerCase() || !(deleteProof.password || deleteProof.otp.length === 6 || security.google_linked)}>{tx("Удалить аккаунт навсегда", "Delete account permanently", "Hisobni butunlay o'chirish")}</button></div>
                 </div>
               </section>
             </>

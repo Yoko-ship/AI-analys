@@ -295,14 +295,38 @@ def test_register_sends_a_code_and_issues_no_session(client, mail, monkeypatch):
     assert mail == [("reader@example.test", "verify", "123456", "uz")]
 
 
-def test_register_of_a_verified_address_is_a_conflict(client, mail, monkeypatch):
-    def start(*args, **kwargs):
-        raise ValueError("Email already registered")
-    monkeypatch.setattr(subject_web_auth.web_auth_store.accounts, "start_registration", start)
-    response = client.post("/api/auth/register",
-                           json={"email": "reader@example.test", "password": "long-password"})
-    assert response.status_code == 409
-    assert mail == []
+def test_register_of_a_verified_address_answers_like_a_new_one(client, mail, monkeypatch):
+    """A 409 told anyone which addresses are members. The answer is now the
+    same code screen a new address gets; the member is told by mail, hourly at most."""
+    import server.auth.limits as limits
+    limits._rate_limiter._events.pop("registration-notice:reader@example.test", None)
+    notices = []
+    monkeypatch.setattr(subject_email_delivery, "send_notice",
+                        lambda to, kind, language="ru", **values: notices.append((to, kind, language)))
+    monkeypatch.setattr(subject_web_auth.web_auth_store.accounts, "start_registration", lambda *a, **k: None)
+    register = lambda: client.post("/api/auth/register",
+                                   json={"email": "reader@example.test", "password": "long-password", "language": "en"})
+    existing = register()
+    monkeypatch.setattr(subject_web_auth.web_auth_store.accounts, "start_registration", lambda *a, **k: "123456")
+    fresh = client.post("/api/auth/register", json={"email": "reader@example.test", "password": "long-password"})
+    assert existing.status_code == fresh.status_code == 200
+    assert existing.json() == fresh.json()
+    monkeypatch.setattr(subject_web_auth.web_auth_store.accounts, "start_registration", lambda *a, **k: None)
+    assert register().status_code == 200
+    assert notices == [("reader@example.test", "registration_existing", "en")]
+    assert [m[1] for m in mail] == ["verify"]  # only the fresh one was sent a code
+
+
+def test_a_failing_notice_still_answers_like_a_new_registration(client, mail, monkeypatch):
+    import server.auth.limits as limits
+    limits._rate_limiter._events.pop("registration-notice:reader@example.test", None)
+
+    def broken(*args, **kwargs):
+        raise subject_email_delivery.EmailDeliveryError("down")
+    monkeypatch.setattr(subject_email_delivery, "send_notice", broken)
+    monkeypatch.setattr(subject_web_auth.web_auth_store.accounts, "start_registration", lambda *a, **k: None)
+    response = client.post("/api/auth/register", json={"email": "reader@example.test", "password": "long-password"})
+    assert response.status_code == 200 and response.json()["verification_required"] is True
 
 
 def test_register_during_resend_cooldown_still_points_to_the_code_screen(client, mail, monkeypatch):

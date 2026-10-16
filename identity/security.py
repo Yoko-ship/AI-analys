@@ -74,13 +74,14 @@ class Security:
             return False
         with self.database.connect() as conn:
             row = conn.execute("SELECT two_factor_enabled,two_factor_secret FROM web_users WHERE id=%s", (user_id,)).fetchone()
-        return bool(row and row.get("two_factor_enabled") and identity_credentials._verify_totp(row.get("two_factor_secret"), code))
+            return bool(row and row.get("two_factor_enabled")
+                        and identity_credentials.consume_totp(conn, user_id, row.get("two_factor_secret"), code))
 
 
     def enable_two_factor(self, user_id: int, code: str) -> bool:
         with self.database.connect() as conn:
             row = conn.execute("SELECT two_factor_secret FROM web_users WHERE id = %s", (user_id,)).fetchone()
-            if not row or not identity_credentials._verify_totp(row.get("two_factor_secret"), code):
+            if not row or not identity_credentials.consume_totp(conn, user_id, row.get("two_factor_secret"), code):
                 raise ValueError("Invalid two-factor code")
             conn.execute("UPDATE web_users SET two_factor_enabled = TRUE WHERE id = %s", (user_id,))
         return True
@@ -94,7 +95,8 @@ class Security:
             ).fetchone()
             if not row:
                 raise ValueError("User not found")
-            if row.get("two_factor_enabled") and not identity_credentials._verify_totp(row.get("two_factor_secret"), code):
+            if row.get("two_factor_enabled") and not identity_credentials.consume_totp(
+                    conn, user_id, row.get("two_factor_secret"), code):
                 raise ValueError("Invalid two-factor code")
             conn.execute(
                 "UPDATE web_users SET two_factor_enabled = FALSE, two_factor_secret = NULL WHERE id = %s",

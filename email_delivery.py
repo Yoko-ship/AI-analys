@@ -147,6 +147,20 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None) -
 
 
 _NOTICES = {
+    "registration_existing": {
+        "ru": ("UZ Stock: попытка регистрации с вашим email",
+               "Кто-то пытался зарегистрироваться в UZ Stock с этим адресом, но аккаунт с ним уже есть.\n\n"
+               "Если это были вы — войдите на странице входа или восстановите пароль через «Забыли пароль?».\n"
+               "Если это были не вы — ничего делать не нужно: ваш аккаунт не изменён."),
+        "uz": ("UZ Stock: emailingiz bilan ro‘yxatdan o‘tishga urinish",
+               "Kimdir ushbu manzil bilan UZ Stock’da ro‘yxatdan o‘tishga urindi, lekin bu manzilga ega akkaunt allaqachon mavjud.\n\n"
+               "Agar bu siz bo‘lsangiz — kirish sahifasida kiring yoki «Parolni unutdingizmi?» orqali parolni tiklang.\n"
+               "Agar bu siz bo‘lmasangiz — hech narsa qilish shart emas: akkauntingiz o‘zgarmadi."),
+        "en": ("UZ Stock: someone tried to register with your email",
+               "Someone tried to create a UZ Stock account with this address, but an account with it already exists.\n\n"
+               "If this was you, sign in on the sign-in page or reset your password with «Forgot password?».\n"
+               "If this was not you, there is nothing to do: your account has not changed."),
+    },
     "login_locked": {
         "ru": ("UZ Stock: вход в аккаунт временно приостановлен",
                "Мы заметили {limit} неудачных попыток входа в ваш аккаунт UZ Stock и приостановили вход на {minutes} минут.\n\n"

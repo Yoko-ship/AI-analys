@@ -129,12 +129,17 @@ async def api_register(payload: RegisterRequest, request: Request) -> dict[str, 
         except identity_users.EmailCodeThrottled as exc:
             return _verification_pending(payload.email, exc.retry_after)
         except ValueError as exc:
-            message = str(exc)
-            status = 409 if "already registered" in message.lower() else 400
-            raise HTTPException(status_code=status, detail=message) from exc
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
-        await _send_code(identity_users._normalize_email(payload.email), "verify", code, payload.language)
+        email = identity_users._normalize_email(payload.email)
+        if code:
+            await _send_code(email, "verify", code, payload.language)
+        else:
+            # Already registered: the same answer as a new registration, and a
+            # word to the inbox's owner (at most hourly, so the form cannot be
+            # used to flood a member's mailbox).
+            await _notify_existing_registration(email, payload.language)
         return _verification_pending(payload.email)
 
     try:
@@ -320,6 +325,22 @@ async def _send_code(email: str, purpose: str, code: str, language: str | None) 
             email_delivery.send_code, email, purpose, code, _mail_language(language)))
     except email_delivery.EmailDeliveryError as exc:
         raise HTTPException(status_code=503, detail="Could not send the email — try again later") from exc
+
+
+EXISTING_REGISTRATION_NOTICES_PER_HOUR = 1
+
+
+async def _notify_existing_registration(email: str, language: str | None) -> None:
+    """Tell a member someone tried to register their address. Never raises: a
+    mail failure here must not answer differently from a new registration."""
+    if not auth_limits._rate_limiter.allow(f"registration-notice:{email}",
+                                           EXISTING_REGISTRATION_NOTICES_PER_HOUR, 3600.0):
+        return
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, partial(
+            email_delivery.send_notice, email, "registration_existing", _mail_language(language)))
+    except Exception:  # noqa: BLE001 - see docstring
+        http.logger.exception("registration notice could not be sent")
 
 
 def _verification_pending(email: str, retry_after: int | None = None) -> dict[str, Any]:

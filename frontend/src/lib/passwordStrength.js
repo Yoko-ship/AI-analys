@@ -144,6 +144,9 @@ export function translateAuthError(message, language) {
   if (text === "Enter a valid email address") {
     return { ru: "Введите корректный email.", uz: "To‘g‘ri email kiriting.", en: "Enter a valid email address." }[language] || text;
   }
+  if (text === "Confirm with your current password or authenticator code") {
+    return { ru: "Подтвердите текущим паролем или кодом из приложения.", uz: "Joriy parol yoki ilovadagi kod bilan tasdiqlang.", en: "Confirm with your current password or authenticator code." }[language] || text;
+  }
   if (text === "Invalid email or password") {
     return { ru: "Неверный email или пароль.", uz: "Email yoki parol noto‘g‘ri.", en: "Invalid email or password." }[language] || text;
   }

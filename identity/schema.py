@@ -38,6 +38,8 @@ def initialize(connection_factory) -> None:
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS failed_login_started TIMESTAMPTZ",
             "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ",
+            # The last authenticator step accepted (credentials.consume_totp).
+            "ALTER TABLE web_users ADD COLUMN IF NOT EXISTS two_factor_last_step BIGINT",
         ):
             conn.execute(statement)
         conn.execute(

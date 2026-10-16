@@ -27,6 +27,12 @@ LOGIN_FAILURE_WINDOW_MINUTES = 15
 LOGIN_LOCK_MINUTES = 15
 
 
+# How fresh a session must be to stand in for a password when a Google-linked
+# account (which never chose one) deletes itself: signing in again with Google
+# is the proof (identity/profile.py, delete_account).
+RECENT_SIGN_IN_MINUTES = 10
+
+
 OAUTH_FALLBACK_DOMAIN = os.getenv("WEB_OAUTH_FALLBACK_DOMAIN", "oauth.local").strip() or "oauth.local"
 
 

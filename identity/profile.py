@@ -1,7 +1,9 @@
 """Profile persistence and behavior behind an explicit database boundary."""
 from __future__ import annotations
 from typing import Any
+from datetime import timedelta
 import identity.clock as identity_clock
+import identity.credentials as identity_credentials
 import identity.research as identity_research
 import identity.settings as identity_settings
 import identity.users as identity_users
@@ -126,6 +128,8 @@ class Profile:
             ).fetchone()
             if not user_row:
                 raise ValueError("User not found")
+            google_linked = conn.execute(
+                "SELECT 1 FROM web_oauth_accounts WHERE user_id = %s LIMIT 1", (user_id,)).fetchone() is not None
 
             stats_row = conn.execute(
                 """
@@ -236,6 +240,10 @@ class Profile:
             "email_verified": bool(user_row.get("email_verified")),
             "two_factor_enabled": bool(user_row.get("two_factor_enabled")),
             "password_changed_at": user_row["password_changed_at"].isoformat() if user_row.get("password_changed_at") else None,
+            # Deletion asks for proof of the person; a Google-made account never
+            # chose a password, so the page offers it a fresh Google sign-in.
+            "google_linked": google_linked,
+            "recent_sign_in_minutes": identity_settings.RECENT_SIGN_IN_MINUTES,
         }
 
         return {
@@ -259,12 +267,46 @@ class Profile:
         }
 
 
-    def delete_account(self, user_id: int, confirmation: str) -> bool:
+    def delete_account(self, user_id: int, confirmation: str, *, password: str | None = None,
+                       otp: str | None = None, session_token: str | None = None) -> bool:
+        """Delete the account for the person, not for whoever holds a session.
+
+        A session token lives in the browser for 30 days; a copied one used to be
+        enough to erase the account. Deletion now also needs one proof of the
+        person: the current password; or, with two-factor on, a current
+        authenticator code; or, for an account linked to Google (whose password
+        was generated and never known), a session signed in within the last
+        RECENT_SIGN_IN_MINUTES, i.e. Google was asked again just now.
+        """
         with self.database.connect() as conn:
-            row = conn.execute("SELECT email FROM web_users WHERE id = %s", (user_id,)).fetchone()
+            row = conn.execute(
+                "SELECT email, password_hash, two_factor_enabled, two_factor_secret FROM web_users WHERE id = %s FOR UPDATE",
+                (user_id,),
+            ).fetchone()
             if not row:
                 raise ValueError("User not found")
             if (confirmation or "").strip().lower() != str(row["email"]).strip().lower():
                 raise ValueError("Enter your email address to confirm account deletion")
+            if not self._proves_person(conn, user_id, row, password, otp, session_token):
+                raise ValueError("Confirm with your current password or authenticator code")
             cursor = conn.execute("DELETE FROM web_users WHERE id = %s", (user_id,))
         return cursor.rowcount > 0
+
+
+    def _proves_person(self, conn, user_id, row, password, otp, session_token) -> bool:
+        if password and identity_credentials._password_verify(password, row["password_hash"] or ""):
+            return True
+        if otp and row.get("two_factor_enabled") and identity_credentials.consume_totp(
+                conn, user_id, row.get("two_factor_secret"), otp):
+            return True
+        if not session_token:
+            return False
+        linked = conn.execute("SELECT 1 FROM web_oauth_accounts WHERE user_id = %s LIMIT 1", (user_id,)).fetchone()
+        if not linked:
+            return False
+        session = conn.execute(
+            "SELECT created_at FROM web_sessions WHERE token_hash = %s AND user_id = %s AND revoked_at IS NULL",
+            (identity_credentials._token_hash(session_token), user_id),
+        ).fetchone()
+        recent = identity_clock._utcnow() - timedelta(minutes=identity_settings.RECENT_SIGN_IN_MINUTES)
+        return bool(session and session["created_at"] >= recent)

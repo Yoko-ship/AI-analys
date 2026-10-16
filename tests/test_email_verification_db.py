@@ -111,11 +111,17 @@ def test_expired_code_is_refused(store):
         store.accounts.verify_email_code(EMAIL, code)
 
 
-def test_registering_a_verified_address_is_refused(store):
+def test_registering_a_verified_address_changes_nothing_and_sends_no_code(store):
     code = store.accounts.start_registration(EMAIL, "long-password")
     store.accounts.verify_email_code(EMAIL, code)
-    with pytest.raises(ValueError, match="already registered"):
-        store.accounts.start_registration(EMAIL, "another-password")
+    with store.database.connect() as conn:
+        before = conn.execute("SELECT * FROM web_users WHERE email = %s", (EMAIL,)).fetchone()
+    assert store.accounts.start_registration(EMAIL, "another-password") is None
+    with store.database.connect() as conn:
+        after = conn.execute("SELECT * FROM web_users WHERE email = %s", (EMAIL,)).fetchone()
+        codes = conn.execute("SELECT COUNT(*) AS n FROM web_email_codes").fetchone()["n"]
+    assert after == before and codes == 0
+    store.accounts.login_user(EMAIL, "long-password")  # the owner's password still works
 
 
 def test_a_stranger_cannot_squat_an_address_they_do_not_own(store):

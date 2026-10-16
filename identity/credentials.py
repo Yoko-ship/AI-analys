@@ -51,6 +51,18 @@ def _password_verify(password: str, encoded: str) -> bool:
     return hmac.compare_digest(candidate, expected)
 
 
+def spend_password_check(password: str | None) -> None:
+    """Do the work of checking a password when there is no account to check.
+
+    PBKDF2 is the slow part of a sign-in. Skipping it for an unknown address
+    answered in microseconds instead of a fraction of a second, which told
+    anyone timing the reply which addresses are registered.
+    """
+    decoy = (f"pbkdf2_sha256${identity_settings.PBKDF2_ITERATIONS}$"
+             f"{secrets.token_hex(16)}${secrets.token_hex(32)}")
+    _password_verify(password or "", decoy)
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
@@ -68,15 +80,45 @@ def _totp_code(secret: str, at: datetime | None = None) -> str:
     return f"{value % 1_000_000:06d}"
 
 
-def _verify_totp(secret: str | None, code: str | None, at: datetime | None = None) -> bool:
+def _totp_step(secret: str | None, code: str | None, at: datetime | None = None) -> int | None:
+    """The 30-second step a code belongs to, allowing one step of clock drift."""
     candidate = "".join(ch for ch in str(code or "") if ch.isdigit())
     if not secret or len(candidate) != 6:
-        return False
+        return None
     moment = at or identity_clock._utcnow()
-    return any(
-        hmac.compare_digest(_totp_code(secret, moment + timedelta(seconds=step * 30)), candidate)
-        for step in (-1, 0, 1)
+    for drift in (-1, 0, 1):
+        shifted = moment + timedelta(seconds=drift * 30)
+        if hmac.compare_digest(_totp_code(secret, shifted), candidate):
+            return int(shifted.timestamp()) // 30
+    return None
+
+
+def _verify_totp(secret: str | None, code: str | None, at: datetime | None = None) -> bool:
+    """Pure shape-and-time check. Never use it to admit a person: it accepts the
+    same code again for ~90 s. Callers go through ``consume_totp``."""
+    return _totp_step(secret, code, at) is not None
+
+
+def consume_totp(conn, user_id: int, secret: str | None, code: str | None, at: datetime | None = None) -> bool:
+    """Accept an authenticator code once.
+
+    A code stays valid for three 30-second steps (drift), so a code seen over a
+    shoulder, in a proxy log or a phishing relay could be used again for about
+    90 s. Each account remembers the last step it accepted, and only a later
+    step passes. The check and the record are one conditional UPDATE, so two
+    requests racing with the same code cannot both win.
+    """
+    step = _totp_step(secret, code, at)
+    if step is None:
+        return False
+    cursor = conn.execute(
+        """
+        UPDATE web_users SET two_factor_last_step = %s
+        WHERE id = %s AND (two_factor_last_step IS NULL OR two_factor_last_step < %s)
+        """,
+        (step, user_id, step),
     )
+    return bool(cursor.rowcount)
 
 
 def new_email_code() -> str:

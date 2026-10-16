@@ -148,6 +148,7 @@ class Accounts:
 
             locked_until = row.get("locked_until") if row else None
             if not row or not row["is_active"]:
+                identity_credentials.spend_password_check(password)
                 outcome = "invalid"
             elif locked_until is not None and locked_until > now:
                 outcome, detail = "locked", (int((locked_until - now).total_seconds()) + 1, False)
@@ -158,7 +159,8 @@ class Accounts:
                 outcome = "unverified"
             elif row.get("two_factor_enabled") and not otp:
                 outcome = "otp_required"
-            elif row.get("two_factor_enabled") and not identity_credentials._verify_totp(row.get("two_factor_secret"), otp):
+            elif row.get("two_factor_enabled") and not identity_credentials.consume_totp(
+                    conn, row["id"], row.get("two_factor_secret"), otp):
                 # A wrong authenticator code counts: the password alone must
                 # not allow unlimited guessing of six digits.
                 outcome = "locked" if record_failure() else "otp_invalid"
@@ -336,13 +338,18 @@ class Accounts:
             return self._finish_code_sign_in(conn, row, user_agent, ip_address)
 
 
-    def start_registration(self, email: str, password: str, full_name: str = "") -> str:
+    def start_registration(self, email: str, password: str, full_name: str = "") -> str | None:
         """Create (or re-claim) an unverified account and return its first code.
 
         No session is issued: the account is unusable until the code proves the
         inbox.  An address that nobody has proven can be registered again — the
         earlier registrant may be a stranger squatting it — and nothing on the
         existing row changes until someone verifies (see ``verify_email_code``).
+
+        A proven address returns None and changes nothing. The caller answers
+        exactly as for a new registration, so the form never reveals which
+        addresses are registered; the inbox's owner is told instead. Every path
+        spends one password hash, so the answer's timing does not tell either.
         """
         normalized = identity_users._normalize_email(email)
         if not normalized:
@@ -356,8 +363,10 @@ class Accounts:
                 (normalized,),
             ).fetchone()
             if row and row["email_verified"]:
-                raise ValueError("Email already registered")
+                identity_credentials.spend_password_check(password)
+                return None
             if row:
+                identity_credentials.spend_password_check(password)
                 user_id = row["id"]
             else:
                 user_id = self.oauth._create_user(

@@ -4,6 +4,7 @@ Set TEST_POSTGRES_URL to a local test server; no production DB is used.
 """
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 from psycopg import sql
@@ -75,7 +76,7 @@ def test_registration_refuses_an_address_that_is_not_one_mailbox(pg_store):
         assert conn.execute("SELECT COUNT(*) AS n FROM web_users").fetchone()["n"] == 0
 
 
-def test_two_factor_setup_cannot_replace_an_active_secret(pg_store):
+def test_two_factor_setup_cannot_replace_an_active_secret(pg_store, monkeypatch):
     from identity.credentials import _totp_code
     user, _ = pg_store.accounts.register_user("mfa@example.test", "example-pass-123")
     first = pg_store.security.begin_two_factor(user.id)["secret"]
@@ -91,10 +92,16 @@ def test_two_factor_setup_cannot_replace_an_active_secret(pg_store):
             "SELECT two_factor_enabled, two_factor_secret FROM web_users WHERE id = %s", (user.id,),
         ).fetchone()
     assert row["two_factor_enabled"] is True and row["two_factor_secret"] == secret
-    assert pg_store.security.verify_admin_two_factor(user.id, _totp_code(secret))
+    # The code that enabled two-factor is spent; the next step's code works.
+    later = datetime.now(timezone.utc) + timedelta(seconds=30)
+    assert not pg_store.security.verify_admin_two_factor(user.id, _totp_code(secret))
+    assert pg_store.security.verify_admin_two_factor(user.id, _totp_code(secret, later))
 
-    # Re-enrolment requires proving the current code first.
-    assert pg_store.security.disable_two_factor(user.id, _totp_code(secret))
+    # Re-enrolment requires proving the current code first, a minute later.
+    import identity.clock as identity_clock
+    minute_on = later + timedelta(seconds=30)
+    monkeypatch.setattr(identity_clock, "_utcnow", lambda: minute_on)
+    assert pg_store.security.disable_two_factor(user.id, _totp_code(secret, minute_on))
     assert pg_store.security.begin_two_factor(user.id)["secret"] != secret
 
 

@@ -651,14 +651,32 @@ async def api_profile_history_clear(
     return {"ok": True, "deleted_analyses": count}
 
 
+class AccountDeleteRequest(ConfirmationRequest):
+    password: str | None = Field(default=None, max_length=128)
+    otp: str | None = Field(default=None, max_length=12)
+
+
+# Each refused proof is a guess at the password or code by whoever holds the
+# session; a copied token must not become an unlimited password oracle.
+ACCOUNT_DELETE_ATTEMPTS = 5
+ACCOUNT_DELETE_WINDOW_SECONDS = 900.0
+
+
 @router.delete("/api/profile/account")
 async def api_profile_account_delete(
-    payload: ConfirmationRequest,
+    payload: AccountDeleteRequest,
+    request: Request,
     current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
+    bucket = f"account-delete:{current_user.id}"
+    if not auth_limits._rate_limiter.allow(bucket, ACCOUNT_DELETE_ATTEMPTS, ACCOUNT_DELETE_WINDOW_SECONDS):
+        raise auth_limits._rate_limited("window", auth_limits._rate_limiter.retry_after(
+            bucket, ACCOUNT_DELETE_WINDOW_SECONDS), auth_limits.request_language(request))
     try:
-        deleted = await asyncio.get_running_loop().run_in_executor(
-            None, partial(identity.web_auth_store.profile.delete_account, current_user.id, payload.confirmation))
+        deleted = await asyncio.get_running_loop().run_in_executor(None, partial(
+            identity.web_auth_store.profile.delete_account, current_user.id, payload.confirmation,
+            password=payload.password, otp=payload.otp,
+            session_token=auth_access._extract_bearer_token(request.headers.get("authorization"))))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
