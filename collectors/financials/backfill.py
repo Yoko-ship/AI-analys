@@ -118,7 +118,7 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
                     failed += 1
                     collectors_financials_settings.log.warning("annual backfill: %s %s: %s", ticker, year, data.get("error"))
                     continue
-                ratios = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
+                ratios = catalogue_parsing.compute_filing_values(data.get("income"), data.get("balance")) or {}
                 vals = ratios.get("source_values") or {}
                 if not any(vals.get(k) is not None for k in catalogue_fields.FIN_MONEY_FIELDS):
                     failed += 1
@@ -163,7 +163,7 @@ def backfill_financials(min_year: int = 2015, tickers: set[str] | None = None) -
     return status
 
 
-def backfill_quarterly_financials(min_year: int = 2023,
+def backfill_quarterly_financials(min_year: int = 2022,
                                   tickers: set[str] | None = None) -> int:
     """Parse every issuer's QUARTERLY filing into the financials cache.
 
@@ -223,7 +223,7 @@ def backfill_quarterly_financials(min_year: int = 2023,
                     failed += 1
                     collectors_financials_settings.log.warning("quarterly backfill: %s %sQ%s: %s", ticker, year, quarter, data.get("error"))
                     continue
-                ratios = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance")) or {}
+                ratios = catalogue_parsing.compute_filing_values(data.get("income"), data.get("balance")) or {}
                 vals = ratios.get("source_values") or {}
                 if not any(vals.get(k) is not None for k in catalogue_fields.FIN_MONEY_FIELDS):
                     failed += 1

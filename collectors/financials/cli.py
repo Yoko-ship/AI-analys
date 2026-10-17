@@ -104,7 +104,7 @@ def main() -> int:
 
                     help="one-off: parse one issuer's historical annual filings (from 2015)")
 
-    ap.add_argument("--backfill-quarters", type=int, nargs="?", const=2023, default=None,
+    ap.add_argument("--backfill-quarters", type=int, nargs="?", const=2022, default=None,
 
                     metavar="FROM_YEAR",
 

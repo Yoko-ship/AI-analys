@@ -166,6 +166,14 @@ class TestTheRowReaderItself:
         # beside a non-zero opening is an unfilled cell, not a company with no debt.
         assert catalogue_parsing._row_value([770.0, 1000.0, 0.0]) == 1000.0
 
+    def test_a_flow_of_nought_this_year_is_nought_not_last_years_flow(self) -> None:
+        # Form №2: code | prior income | prior expense | current income | current
+        # expense. MXUS FY2024 filed revenue 0 beside FY2023's 208 319.8, and the
+        # fallback published 208 319.8 as 2024 revenue.
+        assert catalogue_parsing._row_value([10.0, 208_319.8, 0.0, 0.0, 0.0]) == 0.0
+        assert catalogue_parsing._row_value([10.0, 208_319.8, 0.0, 150.0, 0.0]) == 150.0
+        assert catalogue_parsing._row_value([100.0, 0.0, 500.0, 0.0, 120.0]) == -120.0
+
 
 def test_english_legacy_bank_income_statement_maps_all_profit_tiers() -> None:
     """Aloqabank 2015 and other early OpenInfo bank reports use English labels."""

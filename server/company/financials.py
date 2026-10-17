@@ -418,6 +418,12 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                 periods.discard(period)
                 for entry in series.values():
                     entry['values'].pop(period, None)
+            elif assets is not None and assets <= 0:
+                # «Итого активов 0» beside a real income statement: the balance
+                # was not filled in, and a nought is not a figure
+                # (catalogue.fields.usable_filing, ORGS 2025).
+                for name in ('total_assets', 'total_equity', 'total_liabilities', 'cash'):
+                    (series.get(name) or {}).get('values', {}).pop(period, None)
         series = {f: e for f, e in series.items() if e['values']}
         FILED = {'revenue': 'net_revenue', 'net_income': 'net_profit', 'interest_income': 'interest_income', 'interest_expense': 'interest_expense', 'gross_profit': 'gross_profit', 'operating_income': 'operating_income', 'operating_expenses': 'operating_expenses', 'total_liabilities': 'total_liabilities', 'cash': 'cash', 'total_assets': 'total_assets', 'total_equity': 'total_equity', 'roe': 'roe', 'roa': 'roa', 'debt_ratio': 'debt_ratio', 'debt_to_equity': 'debt_to_equity'}
         filed = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, standard))
@@ -428,9 +434,28 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                 merged = dict(fields)
                 merged.update(filed.get(period) or {})
                 filed[period] = merged
+        # A filed year stands on its own figures. The indicator feed calling a
+        # year empty must not hide a usable filing (the feed was wrong for UZTL
+        # before), and a filing with no usable statement — every line nought,
+        # a nought balance, line numbers typed in as amounts — is a gap however
+        # many cells it fills (catalogue.fields.filing_problem, the rule the
+        # loaders refuse such filings by).
+        correction_tickers = {ticker}
+        if sibling and sibling != ticker:
+            correction_tickers.add(sibling)
+        reviewed_annuals = {period[:4] for correction_ticker in correction_tickers for period in (correction_periods_for(correction_ticker) if standard == 'NSBU' else {}) if period.endswith('Q4')}
+        usable_filed: set[str] = set()
+        feed_periods = set(periods)
         for period, fields in (filed or {}).items():
             if len(period) != 4 or not period.isdigit() or int(period) > last_fy:
                 continue
+            if period not in reviewed_annuals:
+                fields, problem = catalogue_fields.usable_filing(fields)
+                if problem is not None and problem["code"] != "no_balance":
+                    if period not in feed_periods:
+                        purged_empty.add(period)
+                    continue
+            usable_filed.add(period)
             for src, name in FILED.items():
                 if fields.get(src) is None:
                     continue
@@ -441,17 +466,42 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                 entry['values'][period] = fields[src] * catalogue_fields.NSBU_THOUSANDS_UZS if money else fields[src]
                 entry['filed'] = True
                 periods.add(period)
-        correction_tickers = {ticker}
-        if sibling and sibling != ticker:
-            correction_tickers.add(sibling)
-        reviewed_annuals = {period[:4] for correction_ticker in correction_tickers for period in (correction_periods_for(correction_ticker) if standard == 'NSBU' else {}) if period.endswith('Q4')}
-        for period in purged_empty - reviewed_annuals & periods:
+        # A year with no usable filing of its own, stated in the next year's
+        # annual as its prior-year column (financial_ingestion.comparative).
+        # The indicator feed's figures for such a year are a mislabelled copy
+        # of a neighbour (UTYK «2023» = FY2022), so they give way entirely.
+        period_sources: dict[str, dict[str, Any]] = {}
+        if standard == 'NSBU':
+            from financial_ingestion import comparative
+            stated: dict[str, dict[str, Any]] = {}
+            for alias in sorted(correction_tickers, key=lambda t: t != ticker):
+                for period, values in (await loop.run_in_executor(None, partial(comparative.comparative_years, alias)) or {}).items():
+                    stated.setdefault(period, values)
+            for period, values in stated.items():
+                if period in usable_filed or period in reviewed_annuals or int(period) > last_fy:
+                    continue
+                for entry in series.values():
+                    entry['values'].pop(period, None)
+                for src, name in FILED.items():
+                    if values.get(src) is None:
+                        continue
+                    entry = series.setdefault(name, {'unit': 'UZS', 'money': True, 'values': {}})
+                    entry['values'][period] = values[src] * catalogue_fields.NSBU_THOUSANDS_UZS
+                periods.add(period)
+                usable_filed.add(period)
+                source = values['source']
+                period_sources[period] = {'kind': 'comparative', 'source_year': source['year'], 'source_url': comparative.source_url(source)}
+        unusable = purged_empty - reviewed_annuals - usable_filed
+        for period in unusable:
             periods.discard(period)
             for entry in series.values():
                 entry['values'].pop(period, None)
         series = {f: e for f, e in series.items() if e['values']}
-        annual_years = {str(r.get('year')) for r in await loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year')}
-        data_gaps = [{'period': p, 'code': 'EMPTY_SOURCE_FILING'} for p in sorted(purged_empty - reviewed_annuals, reverse=True)]
+        # A catalogue row with no workbook and no PDF is not a filing: BECM's
+        # «2022» and «2025» rows carry neither, and counting them let the copies
+        # of 2021 and 2024 stand as years of their own.
+        annual_years = {str(r.get('year')) for r in await loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year') and (r.get('excel_url') or r.get('excel_url_form1') or r.get('pdf_url'))}
+        data_gaps = [{'period': p, 'code': 'EMPTY_SOURCE_FILING'} for p in sorted(unusable, reverse=True) if int(p) <= last_fy]
         for ghost in duplicate_filed_years(series, periods, annual_years):
             data_gaps.append({'period': ghost, 'code': 'UNSUPPORTED_DUPLICATE_PERIOD'})
             logger.info('financials %s: dropping %s — identical to its neighbour on every filed line and with no annual filing of its own', ticker, ghost)
@@ -472,6 +522,8 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
         if derived:
             series['net_margin'] = {'unit': '%', 'money': False, 'derived': True, 'values': derived}
         _fill_equity_by_identity(series)
+        for p, source in sorted(period_sources.items(), reverse=True):
+            data_gaps.append({'period': p, 'code': 'FROM_COMPARATIVE', 'severity': 'info', **source})
         for p in sorted(annual_years - periods, reverse=True):
             if int(p) <= last_fy and (not any((gap['period'] == p for gap in data_gaps))):
                 data_gaps.append({'period': p, 'code': 'REPORT_NOT_PARSED'})
@@ -486,7 +538,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
         if standard == 'MSFO':
             from financial_ingestion.store import public_status
             ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
-        return {'ok': True, 'ticker': ticker, 'org_id': org_id, 'currency': 'UZS', 'standard': standard, **scope_info, 'periods': sorted(periods, reverse=True), 'series': series, 'availability': 'NO_PARSED_FINANCIALS' if not series else 'PARTIAL' if data_gaps or (ingestion or {}).get('status') == 'PARTIAL' else 'AVAILABLE', 'reports_available': bool(annual_years), 'data_gaps': data_gaps, **({'ingestion': ingestion} if ingestion is not None else {})}
+        return {'ok': True, 'ticker': ticker, 'org_id': org_id, 'currency': 'UZS', 'standard': standard, **scope_info, 'periods': sorted(periods, reverse=True), 'series': series, 'availability': 'NO_PARSED_FINANCIALS' if not series else 'PARTIAL' if data_gaps or (ingestion or {}).get('status') == 'PARTIAL' else 'AVAILABLE', 'reports_available': bool(annual_years), 'data_gaps': data_gaps, 'period_sources': period_sources, **({'ingestion': ingestion} if ingestion is not None else {})}
     except Exception as exc:
         logger.exception('company financials failed for %s', ticker)
         raise FinancialDataUnavailable(str(exc)) from exc

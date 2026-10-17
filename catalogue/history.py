@@ -82,7 +82,7 @@ def parse_catalogued_report(ticker: str, form: str, year: int, quarter: int,
     if other and other != excel:
         second = _parse_workbook_uncached(session or catalogue_sources._make_session(), other)
         second = second if second.get("ok") else parsed
-    return (catalogue_parsing.compute_financial_ratios(parsed, second) or {}).get("source_values") or {}
+    return (catalogue_parsing.compute_filing_values(parsed, second) or {}).get("source_values") or {}
 
 
 def harvest_historical_quarters(ticker: str, *, limit: int = 40,
@@ -241,7 +241,7 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
 
             continue
 
-        values = (catalogue_parsing.compute_financial_ratios(parsed, parsed) or {}).get("source_values") or {}
+        values = (catalogue_parsing.compute_filing_values(parsed, parsed) or {}).get("source_values") or {}
 
         if not any(values.get(k) is not None for k in catalogue_fields.FIN_MONEY_FIELDS):
 

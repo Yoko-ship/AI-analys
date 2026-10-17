@@ -596,7 +596,11 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
     try { localStorage.setItem(FIN_DASHBOARD_KEY, dashboard); } catch (e) { /* ignore */ }
   }, [dashboard]);
   const quarterly = freq === "quarterly";
-  const gapReason = (code) => {
+  const gapReason = (code, gap = {}) => {
+    if (code === "FROM_COMPARATIVE") return t(
+      `Отдельного отчёта за год нет: цифры взяты из колонки «прошлый год» годового отчёта за ${gap.source_year}.`,
+      `Yil uchun alohida hisobot yo‘q: raqamlar ${gap.source_year} yillik hisobotining «o‘tgan yil» ustunidan olingan.`,
+      `No filing of its own: figures taken from the prior-year column of the ${gap.source_year} annual.`);
     if (code === "EMPTY_SOURCE_FILING") return t("В источнике опубликован пустой баланс.", "Manbada bo‘sh balans e'lon qilingan.", "The source filing contains an empty balance sheet.");
     if (code === "INCONSISTENT_CUMULATIVE_INCOME") return t("Показатели дохода в отчётах противоречат друг другу.", "Hisobotlardagi daromad ko‘rsatkichlari bir-biriga zid.", "Income figures conflict between source filings.");
     if (code === "MISSING_COMPARATIVE_INPUT") return t("Для расчёта квартала не хватает данных предыдущего периода.", "Chorakni hisoblash uchun oldingi davr ma'lumotlari yetishmaydi.", "A required prior-period figure is unavailable for this quarter.");
@@ -608,7 +612,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
   const gapNotice = gapRows.length > 0 ? (
     <details className="panel" style={{ padding: "12px 16px", marginBottom: 12 }}>
       <summary>{t("Некоторые финансовые данные недоступны", "Ayrim moliyaviy ma'lumotlar mavjud emas", "Some financial figures are unavailable")}</summary>
-      <ul>{gapRows.map((gap) => <li key={`${gap.period}:${gap.code}`}>{gap.period}: {gapReason(gap.code)}</li>)}</ul>
+      <ul>{gapRows.map((gap) => <li key={`${gap.period}:${gap.code}`}>{gap.period}: {gapReason(gap.code, gap)}</li>)}</ul>
     </details>
   ) : null;
 

@@ -455,26 +455,9 @@ def catalog_period_months(quarter: int | None) -> int:
 def catalog_period_problem(row: dict[str, Any] | None) -> dict[str, Any] | None:
     """Why a stored period must not be analysed, or None when it can be.
 
-    Three shapes of a filing that carries no usable statement, each seen in the
-    catalogue: every line nought (UZNGP's «2025» workbook is an empty form);
-    a balance whose total is nought or negative (SQBN's 2024 annual states
-    «Итого активов 0»); and the form's line numbers typed into the amount
-    column (the same SQBN filing: «Итого процентных доходов 1», «Чистая прибыль
-    13») — every amount below the plausibility floor the fact store already
-    applies to such rows.
+    One rule with the load-time check: catalogue.fields.filing_problem.
     """
-    if not row:
-        return {"code": "missing"}
-    money = [catalogue_codecs._financials_num(row.get(key)) for key in _CATALOG_MONEY_KEYS]
-    money = [value for value in money if value is not None]
-    if not money or not any(money):
-        return {"code": "empty_filing"}
-    assets = catalogue_codecs._financials_num(row.get("total_assets"))
-    if assets is not None and assets <= 0:
-        return {"code": "no_balance"}
-    if max(abs(value) for value in money) < catalogue_fields._MIN_PLAUSIBLE:
-        return {"code": "implausible_scale"}
-    return None
+    return catalogue_fields.filing_problem(row)
 
 
 def catalog_duplicate_periods(series: dict[str, dict[str, Any]],

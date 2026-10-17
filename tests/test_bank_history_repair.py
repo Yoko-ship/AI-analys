@@ -17,6 +17,17 @@ import server.company.financials as subject_server_company_financials
 import pytest
 from fastapi.testclient import TestClient
 
+
+@pytest.fixture(autouse=True)
+def toy_scale_amounts(monkeypatch):
+    """These tests drive the loaders with toy amounts (1, 100, 1000). The
+    plausibility floor that refuses real junk filings has its own tests
+    (tests/test_filing_load_checks.py); here it would refuse the toys."""
+    import catalogue.fields as catalogue_fields
+
+    monkeypatch.setattr(catalogue_fields, "_MIN_PLAUSIBLE", 0)
+
+
 import api
 import collector_financials as cf
 import collectors.financials.backfill as collectors_financials_backfill

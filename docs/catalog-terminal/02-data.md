@@ -9,6 +9,16 @@ request. The general fix: move each check into the load path, record its
 outcome as a journal event (04), and let the read path use the stored
 outcome.
 
+## Stage C status (2026-10-17)
+
+| Task | What was found | What changed |
+|---|---|---|
+| T-01 empty files | SQBN 2024, UZNGP 2021–25 and KSCM 2021 are empty **at the source**: all-zero or line-number forms, and no other NSBU annual exists. They cannot be filled from NSBU. SQBN 2024 exists in МСФО; KSCM 2021's year-end exists only in the 2022 Q1 opening column. | **At load:** every loader uses `catalogue.parsing.compute_filing_values`, which refuses a filing with no usable statement (`catalogue.fields.usable_filing`). The nightly sweep records `load_empty` / `load_ok` in the journal, and an empty period is retried every night, so a re-filing is picked up. A nought balance beside a real P&L keeps the P&L and drops the balance (ORGS 2025). **At read:** a filed year is judged by its own figures, so the indicator feed calling a year empty no longer hides a good filing. Floor checked on all 3,405 served periods: junk 777/918, smallest real 20,682 (thousand UZS). |
+| T-02 duplicates | No refiles. MXUS: the parser published FY2023 revenue under 2024 (form 2 fallback); the feed's «2025» is the same FY2024 filing mislabelled. UTYK: FY2023 was never filed. | Form 2 no longer falls back to last year's flow (`_row_value`). After the nightly reparse MXUS 2024 revenue is 0, and the «2025» copy is dropped as a duplicate; FY2025 is not published yet. A catalogue row without a workbook or PDF no longer counts as a filing, so the copies at BECM 2022 and 2025 are dropped. UTYK 2023 now comes from T-04. |
+| T-03 quarantine | Measured, NOT switched on (D4): see `quarantine-review-2026-10-17.md`. | — |
+| T-04 backfill | Fillable: AGMKP 2022, BECM 2023, ALSM 2020, TMYS 2020, UZML 2023, UTYK 2023. Unpublished, so they stay gaps: UTGA 2024–25, UZGFP 2025, KSCM 2022+, BNGP 2023/25. | `financial_ingestion/comparative.py`: after each issuer's nightly sweep, a missing annual is filled from the next annual's prior-year column (separate table, so a real filing always wins). The API marks the year `FROM_COMPARATIVE` with its source filing, and the journal gets `year_backfill`. Verified locally against live openinfo: all six named fillable years filled, with figures matching the filings. |
+| T-05 quarters 2022 | Already on prod: 97 of 102 tickers have 2022 quarters, and 5 random issuers match openinfo exactly. | The old collector's default floor is moved 2023 → 2022. |
+
 ## R-D1 Empty source files (T-01) — PARTIAL
 
 - **Intent:** an empty downloaded file is detected at load and re-fetched;

@@ -2,6 +2,8 @@
 from __future__ import annotations
 from typing import Any
 
+import catalogue.fields as catalogue_fields
+
 import re
 
 
@@ -317,6 +319,20 @@ def _row_value(nums: list, strict_period: bool = False) -> float | None:
         if reporting is not None:
 
             return reporting
+
+        # Form №2's income|expense pairs are FLOWS of two different years. A
+
+        # reporting pair of noughts is the issuer's own figure for this year
+
+        # (MXUS FY2024 revenue 0), never a reason to publish last year's flow
+
+        # under this year's label — which is how MXUS 2024 came to show its
+
+        # FY2023 revenue. Only a balance may fall back, and only as below.
+
+        if len(rest) == 4:
+
+            return 0.0 if _half_value(rest[:2]) is not None else None
 
         # A single balance ACCOUNT can legitimately end the period at zero — a
 
@@ -815,10 +831,29 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "balance": balance_block,
 
     }
-
-
-
     return {"metrics": metrics, "source_values": source_rows}
+
+
+def compute_filing_values(income_data: dict | None, balance_data: dict | None) -> dict[str, Any]:
+    """compute_financial_ratios for a LOADER: a filing with no usable statement
+    is refused here, when it is loaded, instead of being stored and hidden on
+    every read (docs/catalog-terminal/02-data.md, R-D1).
+
+    The amounts of a refused filing are dropped, so every loader sees "no
+    usable indicators" and keeps nothing; a nought balance drops only the
+    balance. `source_problem` says why, by the one rule the readers use too
+    (catalogue.fields.usable_filing).
+    """
+    ratios = compute_financial_ratios(income_data, balance_data)
+    values, problem = catalogue_fields.usable_filing(ratios.get("source_values"))
+    if problem is None:
+        return ratios
+    values["balance"] = {}
+    metrics = {key: None for key in ratios.get("metrics") or {}}
+    if problem["code"] == "no_balance":
+        # Margins need no balance; ROA, ROE and the debt ratios do.
+        metrics["net_margin"] = (ratios.get("metrics") or {}).get("net_margin")
+    return {"metrics": metrics, "source_values": values, "source_problem": problem}
 
 
 def _commercial_period_expenses(row: dict) -> float | None:

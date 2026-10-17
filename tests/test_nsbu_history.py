@@ -14,6 +14,16 @@ from financial_ingestion import nsbu_history as history
 _HARVEST = catalogue_history.harvest_historical_quarters
 
 
+@pytest.fixture(autouse=True)
+def toy_scale_amounts(monkeypatch):
+    """These tests drive the loaders with toy amounts (1, 100, 1000). The
+    plausibility floor that refuses real junk filings has its own tests
+    (tests/test_filing_load_checks.py); here it would refuse the toys."""
+    import catalogue.fields as catalogue_fields
+
+    monkeypatch.setattr(catalogue_fields, "_MIN_PLAUSIBLE", 0)
+
+
 @pytest.fixture
 def catalog(tmp_path, monkeypatch):
     monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))

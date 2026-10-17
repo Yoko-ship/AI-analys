@@ -531,7 +531,7 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
             processed += 1
             try:
                 data = catalogue_sources.fetch_report_excel_data(ticker, form, year, quarter)
-                ratios = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
+                ratios = catalogue_parsing.compute_filing_values(data.get("income"), data.get("balance")) if data.get("ok") else {}
                 vals = (ratios.get("source_values") or {}) if ratios else {}
                 if not any(vals.get(k) is not None for k in catalogue_financial_store._FINANCIAL_KEYS):
                     # Preferred (annual) report had no usable data — e.g. an old
@@ -540,7 +540,7 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                     if alt:
                         alt_data = catalogue_sources.fetch_report_excel_data(ticker, form, alt["year"], alt["quarter"])
                         if alt_data.get("ok"):
-                            alt_ratios = catalogue_parsing.compute_financial_ratios(alt_data.get("income"), alt_data.get("balance"))
+                            alt_ratios = catalogue_parsing.compute_filing_values(alt_data.get("income"), alt_data.get("balance"))
                             alt_vals = alt_ratios.get("source_values") or {}
                             if any(alt_vals.get(k) is not None for k in catalogue_financial_store._FINANCIAL_KEYS):
                                 year, quarter, vals, ratios = alt["year"], alt["quarter"], alt_vals, alt_ratios

@@ -25,6 +25,7 @@ import catalogue.storage as catalogue_storage
 import collectors.openinfo.workbooks as collectors_openinfo_workbooks
 import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
 import financial_analysis.sector_inputs as financial_analysis_sector_inputs
+from financial_ingestion import comparative
 from . import store
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,16 @@ def implementation_digest():
                  *(Path(module.__file__) for module in _PARSE_MODULES)):
         digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def _journal(event, **fields):
+    """The terminal journal records loads; a journal failure never stops one."""
+    try:
+        from server.terminal import journal
+
+        journal.emit(event, **fields)
+    except Exception:  # noqa: BLE001
+        log.debug("journal write failed for %s", event, exc_info=True)
 
 
 def _connect():
@@ -199,9 +210,19 @@ def run(tickers=None, force=False, max_periods=None):
             try:
                 data = catalogue_sources.fetch_report_excel_data(source["ticker"], "NSBU", year, quarter,
                                                  use_snapshot_cache=False)
-                ratios = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance")) if data.get("ok") else {}
+                ratios = catalogue_parsing.compute_filing_values(data.get("income"), data.get("balance")) if data.get("ok") else {}
                 values = ratios.get("source_values") or {}
                 values["total_equity"] = values.get("total_equity", values.get("equity"))
+                period = f"{year}Q{quarter}" if quarter else str(year)
+                if (ratios.get("source_problem") or {}).get("code") not in (None, "no_balance"):
+                    # The filing is on openinfo but states nothing usable. Its
+                    # checkpoint stays "error", so the next nightly run fetches it
+                    # again and a re-filing is picked up.
+                    _journal("load_empty", ticker=ticker, standard="NSBU", period=period,
+                             message=f"filing carries no usable statement: {ratios['source_problem']['code']}",
+                             source_url=data.get("excel_url") or data.get("url"),
+                             details=ratios["source_problem"])
+                    raise ValueError(f"Empty source filing ({ratios['source_problem']['code']})")
                 if not data.get("ok") or not any(values.get(k) is not None for k in catalogue_fields.FIN_MONEY_FIELDS):
                     raise ValueError(data.get("error") or "No usable financial indicators")
                 current = _periods(aliases).get((year, quarter), [])
@@ -222,6 +243,9 @@ def run(tickers=None, force=False, max_periods=None):
                 payload = {"values": values, "report_id": report_id, "missing": missing,
                            "warnings": data.get("warnings", [])}
                 result[status] += 1
+                note = ", balance not filled in (total assets 0)" if ratios.get("source_problem") else ""
+                _journal("load_ok", ticker=ticker, standard="NSBU", period=period,
+                         message=f"parsed: {status}" + (f", missing {', '.join(missing)}" if missing else "") + note)
             except Exception as exc:
                 payload = {"error": str(exc)}
                 result["errors"].append({"ticker": ticker, "year": year, "quarter": quarter, "error": str(exc)})
@@ -237,6 +261,13 @@ def run(tickers=None, force=False, max_periods=None):
             finally:
                 c.close()
             log.info("NSBU %s %s Q%s: %s (%d processed)", ticker, year, quarter, status, result["processed"])
+        # A year still missing after the sweep is filled from the next annual's
+        # prior-year column where that filing states it (comparative.py).
+        try:
+            filled = comparative.backfill_issuer(issuer, aliases, journal=_journal)
+            result["backfilled"] = result.get("backfilled", 0) + len(filled)
+        except Exception as exc:  # noqa: BLE001
+            result["errors"].append({"ticker": ticker, "stage": "comparative", "error": str(exc)})
     return result
 
 

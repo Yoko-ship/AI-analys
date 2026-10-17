@@ -264,7 +264,7 @@ class NsbuDerivedIndicatorsCollector:
                         data = catalogue_sources.fetch_report_excel_data(ticker, "NSBU", cand["year"], cand["quarter"])
                         if not data.get("ok"):
                             continue
-                        computed = catalogue_parsing.compute_financial_ratios(data.get("income"), data.get("balance"))
+                        computed = catalogue_parsing.compute_filing_values(data.get("income"), data.get("balance"))
                     except Exception:  # noqa: BLE001 — best-effort per issuer
                         logger.exception("nsbu_derived %s (%s) failed", ticker, org)
                         continue
