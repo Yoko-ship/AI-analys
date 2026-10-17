@@ -60,6 +60,16 @@ last would mean coming back to wire every task again.
 4. Analysis gaps (03) and CBU data (05).
 5. Admin «Терминал» screens and alerts (04).
 
+## Decided (2026-10-17)
+
+- **D1:** follow the ТЗ. P/E above 100 prints «>100», and P/E is hidden at
+  zero or negative profit. This replaces the «н/зн» practice of 2026-08-12
+  for P/E.
+- **D2:** the terminal shows 2020+ by default, with an option to extend the
+  history back to 2015. The stored data is unchanged.
+- **D4:** measure the quarantine rules over the stored history first, review
+  what they would hide, and only then switch them on.
+
 ## Open decisions (need the customer)
 
 | # | ТЗ says | What we have / why it matters |

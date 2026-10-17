@@ -121,6 +121,8 @@ async def _opaque_server_error(request: Request, exc: StarletteHTTPException):
     if exc.status_code != 500:
         return await http_exception_handler(request, exc)
     error_id = uuid.uuid4().hex[:12]
+    # The journal's timing middleware records the 500 under this same id.
+    request.state.error_id = error_id
     http.logger.error("500 %s %s [error_id=%s]: %s", request.method, request.url.path, error_id, exc.detail)
     return JSONResponse(
         {"detail": "Internal server error", "error_id": error_id},

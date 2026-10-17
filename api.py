@@ -44,6 +44,8 @@ import server.news.routes as news_routes
 import server.research.routes as research_routes
 import server.seo.routes as seo
 import server.system.routes as system_routes
+import server.terminal.routes as terminal_routes
+from server.terminal.timing import JournalTimingMiddleware
 import uzse_access  # noqa: F401 — refuses uzse.uz unless UZSE_ENABLED=1 (see the module)
 
 
@@ -96,6 +98,8 @@ ASSET_DIR = WEB_DIR / "assets" if WEB_DIR == WEB_DIST_DIR else WEB_DIR
 # Security headers on every response, and 500s that carry an error id instead
 # of exception text (see server/hardening.py).
 hardening.install(app, WEB_DIR / "index.html")
+# Failed and slow API requests go to the terminal journal (server/terminal/).
+app.add_middleware(JournalTimingMiddleware)
 app.add_exception_handler(control_api.s.ControlError, control_api.control_error_handler)
 
 
@@ -129,6 +133,10 @@ app.include_router(analytics_api.public_router)
 
 
 app.include_router(analytics_api.admin_router, dependencies=[Depends(auth_access._admin_panel_gate)])
+
+
+app.include_router(terminal_routes.public_router)
+app.include_router(terminal_routes.admin_router, dependencies=[Depends(auth_access._admin_panel_gate)])
 
 
 

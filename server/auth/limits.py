@@ -189,8 +189,22 @@ def _enforce_llm_quota(user: identity_users.WebUser, language: str | None = None
     if not _rate_limiter.allow("llm-day:__global__", LLM_GLOBAL_DAILY_LIMIT, 86400.0):
         http.logger.warning("global daily LLM cap (%d) reached — refusing paid analysis requests",
                        LLM_GLOBAL_DAILY_LIMIT)
+        _journal_ai_limit(user, "global")
         raise _rate_limited("capacity", _rate_limiter.retry_after("llm-day:__global__", 86400.0), language)
     if not _rate_limiter.allow(f"llm-min:{user.id}", LLM_RATE_LIMIT_PER_MINUTE, 60.0):
+        _journal_ai_limit(user, "window")
         raise _rate_limited("window", _rate_limiter.retry_after(f"llm-min:{user.id}", 60.0), language)
     if not _rate_limiter.allow(f"llm-day:{user.id}", LLM_DAILY_LIMIT, 86400.0):
+        _journal_ai_limit(user, "daily")
         raise _rate_limited("daily", _rate_limiter.retry_after(f"llm-day:{user.id}", 86400.0), language)
+
+
+def _journal_ai_limit(user: identity_users.WebUser, kind: str) -> None:
+    """ТЗ event ai_limit: the PM sees who runs into the AI quota, by internal id only."""
+    try:
+        from server.terminal import journal
+
+        journal.emit("ai_limit", user_id=user.id, message=f"AI-analysis {kind} limit reached",
+                     details={"limit": kind})
+    except Exception:
+        http.logger.debug("ai_limit journal write failed", exc_info=True)

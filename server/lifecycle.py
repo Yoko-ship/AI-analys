@@ -14,6 +14,7 @@ import server.market.history as market_history
 import server.market.patterns as market_patterns
 import server.news.jobs as news_jobs
 import server.bonds.quality as bond_quality
+import server.terminal.journal as terminal_journal
 
 
 @asynccontextmanager
@@ -23,6 +24,7 @@ async def lifespan(app):
         yield
     finally:
         await _stop_sector_analysis_worker(app)
+        await asyncio.get_running_loop().run_in_executor(None, terminal_journal.flush)
 
 
 async def _populate_securities_on_startup() -> None:

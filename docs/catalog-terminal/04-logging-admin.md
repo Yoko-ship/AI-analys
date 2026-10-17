@@ -3,6 +3,21 @@
 ТЗ tasks: T-13, T-14, T-15. This is the foundation: build it first (see
 README, Order).
 
+**Stage A, implemented 2026-10-17:**
+- `server/terminal/journal.py`: the `terminal_events` table, `emit()`, the
+  retention purge, and reads.
+- `server/terminal/timing.py`: `api_error` / `api_slow`.
+- `server/terminal/routes.py`:
+  - `POST /api/terminal/events`, the browser beacon. It accepts only
+    cmd_run, cmd_unknown, export, screen_error and screen_slow.
+  - `GET /api/admin/terminal/events` and `/catalogue`, behind the admin
+    panel gate.
+- `server/auth/limits.py` emits `ai_limit`.
+- Tests: `tests/test_terminal_journal.py`.
+
+The other events in the catalogue are emitted by the stages that build their
+checks (02, 03, 05).
+
 ## R-L1 One event journal (T-13) — PARTIAL
 
 - **Intent:** every event is written to one journal on the server. Users

@@ -34,6 +34,21 @@ def no_geoip_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_terminal_journal(monkeypatch, tmp_path):
+    """Requests made in a test write their journal events to a throwaway file,
+    never into the real data directory's journal."""
+    from server.terminal import journal
+
+    monkeypatch.setenv("TERMINAL_JOURNAL_DB", str(tmp_path / "terminal_journal.sqlite3"))
+    with journal._lock:
+        journal._buffer.clear()
+    yield
+    journal.flush()
+    with journal._lock:
+        journal._buffer.clear()
+
+
+@pytest.fixture(autouse=True)
 def no_admin_step_up_carryover():
     """An admin step-up lives in process memory, keyed by session token. One
     test's proof (or its failed attempts) must not open or close another's gate."""
