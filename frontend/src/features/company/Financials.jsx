@@ -566,9 +566,15 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange }) {
+function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange }) {
   const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
-  const [section, setSection] = React.useState("income");
+  // A host may steer the sub-tab: the catalog terminal opens PL, BS and RAT as
+  // sections of this one view. A click is still the tab's own (the host only
+  // hears about it), so a sub-tab the host has no code for, such as «Сплиты»,
+  // still opens.
+  const [section, setOwnSection] = React.useState(sectionProp || "income");
+  React.useEffect(() => { if (sectionProp) setOwnSection(sectionProp); }, [sectionProp]);
+  const setSection = (key) => { setOwnSection(key); onSectionChange?.(key); };
   // Which lines the chart draws, per section (annual and quarterly sections
   // share a key space, which is fine — «income» means the same lines in both).
   // Unset = the section's default; from the first click the reader owns it.

@@ -11,6 +11,17 @@ import { sectorLabel } from "../../shared/marketCopy.jsx";
 import { SectionCard, StructuredReportBlocks, getSectionTitle } from "../../shared/ReportDocument.jsx";
 import { formatMarketTimestamp } from "../../shared/marketModel.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
+import { reportScreenLoad } from "../../lib/terminalJournal.js";
+import { functionLabel } from "../../lib/terminalCommands.js";
+import { IssuerDividends, IssuerFinancials } from "../company/index.js";
+import { CommandBar } from "./terminal/CommandBar.jsx";
+import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, PendingPanel, QualityScreen } from "./terminal/TerminalPanels.jsx";
+import { READY_FUNCTIONS, useTerminal } from "./terminal/useTerminal.js";
+import { terminalCopy } from "./terminal/terminalCopy.js";
+
+// The terminal's PL, BS and RAT are sections of the one Финансы view.
+const FINANCIAL_SECTIONS = { PL: "income", BS: "balance", RAT: "ratios" };
+const SECTION_FUNCTIONS = { income: "PL", balance: "BS", ratios: "RAT" };
 
 // ---------------------------------------------------------------------------
 // CatalogView helpers
@@ -614,6 +625,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const [chartMonths, setChartMonths] = useState(3);
   const [reportPage, setReportPage] = useState(0);
   const [peers, setPeers] = useState(null);
+  const searchRef = React.useRef(null);
+  const focusCatalogSearch = React.useCallback(() => searchRef.current?.focus(), []);
+  const terminal = useTerminal({
+    companies: catalogComps, ticker, setTicker, lang, onCatalogSearch: focusCatalogSearch,
+  });
+  const terminalFunc = React.useRef(terminal.func);
+  terminalFunc.current = terminal.func;
 
   const apiFetch = React.useCallback((path, options = {}) => {
     const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY) || "";
@@ -644,11 +662,22 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     setYear("");
     setQuarter(0);
     setResult(null);
+    // The issuer's filings back the SUM and CF screens; a failure or a slow
+    // answer goes to the terminal journal.
+    const startedAt = performance.now();
+    const func = ["SUM", "CF"].includes(terminalFunc.current) ? terminalFunc.current : "SUM";
     try {
       const res = await apiFetch(`/api/catalog/index/${t}`);
-      const data = await res.json();
-      if (res.ok) setIndex(data);
-    } catch { /* ignore */ }
+      const data = await res.json().catch(() => null);
+      if (res.ok) {
+        setIndex(data);
+        reportScreenLoad({ ticker: t, func, startedAt });
+      } else {
+        reportScreenLoad({ ticker: t, func, startedAt, error: `HTTP ${res.status}`, errorId: data?.error_id });
+      }
+    } catch (err) {
+      reportScreenLoad({ ticker: t, func, startedAt, error: err.message });
+    }
     finally { setIndexLoading(false); }
   }, [apiFetch]);
 
@@ -901,10 +930,22 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
         )}
       </header>
 
+      <CommandBar terminal={terminal} companies={catalogComps} lang={lang}
+        screenLabel={ticker ? `${ticker} · ${terminal.form === "MSFO" ? "МСФО" : "НСБУ"} · ${terminal.func}` : ""} />
+      {terminal.overlay === "HELP" && (
+        <HelpPanel lang={lang} onClose={() => terminal.setOverlay(null)}
+          onRun={(code) => { terminal.setOverlay(null); terminal.run(code); }} />
+      )}
+      {terminal.overlay === "LAST" && <LastPanel terminal={terminal} lang={lang} />}
+      {terminal.overlay?.startsWith("PENDING:") && (
+        <PendingPanel code={terminal.overlay.slice(8)} lang={lang} onClose={() => terminal.setOverlay(null)} />
+      )}
+
       <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
         <label className="catalog-search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input
+            ref={searchRef}
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -962,7 +1003,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   key={c.ticker}
                   type="button"
                   className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
-                  onClick={() => setTicker(c.ticker)}
+                  onClick={() => terminal.go({ ticker: c.ticker })}
                   aria-pressed={ticker === c.ticker}
                 >
                   <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
@@ -1036,7 +1077,45 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 </div>
               </section>
 
-              {year && isCurrentAvail && currentReport && (
+              <FunctionTabs terminal={terminal} lang={lang} />
+
+              {FINANCIAL_SECTIONS[terminal.func] && (
+                <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
+                  <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
+                    <IssuerFinancials ticker={ticker} lang={lang}
+                      standard={terminal.form} onStandardChange={terminal.setForm}
+                      section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}
+                      onSectionChange={(key) => SECTION_FUNCTIONS[key] && terminal.go({ func: SECTION_FUNCTIONS[key] })}
+                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })} />
+                  </section>
+                </React.Suspense>
+              )}
+              {terminal.func === "DVD" && (
+                <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
+                  <section className="terminal-screen" aria-label={functionLabel("DVD", lang)}>
+                    <IssuerDividends ticker={ticker} lang={lang}
+                      onLoad={(load) => reportScreenLoad({ ticker, func: "DVD", ...load })} />
+                  </section>
+                </React.Suspense>
+              )}
+              {terminal.func === "CN" && (
+                <section className="terminal-screen panel" aria-label={functionLabel("CN", lang)}>
+                  <NewsScreen ticker={ticker} lang={lang} />
+                </section>
+              )}
+              {terminal.func === "DQ" && (
+                <section className="terminal-screen panel" aria-label={functionLabel("DQ", lang)}>
+                  <QualityScreen ticker={ticker} form={terminal.form} lang={lang} fromYear={terminal.fromYear} />
+                </section>
+              )}
+              {!READY_FUNCTIONS.has(terminal.func) && (
+                <section className="terminal-screen panel">
+                  <h3>{terminalCopy(lang).pendingTitle(`${terminal.func} · ${functionLabel(terminal.func, lang)}`)}</h3>
+                  <p className="muted">{terminalCopy(lang).pendingBody}</p>
+                </section>
+              )}
+
+              {terminal.func === "SUM" && year && isCurrentAvail && currentReport && (
                 <section className="catalog-selected-report" id="catalog-selected-report">
                   <div className="catalog-selected-summary">
                     <div>
@@ -1098,7 +1177,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 </section>
               )}
 
-              {result && (
+              {terminal.func === "SUM" && result && (
                 <article className="panel catalog-result-panel" id="catalog-print-target">
                   <div className="panel-head">
                     <div>
@@ -1120,7 +1199,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 </article>
               )}
 
-              <section className="catalog-report-section">
+              {["SUM", "CF"].includes(terminal.func) && <section className="catalog-report-section">
                 <div className="catalog-report-head">
                   <div>
                     <h3>{catalogTerminalText(lang, "reports")}</h3>
@@ -1199,7 +1278,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 ) : (
                   <div className="catalog-report-empty">{catalogTerminalText(lang, "noFilteredReports")}</div>
                 )}
-              </section>
+              </section>}
             </>
           )}
         </main>

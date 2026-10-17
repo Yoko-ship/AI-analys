@@ -4,6 +4,18 @@
 CF, CN), T-12 (panels), T-19 (quarterly block), T-24 (сум/$, deposit
 comparison).
 
+**Stage B1, implemented 2026-10-17:**
+- Command line with suggestions: `lib/terminalCommands.js` plus
+  `features/catalog/terminal/`.
+- Esc, LAST and HELP; the 1–9/0 keys; `/` focuses the command line.
+- Every screen is in the URL (`/catalog?t=SQBN&f=PL&std=MSFO&h=all`).
+- History from 2020 by default, with a 2015 option (README D2).
+- Screens: SUM, PL, BS, RAT (the shared `IssuerFinancials` view, also used
+  by the company page), DVD, CF, CN and DQ. FV, RV and REC are recognised
+  and marked «скоро».
+- Client events go to the journal (`lib/terminalJournal.js`).
+- EQS, MON, PNL, ADM, export and сум/$ remain.
+
 The ТЗ also allows taking the mock-up module `uzterminal.js` whole. We should
 **not**: it carries its own data. The terminal must read the existing
 endpoints, so that one number has one source on the whole site.

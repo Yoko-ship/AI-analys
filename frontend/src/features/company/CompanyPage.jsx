@@ -11,7 +11,8 @@ import { CompanyInsightCard, CompanyInsightDialog } from "./Insights.jsx";
 import { CompanyOverviewTab, CompanyReportsTab } from "./Overview.jsx";
 import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
 import { QuickCompareStrip } from "../../shared/QuickCompareStrip.jsx";
-import { CompanyDividendsTab, CompanyFinancialsTab } from "./Financials.jsx";
+import { CompanyDividendsTab } from "./Financials.jsx";
+import { IssuerFinancials } from "./IssuerFinancials.jsx";
 
 function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
@@ -68,23 +69,11 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const [registryError, setRegistryError] = React.useState(false);
   const [registryRetry, setRegistryRetry] = React.useState(0);
   const [dividends, setDividends] = React.useState(null);
-  // The issuer's annual series (fact store). Lazy: only the Финансы tab
-  // reads it, and most visits never open that tab.
-  const [finSeries, setFinSeries] = React.useState(null);
-  const [finLoading, setFinLoading] = React.useState(false);
-  // IFRS and NSBU are separate accounting contours.  A form choice therefore
-  // invalidates the cached series; retaining NSBU rows while the header says
-  // IFRS would be worse than a temporary loading state.
+  // The Финансы tab loads its own series (IssuerFinancials). The reader's
+  // standard and period choices live here, so leaving the tab and coming back
+  // keeps them; the period also arrives from the URL (?freq=quarterly).
   const [finStandard, setFinStandard] = React.useState("NSBU");
-  const [finScope, setFinScope] = React.useState("");
-  // The Финансы tab's period switch. The quarterly series is its own request
-  // and its own cache: nobody pays for quarters they never open.
   const [finFreq, setFinFreq] = React.useState(companyQuery.get("freq") === "quarterly" ? "quarterly" : "annual");
-  const [finQSeries, setFinQSeries] = React.useState(null);
-  const [finQLoading, setFinQLoading] = React.useState(false);
-  // The splits register for the «Сплиты» sub-tab. Lazy with the rest of the
-  // Финансы data; null = not asked yet, [] = asked and the record is empty.
-  const [splits, setSplits] = React.useState(null);
   const [divLoading, setDivLoading] = React.useState(false);
 
   // Failed requests must be visible and retryable: every fetch below reports
@@ -294,46 +283,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
       .finally(() => { if (alive) setDivLoading(false); });
     return () => { alive = false; };
   }, [ticker]);
-
-  React.useEffect(() => {
-    setFinSeries(null);
-    setFinQSeries(null);
-    setSplits(null);
-  }, [ticker, finStandard, finScope]);
-  React.useEffect(() => {
-    if (!ticker || tab !== "financials" || finSeries !== null) return undefined;
-    let alive = true;
-    setFinLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?form=${encodeURIComponent(finStandard)}${finStandard === "MSFO" && finScope ? `&scope=${encodeURIComponent(finScope)}` : ""}`)
-      .then((r) => r.json())
-      .then((d) => { if (alive) setFinSeries(d.ok ? d : { periods: [], series: {} }); })
-      .catch(() => { if (alive) setFinSeries({ periods: [], series: {} }); })
-      .finally(() => { if (alive) setFinLoading(false); });
-    return () => { alive = false; };
-  }, [ticker, tab, finStandard, finScope, finSeries]);
-  React.useEffect(() => {
-    if (!ticker || tab !== "financials" || finFreq !== "quarterly" || finQSeries !== null) return undefined;
-    let alive = true;
-    setFinQLoading(true);
-    fetch(`/api/company/${encodeURIComponent(ticker)}/financials?freq=quarterly&form=${encodeURIComponent(finStandard)}${finStandard === "MSFO" && finScope ? `&scope=${encodeURIComponent(finScope)}` : ""}`)
-      .then((r) => r.json())
-      .then((d) => { if (alive) setFinQSeries(d.ok ? d : { periods: [], series: {} }); })
-      .catch(() => { if (alive) setFinQSeries({ periods: [], series: {} }); })
-      .finally(() => { if (alive) setFinQLoading(false); });
-    return () => { alive = false; };
-  }, [ticker, tab, finStandard, finScope, finFreq, finQSeries]);
-  // The splits register, once per ticker and only when the Финансы tab is
-  // open — the same laziness as the series above. An error resolves to [],
-  // which the table renders as the honest «не зафиксировано».
-  React.useEffect(() => {
-    if (!ticker || tab !== "financials" || splits !== null) return undefined;
-    let alive = true;
-    fetch(`/api/company/${encodeURIComponent(ticker)}/splits`)
-      .then((r) => r.json())
-      .then((d) => { if (alive) setSplits(d.ok ? (d.items || []) : []); })
-      .catch(() => { if (alive) setSplits([]); });
-    return () => { alive = false; };
-  }, [ticker, tab, splits]);
 
   // ТЗ §8: the server owns this arithmetic, per ISSUER, with the auditor's
   // blocking findings already applied. A failure leaves `mult` null and the rail
@@ -634,19 +583,9 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               <strong>{lang === "ru" ? "Административная проверка" : lang === "uz" ? "Ma'muriy tekshiruv" : "Administrative review"}: {qualityIssue}</strong>
               <span className="muted" style={{ marginLeft: 8 }}>{[qualityPeriod, qualityField].filter(Boolean).join(" · ")}</span>
             </div>}
-            <CompanyFinancialsTab ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
-              key={`${ticker}:${finStandard}:${finScope}:${finFreq}`}
+            <IssuerFinancials ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
               standard={finStandard} onStandardChange={setFinStandard}
-              scope={finScope || (finFreq === "quarterly" ? finQSeries?.scope : finSeries?.scope)}
-              onScopeChange={(value) => { setFinScope(value); setFinSeries(null); setFinQSeries(null); }}
-              series={(finFreq === "quarterly" ? finQSeries?.series : finSeries?.series) || {}}
-              periods={(finFreq === "quarterly" ? finQSeries?.periods : finSeries?.periods) || []}
-              dataGaps={(finFreq === "quarterly" ? finQSeries?.data_gaps : finSeries?.data_gaps) || []}
-              periodBasis={finFreq === "quarterly" ? finQSeries?.period_basis : finSeries?.period_basis}
-              loading={finFreq === "quarterly"
-                ? (finQLoading && finQSeries === null)
-                : (finLoading && finSeries === null)}
-              freq={finFreq} onFreqChange={setFinFreq} splits={splits} />
+              freq={finFreq} onFreqChange={setFinFreq} />
           </>
         )}
         {insightOpen && insightReport && (
