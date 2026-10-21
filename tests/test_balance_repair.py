@@ -8,6 +8,7 @@ import data_quality as dq
 from catalogue import balance_repair, financial_store, filings, sources, storage
 
 FILING = json.loads((Path(__file__).parent / 'fixtures/sector_v22_filings.json').read_text(encoding='utf-8'))['UZAS']
+BANK = json.loads((Path(__file__).parent / 'fixtures/ocbk_2025_balance.json').read_text(encoding='utf-8'))
 
 
 @pytest.fixture
@@ -83,3 +84,59 @@ def test_unverified_sources_never_change_the_stored_data(source, monkeypatch, fa
     assert result['changed'] == 0
     assert result['skipped']
     assert dq.approved_corrections_for('UZAS', 'NSBU', 2026, 2)['total_assets'] == 228022545.4
+
+
+def test_ocbk_derived_equity_cannot_validate_a_broken_filed_balance(source, monkeypatch):
+    monkeypatch.setattr(filings, 'get_report_urls', lambda *_: {'excel_url': BANK['source_url']})
+    monkeypatch.setattr(sources, 'fetch_report_excel_data', lambda *_: {'ok': True, 'balance': BANK})
+    with pytest.raises(ValueError, match='Filing balance does not reconcile'):
+        balance_repair.verified_balance('OCBK', 'NSBU', 2025, 0)
+
+
+def test_unverified_repair_can_restore_only_its_own_unchanged_write(source, monkeypatch):
+    bad = correction('Автоматическая подсказка по формуле: Assets = equity + liabilities.')
+    assert balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=source/'backup')['changed'] == 1
+    def unverified(**_):
+        raise ValueError('Filing balance does not reconcile')
+    monkeypatch.setattr(balance_repair, 'verified_balance', unverified)
+    preview = balance_repair.rollback_unverified(backup_dir=source/'backup', apply=False)
+    assert preview['restored'] == 0 and len(preview['plans']) == 1
+    restored = balance_repair.rollback_unverified(backup_dir=source/'backup', apply=True)
+    assert restored['restored'] == 1
+    assert dq.approved_corrections_for('UZAS', 'NSBU', 2026, 2)['total_assets'] == 228022545.4
+    conn = storage.get_catalog_conn()
+    try:
+        assert conn.execute("SELECT total_liabilities FROM catalog_financials WHERE ticker='UZAS'").fetchone()[0] == 80360618.0
+    finally:
+        conn.close()
+    assert balance_repair.rollback_unverified(backup_dir=source/'backup', apply=True)['restored'] == 0
+
+
+@pytest.mark.parametrize('ticker,org', [('HMKB', 'bank'), ('UZMK', 'jsc')])
+def test_explicit_source_verification_accepts_real_balanced_other_sectors(source, monkeypatch, ticker, org):
+    data = json.loads((Path(__file__).parent/'fixtures/sector_v22_filings.json').read_text(encoding='utf-8'))[ticker]['workbook']
+    monkeypatch.setattr(filings, 'get_report_urls', lambda *_: {'excel_url': 'https://openinfo.uz/report?org_type=' + org})
+    monkeypatch.setattr(sources, 'fetch_report_excel_data', lambda *_: {'ok': True, **data})
+    verified = balance_repair.verified_balance(ticker, 'NSBU', 2026, 2)
+    assert verified['total_assets'] == pytest.approx(verified['total_equity'] + verified['total_liabilities'], rel=.0005)
+
+
+@pytest.mark.parametrize('change', ['new_balance', 'manual_review', 'source_unavailable', 'source_incomplete'])
+def test_rollback_does_not_undo_later_changes_or_react_to_source_outages(source, monkeypatch, change):
+    bad = correction('Автоматическая подсказка по формуле: Assets = equity + liabilities.')
+    balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=source/'backup')
+    def unverified(**_):
+        if change == 'source_incomplete':
+            raise ValueError('Filing balance is incomplete')
+        raise ValueError('Balance workbook unavailable' if change == 'source_unavailable' else 'Filing balance does not reconcile')
+    monkeypatch.setattr(balance_repair, 'verified_balance', unverified)
+    conn = storage.get_catalog_conn()
+    try:
+        with conn:
+            if change == 'new_balance':
+                conn.execute("UPDATE catalog_financials SET total_assets=500000000 WHERE ticker='UZAS'")
+            elif change == 'manual_review':
+                conn.execute("UPDATE data_corrections SET reviewed_by='later-human-review' WHERE id=?", (bad['id'],))
+    finally:
+        conn.close()
+    assert balance_repair.rollback_unverified(backup_dir=source/'backup', apply=True)['restored'] == 0
