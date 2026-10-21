@@ -9,9 +9,25 @@ import json
 import os
 import threading
 import time
+from contextlib import contextmanager
 
 
 _EXCEL_CACHE_LOCK = threading.Lock()
+
+
+@contextmanager
+def _cache_writer():
+    """Serialize read/modify/replace across the web and collector processes."""
+    with _EXCEL_CACHE_LOCK:
+        with _excel_cache_file().with_suffix('.lock').open('a+b') as lock:
+            if os.name == 'posix':
+                import fcntl
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if os.name == 'posix':
+                    fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _excel_cache_file() -> Path:
@@ -84,24 +100,53 @@ def _get_excel_cache(url: str) -> dict[str, Any] | None:
         payload = copy.deepcopy(payload)
 
         payload["from_cache"] = True
+        if item.get('refresh_failed'):
+            payload['refresh_failed'] = True
 
         return payload
 
     return None
 
 
-def _set_excel_cache(url: str, payload: dict[str, Any]) -> None:
+def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool = False) -> None:
     if not url or collectors_openinfo_settings.EXCEL_CACHE_TTL_SECONDS <= 0:
         return
     cached_payload = dict(payload)
     cached_payload["from_cache"] = False
-    with _EXCEL_CACHE_LOCK:
+    with _cache_writer():
         cache = _load_excel_cache()
-        cache[url] = {"cached_at": time.time(), "payload": cached_payload}
+        if existing_only and url not in cache:
+            return
+        previous = cache.get(url) or {}
+        cache[url] = {**previous, "cached_at": time.time(), "payload": cached_payload,
+                      "refresh_failed": False}
         # Keep the cache small; parsed snapshots are enough for analysis.
         if len(cache) > 500:
             cache = dict(sorted(cache.items(), key=lambda pair: pair[1].get("cached_at", 0))[-500:])
         _save_excel_cache(cache)
+
+
+def claim_excel_refresh(url: str, revision: str | None = None) -> bool:
+    """At most one repair request per URL/revision/hour, including failures."""
+    with _cache_writer():
+        cache = _load_excel_cache()
+        item = cache.get(url)
+        if not item:
+            return True
+        if (item.get('refresh_revision') == revision
+                and time.time() - item.get('refresh_attempt_at', 0) < 3600):
+            return False
+        cache[url] = {**item, 'refresh_attempt_at': time.time(), 'refresh_revision': revision}
+        _save_excel_cache(cache)
+    return True
+
+
+def failed_excel_refresh(url: str) -> None:
+    with _cache_writer():
+        cache = _load_excel_cache()
+        if url in cache:
+            cache[url] = {**cache[url], 'refresh_failed': True}
+            _save_excel_cache(cache)
 
 
 _EXCEL_CACHE_MEMO: tuple[tuple[str, int, int], dict[str, Any]] | None = None

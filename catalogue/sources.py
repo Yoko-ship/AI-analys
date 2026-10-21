@@ -23,6 +23,26 @@ from urllib.parse import urlencode
 import catalogue.filings as catalogue_filings
 import catalogue.periods as catalogue_periods
 import re
+import hashlib
+import json
+
+
+def _financial_revision(ticker, form, year, quarter, urls):
+    """Actual statement changes invalidate a workbook; polling timestamps do not.
+
+    Calculated on read so every catalogue writer, including external collectors,
+    participates without maintaining a separate invalidation event pipeline.
+    """
+    from catalogue.storage import get_catalog_conn
+    c = get_catalog_conn()
+    try:
+        row = c.execute('SELECT * FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?',
+                        (ticker, form, year, quarter)).fetchone()
+    finally:
+        c.close()
+    values = {k: v for k, v in dict(row or {}).items()
+              if k not in {'ticker', 'updated_at', 'report_id'}}
+    return hashlib.sha256(json.dumps([values, urls.get('published_at')], sort_keys=True, default=str).encode()).hexdigest()
 
 
 _LEGAL_FORM_TOKENS = {
@@ -224,7 +244,7 @@ def _probe_org_type(session: Any, form2_records: list[dict], period_type: str) -
 
 def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
-                            use_snapshot_cache: bool = True) -> dict[str, Any]:
+                            use_snapshot_cache: bool = True, revalidate_cached: bool = False) -> dict[str, Any]:
 
     urls = catalogue_filings.get_report_urls(ticker, form, year, quarter)
 
@@ -235,6 +255,8 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
 
     session = _make_session()
+    revision = _financial_revision(ticker, form, year, quarter, urls) if use_snapshot_cache else None
+    refresh_options = {'revalidate_cached': True} if revalidate_cached else {}
 
     income: dict | None = None
 
@@ -247,6 +269,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
     if urls.get("excel_url"):
 
         doc = {"excel_url": urls["excel_url"], "id": None, "object_id": None,
+               "financial_revision": revision,
 
                "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
 
@@ -254,7 +277,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
         try:
 
-            parsed = (parse_excel_report_document(session, doc) if use_snapshot_cache
+            parsed = (parse_excel_report_document(session, doc, **refresh_options) if use_snapshot_cache
 
                       else catalogue_history._parse_workbook_uncached(session, doc["excel_url"]))
 
@@ -301,6 +324,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
         else:
 
             doc1 = {"excel_url": urls["excel_url_form1"], "id": None, "object_id": None,
+                    "financial_revision": revision,
 
                     "published_at": urls.get("published_at"), "period_type": urls.get("period_type"),
 
@@ -308,7 +332,7 @@ def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
             try:
 
-                parsed1 = (parse_excel_report_document(session, doc1) if use_snapshot_cache
+                parsed1 = (parse_excel_report_document(session, doc1, **refresh_options) if use_snapshot_cache
 
                            else catalogue_history._parse_workbook_uncached(session, doc1["excel_url"]))
 

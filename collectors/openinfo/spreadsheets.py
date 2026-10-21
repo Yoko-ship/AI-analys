@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import Any
 import requests
+import hashlib
 
 from io import BytesIO
 import collectors.openinfo.cache as collectors_openinfo_cache
@@ -29,28 +30,48 @@ def preview_excel_url(session: requests.Session, url: str, max_rows: int = 5) ->
 def parse_excel_report_document(
     session: requests.Session,
     document: dict[str, Any],
+    *, revalidate_cached: bool = False,
 ) -> dict[str, Any]:
     url = document.get("excel_url")
     if not url:
         return {"ok": False, "error": "excel_url is missing"}
 
     cached = collectors_openinfo_cache._get_excel_cache(url)
-    if cached and cached.get("parser_version") == collectors_openinfo_settings.EXCEL_PARSER_VERSION:
+    compatible = cached and cached.get("parser_version") == collectors_openinfo_settings.EXCEL_PARSER_VERSION
+    revision = document.get('financial_revision')
+    changed = compatible and revision is not None and cached.get('financial_revision') != revision
+    if compatible:
+        if not changed and not revalidate_cached:
+            return cached
+        if not collectors_openinfo_cache.claim_excel_refresh(url, revision):
+            if changed:
+                cached['refresh_failed'] = True
+            return cached
+
+    try:
+        return _download_excel_report(session, document)
+    except Exception:
+        if not compatible:
+            raise
+        collectors_openinfo_settings.logger.warning('OpenInfo workbook refresh failed; retaining cached source', exc_info=True)
+        collectors_openinfo_cache.failed_excel_refresh(url)
+        cached['refresh_failed'] = True
         return cached
+
+
+def _download_excel_report(session, document):
+    url = document['excel_url']
 
     response = session.get(url, timeout=collectors_openinfo_settings.REQUEST_TIMEOUT)
     response.raise_for_status()
     content_length = response.headers.get("content-length")
     size = int(content_length) if content_length and content_length.isdigit() else len(response.content)
     if size > collectors_openinfo_settings.EXCEL_MAX_BYTES:
-        return {
-            "ok": False,
-            "error": f"Excel file is too large: {size} bytes",
-            "content_length": size,
-            "max_bytes": collectors_openinfo_settings.EXCEL_MAX_BYTES,
-        }
+        raise ValueError(f"Excel file is too large: {size} bytes")
 
     parsed = collectors_openinfo_workbooks._parse_excel_workbook(response.content)
+    if not parsed.get('sheets') or parsed.get('warnings'):
+        raise ValueError('Workbook could not be parsed completely')
     payload = {
         "ok": True,
         "source": "openinfo_excel",
@@ -64,6 +85,8 @@ def parse_excel_report_document(
         "title": document.get("title"),
         "content_type": response.headers.get("content-type"),
         "content_length": size,
+        "content_sha256": hashlib.sha256(response.content).hexdigest(),
+        "financial_revision": document.get('financial_revision'),
         **parsed,
     }
     collectors_openinfo_cache._set_excel_cache(url, payload)

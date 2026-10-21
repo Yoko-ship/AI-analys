@@ -37,13 +37,21 @@ def _parse_workbook_uncached(session: Any, excel_url: str) -> dict[str, Any]:
     second read to serve, so it takes the workbook straight.
     """
     from collectors.openinfo.workbooks import _parse_excel_workbook
+    from collectors.openinfo.cache import _set_excel_cache
+    import hashlib
 
     response = session.get(excel_url, timeout=REQUEST_TIMEOUT)
     response.raise_for_status()
     content = response.content
     if len(content) > EXCEL_HARVEST_MAX_BYTES:
         return {"ok": False, "error": f"Excel file is too large: {len(content)} bytes"}
-    return {"ok": True, "source": "openinfo_excel", **_parse_excel_workbook(content)}
+    payload = {"ok": True, "source": "openinfo_excel",
+               "content_sha256": hashlib.sha256(content).hexdigest(), **_parse_excel_workbook(content)}
+    # Bulk history must not churn thousands of old filings through the cache,
+    # but a freshly read source must replace a copy already used by reports.
+    if payload.get('sheets') and not payload.get('warnings'):
+        _set_excel_cache(excel_url, payload, existing_only=True)
+    return payload
 
 
 EXCEL_HARVEST_MAX_BYTES = int(os.getenv("OPENINFO_EXCEL_MAX_BYTES", "3000000"))

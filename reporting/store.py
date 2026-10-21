@@ -91,7 +91,8 @@ def claim_job(job_id):
 
 
 def finish_job(job_id, state, attempts, error):
-    next_attempt = (datetime.now(timezone.utc) + timedelta(seconds=60 * 2 ** attempts)).isoformat()
+    delay = max(3600 if error == 'SOURCE_REFRESH_FAILED' else 0, 60 * 2 ** attempts)
+    next_attempt = (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat()
     with connect() as connection:
         connection.execute(
             "UPDATE sector_jobs SET state=?,attempts=?,next_attempt=?,error_code=?,updated_at=? WHERE id=?",
@@ -128,11 +129,22 @@ def record_report(report):
             "WHERE p.issuer_id=? AND p.language=? AND p.standard=?", key).fetchone()
         if prior:
             prior_report = json.loads(prior["payload"])
+            if report.get('source_refresh_failed'):
+                # A timeout must not promote a mixture of a new catalogue and
+                # an older workbook over the last verified publication.
+                prior_report['source_refresh_failed'] = True
+                prior_report['data_quality'] = [*prior_report.get('data_quality', []),
+                    *[q for q in report.get('data_quality', []) if q.get('code') == 'SOURCE_REFRESH_FAILED']]
+                return prior_report
             report["availability"]["last_successful_period"] = prior_report["period"]
             if report["status"] != "available":
                 report["last_successful_report"] = {
                     k: prior_report.get(k) for k in ("version", "period", "financial_as_of", "generated_at", "headline", "paragraphs", "sources")
                 }
+        if report.get('source_refresh_failed'):
+            report['status'] = 'stale'
+            report['availability']['reason_code'] = 'source_refresh_failed'
+            report['version'] = digest([report['version'], 'source_refresh_failed'])
         stamp = report.get("generated_at") or now()
         report["generated_at"] = stamp
         connection.execute(

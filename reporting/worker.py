@@ -14,11 +14,13 @@ def run_pending(limit=10):
         try:
             issuer = financials.resolve_issuer(row["ticker"])
             reports = [sector_report_service.sector_report(issuer, "nsbu", None, "separate", lang) for lang in ("ru", "uz")]
-            retryable = any(r["status"] == "mapping_failed" for r in reports)
+            refresh_failed = any(r.get('source_refresh_failed') for r in reports)
+            retryable = refresh_failed or any(r["status"] == "mapping_failed" for r in reports)
             state = ("retry" if retryable and attempts < 4 else "incident" if retryable
                      else "completed" if all(r["status"] == "available" for r in reports) else "blocked")
             if state != "completed":
-                error = next((q["code"] for r in reports for q in r["data_quality"] if q.get("severity") == "blocking"), reports[0]["status"])
+                error = ('SOURCE_REFRESH_FAILED' if refresh_failed else
+                         next((q["code"] for r in reports for q in r["data_quality"] if q.get("severity") == "blocking"), reports[0]["status"]))
         except Exception:
             state = "retry" if attempts < 4 else "incident"
             error = "SOURCE_TEMPORARILY_UNAVAILABLE"

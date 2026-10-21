@@ -126,7 +126,8 @@ def special_type(issuer):
     return None
 
 
-def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None):
+def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None,
+                  _workbook=None, _refresh_checked=False):
     if persist:
         from reporting import store as report_store
         override = report_store.active_override(issuer["id"], financials.now().date().isoformat())
@@ -174,10 +175,14 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         if "Q" not in selected:
             quarter = 0
         try:
-            workbook = financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
+            workbook = _workbook if _workbook is not None else financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
             if not workbook.get("ok"):
                 raise ValueError("source workbook unavailable")
             workbook = deepcopy(workbook)
+            hashes = {form: part['content_sha256'] for form in ('income', 'balance')
+                      if (part := workbook.get(form) or {}).get('content_sha256')}
+            if hashes:
+                source['content_hashes'] = hashes
             for form, url in (("income", doc.get("excel_url")), ("balance", doc.get("excel_url_form1") or doc.get("excel_url"))):
                 if isinstance(workbook.get(form), dict) and url:
                     workbook[form]["source_url"] = url
@@ -212,6 +217,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             if org in BANK_FORMS:
                 _drop_unbalanced_opening(snapshot)
         except Exception as exc:
+            snapshot['source_refresh_failed'] = True
             logger.warning("Workbook enrichment failed for %s %s", issuer.get("ticker"), selected,
                            exc_info=True)
             # Internal exceptions never become public prose. Keep a verified,
@@ -266,6 +272,32 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             if len(_REPORT_CACHE) >= 300:
                 _REPORT_CACHE.clear()
             _REPORT_CACHE[cache_key] = deepcopy(report)
+    cached_source = any((workbook or {}).get(form, {}).get('from_cache')
+                        for form in ('income', 'balance') if (workbook or {}).get(form))
+    incomplete = report.get('content_status') == 'shortened' or any(
+        q.get('code') == 'KEY_LINE_MISSING' for q in report.get('data_quality', []))
+    if standard == 'nsbu' and selected and cached_source and incomplete and not _refresh_checked:
+        year, quarter = financials.period_key(selected)
+        try:
+            refreshed = financials.fetch_report_excel_data(
+                issuer['ticker'], 'NSBU', year, quarter if 'Q' in selected else 0, revalidate_cached=True)
+            if refreshed.get('ok'):
+                return sector_report(issuer, standard, period, scope, lang, persist=persist,
+                                     rule_override=rule_override, _workbook=refreshed, _refresh_checked=True)
+        except Exception:
+            logger.warning('Incomplete report source refresh failed for %s', issuer['ticker'], exc_info=True)
+        report['source_refresh_failed'] = True
+    if snapshot.get('source_refresh_failed') or any(
+            ((workbook or {}).get(form) or {}).get('refresh_failed') for form in ('income', 'balance')):
+        report['source_refresh_failed'] = True
+    if report.get('source_refresh_failed'):
+        report['data_quality'] = [*report.get('data_quality', []), {
+            'code': 'SOURCE_REFRESH_FAILED', 'severity': 'warning',
+            'message': financial_analysis_sector_language.tr(lang,
+                'Обновление источника не удалось; показаны последние сохранённые данные.',
+                'Manbani yangilab bo‘lmadi; oxirgi saqlangan ma’lumotlar ko‘rsatilgan.',
+                'Source refresh failed; showing the last saved data.'),
+        }]
     report["financial_snapshot_id"] = report["source_snapshot_hash"]
     report["regression"] = regression
     security = issuer.get("security") or {}
