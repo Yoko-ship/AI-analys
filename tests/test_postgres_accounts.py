@@ -207,3 +207,23 @@ def test_report_queue_is_idempotent_and_claims_once_on_postgres(pg_catalogue):
     assert store.claim_job(job) is False
     store.finish_job(job, "completed", 1, None)
     assert store.due_jobs() == []
+
+
+def test_verified_uzas_balance_repair_is_atomic_on_postgres(pg_catalogue, monkeypatch, tmp_path):
+    from catalogue import balance_repair, financial_store
+    from tests.test_balance_repair import correction, FILING
+    from catalogue import parsing
+    import data_quality
+
+    financial_store.upsert_financials_cache('UZAS', 'NSBU', 2026, 2, {
+        'total_assets': 332548245.7, 'total_equity': 147661927.4, 'total_liabilities': 80360618.0})
+    correction('Автоматическая подсказка по формуле: Assets = equity + liabilities.')
+    values = parsing.compute_filing_values(**{k + '_data': v for k, v in FILING['workbook'].items()
+                                             if k in ('income', 'balance')})['source_values']
+    monkeypatch.setattr(balance_repair, 'verified_balance', lambda **_: {
+        **values, 'source_url': 'https://openinfo.uz/uzas-2026q2.xlsx'})
+    result = balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=tmp_path / 'backup')
+    assert result['skipped'] == []
+    assert result['changed'] == 1
+    assert data_quality.approved_corrections_for('UZAS', 'NSBU', 2026, 2) == {}
+    assert balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=tmp_path / 'backup')['changed'] == 0

@@ -712,6 +712,8 @@ def _apply_columns(snapshot, staged, protected=()):
             used[target] = False
             continue
         for key, value in rows.items():
+            if target == 'current_values' and key in snapshot.get('reviewed_correction_fields', ()):
+                continue
             snapshot[target][key] = value
         used[target] = True
     return used
@@ -860,9 +862,12 @@ def map_insurance_lines(snapshot, workbook):
     for target in ("current_values", "previous_values", "opening_values"):
         values = snapshot[target]
         if target != "previous_values":
-            net = financial_analysis_sector_numbers.difference(values.get("gross_insurance_reserves"), values.get("reinsurer_share_in_reserves"))
-            values["net_insurance_reserves"] = financial_analysis_sector_numbers.number(net)
-            values["total_liabilities"] = financial_analysis_sector_numbers.number(financial_analysis_sector_numbers.total(net, values.get("other_liabilities")))
+            from financial_analysis.insurance_reserves import reserve_totals
+            totals = reserve_totals(values.get('gross_insurance_reserves'), values.get('reinsurer_share_in_reserves'),
+                                    values.get('net_insurance_reserves'), values.get('other_liabilities'))
+            for field, value in totals.items():
+                if target != 'current_values' or field not in snapshot.get('reviewed_correction_fields', ()):
+                    values[field] = value
         else:
             continue
     for target in ("current_values", "previous_values"):

@@ -1294,6 +1294,54 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  repair-financial-balances:
+    environment: uzstock-production
+    name: Reconcile balances against exact official filings
+    needs: deploy-production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/API' && contains(github.event.head_commit.message, '[repair-financial-balances]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect, back up and reconcile retained balances
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          test "$(git rev-parse HEAD)" = "$1"
+          test "$(docker inspect --format '{{.Image}}' uzstock-web)" = "$(docker image inspect --format '{{.Id}}' uzstock-web:latest)"
+          systemctl show uzstock-financial-ingestion.service -p FragmentPath -p ActiveState
+          timer_active=$(systemctl is-active uzstock-financial-ingestion.timer || true)
+          restore_timer() {
+            if [ "$timer_active" = active ]; then systemctl start uzstock-financial-ingestion.timer; fi
+          }
+          trap restore_timer EXIT
+          systemctl stop uzstock-financial-ingestion.timer uzstock-financial-ingestion.service
+          docker exec uzstock-web python -m financial_ingestion.worker backup
+          docker exec uzstock-web python -m catalogue.balance_repair
+          docker exec uzstock-web python -m catalogue.balance_repair --apply
+          docker restart uzstock-web
+          REMOTE
+
   publish-reviewed-bank-ifrs:
     # Production secrets live in this environment, which only the API
     # branch may use: a pushed branch editing this file cannot reach them.

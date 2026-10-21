@@ -412,6 +412,17 @@ def _by_title(rows, needles, exclude=None, last=False):
     return hits[-1] if last else hits[0]
 
 
+def _insurance_block(bal, key):
+    """Reserve section, using the same gross-minus-share rule as the workbook parser."""
+    from financial_analysis.insurance_reserves import reserve_totals
+    gross = end_value(_by_tnum(bal, "580"), key)
+    share = end_value(_by_tnum(bal, "670"), key)
+    filed_net = end_value(_by_tnum(bal, "720"), key)
+    net = reserve_totals(gross, share, filed_net, None)['net_insurance_reserves']
+    return {"gross_insurance_reserves": gross, "reinsurer_share_in_reserves": share,
+            "net_insurance_reserves": net}
+
+
 def extract_metrics(detail):
     """Filed headline metrics in openinfo thousands (caller multiplies by 1000)."""
     org = detail.get("org_type")
@@ -522,6 +533,14 @@ def extract_metrics(detail):
         if total is None:
             lt, cur = end_value(lt_row, key), end_value(cur_row, key)
             total = None if lt is None and cur is None else (lt or 0.0) + (cur or 0.0)
+        if org == "insurance":
+            # Section III excludes the separate net-reserve obligations (720).
+            # Omitting them produces a false balance mismatch and can cause a
+            # later algebraic correction to shrink an otherwise valid asset total.
+            out["insurance"] = _insurance_block(bal, key)
+            out["other_liabilities"] = total
+            net = out["insurance"]["net_insurance_reserves"]
+            total = total + net if total is not None and net is not None else None
         out["total_liabilities"] = total
         # Cash: the settlement account, «Денежные средства на расчетном счете
         # (5100)» — the operating balance, not the «Денежные средства, всего»
@@ -556,6 +575,8 @@ def extract_metrics(detail):
         if any(v is not None for v in (eq_start, eq_end, as_start, as_end)):
             out["balance"] = {"equity_start": eq_start, "equity_end": eq_end,
                               "assets_start": as_start, "assets_end": as_end}
+            if org == "insurance":
+                out["balance"].update(out["insurance"], other_liabilities=out["other_liabilities"])
     return out
 
 

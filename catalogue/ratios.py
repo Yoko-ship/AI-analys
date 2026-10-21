@@ -418,10 +418,10 @@ def _cached_balance(balance_period: Any, total_assets: Any,
     Opening values stay unknown; we never copy a closing value into the start.
     """
     balance = dict(catalogue_codecs._decode_balance_period(balance_period) or {})
-    if catalogue_codecs._financials_num(balance.get("assets_end")) is None:
-        balance["assets_end"] = catalogue_codecs._financials_num(total_assets)
-    if catalogue_codecs._financials_num(balance.get("equity_end")) is None:
-        balance["equity_end"] = catalogue_codecs._financials_num(total_equity)
+    for field, value in (("assets_end", total_assets), ("equity_end", total_equity)):
+        current = catalogue_codecs._financials_num(value)
+        if current is not None or catalogue_codecs._financials_num(balance.get(field)) is None:
+            balance[field] = current
     for key in catalogue_codecs._BALANCE_BASE_KEYS:
         balance.setdefault(key, None)
     return balance if any(value is not None for value in balance.values()) else None
