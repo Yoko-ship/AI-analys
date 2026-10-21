@@ -76,7 +76,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
         if (d.stats) setMarketTradeStats(d.stats);
         // When OUR pipeline last wrote the board. Merged into the market meta
         // rather than kept apart, because the header badge reads one object.
-        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null }));
+        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null, validation: d.validation || null }));
       })
       .catch(() => {});
   }, [activeView, marketRows.length, marketLoading]);

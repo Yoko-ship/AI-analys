@@ -23,6 +23,8 @@ import instruments
 import obs
 import public_contract
 import reports_catalog as catalog_store
+import catalogue.facts as catalogue_facts
+import json
 import catalogue.fields as catalogue_fields
 import catalogue.market_store as catalogue_market_store
 import catalogue.ratios as catalogue_ratios
@@ -39,6 +41,16 @@ import server.settings as settings
 
 
 router = APIRouter()
+
+
+async def _market_validation():
+    facts = await asyncio.get_running_loop().run_in_executor(
+        None, partial(catalogue_facts.get_facts, '_collector', 'meta'))
+    value = next((f.get('value_text') for f in facts if f.get('field') == 'market_validation'), None)
+    try:
+        return json.loads(value) if value else None
+    except (ValueError, TypeError):
+        return None
 
 
 @router.get("/api/market/stocks")
@@ -122,6 +134,7 @@ async def api_market_trades() -> dict[str, Any]:
         return http._json_safe({
             "ok": True,
             "source": "uzse-trade-results",
+            "validation": await _market_validation(),
             "trade_date": day,
             "updated_at": market_dates._as_utc_iso(max(stamps)) if stamps else None,
             "securities": len(session),
@@ -518,6 +531,7 @@ async def api_market_trade_stats() -> dict[str, Any]:
     return http._json_safe({
         "ok": True,
         "count": len(stats),
+        "validation": await _market_validation(),
         "refreshed_at": market_dates._as_utc_iso(max(stamps)) if stamps else None,
         "trade_date": max(dates) if dates else None,
         "stats": stats,

@@ -10,7 +10,7 @@ const row = (ticker, price, prev, volume) => ({
 });
 const stocks = [row("AGBA", 1000, 900, 1e6), row("KVTS", 3000, 3100, 3e6)];
 
-async function openBoard(page, cols) {
+async function openBoard(page, cols, validation = null) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript((saved) => {
@@ -26,6 +26,7 @@ async function openBoard(page, cols) {
     if (url.pathname === "/api/companies") return json({ companies: stocks.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
     if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(stocks.map((r) => [r.ticker, { ...r, security_type: "stock" }])) });
     if (url.pathname === "/api/market/stocks") return json({ stocks });
+    if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: {}, validation });
     if (url.pathname === "/api/market/financials") return json({ ok: true, financials: {} });
     if (url.pathname === "/api/market/multiples") return json({ ok: true, items: [] });
     if (url.pathname === "/api/auth/me") return json({ user: null }, 401);
@@ -68,4 +69,11 @@ test("export carries only the columns shown on the board", async ({ page }) => {
   expect(header).not.toContain("ISIN");
   expect(header).not.toContain("P/E");
   expect(errors).toEqual([]);
+});
+
+
+test("partial market refresh names the delayed security without hiding verified rows", async ({ page }) => {
+  await openBoard(page, ["date"], { partial: true, trade_date: "20261021", withheld: [{ ticker: "BECMP", isin: "UZ702845K017" }] });
+  await expect(page.getByText(/Обновление задерживается.*BECMP/)).toBeVisible();
+  await expect(page.locator(".market-table tbody tr")).toHaveCount(2);
 });

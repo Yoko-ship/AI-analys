@@ -241,7 +241,7 @@ def test_scheduled_collector_publishes_only_a_complete_fallback(monkeypatch, sou
     assert trading.push_trade_stats() == (0 if available else 1)
     if available:
         assert [p for p, _ in pushed] == ["/api/admin/trade-stats", "/api/admin/quotes",
-                                          "/api/admin/quotes"]
+                                          "/api/admin/quotes", "/api/admin/facts"]
         assert pushed[1][1]["intraday"][0]["quantity"] == 4  # the hourly bars
         assert pushed[2][1]["rows"][0]["close_price"] == 10
         assert pushed[2][1]["history"][0]["trade_date"] == DAY

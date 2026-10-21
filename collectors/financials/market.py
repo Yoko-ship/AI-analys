@@ -101,7 +101,7 @@ def quotes_from_archive(targets: list[tuple[str, str]]) -> list[dict]:
 
 
 def push_quotes(stats: dict[str, dict], *, source: str = "uzse",
-                archive_quotes: list[dict] | None = None) -> int:
+                archive_quotes: list[dict] | None = None, exclude_isins: set[str] | None = None) -> int:
     """Read the exchange's own quote for each security that traded, and push it.
 
     The board's change % is close-to-close against the exchange's previous close,
@@ -135,7 +135,7 @@ def push_quotes(stats: dict[str, dict], *, source: str = "uzse",
     except Exception:  # noqa: BLE001 — this must never cost us the session
         collectors_financials_settings.log.warning("board security list unavailable", exc_info=True)
 
-    targets = sorted(traded | listed)
+    targets = sorted(t for t in traded | listed if t[0] not in (exclude_isins or set()))
     if not targets:
         collectors_financials_settings.log.warning("no traded securities to quote")
         return 0

@@ -1,7 +1,7 @@
 """Validated UZSE market data from OpenInfo when the exchange is unreachable."""
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
 import logging
 import math
@@ -92,7 +92,7 @@ class SurplusRows(ValueError):
 
 
 def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
-                     max_pages: int = 100) -> list[dict]:
+                     max_pages: int = 100, isin: str | None = None) -> list[dict]:
     """Every board execution of one session, or ValueError — never a short read.
 
     Pin the session before pagination; require the advertised count on every
@@ -104,6 +104,8 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
     """
     day = iso_day.replace("-", "")
     params = {"start_date": iso_day, "end_date": iso_day, "page_size": 1000}
+    if isin:
+        params["isu_cd"] = isin
     trades: list[dict] = []
     read = 0
     other_markets: dict[str, int] = defaultdict(int)
@@ -131,6 +133,8 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
             raise ValueError("archive session changed or a page is incomplete")
         read += len(batch)
         for record in batch:
+            if isin and str(record.get("isin_code") or "").strip().upper() != isin:
+                raise ValueError("filtered archive returned another security")
             item = _board_execution(record, day)
             if item is None:
                 other_markets[str(record.get("market_id"))] += 1
@@ -149,6 +153,36 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
     if read > expected:
         raise SurplusRows(trades, read - expected)
     return trades
+
+
+def _verified_securities(client, trades, iso_day):
+    """Localize a bad aggregate count using stable, complete ISIN-filtered reads.
+
+    21.10.2026: 9,810 rows for count 9,802. Only BECMP's filtered read
+    disagreed (16 vs 8); the other 79 agreed. Keep real identical trades:
+    compare multisets, never deduplicate or guess which eight rows to remove.
+    """
+    def identity(row):
+        return tuple(row.get(k) for k in ('issue_code', 'trade_datetime', 'market_id',
+                     'board_id', 'trade_price', 'trade_quantity', 'trading_value'))
+
+    grouped = defaultdict(list)
+    for row in trades:
+        grouped[row['issue_code']].append(row)
+    verified, withheld = [], []
+    for isin, rows in sorted(grouped.items()):
+        try:
+            checked = _read_executions(client, iso_day, still_newest=False, isin=isin)
+            if Counter(map(identity, checked)) != Counter(map(identity, rows)):
+                raise ValueError('filtered execution set changed')
+        except Exception as error:
+            log.warning('OpenInfo %s %s withheld: %s', iso_day, isin, type(error).__name__)
+            withheld.append({'isin': isin, 'ticker': rows[0].get('ticker') or isin})
+        else:
+            verified.extend(checked)
+    if not verified:
+        raise ValueError('no security could be independently verified')
+    return verified, withheld
 
 
 # The most securities whose official conclusion may stand in for executions
@@ -224,11 +258,19 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
         traded = [isin for isin, row in stats.items() if row["trade_count"]]
         conclusions_out = traded and not any((quoted.get(isin) or {}).get("trade_date") == day
                                              for isin in traded)
+        validation = {'trade_date': day, 'partial': False, 'withheld': []}
         if surplus and conclusions_out:
-            # Without the conclusions nothing can tell the phantom row from a
-            # genuine identical trade. The next run after they post publishes it.
-            raise ValueError(f"archive served {surplus} surplus execution(s) and "
-                             f"{iso_day} has no conclusions yet to settle them")
+            if not _session_finished(iso_day):
+                raise ValueError(f"session {iso_day} is still trading")
+            trades, withheld = _verified_securities(client, trades, iso_day)
+            validation.update(partial=bool(withheld), withheld=withheld)
+            grouped = defaultdict(list)
+            for trade in trades:
+                grouped[trade['issue_code']].append(trade)
+            stats = {isin: ts._aggregate(isin, rows, day) for isin, rows in grouped.items()}
+            traded = [isin for isin, row in stats.items() if row['trade_count']]
+            quotes = [q for q in quotes if q['isin'] in stats]
+            log.warning('OpenInfo %s: %d verified securities, %d withheld', day, len(stats), len(withheld))
         if conclusions_out:
             # openinfo posts the day's conclusions only overnight (none by 21:30
             # on 02.10, 05.10 or 06.10), while its executions are complete at the
@@ -243,8 +285,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                 for isin in traded]
             log.info("OpenInfo fallback: %s provisional from %d executions, %d securities "
                      "(conclusions not posted yet)", day, len(trades), len(stats))
-            return {"source": "openinfo", "reachable": True, "complete": True,
-                    "provisional": True, "trade_date": day, "count": len(stats),
+            return {"source": "openinfo", "reachable": True, "complete": not validation["partial"],
+                    "partial": validation["partial"], "validation": validation, "provisional": True, "trade_date": day, "count": len(stats),
                     "stats": stats, "quotes": quotes,
                     "intraday": session_bars(trades, {
                         (isin, day): (stats[isin]["open_price"], stats[isin]["close_price"])
