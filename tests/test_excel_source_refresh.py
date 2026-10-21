@@ -259,3 +259,19 @@ def test_failed_first_attempt_cannot_poison_later_publication_version(monkeypatc
     latest = store.latest_publication('17', 'ru', 'nsbu')
     assert latest['status'] == 'available'
     assert not latest.get('source_refresh_failed')
+
+
+def test_same_headlines_do_not_hide_next_day_source_replacement(source, monkeypatch):
+    # Detail lines can change while the catalogue's summary figures do not.
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(cache.time, 'time', lambda: clock[0])
+    cache._set_excel_cache(source['url'], {**source['cached'], 'financial_revision': 'same'})
+    session, calls = session_for()
+    document = {'excel_url': source['url'], 'financial_revision': 'same'}
+    assert loan(spreadsheets.parse_excel_report_document(session, document)) == 0
+    assert calls == []
+    clock[0] += 86401
+    result = spreadsheets.parse_excel_report_document(session, document)
+    assert loan(result) == 36754304013
+    spreadsheets.parse_excel_report_document(session, document)
+    assert calls == [source['url']]

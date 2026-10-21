@@ -126,6 +126,13 @@ def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool =
         _save_excel_cache(cache)
 
 
+def excel_refresh_due(url: str) -> bool:
+    """Recheck same-URL replacements daily, even if headline figures agree."""
+    with _EXCEL_CACHE_LOCK:
+        item = _shared_excel_cache().get(url) or {}
+        return time.time() - float(item.get('cached_at') or 0) >= 86400
+
+
 def claim_excel_refresh(url: str, revision: str | None = None) -> bool:
     """At most one repair request per URL/revision/hour, including failures."""
     with _cache_writer():

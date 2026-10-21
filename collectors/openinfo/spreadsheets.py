@@ -41,6 +41,7 @@ def parse_excel_report_document(
     revision = document.get('financial_revision')
     changed = compatible and revision is not None and cached.get('financial_revision') != revision
     if compatible:
+        revalidate_cached = revalidate_cached or collectors_openinfo_cache.excel_refresh_due(url)
         if not changed and not revalidate_cached:
             return cached
         if not collectors_openinfo_cache.claim_excel_refresh(url, revision):
