@@ -2,7 +2,26 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import re
+from financial_analysis import profitability
+from financial_analysis.metric_names import named
 import financial_analysis.sector_numbers as financial_analysis_sector_numbers
+
+
+def period_months(period) -> int:
+    """Months a reporting period covers: Qn → 3n, H1 → 6, 9M → 9, a year → 12."""
+    text = str(period or "").upper()
+    m = re.search(r"Q([1-4])$", text)
+    if m:
+        return 3 * int(m.group(1))
+    if text.endswith("H1") or "6M" in text:
+        return 6
+    if text.endswith("9M"):
+        return 9
+    m = re.search(r"-(\d{2})-\d{2}$", text)
+    if m and 1 <= int(m.group(1)) <= 12:
+        return int(m.group(1))
+    return 12
 
 
 METHODS = {
@@ -35,7 +54,7 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
         if not percent:
             opening = financial_analysis_sector_numbers.ratio(financial_analysis_sector_numbers.total(*((lines.get(k) or {}).get("raw_previous", (lines.get(k) or {}).get("previous")) for k in numerators)),
                             financial_analysis_sector_numbers.total(*((lines.get(k) or {}).get("raw_previous", (lines.get(k) or {}).get("previous")) for k in denominators)))
-        results.append({"metric": code, "metric_code": code,
+        results.append({"metric": code, "metric_code": code, **(named(code) if code in {"P1", "P4"} else {}),
                         "method_id": f"nsbu-enterprise-{'profitability' if percent else 'liquidity'}-1.0:{code}",
                         "accounting_standard": "NSBU", "period": period,
                         "numerator_value": financial_analysis_sector_numbers.number(numerator), "denominator_value": financial_analysis_sector_numbers.number(denominator),
@@ -124,10 +143,36 @@ def provisions_offset_by_other_income(values):
     return abs(other / provisions - 1) <= GROSS_UP_TOLERANCE
 
 
+def return_ratios(values, opening, standard, period):
+    """The same period-specific net-profit returns served by the screener."""
+    results = []
+    for code, item in profitability.returns(values, opening, months=period_months(period)).items():
+        value = financial_analysis_sector_numbers.decimal(item["raw_result"])
+        labels = named(code)
+        for lang, text in {
+            "ru": "База — среднее на начало и конец периода." if item["denominator_basis"] == "average" else "Начальная величина отсутствует; база — на конец периода.",
+            "uz": "Baza — davr boshi va oxiridagi o‘rtacha qiymat." if item["denominator_basis"] == "average" else "Boshlang‘ich qiymat yo‘q; baza — davr oxiridagi qiymat.",
+            "en": "Uses the average opening and closing balance." if item["denominator_basis"] == "average" else "Opening balance unavailable; uses the closing balance.",
+        }.items():
+            labels[f"meaning_{lang}"] += " " + text
+        results.append({**item, "metric": code, "metric_code": code, **labels,
+                        "accounting_standard": standard.upper(), "period": period,
+                        "component_facts": ["net_income", "total_equity" if code == "roe" else "total_assets"],
+                        "display_result": str(value.quantize(Decimal("0.01"))) if value is not None else None,
+                        "opening_value": None, "change_value": None, "unit": "percent",
+                        "benchmark_type": None, "benchmark_min": None, "benchmark_max": None,
+                        "verification_status": "verified" if value is not None else "unavailable"})
+    return results
+
+
 def financial_ratios(values, previous, opening, organization_type, standard, period):
     results = []
     gross_up = provisions_offset_by_other_income(values)
+    returns = {item["metric"]: item for item in return_ratios(values, opening, standard, period)}
     for code in FINANCIAL_RATIOS.get(organization_type, ()):
+        if code in returns:
+            results.append(returns[code])
+            continue
         numerators, denominators, unit, basis = FINANCIAL_METHODS[code]
         percent = unit == "percent"
 

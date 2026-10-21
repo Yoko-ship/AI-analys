@@ -6,10 +6,10 @@ const fmt = (value, lang) => value == null ? "—" : Number(value).toLocaleStrin
 const safeUrl = (value) => /^https?:\/\//i.test(value || "") ? value : undefined;
 
 const RATIO_COPY = {
-  P1: ["Рентабельность активов", "Aktivlar rentabelligi", "Return on assets", "Чистая прибыль на каждые 100 сум активов", "Har 100 so‘mlik aktivdan sof foyda", "Net profit per 100 UZS of assets"],
+  P1: ["Доходность активов на конец периода (P1)", "Davr oxiridagi aktivlar daromadliligi (P1)", "Return on closing assets (P1)", "Чистая прибыль на каждые 100 сум активов на конец периода", "Davr oxiridagi har 100 so‘mlik aktivdan sof foyda", "Net profit per 100 UZS of closing assets"],
   P2: ["Доходность оборотных активов", "Aylanma aktivlar daromadliligi", "Return on current assets", "Прибыль до налога на каждые 100 сум оборотных активов", "Har 100 so‘mlik aylanma aktivdan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of current assets"],
   P3: ["Рентабельность вложенного капитала", "Kiritilgan kapital rentabelligi", "Return on invested capital", "Прибыль до налога на каждые 100 сум вложенного капитала", "Har 100 so‘mlik kiritilgan kapitaldan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of invested capital"],
-  P4: ["Рентабельность собственного капитала", "O‘z kapitali rentabelligi", "Return on equity", "Прибыль до налога на каждые 100 сум собственного капитала", "Har 100 so‘mlik o‘z kapitalidan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of equity"],
+  P4: ["Доходность капитала до налога (P4)", "Kapitalning soliqdan oldingi daromadliligi (P4)", "Pre-tax return on closing equity (P4)", "Прибыль до налога на каждые 100 сум капитала на конец периода", "Davr oxiridagi har 100 so‘mlik kapitaldan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of closing equity"],
   P5: ["Валовая маржа", "Yalpi marja", "Gross margin", "Валовая прибыль в каждых 100 сум выручки", "Har 100 so‘mlik tushumdagi yalpi foyda", "Gross profit in every 100 UZS of revenue"],
   P6: ["Рентабельность себестоимости", "Tannarx rentabelligi", "Return on cost of sales", "Валовая прибыль на каждые 100 сум себестоимости", "Har 100 so‘mlik tannarxdan yalpi foyda", "Gross profit per 100 UZS of cost of sales"],
   P7: ["Маржа до налога", "Soliqqacha marja", "Pre-tax margin", "Прибыль до налога в каждых 100 сум выручки", "Har 100 so‘mlik tushumdagi soliqdan oldingi foyda", "Pre-tax profit in every 100 UZS of revenue"],
@@ -18,10 +18,9 @@ const RATIO_COPY = {
   quick_ratio: ["Быстрая ликвидность", "Tezkor likvidlik", "Quick ratio", "Покрытие текущих обязательств без продажи запасов", "Zaxiralarni sotmasdan joriy majburiyatlarni qoplash", "Coverage of current liabilities without selling inventory"],
   absolute_liquidity: ["Абсолютная ликвидность", "Mutlaq likvidlik", "Absolute liquidity", "Доля текущих обязательств, которую можно погасить сразу", "Darhol to‘lash mumkin bo‘lgan joriy majburiyatlar ulushi", "Share of current liabilities payable immediately"],
   // Banks, microfinance and insurers (sector_calculations.FINANCIAL_METHODS).
-  // ROA and ROE divide the period's cumulative profit by the period-end
-  // balance and are not annualised — the meaning line says so.
-  roa: ["Рентабельность активов (ROA)", "Aktivlar rentabelligi (ROA)", "Return on assets (ROA)", "Чистая прибыль за отчётный период на каждые 100 сум активов, без пересчёта на год", "Hisobot davridagi sof foyda har 100 so‘mlik aktivga, yillikka aylantirilmagan", "Net profit for the reporting period per 100 UZS of assets, not annualised"],
-  roe: ["Рентабельность капитала (ROE)", "Kapital rentabelligi (ROE)", "Return on equity (ROE)", "Чистая прибыль за отчётный период на каждые 100 сум собственного капитала, без пересчёта на год", "Hisobot davridagi sof foyda har 100 so‘mlik o‘z kapitaliga, yillikka aylantirilmagan", "Net profit for the reporting period per 100 UZS of equity, not annualised"],
+  // ROA and ROE use the shared annualised period-return calculation.
+  roa: ["Рентабельность активов (ROA)", "Aktivlar rentabelligi (ROA)", "Return on assets (ROA)", "Чистая прибыль за период на каждые 100 сум активов, в пересчёте на год", "Hisobot davridagi sof foyda har 100 so‘mlik aktivga, yillikka aylantirilgan", "Net profit for the reporting period per 100 UZS of assets, annualised"],
+  roe: ["Рентабельность капитала (ROE)", "Kapital rentabelligi (ROE)", "Return on equity (ROE)", "Чистая прибыль за период на каждые 100 сум собственного капитала, в пересчёте на год", "Hisobot davridagi sof foyda har 100 so‘mlik o‘z kapitaliga, yillikka aylantirilgan", "Net profit for the reporting period per 100 UZS of equity, annualised"],
   equity_to_assets: ["Капитал к активам", "Kapitalning aktivlarga nisbati", "Equity to assets", "Доля собственного капитала в активах", "O‘z kapitalining aktivlardagi ulushi", "Share of assets funded by equity"],
   loans_to_deposits: ["Кредиты к средствам клиентов", "Kreditlarning mijozlar mablag‘lariga nisbati", "Loans to customer funds", "Сколько сум кредитов приходится на каждый сум средств клиентов", "Mijozlar mablag‘larining har bir so‘miga to‘g‘ri keladigan kredit", "Loans per 1 UZS of customer funds"],
   liquid_to_deposits: ["Ликвидные средства к средствам клиентов", "Likvid mablag‘larning mijozlar mablag‘lariga nisbati", "Liquid funds to customer funds", "Касса, остатки в ЦБ и в других банках на каждые 100 сум средств клиентов", "Har 100 so‘mlik mijozlar mablag‘iga kassa, Markaziy bank va boshqa banklardagi qoldiqlar", "Cash and balances with the central bank and other banks per 100 UZS of customer funds"],
@@ -35,7 +34,8 @@ const RATIO_COPY = {
 const ratioText = (item, lang, offset) => {
   const copy = RATIO_COPY[item.metric_code] || [item.metric_code, item.metric_code, item.metric_code, "", "", ""];
   const languageIndex = lang === "uz" ? 1 : lang === "en" ? 2 : 0;
-  return copy[offset + languageIndex];
+  const suffix = lang === "uz" ? "uz" : lang === "en" ? "en" : "ru";
+  return item[`${offset ? "meaning" : "name"}_${suffix}`] || copy[offset + languageIndex];
 };
 
 const compactNumber = (value, lang) => value == null ? "—" : Number(value).toLocaleString(

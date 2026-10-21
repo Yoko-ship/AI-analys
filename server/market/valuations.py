@@ -294,6 +294,7 @@ _BOARD_METRIC_FIELDS = (
     # class ledgers and snapshots are deliberately left on the detailed route.
     "value", "status", "base_period", "financial_period", "note", "reasons",
     "allowed", "estimate", "computed",
+    "annualised", "denominator_basis", "period_months",
 )
 
 

@@ -70,9 +70,9 @@ test("sector report opens from the company card and exposes sourced formulas", a
   expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThanOrEqual(1);
   expect(drawerBox.width).toBeLessThan(viewport.width * 0.55);
   await dialog.getByText("Финансовые коэффициенты", { exact: true }).click();
-  await expect(dialog.getByText("Рентабельность активов", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Доходность активов на конец периода (P1)", { exact: true })).toBeVisible();
   await expect(dialog.getByText("2,14%", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Чистая прибыль на каждые 100 сум активов", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Чистая прибыль на каждые 100 сум активов на конец периода", { exact: true })).toBeVisible();
   const roa = dialog.getByTestId("verified-ratio-P1");
   await expect(roa.getByText(/form2:c270/)).not.toBeVisible();
   await roa.getByText("Как рассчитано", { exact: true }).click();

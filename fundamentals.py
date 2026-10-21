@@ -31,6 +31,7 @@ from datetime import date
 from typing import Any, Iterable, Sequence
 
 from formulas import _metric, _num, thresholds
+from financial_analysis import profitability
 
 logger = logging.getLogger(__name__)
 
@@ -798,7 +799,8 @@ def _regression_checks(pe: dict[str, Any], pb: dict[str, Any], ps: dict[str, Any
 
     results = {
         "v11_pe_roe_pb": (close(pe_v * roe_v / 100.0, pb_v, tight)
-                          if None not in (pe_v, roe_v, pb_v) else None),
+                          if None not in (pe_v, roe_v, pb_v)
+                          and pe.get("base_period") == roe.get("base_period") else None),
         "v12_ps_pe_margin": (close(ps_v, pe_v * nm_v / 100.0, tight)
                              if None not in (ps_v, pe_v, nm_v) else None),
         "v13_leverage": (close(roe_v / roa_v, 100.0 / ea_v, loose)
@@ -809,6 +811,44 @@ def _regression_checks(pe: dict[str, Any], pb: dict[str, Any], ps: dict[str, Any
     }
     return {"results": results,
             "flags": sorted(k for k, ok in results.items() if ok is False)}
+
+
+def profitability_snapshot(fin, ratio=None):
+    """Resolve same-period source amounts before the shared ROE/ROA rule.
+
+    Published ratios cannot prove their numerator or method. Only balance
+    amounts with the same reporting period can fill a missing filed balance.
+    Bank comparison columns are undated; use the preceding annual close.
+    """
+    fin, ratio = fin or {}, ratio or {}
+    period = period_label(fin)
+    fields = fin.get("field_periods") or {}
+    balance = fin.get("balance") or {}
+    annual = fin.get("annual") or {}
+    annual_ok = (annual.get("year") == (fin.get("year") or 0) - 1
+                 and period_months(annual) == 12)
+    annual_balance = annual.get("balance") or {}
+    bank = fin.get("org_type") in {"bank", "microfinance", "microfinance_bank"}
+    values = {"net_income": fin.get("net_income")}
+    if fields.get("net_income") and parse_period(fields["net_income"]) != parse_period(period):
+        values["net_income"] = None
+    opening = {}
+    for field, prefix in (("total_equity", "equity"), ("total_assets", "assets")):
+        end = balance.get(prefix + "_end", fin.get(field))
+        start = None if bank else balance.get(prefix + "_start")
+        if fields.get(field) and parse_period(fields[field]) != parse_period(period):
+            end = None
+        if end is None:
+            source_period = (ratio.get("periods") or {}).get(field) or ratio.get("period")
+            if parse_period(period) and parse_period(source_period) == parse_period(period):
+                end = ratio.get(field)
+        annual_period = (annual.get("field_periods") or {}).get(field) or period_label(annual)
+        same_basis = all(not fin.get(k) or not annual.get(k) or fin[k] == annual[k]
+                         for k in ("standard", "scope", "consolidation_scope"))
+        if start in (None, 0) and annual_ok and same_basis and parse_period(annual_period) == parse_period(period_label(annual)):
+            start = annual_balance.get(prefix + "_end", annual.get(field))
+        values[field], opening[field] = end, start
+    return profitability.returns(values, opening, months=period_months(fin))
 
 
 def issuer_multiples(classes: Sequence[dict[str, Any]],
@@ -945,27 +985,22 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
                                "OpenInfo (строка 060)"
                                if org_type == "insurance" else None))
 
-    # --- ROE / ROA: TTM profit over the period-average base ------------------
-    def _return_on(average: float | None) -> dict[str, Any]:
-        if bal_stale:
-            return _metric(None, STATUS_STALE, base_period=bal_period)
-        if ni is not None and average is not None:
-            if average <= 0:
-                return _metric(None, STATUS_NEGATIVE_EQUITY, base_period=bal_period)
-            return _flag_range(ni / average * 100.0, -roe_max, roe_max,
-                               base_period=base_period,
-                               denominator_period=bal_period, estimate=estimate)
-        return _metric(None, STATUS_NO_FINANCIALS)
-
-    roe = _return_on(equity_avg)
-    if roe.get("status") == STATUS_NO_FINANCIALS and ratio.get("roe") is not None:
-        # Legacy passthrough for rows the filings cannot yet answer for.
-        roe = _flag_range(_num(ratio.get("roe")), -roe_max, roe_max,
-                          base_period=ratio.get("period"), source="indicators")
-    roa = _return_on(assets_avg)
-    if roa.get("status") == STATUS_NO_FINANCIALS and ratio.get("roa") is not None:
-        roa = _flag_range(_num(ratio.get("roa")), -roe_max, roe_max,
-                          base_period=ratio.get("period"), source="indicators")
+    # ROE/ROA describe this filing, independent of the TTM price multiples.
+    returns = profitability_snapshot(fin, ratio)
+    def _return_metric(code):
+        calculated = returns[code]
+        status = calculated["calculation_status"]
+        metric = (_flag_range(calculated["value"], -roe_max, roe_max)
+                  if status == "verified" else
+                  _metric(None, STATUS_STALE if bal_stale else
+                          STATUS_NEGATIVE_EQUITY if status == "invalid_denominator" else STATUS_NO_FINANCIALS))
+        return {**calculated, **metric, "base_period": period_label(fin),
+                "denominator_period": period_label(fin),
+                "note": ("Прибыль за отчётный период × 12 / число месяцев; "
+                         + ("средняя величина на начало и конец периода" if calculated["denominator_basis"] == "average"
+                            else "начальная величина отсутствует, используется величина на конец периода")),
+                "estimate": calculated["annualised"] or calculated["denominator_basis"] == "closing"}
+    roe, roa = _return_metric("roe"), _return_metric("roa")
 
     # --- Net margin: one period, one unit (percent) --------------------------
     if is_bank:
@@ -1042,7 +1077,8 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     result["checks"] = _regression_checks(result["pe"], result["pb"], result["ps"],
                                           result["roe"], result["roa"],
                                           result["net_margin"], result["equity_assets"],
-                                          snap)
+                                          {**snap, "equity_avg": roe.get("denominator_value"),
+                                           "assets_avg": roa.get("denominator_value")})
     return result
 
 

@@ -22,7 +22,7 @@ import fundamentals
 from formulas import thresholds
 
 
-CONTRACT_VERSION = "financial-public-v3"
+CONTRACT_VERSION = "financial-public-v4"
 NEW_REPORT_HOURS = 168
 
 CALCULATED = "CALCULATED"
@@ -48,8 +48,8 @@ _METRIC_FORMULAS = {
     "pe": "issuer_market_cap / ttm_net_income",
     "pb": "issuer_market_cap / ending_equity",
     "ps": "issuer_market_cap / ttm_revenue",
-    "roe": "ttm_net_income / average_equity * 100",
-    "roa": "ttm_net_income / average_assets * 100",
+    "roe": "annualised_net_income / return_equity * 100",
+    "roa": "annualised_net_income / return_assets * 100",
     "net_margin": "ttm_net_income / ttm_revenue * 100",
     "equity_assets": "ending_equity / ending_assets * 100",
     "bvps": "ending_equity / total_issuer_shares_outstanding",
@@ -71,12 +71,14 @@ def _display_value(metric_name: str, metric: dict[str, Any],
         number = _number(candidate)
         if number is not None:
             return number
+    if metric_name in {"roe", "roa"}:
+        # Do not recreate a ratio the shared rule refused (wrong period,
+        # absent profit, zero/negative closing or average balance).
+        return None
     keys = {
         "pe": ("issuer_market_cap", "ttm_net_income", False),
         "pb": ("issuer_market_cap", "ending_equity", False),
         "ps": ("issuer_market_cap", "ttm_revenue", False),
-        "roe": ("ttm_net_income", "average_equity", True),
-        "roa": ("ttm_net_income", "average_assets", True),
         "net_margin": ("ttm_net_income", "ttm_revenue", True),
         "equity_assets": ("ending_equity", "ending_assets", True),
         "bvps": ("ending_equity", "total_issuer_shares_outstanding", False),
@@ -357,6 +359,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
     result = copy.deepcopy(multiples)
     flows = fundamentals.twelve_month_flows(fin)
     balance = fundamentals.balance_snapshot(fin, ratio)
+    returns = fundamentals.profitability_snapshot(fin, ratio)
     cap_status = _market_cap_status(classes, result)
     class_inputs = [copy.deepcopy(item.get("market_input") or {}) for item in classes]
     excluded = [item.get("ticker") for item in class_inputs
@@ -386,14 +389,17 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
         "average_equity": balance.get("equity_avg"),
         "ending_assets": balance.get("assets"),
         "average_assets": balance.get("assets_avg"),
+        "annualised_net_income": returns["roe"]["annualised_net_income"],
+        "return_equity": returns["roe"]["denominator_value"],
+        "return_assets": returns["roa"]["denominator_value"],
         "total_issuer_shares_outstanding": total_shares or None,
     }
     metric_inputs = {
         "pe": ("issuer_market_cap", "ttm_net_income"),
         "pb": ("issuer_market_cap", "ending_equity"),
         "ps": ("issuer_market_cap", "ttm_revenue"),
-        "roe": ("ttm_net_income", "average_equity"),
-        "roa": ("ttm_net_income", "average_assets"),
+        "roe": ("annualised_net_income", "return_equity"),
+        "roa": ("annualised_net_income", "return_assets"),
         "net_margin": ("ttm_net_income", "ttm_revenue"),
         "equity_assets": ("ending_equity", "ending_assets"),
         "bvps": ("ending_equity", "total_issuer_shares_outstanding"),
@@ -422,10 +428,15 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
             "financial_scope": financial_scope,
             "market_date": market_date,
             "basis": cap_basis if name in _CAP_METRICS else "issuer",
-            "formula": _METRIC_FORMULAS[name],
+            "formula": metric.get("formula", _METRIC_FORMULAS[name]),
             "inputs": {key: inputs.get(key) for key in keys},
             "calculation_snapshot": snapshot_id,
         })
+        if name in returns:
+            metric["inputs"].update({
+                "net_income": returns[name]["numerator_value"],
+                **{key: returns[name][key] for key in ("period_months", "opening_balance", "closing_balance")},
+            })
         if name in _CAP_METRICS and cap_note:
             metric["note"] = "; ".join(filter(None, [metric.get("note"), cap_note]))
             metric["excluded_classes"] = excluded

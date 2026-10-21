@@ -286,17 +286,16 @@ class TestMultiples:
         assert got["pe"]["status"] == fundamentals.STATUS_OUT_OF_RANGE
         assert got["pe"]["check"] is True
 
-    def test_roe_beyond_a_hundred_percent_carries_the_flag(self):
+    def test_an_indicator_only_roe_cannot_prove_the_period_return(self):
         """UTGA/UTGAP published 10 715.33 % (2023); UZMT 179.26 % (2019).
 
-        No statement here, so the figure comes off the indicator feed — it is
-        published with the «проверить» flag rather than silently dashed.
+        Without a statement the feed cannot prove the numerator, averaging
+        method or annualisation. Do not substitute it for the shared return.
         """
         classes = [cls("A", cap=800.0, shares=100.0)]
         got = fundamentals.issuer_multiples(classes, None, ratio(roe=10715.33))
-        assert got["roe"]["value"] == pytest.approx(10715.33)
-        assert got["roe"]["status"] == fundamentals.STATUS_OUT_OF_RANGE
-        assert got["roe"]["check"] is True
+        assert got["roe"]["value"] is None
+        assert got["roe"]["status"] == fundamentals.STATUS_NO_FINANCIALS
 
     def test_a_wildly_published_roe_also_invalidates_the_statement(self):
         """When both exist and disagree by 500x, the ROW is what is in doubt."""

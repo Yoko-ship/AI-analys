@@ -8,7 +8,7 @@ import re
 VERSION = "sector-analysis-3.0"  # 3.0: six-block text by «AI-анализ отчётности: ТЗ по секторам» (2026-10-12)
 
 
-CALCULATION_VERSION = "nsbu-core-2.2"  # 2.2: FX share of pre-tax profit, gross-up flag, leverage floor
+CALCULATION_VERSION = "nsbu-core-2.4"  # 2.4: shared period-profit / average-balance ROE and ROA
 
 
 MAPPING_VERSION = "nsbu-lines-2.3"  # 2.3: bank loan book by components, signed provisions, dated comparison column

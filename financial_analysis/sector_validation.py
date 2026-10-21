@@ -84,8 +84,20 @@ def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=N
         data_quality.append({"code": "SOURCE_NOT_VERIFIED", "severity": "blocking", "message": financial_analysis_sector_language.tr(lang, "Нет ссылки на исходный документ.", "Asl hujjat havolasi yo‘q.", "The source document link is missing.")})
     capital = financial_analysis_sector_calculations.capital_analysis(values, opening)
     quality = financial_analysis_sector_calculations.profit_quality(values, previous)
+    return_opening = opening
+    if org in {"bank", "microfinance", "microfinance_bank"}:
+        # A bank's comparison can be last quarter or last year's same quarter.
+        # Only a dated year opening may average a cumulative YTD profit.
+        sources = snapshot.get("comparison_sources") or {}
+        year_start = f"{int(str(period)[:4]) - 1}-12-31" if period else None
+        if sources.get("opening_from_filing") and sources.get("opening_date") != year_start:
+            return_opening = snapshot.get("return_opening_values") or {}
     computed_ratios = (financial_analysis_sector_calculations.enterprise_ratios(lines, org, standard, period, methods=snapshot.get("formula_methods"))
-                       or financial_analysis_sector_calculations.financial_ratios(values, previous, opening, org, standard, period))
+                       or financial_analysis_sector_calculations.financial_ratios(values, previous, return_opening, org, standard, period))
+    if org == "non_financial":
+        # P1/P4 remain the separately named statutory closing-balance and
+        # pre-tax methods. They are not substitutes for net-profit ROA/ROE.
+        computed_ratios += financial_analysis_sector_calculations.return_ratios(values, opening, standard, period)
     for item in computed_ratios:
         disclosed = financial_analysis_sector_numbers.decimal((snapshot.get("reported_ratios") or {}).get(item["metric"]))
         if item["unit"] == "percent" and disclosed is not None and item["raw_result"] is not None and abs(disclosed - financial_analysis_sector_numbers.decimal(item["raw_result"])) > Decimal("0.1"):
@@ -110,5 +122,5 @@ def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=N
     publishable = status in {"available", "stale"}
     ratios = computed_ratios if publishable else []
     if template == "commodity_exchange" and any(values.get(k) is None for k in ("own_cash", "client_cash", "settlement_liabilities")):
-        ratios = [r for r in ratios if r["metric"].startswith("P")]
+        ratios = [r for r in ratios if r["metric"].startswith("P") or r["metric"] in {"roe", "roa"}]
     return ValidatedFiling(snapshot=snapshot, issuer=issuer, lang=lang, today=today, values=values, previous=previous, opening=opening, lines=lines, resolution=resolution, template=template, org=org, standard=standard, period=period, period_text=period_text, source=source, source_url=source_url, data_quality=data_quality, codes=codes, balance=balance, capital=capital, quality=quality, status=status, year=year, end=end, publishable=publishable, ratios=ratios)

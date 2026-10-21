@@ -153,6 +153,9 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         from fund_analysis import audited_snapshot
         snapshot = audited_snapshot(issuer, period)
     snapshot = snapshot or financials.financial_snapshot(issuer, standard, period, scope)
+    # Keep the proven prior annual close before a bank workbook replaces the
+    # narrative comparison with a different, possibly undated balance column.
+    snapshot["return_opening_values"] = deepcopy(snapshot.get("opening_values") or {})
     if snapshot.get("fund_record") and scope != snapshot.get("scope"):
         snapshot["quality"]["data_quality"].append({
             "code": "SCOPE_NOT_VERIFIED", "severity": "blocking",

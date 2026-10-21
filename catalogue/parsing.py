@@ -598,6 +598,27 @@ def _labelled_as(field: str, label: Any) -> bool:
             and not any(x in text for x in _LABEL_EXCLUSIONS.get(key, ())))
 
 
+def _filed_return_balance(table, insurance=False):
+    """Retain explicit opening and closing totals from dated NSBU form 1.
+
+    Use the same positional parser as analysis; a blank closing cell must
+    never borrow the opening. Bank forms have no comparable numbered lines.
+    """
+    from financial_analysis.sector_inputs import source_line_pairs, prior_column_unbalanced
+    from financial_analysis.sector_numbers import number
+
+    codes = {"assets": "c490", "equity": "c570"} if insurance else {"assets": "c400", "equity": "c480"}
+    pairs = source_line_pairs(table or {}, "form1")
+    unbalanced = not insurance and prior_column_unbalanced({f"form1:{k}": v for k, v in pairs.items()})
+    result = {}
+    for name, code in codes.items():
+        row = pairs.get(code)
+        if row is not None:
+            result[name + "_end"] = number(row.get("raw_current"))
+            result[name + "_start"] = None if unbalanced else number(row.get("raw_previous"))
+    return result
+
+
 def compute_financial_ratios(income_data: dict | None, balance_data: dict | None) -> dict[str, Any]:
 
     income_rows = _gather_rows(income_data)
@@ -769,6 +790,9 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
         "equity_end": equity,
 
     }
+
+    balance_block.update(_filed_return_balance(
+        balance_data or income_data, insurance_balance.get("gross_insurance_reserves") is not None))
 
     if insurance_balance.get("gross_insurance_reserves") is not None:
 

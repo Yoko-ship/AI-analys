@@ -68,7 +68,9 @@ def test_bank_publishes_bank_indicators_from_its_own_filing():
     assert ratios["loans_to_deposits"]["unit"] == "ratio"
     assert ratios["loan_reserve_coverage"]["value"] == pytest.approx(1.65, abs=0.01)
     assert ratios["equity_to_assets"]["value"] == pytest.approx(18.6, abs=0.1)
-    assert ratios["roe"]["value"] == pytest.approx(970.0 / 7674.7 * 100, abs=0.1)
+    # A half-year return in the annual rate (ТЗ data rule 6).
+    assert ratios["roe"]["value"] == pytest.approx(970.0 / 7674.7 * 100 * 2, abs=0.2)
+    assert ratios["roe"]["annualised"] is True
     assert ratios["provisions_to_net_interest_income"]["value"] == pytest.approx(27.5, abs=0.1)
     # Never a prudential norm: the filing does not disclose its components.
     assert all(item["benchmark_type"] is None for item in ratios.values())
@@ -88,8 +90,9 @@ def test_a_negative_cost_line_withholds_its_share_but_a_loss_is_stated():
     ratios = {r["metric_code"]: r for r in calc.financial_ratios(values, {}, {}, "bank", "nsbu", "2026Q3")}
     assert ratios["provisions_to_net_interest_income"]["value"] is None
     assert ratios["provisions_to_net_interest_income"]["calculation_status"] == "missing_or_invalid_components"
-    assert ratios["roa"]["value"] == -5
-    assert ratios["roe"]["value"] == -50
+    # Nine months of a loss, in the annual rate: −5% × 12/9.
+    assert ratios["roa"]["value"] == pytest.approx(-5 * 12 / 9)
+    assert ratios["roe"]["value"] == pytest.approx(-50 * 12 / 9)
 
 
 def test_microfinance_takes_no_deposits_and_enterprises_keep_their_codes():
