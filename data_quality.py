@@ -792,7 +792,12 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
                 import catalogue.snapshots as catalogue_snapshots
                 import catalogue.storage as catalogue_storage
                 import catalogue.sync as catalogue_sync
-                parsed_values = catalogue_history.parse_catalogued_report(
+                if field in ("total_assets", "total_equity", "total_liabilities"):
+                    from catalogue.balance_repair import verified_balance
+                    parse_source = verified_balance
+                else:
+                    parse_source = catalogue_history.parse_catalogued_report
+                parsed_values = parse_source(
                     issue["ticker"], issue["form"], int(issue["year"]), int(issue["quarter"] or 0))
                 parsed_value = parsed_values.get(field)
                 if parsed_value is not None and math.isfinite(float(parsed_value)):
