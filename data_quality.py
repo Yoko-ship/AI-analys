@@ -7,6 +7,7 @@ only an approved correction is allowed to alter a value returned to readers.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import threading
@@ -25,6 +26,7 @@ _TICKER_RE = re.compile(r"^[A-Z0-9]{2,40}$")
 _STATUS = {"draft", "approved", "rejected", "reverted"}
 _REPORTING_REFRESH_LOCK = threading.Lock()
 _REPORTING_REFRESHING: set[str] = set()
+logger = logging.getLogger(__name__)
 
 
 class DataQualityError(ValueError):
