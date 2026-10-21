@@ -276,7 +276,11 @@ class TestWhichLineTheBoardServes:
             _bal("1190", "Итого по разделу III (стр. 730 + 930)", "56149257.14"),
         ])
         detail["org_type"] = "insurance"
-        assert orc.extract_metrics(detail)["total_liabilities"] == 56_149_257.14
+        metrics = orc.extract_metrics(detail)
+        assert metrics["other_liabilities"] == 56_149_257.14
+        # This abbreviated fixture has no reserve section, so it cannot state
+        # the insurer's complete liabilities.
+        assert metrics["total_liabilities"] is None
 
     def test_the_asset_side_subtotal_is_never_mistaken_for_it(self) -> None:
         # Both forms print «ИТОГО ПО РАЗДЕЛУ II» on the asset side too, which is

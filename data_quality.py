@@ -984,6 +984,11 @@ def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
                     "ticker": issue["ticker"], "applied": False}
     if not recommended:
         raise DataQualityError("No deterministic correction is available from the official filing")
+    if recommended.get("confidence") == "low":
+        raise DataQualityError(
+            "Balance mismatch requires verification against the official filing; "
+            "algebra alone cannot identify which value is wrong."
+        )
     payload = {
         "ticker": issue["ticker"], "form": issue["form"], "year": issue["year"],
         "quarter": issue["quarter"], "field": recommended["field"],

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import data_quality as dq
+import pytest
 import reports_catalog as rc
 import catalogue.filings as catalogue_filings
 import catalogue.financial_store as catalogue_financial_store
@@ -116,10 +117,10 @@ def test_balance_suggestion_is_editable_proposal_not_a_write(monkeypatch, tmp_pa
     assert proposal["reason"].startswith("Автоматическая подсказка")
     assert dq.list_corrections()["items"] == []
 
-    applied = dq.auto_apply_issue(issue["id"], "admin@example.test")
-    assert applied["status"] == "approved"
-    assert dq.approved_corrections_for("TSTQ", "NSBU", 2024, 3) == {"total_assets": 80.0}
-    assert next(item for item in dq.list_issues()["items"] if item["id"] == issue["id"])["status"] == "resolved"
+    with pytest.raises(dq.DataQualityError, match="official filing"):
+        dq.auto_apply_issue(issue["id"], "admin@example.test")
+    assert dq.approved_corrections_for("TSTQ", "NSBU", 2024, 3) == {}
+    assert next(item for item in dq.list_issues()["items"] if item["id"] == issue["id"])["status"] == "open"
 
 
 def test_missing_balance_component_can_be_suggested(monkeypatch, tmp_path):
