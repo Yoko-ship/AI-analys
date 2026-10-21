@@ -414,10 +414,11 @@ def _by_title(rows, needles, exclude=None, last=False):
 
 def _insurance_block(bal, key):
     """Reserve section, using the same gross-minus-share rule as the workbook parser."""
+    from financial_analysis.insurance_reserves import reserve_totals
     gross = end_value(_by_tnum(bal, "580"), key)
     share = end_value(_by_tnum(bal, "670"), key)
     filed_net = end_value(_by_tnum(bal, "720"), key)
-    net = gross - share if gross is not None and share is not None else filed_net
+    net = reserve_totals(gross, share, filed_net, None)['net_insurance_reserves']
     return {"gross_insurance_reserves": gross, "reinsurer_share_in_reserves": share,
             "net_insurance_reserves": net}
 

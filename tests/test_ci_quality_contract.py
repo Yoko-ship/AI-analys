@@ -25,3 +25,17 @@ def test_ci_runs_the_complete_browser_suite():
 def test_local_review_evidence_is_excluded_from_container_context():
     lines = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert "output/refactor-finish-20260926" in lines or "output" in lines
+
+
+def test_balance_repair_is_opt_in_and_runs_only_after_verified_production_deployment():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
+    job = workflow['jobs']['repair-financial-balances']
+    assert job['environment'] == 'uzstock-production'
+    assert job['needs'] == 'deploy-production'
+    assert "refs/heads/API" in job['if']
+    assert '[repair-financial-balances]' in job['if']
+    run = job['steps'][-1]['run']
+    assert 'git rev-parse HEAD' in run
+    assert 'docker inspect' in run
+    assert run.index('python -m catalogue.balance_repair\n') < run.index('python -m catalogue.balance_repair --apply')
+    assert 'trap restore_timer EXIT' in run

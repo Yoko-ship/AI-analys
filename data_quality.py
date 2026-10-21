@@ -762,8 +762,8 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
                 result["source_values"] = values
                 return result
 
-        # A missing balance-sheet component is safely derivable only when the
-        # other two components are present. Net income has no such identity.
+        # The other two components provide a proposal, not proof: either input
+        # may itself be incomplete. Net income has no such identity.
         field = issue.get("field")
         if field == "total_assets" and values["total_equity"] is not None and values["total_liabilities"] is not None:
             alternatives = [candidate("total_assets", values["total_equity"] + values["total_liabilities"],
@@ -984,9 +984,9 @@ def auto_apply_issue(issue_id: str, actor: str) -> dict[str, Any]:
                     "ticker": issue["ticker"], "applied": False}
     if not recommended:
         raise DataQualityError("No deterministic correction is available from the official filing")
-    if recommended.get("confidence") == "low":
+    if recommended.get("confidence") != "high":
         raise DataQualityError(
-            "Balance mismatch requires verification against the official filing; "
+            "Balance correction requires verification against the official filing; "
             "algebra alone cannot identify which value is wrong."
         )
     payload = {

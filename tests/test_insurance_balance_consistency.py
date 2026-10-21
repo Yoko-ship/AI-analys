@@ -50,11 +50,12 @@ def test_missing_reserve_section_is_not_treated_as_zero(zero_reserves):
         assert imported['total_liabilities'] is None
 
 
-def test_uzas_balance_suggestion_cannot_auto_approve_the_wrong_asset_total(monkeypatch, tmp_path):
+@pytest.mark.parametrize('assets', [332_548_245.7, None])
+def test_uzas_balance_suggestion_cannot_auto_approve_the_wrong_asset_total(monkeypatch, tmp_path, assets):
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
     financial_store.upsert_financials_cache('UZAS', 'NSBU', 2026, 2, {
         'revenue': 111_891_908.5, 'net_income': 294_295.9,
-        'total_assets': 332_548_245.7, 'total_equity': 147_661_927.4,
+        'total_assets': assets, 'total_equity': 147_661_927.4,
         # The production JSON parser omitted the separate reserve section.
         'total_liabilities': 80_360_618.0,
     })
@@ -64,7 +65,8 @@ def test_uzas_balance_suggestion_cannot_auto_approve_the_wrong_asset_total(monke
         'available': True,
     })
     dq.scan_financial_issues()
-    issue = next(i for i in dq.list_issues()['items'] if i['rule_code'] == 'BALANCE_MISMATCH')
+    issue = next(i for i in dq.list_issues()['items'] if
+                 i['rule_code'] == 'BALANCE_MISMATCH' or i['field'] == 'total_assets')
     proposal = dq.suggest_correction(issue['id'])
     assert proposal['recommended']['field'] == 'total_assets'
     assert proposal['recommended']['value_thousands_uzs'] == 228_022_545.4
@@ -75,7 +77,7 @@ def test_uzas_balance_suggestion_cannot_auto_approve_the_wrong_asset_total(monke
     conn = storage.get_catalog_conn()
     try:
         row = conn.execute("SELECT total_assets FROM catalog_financials WHERE ticker='UZAS'").fetchone()
-        assert row['total_assets'] == 332_548_245.7
+        assert row['total_assets'] == assets
     finally:
         conn.close()
 

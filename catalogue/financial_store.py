@@ -105,9 +105,9 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
                  current_assets, current_liabilities, inventories, total_income,
 
-                 field_periods, report_id, updated_at)
+                 field_periods, report_id, balance_period, updated_at)
 
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
 
             ON CONFLICT(ticker, form, year, quarter) DO UPDATE SET
 
@@ -143,6 +143,8 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
                 field_periods=excluded.field_periods,
 
+                balance_period=COALESCE(excluded.balance_period, catalog_financials.balance_period),
+
                 -- A re-parse that cannot name its source must not erase the
 
                 -- link the previous one established.
@@ -169,7 +171,8 @@ def upsert_financials_cache(ticker: str, form: str, year: int, quarter: int,
 
              values.get("inventories"), values.get("total_income"),
 
-             catalogue_codecs._encode_field_periods(values.get("field_periods")), report_id),
+             catalogue_codecs._encode_field_periods(values.get("field_periods")), report_id,
+             catalogue_codecs._encode_balance_period(values.get("balance"))),
 
         )
 

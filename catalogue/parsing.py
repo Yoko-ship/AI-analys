@@ -512,27 +512,18 @@ def extract_insurance_balance(balance_data: dict | None) -> dict[str, float | No
     gross = _extract_formula_total(rows, _INSURANCE_GROSS_RESERVE_FORMULAS)
     reinsurer_share = _extract_formula_total(rows, _INSURANCE_REINSURER_SHARE_FORMULAS)
     filed_net = _extract_formula_total(rows, _INSURANCE_NET_RESERVE_FORMULAS)
-    calculated_net = (
-        gross - reinsurer_share
-        if gross is not None and reinsurer_share is not None
-        else None
-    )
-    net = calculated_net if calculated_net is not None else filed_net
+    from financial_analysis.insurance_reserves import reserve_totals
     other_liabilities = _extract_liabilities_total(rows, strict_period=True)
-    total_liabilities = (
-        net + other_liabilities
-        if net is not None and other_liabilities is not None
-        else None
-    )
+    totals = reserve_totals(gross, reinsurer_share, filed_net, other_liabilities)
     return {
         "total_assets": _extract_metric(rows, "total_assets", strict_period=True),
         "total_equity": _extract_formula_total(rows, _INSURANCE_EQUITY_FORMULAS),
         "gross_insurance_reserves": gross,
         "reinsurer_share_in_reserves": reinsurer_share,
-        "net_insurance_reserves": net,
+        "net_insurance_reserves": totals['net_insurance_reserves'],
         "filed_net_insurance_reserves": filed_net,
         "other_liabilities": other_liabilities,
-        "total_liabilities": total_liabilities,
+        "total_liabilities": totals['total_liabilities'],
     }
 
 
@@ -793,6 +784,10 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
 
     balance_block.update(_filed_return_balance(
         balance_data or income_data, insurance_balance.get("gross_insurance_reserves") is not None))
+
+    # The explicitly filed closing cell and the public total are one fact.
+    # Keep them identical even when a derived balance identity rounded equity.
+    total_assets, equity = balance_block['assets_end'], balance_block['equity_end']
 
     if insurance_balance.get("gross_insurance_reserves") is not None:
 

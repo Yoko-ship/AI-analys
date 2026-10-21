@@ -304,6 +304,8 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
         try:
             import data_quality
             correction_year, correction_quarter = period_key(selected)
+            if 'Q' not in selected:
+                correction_quarter = 0
             reviewed_correction_fields = set(data_quality.approved_corrections_for(ticker, form, correction_year, correction_quarter))
         except Exception:
             reviewed_correction_fields = set()
