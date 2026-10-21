@@ -227,3 +227,8 @@ def test_verified_uzas_balance_repair_is_atomic_on_postgres(pg_catalogue, monkey
     assert result['changed'] == 1
     assert data_quality.approved_corrections_for('UZAS', 'NSBU', 2026, 2) == {}
     assert balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=tmp_path / 'backup')['changed'] == 0
+    def unverified(**_):
+        raise ValueError('Filing balance does not reconcile')
+    monkeypatch.setattr(balance_repair, 'verified_balance', unverified)
+    assert balance_repair.rollback_unverified(backup_dir=tmp_path/'backup', apply=True)['restored'] == 1
+    assert data_quality.approved_corrections_for('UZAS', 'NSBU', 2026, 2)['total_assets'] == 228022545.4

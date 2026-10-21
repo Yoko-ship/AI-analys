@@ -11,6 +11,7 @@ import json
 import math
 from pathlib import Path
 import uuid
+from urllib.parse import parse_qs, urlparse
 
 import data_quality as dq
 from catalogue import codecs, filings, parsing, periods, ratios, sources, storage
@@ -31,6 +32,27 @@ def verified_balance(ticker, form, year, quarter):
     if conflict:
         raise ValueError('Balance workbook belongs to a different reporting period')
     values = parsing.compute_filing_values(workbook.get('income'), workbook['balance'])['source_values']
+    # A derived equity makes an identity check tautological. Verification must
+    # use the explicitly filed totals, including the separate bank form.
+    if parse_qs(urlparse(source_url).query).get('org_type') == ['bank']:
+        from sector_report_service import map_special_lines
+        snapshot = {'current_values': {}, 'opening_values': {}, 'previous_values': {},
+                    'quality': {'data_quality': []}}
+        map_special_lines(snapshot, {'balance': workbook['balance']}, 'bank')
+        values.update({f: snapshot['current_values'].get(f) for f in BALANCE_FIELDS})
+        values['balance'] = {name + suffix: snapshot[target].get(field)
+                             for name, field in (('assets', 'total_assets'), ('equity', 'total_equity'))
+                             for suffix, target in (('_end', 'current_values'), ('_start', 'opening_values'))}
+    else:
+        insurance = values.get('gross_insurance_reserves') is not None or values.get('net_insurance_reserves') is not None
+        filed = parsing._filed_return_balance(workbook['balance'], insurance)
+        values['total_assets'], values['total_equity'] = filed.get('assets_end'), filed.get('equity_end')
+        if not insurance:
+            from financial_analysis.sector_inputs import FORM1, source_line_pairs
+            from financial_analysis.sector_numbers import number
+            code = next(code for code, field in FORM1.items() if field == 'total_liabilities')
+            row = source_line_pairs(workbook['balance'], 'form1').get(code) or {}
+            values['total_liabilities'] = number(row.get('raw_current'))
     totals = [values.get(field) for field in BALANCE_FIELDS]
     if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in totals):
         raise ValueError('Filing balance is incomplete')
@@ -70,7 +92,7 @@ def _candidates(tickers):
     return [selected[k] for k in sorted(selected)], corrections
 
 
-def _apply(row, source, corrections, backup_dir):
+def _apply(row, source, corrections, backup_dir, *, restore=False):
     backup_dir.mkdir(parents=True, exist_ok=True)
     record = {'original': row, 'source': source, 'corrections': corrections, 'created_at': dq._now()}
     path = backup_dir / f"{row['ticker']}-{row['year']}Q{row['quarter']}-{uuid.uuid4().hex}.json"
@@ -83,6 +105,8 @@ def _apply(row, source, corrections, backup_dir):
             field_periods = codecs._decode_field_periods(row.get('field_periods')) or {}
             for field in BALANCE_FIELDS:
                 field_periods.pop(field, None)
+                if restore and field in source.get('field_periods', {}):
+                    field_periods[field] = source['field_periods'][field]
             params += [balance, codecs._encode_field_periods(field_periods), row['ticker'], row['form'], row['year'], row['quarter']]
             conditions = []
             for field in (*BALANCE_FIELDS, 'balance_period'):
@@ -97,6 +121,15 @@ def _apply(row, source, corrections, backup_dir):
             if cursor.rowcount != 1:
                 raise ValueError('Stored balance changed during verification; retry required')
             for correction in corrections:
+                if restore:
+                    restored = conn.execute(
+                        "UPDATE data_corrections SET status='approved', reviewed_by=?, reviewed_at=?, review_note=? "
+                        "WHERE id=? AND status='reverted' AND reviewed_by='verified-filing-reconciliation'",
+                        (correction.get('reviewed_by'), correction.get('reviewed_at'),
+                         correction.get('review_note'), correction['id']))
+                    if restored.rowcount != 1:
+                        raise ValueError('Correction changed after reconciliation; manual review required')
+                    continue
                 conn.execute("UPDATE data_corrections SET status='reverted', reviewed_by=?, reviewed_at=?, review_note=? "
                              "WHERE id=? AND status='approved'",
                              ('verified-filing-reconciliation', dq._now(),
@@ -138,12 +171,58 @@ def repair(*, tickers=None, apply=False, backup_dir=None):
     return result
 
 
+def rollback_unverified(*, backup_dir=None, apply=False):
+    """Undo only this utility's unchanged writes that fail explicit-source proof."""
+    if backup_dir is None:
+        from db import APP_DATA_DIR
+        backup_dir = APP_DATA_DIR / 'balance-repair-backups'
+    backup_dir = Path(backup_dir)
+    result = {'restored': 0, 'plans': [], 'skipped': []}
+    for path in sorted(backup_dir.glob('*.json')):
+        record = json.loads(path.read_text(encoding='utf-8'))
+        original, written = record['original'], record['source']
+        key = {k: original[k] for k in ('ticker', 'form', 'year', 'quarter')}
+        try:
+            verified_balance(**key)
+            continue
+        except ValueError as exc:
+            # A transient source outage is never evidence against a prior write.
+            if str(exc) not in ('Filing balance is incomplete', 'Filing balance does not reconcile'):
+                continue
+        except Exception:
+            continue
+        conn = storage.get_catalog_conn()
+        try:
+            current = conn.execute('SELECT * FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=?',
+                                   tuple(key.values())).fetchone()
+        finally:
+            conn.close()
+        if not current or any(current[f] != written[f] for f in BALANCE_FIELDS):
+            continue
+        if codecs._decode_balance_period(current['balance_period']) != codecs._decode_balance_period(written['balance']):
+            continue
+        result['plans'].append({**key, 'backup': path.name})
+        if apply:
+            restored = {f: original[f] for f in BALANCE_FIELDS}
+            restored.update(balance=codecs._decode_balance_period(original['balance_period']),
+                            source_url=written['source_url'], rollback_of=path.name,
+                            field_periods=codecs._decode_field_periods(original.get('field_periods')))
+            try:
+                _apply(dict(current), restored, record['corrections'], backup_dir/'rollbacks', restore=True)
+                result['restored'] += 1
+            except Exception as exc:
+                result['skipped'].append({**key, 'reason': type(exc).__name__})
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--tickers', nargs='+')
+    parser.add_argument('--rollback-unverified', action='store_true')
     args = parser.parse_args()
-    print(json.dumps(repair(tickers=args.tickers, apply=args.apply), ensure_ascii=False, default=str))
+    result = rollback_unverified(apply=args.apply) if args.rollback_unverified else repair(tickers=args.tickers, apply=args.apply)
+    print(json.dumps(result, ensure_ascii=False, default=str))
 
 
 if __name__ == '__main__':

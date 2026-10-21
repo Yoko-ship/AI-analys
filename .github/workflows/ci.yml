@@ -1337,6 +1337,8 @@ jobs:
           trap restore_timer EXIT
           systemctl stop uzstock-financial-ingestion.timer uzstock-financial-ingestion.service
           docker exec uzstock-web python -m financial_ingestion.worker backup
+          docker exec uzstock-web python -m catalogue.balance_repair --rollback-unverified
+          docker exec uzstock-web python -m catalogue.balance_repair --rollback-unverified --apply
           docker exec uzstock-web python -m catalogue.balance_repair
           docker exec uzstock-web python -m catalogue.balance_repair --apply
           docker restart uzstock-web

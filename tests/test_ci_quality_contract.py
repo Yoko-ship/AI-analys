@@ -39,3 +39,4 @@ def test_balance_repair_is_opt_in_and_runs_only_after_verified_production_deploy
     assert 'docker inspect' in run
     assert run.index('python -m catalogue.balance_repair\n') < run.index('python -m catalogue.balance_repair --apply')
     assert 'trap restore_timer EXIT' in run
+    assert run.index('python -m catalogue.balance_repair --rollback-unverified --apply') < run.index('python -m catalogue.balance_repair\n')

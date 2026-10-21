@@ -1,0 +1,76 @@
+{
+  "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=bank&report_id=431&lang=ru",
+  "sheets": [
+    {
+      "sheet": "Квартальный отчет Банк рус",
+      "table_rows": [
+        {
+          "row": 65,
+          "source_cells": [
+            "14. Итого активов",
+            12201759061.0
+          ],
+          "label": "14. Итого активов",
+          "values": [
+            "14. Итого активов",
+            12201759061.0
+          ],
+          "numeric_values": [
+            12201759061.0
+          ],
+          "numeric_cells": [
+            {
+              "index": 1,
+              "value": 12201759061.0
+            }
+          ],
+          "kind": "assets"
+        },
+        {
+          "row": 78,
+          "source_cells": [
+            "25. Итого обязательств",
+            169394413.0
+          ],
+          "label": "25. Итого обязательств",
+          "values": [
+            "25. Итого обязательств",
+            169394413.0
+          ],
+          "numeric_values": [
+            169394413.0
+          ],
+          "numeric_cells": [
+            {
+              "index": 1,
+              "value": 169394413.0
+            }
+          ],
+          "kind": "liabilities_equity"
+        },
+        {
+          "row": 90,
+          "source_cells": [
+            "30. Итого собственного капитала",
+            1020971144.0
+          ],
+          "label": "30. Итого собственного капитала",
+          "values": [
+            "30. Итого собственного капитала",
+            1020971144.0
+          ],
+          "numeric_values": [
+            1020971144.0
+          ],
+          "numeric_cells": [
+            {
+              "index": 1,
+              "value": 1020971144.0
+            }
+          ],
+          "kind": "liabilities_equity"
+        }
+      ]
+    }
+  ]
+}
