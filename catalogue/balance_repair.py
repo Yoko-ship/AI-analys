@@ -86,8 +86,10 @@ def _apply(row, source, corrections, backup_dir):
             params += [balance, codecs._encode_field_periods(field_periods), row['ticker'], row['form'], row['year'], row['quarter']]
             conditions = []
             for field in (*BALANCE_FIELDS, 'balance_period'):
-                conditions.append(f'({field}=? OR ({field} IS NULL AND ? IS NULL))')
-                params += [row.get(field), row.get(field)]
+                # dbx translates SQLite's null-safe IS into PostgreSQL's
+                # IS NOT DISTINCT FROM, preserving parameter type inference.
+                conditions.append(f'{field} IS ?')
+                params.append(row.get(field))
             cursor = conn.execute(
                 "UPDATE catalog_financials SET total_assets=?, total_equity=?, total_liabilities=?, "
                 "balance_period=?, field_periods=?, updated_at=datetime('now') "
