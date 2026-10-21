@@ -121,11 +121,13 @@ def test_explicit_source_verification_accepts_real_balanced_other_sectors(source
     assert verified['total_assets'] == pytest.approx(verified['total_equity'] + verified['total_liabilities'], rel=.0005)
 
 
-@pytest.mark.parametrize('change', ['new_balance', 'manual_review', 'source_unavailable'])
+@pytest.mark.parametrize('change', ['new_balance', 'manual_review', 'source_unavailable', 'source_incomplete'])
 def test_rollback_does_not_undo_later_changes_or_react_to_source_outages(source, monkeypatch, change):
     bad = correction('Автоматическая подсказка по формуле: Assets = equity + liabilities.')
     balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=source/'backup')
     def unverified(**_):
+        if change == 'source_incomplete':
+            raise ValueError('Filing balance is incomplete')
         raise ValueError('Balance workbook unavailable' if change == 'source_unavailable' else 'Filing balance does not reconcile')
     monkeypatch.setattr(balance_repair, 'verified_balance', unverified)
     conn = storage.get_catalog_conn()

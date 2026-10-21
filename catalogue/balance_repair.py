@@ -186,8 +186,9 @@ def rollback_unverified(*, backup_dir=None, apply=False):
             verified_balance(**key)
             continue
         except ValueError as exc:
-            # A transient source outage is never evidence against a prior write.
-            if str(exc) not in ('Filing balance is incomplete', 'Filing balance does not reconcile'):
+            # Missing evidence is not contradictory evidence: only a complete,
+            # explicitly filed balance that fails its identity warrants undo.
+            if str(exc) != 'Filing balance does not reconcile':
                 continue
         except Exception:
             continue
