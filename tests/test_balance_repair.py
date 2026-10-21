@@ -93,6 +93,26 @@ def test_ocbk_derived_equity_cannot_validate_a_broken_filed_balance(source, monk
         balance_repair.verified_balance('OCBK', 'NSBU', 2025, 0)
 
 
+def test_auto_correction_also_requires_explicit_ocbk_filing_totals(source, monkeypatch):
+    from catalogue import history, parsing
+    import financial_corrections
+    monkeypatch.setattr(financial_corrections, 'corrections_for', lambda *_: {})
+    financial_store.upsert_financials_cache('OCBK', 'NSBU', 2025, 0, {
+        'revenue': 257614159, 'net_income': 266391398,
+        'total_assets': 12201759061, 'total_equity': None, 'total_liabilities': None})
+    monkeypatch.setattr(filings, 'get_report_urls', lambda *_: {'excel_url': BANK['source_url']})
+    monkeypatch.setattr(sources, 'fetch_report_excel_data', lambda *_: {'ok': True, 'balance': BANK})
+    monkeypatch.setattr(history, 'parse_catalogued_report', lambda *_:
+                        parsing.compute_filing_values(None, BANK)['source_values'])
+    monkeypatch.setattr(dq, '_official_report_evidence', lambda *_: {
+        'available': True, 'source_url': BANK['source_url'], 'source_reference': 'OCBK 2025 annual bank balance'})
+    dq.scan_financial_issues()
+    issue = next(i for i in dq.list_issues()['items'] if i['ticker'] == 'OCBK' and i['field'] == 'total_equity')
+    with pytest.raises(dq.DataQualityError, match='official filing'):
+        dq.auto_apply_issue(issue['id'], 'reviewer@example.test')
+    assert dq.approved_corrections_for('OCBK', 'NSBU', 2025, 0) == {}
+
+
 def test_unverified_repair_can_restore_only_its_own_unchanged_write(source, monkeypatch):
     bad = correction('Автоматическая подсказка по формуле: Assets = equity + liabilities.')
     assert balance_repair.repair(tickers=['UZAS'], apply=True, backup_dir=source/'backup')['changed'] == 1

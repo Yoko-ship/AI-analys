@@ -7,6 +7,7 @@ only an approved correction is allowed to alter a value returned to readers.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import threading
@@ -25,6 +26,7 @@ _TICKER_RE = re.compile(r"^[A-Z0-9]{2,40}$")
 _STATUS = {"draft", "approved", "rejected", "reverted"}
 _REPORTING_REFRESH_LOCK = threading.Lock()
 _REPORTING_REFRESHING: set[str] = set()
+logger = logging.getLogger(__name__)
 
 
 class DataQualityError(ValueError):
@@ -792,7 +794,12 @@ def suggest_correction(issue_id: str) -> dict[str, Any]:
                 import catalogue.snapshots as catalogue_snapshots
                 import catalogue.storage as catalogue_storage
                 import catalogue.sync as catalogue_sync
-                parsed_values = catalogue_history.parse_catalogued_report(
+                if field in ("total_assets", "total_equity", "total_liabilities"):
+                    from catalogue.balance_repair import verified_balance
+                    parse_source = verified_balance
+                else:
+                    parse_source = catalogue_history.parse_catalogued_report
+                parsed_values = parse_source(
                     issue["ticker"], issue["form"], int(issue["year"]), int(issue["quarter"] or 0))
                 parsed_value = parsed_values.get(field)
                 if parsed_value is not None and math.isfinite(float(parsed_value)):
