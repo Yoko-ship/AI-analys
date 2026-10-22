@@ -12,7 +12,12 @@ from fastapi import Request
 from fastapi.responses import Response
 from functools import partial
 from pydantic import BaseModel
-from pydantic import Field
+from pydantic import Field, ConfigDict
+from fastapi import Query
+from uuid import UUID
+from decimal import Decimal
+from identity.portfolio_math import calculate_ledger, normalize_transaction, json_values
+from server.accounts.portfolio import value_portfolio
 from typing import Any
 from typing import Literal
 import reporting.exports as report_exports
@@ -473,51 +478,107 @@ async def api_favorite_update(
     return {"ok": True, "favorite": http._json_safe(favorite)}
 
 
-@router.get("/api/portfolio")
-async def api_portfolio(current_user: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
-    """Value explicitly entered holdings against the last confirmed UZSE price.
+class PortfolioTransactionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ticker: str = Field(min_length=1, max_length=40)
+    kind: Literal["opening", "buy", "sell", "dividend"]
+    trade_date: str | None = None
+    quantity: Decimal = Field(default=Decimal(0), ge=0, le=1_000_000_000_000, decimal_places=6)
+    price: Decimal = Field(default=Decimal(0), ge=0, le=1_000_000_000_000, decimal_places=6)
+    fees: Decimal = Field(default=Decimal(0), ge=0, le=1_000_000_000_000, decimal_places=6)
+    amount: Decimal = Field(default=Decimal(0), ge=0, le=1_000_000_000_000, decimal_places=6)
+    note: str = Field(default="", max_length=1000)
 
-    A missing or stale quote remains a missing valuation; it is never filled
-    from an external aggregator or from the user's acquisition cost.
-    """
+
+class PortfolioTransactionCreate(PortfolioTransactionRequest):
+    id: UUID
+
+
+class PortfolioTransactionUpdate(PortfolioTransactionRequest):
+    version: int = Field(ge=1)
+
+
+def _portfolio_error(exc):
+    code = str(exc).split(":", 1)[0]
+    status = 404 if code in {"TRANSACTION_NOT_FOUND", "ACCOUNT_NOT_FOUND"} else (
+        409 if code in {"VERSION_CONFLICT", "IDEMPOTENCY_CONFLICT", "USE_TRANSACTION_HISTORY"} else 422)
+    return HTTPException(status_code=status, detail={"code": code, "message": str(exc)})
+
+
+async def _portfolio_input(payload):
+    try:
+        row = normalize_transaction(payload.model_dump())
+    except ValueError as exc:
+        raise _portfolio_error(exc) from exc
+    securities = await asyncio.get_running_loop().run_in_executor(None, securities_store.get_securities_map)
+    security = securities.get(row["ticker"])
+    if not security:
+        raise HTTPException(status_code=404, detail={"code": "UNKNOWN_SECURITY"})
+    if security.get("type") != "stock":
+        raise HTTPException(status_code=422, detail={"code": "SHARES_ONLY"})
+    return row
+
+
+@router.get("/api/portfolio")
+async def api_portfolio(response: Response,
+                        current_user: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
+    """Read the user's ledger and our existing collector's stored prices only."""
     loop = asyncio.get_running_loop()
-    positions, listings, securities = await asyncio.gather(
-        loop.run_in_executor(None, partial(identity.web_auth_store.portfolio.list_portfolio_positions, current_user.id)),
+    transactions, listings, securities, quotes, stats = await asyncio.gather(
+        loop.run_in_executor(None, partial(identity.web_auth_store.portfolio.list_transactions, current_user.id)),
         loop.run_in_executor(None, catalogue_market_store.get_all_listings),
         loop.run_in_executor(None, securities_store.get_securities_map),
+        loop.run_in_executor(None, catalogue_market_store.get_all_quotes),
+        loop.run_in_executor(None, catalogue_market_store.get_all_trade_stats),
     )
-    items: list[dict[str, Any]] = []
-    total_market_value = total_cost = 0.0
-    priced_count = 0
-    for position in positions:
-        ticker = str(position["ticker"]).upper()
-        listing, security = listings.get(ticker) or {}, securities.get(ticker) or {}
-        try:
-            price = float(listing.get("last_price"))
-            if price <= 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            price = None
-        quantity, average_cost = float(position["quantity"]), float(position["average_cost"])
-        cost_value = quantity * average_cost
-        market_value = quantity * price if price is not None else None
-        pnl = market_value - cost_value if market_value is not None else None
-        if market_value is not None:
-            priced_count += 1
-            total_market_value += market_value
-            total_cost += cost_value
-        item = {**position, "security_type": security.get("type") or security.get("security_type"),
-                "company_name": security.get("company_name") or security.get("name"),
-                "last_price": price, "quote_updated_at": listing.get("updated_at"),
-                "cost_value": cost_value, "market_value": market_value, "unrealized_pnl": pnl,
-                "unrealized_pnl_pct": (pnl / cost_value * 100) if pnl is not None and cost_value > 0 else None,
-                "valuation_status": "AVAILABLE" if market_value is not None else "NO_DATA"}
-        items.append(item)
-    return http._json_safe({"ok": True, "items": items, "count": len(items),
-                       "priced_count": priced_count, "market_value": total_market_value if priced_count else None,
-                       "cost_value": total_cost if priced_count else None,
-                       "unrealized_pnl": (total_market_value - total_cost) if priced_count else None,
-                       "price_basis": "last confirmed exchange trade", "currency": "UZS"})
+    result = value_portfolio(calculate_ledger(transactions), securities=securities,
+                             listings=listings, quotes=quotes, stats=stats)
+    response.headers["Cache-Control"] = "private, no-store"
+    return json_values({"ok": True, **result, "transactions": transactions,
+                        "instruments": [{"ticker": ticker, "name": meta.get("name") or ticker}
+                                        for ticker, meta in sorted(securities.items()) if meta.get("type") == "stock"],
+                        "checked_at": datetime.now(timezone.utc), "refresh_interval_seconds": 30})
+
+
+@router.post("/api/portfolio/transactions")
+async def api_portfolio_transaction_create(
+    payload: PortfolioTransactionCreate,
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+):
+    row = await _portfolio_input(payload)
+    try:
+        saved = await asyncio.get_running_loop().run_in_executor(None, partial(
+            identity.web_auth_store.portfolio.add_transaction, current_user.id, str(payload.id), row))
+    except ValueError as exc:
+        raise _portfolio_error(exc) from exc
+    return {"ok": True, "transaction": json_values(saved)}
+
+
+@router.put("/api/portfolio/transactions/{transaction_id}")
+async def api_portfolio_transaction_update(
+    transaction_id: str, payload: PortfolioTransactionUpdate,
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+):
+    row = await _portfolio_input(payload)
+    try:
+        saved = await asyncio.get_running_loop().run_in_executor(None, partial(
+            identity.web_auth_store.portfolio.update_transaction, current_user.id, transaction_id, row, version=payload.version))
+    except ValueError as exc:
+        raise _portfolio_error(exc) from exc
+    return {"ok": True, "transaction": json_values(saved)}
+
+
+@router.delete("/api/portfolio/transactions/{transaction_id}")
+async def api_portfolio_transaction_delete(
+    transaction_id: str, version: int = Query(ge=1),
+    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+):
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, partial(
+            identity.web_auth_store.portfolio.delete_transaction, current_user.id, transaction_id, version=version))
+    except ValueError as exc:
+        raise _portfolio_error(exc) from exc
+    return {"ok": True, "deleted": True}
 
 
 @router.put("/api/portfolio/positions")
@@ -543,8 +604,11 @@ async def api_portfolio_position_upsert(
 async def api_portfolio_position_delete(
     ticker: str, current_user: identity_users.WebUser = Depends(auth_access._require_pro),
 ) -> dict[str, Any]:
-    deleted = await asyncio.get_running_loop().run_in_executor(
-        None, partial(identity.web_auth_store.portfolio.delete_portfolio_position, current_user.id, ticker))
+    try:
+        deleted = await asyncio.get_running_loop().run_in_executor(
+            None, partial(identity.web_auth_store.portfolio.delete_portfolio_position, current_user.id, ticker))
+    except ValueError as exc:
+        raise _portfolio_error(exc) from exc
     if not deleted:
         raise HTTPException(status_code=404, detail="Portfolio position not found")
     return {"ok": True, "ticker": ticker.strip().upper(), "deleted": True}

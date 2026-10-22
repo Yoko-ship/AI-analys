@@ -49,8 +49,8 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     // board, so the "/" page needs the same rows the market view reads.
     if (activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main" && activeView !== "auth"
-      && activeView !== "profile" && activeView !== "portfolio") return;
-    loadMarketStocks((activeView === "profile" || activeView === "portfolio") ? "stock" : null).catch((error) => {
+      && activeView !== "profile") return;
+    loadMarketStocks(activeView === "profile" ? "stock" : null).catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

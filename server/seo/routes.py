@@ -56,7 +56,7 @@ LANGUAGES = (DEFAULT_LANGUAGE, *URL_LANGUAGES)
 _OG_LOCALE = {"ru": "ru_RU", "uz": "uz_UZ"}
 
 # Pages a search result should never point at.
-_PRIVATE_PREFIXES = ("/admin", "/profile", "/login")
+_PRIVATE_PREFIXES = ("/admin", "/profile", "/login", "/portfolio")
 
 # Pages with one id after the prefix (frontend/src/app/routing.jsx, pathToView).
 _ENTITY_PREFIXES = ("/company/", "/chart/", "/bond/", "/news/")

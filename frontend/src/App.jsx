@@ -247,7 +247,7 @@ function App() {
           )}
 
           {activeView === "portfolio" && (
-            <PortfolioView language={language} apiFetch={apiFetch} signedIn={Boolean(token)}
+            <PortfolioView key={user?.id || "guest"} language={language} apiFetch={apiFetch} signedIn={Boolean(token)}
               hasProAccess={hasProAccess} onUpgrade={() => setActiveView(token ? "profile" : "auth")}
               onOpenCompany={openCompanyPage} />
           )}

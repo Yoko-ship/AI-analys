@@ -1,70 +1,91 @@
-import { normalizeLanguage } from "../../shared/i18n.jsx";
-import React from "react";
-import { ProFeatureGate } from "../../shared/ProFeatureGate.jsx";
-import { formatMarketNumber, formatRatio, formatSignedPercent } from "../../shared/format.jsx";
+import React from 'react';
+import { normalizeLanguage } from '../../shared/i18n.jsx';
+import { ProFeatureGate } from '../../shared/ProFeatureGate.jsx';
+import { formatMarketNumber, formatRatio, formatChangePercent } from '../../lib/numberFormat.js';
+import { portfolioCopy, portfolioError } from './copy.js';
+import { usePortfolio } from './usePortfolio.js';
+import { TransactionForm } from './TransactionForm.jsx';
 
-function PortfolioView({ language, apiFetch, signedIn, hasProAccess, onUpgrade, onOpenCompany }) {
+export function PortfolioView({ language, apiFetch, signedIn, hasProAccess, onUpgrade, onOpenCompany }) {
   const lang = normalizeLanguage(language);
-  const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
-  const [portfolio, setPortfolio] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-  const [form, setForm] = React.useState({ ticker: "", quantity: "", average_cost: "", note: "" });
-  const [saving, setSaving] = React.useState(false);
-
-  const load = React.useCallback(() => {
-    setLoading(true); setError("");
-    return apiFetch("/api/portfolio").then(async (response) => {
-      const body = await response.json().catch(() => null);
-      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Portfolio unavailable");
-      setPortfolio(body);
-    }).catch((err) => setError(String(err?.message || err))).finally(() => setLoading(false));
-  }, [apiFetch]);
-  React.useEffect(() => { if (hasProAccess) load(); else setLoading(false); }, [hasProAccess, load]);
-
-  const title = t("Портфель", "Portfel", "Portfolio");
-  if (!hasProAccess) return <ProFeatureGate language={lang} title={title}
-    description={t("В PRO можно вести собственные позиции и видеть их стоимость по последней подтверждённой биржевой сделке.", "PROda o‘z pozitsiyalaringizni yuritib, ularning qiymatini so‘nggi tasdiqlangan birja bitimi bo‘yicha ko‘rishingiz mumkin.", "PRO lets you maintain your positions and value them from the last confirmed exchange trade.")}
-    signedIn={signedIn} onUpgrade={onUpgrade} />;
-  const money = (value) => Number.isFinite(Number(value)) ? `${formatMarketNumber(value, lang)} ${t("сум", "so‘m", "UZS")}` : "—";
-  const submit = async (event) => {
-    event.preventDefault(); setSaving(true); setError("");
-    try {
-      const response = await apiFetch("/api/portfolio/positions", { method: "PUT", body: JSON.stringify({
-        ticker: form.ticker.trim().toUpperCase(), quantity: Number(form.quantity), average_cost: Number(form.average_cost), note: form.note,
-      }) });
-      const body = await response.json().catch(() => null);
-      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Could not save position");
-      setForm({ ticker: "", quantity: "", average_cost: "", note: "" }); await load();
-    } catch (err) { setError(String(err?.message || err)); } finally { setSaving(false); }
+  const text = portfolioCopy(lang);
+  const { data, loading, refreshError, refresh, beginMutation, endMutation } = usePortfolio(apiFetch, hasProAccess);
+  const [editor, setEditor] = React.useState(null);
+  const [deleting, setDeleting] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [notice, setNotice] = React.useState('');
+  const [visibleCount, setVisibleCount] = React.useState(20);
+  const addButton = React.useRef(null);
+  const money = value => value == null ? '—' : `${formatMarketNumber(value, lang)} UZS`;
+  const tone = value => value == null || Number(value) === 0 ? '' : Number(value) > 0 ? 'pos' : 'neg';
+  const closeEditor = () => { setEditor(null); addButton.current?.focus(); };
+  const saved = async () => { closeEditor(); setNotice(text('saved')); await refresh(); };
+  const edit = transaction => {
+    setEditor({ transaction }); setDeleting(null); setError(''); setNotice('');
+    requestAnimationFrame(() => document.getElementById('portfolio-form-title')?.scrollIntoView({ behavior: 'instant', block: 'center' }));
   };
-  const remove = async (ticker) => {
+  const remove = async transaction => {
+    if (busy) return;
+    setBusy(true); setError(''); beginMutation();
     try {
-      const response = await apiFetch(`/api/portfolio/positions/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+      const response = await apiFetch(`/api/portfolio/transactions/${encodeURIComponent(transaction.id)}?version=${transaction.version}`, { method: 'DELETE' });
       const body = await response.json().catch(() => null);
-      if (!response.ok || !body?.ok) throw new Error(body?.detail?.message || body?.detail || "Could not remove position");
-      await load();
-    } catch (err) { setError(String(err?.message || err)); }
+      if (!response.ok || !body?.ok) throw new Error(portfolioError(response, body, text));
+      setDeleting(null); setNotice(text('deleted')); await refresh();
+    } catch (err) { setError(err.message || text('failed')); }
+    finally { setBusy(false); endMutation(); }
   };
-  return <section className="stack portfolio-view">
-    <header className="page-head"><div><h1>{title}</h1><p>{t("Только вручную добавленные позиции. Нереализованный результат не учитывает комиссии, налоги и корпоративные действия.", "Faqat qo‘lda qo‘shilgan pozitsiyalar. Hisoblangan natija komissiya, soliq va korporativ harakatlarni hisobga olmaydi.", "Only positions you enter. Unrealized P/L excludes fees, tax, and corporate actions.")}</p></div></header>
-    <div className="grid3">
-      <article className="kpi panel"><div className="label">{t("Стоимость", "Qiymat", "Market value")}</div><div className="value">{money(portfolio?.market_value)}</div><div className="hint">{portfolio?.priced_count || 0}/{portfolio?.count || 0} {t("переоценено", "baholangan", "priced")}</div></article>
-      <article className="kpi panel"><div className="label">{t("Себестоимость", "Tannarx", "Cost basis")}</div><div className="value">{money(portfolio?.cost_value)}</div><div className="hint">{portfolio?.price_basis || "—"}</div></article>
-      <article className="kpi panel"><div className="label">{t("Нереализованный P/L", "Amalga oshmagan P/L", "Unrealized P/L")}</div><div className={`value ${Number(portfolio?.unrealized_pnl) >= 0 ? "pos" : "neg"}`}>{money(portfolio?.unrealized_pnl)}</div><div className="hint">UZS</div></article>
-    </div>
-    <article className="panel pad"><h2 className="section-heading">{t("Добавить или обновить позицию", "Pozitsiya qo‘shish yoki yangilash", "Add or update position")}</h2><form className="form-grid" onSubmit={submit}>
-      <label className="field"><span>{t("Тикер", "Ticker", "Ticker")}</span><input required maxLength="40" value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })} placeholder="KSCM" /></label>
-      <label className="field"><span>{t("Количество", "Miqdor", "Quantity")}</span><input required min="0.000001" step="any" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label>
-      <label className="field"><span>{t("Средняя цена, UZS", "O‘rtacha narx, UZS", "Average cost, UZS")}</span><input required min="0" step="any" type="number" value={form.average_cost} onChange={(e) => setForm({ ...form, average_cost: e.target.value })} /></label>
-      <label className="field"><span>{t("Заметка", "Izoh", "Note")}</span><input maxLength="1000" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></label>
-      <div className="profile-form-actions"><button className="primary-btn" type="submit" disabled={saving}>{saving ? t("Сохранение…", "Saqlanmoqda…", "Saving…") : t("Сохранить", "Saqlash", "Save")}</button></div>
-    </form></article>
-    {error && <div className="callout red"><span className="ico">!</span><div>{error}</div><button type="button" onClick={load}>{t("Повторить", "Qayta urinish", "Retry")}</button></div>}
-    <article className="panel"><div className="panel-head"><h2>{t("Позиции", "Pozitsiyalar", "Positions")}</h2><span className="muted">{portfolio?.price_basis || "—"}</span></div>
-      {loading ? <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div> : !(portfolio?.items || []).length ? <div className="empty-state"><h2>{t("Пока нет позиций", "Hozircha pozitsiyalar yo‘q", "No positions yet")}</h2><p>{t("Добавьте тикер, количество и среднюю цену выше.", "Yuqorida ticker, miqdor va o‘rtacha narxni qo‘shing.", "Add a ticker, quantity, and average cost above.")}</p></div> : <div className="table-wrap"><table><thead><tr><th>{t("Бумага", "Qimmatli qog‘oz", "Security")}</th><th>{t("Количество", "Miqdor", "Quantity")}</th><th>{t("Цена / стоимость", "Narx / qiymat", "Price / value")}</th><th>P/L</th><th /></tr></thead><tbody>{portfolio.items.map((item) => <tr key={item.ticker}><td><button className="rowlink" type="button" onClick={() => onOpenCompany?.(item.ticker)}><b>{item.ticker}</b><span className="meta">{item.company_name || item.note || "—"}</span></button></td><td>{formatRatio(item.quantity, 4, lang)}</td><td>{item.valuation_status === "AVAILABLE" ? <><b>{money(item.last_price)}</b><span className="meta">{money(item.market_value)}</span></> : <span className="muted">{t("Нет подтверждённой цены", "Tasdiqlangan narx yo‘q", "No confirmed price")}</span>}</td><td className={Number(item.unrealized_pnl) >= 0 ? "pos" : "neg"}>{money(item.unrealized_pnl)}<span className="meta">{item.unrealized_pnl_pct == null ? "—" : formatSignedPercent(item.unrealized_pnl_pct, 2)}</span></td><td><button className="icon-btn" type="button" onClick={() => setForm({ ticker: item.ticker, quantity: String(item.quantity), average_cost: String(item.average_cost), note: item.note || "" })}>{t("Изменить", "Tahrirlash", "Edit")}</button><button className="icon-btn" type="button" onClick={() => remove(item.ticker)}>{t("Удалить", "O‘chirish", "Delete")}</button></td></tr>)}</tbody></table></div>}
-    </article>
+  if (!hasProAccess) return <ProFeatureGate language={lang} title={text('title')} description={text('gate')} signedIn={signedIn} onUpgrade={onUpgrade} />;
+  const records = [...(data?.transactions || [])].reverse();
+  const checked = data?.checked_at ? new Date(data.checked_at).toLocaleTimeString(lang === 'uz' ? 'uz-UZ' : lang, { hour: '2-digit', minute: '2-digit' }) : null;
+  return <section className="portfolio-view stack">
+    <header className="portfolio-heading">
+      <div><span className="portfolio-eyebrow">{text('manual')}</span><h1>{text('title')}</h1><p>{text('intro')}</p></div>
+      <button ref={addButton} type="button" className="primary-btn" onClick={() => edit(null)} disabled={Boolean(editor) || busy || !data}>{text('record')}</button>
+    </header>
+    <div className="portfolio-refresh"><span>{text('auto')}{checked ? ` · ${text('checked')} ${checked}` : ''}</span><button type="button" className="secondary-btn" onClick={refresh} disabled={busy}>{text('refresh')}</button></div>
+    {refreshError && <div className="portfolio-warning" role="alert"><span>{text('refreshError')}</span><button type="button" className="secondary-btn" onClick={refresh}>{text('retry')}</button></div>}
+    {error && <p className="portfolio-error" role="alert">{error}</p>}
+    {notice && <p className="portfolio-notice" role="status">{notice}</p>}
+    {editor && <TransactionForm key={editor.transaction?.id || 'new'} transaction={editor.transaction}
+      instruments={data?.instruments || []} apiFetch={apiFetch} text={text} onCancel={closeEditor} onSaved={saved}
+      beginMutation={beginMutation} endMutation={endMutation} />}
+    {loading && !data ? <p className="portfolio-loading" role="status">{text('loading')}</p> : data && <>
+      <article className="portfolio-summary panel">
+        <div className="portfolio-value"><span className="portfolio-eyebrow">{text('value')}</span><strong data-testid="portfolio-market-value">{money(data.market_value)}</strong><span className="muted">{data.priced_count} / {data.count} {text('priced')}</span></div>
+        <dl className="portfolio-metrics">
+          {[['basis', data.cost_value], ['unrealized', data.unrealized_pnl], ['realized', data.realized_pnl], ['dividends', data.dividend_income]].map(([label, value]) => <div key={label}><dt>{text(label)}</dt><dd className={label === 'basis' ? '' : tone(value)}>{money(value)}</dd></div>)}
+        </dl>
+        <div className="portfolio-summary-foot"><p>{text('cadence')}</p><span>{text('total')} <b className={tone(data.total_pnl)}>{money(data.total_pnl)}</b></span></div>
+      </article>
+      {!data.valuation_complete && <p className="portfolio-warning">{text('incomplete')}</p>}
+      <article className="panel portfolio-holdings">
+        <div className="panel-head"><h2>{text('holdings')}</h2><span className="muted">{data.count}</span></div>
+        {!data.items.length ? <div className="portfolio-empty"><span className="portfolio-empty-mark" aria-hidden="true">＋</span><h3>{text(records.length ? 'closed' : 'empty')}</h3><p>{text(records.length ? 'closedHelp' : 'emptyHelp')}</p></div> : <div className="table-wrap"><table aria-label={text('holdings')}>
+          <thead><tr>{['security', 'quantity', 'average', 'lastPrice', 'positionValue'].map(key => <th key={key}>{text(key)}</th>)}<th>P/L</th><th>{text('allocation')}</th></tr></thead>
+          <tbody>{data.items.map(item => <tr key={item.ticker}>
+            <td><button type="button" className="rowlink" onClick={() => onOpenCompany?.(item.ticker)}><b>{item.ticker}</b><span className="meta">{item.company_name}</span></button></td>
+            <td>{formatRatio(item.quantity, 6, lang)}</td><td>{money(item.average_cost)}</td>
+            <td>{item.last_price == null ? <span className="muted">{text('missing')}</span> : <><b>{money(item.last_price)}</b><time className="meta" dateTime={item.price_date}>{item.price_date}</time></>}</td>
+            <td>{money(item.market_value)}</td><td className={tone(item.unrealized_pnl)}>{money(item.unrealized_pnl)}<span className="meta">{formatChangePercent(item.unrealized_pnl_pct, lang)}</span></td>
+            <td>{item.allocation_pct == null ? '—' : <div className="portfolio-weight"><span>{formatRatio(item.allocation_pct, 1, lang)}%</span><meter min="0" max="100" value={Number(item.allocation_pct)} aria-label={`${item.ticker} ${text('allocation')}`} /></div>}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </article>
+      <article className="panel portfolio-history"><div className="panel-head"><h2>{text('history')}</h2><span className="muted">{records.length}</span></div>
+        {!records.length ? <p className="portfolio-no-history muted">{text('noHistory')}</p> : <div className="table-wrap"><table aria-label={text('history')}>
+          <thead><tr>{['date', 'kind', 'security', 'quantity', 'price', 'fees', 'actions'].map(key => <th key={key}>{text(key)}</th>)}</tr></thead>
+          <tbody>{records.slice(0, visibleCount).map(row => <React.Fragment key={row.id}><tr>
+            <td>{row.trade_date || '—'}</td><td><span className={`portfolio-kind kind-${row.kind}`}>{text(row.kind)}</span></td>
+            <td><b>{row.ticker}</b>{row.note && <span className="meta portfolio-record-note">{row.note}</span>}</td>
+            <td>{row.kind === 'dividend' ? '—' : formatRatio(row.quantity, 6, lang)}</td><td>{money(row.kind === 'dividend' ? row.amount : row.price)}{row.kind === 'dividend' && <span className="meta">{text('amount')}</span>}</td><td>{money(row.fees)}</td>
+            <td><div className="portfolio-row-actions"><button type="button" className="secondary-btn" disabled={busy || Boolean(editor)} onClick={() => edit(row)} aria-label={`${text('edit')} ${row.ticker} ${lang === 'en' ? 'transaction' : text('kind').toLowerCase()}`}>{text('edit')}</button><button type="button" className="secondary-btn" disabled={busy || Boolean(editor)} onClick={() => { setDeleting(row.id); setError(''); }} aria-label={`${text('delete')} ${row.ticker} ${lang === 'en' ? 'transaction' : text('kind').toLowerCase()}`}>{text('delete')}</button></div></td>
+          </tr>{deleting === row.id && <tr><td colSpan={7}><div className="portfolio-delete-confirm"><span>{text('deleteHelp')}</span><button className="secondary-btn" type="button" disabled={busy} onClick={() => remove(row)}>{text('confirmDelete')}</button><button className="secondary-btn" type="button" disabled={busy} onClick={() => setDeleting(null)}>{text('cancel')}</button></div></td></tr>}</React.Fragment>)}</tbody>
+        </table></div>}
+        {records.length > visibleCount && <button type="button" className="secondary-btn portfolio-more" onClick={() => setVisibleCount(n => n + 20)}>{text('more')}</button>}
+      </article>
+      <p className="portfolio-method muted">{text('method')}</p>
+    </>}
   </section>;
 }
-
-export { PortfolioView };

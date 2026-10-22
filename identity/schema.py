@@ -170,6 +170,45 @@ def initialize(connection_factory) -> None:
             )
             """
         )
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS web_portfolio_transactions (
+                sequence BIGSERIAL UNIQUE,
+                user_id BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                kind TEXT NOT NULL CHECK (kind IN ('opening', 'buy', 'sell', 'dividend')),
+                trade_date DATE,
+                quantity NUMERIC NOT NULL CHECK (quantity >= 0),
+                price NUMERIC NOT NULL CHECK (price >= 0),
+                fees NUMERIC NOT NULL DEFAULT 0 CHECK (fees >= 0),
+                amount NUMERIC NOT NULL DEFAULT 0 CHECK (amount >= 0),
+                note TEXT NOT NULL DEFAULT '',
+                version INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ,
+                PRIMARY KEY (user_id, id),
+                CHECK ((kind = 'opening' AND trade_date IS NULL AND fees = 0)
+                       OR (kind <> 'opening' AND trade_date IS NOT NULL)),
+                CHECK ((kind = 'dividend' AND quantity = 0 AND price = 0 AND amount > 0 AND fees <= amount)
+                       OR (kind <> 'dividend' AND quantity > 0 AND amount = 0))
+            )
+        """)
+        conn.execute("""CREATE INDEX IF NOT EXISTS idx_portfolio_transactions_user_date
+                     ON web_portfolio_transactions(user_id, trade_date, sequence) WHERE deleted_at IS NULL""")
+        conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_portfolio_one_opening
+                     ON web_portfolio_transactions(user_id, ticker) WHERE kind = 'opening' AND deleted_at IS NULL""")
+        # Preserve holdings without inventing purchase dates. The migration
+        # marker prevents a user's later deletion being undone on startup.
+        conn.execute("ALTER TABLE web_portfolio_positions ADD COLUMN IF NOT EXISTS ledger_migrated BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.execute("""
+            INSERT INTO web_portfolio_transactions
+                (user_id, id, ticker, kind, quantity, price, note, created_at, updated_at)
+            SELECT user_id, 'opening-' || id, ticker, 'opening', quantity, average_cost, note, created_at, updated_at
+            FROM web_portfolio_positions WHERE NOT ledger_migrated
+            ON CONFLICT (user_id, id) DO NOTHING
+        """)
+        conn.execute("UPDATE web_portfolio_positions SET ledger_migrated = TRUE WHERE NOT ledger_migrated")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS web_support_requests (

@@ -504,3 +504,12 @@ def test_list_links_carry_only_url_safe_tickers():
         out = table(rows, "ru")
         assert f'<a href="{prefix}UZTL">' in out
         assert "<b>" not in out and "X&quot;" not in out
+
+
+def test_portfolio_is_private_in_both_languages(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for path in ('/portfolio', '/uz/portfolio'):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert '<meta name="robots" content="noindex, nofollow" />' in response.text
+        assert f'Disallow: {path}' in client.get('/robots.txt').text

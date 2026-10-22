@@ -146,3 +146,9 @@ describe("one list of URL languages", () => {
     assert.deepEqual(offenders, []);
   });
 });
+
+it('opens the portfolio in Russian and Uzbek instead of redirecting home', () => {
+  assert.equal(pathToView('/portfolio').view, 'portfolio');
+  assert.equal(pathToView('/uz/portfolio').view, 'portfolio');
+  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
+});

@@ -348,7 +348,7 @@ test("module navigation preserves market filters through browser back and forwar
 
 test("module routing preserves hidden workspace redirects and the bonds alias", async ({ page }) => {
   await page.route("**/api/bonds", (route) => route.fulfill({ json: { ok: true, items: [], count: 0 } }));
-  for (const path of ["/analysis", "/compare", "/portfolio"]) {
+  for (const path of ["/analysis", "/compare"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();

@@ -4308,5 +4308,65 @@
     "dependencies": [
       "_admin_panel_gate"
     ]
+  },
+  {
+    "path": "/api/portfolio/transactions",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_portfolio_transaction_create",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/portfolio/transactions/{transaction_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "api_portfolio_transaction_update",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/portfolio/transactions/{transaction_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_portfolio_transaction_delete",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio/transactions",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_portfolio_transaction_create__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio/transactions/{transaction_id}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "api_portfolio_transaction_update__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
+  },
+  {
+    "path": "/api/v2/portfolio/transactions/{transaction_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_portfolio_transaction_delete__v2",
+    "dependencies": [
+      "_require_pro"
+    ]
   }
 ]
