@@ -698,3 +698,14 @@ def test_published_corporate_ifrs_keeps_its_issuer_type(setup,monkeypatch):
     stage(setup)
     publication.publish('BRBN',actor='test')
     assert publication.latest('BRBN')['org_type']=='jsc'
+
+
+def test_public_status_joins_use_indexed_issuer_candidate_lookups(setup):
+    # Correlated review/publication checks must not scan every historical
+    # candidate for each source (production HMKB status alone took 3.16s).
+    c=store.connect()
+    try:
+        for table,column in [('ingest_candidates','version_id'),('ingest_snapshots','candidate_id'),('ingest_jobs','source_id')]:
+            plan=c.execute(f'EXPLAIN QUERY PLAN SELECT id FROM {table} WHERE {column}=?',('example',)).fetchall()
+            assert all('SCAN ' not in str(row['detail']) for row in plan),(table,plan)
+    finally:c.close()

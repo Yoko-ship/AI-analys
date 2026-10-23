@@ -85,6 +85,9 @@ def _schema(c):
       attachments_json TEXT NOT NULL DEFAULT '[]', error TEXT,
       UNIQUE(org_id,api_path)
     );
+    CREATE INDEX IF NOT EXISTS ingest_candidates_version ON ingest_candidates(version_id);
+    CREATE INDEX IF NOT EXISTS ingest_snapshots_candidate ON ingest_snapshots(candidate_id);
+    CREATE INDEX IF NOT EXISTS ingest_jobs_source ON ingest_jobs(source_id);
     """)
     c.commit()
 
@@ -92,7 +95,7 @@ def _schema(c):
 def connect():
     from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
-    dbx.ensure_schema(c, "financial-ingestion-v2", _schema)
+    dbx.ensure_schema(c, "financial-ingestion-v3", _schema)
     return c
 
 
