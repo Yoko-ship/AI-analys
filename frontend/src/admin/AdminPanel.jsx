@@ -13,6 +13,7 @@ import { EngagementSection } from "./EngagementSection.jsx";
 import { AudienceSection } from "./AudienceSection.jsx";
 import { ProductOverviewSection } from "./ProductOverviewSection.jsx";
 import { useAdminData } from "./useAdminData.js";
+import { TerminalAdmin } from "./TerminalAdmin.jsx";
 export default function AdminPanel({
   apiFetch,
   language = "ru",
@@ -242,6 +243,7 @@ export default function AdminPanel({
     updateFeedbackStatus={updateFeedbackStatus}
   />;
   const bodyBySection = {
+    terminal: <TerminalAdmin apiFetch={apiFetch} language={language} />,
     overview: overviewBody,
     audience: audienceBody,
     engagement: engagementBody,

@@ -566,7 +566,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange }) {
+function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange }) {
   const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   // A host may steer the sub-tab: the catalog terminal opens PL, BS and RAT as
   // sections of this one view. A click is still the tab's own (the host only
@@ -1039,7 +1039,7 @@ function CompanyFinancialsTab({ ticker, ratios, series, periods, loading, lang, 
         )}
 
         <p className="fin-note muted">
-          {periodBasis === "cumulative_ytd"
+          {currency === "USD" ? t("Суммы в USD по курсу ЦБ на конец каждого периода. Коэффициенты рассчитаны в UZS. Паспорт показывает исходные данные в UZS.", "Summalar davr oxiridagi MB kursida USDda. Koeffitsiyentlar UZSda hisoblangan.", "Amounts in USD at each period-end CBU rate. Ratios are calculated in UZS. Source passports show original UZS data.") : periodBasis === "cumulative_ytd"
             ? t("Суммы в сумах по промежуточной отчётности МСФО. Доходы и расходы — с начала года; активы, обязательства и капитал — на отчётную дату. Рост г/г сравнивает одинаковую длительность периода.",
                 "Summalar so‘mda, MHXS oraliq hisobotlaridan. Daromad va xarajatlar yil boshidan jamlangan; aktivlar, majburiyatlar va kapital hisobot sanasiga. Yillik o‘sish bir xil davomiylikdagi davrlarni taqqoslaydi.",
                 "Sums in UZS from interim IFRS filings. Income and expenses are year-to-date; assets, liabilities and equity are at the reporting date. YoY growth compares periods of equal duration.")

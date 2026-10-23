@@ -12,6 +12,8 @@ import requests
 import server.http as http
 import threading
 import time
+from datetime import date
+from fastapi import HTTPException
 
 
 router = APIRouter()
@@ -75,7 +77,16 @@ def _cbu_rates_payload() -> dict[str, Any]:
 
 
 @router.get("/api/currency/rates")
-async def api_currency_rates(request: Request) -> Response:
+async def api_currency_rates(request: Request, as_of: date | None = None) -> Response:
+    if as_of is not None:
+        from server.currency.history import rates
+        try:
+            payload = await asyncio.to_thread(rates, as_of.isoformat())
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="CBU archive unavailable") from exc
+        return http._etag_json(request, payload, max_age=86400)
     now = time.time()
     if _cbu_rates_cache["payload"] is None or now - _cbu_rates_cache["at"] > CBU_RATES_TTL_SEC:
         loop = asyncio.get_running_loop()

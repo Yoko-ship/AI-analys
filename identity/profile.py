@@ -73,6 +73,9 @@ class Profile:
     def update_preferences(self, user_id: int, updates: dict[str, Any]) -> dict[str, Any]:
         allowed = set(identity_settings.DEFAULT_PROFILE_PREFERENCES)
         clean = {key: value for key, value in (updates or {}).items() if key in allowed and value is not None}
+        if "terminal_layout" in clean:
+            from identity.terminal import validate_layout
+            clean["terminal_layout"] = validate_layout(clean["terminal_layout"])
         if clean.get("language") not in (None, "ru", "en", "uz"):
             raise ValueError("Unsupported language")
         if clean.get("theme") not in (None, "light", "dark"):
@@ -258,12 +261,14 @@ class Profile:
 
 
     def export_user_data(self, user_id: int, current_token: str | None = None) -> dict[str, Any]:
+        from identity.comparisons import Comparisons
         profile = self.get_profile(user_id, recent_limit=100)
         return {
             "exported_at": identity_clock._utcnow().isoformat(),
             **profile,
             "sessions": self.sessions.list_sessions(user_id, current_token),
             "notes": self.notes.list_notes(user_id),
+            "saved_comparisons": Comparisons(self.database).list(user_id),
         }
 
 

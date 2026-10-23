@@ -93,7 +93,7 @@ def validate_filing(snapshot, issuer, lang, today, workbook=None, period_label=N
         if sources.get("opening_from_filing") and sources.get("opening_date") != year_start:
             return_opening = snapshot.get("return_opening_values") or {}
     computed_ratios = (financial_analysis_sector_calculations.enterprise_ratios(lines, org, standard, period, methods=snapshot.get("formula_methods"))
-                       or financial_analysis_sector_calculations.financial_ratios(values, previous, return_opening, org, standard, period))
+                       or financial_analysis_sector_calculations.financial_ratios(values, previous, return_opening, org, standard, period, methods=snapshot.get("financial_formula_methods")))
     if org == "non_financial":
         # P1/P4 remain the separately named statutory closing-balance and
         # pre-tax methods. They are not substitutes for net-profit ROA/ROE.

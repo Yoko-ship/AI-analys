@@ -172,7 +172,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 onMouseLeave={closeNavMenuSoon}
               >
                 <button
-                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" || activeView === "heatmap" ? "active" : ""}`}
+                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" || activeView === "heatmap" || activeView === "companyCompare" ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={navMenu === "market"}
@@ -185,6 +185,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   { head: navDdLabel("Биржа", "Birja", "Exchange"), items: [
                     { label: navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments"), onSelect: () => setActiveView("market") },
                     { label: navDdLabel("Карта рынка", "Bozor xaritasi", "Market map"), onSelect: () => setActiveView("heatmap") },
+                    { label: navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies"), onSelect: () => setActiveView("companyCompare") },
                   ] },
                   { head: navDdLabel("Валюта", "Valyuta", "Currency"), items: [
                     { label: navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates"), onSelect: () => setActiveView("bankfx") },
@@ -199,6 +200,13 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   onClick={() => { setActiveView("heatmap"); setMobileNavOpen(false); }}
                 >
                   {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
+                </button>
+                <button
+                  className="topbar-nav-btn nav-dd-mobile-item"
+                  type="button"
+                  onClick={() => { setActiveView("companyCompare"); setMobileNavOpen(false); }}
+                >
+                  {navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies")}
                 </button>
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"

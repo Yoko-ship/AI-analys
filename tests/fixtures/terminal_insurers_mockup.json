@@ -1,0 +1,405 @@
+{
+  "source": "User-provided UZStock_terminal_TZ_maket (3).html, 15.10.2026 snapshot; test evidence only",
+  "insurers": {
+    "TMYS": {
+      "per": "1П 2026",
+      "prev": "1П 2025",
+      "url": "https://openinfo.uz/ru/reports/to_pdf30978/",
+      "pub": "2026-07-27",
+      "f": {
+        "insurance_premiums": [
+          91554529.62,
+          108717382.26
+        ],
+        "ceded_premiums": [
+          4672019.41,
+          46003415.18
+        ],
+        "revenue": [
+          72936895.37,
+          70694878.27
+        ],
+        "insurance_service_cost": [
+          57768354.59,
+          72022317.61
+        ],
+        "expenses": [
+          14111021.57,
+          11818751.21
+        ],
+        "financial_income": [
+          18624673.71,
+          16883832.04
+        ],
+        "net_income": [
+          14080773.17,
+          631113.85
+        ],
+        "total_equity": [
+          129261458.89,
+          115216386.41
+        ],
+        "net_insurance_reserves": [
+          116802183.26,
+          98694927.19
+        ],
+        "reinsurer_share_in_reserves": [
+          26965040.49,
+          60728419.0
+        ],
+        "gross_insurance_reserves": [
+          143767223.75,
+          159423346.19
+        ],
+        "total_assets": [
+          336219171.35,
+          314202235.52
+        ],
+        "total_liabilities": [
+          206957712.46,
+          198985849.11
+        ],
+        "other_liabilities": [
+          90155529.2,
+          100290921.92
+        ]
+      },
+      "ln": {
+        "insurance_premiums": "insurance:income:c011+c013",
+        "ceded_premiums": "insurance:income:c012",
+        "revenue": "insurance:income:c060",
+        "insurance_service_cost": "insurance:income:c070",
+        "expenses": "insurance:income:c090",
+        "financial_income": "insurance:income:c160",
+        "net_income": "insurance:income:c320",
+        "total_equity": "insurance:balance:c570",
+        "net_insurance_reserves": "insurance:balance:c720",
+        "reinsurer_share_in_reserves": "insurance:balance:c670",
+        "gross_insurance_reserves": "insurance:balance:c580",
+        "total_assets": "insurance:balance:c490",
+        "total_liabilities": "catalog:total_liabilities",
+        "other_liabilities": "insurance:balance:c1190"
+      }
+    },
+    "KFSK": {
+      "per": "1П 2026",
+      "prev": "1П 2025",
+      "url": "https://openinfo.uz/ru/reports/to_pdf31053/",
+      "pub": "2026-07-28",
+      "f": {
+        "insurance_premiums": [
+          827844300.8,
+          245784203.8
+        ],
+        "ceded_premiums": [
+          534749245.2,
+          93743967.1
+        ],
+        "revenue": [
+          272434084.4,
+          181606382.0
+        ],
+        "insurance_service_cost": [
+          222544770.3,
+          120714361.3
+        ],
+        "expenses": [
+          50328881.7,
+          53724458.2
+        ],
+        "financial_income": [
+          31519102.8,
+          25158715.7
+        ],
+        "net_income": [
+          15941822.1,
+          11995147.3
+        ],
+        "total_equity": [
+          272629975.17,
+          256892978.03
+        ],
+        "net_insurance_reserves": [
+          353073691.8,
+          259436970.5
+        ],
+        "reinsurer_share_in_reserves": [
+          771488545.7,
+          469160235.8
+        ],
+        "gross_insurance_reserves": [
+          1124562237.5,
+          728597206.3
+        ],
+        "total_assets": [
+          757594824.28,
+          642485365.03
+        ],
+        "total_liabilities": [
+          484964849.11,
+          385792387.0
+        ],
+        "other_liabilities": [
+          131891157.31,
+          126355416.5
+        ]
+      },
+      "ln": {
+        "insurance_premiums": "insurance:income:c011+c013",
+        "ceded_premiums": "insurance:income:c012",
+        "revenue": "insurance:income:c060",
+        "insurance_service_cost": "insurance:income:c070",
+        "expenses": "insurance:income:c090",
+        "financial_income": "insurance:income:c160",
+        "net_income": "insurance:income:c320",
+        "total_equity": "insurance:balance:c570",
+        "net_insurance_reserves": "insurance:balance:c720",
+        "reinsurer_share_in_reserves": "insurance:balance:c670",
+        "gross_insurance_reserves": "insurance:balance:c580",
+        "total_assets": "insurance:balance:c490",
+        "total_liabilities": "catalog:total_liabilities",
+        "other_liabilities": "insurance:balance:c1190"
+      }
+    },
+    "KASU": {
+      "per": "1П 2026",
+      "prev": "1П 2025",
+      "url": "https://openinfo.uz/ru/reports/to_pdf31088/",
+      "pub": "2026-07-29",
+      "f": {
+        "insurance_premiums": [
+          489186618.58,
+          294752614.08
+        ],
+        "ceded_premiums": [
+          8307735.72,
+          63766851.14
+        ],
+        "revenue": [
+          433994092.18,
+          192907330.07
+        ],
+        "insurance_service_cost": [
+          146420157.79,
+          101105946.11
+        ],
+        "expenses": [
+          301368674.95,
+          127544357.68
+        ],
+        "financial_income": [
+          5760166.1,
+          7633568.32
+        ],
+        "net_income": [
+          3283637.74,
+          924358.47
+        ],
+        "total_equity": [
+          121930243.01,
+          118310370.42
+        ],
+        "net_insurance_reserves": [
+          157195638.86,
+          110200931.38
+        ],
+        "reinsurer_share_in_reserves": [
+          187193218.58,
+          186159662.71
+        ],
+        "gross_insurance_reserves": [
+          344388857.44,
+          296360594.09
+        ],
+        "total_assets": [
+          451851450.4,
+          314054232.96
+        ],
+        "total_liabilities": [
+          329921207.39,
+          195743862.54
+        ],
+        "other_liabilities": [
+          172725568.53,
+          85542931.16
+        ]
+      },
+      "ln": {
+        "insurance_premiums": "insurance:income:c011+c013",
+        "ceded_premiums": "insurance:income:c012",
+        "revenue": "insurance:income:c060",
+        "insurance_service_cost": "insurance:income:c070",
+        "expenses": "insurance:income:c090",
+        "financial_income": "insurance:income:c160",
+        "net_income": "insurance:income:c320",
+        "total_equity": "insurance:balance:c570",
+        "net_insurance_reserves": "insurance:balance:c720",
+        "reinsurer_share_in_reserves": "insurance:balance:c670",
+        "gross_insurance_reserves": "insurance:balance:c580",
+        "total_assets": "insurance:balance:c490",
+        "total_liabilities": "catalog:total_liabilities",
+        "other_liabilities": "insurance:balance:c1190"
+      }
+    },
+    "UZAS": {
+      "per": "1П 2026",
+      "prev": "1П 2025",
+      "url": "https://openinfo.uz/ru/reports/to_pdf30959/",
+      "pub": "2026-07-27",
+      "f": {
+        "insurance_premiums": [
+          94587125.9,
+          224014641.0
+        ],
+        "ceded_premiums": [
+          6453693.6,
+          176489364.0
+        ],
+        "revenue": [
+          111891908.5,
+          75796818.8
+        ],
+        "insurance_service_cost": [
+          50911399.2,
+          31554881.2
+        ],
+        "expenses": [
+          69033187.4,
+          67740483.7
+        ],
+        "financial_income": [
+          8742661.2,
+          7552513.7
+        ],
+        "net_income": [
+          294295.9,
+          3501207.7
+        ],
+        "total_equity": [
+          147661927.4,
+          147418608.2
+        ],
+        "net_insurance_reserves": [
+          104525700.3,
+          128284176.5
+        ],
+        "reinsurer_share_in_reserves": [
+          156509821.1,
+          200620329.7
+        ],
+        "gross_insurance_reserves": [
+          261035521.4,
+          328904506.2
+        ],
+        "total_assets": [
+          332548245.7,
+          363687892.7
+        ],
+        "total_liabilities": [
+          184886318.3,
+          216269284.5
+        ],
+        "other_liabilities": [
+          80360618.0,
+          87985108.0
+        ]
+      },
+      "ln": {
+        "insurance_premiums": "insurance:income:c011+c013",
+        "ceded_premiums": "insurance:income:c012",
+        "revenue": "insurance:income:c060",
+        "insurance_service_cost": "insurance:income:c070",
+        "expenses": "insurance:income:c090",
+        "financial_income": "insurance:income:c160",
+        "net_income": "insurance:income:c320",
+        "total_equity": "insurance:balance:c570",
+        "net_insurance_reserves": "insurance:balance:c720",
+        "reinsurer_share_in_reserves": "insurance:balance:c670",
+        "gross_insurance_reserves": "insurance:balance:c580",
+        "total_assets": "insurance:balance:c490",
+        "total_liabilities": "catalog:total_liabilities",
+        "other_liabilities": "insurance:balance:c1190"
+      }
+    },
+    "ALSM": {
+      "per": "1П 2026",
+      "prev": "1П 2025",
+      "url": "https://openinfo.uz/ru/reports/to_pdf31094/",
+      "pub": "2026-07-29",
+      "f": {
+        "insurance_premiums": [
+          135717311.86,
+          136875616.89
+        ],
+        "ceded_premiums": [
+          1120866.59,
+          18764082.8
+        ],
+        "revenue": [
+          159723712.96,
+          107241457.12
+        ],
+        "insurance_service_cost": [
+          146065638.26,
+          118160306.04
+        ],
+        "expenses": [
+          26117718.52,
+          14179729.5
+        ],
+        "financial_income": [
+          3853418.33,
+          6276018.02
+        ],
+        "net_income": [
+          -2211687.64,
+          13475032.18
+        ],
+        "total_equity": [
+          71116321.52,
+          73496632.95
+        ],
+        "net_insurance_reserves": [
+          144167933.59,
+          169295201.27
+        ],
+        "reinsurer_share_in_reserves": [
+          9698084.67,
+          13021075.79
+        ],
+        "gross_insurance_reserves": [
+          153866018.26,
+          182316277.06
+        ],
+        "total_assets": [
+          271433512.26,
+          287094223.79
+        ],
+        "total_liabilities": [
+          200317190.73,
+          213597590.84
+        ],
+        "other_liabilities": [
+          56149257.14,
+          44302389.57
+        ]
+      },
+      "ln": {
+        "insurance_premiums": "insurance:income:c011+c013",
+        "ceded_premiums": "insurance:income:c012",
+        "revenue": "insurance:income:c060",
+        "insurance_service_cost": "insurance:income:c070",
+        "expenses": "insurance:income:c090",
+        "financial_income": "insurance:income:c160",
+        "net_income": "insurance:income:c320",
+        "total_equity": "insurance:balance:c570",
+        "net_insurance_reserves": "insurance:balance:c720",
+        "reinsurer_share_in_reserves": "insurance:balance:c670",
+        "gross_insurance_reserves": "insurance:balance:c580",
+        "total_assets": "insurance:balance:c490",
+        "total_liabilities": "catalog:total_liabilities",
+        "other_liabilities": "insurance:balance:c1190"
+      }
+    }
+  }
+}

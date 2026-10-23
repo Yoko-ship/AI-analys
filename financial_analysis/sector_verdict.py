@@ -8,8 +8,8 @@ fired whatever the axes say; «Без динамики» — no comparison sourc
 
 The axes are then held to what the text reports: a bottom line the text
 says fell is never «улучшение», one it says rose never «ухудшение», and a
-fired risk of medium or high materiality — a sentence in «Риски» — caps the
-verdict at «смешанно» and is named in the reason.
+medium risk caps the verdict at «смешанно»; a high risk requires
+«требует внимания», even when profit rises.
 """
 from __future__ import annotations
 
@@ -209,10 +209,8 @@ def verdict(filing, evidence, risks=()):
 
     ``risks`` are the fired negative signals.  On top of the axes: a fall in
     the bottom line is never «улучшение», a rise never «ухудшение», and a
-    medium or high risk the text reports caps the verdict at «смешанно» with
-    the risk named in the reason.  Red flags that need attention remain the
-    only way to «требует внимания»; every flag the verdict weighed is listed
-    with its effect.
+    medium risk caps the verdict at «смешанно»; a high risk requires
+    «требует внимания» (terminal TZ, rule 8). Every weighed risk is recorded.
     """
     if not filing.publishable:
         return {"status": "no_signal", "reason": None, "axes": {}, "red_flags": []}
@@ -223,7 +221,7 @@ def verdict(filing, evidence, risks=()):
     flags = [{**flag, "effect": "attention"} for flag in red_flags(view)] if filing.publishable else []
     capping = sorted((s for s in risks if s.get("materiality") in CAPPING_MATERIALITY and s.get("direction", "negative") == "negative"),
                      key=lambda s: RISK_PRIORITY.index(s["code"]) if s["code"] in RISK_PRIORITY else len(RISK_PRIORITY))
-    caps = [{"code": s["code"], "metric_code": s.get("metric_code"), "materiality": s["materiality"], "effect": "caps_at_mixed",
+    caps = [{**s, "effect": "attention" if s["materiality"] == "high" else "caps_at_mixed",
              "signal_id": s.get("id")} for s in capping]
     known = {axis: state for axis, state in states.items() if state is not None}
     if flags:
@@ -284,4 +282,8 @@ def verdict(filing, evidence, risks=()):
                 or vocab.pick(lang, "в отчёте есть риски", "hisobotda xavflar bor", "the report shows risks")
             status = "mixed"
             reason = (good_phrase + joint + named) if good_phrase else named
+    high = next((s for s in capping if s["materiality"] == "high"), None)
+    if high and status != "attention":
+        status = "attention"
+        reason = _risk_reason(view, high) or reason or vocab.pick(lang, "в отчёте есть высокий риск", "hisobotda yuqori xavf bor", "the report contains a high risk")
     return {"status": status, "reason": reason, "axes": states, "red_flags": flags + caps}

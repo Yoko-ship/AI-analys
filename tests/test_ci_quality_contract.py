@@ -27,6 +27,12 @@ def test_local_review_evidence_is_excluded_from_container_context():
     assert "output/refactor-finish-20260926" in lines or "output" in lines
 
 
+def test_terminal_collector_is_included_in_production_image():
+    lines = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    assert "!scripts/terminal_cbu_sync.py" in lines
+    assert lines.index("!scripts/terminal_cbu_sync.py") > lines.index("scripts")
+
+
 def test_balance_repair_is_opt_in_and_runs_only_after_verified_production_deployment():
     workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
     job = workflow['jobs']['repair-financial-balances']

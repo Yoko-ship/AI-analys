@@ -394,7 +394,7 @@ def test_fx_share_is_stated_in_the_risks_and_holds_the_verdict():
     snapshot = _bank_snapshot(current={"fx_income": 1590498186, "fx_expenses": 1215017046, "profit_before_tax": 1151159101})
     report = sector_report.make_report(snapshot, BANK, "ru", TODAY)
     assert "Чистый валютный доход — около трети прибыли до налога: результат во многом зависит от курса" in report["text"]
-    assert report["verdict"]["status"] == "mixed" and "прибыль во многом валютная" in report["verdict"]["reason"]
+    assert report["verdict"]["status"] == "attention" and "прибыль во многом валютная" in report["verdict"]["reason"]
     over = sector_report.make_report(_bank_snapshot(current={"fx_income": 314701571, "fx_expenses": 282083748, "profit_before_tax": 28557759}),
                                      BANK, "ru", TODAY)
     assert "Чистый валютный доход (32,6 млрд сум) больше прибыли до налога: без него период закрылся бы убытком" in over["text"]

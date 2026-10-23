@@ -1,0 +1,48 @@
+.terminal-market-screen,.terminal-panel-workspace,.terminal-analytics,.terminal-reconciliation{min-width:0;width:100%}
+.terminal-market-screen{padding:20px;margin:16px 0}
+.terminal-section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.terminal-section-head h2{font-size:22px;margin:8px 0;font-weight:600}
+.terminal-controls{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;margin:12px 0;min-width:0}
+.terminal-controls .terminal-controls{margin:0}
+.terminal-controls label{display:flex;flex-direction:column;gap:4px;color:var(--text-secondary);font-size:12px;min-width:0;max-width:100%}
+.terminal-controls input,.terminal-controls select{font:inherit;min-height:44px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);max-width:100%}
+.terminal-controls input:focus-visible,.terminal-controls select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.terminal-numeric-filters input{width:100px}
+.terminal-controls .terminal-check{flex-direction:row;align-items:center;min-height:44px}
+.terminal-check input{min-height:20px;width:20px}
+.terminal-table-wrap{max-width:100%;overflow:auto;min-width:0}
+.terminal-table{font-variant-numeric:tabular-nums}
+.terminal-table th button{font:inherit;background:none;border:0;color:inherit;cursor:pointer;min-height:40px;white-space:nowrap}
+.terminal-table small{display:block;color:var(--muted);font-size:11px;max-width:220px;white-space:normal}
+.terminal-csv{display:block;margin:8px 0 8px auto;min-height:40px}
+.terminal-monitor{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:20px}
+.terminal-monitor-tile{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;cursor:pointer;text-align:left}
+.terminal-monitor-tile:hover{border-color:var(--border-hover)}
+.terminal-monitor-tile b{font:600 24px 'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.terminal-monitor-tile span,.terminal-monitor-tile small{font-size:12px;color:var(--muted)}
+.terminal-monitor-tile.positive b,.terminal-quarter-map .positive{color:var(--positive,var(--accent))}
+.terminal-monitor-tile.negative b,.terminal-quarter-map .negative{color:var(--negative,#c44848)}
+.terminal-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.terminal-work-panel{min-width:0;padding:16px;overflow:auto}
+.terminal-work-panel .terminal-controls>label{flex:1 1 120px}
+.terminal-warning{border-left:3px solid var(--warning,#b58b34);padding:12px;background:var(--bg-2);font-size:13px}
+.terminal-context{font:12px 'IBM Plex Mono',monospace;color:var(--muted)}
+.terminal-market-nav{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.terminal-market-nav button{min-height:40px}
+.terminal-market-nav button.active{border-color:var(--accent);color:var(--accent)}
+.catalog-company-overview:has(.catalog-company-summary:only-child){grid-template-columns:minmax(0,1fr)}
+.terminal-admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.terminal-coverage-cell{min-width:36px;min-height:36px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer}
+.terminal-coverage-cell.loaded{background:color-mix(in srgb,var(--positive,#27936d) 20%,var(--panel))}
+.terminal-coverage-cell.backfill{background:color-mix(in srgb,var(--warning,#c08f31) 25%,var(--panel))}
+.terminal-coverage-cell.gap{background:color-mix(in srgb,var(--negative,#c44848) 20%,var(--panel))}
+@media(max-width:1000px){.terminal-panel-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.terminal-market-screen,.terminal-work-panel{padding:12px}.terminal-controls input,.terminal-controls select{font-size:16px}.terminal-controls>label{flex:1 1 120px}.terminal-numeric-filters input{width:100%}.terminal-section-head h2{font-size:20px}.terminal-monitor{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.terminal-heatmap td.positive{background:color-mix(in srgb,var(--positive,#23966c) 22%,transparent);color:var(--positive,#23966c)}
+.terminal-heatmap td.negative{background:color-mix(in srgb,var(--negative,#c44848) 22%,transparent);color:var(--negative,#c44848)}
+.terminal-fx-rates{font-size:12px;line-height:1.7;color:var(--text-secondary);margin:12px 0}
+.terminal-sector-metrics{margin:16px 0}
+.terminal-market-nav button{padding:8px 12px;font-size:12px}
+@media(max-width:600px){.terminal-market-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-market-nav button{width:100%;text-align:left}.terminal-fx-rates ul{padding-left:18px}}
+.terminal-rule-config{display:flex;flex-direction:column;gap:8px;font-size:13px}.terminal-rule-config textarea{width:100%;box-sizing:border-box;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:12px;font:12px 'IBM Plex Mono',monospace}
+.terminal-profit-spark{width:100%;height:42px;color:var(--text-secondary);fill:currentColor;margin-top:4px}

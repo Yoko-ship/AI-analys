@@ -3,6 +3,7 @@ import { loadConfig } from "./lib/flags.js";
 import { setTrackedUser } from "./lib/track.js";
 import { LandingView } from "./features/landing/index.js";
 import { CatalogView } from "./features/catalog/index.js";
+import { CompanyComparison } from "./features/comparison/index.js";
 import { AdminPanel } from "./app/LazyViews.jsx";
 import { AnnouncementArticleView, NewsArticleView, NewsView } from "./features/news/index.js";
 import { normalizeLanguage } from "./shared/i18n.jsx";
@@ -68,6 +69,9 @@ function App() {
               onOpenNews={openNewsArticle}
             />
           )}
+
+          {activeView === "companyCompare" && <CompanyComparison key={user?.id || 'guest'} language={language} apiFetch={apiFetch}
+            user={user} onSignIn={() => setActiveView('auth')} />}
 
           {activeView === "catalog" && (
             <CatalogView

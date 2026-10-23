@@ -12,154 +12,23 @@ import { SectionCard, StructuredReportBlocks, getSectionTitle } from "../../shar
 import { formatMarketTimestamp } from "../../shared/marketModel.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { reportScreenLoad } from "../../lib/terminalJournal.js";
-import { functionLabel } from "../../lib/terminalCommands.js";
-import { IssuerDividends, IssuerFinancials } from "../company/index.js";
+import { functionLabel, MARKET_FUNCTIONS } from "../../lib/terminalCommands.js";
+import { IssuerFinancials } from "../company/index.js";
 import { CommandBar } from "./terminal/CommandBar.jsx";
-import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, PendingPanel, QualityScreen } from "./terminal/TerminalPanels.jsx";
-import { READY_FUNCTIONS, useTerminal } from "./terminal/useTerminal.js";
-import { terminalCopy } from "./terminal/terminalCopy.js";
+import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, QualityScreen } from "./terminal/TerminalPanels.jsx";
+import { useTerminal } from "./terminal/useTerminal.js";
+import { MarketScreen, PanelWorkspace, DividendsScreen, AnalyticsScreen, Reconciliation, PeersScreen, ContextControls } from "./terminal/Workspace.jsx";
+import { useTableExports } from "../../shared/TerminalTables.jsx";
+import { TerminalValuation } from "../../shared/TerminalValuation.jsx";
+import { TerminalAdmin } from "../../admin/TerminalAdmin.jsx";
 
 // The terminal's PL, BS and RAT are sections of the one Финансы view.
-const FINANCIAL_SECTIONS = { PL: "income", BS: "balance", RAT: "ratios" };
+const FINANCIAL_SECTIONS = { PL: "income", BS: "balance" };
 const SECTION_FUNCTIONS = { income: "PL", balance: "BS", ratios: "RAT" };
 
 // ---------------------------------------------------------------------------
 // CatalogView helpers
 // ---------------------------------------------------------------------------
-
-function PriceSparkline({ points, language }) {
-  const [activeIndex, setActiveIndex] = useState(null);
-  if (!points || points.length < 2) return null;
-  // The stored endpoint can contain rows in either query order. A chart must
-  // always read from the earlier session to the later one; otherwise both the
-  // line and its date caption tell the story backwards.
-  const ordered = points
-    .filter((p) => p?.close != null && p.close > 0)
-    .slice()
-    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-  const closes = ordered.map((p) => Number(p.close));
-  if (closes.length < 2) return null;
-  const W = 360, H = 82, PAD = 5;
-  const min = Math.min(...closes);
-  const max = Math.max(...closes);
-  const range = max - min || 1;
-  const xs = closes.map((_, i) => PAD + (i / (closes.length - 1)) * (W - PAD * 2));
-  const ys = closes.map((v) => PAD + (1 - (v - min) / range) * (H - PAD * 2));
-  const polyline = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
-  const areaPath = `M${xs[0]},${H} ` + xs.map((x, i) => `L${x},${ys[i]}`).join(" ") + ` L${xs[xs.length - 1]},${H} Z`;
-  const first = closes[0], last = closes[closes.length - 1];
-  const pct = ((last - first) / first * 100).toFixed(1);
-  const tone = last >= first ? "pos" : "neg";
-  const firstDate = ordered[0]?.date;
-  const lastDate = ordered[ordered.length - 1]?.date;
-  const inspectedIndex = activeIndex == null
-    ? null
-    : Math.max(0, Math.min(activeIndex, ordered.length - 1));
-  const inspectedPoint = inspectedIndex == null ? null : ordered[inspectedIndex];
-  const inspectedClose = inspectedIndex == null ? null : closes[inspectedIndex];
-  const previousClose = inspectedIndex > 0 ? closes[inspectedIndex - 1] : null;
-  const sessionChange = previousClose
-    ? ((inspectedClose - previousClose) / previousClose) * 100
-    : null;
-  const locale = language === "en" ? "en-US" : language === "uz" ? "uz-UZ" : "ru-RU";
-  const chartLabel = language === "en"
-    ? "Interactive price chart. Use the left and right arrow keys to inspect trading sessions."
-    : language === "uz"
-      ? "Interaktiv narx grafigi. Savdo sessiyalarini ko‘rish uchun chap va o‘ng tugmalardan foydalaning."
-      : "Интерактивный график цены. Используйте стрелки влево и вправо для просмотра торговых сессий.";
-  const sessionLabel = language === "en"
-    ? "vs previous session"
-    : language === "uz"
-      ? "oldingi sessiyaga nisbatan"
-      : "к предыдущей сессии";
-
-  const inspectAtPointer = (event) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    if (!bounds.width) return;
-    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-    setActiveIndex(Math.floor((ratio * (ordered.length - 1)) + 0.5));
-  };
-
-  const inspectWithKeyboard = (event) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    setActiveIndex((current) => {
-      if (event.key === "Home") return 0;
-      if (event.key === "End") return ordered.length - 1;
-      const start = current == null ? ordered.length - 1 : current;
-      return Math.max(0, Math.min(
-        ordered.length - 1,
-        start + (event.key === "ArrowLeft" ? -1 : 1),
-      ));
-    });
-  };
-
-  return (
-    <div className="catalog-sparkline">
-      <div className="catalog-sparkline-meta">
-        <span className="catalog-sparkline-price">{last.toLocaleString(language === "en" ? "en-US" : "ru-RU")} сум</span>
-        <span className={`catalog-sparkline-change ${tone}`}>{tone === "pos" ? "+" : ""}{pct}%</span>
-        <span className="catalog-sparkline-period muted">{firstDate} – {lastDate}</span>
-      </div>
-      <div
-        className="catalog-sparkline-chart"
-        role="group"
-        tabIndex={0}
-        aria-label={chartLabel}
-        onPointerMove={inspectAtPointer}
-        onPointerDown={inspectAtPointer}
-        onPointerLeave={() => setActiveIndex(null)}
-        onPointerCancel={() => setActiveIndex(null)}
-        onFocus={() => setActiveIndex((current) => current ?? ordered.length - 1)}
-        onBlur={() => setActiveIndex(null)}
-        onKeyDown={inspectWithKeyboard}
-      >
-        <svg viewBox={`0 0 ${W} ${H}`} className="catalog-sparkline-svg" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="catalog-spk-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--catalog-accent)" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="var(--catalog-accent)" stopOpacity="0.01" />
-            </linearGradient>
-          </defs>
-          <path d={areaPath} fill="url(#catalog-spk-grad)" />
-          <polyline points={polyline} fill="none" stroke="var(--catalog-accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {inspectedIndex != null && (
-            <>
-              <line
-                className="catalog-sparkline-guide"
-                x1={xs[inspectedIndex]}
-                y1={PAD}
-                x2={xs[inspectedIndex]}
-                y2={H}
-              />
-              <circle
-                className="catalog-sparkline-active-dot"
-                cx={xs[inspectedIndex]}
-                cy={ys[inspectedIndex]}
-                r="4"
-              />
-            </>
-          )}
-        </svg>
-        {inspectedPoint && (
-          <div
-            className="catalog-sparkline-tooltip"
-            role="tooltip"
-            style={{ "--catalog-hover-x": `${(xs[inspectedIndex] / W) * 100}%` }}
-          >
-            <span>{formatCatalogDate(inspectedPoint.date, language)}</span>
-            <strong>{inspectedClose.toLocaleString(locale)} сум</strong>
-            {sessionChange != null && (
-              <em className={sessionChange >= 0 ? "pos" : "neg"}>
-                {sessionChange >= 0 ? "+" : ""}{sessionChange.toFixed(2)}% {sessionLabel}
-              </em>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function CatalogFilterSelect({ value, onChange, options, label, className = "" }) {
   const [open, setOpen] = useState(false);
@@ -617,12 +486,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const [result, setResult] = useState(null);
   const [resultLoading, setResultLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [sparkline, setSparkline] = useState(null);
-  const [sparklineLoading, setSparklineLoading] = useState(false);
   const [sectorFilter, setSectorFilter] = useState("all");
   const [reportFilter, setReportFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
-  const [chartMonths, setChartMonths] = useState(3);
   const [reportPage, setReportPage] = useState(0);
   const [peers, setPeers] = useState(null);
   const searchRef = React.useRef(null);
@@ -630,6 +496,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const terminal = useTerminal({
     companies: catalogComps, ticker, setTicker, lang, onCatalogSearch: focusCatalogSearch,
   });
+  const exportRoot = React.useRef(null);
+  useTableExports(exportRoot, {ticker:terminal.market?null:ticker, function:terminal.market || terminal.func, standard:terminal.form, scope:terminal.scope});
   const terminalFunc = React.useRef(terminal.func);
   terminalFunc.current = terminal.func;
 
@@ -689,16 +557,6 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     if (first?.ticker) setTicker(first.ticker);
   }, [catalogComps, ticker]);
   useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker, loadIndex]);
-  useEffect(() => {
-    if (!ticker) { setSparkline(null); return; }
-    setSparklineLoading(true);
-    setSparkline(null);
-    apiFetch(`/api/price-history/${ticker}?months=${chartMonths}`)
-      .then((r) => r.json())
-      .then((d) => { if (d.ok && d.points?.length >= 2) setSparkline(d.points); })
-      .catch(() => {})
-      .finally(() => setSparklineLoading(false));
-  }, [ticker, chartMonths, apiFetch]);
 
   const handleSync = async (specificTicker = null) => {
     if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }
@@ -912,7 +770,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   };
 
   return (
-    <section className="catalog-layout">
+    <section className="catalog-layout" ref={exportRoot}>
       <header className="catalog-terminal-head">
         <div>
           <div className="catalog-eyebrow">{catalogTerminalText(lang, "eyebrow")}</div>
@@ -937,9 +795,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
           onRun={(code) => { terminal.setOverlay(null); terminal.run(code); }} />
       )}
       {terminal.overlay === "LAST" && <LastPanel terminal={terminal} lang={lang} />}
-      {terminal.overlay?.startsWith("PENDING:") && (
-        <PendingPanel code={terminal.overlay.slice(8)} lang={lang} onClose={() => terminal.setOverlay(null)} />
-      )}
+      <nav className="terminal-market-nav" aria-label="Terminal">
+        {MARKET_FUNCTIONS.filter(f => f.code !== "ADM" || user?.is_admin).map(f => <button type="button" key={f.code} className={`ghost-btn ${terminal.market === f.code ? "active" : ""}`} onClick={() => terminal.run(f.code)}>{f.code} · {functionLabel(f.code,lang)}</button>)}
+      </nav>
+      {["EQS", "MON"].includes(terminal.market) && <MarketScreen mode={terminal.market} terminal={terminal} lang={lang} />}
+      {terminal.market === "PNL" && <PanelWorkspace companies={catalogComps} terminal={{...terminal,ticker}} lang={lang} user={user} apiFetch={apiFetch} />}
+      {terminal.market === "ADM" && <TerminalAdmin language={lang} apiFetch={apiFetch} />}
+      {!terminal.market && <>
 
       <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
         <label className="catalog-search-field">
@@ -1056,34 +918,23 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                     </span>
                   </div>
                 </div>
-                <div className="catalog-price-card">
-                  <div className="catalog-price-head">
-                    <span>{catalogTerminalText(lang, "chart")}</span>
-                    <div className="catalog-range-switch" aria-label={catalogTerminalText(lang, "chart")}>
-                      {[1, 3, 12].map((months) => (
-                        <button key={months} type="button" className={chartMonths === months ? "active" : ""} onClick={() => setChartMonths(months)}>
-                          {months === 12 ? (lang === "ru" ? "1Г" : "1Y") : `${months}${lang === "ru" ? "М" : "M"}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {sparklineLoading ? (
-                    <div className="catalog-chart-loading">{clg(lang, "loading")}</div>
-                  ) : sparkline ? (
-                    <PriceSparkline points={sparkline} language={lang} />
-                  ) : (
-                    <div className="catalog-chart-empty">{catalogTerminalText(lang, "noChart")}</div>
-                  )}
-                </div>
+
               </section>
 
               <FunctionTabs terminal={terminal} lang={lang} />
+              {!FINANCIAL_SECTIONS[terminal.func] && <ContextControls form={terminal.form} scope={terminal.scope} onForm={terminal.setForm} onScope={terminal.setScope} lang={lang} />}
+              {["SUM", "RAT"].includes(terminal.func) && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary={terminal.func === "SUM"} />}
+              {terminal.func === "REC" && <Reconciliation ticker={ticker} scope={terminal.scope} lang={lang} />}
+              {terminal.func === "RV" && <PeersScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} onOpen={t => terminal.go({ticker:t,func:"SUM"})} />}
+              {terminal.func === "FV" && (user?.is_admin ? <TerminalValuation ticker={ticker} form={terminal.form} scope={terminal.scope} apiFetch={apiFetch} lang={lang}/> : <p className="terminal-warning">{lang === "ru" ? "Оценка доступна администраторам до проверки моделей на 10 эмитентах." : "Valuation is restricted to administrators pending validation on ten issuers."}</p>)}
+
 
               {FINANCIAL_SECTIONS[terminal.func] && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
                     <IssuerFinancials ticker={ticker} lang={lang}
                       standard={terminal.form} onStandardChange={terminal.setForm}
+                      scope={terminal.scope} onScopeChange={terminal.setScope}
                       section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}
                       onSectionChange={(key) => SECTION_FUNCTIONS[key] && terminal.go({ func: SECTION_FUNCTIONS[key] })}
                       onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })} />
@@ -1093,8 +944,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {terminal.func === "DVD" && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel("DVD", lang)}>
-                    <IssuerDividends ticker={ticker} lang={lang}
-                      onLoad={(load) => reportScreenLoad({ ticker, func: "DVD", ...load })} />
+                    <DividendsScreen ticker={ticker} lang={lang} form={terminal.form} scope={terminal.scope} />
                   </section>
                 </React.Suspense>
               )}
@@ -1105,15 +955,10 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               )}
               {terminal.func === "DQ" && (
                 <section className="terminal-screen panel" aria-label={functionLabel("DQ", lang)}>
-                  <QualityScreen ticker={ticker} form={terminal.form} lang={lang} fromYear={terminal.fromYear} />
+                  <QualityScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} fromYear={terminal.fromYear} />
                 </section>
               )}
-              {!READY_FUNCTIONS.has(terminal.func) && (
-                <section className="terminal-screen panel">
-                  <h3>{terminalCopy(lang).pendingTitle(`${terminal.func} · ${functionLabel(terminal.func, lang)}`)}</h3>
-                  <p className="muted">{terminalCopy(lang).pendingBody}</p>
-                </section>
-              )}
+
 
               {terminal.func === "SUM" && year && isCurrentAvail && currentReport && (
                 <section className="catalog-selected-report" id="catalog-selected-report">
@@ -1283,6 +1128,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
           )}
         </main>
       </div>
+      </>}
     </section>
   );
 }

@@ -11,6 +11,8 @@ def publish_report(report):
     # the administrative refresh can replay the persisted history separately.
     if published.get("publication_restored"):
         return published
+    from server.terminal.quality import report_events
+    report_events(published, published=published.get("status") == "available" and store.publication_version(published) == published.get("version"))
     try:
         record_analysis(published, current_version=store.publication_version(published))
     except Exception:

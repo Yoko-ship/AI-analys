@@ -167,6 +167,15 @@ def test_every_route_the_app_opens_is_not_404(tmp_path, monkeypatch):
     assert '<link rel="canonical" href="https://uzstock.uz/market" />' in bonds
 
 
+def test_comparison_preview_serves_the_frontend_without_indexing_sample_data(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for path in ("/compare", "/uz/compare"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert '<meta name="robots" content="noindex, nofollow" />' in response.text
+        assert '<link rel="canonical"' not in response.text
+
+
 def test_render_failure_serves_the_bare_shell(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
 

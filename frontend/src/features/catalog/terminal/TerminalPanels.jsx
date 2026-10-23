@@ -7,7 +7,7 @@ import { edHeadline, newsArticlePath, newsRelTime } from "../../news/index.js";
 import { READY_FUNCTIONS } from "./useTerminal.js";
 import { terminalCopy } from "./terminalCopy.js";
 
-const READY_MARKET = new Set(["CAT", "HELP", "LAST"]);
+const READY_MARKET = new Set(MARKET_FUNCTIONS.map(f => f.code));
 
 // The issuer's functions as tabs: the same registry as the command line and
 // the number keys, so a reader who never types still finds every screen.
@@ -101,9 +101,9 @@ function LastPanel({ terminal, lang }) {
         <ol className="terminal-last">
           {terminal.last.map((screen) => (
             <li key={screen.text}>
-              <button type="button" onClick={() => terminal.go({ ticker: screen.ticker, func: screen.func, form: screen.form })}>
+              <button type="button" onClick={() => terminal.go(screen)}>
                 <strong>{commandText(screen)}</strong>
-                <span>{functionLabel(screen.func, lang)}</span>
+                <span>{functionLabel(screen.market || screen.func, lang)}</span>
               </button>
             </li>
           ))}
@@ -174,13 +174,13 @@ function NewsScreen({ ticker, lang }) {
   );
 }
 
-function QualityScreen({ ticker, form, lang, fromYear = null }) {
+function QualityScreen({ ticker, form, scope = "separate", lang, fromYear = null }) {
   const copy = terminalCopy(lang);
   const badge = useScreenData(`/api/audit/badge/${encodeURIComponent(ticker)}`, { ticker, func: "DQ", form });
-  const annual = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}`, { ticker, func: "DQ", form });
-  const quarterly = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&freq=quarterly`, { ticker, func: "DQ", form });
-  if (badge.error) return <p className="terminal-empty tone-error">{copy.dqError}</p>;
-  if (!badge.data) return <p className="terminal-empty">{copy.loading}</p>;
+  const annual = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}`, { ticker, func: "DQ", form });
+  const quarterly = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}&freq=quarterly`, { ticker, func: "DQ", form });
+  if (badge.error || annual.error || quarterly.error) return <p className="terminal-empty tone-error">{copy.dqError}</p>;
+  if (!badge.data || !annual.data || !quarterly.data) return <p className="terminal-empty">{copy.loading}</p>;
   const b = badge.data;
   const verdict = b.status === "blocking" ? copy.dqBlocking : b.status === "warning" ? copy.dqWarning : copy.dqOk;
   const gaps = [
@@ -225,4 +225,4 @@ function QualityScreen({ ticker, form, lang, fromYear = null }) {
   );
 }
 
-export { FunctionTabs, HelpPanel, LastPanel, NewsScreen, PendingPanel, QualityScreen };
+export { useScreenData, FunctionTabs, HelpPanel, LastPanel, NewsScreen, PendingPanel, QualityScreen };

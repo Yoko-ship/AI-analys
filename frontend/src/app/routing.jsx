@@ -12,6 +12,7 @@ const VIEW_PATHS = {
   market: "/market",
   heatmap: "/heatmap",
   catalog: "/catalog",
+  companyCompare: "/compare",
   news: "/news",
   feedback: "/feedback",
   // Commercial-bank exchange rates — reached from the «Рынок» drop-down and
@@ -25,9 +26,10 @@ const VIEW_PATHS = {
   admin: "/admin",
 };
 
-// These workspaces are currently unavailable in the public interface. Keeping
+// These legacy workspaces are currently unavailable in the public interface. Keeping
 // this rule beside the route table makes old bookmarks land safely on the home
 // page and prevents in-app callbacks from reopening a hidden workspace.
+// The new companyCompare screen owns /compare independently of legacy research.
 const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
 
 // The URL of a view in `language`; without one (or for a language that has no

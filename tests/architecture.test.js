@@ -74,7 +74,7 @@ test("the landing entry does not eagerly load large feature views", () => {
   visit(path.join(root, "App.jsx"));
   for (const view of ["market/MarketView", "news/News", "company/CompanyPage",
     "catalog/CatalogView", "charts/AdvancedChart", "bonds/Bonds", "portfolio/PortfolioView",
-    "research/AnalysisWorkspace", "research/ComparisonWorkspace"]) {
+    "research/AnalysisWorkspace", "research/ComparisonWorkspace", "comparison/CompanyComparison"]) {
     assert.ok(!loaded.has(path.join(root, `features/${view}.jsx`)), `${view} should load when opened`);
   }
 });

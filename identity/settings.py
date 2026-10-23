@@ -37,6 +37,7 @@ OAUTH_FALLBACK_DOMAIN = os.getenv("WEB_OAUTH_FALLBACK_DOMAIN", "oauth.local").st
 
 
 DEFAULT_PROFILE_PREFERENCES: dict[str, Any] = {
+    "terminal_layout": [],
     "language": "ru",
     "theme": "dark",
     "text_scale": 100,

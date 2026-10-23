@@ -48,6 +48,100 @@ def test_registration_login_and_reinitialization(pg_store):
         fresh.accounts.register_user(user.email.upper(), "example-pass-123")
 
 
+def test_saved_comparisons_persist_across_sessions_and_accounts_are_isolated(pg_store):
+    from web_auth import WebAuthStore
+    alice, token = pg_store.accounts.register_user('comparisons@example.test', 'example-pass-123')
+    bob, _ = pg_store.accounts.register_user('other-comparisons@example.test', 'example-pass-123')
+    payload = {'name': 'Bank coverage', 'tickers': ['hmkb', 'IPKY'], 'period': 'latest',
+               'standard': 'NSBU', 'scope': 'separate', 'unit': 'billion'}
+    saved = pg_store.comparisons.save(alice.id, payload)
+    fresh = WebAuthStore(pg_store.database.database_url)
+    assert fresh.sessions.get_user_by_token(token).id == alice.id
+    assert fresh.comparisons.list(alice.id)[0]['id'] == saved['id']
+    assert fresh.comparisons.list(alice.id)[0]['selection']['tickers'] == ['HMKB', 'IPKY']
+    assert fresh.comparisons.list(bob.id) == []
+    assert not fresh.comparisons.delete(bob.id, int(saved['id']))
+    renamed = fresh.comparisons.save(alice.id, {**payload, 'name': 'Updated coverage'})
+    assert renamed['id'] == saved['id'] and renamed['name'] == 'Updated coverage'
+    assert len(fresh.comparisons.list(alice.id)) == 1
+    exported = fresh.profile.export_user_data(alice.id, token)
+    assert exported['saved_comparisons'][0]['id'] == saved['id']
+    assert fresh.comparisons.delete(alice.id, int(saved['id']))
+    assert pg_store.comparisons.list(alice.id) == []
+
+
+def test_saved_comparison_limit_and_account_deletion_cascade(pg_store):
+    user, _ = pg_store.accounts.register_user('comparison-limit@example.test', 'example-pass-123')
+    payload = {'name': 'Coverage', 'tickers': ['HMKB', 'IPKY'], 'period': 'latest',
+               'standard': 'NSBU', 'scope': 'separate', 'unit': 'billion'}
+    for year in range(2000, 2050):
+        pg_store.comparisons.save(user.id, {**payload, 'period': str(year)})
+    with pytest.raises(ValueError, match='50'):
+        pg_store.comparisons.save(user.id, payload)
+    assert len(pg_store.comparisons.list(user.id)) == 50
+    pg_store.comparisons.save(user.id, {**payload, 'period': '2000', 'name': 'Rename at limit'})
+    assert pg_store.profile.delete_account(user.id, user.email, password='example-pass-123')
+    with pg_store.database.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) AS n FROM web_saved_comparisons WHERE user_id = %s', (user.id,)).fetchone()['n'] == 0
+
+
+def test_comparison_last_seen_persists_and_stale_devices_cannot_overwrite_it(pg_store):
+    from identity.comparisons import ComparisonChanged, snapshot_key
+    user, _ = pg_store.accounts.register_user('seen-comparison@example.test', 'example-pass-123')
+    other, _ = pg_store.accounts.register_user('seen-other@example.test', 'example-pass-123')
+    payload = {'name': 'Coverage', 'tickers': ['HMKB', 'IPKY'], 'period': 'latest',
+               'standard': 'NSBU', 'scope': 'separate', 'unit': 'billion'}
+    first, second, third = {'version': 1}, {'version': 2}, {'version': 3}
+    saved = pg_store.comparisons.save(user.id, payload, first)
+    identifier = int(saved['id'])
+    assert saved['has_baseline'] is True and saved['last_seen_at']
+    assert pg_store.comparisons.get(other.id, identifier) is None
+    assert pg_store.comparisons.mark_seen(other.id, identifier, second, snapshot_key(first)) is None
+    pg_store.comparisons.mark_seen(user.id, identifier, second, snapshot_key(first))
+    # Renaming the same selection must not erase unread changes.
+    pg_store.comparisons.save(user.id, {**payload, 'name': 'Renamed'}, third)
+    assert pg_store.comparisons.get(user.id, identifier)['seen_snapshot'] == second
+    # The timestamp means last viewed, including views with unchanged figures.
+    previous_view = pg_store.comparisons.get(user.id, identifier)['seen_at']
+    pg_store.comparisons.mark_seen(user.id, identifier, second, snapshot_key(second))
+    assert pg_store.comparisons.get(user.id, identifier)['seen_at'] > previous_view
+    with pytest.raises(ComparisonChanged):
+        pg_store.comparisons.mark_seen(user.id, identifier, third, snapshot_key(first))
+    # Repeated acknowledgements are safe and leave the saved selection intact.
+    assert pg_store.comparisons.mark_seen(user.id, identifier, second, snapshot_key(first))
+    assert pg_store.comparisons.get(user.id, identifier)['seen_snapshot'] == second
+
+
+def test_saved_comparisons_real_http_ownership_and_concurrent_devices(pg_store, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from fastapi.testclient import TestClient
+    import api
+    import web_auth
+    from server.comparison import service
+    monkeypatch.setattr(service, 'compare', lambda *args, **kw: {'companies': [], 'currency': 'UZS'})
+    monkeypatch.setattr(web_auth, 'web_auth_store', pg_store)
+    alice, token = pg_store.accounts.register_user('comparison-http@example.test', 'example-pass-123')
+    bob, other = pg_store.accounts.register_user('comparison-http-other@example.test', 'example-pass-123')
+    payload = {'name': 'Bank coverage', 'tickers': ['HMKB', 'IPKY'], 'period': 'latest',
+               'standard': 'NSBU', 'scope': 'separate', 'unit': 'billion'}
+    client = TestClient(api.app)
+    headers = {'Authorization': 'Bearer ' + token}
+    stranger = {'Authorization': 'Bearer ' + other}
+    first = client.post('/api/saved-comparisons', json=payload, headers=headers)
+    assert first.status_code == 200
+    identifier = first.json()['comparison']['id']
+    assert client.get('/api/v2/saved-comparisons', headers=stranger).json()['comparisons'] == []
+    assert client.delete('/api/saved-comparisons/' + identifier, headers=stranger).status_code == 404
+    assert client.get('/api/v2/saved-comparisons', headers=headers).json()['comparisons'][0]['id'] == identifier
+    # Simultaneous device saves of one selection produce one account entry.
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        entries = list(pool.map(lambda _: pg_store.comparisons.save(alice.id, payload), range(3)))
+    assert {e['id'] for e in entries} == {identifier}
+    assert len(pg_store.comparisons.list(alice.id)) == 1
+    assert client.delete('/api/v2/saved-comparisons/' + identifier, headers=headers).status_code == 200
+    assert pg_store.comparisons.list(alice.id) == []
+
+
 def test_password_change_revocation_expiry_and_inactive_user(pg_store):
     user, current = pg_store.accounts.register_user("sessions@example.test", "example-pass-123")
     _, other = pg_store.accounts.login_user(user.email, "example-pass-123")

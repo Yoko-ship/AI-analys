@@ -143,10 +143,9 @@ def test_fx_growth_does_not_hide_operating_decline_or_invent_cash():
     report = financial_analysis_sector_report.make_report(data, ISSUER, today=TODAY, lang="en")
     assert report["profit_quality"]["net_fx_result_change"] == 160
     # Net profit up on exchange gains does not hide the shrinking operating
-    # margin; a rising profit is not «deteriorating» either, so the verdict
-    # is mixed and names both.
-    assert report["verdict"]["status"] == "mixed"
-    assert report["verdict"]["reason"] == "profit is growing, but the margin is falling"
+    # margin. TZ rule 8 requires attention for a high-materiality risk.
+    assert report["verdict"]["status"] == "attention"
+    assert report["verdict"]["reason"] == "profit comes largely from FX"
     # The FX result is 44% of profit before tax: profit is formed by FX.
     assert report["profit_quality"]["driver"] == "FX-driven"
     assert round(report["profit_quality"]["net_fx_share_of_pretax"], 2) == 43.75
@@ -296,7 +295,7 @@ def test_fund_task1_uses_portfolio_not_corporate_editorial_logic():
     assert "Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля." in sections["strength"]["text"]
     assert "Пять крупнейших позиций формируют около двух третей портфеля." in sections["strength"]["text"]
     assert "нереализованной переоценкой" in sections["risks"]["text"]
-    assert report["verdict"]["status"] == "no_signal"
+    assert report["verdict"]["status"] == "attention"
     assert "универсальный профиль" not in report["text"]
     assert report["financial_as_of"] == "2025-12-31"
 
@@ -579,10 +578,10 @@ def test_real_combined_workbooks_do_not_mix_balance_and_income_rows():
     steel = results["UZMK"]
     assert steel["profit_quality"]["net_fx_result_change"] == 499571337
     assert steel["profit_quality"]["operating_profit_change"]["change_pct"] == pytest.approx(-8.90, abs=.01)
-    assert steel["verdict"]["status"] == "mixed"
+    assert steel["verdict"]["status"] == "attention"
     assert next(r for r in steel["ratios"] if r["metric"] == "quick_ratio")["value"] == pytest.approx(1.01913778)
     assert steel["capital_analysis"]["reconciliation_status"] == "passed"
-    assert steel["verdict"]["reason"] == "revenue is growing, but the margin is falling"
+    assert steel["verdict"]["reason"] == "profit comes largely from FX"
     assert 3 <= len(steel["key_changes"]) <= 5
     assert all(change["evidence_fact_ids"] for change in steel["key_changes"])
     assert "Крупнейшая статья активов — незавершённое строительство: более половины активов." in financial_analysis_sector_report.make_report(

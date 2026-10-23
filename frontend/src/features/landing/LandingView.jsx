@@ -522,7 +522,7 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
             <p>{LT.lede}</p>
             <div className="lv-actions">
               <button type="button" className="lv-go" onClick={() => onNavigate("market")}>{LT.ctaMarket}</button>
-              <button type="button" className="lv-ghost" onClick={() => onNavigate("compare")}>{LT.ctaCompare}</button>
+              <button type="button" className="lv-ghost" onClick={() => onNavigate("companyCompare")}>{LT.ctaCompare}</button>
             </div>
           </div>
         </div>

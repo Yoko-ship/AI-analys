@@ -33,6 +33,7 @@ e2e
 scripts
 !scripts/compact_admin_control.py
 !scripts/publish_reviewed_bank_ifrs.py
+!scripts/terminal_cbu_sync.py
 playwright.config.js
 eslint.config.js
 playwright-report

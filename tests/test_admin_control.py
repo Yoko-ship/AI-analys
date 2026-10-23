@@ -458,6 +458,8 @@ def test_rollout_checks_all_targets_and_reverts_failed_production(monkeypatch):
     monkeypatch.setattr(worker, "recalculate", controlled_recalculation)
     worker.run_one()
     assert get("rules", draft["id"])["status"] == "ACTIVE"
+    from server.terminal import journal
+    assert journal.events(event="formula_changed")["total"] == 1
     worker.run_one()
     assert get("rules", draft["id"])["status"] == "ROLLED_BACK" and not rules.active()
     with s.connection() as c:

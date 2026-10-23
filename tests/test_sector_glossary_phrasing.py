@@ -123,8 +123,8 @@ def test_caveats_stand_once_in_the_footnote(bank, insurer):
 
 def test_a_worse_verdict_names_what_worsened():
     report = _report("UZAS")
-    assert report["verdict"]["status"] == "negative"
-    assert report["verdict_line"] == "Вердикт: ухудшение — страховые премии снижаются и прибыль снижается."
+    assert report["verdict"]["status"] == "attention"
+    assert report["verdict_line"] == "Вердикт: требует внимания — прибыль упала более чем на пятую часть."
     assert report["card_text"].endswith(report["verdict_line"])
 
 
@@ -147,8 +147,8 @@ def test_negative_conclusion_never_claims_insolvency():
     }
     bank_issuer = {"id": "BANK", "ticker": "BANK", "name": "Bank", "special_legal_type": "bank"}
     report = financial_analysis_sector_report.make_report(data, bank_issuer, "ru", TODAY)
-    assert report["verdict"]["status"] == "negative"
-    assert report["verdict"]["reason"] == "прибыль снижается и доля капитала снижается"
+    assert report["verdict"]["status"] == "attention"
+    assert report["verdict"]["reason"] == "прибыль упала более чем на пятую часть"
     text = report["text"].lower()
     for claim in ("неплатёжеспособ", "банкрот", "нарушени", "качество портфеля ухудш"):
         assert claim not in text

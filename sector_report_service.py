@@ -329,6 +329,12 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         reconcile_share_basis(report, security.get("share_reconciliation"), report["instrument"]["last_price"], financials.now().date())
     # Financial version is independent of a quote or share-class event.
     report["instrument_version"] = financial_analysis_sector_numbers.digest([report["instrument"], report["version"]])
+    if org == "insurance":
+        from server.terminal.quality import insurance_checks
+        report["data_quality"] = [*report.get("data_quality", []), *insurance_checks(
+            snapshot.get("current_values") or {}, snapshot.get("previous_values") or {},
+            snapshot.get("opening_values") or {} if "Q" in str(snapshot.get("period")) else {},
+            snapshot.get("return_opening_values") or {})]
     if persist:
         from reporting import publication
         report = publication.publish_report(report)

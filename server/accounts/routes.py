@@ -49,7 +49,11 @@ class SubscriptionUpdateRequest(BaseModel):
     reason: str = Field(..., min_length=3, max_length=1000)
 
 
+from identity.terminal import TerminalPanel
+
+
 class ProfilePreferencesRequest(BaseModel):
+    terminal_layout: list[TerminalPanel] | None = Field(default=None, max_length=4)
     language: Literal["ru", "en", "uz"] | None = None
     theme: Literal["light", "dark"] | None = None
     text_scale: int | None = Field(default=None, ge=80, le=130)

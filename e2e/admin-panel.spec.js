@@ -159,3 +159,14 @@ test("a day opens its own report, from the table or the chart, and the range com
   await expect(page.getByText("Report for 01.10.2026")).toBeVisible();
   expect(asked.at(-1)).toBe("2026-10-01");
 });
+
+test("terminal admin exposes versioned templates and private valuation scenarios", async({page})=>{
+  await mockAdmin(page);
+  await page.route('**/api/admin/terminal/templates',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,version:'nsbu-core-2.5',assignments:[{ticker:'AGBA',selected_template:'bank',reason_code:'filing_form'}],formulas:[{code:'P1',name_ru:'Рентабельность капитала',numerators:['form2:c270'],denominators:['form1:c480']}],valuation:{values:{key_rate:14,default_spread:3.06,equity_premium:8.89,growth:9.8},as_of:'2026-10-15',version:'reference'}})}));
+  await page.goto('/admin/terminal');
+  await page.getByRole('button',{name:'Templates',exact:true}).click();
+  await expect(page.getByText('AGBA',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Create draft',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'FV',exact:true}).click();
+  await expect(page.getByLabel('Policy rate, %')).toHaveValue('14');
+});

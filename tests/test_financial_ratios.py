@@ -77,11 +77,12 @@ def test_bank_publishes_bank_indicators_from_its_own_filing():
     assert all(item["calculation_status"] == "verified" for item in ratios.values())
 
 
-def test_insurer_publishes_insurance_indicators_without_a_loss_ratio():
+def test_insurer_publishes_nsbu_loss_and_combined_ratios():
     ratios = _ratios(_report("UZAS"))
     assert set(ratios) == set(calc.FINANCIAL_RATIOS["insurance"])
     assert ratios["reinsurer_share_of_reserves"]["value"] == pytest.approx(156.5 / 261.0 * 100, abs=0.1)
-    assert not any("loss" in code for code in ratios)
+    assert ratios["loss_ratio"]["value"] == pytest.approx(45.5, abs=.06)
+    assert ratios["combined_ratio"]["value"] == pytest.approx(107.2, abs=.06)
 
 
 def test_a_negative_cost_line_withholds_its_share_but_a_loss_is_stated():

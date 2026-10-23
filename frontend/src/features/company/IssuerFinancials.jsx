@@ -1,4 +1,5 @@
 import React from "react";
+import { convertSeries, periodEnd } from "../../lib/terminalCurrency.js";
 import { CompanyFinancialsTab } from "./Financials.jsx";
 
 // The Финансы tab together with the data behind it. The company page and the
@@ -24,10 +25,13 @@ function useControllable(value, onChange, initial) {
 }
 
 function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStandardChange,
-  freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null }) {
+  scope: scopeProp, onScopeChange, freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null }) {
   const [standard, setStandard] = useControllable(standardProp, onStandardChange, "NSBU");
   const [freq, setFreq] = useControllable(freqProp, onFreqChange, initialFreq);
-  const [scope, setScope] = React.useState("");
+  const [scope, setScope] = useControllable(scopeProp, onScopeChange, "");
+  const [currency, setCurrency] = React.useState("UZS");
+  const [fx, setFx] = React.useState({});
+  const [fxLoading, setFxLoading] = React.useState(false);
   const [annual, setAnnual] = React.useState(null);
   const [quarterly, setQuarterly] = React.useState(null);
   const [splits, setSplits] = React.useState(null);
@@ -99,19 +103,52 @@ function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStan
   const periods = (series?.periods || []).filter(recent);
   const dataGaps = (series?.data_gaps || []).filter((gap) => recent(gap.period));
 
+  const periodKey = periods.join(",");
+  React.useEffect(() => {
+    if (currency !== "USD") return undefined;
+    const controller = new AbortController();
+    setFx({}); setFxLoading(true);
+    const keys = periodKey.split(",").filter(Boolean);
+    const results = {};
+    async function worker() {
+      while (keys.length && !controller.signal.aborted) {
+        const p = keys.shift(), day = periodEnd(p);
+        if (!day) continue;
+        try {
+          const response = await fetch(`/api/currency/rates?as_of=${day}`, {signal:controller.signal});
+          if (!response.ok) continue;
+          const data = await response.json();
+          const rate = data.rates?.find(r=>r.ccy === "USD");
+          if (data.as_of === day && rate?.effective_date <= day && rate?.per_unit > 0) results[p] = rate;
+        } catch { /* A missing historic rate stays missing. */ }
+      }
+    }
+    Promise.all(Array.from({length:4},worker)).then(()=>{
+      if (!controller.signal.aborted) {setFx(results);setFxLoading(false);}
+    });
+    return ()=>controller.abort();
+  },[currency,periodKey]);
+  const t=(ru,uz,en)=>lang === "uz" ? uz : lang === "en" ? en : ru;
   return (
+    <div data-currency={currency} data-terminal-ticker={ticker} data-terminal-standard={standard} data-terminal-scope={scope||series?.scope||"separate"} data-terminal-function={section==="balance"?"BS":"PL"}>
+    <div className="terminal-controls"><label>{t("Валюта","Valyuta","Currency")}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option>UZS</option><option>USD</option></select></label></div>
+    {currency === "USD" && <details className="terminal-fx-rates" open><summary>{t("Курсы ЦБ на конец каждого периода","Har davr oxiridagi MB kursi","CBU rates at each period end")}</summary>
+      {fxLoading ? <p role="status">{t("Загрузка курсов…","Kurslar yuklanmoqda…","Loading rates…")}</p> : <ul>{periods.map(p=><li key={p}>{p} · {periodEnd(p)} · {fx[p] ? `1 USD = ${fx[p].per_unit} UZS (${fx[p].effective_date})` : t("Курс отсутствует — суммы скрыты","Kurs yo‘q — summalar yashirildi","Rate missing — amounts unavailable")} · <a href={`https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${periodEnd(p)}/`} target="_blank" rel="noreferrer">CBU</a></li>)}</ul>}
+    </details>}
     <CompanyFinancialsTab ticker={ticker} ratios={ratios ?? ownRatios ?? {}} lang={lang}
       key={`${ticker}:${standard}:${scope}:${freq}`}
       standard={standard} onStandardChange={setStandard}
       scope={scope || series?.scope}
       onScopeChange={setScope}
-      series={series?.series || {}}
+      series={convertSeries(series?.series || {}, fx, currency)}
+      currency={currency}
       periods={periods}
       dataGaps={dataGaps}
       periodBasis={series?.period_basis}
       loading={series === null}
       freq={freq} onFreqChange={setFreq} splits={splits}
       section={section} onSectionChange={onSectionChange} />
+    </div>
   );
 }
 

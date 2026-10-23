@@ -848,6 +848,11 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
     tx = _TX[lang]
     if path.startswith(_PRIVATE_PREFIXES):
         return PageMeta(title=_PAGES[lang]["/"][0], description=_PAGES[lang]["/"][1], noindex=True, lang=lang)
+    # Comparison URLs describe interactive selections. Serve their deep links
+    # without indexing every possible company/period configuration.
+    if path == "/compare":
+        title = "Kompaniyalarni solishtirish" if lang == "uz" else "Сравнение компаний"
+        return PageMeta(title=f"{title} | {SITE_NAME}", noindex=True, lang=lang)
     path = _ALIASES.get(path, path)
     if not (path in _STATIC_PAGES or path in _PLAIN_PAGES or path.startswith(_ENTITY_PREFIXES)):
         return _not_found(lang)

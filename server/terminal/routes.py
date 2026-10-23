@@ -16,6 +16,7 @@ import json
 import logging
 import re
 from typing import Any
+from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -118,12 +119,122 @@ def _run(fn, *args, **kwargs):
 async def api_admin_terminal_events(
     level: list[str] = Query(default=[]), event: str | None = None, ticker: str | None = None,
     function: str | None = None, since: str | None = None, until: str | None = None,
+    standard: str | None = None, period: str | None = None,
     limit: int = 100, offset: int = 0,
 ) -> dict[str, Any]:
     return await _run(journal.events, levels=level, event=event, ticker=ticker, function=function,
-                      since=since, until=until, limit=limit, offset=offset)
+                      since=since, until=until, limit=limit, offset=offset, standard=standard, period=period)
 
 
 @admin_router.get("/api/admin/terminal/catalogue")
 async def api_admin_terminal_catalogue() -> dict[str, Any]:
     return {"events": journal.catalogue()}
+
+
+@public_router.get("/api/terminal/screener")
+async def api_terminal_screener(form: Literal["NSBU", "MSFO"] = "NSBU",
+                               scope: Literal["separate", "consolidated"] = "separate",
+                               year: int | None = Query(default=None, ge=2015, le=2100)):
+    from server.terminal import service
+    return await service.screener(form, scope if form == "MSFO" else "separate", year)
+
+
+@public_router.get("/api/terminal/issuer/{ticker}/analytics")
+async def api_terminal_analytics(ticker: str, form: Literal["NSBU", "MSFO"] = "NSBU",
+                                 scope: Literal["separate", "consolidated"] = "separate"):
+    from server.terminal import service
+    return await service.issuer(ticker.upper(), form, scope)
+
+
+@public_router.get("/api/terminal/issuer/{ticker}/reconciliation")
+async def api_terminal_reconciliation(ticker: str, scope: Literal["separate", "consolidated"] = "separate"):
+    from server.terminal import service
+    return await service.reconciliation(ticker.upper(), scope)
+
+
+@admin_router.get("/api/admin/terminal/dashboard")
+async def api_terminal_dashboard(days: Literal[7, 30] = 7):
+    from server.terminal.dashboard import dashboard
+    return await _run(dashboard, days)
+
+
+@admin_router.get("/api/admin/terminal/coverage")
+async def api_terminal_coverage(form: Literal["NSBU", "MSFO"] = "NSBU",
+                                scope: Literal["separate", "consolidated"] = "separate"):
+    from server.terminal.dashboard import coverage
+    return await coverage(form, scope)
+
+
+@admin_router.get("/api/admin/terminal/export")
+async def api_terminal_export(level: list[str] = Query(default=[]), event: str | None = None,
+                              ticker: str | None = None, since: str | None = None, until: str | None = None,
+                              standard: str | None = None, period: str | None = None):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    def stream():
+        yield "\ufeff"
+        output = io.StringIO()
+        writer = csv.writer(output)
+        fields = ["ts", "level_label", "event", "ticker", "standard", "period", "function", "user_id",
+                  "duration_ms", "error_id", "message", "source_url"]
+        writer.writerow(fields)
+        yield output.getvalue()
+        output.seek(0); output.truncate(0)
+        offset = 0
+        # Freeze the upper time boundary so incoming events cannot shift pages.
+        end = until or journal.now().isoformat()
+        while True:
+            page = journal.events(levels=level, event=event, ticker=ticker, since=since, until=end,
+                                  standard=standard, period=period, limit=1000, offset=offset)
+            for row in page["items"]:
+                cells = []
+                for field in fields:
+                    value = row.get(field)
+                    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+                        value = "'" + value
+                    cells.append(value)
+                writer.writerow(cells)
+            yield output.getvalue()
+            output.seek(0); output.truncate(0)
+            offset += len(page["items"])
+            if not page["items"] or offset >= page["total"]:
+                break
+    return StreamingResponse(stream(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="terminal-journal.csv"'})
+
+
+@admin_router.get("/api/admin/terminal/valuation/{ticker}")
+async def api_terminal_valuation(ticker: str, form: Literal["NSBU", "MSFO"] = "NSBU",
+                                 scope: Literal["separate", "consolidated"] = "separate",
+                                 key_rate: float | None = Query(default=None, ge=0, le=100),
+                                 default_spread: float | None = Query(default=None, ge=0, le=100),
+                                 equity_premium: float | None = Query(default=None, ge=0, le=100),
+                                 growth: float | None = Query(default=None, ge=-99, le=100)):
+    from fastapi import HTTPException
+    from server.terminal import service, valuation, configuration
+    data=await service.screener(form, scope if form == "MSFO" else "separate")
+    base=next((r for r in data["rows"] if r["ticker"]==ticker.upper()),None)
+    if base is None:raise HTTPException(404,"Issuer unavailable")
+    config=await _run(configuration.parameters)
+    overrides={k:v for k,v in dict(key_rate=key_rate,default_spread=default_spread,equity_premium=equity_premium,growth=growth).items() if v is not None}
+    return {**valuation.calculate(base,data["rows"],{**config["values"],**overrides}), "configuration":config, "scenario":bool(overrides)}
+
+
+@admin_router.get("/api/admin/terminal/templates")
+async def api_terminal_templates():
+    def catalogue():
+        from server.terminal.service import universe
+        from financial_analysis.sector_templates import resolve_template, CALCULATION_VERSION, OKED_MAP
+        from financial_analysis.sector_calculations import METHODS, FINANCIAL_METHODS, FINANCIAL_RATIOS
+        from financial_analysis.metric_names import named
+        from admin_control.rules import active
+        from server.terminal.configuration import parameters
+        import catalogue.filings as filings
+        companies=universe()
+        assignments=[{"ticker":c["ticker"],"kind":c["kind"],**resolve_template(filings.get_company_index(c["ticker"]) or {}, {"fund":"investment_fund","industry":"non_financial"}.get(c["kind"],c["kind"]))} for c in companies]
+        return {"ok":True,"version":CALCULATION_VERSION,"assignments":assignments,"oked":OKED_MAP,
+                "formulas":[{"code":code,**named(code),"numerators":method[0],"denominators":method[1],"unit":method[2]} for code,method in {**METHODS,**FINANCIAL_METHODS}.items()],
+                "financial_sets":FINANCIAL_RATIOS,"active_rules":active(),"valuation":parameters()}
+    return await _run(catalogue)

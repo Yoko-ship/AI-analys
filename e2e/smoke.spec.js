@@ -348,7 +348,7 @@ test("module navigation preserves market filters through browser back and forwar
 
 test("module routing preserves hidden workspace redirects and the bonds alias", async ({ page }) => {
   await page.route("**/api/bonds", (route) => route.fulfill({ json: { ok: true, items: [], count: 0 } }));
-  for (const path of ["/analysis", "/compare"]) {
+  for (const path of ["/analysis"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();
@@ -879,7 +879,7 @@ test("company AI insight exposes a retry state when its report is unavailable", 
 });
 
 test("hidden research routes stay out of public navigation", async ({ page }) => {
-  for (const route of ["/analysis", "/compare"]) {
+  for (const route of ["/analysis"]) {
     await page.goto(route);
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator(".topbar-nav").getByRole("button", { name: "Анализ", exact: true })).toHaveCount(0);

@@ -16,6 +16,8 @@ def validate(category, config):
     if not isinstance(config, dict) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{1,99}", str(config.get("code", ""))):
         raise s.ControlError("INVALID_RULE", "A rule needs a stable code of 2–100 characters.", 422)
     fields = {
+        "valuation": {"code", "as_of", "key_rate", "default_spread", "equity_premium", "growth", "test_cases"},
+        "financial_formula": {"code", "numerators", "denominators", "unit", "basis", "test_cases"},
         "formula": {"code", "numerators", "denominators", "percent", "test_cases"},
         "mapping": {"code", "source_line", "target_line", "test_cases"},
         "template": {"code", "oked_prefix", "template", "test_cases"},
@@ -25,7 +27,20 @@ def validate(category, config):
     if category not in fields or set(config) - fields[category]:
         raise s.ControlError("INVALID_RULE_SCHEMA", "Unsupported category or configuration fields.", 422)
     valid = True
-    if category == "formula":
+    if category == "valuation":
+        from datetime import date
+        from server.terminal.analytics import number
+        try:date.fromisoformat(str(config.get("as_of", "")))
+        except ValueError:raise s.ControlError("INVALID_RULE_SCHEMA", "A valuation needs a valid assumption date.", 422)
+        valid = config["code"] == "terminal_fv" and all(number(config.get(k)) is not None and 0 <= float(config[k]) <= 100 for k in ("key_rate", "default_spread", "equity_premium")) and number(config.get("growth")) is not None and -99 <= float(config["growth"]) <= 100
+    elif category == "financial_formula":
+        methods = financial_analysis_sector_calculations.FINANCIAL_METHODS
+        known = {field for method in methods.values() for field in method[0] + method[1]}
+        valid = config["code"] in methods and config.get("unit") == methods[config["code"]][2] and config.get("basis") in {None, "opening", "previous"}
+        for field in ("numerators", "denominators"):
+            parts = config.get(field)
+            valid = valid and isinstance(parts, list) and 1 <= len(parts) <= 20 and all(isinstance(v, str) and v in known for v in parts)
+    elif category == "formula":
         valid = config["code"] in financial_analysis_sector_calculations.METHODS and isinstance(config.get("percent"), bool)
         for field in ("numerators", "denominators"):
             values = config.get(field)
@@ -69,11 +84,15 @@ def apply_snapshot(snapshot, issuer, workbook=None, rules=None):
     values, previous, opening, lines = financial_analysis_sector_inputs.prepare_inputs(snapshot, workbook)
     methods = deepcopy(financial_analysis_sector_calculations.METHODS)
     formula_versions = {}
+    financial_methods = {}
     for rule in rules:
         config = rule["config"]
         category = rule["category"]
         if category == "formula":
             methods[config["code"]] = (config["numerators"], config["denominators"], config["percent"])
+            formula_versions[config["code"]] = rule["id"]
+        elif category == "financial_formula":
+            financial_methods[config["code"]] = (config["numerators"], config["denominators"], config["unit"], config.get("basis"))
             formula_versions[config["code"]] = rule["id"]
         elif category == "mapping" and snapshot.get("organization_type") == "non_financial":
             source = lines.get(config["source_line"])
@@ -90,7 +109,7 @@ def apply_snapshot(snapshot, issuer, workbook=None, rules=None):
                       "resolution_status": "versioned_oked_rule", "rule_version": rule["id"]}
         elif category == "signal":
             snapshot["max_age_days"] = config["max_age_days"]
-    snapshot.update(source_lines=lines, formula_methods=methods, formula_rule_versions=formula_versions, control_rule_versions=[r["id"] for r in rules])
+    snapshot.update(source_lines=lines, formula_methods=methods, financial_formula_methods=financial_methods, formula_rule_versions=formula_versions, control_rule_versions=[r["id"] for r in rules])
     # The already extracted workbook rows must not overwrite the mapped rows.
     snapshot["control_lines_prepared"] = True
     return snapshot
@@ -173,7 +192,21 @@ def test_rule(rule):
     checks = []
     for index, case in enumerate(config["test_cases"]):
         try:
-            if category == "formula":
+            if category == "valuation":
+                from server.terminal.valuation import calculate
+                result = calculate(case["base"], case.get("peers", []), config)
+                actual = {k: result.get(k) for k in case["expected"]}
+                passed = matches(actual, case["expected"])
+            elif category == "financial_formula":
+                org = case["organization_type"]
+                if config["code"] not in financial_analysis_sector_calculations.FINANCIAL_RATIOS.get(org, ()):
+                    raise ValueError("Metric does not belong to the test organisation")
+                method = {config["code"]: (config["numerators"], config["denominators"], config["unit"], config.get("basis"))}
+                rows = financial_analysis_sector_calculations.financial_ratios(case["values"],case.get("previous", {}),case.get("opening", {}),org,case.get("standard", "nsbu"),case.get("period", "2026Q2"),methods=method)
+                actual = next(r["raw_result"] for r in rows if r["metric"] == config["code"])
+                expected = case.get("expected")
+                passed = actual is None if expected is None else actual is not None and Decimal(str(actual)) == Decimal(str(expected))
+            elif category == "formula":
                 lines = {k: {"raw_current": v} for k, v in case["inputs"].items()}
                 method = {config["code"]: (config["numerators"], config["denominators"], config["percent"])}
                 actual = financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q1", methods=method)[0]["raw_result"]

@@ -4,6 +4,80 @@ Source: «ТЗ: терминал каталога UZStock с логирован�
 15.10.2026, 21 pages). Visual reference: `UZStock_terminal_TZ_maket.html`
 (15.10), sent with the ТЗ.
 
+## Implementation review — 2026-10-23
+
+Compared the supplied `ТЗ_терминал_каталога_UZStock_с_логированием_1.pdf`
+and `UZStock_terminal_TZ_maket (3).html` against the application. The PDF
+sets requirements; the HTML supplies layout and dated example values. Its
+embedded issuer/CBU data are **test evidence**, not a production data source.
+The detailed fundamental-only scope takes precedence over the introductory
+mentions of quotes: the catalogue price chart was removed. HDS remains
+deferred; FV stays behind the human-admin API gate.
+
+The following status describes local implementation, **not production acceptance**.
+Existing comparison/account changes in the working tree were preserved.
+
+| TZ tasks | Implementation and remaining acceptance |
+|---|---|
+| T-01–02 | Existing empty-file rejection and duplicate selection retained. Some named annual filings are empty or mislabelled upstream; do not manufacture replacements. See the measured Stage C results in `02-data.md`. |
+| T-03 | **Still open:** the earlier D4 decision requires review before automatic value quarantine. The measured false positives and proposed source-arithmetic checks are in `quarantine-review-2026-10-17.md`. This change does not silently enable those thresholds. |
+| T-04–05 | Existing comparative backfill and discrete-quarter derivation retained; coverage now distinguishes loaded, comparative, missing, unregistered and unavailable periods. Production history must be refreshed and checked. |
+| T-06 | Existing IFRS ingestion retained. UZMT's complete 2020–2025 publication coverage was not established in this local workspace. |
+| T-07 | High risk now requires attention, including without a comparable period. Medium risk and profit-direction constraints remain. Shared annualised NIM/cost-of-risk and P1–P8 names added; report calculation version is `nsbu-core-2.5`. |
+| T-08 | Existing fund routing/share-reconciliation guard retained. Terminal summary treats equity as NAV and suppresses corporate revenue for funds. A missing verified share basis still prevents NAV/share. |
+| T-09 | Existing keyboard/command parser extended to working market screens and complete URL context. LAST/HELP retained. |
+| T-10 | EQS, MON, SUM, RAT, RV and REC wired to real APIs; shared PL, BS, DVD, CF, CN and DQ reused. Peer selection matches type, standard, scope and year. DQ fails visibly if either financial-history request fails. |
+| T-11 | Terminal tables export BOM-prefixed, formula-safe Cyrillic CSV. Exports preserve reporting context, currency and historical FX dates. CF/CN remain connected to existing sources. |
+| T-12 | Four independent panels; guest persistence in the browser and authenticated save/load through validated profile preferences. Direct PNL links wait for issuer data. |
+| T-13 | Existing journal extended with exact standard/period filters and durable deduplication. Publication, high P/B, insurer checks and governed rule activation now emit events. Not every catalogue event has been reproduced on production. |
+| T-14 | Admin terminal summary, coverage, error filters/full CSV, usage 7/30 days, templates and private FV views. Staff commands excluded from usage. Coverage excludes periods absent from the source registry and does not call a failed source clean. |
+| T-15 | Persistent critical-alert cooldown/retry and 09:00 Tashkent digest runner implemented and tested with an injected sender. **Needs a configured destination and host schedule; no external messages sent in this work.** |
+| T-16 | Existing checked issuer capitalisation/share-class grouping and dividend snapshot used. Newer stored quotes take precedence. Production reconciliation of the named issuers remains an acceptance task. |
+| T-17 | D/E withheld for financial organisations; bank NIM/cost-of-risk use the shared calculation engine. RAT renders validated sector ratios; EQS/RV retain explicit missing values when inputs are absent. |
+| T-18 | Exact 3/5-year CAGR endpoints, nominal/inflation-adjusted/USD calculations. Only complete stored inflation paths and period-end FX permit adjusted results. Current CBU inflation pages alone do not supply every historical year. |
+| T-19 | Discrete quarters, same-quarter YoY, contiguous four-quarter LTM, seasonality and heatmap; cumulative IFRS series are explicitly not treated as standalone quarters. |
+| T-20 | Admin-only peer bands, bank justified P/B and Gordon scenarios, applicability checks, dated assumptions and governed parameter drafts. **Public release still requires ten-issuer validation.** Initial assumptions are labelled as the dated TZ reference, not live estimates. |
+| T-21–22 | Official monthly NPL, bank main indicators/market shares, loan/deposit structure; all 17 September NPL examples verified. Source dates remain distinct from filing dates. Sector capital/liquidity/profitability spreadsheet adapters added. Full 2020+ production backfill is pending. |
+| T-23–24 | Rates SDMX and CBU historical FX archive; USD conversion at each statement-end date. DVD/EQS compare dated deposit rates with E/P and recent dividend decisions. Dividend yield is explicitly the latest positive decision within 366 days, not an invented sum of overlapping payouts. |
+| T-25 | Rates SDMX, strict FSI SDMX validation, sector spreadsheet fallback and industry lending collector. The official FSI URL returned HTTP 404 during validation; this is retained as an error, not counted as a successful load. |
+| T-26 | Assignment reasons, formula catalogue/version and existing governed enterprise and financial-sector formula/template workflow exposed in ADM. FV parameters use the same draft/test/review/activation flow. Financial formula drafts accept only known source fields and retain denominator, annualisation, IFRS 17 and gross-up guards. |
+| T-27 | NSBU insurer ratios verified against all five supplied H1 2026 examples. Nonpositive/missing denominators stay unavailable; NSBU formulas are not applied to IFRS 17. |
+| T-28 | Existing balance mapping retained; retention/cession jumps and annual-close versus quarter-opening reserve/balance discrepancies checked and journaled. Full production reparse and six-issuer source audit still require acceptance. |
+
+### Operational handoff
+
+New modules live under `server/terminal/`; historic FX is in
+`server/currency/history.py`. New source fixtures and regression tests use the
+actual supplied insurer cases and official CBU spreadsheets. No production
+service, database, scheduler or deployment was changed.
+
+Run from the **active application directory** with its normal environment:
+
+```sh
+# Monthly observation collection (repeat safely; failed parses do not replace data)
+.venv/bin/python -m scripts.terminal_cbu_sync
+# Explicit historical run; inspect errors because older source layouts can differ
+.venv/bin/python -m scripts.terminal_cbu_sync --from-month 2020-01 --through-month 2026-10
+# Run once a minute only after the operator configures the alert destination
+.venv/bin/python -m server.terminal.alerts
+```
+
+The collector returns nonzero if any requested source fails, including FSI
+SDMX, even when the other tables succeed. Historical year-end USD rates are
+cached separately. Source pages/attachments and dated observations are stored
+with the data. The current verified inflation scrape contains 2023–2025
+December observations; earlier missing years are not filled from the mockup.
+
+`TERMINAL_ALERT_WEBHOOK` (HTTPS) and optional `TERMINAL_ALERT_TOKEN` are private
+runtime settings documented without values in `.env.example`. The alert runner
+posts a JSON object with `kind=critical` or `kind=daily_digest` to that configured
+receiver. It has no implicit recipient. Set the monthly collector and minute
+alert schedule using the host's existing service manager **after inspecting the
+active directory and services**; do not use Railway. The three 09:00 deliveries,
+seven critical-free production days, historical completeness, first-load
+latency, ten FV issuers, and D4 quarantine review remain explicit acceptance
+gates. No task is marked “Принято” solely because unit tests pass.
+
 ## How to read this
 
 The ТЗ states **intent**, not an implementation spec. Its author did not know

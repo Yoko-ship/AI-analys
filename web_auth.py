@@ -12,6 +12,7 @@ from identity.notes import Notes
 from identity.support import Support
 from identity.portfolio import Portfolio
 from identity.notifications import Notifications
+from identity.comparisons import Comparisons
 
 
 class WebAuthStore:
@@ -28,6 +29,7 @@ class WebAuthStore:
         self.support = Support(self.database)
         self.portfolio = Portfolio(self.database)
         self.notifications = Notifications(self.database)
+        self.comparisons = Comparisons(self.database)
 
 
 web_auth_store = WebAuthStore()

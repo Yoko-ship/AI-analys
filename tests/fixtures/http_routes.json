@@ -4384,5 +4384,301 @@
     ],
     "name": "api_local_session__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/admin/terminal/coverage",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_coverage",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/terminal/dashboard",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_dashboard",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/terminal/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_export",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/terminal/templates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_templates",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/terminal/valuation/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_valuation",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/company-comparison",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company-comparison/export.xlsx",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison_excel",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company-comparison/options",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison_options",
+    "dependencies": []
+  },
+  {
+    "path": "/api/saved-comparisons",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_saved_comparisons",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/saved-comparisons",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_save_comparison",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/saved-comparisons/{comparison_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_delete_saved_comparison",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/saved-comparisons/{comparison_id}/seen",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_comparison_seen",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/saved-comparisons/{comparison_id}/updates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_comparison_updates",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/terminal/issuer/{ticker}/analytics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_analytics",
+    "dependencies": []
+  },
+  {
+    "path": "/api/terminal/issuer/{ticker}/reconciliation",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_reconciliation",
+    "dependencies": []
+  },
+  {
+    "path": "/api/terminal/screener",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_screener",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/terminal/coverage",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_coverage__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/terminal/dashboard",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_dashboard__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/terminal/export",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_export__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/terminal/templates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_templates__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/terminal/valuation/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_valuation__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/company-comparison",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company-comparison/export.xlsx",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison_excel__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company-comparison/options",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_company_comparison_options__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/saved-comparisons",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_saved_comparisons__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/saved-comparisons",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_save_comparison__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/saved-comparisons/{comparison_id}",
+    "methods": [
+      "DELETE"
+    ],
+    "name": "api_delete_saved_comparison__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/saved-comparisons/{comparison_id}/seen",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_comparison_seen__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/saved-comparisons/{comparison_id}/updates",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_comparison_updates__v2",
+    "dependencies": [
+      "_require_user"
+    ]
+  },
+  {
+    "path": "/api/v2/terminal/issuer/{ticker}/analytics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_analytics__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/terminal/issuer/{ticker}/reconciliation",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_reconciliation__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/terminal/screener",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_screener__v2",
+    "dependencies": []
   }
 ]

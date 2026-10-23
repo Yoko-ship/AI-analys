@@ -103,7 +103,7 @@ def test_alsm_sign_change_is_told_in_words_without_a_percent():
     report = _report("ALSM")
     assert report["headline"] == ("Страховые премии остались практически неизменными, но компания завершила период "
                                   "с чистым убытком 2,21 млрд сум после прибыли 13,5 млрд сум годом ранее.")
-    assert report["verdict_line"] == "Вердикт: смешанно — страховые премии на уровне прошлого года, но получен убыток."
+    assert report["verdict_line"] == "Вердикт: требует внимания — период закрыт с убытком."
     assert "116" not in report["text"] and "тыс. сум" not in report["text"]
 
 
@@ -137,8 +137,8 @@ def test_urts_never_prints_service_names():
 
 def test_metq_has_a_verdict_and_no_insufficient_data_beside_comparisons():
     report = _report("METQ")
-    assert report["verdict"]["status"] == "mixed"
-    assert report["verdict_line"] == "Вердикт: смешанно — выручка растёт, но маржа снижается."
+    assert report["verdict"]["status"] == "attention"
+    assert report["verdict_line"] == "Вердикт: требует внимания — прибыль упала более чем на пятую часть."
     assert "Недостаточно" not in report["text"]
 
 
@@ -152,7 +152,7 @@ def test_tgpg_red_flag_overrides_the_axes():
 def test_uzmk_profit_lifted_by_exchange_gains_does_not_read_as_better_profitability():
     report = _report("UZMK")
     assert report["verdict"]["axes"]["profitability"] == "worse"   # operating margin 14% → 12%
-    assert report["verdict"]["status"] == "mixed"
+    assert report["verdict"]["status"] == "attention"
 
 
 def test_bank_subject_is_the_bank():
@@ -184,7 +184,7 @@ def test_no_comparison_at_all_is_a_snapshot_on_the_date():
 # ── the publication checks catch what they must ─────────────────────────────
 
 def _run(sentences, status="mixed", sources=None):
-    pairs = [("headline", Sentence("Заголовок.", (), "headline")), ("headline", Sentence("Вердикт: смешанно — выручка растёт, но маржа снижается.", (), "verdict"))]
+    pairs = [("headline", Sentence("Заголовок.", (), "headline")), ("headline", Sentence("Вердикт: требует внимания — прибыль упала более чем на пятую часть.", (), "verdict"))]
     pairs += [("results", s) for s in sentences]
     result = text_checks.run(pairs, lang="ru", verdict_status=status, complete=False, comparison_sources=sources)
     return {check["code"]: check["status"] for check in result["checks"]}

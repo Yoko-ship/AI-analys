@@ -34,6 +34,7 @@ import server.catalog.routes as catalog_routes
 import server.company.financial_routes as company_financial_routes
 import server.company.history_routes as company_history_routes
 import server.company.routes as company_routes
+import server.comparison.routes as comparison_routes
 import server.currency.routes as currency_routes
 import server.http as http
 import server.ingestion.routes as ingestion_routes
@@ -222,6 +223,7 @@ app.include_router(research_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(accounts_routes.router)
 app.include_router(catalog_routes.router)
+app.include_router(comparison_routes.router)
 app.include_router(ingestion_routes.router)
 app.include_router(news_routes.router)
 app.include_router(market_routes.router)

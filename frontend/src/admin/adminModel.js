@@ -127,6 +127,9 @@ export const SYSTEM_SECTIONS = [{
   key: "companies",
   title: ["Компании", "Kompaniyalar", "Companies"]
 }, {
+  key: "terminal",
+  title: ["Терминал", "Terminal", "Terminal"]
+}, {
   key: "streams",
   title: ["Сборщики", "Yig'uvchilar", "Collectors"]
 }, {

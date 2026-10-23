@@ -6,6 +6,16 @@ const fmt = (value, lang) => value == null ? "—" : Number(value).toLocaleStrin
 const safeUrl = (value) => /^https?:\/\//i.test(value || "") ? value : undefined;
 
 const RATIO_COPY = {
+  nim: ["Чистая процентная маржа / средние активы", "Sof foiz marjasi / o‘rtacha aktivlar", "Net interest margin / average assets", "Чистая процентная маржа / средние активы", "Sof foiz marjasi / o‘rtacha aktivlar", "Net interest margin / average assets"],
+  cost_of_risk: ["Стоимость риска", "Xatar qiymati", "Cost of risk", "Стоимость риска", "Xatar qiymati", "Cost of risk"],
+  retention: ["Удержание премий", "Mukofotlarni saqlash", "Premium retention", "Удержание премий", "Mukofotlarni saqlash", "Premium retention"],
+  premium_growth: ["Рост начисленных премий", "Hisoblangan mukofotlar o‘sishi", "Written premium growth", "Рост начисленных премий", "Hisoblangan mukofotlar o‘sishi", "Written premium growth"],
+  loss_ratio: ["Убыточность", "Zararlilik", "Loss ratio", "Убыточность", "Zararlilik", "Loss ratio"],
+  expense_ratio: ["Доля расходов", "Xarajatlar ulushi", "Expense ratio", "Доля расходов", "Xarajatlar ulushi", "Expense ratio"],
+  combined_ratio: ["Комбинированный коэффициент", "Kombinatsiyalangan koeffitsient", "Combined ratio", "Комбинированный коэффициент", "Kombinatsiyalangan koeffitsient", "Combined ratio"],
+  investment_to_premiums: ["Инвестдоход / премии", "Investitsiya daromadi / mukofotlar", "Investment income / premiums", "Инвестдоход / премии", "Investitsiya daromadi / mukofotlar", "Investment income / premiums"],
+  net_reserves_to_equity: ["Резервы нетто / капитал", "Sof zaxiralar / kapital", "Net reserves / equity", "Резервы нетто / капитал", "Sof zaxiralar / kapital", "Net reserves / equity"],
+
   P1: ["Доходность активов на конец периода (P1)", "Davr oxiridagi aktivlar daromadliligi (P1)", "Return on closing assets (P1)", "Чистая прибыль на каждые 100 сум активов на конец периода", "Davr oxiridagi har 100 so‘mlik aktivdan sof foyda", "Net profit per 100 UZS of closing assets"],
   P2: ["Доходность оборотных активов", "Aylanma aktivlar daromadliligi", "Return on current assets", "Прибыль до налога на каждые 100 сум оборотных активов", "Har 100 so‘mlik aylanma aktivdan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of current assets"],
   P3: ["Рентабельность вложенного капитала", "Kiritilgan kapital rentabelligi", "Return on invested capital", "Прибыль до налога на каждые 100 сум вложенного капитала", "Har 100 so‘mlik kiritilgan kapitaldan soliqdan oldingi foyda", "Pre-tax profit per 100 UZS of invested capital"],

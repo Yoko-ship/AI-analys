@@ -1,13 +1,14 @@
 import React from "react";
 import {
-  TAB_KEYS, commandText, isEmptyCommand, isIssuerFunction, parseCommand, tickerIndex,
+  TAB_KEYS, commandText, isEmptyCommand, parseCommand, tickerIndex,
 } from "../../../lib/terminalCommands.js";
 import { logTerminalEvent } from "../../../lib/terminalJournal.js";
+import { screenFromUrl, screenUrl } from "../../../lib/terminalWorkspace.js";
 import { terminalCopy } from "./terminalCopy.js";
 
 // Functions with a screen today. The rest are recognised (HELP lists them,
 // marked «скоро») and open a "coming" panel instead of failing as unknown.
-export const READY_FUNCTIONS = new Set(["SUM", "PL", "BS", "RAT", "DVD", "CF", "CN", "DQ"]);
+export const READY_FUNCTIONS = new Set(["SUM", "PL", "BS", "RAT", "DVD", "CF", "CN", "DQ", "RV", "REC", "FV"]);
 const OVERLAYS = new Set(["HELP", "LAST"]);
 const LAST_KEY = "uz_terminal_last";
 const LAST_SIZE = 8;
@@ -18,26 +19,9 @@ export const DEFAULT_FROM_YEAR = 2020;
 // The screen lives in the address bar (/catalog?t=SQBN&f=PL&std=MSFO), so
 // every screen is linkable and the browser's Back and Forward walk the
 // terminal's history like Esc does.
-function readUrl() {
-  const q = new URLSearchParams(window.location.search);
-  const func = (q.get("f") || "").toUpperCase();
-  return {
-    ticker: (q.get("t") || "").toUpperCase() || null,
-    func: isIssuerFunction(func) ? func : "SUM",
-    form: (q.get("std") || "").toUpperCase() === "MSFO" ? "MSFO" : "NSBU",
-    fullHistory: q.get("h") === "all",
-  };
-}
-
-function writeUrl({ ticker, func, form, fullHistory }, push) {
-  const q = new URLSearchParams(window.location.search);
-  for (const key of ["t", "f", "std", "h"]) q.delete(key);
-  if (ticker) q.set("t", ticker);
-  if (func && func !== "SUM") q.set("f", func);
-  if (form === "MSFO") q.set("std", "MSFO");
-  if (fullHistory) q.set("h", "all");
-  const search = q.toString();
-  const url = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
+function readUrl() { return screenFromUrl(window.location.href); }
+function writeUrl(screen, push) {
+  const url = screenUrl(screen, window.location.href);
   if (url === `${window.location.pathname}${window.location.search}${window.location.hash}`) return false;
   window.history[push ? "pushState" : "replaceState"](window.history.state, "", url);
   return true;
@@ -69,14 +53,16 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
   const [func, setFunc] = React.useState(initial.func);
   const [form, setFormState] = React.useState(initial.form);
   const [fullHistory, setFullHistoryState] = React.useState(initial.fullHistory);
+  const [market, setMarket] = React.useState(initial.market);
+  const [scope, setScopeState] = React.useState(initial.scope);
   const [overlay, setOverlay] = React.useState(null);
   const [message, setMessage] = React.useState(null);
   const [last, setLast] = React.useState(readLast);
   const inputRef = React.useRef(null);
   const depth = React.useRef(0);
   const index = React.useMemo(() => tickerIndex(companies), [companies]);
-  const state = React.useRef({ ticker, func, form, fullHistory });
-  state.current = { ticker, func, form, fullHistory };
+  const state = React.useRef({ ticker, func, form, scope, market, fullHistory });
+  state.current = { ticker, func, form, scope, market, fullHistory };
 
   // A ticker named in the URL opens before the catalog's default issuer does.
   // Opening a screen by link is opening it, for the journal as for the reader.
@@ -89,20 +75,22 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
   // The page's own choices (an issuer clicked in the list, the first issuer
   // opened by default) keep the address in step without adding history.
   React.useEffect(() => {
-    if (ticker) writeUrl({ ticker, func, form, fullHistory }, false);
-  }, [ticker, func, form, fullHistory]);
+    if (ticker) writeUrl({ ticker, func, form, scope, market, fullHistory }, false);
+  }, [ticker, func, form, scope, market, fullHistory]);
 
   const go = React.useCallback((next, { push = true } = {}) => {
-    const screen = { ...state.current, ...next };
-    if (!screen.ticker) return;
+    const screen = { ...state.current, market: null, ...next };
+    if (!screen.ticker && !screen.market) return;
     setOverlay(null);
     setMessage(null);
-    if (screen.ticker !== state.current.ticker) setTicker(screen.ticker);
+    if (screen.ticker && screen.ticker !== state.current.ticker) setTicker(screen.ticker);
+    setMarket(screen.market || null);
+    setScopeState(screen.form === "MSFO" ? screen.scope : "separate");
     setFunc(screen.func);
     setFormState(screen.form);
     if (writeUrl(screen, push) && push) depth.current += 1;
     setLast(rememberScreen(screen));
-    logTerminalEvent("cmd_run", { ticker: screen.ticker, function: screen.func, standard: screen.form });
+    logTerminalEvent("cmd_run", { ticker: screen.ticker, function: screen.market || screen.func, standard: screen.form });
   }, [setTicker]);
 
   const run = React.useCallback((text) => {
@@ -120,10 +108,11 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
         setOverlay(parsed.market);
         setMessage(null);
       } else if (parsed.market === "CAT") {
-        setOverlay(null);
-        onCatalogSearch?.();
+        go({ market: null });
+        requestAnimationFrame(() => onCatalogSearch?.());
       } else {
-        setOverlay(`PENDING:${parsed.market}`);
+        go({ market: parsed.market });
+        return true;
       }
       logTerminalEvent("cmd_run", { function: parsed.market });
       return true;
@@ -146,7 +135,13 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
   // address, but not a new step back.
   const setForm = React.useCallback((value) => {
     setFormState(value);
-    writeUrl({ ...state.current, form: value }, false);
+    if (value !== "MSFO") setScopeState("separate");
+    writeUrl({ ...state.current, form: value, scope: value === "MSFO" ? state.current.scope : "separate" }, false);
+  }, []);
+
+  const setScope = React.useCallback((value) => {
+    setScopeState(value);
+    writeUrl({ ...state.current, scope: value }, false);
   }, []);
 
   const setFullHistory = React.useCallback((value) => {
@@ -165,7 +160,9 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
     const onPop = () => {
       const screen = readUrl();
       if (screen.ticker && screen.ticker !== state.current.ticker) setTicker(screen.ticker);
-      setFunc(screen.func);
+      setMarket(screen.market || null);
+    setScopeState(screen.form === "MSFO" ? screen.scope : "separate");
+    setFunc(screen.func);
       setFormState(screen.form);
       setFullHistoryState(screen.fullHistory);
       setOverlay(null);
@@ -194,5 +191,5 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
   }, [overlay, back, go]);
 
   const fromYear = fullHistory ? null : DEFAULT_FROM_YEAR;
-  return { func, form, setForm, fullHistory, setFullHistory, fromYear, overlay, setOverlay, message, setMessage, last, run, go, back, inputRef, index };
+  return { func, form, setForm, scope, setScope, market, fullHistory, setFullHistory, fromYear, overlay, setOverlay, message, setMessage, last, run, go, back, inputRef, index };
 }

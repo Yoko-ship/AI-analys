@@ -54,7 +54,7 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
         if not percent:
             opening = financial_analysis_sector_numbers.ratio(financial_analysis_sector_numbers.total(*((lines.get(k) or {}).get("raw_previous", (lines.get(k) or {}).get("previous")) for k in numerators)),
                             financial_analysis_sector_numbers.total(*((lines.get(k) or {}).get("raw_previous", (lines.get(k) or {}).get("previous")) for k in denominators)))
-        results.append({"metric": code, "metric_code": code, **(named(code) if code in {"P1", "P4"} else {}),
+        results.append({"metric": code, "metric_code": code, **named(code),
                         "method_id": f"nsbu-enterprise-{'profitability' if percent else 'liquidity'}-1.0:{code}",
                         "accounting_standard": "NSBU", "period": period,
                         "numerator_value": financial_analysis_sector_numbers.number(numerator), "denominator_value": financial_analysis_sector_numbers.number(denominator),
@@ -78,6 +78,15 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
 # None of these is a central-bank prudential ratio and none carries a
 # benchmark: the filing does not disclose the regulatory components.
 FINANCIAL_METHODS = {
+    "nim": (["net_interest_income_before_provisions"], ["total_assets"], "percent", None),
+    "cost_of_risk": (["credit_loss_provisions"], ["loan_portfolio"], "percent", None),
+    "retention": (["ceded_premiums"], ["insurance_premiums"], "percent", "previous"),
+    "premium_growth": (["insurance_premiums"], ["insurance_premiums"], "percent", "previous"),
+    "loss_ratio": (["insurance_service_cost"], ["revenue"], "percent", "previous"),
+    "expense_ratio": (["expenses"], ["revenue"], "percent", "previous"),
+    "combined_ratio": (["insurance_service_cost", "expenses"], ["revenue"], "percent", "previous"),
+    "investment_to_premiums": (["financial_income"], ["revenue"], "percent", "previous"),
+    "net_reserves_to_equity": (["net_insurance_reserves"], ["total_equity"], "ratio", "opening"),
     "roa": (["net_income"], ["total_assets"], "percent", None),
     "roe": (["net_income"], ["total_equity"], "percent", None),
     "equity_to_assets": (["total_equity"], ["total_assets"], "percent", "opening"),
@@ -91,7 +100,7 @@ FINANCIAL_METHODS = {
 }
 
 _BANK_RATIOS = ("roa", "roe", "equity_to_assets", "loans_to_deposits", "liquid_to_deposits",
-                "loan_reserve_coverage", "cost_to_income", "provisions_to_net_interest_income")
+                "loan_reserve_coverage", "cost_to_income", "provisions_to_net_interest_income", "nim", "cost_of_risk")
 
 # Which indicators each organization type publishes.  Every type the report
 # can publish figures for is either here, enterprise (form line codes), or in
@@ -103,8 +112,8 @@ FINANCIAL_RATIOS = {
     # A microfinance organization takes no deposits.
     "microfinance": ("roa", "roe", "equity_to_assets", "loan_reserve_coverage", "cost_to_income",
                      "provisions_to_net_interest_income"),
-    # No loss ratio: the form does not separate claims from premiums earned.
-    "insurance": ("roa", "roe", "equity_to_assets", "reinsurer_share_of_reserves", "insurance_reserves_to_liabilities"),
+    "insurance": ("roa", "roe", "equity_to_assets", "reinsurer_share_of_reserves", "insurance_reserves_to_liabilities",
+                  "premium_growth", "retention", "loss_ratio", "expense_ratio", "combined_ratio", "investment_to_premiums", "net_reserves_to_equity"),
 }
 
 # Only a result may be negative (a loss).  The mapping reads the sign of the
@@ -165,24 +174,30 @@ def return_ratios(values, opening, standard, period):
     return results
 
 
-def financial_ratios(values, previous, opening, organization_type, standard, period):
+def financial_ratios(values, previous, opening, organization_type, standard, period, *, methods=None):
     results = []
     gross_up = provisions_offset_by_other_income(values)
     returns = {item["metric"]: item for item in return_ratios(values, opening, standard, period)}
     for code in FINANCIAL_RATIOS.get(organization_type, ()):
-        if code in returns:
+        # IFRS 17 has different measures; NSBU insurer line formulas must
+        # never run on IFRS statements that happen to reuse a field name.
+        if organization_type == "insurance" and standard.lower() != "nsbu" and code in {
+                "premium_growth", "retention", "loss_ratio", "expense_ratio", "combined_ratio", "investment_to_premiums", "net_reserves_to_equity"}:
+            continue
+        if code in returns and code not in (methods or {}):
             results.append(returns[code])
             continue
-        numerators, denominators, unit, basis = FINANCIAL_METHODS[code]
+        numerators, denominators, unit, basis = (methods or {}).get(code, FINANCIAL_METHODS[code])
         percent = unit == "percent"
 
         def measure(data):
             parts = [financial_analysis_sector_numbers.decimal(data.get(k)) for k in numerators]
             if code not in SIGNED_RATIOS and any(part is not None and part < 0 for part in parts):
                 return None
-            return financial_analysis_sector_numbers.ratio(
+            result = financial_analysis_sector_numbers.ratio(
                 financial_analysis_sector_numbers.total(*parts),
                 financial_analysis_sector_numbers.total(*(data.get(k) for k in denominators)), percent)
+            return 100 - result if code == "retention" and result is not None else result
 
         value = measure(values)
         prior = measure({"opening": opening, "previous": previous}[basis]) if basis else None
@@ -193,13 +208,29 @@ def financial_ratios(values, previous, opening, organization_type, standard, per
             value = prior = None
         numerator = financial_analysis_sector_numbers.total(*(values.get(k) for k in numerators))
         denominator = financial_analysis_sector_numbers.total(*(values.get(k) for k in denominators))
-        results.append({"metric": code, "metric_code": code,
+        formula = f"({' + '.join(numerators)}) / ({' + '.join(denominators)})" + (" * 100" if percent else "")
+        if code in {"nim", "cost_of_risk"} or code in returns:
+            item = profitability.return_on(numerator, denominator, financial_analysis_sector_numbers.total(*(opening.get(k) for k in denominators)), months=period_months(period))
+            value = financial_analysis_sector_numbers.decimal(item["raw_result"]) if not withheld else None
+            denominator = financial_analysis_sector_numbers.decimal(item["denominator_value"])
+            formula = item["formula"].replace("net_income", numerators[0] if len(numerators) == 1 else "(" + " + ".join(numerators) + ")")
+        if code == "retention":
+            num_term = numerators[0] if len(numerators) == 1 else "(" + " + ".join(numerators) + ")"
+            den_term = denominators[0] if len(denominators) == 1 else "(" + " + ".join(denominators) + ")"
+            formula = f"(1 - {num_term} / {den_term}) * 100"
+        if code == "premium_growth":
+            denominator = financial_analysis_sector_numbers.total(*(previous.get(k) for k in denominators))
+            base = financial_analysis_sector_numbers.ratio(numerator, denominator, True)
+            value = base - 100 if base is not None else None
+            prior = None
+            formula = (f"(({' + '.join(numerators)}) / previous_same_period({' + '.join(denominators)}) - 1) * 100" if code in (methods or {}) else "(insurance_premiums / previous_same_period_premiums - 1) * 100")
+        results.append({"metric": code, "metric_code": code, **named(code),
                         "method_id": f"{standard.lower()}-{organization_type}-indicators-1.0:{code}",
                         "accounting_standard": standard.upper(), "period": period,
                         "numerator_value": financial_analysis_sector_numbers.number(numerator),
                         "denominator_value": financial_analysis_sector_numbers.number(denominator),
                         "component_facts": numerators + denominators,
-                        "formula": f"({' + '.join(numerators)}) / ({' + '.join(denominators)})" + (" * 100" if percent else ""),
+                        "formula": formula,
                         "raw_result": str(value) if value is not None else None,
                         "value": financial_analysis_sector_numbers.number(value),
                         "display_result": str(value.quantize(Decimal("0.01"))) if value is not None else None,

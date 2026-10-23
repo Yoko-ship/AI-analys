@@ -102,7 +102,7 @@ def _run(fingerprint):
     company_text = company.get("text") or ""
     check("company_no_profile_meta_text", "Аналитический профиль" not in company_text and "Для производства ключевой вопрос" not in company_text)
     check("company_amounts_scaled", "млн сум" in company_text and "тыс. сум" not in company_text)
-    check("company_verdict_mixed_with_reason", company["verdict"]["status"] == "mixed" and "но" in company["verdict"]["reason"])
+    check("company_high_risk_requires_attention", company["verdict"]["status"] == "attention" and bool(company["verdict"]["reason"]))
     return {"status": "passed" if all(c["status"] == "passed" for c in checks) else "failed",
             "code_fingerprint": fingerprint, "checks": checks}
 

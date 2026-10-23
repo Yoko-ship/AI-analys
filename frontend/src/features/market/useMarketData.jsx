@@ -7,6 +7,9 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const { language } = preferencesModule;
   const { apiFetch } = sessionModule;
   const { activeView } = navigationModule;
+  // Comparison owns its bounded data request; avoid fetching the full market
+  // and catalog again in the shell. Load normal data when leaving it.
+  const needsCatalog = activeView !== "companyCompare";
   const [companies, setCompanies] = useState([]);
 
   const [catalogStatus, setCatalogStatus] = useState(null);
@@ -31,18 +34,20 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketTradeStats, setMarketTradeStats] = useState({});
 
   useEffect(() => {
+    if (!needsCatalog) return;
     loadCompanies().catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
+  }, [language, needsCatalog]);
 
   useEffect(() => {
+    if (!needsCatalog) return;
     apiFetch("/api/catalog/status")
       .then((r) => r.json())
       .then((d) => { if (d.ok) setCatalogStatus(d); })
       .catch(() => {});
-  }, [apiFetch]);
+  }, [apiFetch, needsCatalog]);
 
   useEffect(() => {
     // "main": the landing's ticker tape, board preview and movers are the real
@@ -57,11 +62,12 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   }, [activeView, marketType, language]);
 
   useEffect(() => {
+    if (!needsCatalog) return;
     apiFetch("/api/securities")
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.securities) setSecuritiesMap(d.securities); })
       .catch(() => {});
-  }, [apiFetch]);
+  }, [apiFetch, needsCatalog]);
 
   useEffect(() => {
     // "main" for the same reason as the stocks load above: the landing must

@@ -188,6 +188,7 @@ def run_one():
     job = claim()
     if not job:
         return False
+    changed_rule = None
     try:
         results = list(job.get("results", []))
         for index in range(job["checkpoint"], len(job["targets"])):
@@ -225,6 +226,7 @@ def run_one():
                             previous_rules.append(old["id"])
                             s.put(c, "rules", {**old, "status": "SUPERSEDED"})
                     s.put(c, "rules", {**rule, "status": "ACTIVE", "activated_at": s.now(), "previous_rule_ids": previous_rules})
+                    changed_rule = {"rule_id":rule["id"],"code":rule["config"]["code"],"category":rule["category"],"previous_rule_ids":previous_rules}
                     from .service import enqueue
                     if rule["category"] == "parser":
                         document_ids = [document["id"] for document in s.all_items(c, "documents") if document.get("status") != "DUPLICATE"]
@@ -249,6 +251,10 @@ def run_one():
             scope = next(iter(scopes)) if len(scopes) == 1 else None
             s.put(c, "jobs", {**current, "status": status, "finished_at": s.now(), "result": {"verified": verified, "verification_scope": scope, "items": results}})
             s.audit(c, SYSTEM, "job.finished", job["id"], job["reason"], job["request_id"], new={"status": status})
+        if changed_rule:
+            from server.terminal import journal
+            journal.emit("formula_changed", dedupe_key="activate:"+changed_rule["rule_id"], function="ADM",
+                         message="Activated versioned rule: "+changed_rule["code"], details=changed_rule)
     except Exception as exc:
         log.exception("Admin job %s failed", job["id"])
         retryable = not isinstance(exc, s.ControlError) or exc.status >= 500

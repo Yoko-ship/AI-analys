@@ -150,6 +150,22 @@ def initialize(connection_factory) -> None:
             )
             """
         )
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS web_saved_comparisons (
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL REFERENCES web_users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+                selection JSONB NOT NULL,
+                signature TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(user_id, signature)
+            )
+        ''')
+        conn.execute('ALTER TABLE web_saved_comparisons ADD COLUMN IF NOT EXISTS seen_snapshot JSONB')
+        conn.execute('ALTER TABLE web_saved_comparisons ADD COLUMN IF NOT EXISTS seen_at TIMESTAMPTZ')
+        conn.execute('''CREATE INDEX IF NOT EXISTS idx_web_saved_comparisons_user_updated
+                        ON web_saved_comparisons(user_id, updated_at DESC, id DESC)''')
         # A portfolio is deliberately separate from a watchlist.  A saved
         # ticker is a research preference; a position has quantities and a
         # user-entered cost basis, so conflating the two would manufacture

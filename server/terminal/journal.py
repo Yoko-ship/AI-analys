@@ -121,14 +121,15 @@ def emit(event: str, *, ticker: str | None = None, standard: str | None = None,
          period: str | None = None, function: str | None = None, user_id: int | None = None,
          internal: bool = False, duration_ms: int | float | None = None,
          error_id: str | None = None, message: str = "", source_url: str | None = None,
-         details: dict[str, Any] | None = None, at: datetime | None = None) -> None:
+         details: dict[str, Any] | None = None, at: datetime | None = None,
+         dedupe_key: str | None = None) -> None:
     """Record one event. Never raises for I/O; raises ``UnknownEvent`` for a bad name."""
     spec = EVENTS.get(event)
     if spec is None:
         raise UnknownEvent(event)
     level, kind, _ = spec
     row = (
-        uuid.uuid4().hex, stamp(at or now()), event, level, kind,
+        uuid.uuid5(uuid.NAMESPACE_URL, event+":"+dedupe_key).hex if dedupe_key is not None else uuid.uuid4().hex, stamp(at or now()), event, level, kind,
         (_clip("ticker", ticker) or "").upper() or None, _clip("standard", standard),
         _clip("period", period), _clip("function", function),
         int(user_id) if user_id is not None else None, 1 if internal else 0,
@@ -211,7 +212,7 @@ def flush() -> int:
     try:
         with connection() as c:
             c.executemany(f"INSERT INTO terminal_events({','.join(FIELDS)}) "
-                          f"VALUES ({','.join('?' * len(FIELDS))})", batch)
+                          f"VALUES ({','.join('?' * len(FIELDS))}) ON CONFLICT(id) DO NOTHING", batch)
             c.commit()
         return len(batch)
     except Exception:
@@ -290,7 +291,8 @@ def _row(row) -> dict[str, Any]:
 
 def events(*, levels: Iterable[str] | None = None, event: str | None = None,
            ticker: str | None = None, function: str | None = None, since: str | None = None,
-           until: str | None = None, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+           until: str | None = None, limit: int = 100, offset: int = 0,
+           standard: str | None = None, period: str | None = None) -> dict[str, Any]:
     """Newest first. ``since``/``until`` are ISO dates or timestamps (Tashkent)."""
     flush()
     where, params = [], []
@@ -298,7 +300,7 @@ def events(*, levels: Iterable[str] | None = None, event: str | None = None,
     if levels:
         where.append(f"level IN ({','.join('?' * len(levels))})")
         params += levels
-    for column, value in (("event", event), ("function", function)):
+    for column, value in (("event", event), ("function", function), ("standard", standard), ("period", period)):
         if value:
             where.append(f"{column} = ?")
             params.append(value)
