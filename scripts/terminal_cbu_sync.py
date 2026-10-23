@@ -18,14 +18,20 @@ def months(start,end):
         year,month=(year+1,1) if month==12 else (year,month+1)
 
 
+def refresh_months(today):
+    previous=(today.year-1,12) if today.month==1 else (today.year,today.month-1)
+    return (previous,(today.year,today.month))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--from-month',default=date.today().strftime('%Y-%m'))
     parser.add_argument('--through-month',default=date.today().strftime('%Y-%m'))
     parser.add_argument('--fx-from-year',type=int,default=2020,help='Cache year-end USD rates from this year')
+    parser.add_argument('--refresh',action='store_true',help='Refresh previous and current months for late publications')
     args=parser.parse_args();failed=False
     if not 2000<=args.fx_from_year<=date.today().year:parser.error('Invalid FX starting year')
-    pending=list(months(args.from_month,args.through_month))
+    pending=list(refresh_months(date.today())) if args.refresh else list(months(args.from_month,args.through_month))
     for i,(year,month) in enumerate(pending):
         try:result=cbu.sync_month(year,month,with_sdmx=i==len(pending)-1)
         except Exception as exc:result={'loaded':[],'errors':[type(exc).__name__]}

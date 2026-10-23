@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "period": "2022-12",
+      "superseded_value": 12.2,
+      "value": 12.3,
+      "source_url": "https://cbu.uz/upload/iblock/498/1pzfqalq1gj8tka0ragb3zdgb43hiv6n/Monetary_Policy_Report_4th_quarter.pdf",
+      "page": 15,
+      "sha256": "4ffbb3e30086c7331654f4be6f62f8123367b3d24aff961586f8cc950242dd31",
+      "reviewed_at": "2026-10-23",
+      "reason": "CBU Q4 2022 report section 2.3 states year-end headline inflation 12.3 percent; the live portal historical row currently says 12.2."
+    }
+  ]
+}

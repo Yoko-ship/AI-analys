@@ -101,6 +101,7 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
     if not ready:
         raise ValueError("No current, approved calendar-period candidates selected")
     published = []
+    restatements = []
     with store.transaction() as c:
         existing = c.execute("SELECT scope,period_end FROM ingest_heads WHERE org_id=? AND standard='MSFO'", (org,)).fetchall()
         # Once an issuer has snapshot heads the reader stops mixing legacy
@@ -129,6 +130,15 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
                     "source": {"file_hash": row["sha"], "pdf_url": row["url"], "category": row["category"],
                                "received_at": row["received_at"], "source_published_at": source_meta.get("published_at"),
                                "candidate_id": row["id"], "extraction_version": row["processor"], "review_id": row["review_id"]}}
+            if old:
+                previous = c.execute('SELECT payload_json FROM ingest_snapshots WHERE id=?', (old['snapshot_id'],)).fetchone()
+                from .comparative import restated_fields
+                changes = restated_fields(json.loads(previous['payload_json'])['normalized_uzs'], checks['normalized_uzs'])
+                if changes:
+                    restatements.append({'ticker': ticker, 'standard': 'MSFO', 'period': period_key(meta),
+                                         'source_url': row['url'], 'message': 'Reviewed IFRS revision changes published figures by more than 1%',
+                                         'details': {'fields': changes, 'unit': 'UZS', 'scope': meta['scope'], 'previous_snapshot': old['snapshot_id'], 'snapshot': snapshot_id},
+                                         'dedupe_key': 'ifrs:' + old['snapshot_id'] + ':' + snapshot_id})
             c.execute("INSERT INTO ingest_snapshots VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                       (snapshot_id, row["id"], row["review_id"], *key, store.encoded(full), store.now()))
             c.execute("INSERT INTO ingest_heads VALUES (?,?,?,?,?,?) ON CONFLICT(org_id,standard,scope,period_start,period_end) "
@@ -136,6 +146,9 @@ def publish(ticker, *, actor, replace=False, candidate_ids=None):
             store.event(c, snapshot_id, "snapshot.published", actor=actor,
                         previous=old["snapshot_id"] if old else None, candidate=row["id"])
             published.append(snapshot_id)
+    from server.terminal import journal
+    for event in restatements:
+        journal.emit('restatement', **event)
     return {"ticker": ticker, "published": len(published), "snapshots": published}
 
 
@@ -268,10 +281,11 @@ def passport(ticker, period, field, *, scope=None):
                        "stated_period": period, "role": meta["role"], "published_at": row["created_at"],
                        "title": f"{meta.get('issuer_name', ticker)} — IFRS {meta['document_year']} ({meta['scope']})",
                        "page": figure["page"], "raw_label": figure["raw_label"], "raw_value": float(amount),
+                       "currency": meta["currency"], "fx": meta.get("fx"),
                        "unit_scale": int(meta["unit_scale"]), "normalized_value": float(payload["normalized_uzs"][key]),
                        "normalization_formula": ("sum(coefficient × source component) × unit_scale"
                                                  if figure.get("calculation") == "signed_sum" else
                                                  "sum(source components) × unit_scale" if figure.get("components") else
-                                                 "raw_value × unit_scale"),
+                                                 "raw_value × unit_scale") + (" × period-end CBU rate" if meta.get("fx") else ""),
                        "sign": "negative" if amount < 0 else "zero" if not amount else "positive",
                        "archived_url": f"/api/company/{ticker}/financials/documents/{source['file_hash']}"}}

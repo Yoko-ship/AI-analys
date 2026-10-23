@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "notes": "Visually checked USD statements. Original units retained; dated official CBU rates supply UZS period-end presentation.",
+  "reports": [
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2020,
+      "document_year": 2021,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/UzAuto_Motors_Cons_I_FS_21-e.pdf",
+      "sha256": "e1a62320f256c9ab806109e522ab0b0b49ce1c169da6bd0ab2645866b4580fa6",
+      "page_count": 9,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 6 (financial position) and 7 (annual profit or loss), 2020 year column. Restated comparative; not the 1 January opening balance.",
+      "unit_evidence": "Pages 6 and 7: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2020-12-31",
+        "effective_date": "2020-12-29",
+        "rate": 10476.92,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2020-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "1296905",
+          "page": 6,
+          "column_year": 2020,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "892716",
+          "page": 6,
+          "column_year": 2020,
+          "raw_label": "TOTAL LIABILITIES"
+        },
+        "total_equity": {
+          "raw_value": "404189",
+          "page": 6,
+          "column_year": 2020,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "28965",
+          "page": 6,
+          "column_year": 2020,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "2623554",
+          "page": 7,
+          "column_year": 2020,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "373016",
+          "page": 7,
+          "column_year": 2020,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "230370",
+          "page": 7,
+          "column_year": 2020,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "160055",
+          "page": 7,
+          "column_year": 2020,
+          "raw_label": "Profit for the year"
+        }
+      }
+    },
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2021,
+      "document_year": 2021,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/UzAuto_Motors_Cons_I_FS_21-e.pdf",
+      "sha256": "e1a62320f256c9ab806109e522ab0b0b49ce1c169da6bd0ab2645866b4580fa6",
+      "page_count": 9,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 6 (financial position) and 7 (annual profit or loss), 2021 year column. Primary year column.",
+      "unit_evidence": "Pages 6 and 7: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement. The printed 2021 total liabilities is 1,685,995, but its two subtotals sum to 1,684,995 and reconcile assets minus equity. Publish the disclosed component sum; preserve the original PDF.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2021-12-31",
+        "effective_date": "2021-12-30",
+        "rate": 10837.66,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2021-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "2229720",
+          "page": 6,
+          "column_year": 2021,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "1684995",
+          "raw_label": "Total non-current liabilities + Total current liabilities (reported total has a 1,000 typo)",
+          "page": 6,
+          "column_year": 2021,
+          "calculation": "sum",
+          "components": [
+            {
+              "raw_value": "323701",
+              "raw_label": "Total non-current liabilities",
+              "page": 6,
+              "column_year": 2021
+            },
+            {
+              "raw_value": "1361294",
+              "raw_label": "Total current liabilities",
+              "page": 6,
+              "column_year": 2021
+            }
+          ]
+        },
+        "total_equity": {
+          "raw_value": "544725",
+          "page": 6,
+          "column_year": 2021,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "136020",
+          "page": 6,
+          "column_year": 2021,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "2162333",
+          "page": 7,
+          "column_year": 2021,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "325388",
+          "page": 7,
+          "column_year": 2021,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "200551",
+          "page": 7,
+          "column_year": 2021,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "166019",
+          "page": 7,
+          "column_year": 2021,
+          "raw_label": "Profit for the year"
+        }
+      }
+    },
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2022,
+      "document_year": 2022,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/UAM_IFRS_2022_openinfo.pdf",
+      "sha256": "dc8643fde470f165188ae092ea69cbfa53bafdffc2184f4cb505551919640539",
+      "page_count": 8,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 5 (financial position) and 6 (annual profit or loss), 2022 year column. Primary year column.",
+      "unit_evidence": "Pages 5 and 6: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2022-12-31",
+        "effective_date": "2022-12-30",
+        "rate": 11225.46,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2022-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "3296365",
+          "page": 5,
+          "column_year": 2022,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "2656741",
+          "page": 5,
+          "column_year": 2022,
+          "raw_label": "TOTAL LIABILITIES"
+        },
+        "total_equity": {
+          "raw_value": "639624",
+          "page": 5,
+          "column_year": 2022,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "95560",
+          "page": 5,
+          "column_year": 2022,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "3265415",
+          "page": 6,
+          "column_year": 2022,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "429801",
+          "page": 6,
+          "column_year": 2022,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "280819",
+          "page": 6,
+          "column_year": 2022,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "235119",
+          "page": 6,
+          "column_year": 2022,
+          "raw_label": "Profit for the year"
+        }
+      }
+    },
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2023,
+      "document_year": 2024,
+      "role": "RESTATEMENT",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/0cf11785-0a35-4351-90ab-75d51a0f0b4a.pdf",
+      "sha256": "0711b3bc6b8e91fa62305f7af984c67100eb11a1dfc10ec3230b95933b911494",
+      "page_count": 8,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 5 (financial position) and 6 (annual profit or loss), 2023 year column. Restated comparative; not the 1 January opening balance.",
+      "unit_evidence": "Pages 5 and 6: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2023-12-31",
+        "effective_date": "2023-12-29",
+        "rate": 12338.77,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2023-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "2963694",
+          "page": 5,
+          "column_year": 2023,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "2176981",
+          "page": 5,
+          "column_year": 2023,
+          "raw_label": "TOTAL LIABILITIES"
+        },
+        "total_equity": {
+          "raw_value": "786713",
+          "page": 5,
+          "column_year": 2023,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "55522",
+          "page": 5,
+          "column_year": 2023,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "4609608",
+          "page": 6,
+          "column_year": 2023,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "630656",
+          "page": 6,
+          "column_year": 2023,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "469169",
+          "page": 6,
+          "column_year": 2023,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "333765",
+          "page": 6,
+          "column_year": 2023,
+          "raw_label": "Profit for the year"
+        }
+      }
+    },
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2024,
+      "document_year": 2024,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/0cf11785-0a35-4351-90ab-75d51a0f0b4a.pdf",
+      "sha256": "0711b3bc6b8e91fa62305f7af984c67100eb11a1dfc10ec3230b95933b911494",
+      "page_count": 8,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 5 (financial position) and 6 (annual profit or loss), 2024 year column. Primary year column.",
+      "unit_evidence": "Pages 5 and 6: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2024-12-31",
+        "effective_date": "2024-12-27",
+        "rate": 12920.48,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2024-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "2464103",
+          "page": 5,
+          "column_year": 2024,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "1555302",
+          "page": 5,
+          "column_year": 2024,
+          "raw_label": "TOTAL LIABILITIES"
+        },
+        "total_equity": {
+          "raw_value": "908801",
+          "page": 5,
+          "column_year": 2024,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "42792",
+          "page": 5,
+          "column_year": 2024,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "4239586",
+          "page": 6,
+          "column_year": 2024,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "582167",
+          "page": 6,
+          "column_year": 2024,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "383267",
+          "page": 6,
+          "column_year": 2024,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "314948",
+          "page": 6,
+          "column_year": 2024,
+          "raw_label": "Profit for the year"
+        }
+      }
+    },
+    {
+      "ticker": "UZMT",
+      "org_id": "102",
+      "issuer_name": "JSC UZAUTO MOTORS",
+      "year": 2025,
+      "document_year": 2025,
+      "role": "PRIMARY",
+      "scope": "consolidated",
+      "currency": "USD",
+      "unit_scale": 1000,
+      "pdf_url": "https://openinfo.uz/media/msfo/0ed3ebbe-7cf3-4716-a38c-2c0e9ec6a848.pdf",
+      "sha256": "63db7b9ada8b30c5ccffe4f0074853e0dfc1fd0f48ace31ed60768dfa6345fda",
+      "page_count": 8,
+      "review_method": "visual-source-page-check",
+      "reviewed_at": "2026-10-23",
+      "period_evidence": "PDF pages 5 (financial position) and 6 (annual profit or loss), 2025 year column. Primary year column.",
+      "unit_evidence": "Pages 5 and 6: in thousands of US Dollars, unless otherwise stated. UZS translation is a period-end presentation conversion, not an original UZS statement.",
+      "fx": {
+        "currency": "USD",
+        "as_of": "2025-12-31",
+        "effective_date": "2025-12-30",
+        "rate": 12025.33,
+        "source_url": "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2025-12-31/",
+        "basis": "period_end_presentation"
+      },
+      "figures": {
+        "total_assets": {
+          "raw_value": "2640277",
+          "page": 5,
+          "column_year": 2025,
+          "raw_label": "TOTAL ASSETS"
+        },
+        "total_liabilities": {
+          "raw_value": "1346767",
+          "page": 5,
+          "column_year": 2025,
+          "raw_label": "TOTAL LIABILITIES"
+        },
+        "total_equity": {
+          "raw_value": "1293510",
+          "page": 5,
+          "column_year": 2025,
+          "raw_label": "TOTAL EQUITY"
+        },
+        "cash": {
+          "raw_value": "89498",
+          "page": 5,
+          "column_year": 2025,
+          "raw_label": "Cash and cash equivalents"
+        },
+        "revenue": {
+          "raw_value": "4080954",
+          "page": 6,
+          "column_year": 2025,
+          "raw_label": "Revenue from contracts with customers"
+        },
+        "gross_profit": {
+          "raw_value": "459713",
+          "page": 6,
+          "column_year": 2025,
+          "raw_label": "Gross profit"
+        },
+        "operating_income": {
+          "raw_value": "292472",
+          "page": 6,
+          "column_year": 2025,
+          "raw_label": "Operating profit"
+        },
+        "net_income": {
+          "raw_value": "339638",
+          "page": 6,
+          "column_year": 2025,
+          "raw_label": "Profit for the year"
+        }
+      }
+    }
+  ]
+}

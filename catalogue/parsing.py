@@ -789,6 +789,27 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     # Keep them identical even when a derived balance identity rounded equity.
     total_assets, equity = balance_block['assets_end'], balance_block['equity_end']
 
+    # Commercial form 1 prints liabilities both as 490 + 600 and as a
+    # component of 780 = 480 + 770. Reconcile those witnesses before using
+    # the total; a zero closing cell must never borrow a corrupted opening.
+    if not insurance_balance.get("gross_insurance_reserves"):
+        from financial_analysis import balance_subtotals, sector_inputs
+        source_table = balance_data or income_data or {}
+        pairs = sector_inputs.source_line_pairs(source_table, 'form1', balance_subtotals.ALL_CODES)
+        row = pairs.get('c770') or {}
+        if balance_subtotals.label_formula(row.get('label')) == ((1, 'c490'), (1, 'c600')):
+            resolution = balance_subtotals.reconcile(pairs, ('c770',))['c770']['current']
+            total_liabilities = float(resolution['value']) if resolution['value'] is not None else None
+            if resolution['status'] in {'conflict', 'repaired'}:
+                from server.terminal import journal
+                import hashlib
+                details = {k: str(v) for k, v in resolution.items()}
+                source_url = source_table.get('source_url')
+                journal.emit('value_quarantine', source_url=source_url,
+                             message='NSBU form 1 liabilities contradict source arithmetic',
+                             details=details,
+                             dedupe_key=hashlib.sha256(str((source_url, details)).encode()).hexdigest())
+
     if insurance_balance.get("gross_insurance_reserves") is not None:
 
         for key in (

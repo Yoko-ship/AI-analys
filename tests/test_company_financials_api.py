@@ -131,7 +131,7 @@ def test_net_margin_is_derived_not_republished(monkeypatch):
         _fact("net_revenue", "2025", 4_265_600_000.0),
         _fact("net_profit", "2025", 1_880_100_000.0),
         _fact("net_profit_margin", "2025", 0.11, unit="x"),
-        _fact("total_assets", "2025", 9_000_000.0),
+        _fact("total_assets", "2025", 9_000_000_000.0), # plausible assets; this test isolates margin derivation
     ])
     s = TestClient(api.app).get("/api/company/X/financials").json()["series"]
     assert s["net_margin"]["unit"] == "%"

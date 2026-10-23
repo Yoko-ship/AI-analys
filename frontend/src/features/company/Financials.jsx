@@ -539,7 +539,8 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
                 <div><dt>{t("Нормализованное значение", "Normallashtirilgan qiymat", "Normalized value")}</dt><dd>{source.normalized_value ?? "—"}{source.normalization_formula ? ` (${source.normalization_formula})` : ""}</dd></div>
                 <div><dt>{t("Знак", "Belgi", "Sign")}</dt><dd>{source.sign || "—"}</dd></div>
                 <div><dt>{t("Страница", "Sahifa", "Page")}</dt><dd>{source.page || "—"}</dd></div>
-                <div><dt>{t("Единица / масштаб", "Birlik / masshtab", "Unit / scale")}</dt><dd>{source.unit_scale ? `×${source.unit_scale}` : "—"}</dd></div>
+                <div><dt>{t("Единица / масштаб", "Birlik / masshtab", "Unit / scale")}</dt><dd>{source.currency || "UZS"} {source.unit_scale ? `×${source.unit_scale}` : "—"}</dd></div>
+                {source.fx && <div><dt>{t("Пересчёт в UZS на конец периода", "Davr oxirida UZS ga aylantirish", "Period-end translation to UZS")}</dt><dd>{source.fx.rate} UZS / {source.fx.currency || source.currency} · {source.fx.as_of} · {t("действует с", "amal qiladi", "effective")} {source.fx.effective_date} · <a href={source.fx.source_url} target="_blank" rel="noreferrer">CBU</a></dd></div>}
                 <div><dt>{t("Дата публикации источника", "Manba e’lon qilingan sana", "Source publication date")}</dt><dd>{source.source_published_at || "—"}</dd></div>
                 <div><dt>{t("Получен платформой", "Platforma olgan vaqt", "Received by platform")}</dt><dd>{source.received_at || "—"}</dd></div>
                 <div><dt>{t("Версия извлечения", "Ajratib olish versiyasi", "Extraction version")}</dt><dd>{source.extraction_version || "—"}</dd></div>

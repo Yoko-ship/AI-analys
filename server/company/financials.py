@@ -271,6 +271,12 @@ async def financial_passport(ticker: str, period: str, field: str, form: str='NS
 
 
 async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', scope: str | None=None) -> dict[str, Any]:
+    from server.terminal.quarantine import protect
+    data = await _financial_series(ticker, freq, form, scope)
+    return await asyncio.to_thread(protect, data, ticker.upper(), form.upper())
+
+
+async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', scope: str | None=None) -> dict[str, Any]:
     """The issuer's annual series — one row per indicator, one column per year.
 
     Reads the `financial_indicators` fact store, which is where openinfo's
@@ -294,32 +300,31 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
         raise ValueError('form must be NSBU or MSFO')
     if scope not in {None, 'consolidated', 'separate'} or (scope is not None and standard != 'MSFO'):
         raise ValueError('scope must be consolidated or separate and requires MSFO')
-    loop = asyncio.get_running_loop()
     scope_info = {}
     if standard == 'MSFO':
         from financial_ingestion.publication import scopes as published_scopes, series as snapshot_series, snapshots as published_snapshots
-        available_scopes = await loop.run_in_executor(None, partial(published_scopes, ticker))
-        default_snapshots = await loop.run_in_executor(None, partial(published_snapshots, ticker)) if scope is None else []
+        available_scopes = await asyncio.to_thread(partial(published_scopes, ticker))
+        default_snapshots = await asyncio.to_thread(partial(published_snapshots, ticker)) if scope is None else []
         scope_info = {'scope': scope or (default_snapshots[0]['scope'] if default_snapshots else None), 'available_scopes': available_scopes}
         if scope is not None:
             quarterly = str(freq or '').lower().startswith('q')
-            values = await loop.run_in_executor(None, partial(snapshot_series, ticker, quarterly=quarterly, scope=scope)) or {}
+            values = await asyncio.to_thread(partial(snapshot_series, ticker, quarterly=quarterly, scope=scope)) or {}
             entries = {}
             gaps = []
             for period, fields in values.items():
                 for field, value in fields.items():
                     name = {'net_income': 'net_profit', 'revenue': 'net_revenue'}.get(field, field)
                     entries.setdefault(name, {'unit': 'UZS', 'money': True, 'filed': True, 'values': {}})['values'][period] = value * 1000
-                missing = [f for f in ('total_assets', 'total_equity', 'total_liabilities', 'net_income', 'interest_income') if fields.get(f) is None]
+                missing = [f for f in ('total_assets', 'total_equity', 'total_liabilities', 'net_income', 'revenue' if 'revenue' in fields else 'interest_income') if fields.get(f) is None]
                 if missing:
                     gaps.append({'period': period, 'code': 'MISSING_FINANCIAL_FIELDS', 'fields': missing})
             from financial_ingestion.store import public_status
-            ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
+            ingestion = await asyncio.to_thread(partial(public_status, ticker))
             return {'ok': True, 'ticker': ticker, 'currency': 'UZS', 'standard': standard, 'freq': 'quarterly' if quarterly else 'annual', **scope_info, 'period_basis': 'cumulative_ytd' if quarterly else 'annual', 'periods': sorted(values, reverse=True), 'series': entries, 'data_gaps': gaps, 'ingestion': ingestion, 'availability': 'NO_PARSED_FINANCIALS' if not entries else 'PARTIAL' if gaps or ingestion.get('status') == 'PARTIAL' else 'AVAILABLE', 'reason': None if entries else 'No reviewed figures have been published for this accounting scope and frequency.'}
     if str(freq or '').lower().startswith('q'):
         if standard != 'NSBU':
             from financial_ingestion.publication import series as snapshot_series
-            cumulative = await loop.run_in_executor(None, partial(snapshot_series, ticker, quarterly=True)) or {}
+            cumulative = await asyncio.to_thread(partial(snapshot_series, ticker, quarterly=True)) or {}
             entries = {}
             for period, fields in cumulative.items():
                 for field, value in fields.items():
@@ -327,23 +332,23 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                     entries.setdefault(name, {'unit': 'UZS', 'money': True, 'filed': True, 'values': {}})['values'][period] = value * 1000
             gaps = []
             for period, fields in cumulative.items():
-                missing = [key for key in ('total_assets', 'total_equity', 'net_income', 'interest_income') if fields.get(key) is None]
+                missing = [key for key in ('total_assets', 'total_equity', 'net_income', 'revenue' if 'revenue' in fields else 'interest_income') if fields.get(key) is None]
                 if missing:
                     gaps.append({'period': period, 'code': 'MISSING_FINANCIAL_FIELDS', 'fields': missing})
             from financial_ingestion.store import public_status
-            ingestion = await loop.run_in_executor(None, public_status, ticker)
+            ingestion = await asyncio.to_thread(public_status, ticker)
             return {'ok': True, 'ticker': ticker, 'currency': 'UZS', 'standard': standard, 'freq': 'quarterly', 'periods': sorted(cumulative, reverse=True), **scope_info, 'series': entries, 'availability': 'NO_QUARTERLY_IFRS' if not entries else 'PARTIAL' if gaps or ingestion.get('status') == 'PARTIAL' else 'AVAILABLE', 'period_basis': 'cumulative_ytd', 'data_gaps': gaps, 'ingestion': ingestion, 'reason': 'Flows cover January through the stated period end; they are not standalone three-month figures.' if entries else 'No reviewed interim IFRS figures have been published.'}
         try:
-            cumulative = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series_quarterly, ticker, standard))
-            annual = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, standard))
+            cumulative = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series_quarterly, ticker, standard))
+            annual = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series, ticker, standard))
             sibling = ticker[:-1] if ticker.endswith('P') else f'{ticker}P'
             if sibling and sibling != ticker:
-                sib_cum = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series_quarterly, sibling, standard))
+                sib_cum = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series_quarterly, sibling, standard))
                 for period, fields in (sib_cum or {}).items():
                     merged = dict(fields)
                     merged.update(cumulative.get(period) or {})
                     cumulative[period] = merged
-                sib_annual = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, sibling, standard))
+                sib_annual = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series, sibling, standard))
                 for period, fields in (sib_annual or {}).items():
                     merged = dict(fields)
                     merged.update(annual.get(period) or {})
@@ -351,7 +356,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             data_gaps: list[dict[str, Any]] = []
             q_periods, raw = derive_quarterly_series(cumulative, annual, issues=data_gaps)
             import data_quality
-            held_periods = await loop.run_in_executor(None, partial(data_quality.held_public_periods, ticker, standard))
+            held_periods = await asyncio.to_thread(partial(data_quality.held_public_periods, ticker, standard))
             if held_periods:
                 data_gaps.extend(({'period': p, 'code': 'UNDER_REVIEW'} for p in sorted(held_periods)))
                 q_periods = [period for period in q_periods if period not in held_periods]
@@ -379,15 +384,15 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             logger.exception('company quarterly financials failed for %s', ticker)
             raise FinancialDataUnavailable(str(exc)) from exc
     try:
-        index = await loop.run_in_executor(None, partial(catalogue_filings.get_company_index, ticker))
+        index = await asyncio.to_thread(partial(catalogue_filings.get_company_index, ticker))
         org_id = (index or {}).get('org_id')
         sibling = ticker[:-1] if ticker.endswith('P') else f'{ticker}P'
         if not org_id and sibling and (sibling != ticker):
-            alt = await loop.run_in_executor(None, partial(catalogue_filings.get_company_index, sibling))
+            alt = await asyncio.to_thread(partial(catalogue_filings.get_company_index, sibling))
             org_id = (alt or {}).get('org_id')
         if not org_id:
             return {'ok': True, 'ticker': ticker, 'org_id': None, 'currency': 'UZS', 'standard': standard, 'periods': [], 'series': {}}
-        facts = await loop.run_in_executor(None, partial(catalogue_facts.get_facts, org_id, 'financial_indicators')) if standard == 'NSBU' else []
+        facts = await asyncio.to_thread(partial(catalogue_facts.get_facts, org_id, 'financial_indicators')) if standard == 'NSBU' else []
         series: dict[str, dict[str, Any]] = {}
         periods: set[str] = set()
         last_fy = catalogue_periods._latest_complete_fiscal_year()
@@ -426,9 +431,9 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
                     (series.get(name) or {}).get('values', {}).pop(period, None)
         series = {f: e for f, e in series.items() if e['values']}
         FILED = {'revenue': 'net_revenue', 'net_income': 'net_profit', 'interest_income': 'interest_income', 'interest_expense': 'interest_expense', 'gross_profit': 'gross_profit', 'operating_income': 'operating_income', 'operating_expenses': 'operating_expenses', 'total_liabilities': 'total_liabilities', 'cash': 'cash', 'total_assets': 'total_assets', 'total_equity': 'total_equity', 'roe': 'roe', 'roa': 'roa', 'debt_ratio': 'debt_ratio', 'debt_to_equity': 'debt_to_equity'}
-        filed = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, ticker, standard))
+        filed = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series, ticker, standard))
         if sibling and sibling != ticker:
-            filed_sib = await loop.run_in_executor(None, partial(catalogue_snapshots.get_financials_series, sibling, standard))
+            filed_sib = await asyncio.to_thread(partial(catalogue_snapshots.get_financials_series, sibling, standard))
             filed = filed or {}
             for period, fields in (filed_sib or {}).items():
                 merged = dict(fields)
@@ -475,7 +480,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
             from financial_ingestion import comparative
             stated: dict[str, dict[str, Any]] = {}
             for alias in sorted(correction_tickers, key=lambda t: t != ticker):
-                for period, values in (await loop.run_in_executor(None, partial(comparative.comparative_years, alias)) or {}).items():
+                for period, values in (await asyncio.to_thread(partial(comparative.comparative_years, alias)) or {}).items():
                     stated.setdefault(period, values)
             for period, values in stated.items():
                 if period in usable_filed or period in reviewed_annuals or int(period) > last_fy:
@@ -500,7 +505,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
         # A catalogue row with no workbook and no PDF is not a filing: BECM's
         # «2022» and «2025» rows carry neither, and counting them let the copies
         # of 2021 and 2024 stand as years of their own.
-        annual_years = {str(r.get('year')) for r in await loop.run_in_executor(None, partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year') and (r.get('excel_url') or r.get('excel_url_form1') or r.get('pdf_url'))}
+        annual_years = {str(r.get('year')) for r in await asyncio.to_thread(partial(catalogue_filings.get_company_reports, ticker)) or [] if r.get('report_form') == standard and r.get('period_type') == 'annual' and (not r.get('quarter')) and r.get('year') and (r.get('excel_url') or r.get('excel_url_form1') or r.get('pdf_url'))}
         data_gaps = [{'period': p, 'code': 'EMPTY_SOURCE_FILING'} for p in sorted(unusable, reverse=True) if int(p) <= last_fy]
         for ghost in duplicate_filed_years(series, periods, annual_years):
             data_gaps.append({'period': ghost, 'code': 'UNSUPPORTED_DUPLICATE_PERIOD'})
@@ -537,7 +542,7 @@ async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', sc
         ingestion = None
         if standard == 'MSFO':
             from financial_ingestion.store import public_status
-            ingestion = await loop.run_in_executor(None, partial(public_status, ticker))
+            ingestion = await asyncio.to_thread(partial(public_status, ticker))
         return {'ok': True, 'ticker': ticker, 'org_id': org_id, 'currency': 'UZS', 'standard': standard, **scope_info, 'periods': sorted(periods, reverse=True), 'series': series, 'availability': 'NO_PARSED_FINANCIALS' if not series else 'PARTIAL' if data_gaps or (ingestion or {}).get('status') == 'PARTIAL' else 'AVAILABLE', 'reports_available': bool(annual_years), 'data_gaps': data_gaps, 'period_sources': period_sources, **({'ingestion': ingestion} if ingestion is not None else {})}
     except Exception as exc:
         logger.exception('company financials failed for %s', ticker)

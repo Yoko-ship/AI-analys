@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "ticker": "UZNF",
+      "standard": "NSBU",
+      "period": "2025Q1",
+      "field": "net_profit",
+      "value_uzs": -19091000,
+      "assets_uzs": 10000000,
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18012&lang=ru",
+      "reviewed_at": "2026-10-23",
+      "reason": "Source lines 040, 060 and 270 state 19,091 thousand UZS expense/loss; line 400 states 10,000 thousand UZS assets. First reporting quarter of the fund. This is not a currency-scale error.",
+      "source_rows": [
+        [
+          "Ценные бумаги (0610)",
+          "040",
+          0,
+          0,
+          null,
+          null
+        ],
+        [
+          "Инвестиции в зависимые хозяйственные общества (0630)",
+          "060",
+          0,
+          0,
+          null,
+          null
+        ],
+        [
+          "Авансовые платежи по налогам и другим обязательным платежам в бюджет (4400)",
+          "270",
+          0,
+          0,
+          null,
+          null
+        ],
+        [
+          "Всего по активу баланса (стр.130+стр.390)",
+          "400",
+          10000,
+          10000,
+          null,
+          null
+        ],
+        [
+          "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+          "040",
+          0,
+          0,
+          0,
+          19091
+        ],
+        [
+          "Административные расходы",
+          "060",
+          0,
+          0,
+          0,
+          19091
+        ],
+        [
+          "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+          "270",
+          0,
+          0,
+          0,
+          19091
+        ]
+      ]
+    }
+  ]
+}

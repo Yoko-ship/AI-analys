@@ -16,7 +16,7 @@ test("scope switch isolates tables and passport requests and remains usable when
     }
     if (url.pathname.endsWith("/financials/passport")) {
       passportScopes.push(url.searchParams.get("scope"));
-      result = { ok: true, status: "SOURCED", source: { scope: url.searchParams.get("scope"), perimeter: url.searchParams.get("scope"), page: 2, period_year: 2024, raw_value: 100, normalized_value: 100000, unit_scale: 1000 } };
+      result = { ok: true, status: "SOURCED", source: { scope: url.searchParams.get("scope"), perimeter: url.searchParams.get("scope"), page: 2, period_year: 2024, raw_value: 100, normalized_value: 100000, unit_scale: 1000, currency: "USD", fx: { rate: 12920.48, as_of: "2024-12-31", effective_date: "2024-12-31", source_url: "https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2024-12-31/", basis: "period_end_presentation" } } };
     }
     return route.fulfill({ contentType: "application/json", body: JSON.stringify(result) });
   });
@@ -29,6 +29,9 @@ test("scope switch isolates tables and passport requests and remains usable when
   await expect(page.locator(".company-financials table")).not.toContainText("500,000");
   await page.getByRole("button", { name: "100,000", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("separate");
+  await expect(page.getByRole("dialog")).toContainText("USD");
+  await expect(page.getByRole("dialog")).toContainText("12920.48");
+  await expect(page.getByRole("dialog")).toContainText("2024-12-31");
   expect(passportScopes).toEqual(["separate"]);
   await page.getByRole("button", { name: "Close source passport" }).click();
   await page.getByRole("button", { name: "Quarterly", exact: true }).click();

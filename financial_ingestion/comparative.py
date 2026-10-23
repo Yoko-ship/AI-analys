@@ -155,12 +155,61 @@ def source_url(source: dict) -> str | None:
     return f"https://openinfo.uz/reports/{source['org_type']}/annual/{source['object_id']}"
 
 
+def restated_fields(original: dict, comparative: dict) -> dict:
+    """Strictly more than 1%; zero bases are changes without a fake percentage."""
+    from decimal import Decimal, InvalidOperation
+    changes = {}
+    for field in (*_INCOME, 'total_assets', 'total_equity', 'total_liabilities', 'cash',
+                  'interest_income', 'interest_expense', 'operating_expenses'):
+        old, new = original.get(field), comparative.get(field)
+        if old is None or new is None or isinstance(old, bool) or isinstance(new, bool):
+            continue
+        try:
+            old, new = Decimal(str(old)), Decimal(str(new))
+        except InvalidOperation:
+            continue
+        if not old.is_finite() or not new.is_finite() or old == new:
+            continue
+        if old == 0 or abs(new-old) > abs(old) * Decimal('0.01'):
+            changes[field] = {'original': float(old), 'comparative': float(new),
+                             'change_pct': float((new-old)/abs(old)*100) if old else None}
+    return changes
+
+
+def _record_restatement(aliases, year, values, source, journal):
+    if journal is None:
+        return
+    c = catalogue_storage.get_catalog_conn()
+    try:
+        original = {}
+        for ticker in reversed(aliases):
+            row = c.execute('SELECT * FROM catalog_financials WHERE ticker=? AND form=? AND year=? AND quarter=0',
+                            (ticker, FORM, year)).fetchone()
+            if row:
+                usable, problem = catalogue_fields.usable_filing(dict(row))
+                if problem is None or problem['code'] == 'no_balance':
+                    original.update({k:v for k,v in usable.items() if v is not None})
+    finally:
+        c.close()
+    changes = restated_fields(original, values)
+    if changes:
+        import hashlib
+        signature = hashlib.sha256(json.dumps(changes, sort_keys=True).encode()).hexdigest()
+        journal('restatement', ticker=aliases[0], standard=FORM, period=str(year),
+                source_url=source_url(source),
+                message=f"{source['year']} filing changes {year} comparative figures by more than 1%",
+                details={'fields': changes, 'source': source, 'unit': 'thousand UZS'},
+                dedupe_key=f"{aliases[0]}:{FORM}:{year}:{source_url(source)}:{signature}")
+
+
 def backfill_issuer(org_id: str, aliases: list[str], journal=None) -> list[int]:
     """Fill every missing annual of one issuer that a later filing states."""
     filled = []
     if not org_id or str(org_id).startswith("ticker:"):
         return filled
-    for year in missing_years(aliases):
+    missing = set(missing_years(aliases))
+    have = _usable_years(aliases)
+    for year in sorted(missing | {y for y in have if y + 1 in have}):
         try:
             cand, detail = _annual_detail(str(org_id), year + 1)
             if not detail:
@@ -172,6 +221,9 @@ def backfill_issuer(org_id: str, aliases: list[str], journal=None) -> list[int]:
                 continue
             source = {"year": year + 1, "object_id": cand["object_id"],
                       "org_type": cand["org_type"], "pub_date": cand.get("pub_date")}
+            _record_restatement(aliases, year, values, source, journal)
+            if year not in missing:
+                continue
             store(aliases, year, values, source)
             filled.append(year)
             if journal:

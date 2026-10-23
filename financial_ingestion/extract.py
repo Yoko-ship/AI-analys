@@ -39,7 +39,7 @@ def statement_page_numbers(texts):
 def review_entries():
     import ifrs_financials
     entries = list(ifrs_financials.reviews())
-    for name in ("reviewed_pilots.json", "reviewed_banks.json"):
+    for name in ("reviewed_pilots.json", "reviewed_banks.json", "reviewed_companies.json"):
         additional = json.loads(Path(__file__).with_name(name).read_text())
         if additional.get("schema_version") != 1:
             raise ValueError("Unknown pipeline review schema")

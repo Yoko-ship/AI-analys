@@ -2,7 +2,7 @@
 
 D4 (customer, 2026-10-17): measure the quarantine rules over the stored
 history first, review what they would hide, and only then switch them on.
-**Nothing below is switched on yet.**
+The original measurement below is retained. Implementation on 2026-10-23 follows the balance-only jump rule, with exact-value source reviews and the shared financial API guard. UZNF’s legitimate 2025Q1 loss was independently rechecked against filing 18012; it is retained by a reviewed data record, not a ticker exception in the algorithm.
 
 The measurement covers every series production served on 2026-10-17:
 - 70 issuers;

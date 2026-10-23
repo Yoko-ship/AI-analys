@@ -1,3 +1,4 @@
+import { BankComparison } from './BankComparison.jsx';
 import React from "react";
 import { filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
 import { ISSUER_FUNCTIONS, functionLabel } from "../../../lib/terminalCommands.js";
@@ -52,7 +53,7 @@ export function MarketScreen({mode,terminal,lang}) {
       {mode==="MON"&&<label>{words(lang,"Показатель","Ko‘rsatkich","Metric")}<select value={metric} onChange={e=>setMetric(e.target.value)}>{METRICS.filter(([k])=>["roe","dy","cg5"].includes(k)).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>}
     </div>
     {mode==="EQS"&&<>
-      <div className="terminal-controls terminal-numeric-filters">{[["roe_min","ROE ≥"],["pb_max","P/B ≤"],["pe_max","P/E ≤"],["dy_min","DVD ≥"],["de_max","D/E ≤"],["cg5_min","CAGR 5Y ≥"],["npl_max","NPL ≤"],["nim_min","NIM ≥"],["cost_of_risk_max","CoR ≤"]].map(([k,l])=><label key={k}>{l}<input type="number" step="any" value={filters[k]??""} onChange={e=>update(k,e.target.value)}/></label>)}</div>
+      <div className="terminal-controls terminal-numeric-filters">{[["cbu_assets_share_pct_min",words(lang,"Доля активов ЦБ ≥","MB aktivlar ulushi ≥","CBU asset share ≥")],["roe_min","ROE ≥"],["pb_max","P/B ≤"],["pe_max","P/E ≤"],["dy_min","DVD ≥"],["de_max","D/E ≤"],["cg5_min","CAGR 5Y ≥"],["npl_max","NPL ≤"],["nim_min","NIM ≥"],["cost_of_risk_max","CoR ≤"]].map(([k,l])=><label key={k}>{l}<input type="number" step="any" value={filters[k]??""} onChange={e=>update(k,e.target.value)}/></label>)}</div>
       <div className="terminal-controls"><label className="terminal-check"><input type="checkbox" checked={!!filters.above_deposit} onChange={e=>update("above_deposit",e.target.checked)}/>{words(lang,"Дивиденд выше депозита","Dividend depozitdan yuqori","Dividend above deposit")}</label>
         <span className="muted">{data?.deposit_rate==null?words(lang,"Ставка ЦБ не загружена — сравнение недоступно.","Markaziy bank stavkasi yo‘q.","CBU deposit rate unavailable; no comparison can be made."):`${fmt(data.deposit_rate,lang)}% · ${data.deposit?.period||""}`}</span></div>
       <div className="terminal-controls"><label>{words(lang,"Шаблон","Andoza","Template")}<input maxLength={60} value={name} onChange={e=>setName(e.target.value)}/></label>
@@ -63,6 +64,7 @@ export function MarketScreen({mode,terminal,lang}) {
     </>}
     <State data={data} error={error} lang={lang}>{mode==="MON"?<div className="terminal-monitor">{rows.map(r=><button key={r.ticker} className={`terminal-monitor-tile ${r[metric]==null?"":r[metric]<0?"negative":r[metric]>=10?"positive":""}`} onClick={()=>terminal.go({ticker:r.ticker,func:"SUM"})}><strong>{r.ticker}</strong><span>{r.name}</span><b>{fmt(r[metric],lang)}{r[metric]!=null?"%":""}</b><small>{r.period||"—"} · {r.standard}</small><ProfitSparkline values={r.profit_history} lang={lang}/></button>)}</div>:
       <div className="terminal-table-wrap"><table className="terminal-table terminal-screener"><thead><tr>{[["ticker",words(lang,"Эмитент","Emitent","Issuer")],["period",words(lang,"Период","Davr","Period")],...METRICS].map(([k,l])=><th key={k} aria-sort={sort.key===k?(sort.desc?"descending":"ascending"):"none"}><button onClick={()=>setSort({key:k,desc:sort.key===k?!sort.desc:true})}>{l} {sort.key===k?(sort.desc?"↓":"↑"):""}</button></th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>terminal.go({ticker:r.ticker,func:"SUM"})}>{r.ticker}</button><small>{r.name}</small>{r.issues?.length>0&&<span title={r.issues.map(i=>i.code).join(", ")}> ⚑</span>}</td><td>{r.period||"—"}</td>{METRICS.map(([k])=><td key={k} title={k==="npl"?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{fmt(r[k],lang,k)}{k==="npl"&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>}
+      {mode==="EQS"&&<BankComparison rows={rows} lang={lang} sectorSeries={data?.sector_series}/>}
       {!rows.length&&<p className="terminal-empty">{words(lang,"Нет эмитентов по этим фильтрам","Mos emitentlar yo‘q","No issuers match these filters")}</p>}
     </State>
   </section>;
@@ -105,6 +107,7 @@ export function PeersScreen({ticker,form,scope,lang,onOpen}) {
   const rows=base?(data?.rows||[]).filter(r=>r.ticker!==ticker&&["kind","standard","scope","period"].every(k=>r[k]===base[k])):[];
   return <section><h3>RV · {functionLabel("RV",lang)}</h3><p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {base?.kind}</p><State data={data} error={error} lang={lang}>
     <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,"Эмитент","Emitent","Issuer")}</th>{METRICS.map(([k,l])=><th key={k}>{l}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>onOpen?.(r.ticker)}>{r.ticker}</button></td>{METRICS.map(([k])=><td key={k} title={k==="npl"?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{fmt(r[k],lang,k)}{k==="npl"&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>
+    <BankComparison rows={base?[base,...rows]:rows} lang={lang} sectorSeries={data?.sector_series}/>
     {!rows.length&&<p className="terminal-empty">{words(lang,"Сопоставимые эмитенты не найдены","Mos emitentlar topilmadi","No comparable issuers found")}</p>}
   </State></section>;
 }

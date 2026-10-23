@@ -296,8 +296,8 @@ def _issuer_org(conn, ticker: str) -> str:
     if org:
         return org
     try:
-        from securities_catalog import get_securities_map
-        securities = get_securities_map()
+        from catalogue.read_batch import securities as batch_securities
+        securities = batch_securities()
     except Exception:  # noqa: BLE001 — without the securities list the ticker stands alone
         return ""
     match = _ISIN_ISSUER.match(str((securities.get(ticker) or {}).get("isin") or "").upper())

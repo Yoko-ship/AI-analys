@@ -1,8 +1,8 @@
 """Durable alert delivery; run once a minute using the host's scheduler.
 
 No endpoint is configured by default. Failed deliveries remain retryable.
-The sender is injected in tests; production posts only to the operator's
-explicitly configured webhook. Journal rows remain immutable.
+The sender is injected in tests; production uses the operator's configured
+Telegram/email destination or webhook. Journal rows remain immutable.
 """
 from datetime import timedelta
 import hashlib
@@ -35,11 +35,11 @@ def dispatch(send, *, at=None):
     journal.flush()
     since=journal.stamp(at-timedelta(hours=1))
     with journal.connection() as c:
-        events=c.execute("SELECT event,ticker,standard,period,function,MAX(ts) AS latest,COUNT(*) AS count FROM terminal_events WHERE level='critical' AND ts>=? AND ts<=? GROUP BY event,ticker,standard,period,function",(since,journal.stamp(at))).fetchall()
+        events=c.execute("SELECT event,ticker,standard,period,function,error_id,MAX(ts) AS latest,COUNT(*) AS count FROM terminal_events WHERE level='critical' AND ts>=? AND ts<=? GROUP BY event,ticker,standard,period,function,error_id",(since,journal.stamp(at))).fetchall()
     pending=[]
     for row in events:
         item=dict(row)
-        key='critical:'+hashlib.sha256(json.dumps([item[k] for k in ('event','ticker','standard','period','function')]).encode()).hexdigest()
+        key='critical:'+hashlib.sha256(json.dumps([item[k] for k in ('event','ticker','standard','period','function','error_id')]).encode()).hexdigest()
         pending.append((key, {'kind':'critical','as_of':at.isoformat(),'event':item},at-timedelta(hours=1)))
     if at.hour==9:
         key='digest:'+at.date().isoformat()
@@ -65,8 +65,59 @@ def webhook(payload):
     if not 200<=response.status_code<300:raise RuntimeError('Alert destination did not accept delivery')
 
 
+def render(payload):
+    if payload['kind'] == 'critical':
+        event = payload['event']
+        return 'UZStock · Критично', '\n'.join([
+            'UZStock · Критично',
+            ' · '.join(str(event.get(k) or '') for k in ('event', 'ticker', 'standard', 'period', 'function')),
+            'error_id: ' + str(event.get('error_id') or '—'),
+            'Повторений: ' + str(event.get('count', 1)),
+            'Журнал: https://uzstock.uz/admin',
+        ])
+    summary = payload.get('summary') or {}
+    text = ['UZStock · Сводка за 24 часа', str(payload.get('as_of', ''))]
+    for key, label in [('quarantine','Карантин'), ('verdict_conflicts','Конфликты вердикта'),
+                       ('ai_published','Опубликовано анализов'), ('hour_error_pct','Ошибки экранов за час, %'),
+                       ('slow_pct','Медленные экраны, %')]:
+        value = summary.get(key)
+        text.append(f"{label}: {'—' if value is None else value}")
+    text.append('Журнал: https://uzstock.uz/admin')
+    return text[0], '\n'.join(text)
+
+
+def deliver(payload):
+    """Only explicitly configured terminal recipients receive operational alerts."""
+    from email_delivery import send_email
+    channel = os.environ.get('TERMINAL_ALERT_CHANNEL', '').strip()
+    if not channel and os.environ.get('TERMINAL_ALERT_WEBHOOK'):
+        return webhook(payload)
+    if channel not in {'telegram', 'email', 'both'}:
+        raise ValueError('Configure TERMINAL_ALERT_CHANNEL')
+    subject, text = render(payload)
+    telegram_error = None
+    if channel in {'telegram', 'both'}:
+        try:
+            token = os.environ.get('TELEGRAM_TOKEN', '')
+            chat = os.environ.get('TERMINAL_ALERT_CHAT_ID') or os.environ.get('ADMIN_TELEGRAM_ID', '')
+            if not token or not chat:
+                raise ValueError('Telegram admin destination is not configured')
+            response = requests.post(f'https://api.telegram.org/bot{token}/sendMessage',
+                json={'chat_id': chat, 'text': text, 'disable_web_page_preview': True}, timeout=15)
+            if response.status_code != 200 or not response.json().get('ok'):
+                raise RuntimeError('Telegram did not accept the alert')
+        except Exception:
+            telegram_error = RuntimeError('Telegram alert delivery failed')
+    if channel in {'email', 'both'} or telegram_error:
+        recipient = (os.environ.get('TERMINAL_ALERT_EMAIL', '').strip()
+                     or os.environ.get('ADMIN_EMAILS', '').split(',')[0].strip())
+        if not recipient:
+            raise ValueError('Configure TERMINAL_ALERT_EMAIL') from telegram_error
+        send_email(recipient, subject, text)
+
+
 if __name__=='__main__':
-    if not os.environ.get('TERMINAL_ALERT_WEBHOOK'):raise SystemExit('TERMINAL_ALERT_WEBHOOK is not configured')
-    result=dispatch(webhook)
+    if not (os.environ.get('TERMINAL_ALERT_WEBHOOK') or os.environ.get('TERMINAL_ALERT_CHANNEL')):raise SystemExit('Terminal alert delivery is not configured')
+    result=dispatch(deliver)
     print(json.dumps(result))
     raise SystemExit(1 if result['failed'] else 0)

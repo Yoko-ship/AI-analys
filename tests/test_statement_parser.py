@@ -408,3 +408,41 @@ def test_explicit_front_matter_duration_dates_income_but_not_december_comparativ
     pages[2] = 'IFRS interim financial statements as at 30 June 2024 and for the three months then ended'
     assert all(p['classification']['period_start'] is None
                for p in parse(pages) if p['classification']['period_end'].endswith('06-30'))
+
+
+def test_usd_statement_keeps_original_currency_and_requires_a_dated_translation(pages):
+    from copy import deepcopy
+    usd={n:text.replace('thousands of UZS','thousands of US Dollars') for n,text in pages.items()}
+    primary=parse(usd)[0]
+    assert primary['classification']['currency']=='USD'
+    assert primary['classification']['unit_scale']=='1000'
+    assert not validation.validate(primary,page_count=8)['valid']
+    primary['classification']['fx']={'currency':'USD','rate':'12920.48','as_of':'2024-12-31','effective_date':'2024-12-31',
+        'basis':'period_end_presentation','source_url':'https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2024-12-31/'}
+    result=validation.validate(primary,page_count=8)
+    assert result['valid'],result
+    assert result['normalized_uzs']['total_assets']=='64602400000000.00'
+    assert primary['figures']['total_assets']['raw_value']=='5000000'
+    broken=deepcopy(primary);broken['classification']['fx']['as_of']='2025-12-31'
+    assert not validation.validate(broken,page_count=8)['valid']
+    broken=deepcopy(primary);broken['classification']['fx']['source_url']='https://untrusted.example/rate'
+    assert not validation.validate(broken,page_count=8)['valid']
+
+
+def test_different_statement_currencies_are_never_merged(pages):
+    pages[8]=pages[8].replace('thousands of UZS','thousands of US Dollars')
+    proposals=parse(pages)
+    assert not any({'total_assets','net_income'}<=set(p['figures']) for p in proposals)
+
+
+def test_uzauto_2025_usd_statement_reads_corporate_lines_and_preserves_year_columns():
+    import json
+    from pathlib import Path
+    fixture=json.loads((Path(__file__).parent/'fixtures/uzmt_usd_2025.json').read_text())
+    pages={int(k):v for k,v in fixture['pages'].items()}
+    proposals=parse(pages)
+    primary=next(p for p in proposals if p['classification']['period_end']=='2025-12-31')
+    assert primary['classification']['currency']=='USD'
+    expected={'total_assets':'2640277','total_liabilities':'1346767','total_equity':'1293510',
+              'cash':'89498','net_income':'339638','revenue':'4080954','gross_profit':'459713','operating_income':'292472'}
+    for field,value in expected.items():assert primary['figures'][field]['raw_value']==value

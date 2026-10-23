@@ -66,3 +66,97 @@ def test_official_sector_spreadsheets_keep_percentage_units_and_both_dates():
     assert industry['observations']['2026-09-01']==pytest.approx(132372.391442)
     assert industry['unit']=='billion UZS'
     assert len(industry['observations'])==2
+
+
+def test_sdmx_links_are_discovered_from_official_dataset_titles():
+    html='''<table><tr><td>Interest Rates</td><td><a href="/sdmx/INR_Uzbekistan_Online_STA.xml">SDMX File</a></td></tr>
+    <tr><td>Financial Soundness Indicators</td><td><a href="/sdmx/FSD_Uzbekistan_STA_IMF.xml">SDMX File</a></td></tr></table>'''
+    links=cbu.discover_sdmx(html)
+    assert links['fsi']=='https://cbu.uz/sdmx/FSD_Uzbekistan_STA_IMF.xml'
+    assert links['rates'].endswith('/INR_Uzbekistan_Online_STA.xml')
+    with pytest.raises(cbu.FormatChanged):cbu.discover_sdmx(html.replace('/sdmx/FSD_', 'https://untrusted.example/FSD_'))
+
+
+def test_inflation_pagination_does_not_stop_at_a_truncated_navigation(monkeypatch):
+    import requests
+    from types import SimpleNamespace
+    pages=[];saved=[]
+    header='<tr><th>Date</th><th>Headline inflation compared to the same month of the previous year (%)</th></tr>'
+    def get(url,**kw):
+        pages.append(url)
+        from urllib.parse import urlparse,parse_qs
+        page=int(parse_qs(urlparse(url).query).get('lists_list_elements_983',['page-1'])[0].split('-')[-1])
+        year=2026-page
+        # Navigation only offers page 2, even though pages 3/4 remain available.
+        rows=f'<tr><td>01.12.{year}</td><td>10.0</td></tr>' if page<=6 else ''
+        return SimpleNamespace(text=f'<table>{header}{rows}</table><a href="?lists_list_elements_983=page-2">2</a>',raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(cbu,'latest',lambda kind:[])
+    monkeypatch.setattr(cbu,'save',lambda *args:saved.append(args))
+    result=cbu.sync_inflation()
+    assert {'2020','2021','2022','2023','2024','2025'}<=set(cbu.annual_inflation(result))
+    assert len(pages)<=10
+
+
+def test_historical_cbu_headers_preserve_2020_observations():
+    historical=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_2020.json').read_text())
+    npl=cbu.parse_bank_rows(historical['npl']['rows'],'npl',historical['npl']['source_url'])
+    sqbn=next(r for r in npl['rows'] if r['ticker']=='SQBN')
+    assert npl['date']=='2020-05-01'
+    assert sqbn['npl_pct']==pytest.approx(1.128261786)
+    structure=cbu.parse_bank_rows(historical['structure']['rows'],'structure',historical['structure']['source_url'])
+    row=next(r for r in structure['rows'] if r['ticker']=='HMKB')
+    assert row['deposits_bn']==pytest.approx(3165.2331595384303)
+    assert row['deposits_bn']==pytest.approx(row['household_deposits_bn']+row['company_deposits_bn'])
+
+
+def test_unfilled_cells_for_new_banks_remain_missing_without_dropping_sector():
+    from copy import deepcopy
+    rows=deepcopy(FIXTURE['main']['rows'])
+    header=next(r for r in rows if any('наименованиебанка' in cbu.norm(c) for c in r))
+    assets=next(i for i,c in enumerate(header) if cbu.norm(c).startswith('актив'))
+    target=next(r for r in rows if any(cbu.norm(c)=='агробанк' for c in r))
+    target[assets]=None;target[assets+1]='-'
+    data=cbu.parse_bank_rows(rows,'main',FIXTURE['main']['source_url'])
+    assert next(r for r in data['rows'] if r['ticker']=='AGBA')['assets_bn'] is None
+    assert next(r for r in data['rows'] if r['ticker']=='AGBA')['assets_share_pct'] is None
+    assert data['sector']['assets_bn']>0
+    target[assets]=-1
+    with pytest.raises(cbu.FormatChanged):cbu.parse_bank_rows(rows,'main',FIXTURE['main']['source_url'])
+
+
+def test_reviewed_annual_inflation_uses_cbu_report_for_portal_discrepancy():
+    # The current portal says 12.2; CBU's Q4 2022 report, p.15, states 12.3.
+    records=[{'period':'2022-12','value':12.2,'source_url':cbu.INFLATION_URL+'?lists_list_elements_983=page-3&mobile=Y'}]
+    reviewed=cbu.review_inflation(records)
+    assert reviewed[0]['value']==12.3
+    assert reviewed[0]['original_value']==12.2
+    assert reviewed[0]['source_url'].endswith('/Monetary_Policy_Report_4th_quarter.pdf')
+    assert cbu.annual_inflation(reviewed)['2022']==12.3
+    records[0]['value']=12.4 # A later source revision needs another review.
+    assert cbu.review_inflation(records)[0]['value']==12.4
+
+
+def test_initial_industry_table_has_one_explicit_dated_observation():
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_2020.json').read_text())['industry']
+    result=cbu.parse_sector_rows(fixture['rows'],'industry',fixture['source_url'])
+    assert result['date']=='2020-01-01'
+    industry=next(r for r in result['rows'] if r['name']=='Промышленность')
+    assert industry['observations']=={'2020-01-01':75636.369869}
+    assert industry['share_pct']['2020-01-01']==pytest.approx(35.7482692511)
+
+
+def test_sync_cannot_count_a_different_observation_month_as_loaded(monkeypatch):
+    import requests,openpyxl
+    from types import SimpleNamespace
+    saved=[]
+    def get(url,**kw):
+        text='<a href="/detail">Информация об основных показателях коммерческих банков</a>' if 'bankstats' in url else '<a href="/table.xlsx">XLSX</a>'
+        return SimpleNamespace(text=text,content=b'test',raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(openpyxl,'load_workbook',lambda *a,**k:SimpleNamespace(active=SimpleNamespace(values=[]),close=lambda:None))
+    monkeypatch.setattr(cbu,'parse_bank_rows',lambda *a:{'date':'2024-12-01'})
+    monkeypatch.setattr(cbu,'save',lambda *a:saved.append(a))
+    result=cbu.sync_month(2025,1,with_sdmx=False)
+    assert not saved
+    assert 'main' not in result['loaded']

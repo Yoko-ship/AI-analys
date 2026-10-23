@@ -285,3 +285,14 @@ def test_admin_dashboard_and_bell_access(setup, monkeypatch, tmp_path):
     monkeypatch.setenv("ADMIN_ROLES", "{}")
     assert client.get("/api/admin/control/overview", headers=headers).status_code == 403
     assert client.get("/api/notifications", headers=headers).json().get("items", []) == []
+
+
+def test_selected_issuer_release_does_not_fetch_other_issuers(setup,monkeypatch):
+    from financial_ingestion import extract
+    from scripts.publish_reviewed_bank_ifrs import release
+    entries=extract.review_entries()
+    monkeypatch.setattr(extract,'review_entries',lambda:[*entries,{**entries[0],'ticker':'UZMT','org_id':'102','pdf_url':'https://openinfo.uz/unselected.pdf'}])
+    fetched=[]
+    result=release(tickers=['BRBN'],fetch=lambda url:fetched.append(url) or setup[1])
+    assert result['periods']==1
+    assert 'https://openinfo.uz/unselected.pdf' not in fetched

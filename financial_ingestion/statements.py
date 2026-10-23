@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v6'
+VERSION = 'statement-columns-v7'
 
 
 def compact(value):
@@ -19,13 +19,15 @@ def is_ifrs(text):
 
 
 LABELS = {
+    'revenue': r'(?:revenue|revenuefromcontractswithcustomers|выручка|выручкаподоговорамспокупателями)',
+    'gross_profit': r'(?:grossprofit|валоваяприбыль)',
     'total_assets': r'(?:totalassets|итогоактив(?:ы|ов)|всегоактив(?:ы|ов))',
     'total_liabilities': r'(?:totalliabilities|итогообязательств(?:а)?|всегообязательств(?:а)?)',
     'total_equity': r'(?:totalequity|totalcapital|итого(?:собственный)?капитал|итогособственныхсредств|всего(?:собственный)?капитал)',
     'cash': r'(?:cashandcashequivalents|денежныесредстваиихэквиваленты)',
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
-    'operating_income': r'(?:totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
+    'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
     'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
     '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
@@ -200,11 +202,18 @@ def section_kind(text):
 def units(text):
     key = compact(text)
     scale = None
-    if re.search(r'(?:million|миллион)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс)',key):
+    if re.search(r'(?:million|миллион)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс|usd|usdollars|долларовсша)',key):
         scale = '1000000'
-    elif re.search(r'(?:thousand|тысяч|тыс\.)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс)',key):
+    elif re.search(r'(?:thousand|тысяч|тыс\.)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс|usd|usdollars|долларовсша)',key):
         scale = '1000'
     return scale
+
+
+def currency(text):
+    key = compact(text)
+    usd = bool(re.search(r'\busd\b|usdollars|долларовсша', key))
+    uzs = bool(re.search(r'soum|sums|uzs|сум|узс', key))
+    return 'USD' if usd and not uzs else 'UZS' if uzs and not usd else None
 
 
 def columns(header):
@@ -369,7 +378,7 @@ def proposals(pages, evidence):
         first = next((i for i, line in enumerate(lines) if row_label(line)), len(lines))
         header = '\n'.join(lines[:first])
         if section_kind(header) and units(header):
-            header_units.add(units(header))
+            header_units.add((currency(header), units(header)))
         if section_kind(header) == 'balance':
             for year,end in columns(header):
                 if end.endswith('-12-31'):
@@ -411,8 +420,9 @@ def proposals(pages, evidence):
             issues.append(f'COLUMN_DATES_UNRESOLVED:{number}')
             continue
         scale=units(header)
+        denomination=currency(header)
         if scale is None and len(header_units) == 1:
-            scale = next(iter(header_units))
+            denomination, scale = next(iter(header_units))
             unit_header = header + '\nUnit carried from consistent adjacent statement header'
         else:
             unit_header = header
@@ -422,9 +432,9 @@ def proposals(pages, evidence):
         document_year=max(year for year,end in cols)
         restated=bool(re.search(r'restated|пересчитан|пересмотрен|скорректирован',header,re.I))
         for column_index,(year,end) in enumerate(cols):
-            key=(scope,end,scale)
+            key=(scope,end,scale,denomination)
             if key not in groups:
-                groups[key]={'classification':{'standard':standard,'scope':scope,'currency':'UZS' if scale else None,
+                groups[key]={'classification':{'standard':standard,'scope':scope,'currency':denomination if scale else None,
                     'unit_scale':scale,'period_start':f'{year}-01-01','period_end':end,'document_year':document_year,
                     'role':'PRIMARY' if year==document_year else 'RESTATEMENT' if restated else 'COMPARATIVE',
                     'period_evidence':[], 'unit_evidence':[], 'issuer_evidence':None},
@@ -458,13 +468,13 @@ def proposals(pages, evidence):
                 continue
             if field in {'_pretax', '_tax', '_discontinued'}:
                 for year,end in cols:
-                    groups[(scope,end,scale)].setdefault('income_rows_seen', set()).add(field)
+                    groups[(scope,end,scale,denomination)].setdefault('income_rows_seen', set()).add(field)
             values=cells(tail,len(cols))
             if values is None:
                 issues.append(f'AMBIGUOUS_CELLS:{number}:{label}')
                 continue
             for (year,end),value in zip(cols,values):
-                g=groups[(scope,end,scale)]
+                g=groups[(scope,end,scale,denomination)]
                 figure={'raw_value':value,'raw_label':label,'page':number,'column_year':year}
                 if field == '_net_interest':
                     figure['before_credit_losses'] = not credit_loss_seen

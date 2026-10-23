@@ -1070,15 +1070,24 @@ def auto_apply_unit_scale_issue(issue_id: str, actor: str) -> dict[str, Any]:
     return {"ok": True, "corrections": records, "recheck": recheck}
 
 
-def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
-    """Return database-approved values in catalog units (thousands of UZS)."""
+def approved_corrections_series(ticker: str, form: str) -> dict:
+    """Read all reviewed periods once; callers keep the original unit contract."""
     conn = _conn()
     try:
         _ensure_schema(conn)
-        rows = conn.execute("""SELECT field, value_thousands_uzs FROM data_corrections
-                             WHERE ticker=? AND dataset='financials' AND form=? AND year=?
-                             AND quarter=? AND status='approved'""",
-                            (str(ticker).upper(), form, year, quarter)).fetchall()
-        return {str(r["field"]): float(r["value_thousands_uzs"]) for r in rows}
+        rows = conn.execute("""SELECT year, quarter, field, value_thousands_uzs FROM data_corrections
+                             WHERE ticker=? AND dataset='financials' AND form=? AND status='approved'""",
+                            (str(ticker).upper(), form)).fetchall()
+        result = {}
+        for r in rows:
+            result.setdefault((int(r['year']), int(r['quarter'])), {})[str(r['field'])] = float(r['value_thousands_uzs'])
+        return result
     finally:
         conn.close()
+
+
+def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
+    from catalogue.read_batch import get
+    ticker = str(ticker).upper()
+    result = get(('approved_corrections', ticker, form), lambda: approved_corrections_series(ticker, form))
+    return dict(result.get((year, quarter), {}))

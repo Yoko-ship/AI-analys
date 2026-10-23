@@ -29,7 +29,7 @@ def validate(payload, *, page_count):
         errors.append("STANDARD_UNRESOLVED")
     if meta.get("scope") not in {"separate", "consolidated"}:
         errors.append("SCOPE_UNRESOLVED")
-    if meta.get("currency") != "UZS" or str(meta.get("unit_scale")) not in {"1", "1000", "1000000"}:
+    if meta.get("currency") not in {"UZS", "USD"} or str(meta.get("unit_scale")) not in {"1", "1000", "1000000"}:
         errors.append("UNIT_UNRESOLVED")
     if meta.get("role") not in {"PRIMARY", "COMPARATIVE", "RESTATEMENT"}:
         errors.append("ROLE_UNRESOLVED")
@@ -46,6 +46,23 @@ def validate(payload, *, page_count):
     except (ValueError, TypeError, KeyError):
         errors.append("PERIOD_UNRESOLVED")
         end = None
+    fx_rate = Decimal(1)
+    if meta.get('currency') != 'UZS':
+        from urllib.parse import urlparse
+        fx = meta.get('fx') or {}
+        try:
+            fx_rate = amount(str(fx.get('rate')))
+            url = urlparse(fx.get('source_url', ''))
+            effective = date.fromisoformat(fx['effective_date'])
+            if (fx.get('currency') != meta.get('currency') or fx.get('as_of') != meta.get('period_end')
+                    or fx.get('basis') != 'period_end_presentation' or not end or effective > end
+                    or (end-effective).days > 7 or fx_rate <= 0 or url.scheme != 'https'
+                    or url.hostname != 'cbu.uz' or url.username or url.password
+                    or url.path != f"/ru/arkhiv-kursov-valyut/json/all/{end.isoformat()}/"):
+                raise ValueError('Unverified period-end conversion')
+        except (ValueError, TypeError, KeyError):
+            errors.append('FX_EVIDENCE_INVALID')
+            fx_rate = Decimal(1)
     for key in ("period_evidence", "unit_evidence", "issuer_evidence"):
         if not meta.get(key):
             errors.append(key.upper() + "_MISSING")
@@ -90,7 +107,7 @@ def validate(payload, *, page_count):
             scale = amount(str(meta.get("unit_scale")))
             with localcontext() as ctx:
                 ctx.prec = 50
-                normalized[field] = format(raw * scale, "f")
+                normalized[field] = format(raw * scale * fx_rate, "f")
             if field in {"cash", "total_assets", "total_liabilities", "interest_income"} and raw < 0:
                 errors.append("SIGN_INVALID:" + field)
             if field in {"interest_expense", "operating_expenses"} and raw > 0:
@@ -100,7 +117,7 @@ def validate(payload, *, page_count):
     balance = {"total_assets", "total_liabilities", "total_equity"}
     if balance <= normalized.keys():
         gap = Decimal(normalized["total_assets"]) - Decimal(normalized["total_liabilities"]) - Decimal(normalized["total_equity"])
-        if abs(gap) > Decimal(str(meta["unit_scale"])):
+        if abs(gap) > Decimal(str(meta["unit_scale"])) * fx_rate:
             errors.append("BALANCE_MISMATCH")
         if Decimal(normalized["total_assets"]) <= 0:
             errors.append("EMPTY_BALANCE")
@@ -122,7 +139,7 @@ def validate(payload, *, page_count):
                 errors.append('INCOME_MISMATCH')
         except (KeyError, TypeError, ValueError):
             errors.append('INCOME_RECONCILIATION_INVALID')
-    if not {"net_income", "interest_income"} <= normalized.keys():
+    if "net_income" not in normalized or not ({"interest_income", "revenue"} & normalized.keys()):
         warnings.append("PARTIAL_INCOME")
     return {"valid": not errors, "errors": errors, "warnings": warnings, "normalized_uzs": normalized}
 
@@ -138,4 +155,5 @@ def from_review(entry):
         "period_evidence": entry["period_evidence"], "unit_evidence": entry["unit_evidence"],
         "issuer_evidence": entry.get("issuer_evidence") or entry["issuer_name"],
         "issuer_name": entry["issuer_name"],
+        **({"fx": entry["fx"]} if entry.get("fx") else {}),
     }, "figures": entry["figures"], "review_method": entry["review_method"]}

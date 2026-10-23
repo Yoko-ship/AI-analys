@@ -112,3 +112,20 @@ test("DVD compares recent dividend and annual earnings yield to dated deposits",
   await expect(page.locator('.terminal-dividend-comparison')).toContainText('2026-08');
   await expect(page.locator('.terminal-dividend-comparison')).toContainText('E/P');
 });
+
+test('EQS and RV show bank market shares, loan/deposit structure and source dates', async ({page})=>{
+  await fixture(page);
+  const rows=['AGBA','HMKB'].map((ticker,i)=>({ticker,name:ticker,kind:'bank',standard:'NSBU',scope:'separate',period:'2025',roe:20,pb:1,years:['2025'],
+    cbu_assets_share_pct:i?4.2:12.5,cbu_household_loans_bn:i?100:200,cbu_company_loans_bn:300,cbu_household_deposits_bn:90,cbu_company_deposits_bn:150,
+    cbu:{main:{date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx'},structure:{date:'2026-09-01',source_url:'https://cbu.uz/structure.xlsx'}}}));
+  await page.route('**/api/terminal/screener?**',r=>r.fulfill({json:{ok:true,rows,years:['2025'],sector_series:{},deposit:null}}));
+  await run(page,'EQS');
+  await expect(page.locator('.terminal-bank-comparison')).toContainText('Доля активов');
+  await expect(page.locator('.terminal-bank-comparison')).toContainText('Депозиты юрлиц');
+  await expect(page.locator('.terminal-bank-comparison')).toContainText('2026-09-01');
+  await page.getByLabel('Доля активов ЦБ ≥').fill('10');
+  await expect(page.locator('.terminal-bank-comparison tbody tr')).toHaveCount(1);
+  await run(page,'AGBA RV');
+  await expect(page.locator('.terminal-bank-comparison')).toContainText('HMKB');
+  await expect(page.locator('.terminal-bank-comparison')).toContainText('Кредиты физлиц');
+});

@@ -31,14 +31,19 @@ def claim_selected(source_id, stage, processor_filter=None):
         store.event(c, job['id'], 'job.claimed', actor='reviewed-gap-release', attempt=job['attempts'])
         return job
 
-def release(*, fetch=None, allow_reviewed_corrections=False):
+def release(*, fetch=None, allow_reviewed_corrections=False, tickers=None):
     with tempfile.TemporaryDirectory(prefix="reviewed-bank-release-") as scratch:
         return _release(fetch=fetch or download_pdf, scratch=Path(scratch),
-                        allow_reviewed_corrections=allow_reviewed_corrections)
+                        allow_reviewed_corrections=allow_reviewed_corrections, tickers=tickers)
 
 
-def _release(*, fetch, scratch, allow_reviewed_corrections):
+def _release(*, fetch, scratch, allow_reviewed_corrections, tickers=None):
     entries = extract.review_entries()
+    if tickers is not None:
+        selected = {t.strip().upper() for t in tickers}
+        entries = [e for e in entries if e["ticker"] in selected]
+        if not selected or selected != {e["ticker"] for e in entries}:
+            raise ValueError("Every selected issuer must have a reviewed ledger")
     processor = extract.processor_version()
     tickers = sorted({e['ticker'] for e in entries})
     verified_sources = {}
@@ -157,7 +162,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true', required=True,
                         help='Explicitly stage and publish the checked-in reviewed ledger')
+    parser.add_argument('--ticker', action='append', help='Release only this reviewed issuer; repeat for multiple issuers')
     parser.add_argument('--allow-reviewed-corrections', action='store_true',
                         help='Allow only exact old-source/old-value/new-value corrections recorded in the ledger')
     args = parser.parse_args()
-    print(json.dumps(release(allow_reviewed_corrections=args.allow_reviewed_corrections)), flush=True)
+    print(json.dumps(release(allow_reviewed_corrections=args.allow_reviewed_corrections, tickers=args.ticker)), flush=True)

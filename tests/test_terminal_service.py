@@ -67,3 +67,15 @@ def test_issuer_dividend_and_earnings_yield_share_dated_deposit_context(monkeypa
     result=asyncio.run(service.issuer('AGBA'))
     assert result['snapshot']['ep']==20 and result['snapshot']['dy']==20
     assert result['deposit']['period']=='2026-08'
+
+
+def test_bank_comparison_exposes_dated_market_shares_and_structure():
+    import json
+    from pathlib import Path
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_202609.json').read_text())
+    bank={kind:next(r for r in cbu.parse_bank_rows(fixture[kind]['rows'],kind,fixture[kind]['source_url'])['rows'] if r['ticker']=='AGBA') for kind in ('npl','main','structure')}
+    result=service.bank_metrics(bank)
+    assert result['cbu_assets_share_pct']==bank['main']['assets_share_pct']
+    assert result['cbu_household_loans_bn']==bank['structure']['household_loans_bn']
+    assert result['cbu_company_deposits_bn']==bank['structure']['company_deposits_bn']
+    assert service.bank_metrics({})['cbu_assets_share_pct'] is None

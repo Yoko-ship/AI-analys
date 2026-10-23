@@ -69,7 +69,24 @@ def market_context():
             for group in fundamentals.group_by_issuer(classes).values() for c in group}
 
 
+BANK_FIELDS = {
+    'main': ('assets_share_pct', 'loans_share_pct', 'equity_share_pct', 'deposits_share_pct'),
+    'structure': ('household_loans_bn', 'company_loans_bn', 'household_deposits_bn', 'company_deposits_bn'),
+}
+
+
+def bank_metrics(bank):
+    return {'cbu_' + field: analytics.number((bank.get(kind) or {}).get(field))
+            for kind, fields in BANK_FIELDS.items() for field in fields}
+
+
 async def screener(form="NSBU", scope="separate", year=None):
+    from catalogue.read_batch import scope as read_scope
+    with read_scope():
+        return await _screener(form, scope, year)
+
+
+async def _screener(form="NSBU", scope="separate", year=None):
     loop = asyncio.get_running_loop()
     companies, market, central = await asyncio.gather(loop.run_in_executor(None, universe), loop.run_in_executor(None, market_context), loop.run_in_executor(None, cbu.context))
     semaphore = asyncio.Semaphore(6)
@@ -96,13 +113,13 @@ async def screener(form="NSBU", scope="separate", year=None):
         payments = await loop.run_in_executor(None, dividends.read_snapshot, ticker)
         dividend = analytics.dividend(payments, context.get("price")) if year is None else {"dy": None}
         return {**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
-                "cbu": bank, "npl": (bank.get("npl") or {}).get("npl_pct"), "years": data.get("periods", []),
+                "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct"), "years": data.get("periods", []),
                 "profit_history": analytics.values(data, "net_profit")}
 
     rows = await asyncio.gather(*(load(c) for c in companies))
     return {"ok": True, "rows": rows, "years": sorted({p for r in rows for p in r["years"] if len(str(p)) == 4}, reverse=True),
             "standard": form, "scope": scope, "deposit_rate": (central.get("deposit") or {}).get("value"),
-            "deposit": central.get("deposit"),
+            "deposit": central.get("deposit"), "sector_series": central.get("sector_series", {}),
             "as_of": datetime.now(timezone.utc).isoformat()}
 
 

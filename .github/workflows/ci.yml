@@ -753,6 +753,7 @@ jobs:
           # currently running one before replacing it; timers are re-enabled
           # below and do not double-run a Railway-era command.
           for timer in \
+            uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
@@ -760,6 +761,7 @@ jobs:
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
+            uzstock-terminal-alerts.service uzstock-terminal-cbu.service \
             uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
             uzstock-collector.service uzstock-quotes-1610.service \
             uzstock-quotes-2130.service uzstock-quotes-catchup.service uzstock-reports-watch.service uzstock-hourly-bars.service \
@@ -1025,6 +1027,25 @@ jobs:
           """
 
           units = {
+              "/etc/systemd/system/uzstock-terminal-alerts.service": """[Unit]
+          Description=UZStock critical alerts and 09:00 Tashkent daily digest
+          After=snap.docker.dockerd.service
+
+          [Service]
+          Type=oneshot
+          TimeoutStartSec=90
+          # Web container owns the explicitly configured Telegram/SMTP secrets.
+          ExecStart=/snap/bin/docker exec -u appuser uzstock-web python -m server.terminal.alerts
+          """,
+              "/etc/systemd/system/uzstock-terminal-alerts.timer": timer(
+                  "Deliver terminal alerts every minute", "*-*-* *:*:00"),
+              "/etc/systemd/system/uzstock-terminal-cbu.service": worker(
+                  "uzstock-terminal-cbu", "Refresh official CBU publications and historical FX",
+                  "python -m scripts.terminal_cbu_sync --refresh", timeout="30min", data_volume=True,
+                  resources="--memory 768m --memory-swap 768m")
+                  + "\nExecStopPost=-/snap/bin/docker stop -t 20 uzstock-terminal-cbu\n",
+              "/etc/systemd/system/uzstock-terminal-cbu.timer": timer(
+                  "Check monthly CBU tables for late publication daily", "*-*-* 06:30:00 Asia/Tashkent"),
               # The schedules below preserve Railway's currently active UTC cron
               # expressions.  The system clock on this VPS is UTC.
               "/etc/systemd/system/uzstock-collector.service": worker(
@@ -1175,6 +1196,7 @@ jobs:
           done
           systemctl daemon-reload
           for timer in \
+            uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \

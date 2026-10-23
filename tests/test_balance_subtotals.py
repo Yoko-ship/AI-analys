@@ -267,3 +267,12 @@ class TestStoredCurrentSection:
         self.store.bulk_upsert_financials([{"ticker": "MIQE", "year": 2026, "quarter": 2, "revenue": 1.0,
                                             "current_assets": 64_526_485.0, "inventories": 3_651_771.0}])
         assert self.stored() == (64_526_485.0, None, 3_651_771.0)
+
+
+def test_kvts_2020_glued_opening_cell_cannot_replace_closing_liabilities():
+    source=json.loads((Path(__file__).parent/'fixtures/kvts_2020_balance.json').read_text())
+    values=catalogue_parsing.compute_financial_ratios(None,source)['source_values']
+    assert values['total_assets']==914358452
+    assert values['total_equity']==354518181
+    assert values['total_liabilities']==559840271
+    assert values['total_assets']==values['total_equity']+values['total_liabilities']

@@ -358,16 +358,16 @@ def test_corrupt_archive_blocks_publication_and_download(setup, monkeypatch):
 
 def test_all_checked_in_reviews_validate():
     entries = extract.review_entries()
-    assert len(entries) == 139
+    assert len(entries) == 145
     assert {e["year"] for e in entries if e["ticker"] == "BRBN"} == set(range(2015, 2026))
     assert {e["ticker"] for e in entries} == {
         "BRBN", "OCBK", "DRBK", "GRBK", "IPTB", "SQBN", "AGBA", "ALKB",
-        "HMKB", "IPKY", "TNGB", "TNBN", "MCBA", "UNVB", "TRSB",
+        "HMKB", "IPKY", "TNGB", "TNBN", "MCBA", "UNVB", "TRSB", "UZMT",
     }
     for entry in entries:
         check = validation.validate(validation.from_review(entry), page_count=entry["page_count"])
         assert check["valid"], (entry["ticker"], entry["year"], check)
-        assert len(entry["figures"]) == 9
+        assert len(entry["figures"]) == (8 if entry["ticker"] == "UZMT" else 9)
     periods = [(e["ticker"], publication.period_key(validation.from_review(e)["classification"]))
                for e in entries]
     assert len(set(periods)) == len(periods)
@@ -636,3 +636,35 @@ def test_default_scope_api_labels_newest_separate_history(setup):
     assert result['scope']=='separate'
     assert result['periods']==['2024']
     assert result['available_scopes']==['consolidated','separate']
+
+
+def test_corporate_ifrs_uses_revenue_without_requesting_bank_interest_income(setup):
+    import api
+    from fastapi.testclient import TestClient
+    figures=setup[0]['figures']
+    figures['revenue']=figures.pop('interest_income')
+    figures['revenue']['raw_label']='Revenue from contracts with customers'
+    checks=validation.validate(validation.from_review(setup[0]),page_count=1)
+    assert 'PARTIAL_INCOME' not in checks['warnings']
+    stage(setup)
+    publication.publish('BRBN',actor='test')
+    result=TestClient(api.app).get('/api/company/BRBN/financials?form=MSFO&scope=consolidated').json()
+    assert not result['data_gaps']
+
+
+def test_reviewed_ifrs_replacement_emits_one_restatement_with_old_and_new_values(setup):
+    from server.terminal import journal
+    stage(setup)
+    publication.publish('BRBN',actor='first-review')
+    old=candidates()[0]
+    payload=json.loads(old['payload_json'])
+    payload['figures']['net_income']['raw_value']='-1400000'
+    replacement=publication.propose(old['id'],payload,actor='reviewer',reason='Later audited restatement')
+    publication.approve(replacement,actor='reviewer',reason='Source checked')
+    for _ in range(2):publication.publish('BRBN',actor='reviewer',replace=True,candidate_ids=[replacement])
+    events=journal.events(event='restatement')
+    assert events['total']==1
+    event=events['items'][0]
+    assert event['ticker']=='BRBN' and event['standard']=='MSFO'
+    assert event['details']['fields']['net_income']['original']<0
+    assert event['details']['fields']['net_income']['comparative']<0
