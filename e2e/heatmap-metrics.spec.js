@@ -24,7 +24,7 @@ const changes = Object.fromEntries(all.filter((r) => r.volume).map((r) => [r.tic
   } },
 }]));
 
-async function openMap(page, type = "stock", path = "/heatmap") {
+async function openMap(page, type = "stock", path = "/heatmap", selectTicker = true) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
@@ -43,11 +43,40 @@ async function openMap(page, type = "stock", path = "/heatmap") {
   await page.goto(path);
   if (path !== "/heatmap") return errors;
   if (type === "bond") await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
-  await page.getByLabel("Бумага на карте").selectOption(type === "bond" ? "BOND1" : "AGBA");
+  if (selectTicker) await page.getByLabel("Бумага на карте").selectOption(type === "bond" ? "BOND1" : "AGBA");
   return errors;
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+for (const width of [1280, 390, 320]) {
+  test(`heatmap opens directly on the map without scrolling at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const errors = await openMap(page, "stock", "/heatmap", false);
+    const assertMapFirst = async () => {
+      await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+      await expect.poll(() => page.evaluate(() => {
+        const tree = document.querySelector('.heatmap-tree').getBoundingClientRect();
+        return { atTop: scrollY === 0, mapInFirstScreen: tree.top < 360 && tree.bottom > tree.top + 200,
+          detailsBelowMap: document.querySelector('.heatmap-metric-details').getBoundingClientRect().top >= tree.bottom,
+          summaryBelowMap: document.querySelector('.market-stats-grid').getBoundingClientRect().top >= tree.bottom,
+          noOverflow: document.documentElement.scrollWidth <= innerWidth };
+      })).toEqual({ atTop: true, mapInFirstScreen: true, detailsBelowMap: true, summaryBelowMap: true, noOverflow: true });
+    };
+    await assertMapFirst();
+    await page.screenshot({ path: testInfo.outputPath('map-on-arrival.png') });
+    await page.reload();
+    await assertMapFirst();
+    await page.locator('.market-view-toggle button[title="Таблица"]').click();
+    await expect(page).toHaveURL(/\/market$/);
+    await expect(page.locator('.market-hero-search')).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.locator('.market-view-toggle button[title="Карта рынка"]').click();
+    await expect(page).toHaveURL(/\/heatmap$/);
+    await assertMapFirst();
+    expect(errors).toEqual([]);
+  });
+}
+
 for (const width of [1280, 390]) {
   test(`round company logos fit heatmap tiles at ${width}px and survive image failures`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });

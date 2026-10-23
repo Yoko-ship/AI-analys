@@ -337,6 +337,122 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 
   return (
     <div className="heatmap-wrap">
+      <div className="heatmap-tree" ref={treeRef} role="group" aria-label={mapCopy.board}>
+        {sectorLayout.map((sector) => {
+          const sectorRows = sector.stocks.map((stock) => stock.row);
+          const sectorAverage = avgOf(sectorRows);
+          const sectorTally = countedOf(sectorRows);
+          return (
+            <React.Fragment key={sector.sector}>
+              {sector.showHeader && (
+                <div
+                  className="heatmap-tree-label"
+                  style={{ left: sector.x, top: sector.y, width: sector.w, height: sector.headerHeight }}
+                >
+                  <span>{sectorLabel(lang, sector.sector)}</span>
+                  <strong className={`tone-${sectorAverage > flatBand ? "good" : sectorAverage < -flatBand ? "danger" : "neutral"}`}>
+                    {formatPct(sectorAverage)}
+                  </strong>
+                  <small>{sectorTally.total}</small>
+                </div>
+              )}
+              {sector.stocks.map((stock) => {
+                const row = stock.row;
+                const status = tileStatus(row);
+                const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
+                const tileGap = Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
+                const width = stock.w - tileGap;
+                const height = stock.h - tileGap;
+                if (width <= 0 || height <= 0) return null;
+                const tickerSize = Math.max(8, Math.min(Math.min(width, height) / 3.1, width / 4.7, 21));
+                // A ticker or status badge clipped into a movement-floor cell
+                // becomes a meaningless dot. Micro tiles keep only their fill;
+                // the full accessible label and the focus strip still expose
+                // every security on hover, focus and click.
+                const tickerMinWidth = Math.max(34, row.ticker.length * 5 + 12);
+                const showTicker = width >= tickerMinWidth && height >= 24;
+                const showPercent = width >= 58 && height >= 40;
+                // Reserve room for identity and movement before adding a logo.
+                // Small cells remain readable even when the map is crowded.
+                const showLogo = showTicker && width >= 58 && height >= 88;
+                const logoSize = showLogo ? Math.max(20, Math.min(56, width * 0.28, (height - 52) / 2)) : 0;
+                const logoSpace = showLogo ? logoSize + 6 : 0;
+                const showName = width > 105 && height > (showLogo ? 80 + logoSpace : 62);
+                const values = marketVolumeMetrics(row, stats);
+                // A tile carries only what the reader compares across the map:
+                // price and turnover. Every other trading metric lives in the
+                // panel below the map and in the tooltip.
+                const tilePrice = marketDisplayPrice(row);
+                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
+                const tileMetrics = [
+                  { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
+                  { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
+                ].slice(0, metricSlots);
+                const metricTitle = selectedMetrics.map(({ key, label }) => [
+                  `${label}: ${formatMapMetric(key, values[key], lang)}`,
+                  windowed ? mapMetricCoverage(row, key, lang) : "",
+                ].filter(Boolean).join(" · ")).join("\n");
+                const preferred = isPreferredRow(row);
+                const showPreferredBadge = preferred && width >= 84 && height >= 44;
+                const microTile = !showTicker;
+                const active = hover?.ticker === row.ticker;
+                return (
+                  <button
+                    key={row.ticker}
+                    className={`heatmap-tree-tile${microTile ? " is-micro" : ""}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
+                    type="button"
+                    style={{
+                      left: stock.x + tileGap / 2,
+                      top: stock.y + tileGap / 2,
+                      width,
+                      height,
+                      "--tile-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined,
+                    }}
+                    aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
+                    title={metricTitle}
+                    data-ticker={row.ticker}
+                    onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
+                    onMouseEnter={() => setHover({ ticker: row.ticker, row })}
+                    onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                    onFocus={() => setHover({ ticker: row.ticker, row })}
+                    onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                  >
+                    {showLogo && <span className="htt-logo" style={{ "--logo-size": `${logoSize}px` }} aria-hidden="true">
+                      <CompanyLogo logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}
+                        name={companyName} ticker={row.ticker} />
+                    </span>}
+                    {showTicker && (
+                      <span className="htt-ticker" style={{ fontSize: tickerSize }}>
+                        {row.ticker}{showPreferredBadge && <em title={mapCopy.preferred}>P</em>}
+                      </span>
+                    )}
+                    {showPercent && <span className="htt-pct" style={{ fontSize: tickerSize * 0.78 }}>{status === "ok" ? formatPct(row.changePercent) : "—"}</span>}
+                    {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
+                    {tileMetrics.length > 0 && <span className="htt-metrics">
+                      {tileMetrics.map(({ key, label, value }) => <span key={key} data-metric={key}>
+                        <span>{label}</span><b>{value}</b>
+                      </span>)}
+                    </span>}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {sectorItems.length === 0 && filtersActive && (
+        <p className="market-empty-cell heatmap-empty-state" role="status">
+          {mapCopy.none}{" "}
+          <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>
+        </p>
+      )}
+      {sectorItems.length === 0 && !filtersActive && (
+        <p className="market-empty-cell">
+          {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
+        </p>
+      )}
+
       <div className="heatmap-filters" role="group" aria-label={`${mapCopy.filterTurnover}, ${mapCopy.filterChange}`}>
         <div className="market-period-row">
           <span className="market-period-label">{mapCopy.filterTurnover}</span>
@@ -444,121 +560,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>)}
       </div>}
 
-      <div className="heatmap-tree" ref={treeRef} role="group" aria-label={mapCopy.board}>
-        {sectorLayout.map((sector) => {
-          const sectorRows = sector.stocks.map((stock) => stock.row);
-          const sectorAverage = avgOf(sectorRows);
-          const sectorTally = countedOf(sectorRows);
-          return (
-            <React.Fragment key={sector.sector}>
-              {sector.showHeader && (
-                <div
-                  className="heatmap-tree-label"
-                  style={{ left: sector.x, top: sector.y, width: sector.w, height: sector.headerHeight }}
-                >
-                  <span>{sectorLabel(lang, sector.sector)}</span>
-                  <strong className={`tone-${sectorAverage > flatBand ? "good" : sectorAverage < -flatBand ? "danger" : "neutral"}`}>
-                    {formatPct(sectorAverage)}
-                  </strong>
-                  <small>{sectorTally.total}</small>
-                </div>
-              )}
-              {sector.stocks.map((stock) => {
-                const row = stock.row;
-                const status = tileStatus(row);
-                const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                const tileGap = Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
-                const width = stock.w - tileGap;
-                const height = stock.h - tileGap;
-                if (width <= 0 || height <= 0) return null;
-                const tickerSize = Math.max(8, Math.min(Math.min(width, height) / 3.1, width / 4.7, 21));
-                // A ticker or status badge clipped into a movement-floor cell
-                // becomes a meaningless dot. Micro tiles keep only their fill;
-                // the full accessible label and the focus strip still expose
-                // every security on hover, focus and click.
-                const tickerMinWidth = Math.max(34, row.ticker.length * 5 + 12);
-                const showTicker = width >= tickerMinWidth && height >= 24;
-                const showPercent = width >= 58 && height >= 40;
-                // Reserve room for identity and movement before adding a logo.
-                // Small cells remain readable even when the map is crowded.
-                const showLogo = showTicker && width >= 58 && height >= 88;
-                const logoSize = showLogo ? Math.max(20, Math.min(56, width * 0.28, (height - 52) / 2)) : 0;
-                const logoSpace = showLogo ? logoSize + 6 : 0;
-                const showName = width > 105 && height > (showLogo ? 80 + logoSpace : 62);
-                const values = marketVolumeMetrics(row, stats);
-                // A tile carries only what the reader compares across the map:
-                // price and turnover. Every other trading metric lives in the
-                // panel above the map and in the tooltip.
-                const tilePrice = marketDisplayPrice(row);
-                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
-                const tileMetrics = [
-                  { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
-                  { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
-                ].slice(0, metricSlots);
-                const metricTitle = selectedMetrics.map(({ key, label }) => [
-                  `${label}: ${formatMapMetric(key, values[key], lang)}`,
-                  windowed ? mapMetricCoverage(row, key, lang) : "",
-                ].filter(Boolean).join(" · ")).join("\n");
-                const preferred = isPreferredRow(row);
-                const showPreferredBadge = preferred && width >= 84 && height >= 44;
-                const microTile = !showTicker;
-                const active = hover?.ticker === row.ticker;
-                return (
-                  <button
-                    key={row.ticker}
-                    className={`heatmap-tree-tile${microTile ? " is-micro" : ""}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
-                    type="button"
-                    style={{
-                      left: stock.x + tileGap / 2,
-                      top: stock.y + tileGap / 2,
-                      width,
-                      height,
-                      "--tile-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined,
-                    }}
-                    aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
-                    title={metricTitle}
-                    data-ticker={row.ticker}
-                    onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
-                    onMouseEnter={() => setHover({ ticker: row.ticker, row })}
-                    onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
-                    onFocus={() => setHover({ ticker: row.ticker, row })}
-                    onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
-                  >
-                    {showLogo && <span className="htt-logo" style={{ "--logo-size": `${logoSize}px` }} aria-hidden="true">
-                      <CompanyLogo logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}
-                        name={companyName} ticker={row.ticker} />
-                    </span>}
-                    {showTicker && (
-                      <span className="htt-ticker" style={{ fontSize: tickerSize }}>
-                        {row.ticker}{showPreferredBadge && <em title={mapCopy.preferred}>P</em>}
-                      </span>
-                    )}
-                    {showPercent && <span className="htt-pct" style={{ fontSize: tickerSize * 0.78 }}>{status === "ok" ? formatPct(row.changePercent) : "—"}</span>}
-                    {showName && <span className="htt-name">{heatmapShortName(companyName)}</span>}
-                    {tileMetrics.length > 0 && <span className="htt-metrics">
-                      {tileMetrics.map(({ key, label, value }) => <span key={key} data-metric={key}>
-                        <span>{label}</span><b>{value}</b>
-                      </span>)}
-                    </span>}
-                  </button>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      {sectorItems.length === 0 && filtersActive && (
-        <p className="market-empty-cell heatmap-empty-state" role="status">
-          {mapCopy.none}{" "}
-          <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>
-        </p>
-      )}
-      {sectorItems.length === 0 && !filtersActive && (
-        <p className="market-empty-cell">
-          {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
-        </p>
-      )}
     </div>
   );
 }

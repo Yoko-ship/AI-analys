@@ -19,6 +19,29 @@
 .market-layout > .market-stats-grid { order: 5; }
 .market-layout > .market-board { order: 6; }
 
+/* The dedicated map route follows its DOM order: map, then supporting data. */
+.market-layout.is-heatmap > * { order: 0; }
+.market-layout.is-heatmap .market-board-head {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+}
+.market-layout.is-heatmap .market-board-head h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+@media (max-width: 640px) {
+  .market-layout.is-heatmap .market-board-head { padding: 12px; gap: 8px; }
+  .market-layout.is-heatmap .market-board-head h1 { font-size: 1rem; }
+  .market-layout.is-heatmap .market-board-head-right {
+    width: auto;
+    margin-left: auto;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+}
+
 /* Quiet page masthead: the data starts immediately instead of sitting below a
    decorative hero card. */
 .market-layout .market-hero-panel {

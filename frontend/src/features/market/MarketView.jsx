@@ -47,6 +47,9 @@ function MarketView({
 }) {
   const lang = normalizeLanguage(language);
   const viewMode = viewModeProp || "table";
+  useEffect(() => {
+    if (viewMode === "heatmap") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [viewMode]);
   const setViewMode = onViewModeChange || (() => {});
   const [marketSector, setMarketSector] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
@@ -308,31 +311,15 @@ function MarketView({
     NUM_COLS
   });
   const formatLeader = row => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
-  return <section className="market-layout">
-      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
-
-      {/* The FX strip and summary cards provide context for the visual map, but
-          duplicate information available in the market table. Keep this block
-          on the dedicated heatmap page only. */}
-      <MarketOverview
-        viewMode={viewMode}
-        lang={lang}
-        cardSector={cardSector}
-        setMarketSector={setMarketSector}
-        cardStats={cardStats}
-        formatLeader={formatLeader}
-        marketSummary={marketSummary}
-        sectorDormant={sectorDormant}
-        capPeriodChange={capPeriodChange}
-        changePeriod={changePeriod}
-        windowed={windowed}
-      />
+  return <section className={`market-layout${viewMode === "heatmap" ? " is-heatmap" : ""}`}>
+      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} compact={viewMode === "heatmap"} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
 
       <article className="panel market-board">
         <div className="market-board-head">
           <div>
-            <div className="panel-label">{viewMode === "heatmap" ? lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка" : mt(lang, "tableTitle")}</div>
-            <h2>{viewMode === "heatmap" ? lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка" : mt(lang, "tableTitle")}</h2>
+            {viewMode === "heatmap"
+              ? <h1>{lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}</h1>
+              : <><div className="panel-label">{mt(lang, "tableTitle")}</div><h2>{mt(lang, "tableTitle")}</h2></>}
           </div>
           <div className="market-board-head-right">
             {(windowed || stats.boardDay) && <span className="market-session-date">
@@ -455,6 +442,21 @@ function MarketView({
           closeColMenu={closeColMenu}
         />
       </article>
+
+      {/* Supporting market totals follow the map; arrivals see the tiles first. */}
+      <MarketOverview
+        viewMode={viewMode}
+        lang={lang}
+        cardSector={cardSector}
+        setMarketSector={setMarketSector}
+        cardStats={cardStats}
+        formatLeader={formatLeader}
+        marketSummary={marketSummary}
+        sectorDormant={sectorDormant}
+        capPeriodChange={capPeriodChange}
+        changePeriod={changePeriod}
+        windowed={windowed}
+      />
 
       {panelTicker && <CompanyInfoPanel ticker={panelTicker} secInfo={smap[panelTicker]} wikiInfo={panelWiki} language={language} onClose={() => {
       setPanelTicker(null);

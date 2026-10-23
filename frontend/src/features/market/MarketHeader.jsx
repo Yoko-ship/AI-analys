@@ -7,20 +7,22 @@ export function MarketHeader({
   onRefresh,
   loading,
   rows,
+  compact = false,
   showSearch,
   query,
   onQueryChange
 }) {
+  if (compact && !isAdmin && !meta?.validation?.partial) return null;
   return <article className="panel market-hero-panel">
-        <div className="market-hero-copy">
-          <div className="panel-label">{mt(lang, "nav")}</div>
+        {(!compact || meta?.validation?.partial) && <div className="market-hero-copy">
+          {!compact && <><div className="panel-label">{mt(lang, "nav")}</div>
           <h1>{mt(lang, "title")}</h1>
-          <p>{mt(lang, "subtitle")}</p>
+          <p>{mt(lang, "subtitle")}</p></>}
           {meta?.validation?.partial && <p role="status">
             {mt(lang, "partialRefresh")}: {meta.validation.withheld.map(r => r.ticker || r.isin).join(", ")}.
             {" "}{mt(lang, "partialRefreshDetail")}
           </p>}
-        </div>
+        </div>}
         {/* The search sits in the masthead, the first control a reader meets:
             looking a company up is what most visits to this page are for. */}
         {(showSearch || isAdmin) && <div className="market-hero-actions">
