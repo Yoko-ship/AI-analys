@@ -1,0 +1,102 @@
+{
+  "source": "https://uzstock.uz/api/terminal/screener?form=NSBU&scope=separate",
+  "as_of": "2026-10-23T12:32:47.414195+00:00",
+  "assumptions": {
+    "key_rate": 14.0,
+    "default_spread": 3.06,
+    "equity_premium": 8.89,
+    "growth": 9.8
+  },
+  "rows": [
+    {
+      "ticker": "AGBA",
+      "period": "2025",
+      "roe_manual": 0.7543721066458553,
+      "de_manual": null,
+      "fv_justified_pb": null,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "HMKB",
+      "period": "2025",
+      "roe_manual": 28.736775510893114,
+      "de_manual": null,
+      "fv_justified_pb": 1.8880135105576383,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "IPKY",
+      "period": "2025",
+      "roe_manual": 23.191523068867074,
+      "de_manual": null,
+      "fv_justified_pb": 1.335146866287844,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "SQBN",
+      "period": "2025",
+      "roe_manual": 15.831941990514732,
+      "de_manual": null,
+      "fv_justified_pb": 0.6013900289645794,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "TNBN",
+      "period": "2025",
+      "roe_manual": 1.24341588522119,
+      "de_manual": null,
+      "fv_justified_pb": null,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "QZSM",
+      "period": "2025",
+      "roe_manual": 0.033820065648057576,
+      "de_manual": 0.30712152862680925,
+      "fv_justified_pb": null,
+      "fv_gordon": null,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "KVTS",
+      "period": "2025",
+      "roe_manual": 0.5643934110603371,
+      "de_manual": 1.3525873198591845,
+      "fv_justified_pb": null,
+      "fv_gordon": 76.0827517447657,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "UZTL",
+      "period": "2025",
+      "roe_manual": 21.433139287319683,
+      "de_manual": 3.464352056400693,
+      "fv_justified_pb": null,
+      "fv_gordon": 4078.582851445663,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "UVGT",
+      "period": "2025",
+      "roe_manual": 22.774887802990136,
+      "de_manual": 6.304502152925924,
+      "fv_justified_pb": null,
+      "fv_gordon": 3076.479960119641,
+      "checks": "PASS"
+    },
+    {
+      "ticker": "BIOK",
+      "period": "2025",
+      "roe_manual": 13.239523315387746,
+      "de_manual": 0.08388692726294018,
+      "fv_justified_pb": null,
+      "fv_gordon": null,
+      "checks": "PASS"
+    }
+  ]
+}

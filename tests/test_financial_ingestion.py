@@ -668,3 +668,33 @@ def test_reviewed_ifrs_replacement_emits_one_restatement_with_old_and_new_values
     assert event['ticker']=='BRBN' and event['standard']=='MSFO'
     assert event['details']['fields']['net_income']['original']<0
     assert event['details']['fields']['net_income']['comparative']<0
+
+
+def test_catalog_labels_does_not_scan_unpublished_candidates_of_every_issuer(setup,monkeypatch):
+    stage(setup)
+    publication.publish('BRBN',actor='test')
+    with store.transaction() as c:
+        original=dict(c.execute('SELECT * FROM ingest_candidates LIMIT 1').fetchone())
+        for i in range(30):
+            c.execute('INSERT INTO ingest_candidates VALUES (?,?,?,?,?,?)',(f'unpublished-{i}',original['version_id'],'draft',original['payload_json'],original['checks_json'],store.now()))
+    connect=store.connect;fetched=[]
+    def tracked():
+        conn=connect();execute=conn.execute
+        def query(sql,params=()):
+            result=execute(sql,params)
+            if 'SELECT x.id FROM ingest_candidates' in sql:
+                result=list(result);fetched.append(len(result))
+            return result
+        conn.execute=query
+        return conn
+    monkeypatch.setattr(store,'connect',tracked)
+    assert publication.catalog_labels('BRBN')
+    assert sum(fetched)==1
+
+
+def test_published_corporate_ifrs_keeps_its_issuer_type(setup,monkeypatch):
+    import catalogue.organization as organization
+    monkeypatch.setattr(organization,'organization_kind',lambda ticker:'industry')
+    stage(setup)
+    publication.publish('BRBN',actor='test')
+    assert publication.latest('BRBN')['org_type']=='jsc'

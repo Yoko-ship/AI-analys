@@ -38,3 +38,24 @@ def test_corrections_are_loaded_once_per_issuer_and_refreshed_next_request(monke
     assert calls==['KVTS']
     with read_batch.scope():data_quality.approved_corrections_for('KVTS','NSBU',2020,0)
     assert calls==['KVTS','KVTS']
+
+
+def test_screener_serializes_issuer_reads_to_avoid_sqlite_contention(monkeypatch):
+    from server.terminal import service
+    active=0
+    peak=0
+    async def series(*args):
+        nonlocal active,peak
+        active+=1;peak=max(peak,active)
+        await asyncio.sleep(.001)
+        active-=1
+        return {'periods':[]}
+    companies=[{'ticker':f'T{i}','kind':'industry'} for i in range(12)]
+    monkeypatch.setattr(service,'universe',lambda:companies)
+    monkeypatch.setattr(service,'market_context',lambda:{})
+    monkeypatch.setattr(service.cbu,'context',lambda:{'banks':{}})
+    monkeypatch.setattr(service,'financial_series',series)
+    monkeypatch.setattr(service.dividends,'read_snapshot',lambda ticker:[])
+    result=asyncio.run(service.screener())
+    assert len(result['rows'])==12
+    assert peak==1

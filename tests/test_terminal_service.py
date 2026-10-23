@@ -79,3 +79,43 @@ def test_bank_comparison_exposes_dated_market_shares_and_structure():
     assert result['cbu_household_loans_bn']==bank['structure']['household_loans_bn']
     assert result['cbu_company_deposits_bn']==bank['structure']['company_deposits_bn']
     assert service.bank_metrics({})['cbu_assets_share_pct'] is None
+
+
+def test_market_context_excludes_confirmed_inactive_preferred_and_stale_dividend_price(monkeypatch):
+    import catalogue.market_store as market
+    from datetime import timedelta
+    today=date.today().isoformat();stale=(date.today()-timedelta(days=365)).isoformat()
+    securities={'UZAS':{'isin':'UZ7045570007','issuer_id':'669','share_type':'ordinary'},
+                'UZASP':{'isin':'UZ704557K016','issuer_id':'669','is_preferred':True,'share_type':'preferred'},
+                'ORFI':{'isin':'UZ7055870008','issuer_id':'16','share_type':'ordinary'}}
+    listings={'UZAS':{'shares_outstanding':33198274,'last_price':178000,'last_trade_date':today},
+              'UZASP':{'shares_outstanding':20000,'last_price':13000,'last_trade_date':stale},
+              'ORFI':{'shares_outstanding':2867124015,'last_price':573.95,'last_trade_date':'2021-07-27'}}
+    monkeypatch.setattr(service,'get_securities_map',lambda:securities)
+    monkeypatch.setattr(market,'get_all_listings',lambda:listings)
+    monkeypatch.setattr(market,'get_all_quotes',lambda:{})
+    result=service.market_context()
+    assert result['UZAS']['market_cap']==33198274*178000
+    assert result['ORFI']['price'] is None
+    assert result['ORFI']['market_date']=='2021-07-27'
+    assert result['UZAS']['excluded_classes']==['UZASP']
+
+
+def test_real_uzas_quote_supplies_missing_listing_shares_without_inventing_orfi_yield(monkeypatch):
+    import json,public_contract
+    from pathlib import Path
+    import catalogue.market_store as market
+    records=json.loads((Path(__file__).parent/'fixtures/terminal_market_inputs_20261023.json').read_text())
+    rows={r['row']['ticker']:r['row'] for r in records}
+    quotes={r['row']['isin']:r['quote'] for r in records if r['quote']}
+    monkeypatch.setattr(service,'get_securities_map',lambda:rows)
+    monkeypatch.setattr(market,'get_all_listings',lambda:rows)
+    monkeypatch.setattr(market,'get_all_quotes',lambda:quotes)
+    checked=public_contract.market_class_input
+    monkeypatch.setattr(public_contract,'market_class_input',lambda row:checked(row,reference_date=date(2026,10,23)))
+    result=service.market_context()
+    assert result['UZAS']['market_cap']==pytest.approx(33198274*178000+20000*13000)
+    assert result['UTGA']['market_cap']==pytest.approx(622631949*700000+3145123*21900)
+    assert result['UVGT']['market_cap']==pytest.approx(2968227*89999)
+    assert result['OCBK']['market_cap'] is None # June trade is stale
+    assert result['ORFI']['price'] is None # 2021 quote cannot price a 2026 dividend

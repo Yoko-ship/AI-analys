@@ -160,3 +160,78 @@ def test_sync_cannot_count_a_different_observation_month_as_loaded(monkeypatch):
     result=cbu.sync_month(2025,1,with_sdmx=False)
     assert not saved
     assert 'main' not in result['loaded']
+
+
+def test_published_nominative_month_name_is_a_valid_observation_date():
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_npl_202607.json').read_text())
+    result=cbu.parse_bank_rows(fixture['rows'],'npl',fixture['source_url'])
+    assert result['date']=='2026-07-01'
+    assert result['sector']['npl_pct']==pytest.approx(3.569110665)
+
+
+def test_discovery_prefers_observation_month_over_publication_order(monkeypatch):
+    import requests,openpyxl
+    from types import SimpleNamespace
+    visited=[];saved=[]
+    def get(url,**kw):
+        visited.append(url)
+        text='''<a href="/july">Сведения об основных показателях коммерческих банков 1 июля 2020</a>
+        <a href="/june">Сведения об основных показателях коммерческих банков по состоянию на 1 июня 2020 года</a>''' if 'bankstats' in url else '<a href="/june.xlsx">XLSX</a>'
+        return SimpleNamespace(text=text,content=b'test',raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(openpyxl,'load_workbook',lambda *a,**k:SimpleNamespace(active=SimpleNamespace(values=[]),close=lambda:None))
+    monkeypatch.setattr(cbu,'parse_bank_rows',lambda *a:{'date':'2020-06-01'})
+    monkeypatch.setattr(cbu,'save',lambda *a:saved.append(a))
+    cbu.sync_month(2020,6,with_sdmx=False)
+    assert 'https://cbu.uz/june' in visited
+    assert 'https://cbu.uz/july' not in visited
+    assert saved[0][1]=='2020-06-01'
+
+
+def test_older_single_date_profitability_and_genitive_structure_headers():
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_2020.json').read_text())
+    profit=fixture['profitability'];result=cbu.parse_sector_rows(profit['rows'],'profitability',profit['source_url'])
+    assert result['date']=='2020-08-01'
+    assert len(result['rows'][0]['observations'])==1
+    source=fixture['structure_september'];result=cbu.parse_bank_rows(source['rows'],'structure',source['source_url'])
+    sqbn=next(r for r in result['rows'] if r['ticker']=='SQBN')
+    assert sqbn['household_loans_bn']==pytest.approx(4147.27033677697)
+
+
+def test_targeted_history_retry_fetches_only_requested_source_kind(monkeypatch):
+    import requests,openpyxl
+    from types import SimpleNamespace
+    fetched=[]
+    def get(url,**kw):
+        fetched.append(url)
+        text='<a href="/npl">Информация о проблемных кредитах коммерческих банков</a>' if 'bankstats' in url else '<a href="/npl.xlsx">XLSX</a>'
+        return SimpleNamespace(text=text,content=b'test',raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(openpyxl,'load_workbook',lambda *a,**k:SimpleNamespace(active=SimpleNamespace(values=[]),close=lambda:None))
+    monkeypatch.setattr(cbu,'parse_bank_rows',lambda *a:{'date':'2026-09-01'})
+    monkeypatch.setattr(cbu,'save',lambda *a:None)
+    result=cbu.sync_month(2026,9,with_sdmx=False,kinds=['npl'])
+    assert result=={'loaded':['npl'],'errors':[]}
+    assert len(fetched)==3
+
+
+def test_historical_negative_capital_is_kept_and_invalid_component_is_localised():
+    fixture=json.loads((Path(__file__).parent/'fixtures/cbu_historical_variants.json').read_text())
+    source=fixture['main_202112'];data=cbu.parse_bank_rows(source['rows'],'main',source['source_url'])
+    row=next(r for r in data['rows'] if r['name']=='Апельсин банк')
+    assert row['equity_bn']==pytest.approx(-.40328853)
+    for key,name in [('structure_202102','Тибиси банк'),('structure_202306','Узум банк')]:
+        source=fixture[key];data=cbu.parse_bank_rows(source['rows'],'structure',source['source_url'])
+        row=next(r for r in data['rows'] if r['name']==name)
+        assert row['company_loans_bn'] is None
+        assert row['quality_issues'][0]['original_value']<0
+        assert data['sector']['loans_bn']>0
+
+
+def test_russian_cbu_page_with_uzbek_attachment_keeps_date_and_bank_identity():
+    source=json.loads((Path(__file__).parent/'fixtures/cbu_historical_variants.json').read_text())['structure_202211']
+    data=cbu.parse_bank_rows(source['rows'],'structure',source['source_url'])
+    assert data['date']=='2022-11-01'
+    sqbn=next(r for r in data['rows'] if r['ticker']=='SQBN')
+    assert sqbn['loans_bn']==pytest.approx(47360.34525894)
+    assert next(r for r in data['rows'] if r['ticker']=='HMKB')['household_loans_bn']>0

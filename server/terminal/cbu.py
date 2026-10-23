@@ -20,12 +20,14 @@ from server.terminal.analytics import number
 
 BASE = "https://cbu.uz"
 MONTHS = {name:i+1 for i,name in enumerate(("января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"))}
+MONTHS.update({name:i+1 for i,name in enumerate(("январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"))})
 BANK_NAMES = {
     "агробанк":"AGBA", "узпромстройбанк":"SQBN", "банкразвитиябизнеса":"BRBN", "кишлоккурилишбанк":"BRBN",
     "микрокредитбанк":"MCBA", "алокабанк":"ALKB", "туронбанк":"TNBN", "ипотекабанк":"IPTB",
     "хамкорбанк":"HMKB", "ипакйулибанк":"IPKY", "ориентфинансбанк":"ORFI", "даврбанк":"DRBK",
     "инвестфинансбанк":"INFB", "трастбанк":"TRSB", "тенгебанк":"TNGB", "октобанк":"OCBK",
     "равнакбанк":"OCBK", "универсалбанк":"UNVB", "гарантбанк":"GRBK", "савдогарбанк":"GRBK",
+    "узсаноаткурилишбанк":"SQBN",
 }
 SDMX_CATALOGUE = BASE + "/en/statistics/e-gdds/data/"
 
@@ -40,14 +42,22 @@ def reject(source, reason):
 
 
 def norm(value):
-    return re.sub(r"[^а-яa-z0-9]", "", str(value or "").lower().replace("ё","е"))
+    text=str(value or '').lower().translate(str.maketrans({'ё':'е','ў':'у','қ':'к','ғ':'г','ҳ':'х'}))
+    key=re.sub(r"[^а-яa-z0-9]", "", text)
+    return {'банкноми':'наименованиебанка','жами':'всего','жамикредитлар':'всегокредиты',
+            'жамидепозитлар':'всегодепозиты','жисмонийшахслар':'физическиелица',
+            'юридикшахслар':'юридическиелица'}.get(key,key)
 
 
 def parse_bank_rows(rows, kind, source_url):
     title=" ".join(str(c) for row in rows[:12] for c in row if c is not None)
     match=re.search(r"(?:на|состоянию на)\s+(\d{1,2})\s+([а-я]+)\s+(20\d{2})",title.lower())
-    if not match or match[2] not in MONTHS:reject(source_url,"Missing observation date")
-    day=date(int(match[3]),MONTHS[match[2]],int(match[1])).isoformat()
+    uzbek=re.search(r'(20\d{2})\s+йил\s+(\d{1,2})\s+([а-я]+)',title.lower())
+    if match and match[2] in MONTHS:
+        day=date(int(match[3]),MONTHS[match[2]],int(match[1])).isoformat()
+    elif uzbek and uzbek[3] in MONTHS:
+        day=date(int(uzbek[1]),MONTHS[uzbek[3]],int(uzbek[2])).isoformat()
+    else:reject(source_url,"Missing observation date")
     if "млрд" not in title.lower():reject(source_url,"Unrecognised monetary unit")
     header_at=next((i for i,row in enumerate(rows[:20]) if any("наименованиебанка" in norm(c) for c in row)),None)
     if header_at is None:reject(source_url,"Missing bank-name header")
@@ -74,7 +84,7 @@ def parse_bank_rows(rows, kind, source_url):
         sub=rows[header_at+1]
         for field in ("loans","deposits"):
             start=columns[field+"_bn"]
-            for offset,part,prefix in ((1,"household","физические"),(2,"company","юридические")):
+            for offset,part,prefix in ((1,"household","физическ"),(2,"company","юридическ")):
                 if start+offset>=len(sub) or not norm(sub[start+offset]).startswith(prefix):reject(source_url,"Missing household/corporate subheader")
                 columns[f"{part}_{field}_bn"]=start+offset
     else:raise ValueError("Unknown CBU bank table")
@@ -93,7 +103,15 @@ def parse_bank_rows(rows, kind, source_url):
                     reject(source_url,"Missing or invalid bank value: "+str(name))
                 item[field]=None
                 continue
-            if v<0:reject(source_url,"Negative bank value: "+str(name))
+            if v<0 and not (kind=='main' and field.startswith('equity_')):
+                if kind=='structure' and field.startswith(('household_','company_')) and not total:
+                    # Some published residuals are negative (including tiny
+                    # rounding residues). Retain evidence and withhold only
+                    # this invalid component, not every other bank's figures.
+                    item[field]=None
+                    item.setdefault('quality_issues',[]).append({'field':field,'original_value':v,'code':'NEGATIVE_COMPONENT'})
+                    continue
+                reject(source_url,"Negative bank value: "+str(name))
             item[field]=v if not field.endswith("pct") or isinstance(raw,str) and "%" in raw else v*100
         if kind=="npl":
             if (item['npl_bn'] is not None and item['loans_bn'] is not None and item["npl_bn"]>item["loans_bn"]
@@ -199,7 +217,7 @@ def discover_sdmx(html):
     return result
 
 
-def sync_month(year=None,month=None,*,with_sdmx=True):
+def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
     import requests
     import openpyxl
     from bs4 import BeautifulSoup
@@ -209,9 +227,18 @@ def sync_month(year=None,month=None,*,with_sdmx=True):
     soup=BeautifulSoup(response.text,"html.parser")
     titles={"npl":"проблемных кредитах коммерческих банков","main":"основных показателях коммерческих банков","structure":"кредитах и депозитах коммерческих банков"}
     titles.update({"capital":"достаточность собственного капитала банковского сектора", "liquidity":"динамика ликвидности банковского сектора", "profitability":"показатели доходности банковского сектора", "industry":"кредитах коммерческих банков в разрезе отраслей"})
+    if kinds is not None:
+        if not set(kinds)<=titles.keys():raise ValueError('Unknown CBU source kind')
+        titles={k:v for k,v in titles.items() if k in kinds}
     result={"loaded":[],"errors":[]}
     for kind,title in titles.items():
-        link=next((a.get("href") for a in soup.select("a[href]") if title in a.get_text(" ",strip=True).lower()),None)
+        links=[a for a in soup.select('a[href]') if title in a.get_text(' ',strip=True).lower()]
+        def matching_observation(anchor):
+            text=anchor.get_text(' ',strip=True).lower()
+            match=re.search(r'(?:по состоянию на\s+)?\b(\d{1,2})\s+([а-я]+)\s+(20\d{2})',text)
+            return bool(match and int(match[3])==year and MONTHS.get(match[2])==month)
+        if year and month:links.sort(key=matching_observation,reverse=True)
+        link=links[0].get('href') if links else None
         if not link:
             result["errors"].append(f"{kind}: no published table");continue
         page=urljoin(BASE,link)
@@ -337,7 +364,7 @@ def parse_sector_rows(rows,kind,source_url):
         if match and match[2] in MONTHS and header_at is not None:
             index=next(j for j,c in enumerate(rows[header_at]) if 'млрд' in str(c).lower())
             columns[index]=date(int(match[3]),MONTHS[match[2]],int(match[1])).isoformat()
-    if not columns or len(columns)<2 and kind!='industry':reject(source_url,'Sector observation headers missing')
+    if not columns:reject(source_url,'Sector observation headers missing')
     if kind not in {'capital','liquidity','profitability','industry'}:raise ValueError('Unknown sector table')
     records=[];metrics={};day=max(columns.values())
     known={'коэффициентдостаточностикапитала':'capital_adequacy',

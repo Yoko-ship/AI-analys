@@ -77,3 +77,18 @@ def test_annual_bank_screener_nim_uses_shared_average_asset_method():
     assert row['nim']==pytest.approx(60/900*100)
     assert row['cost_of_risk'] is None
     assert analytics.snapshot(data,kind='industry')['nim'] is None
+
+
+def test_reviewed_bank_ifrs_expense_sign_cannot_inflate_net_interest_margin():
+    from financial_ingestion import extract,validation
+    entries=[e for e in extract.review_entries() if e['ticker']=='HMKB' and e['year'] in {2024,2025}]
+    periods={str(e['year']):validation.validate(validation.from_review(e),page_count=e['page_count'])['normalized_uzs'] for e in entries}
+    series={field:{'values':{year:float(values[field]) for year,values in periods.items() if field in values}}
+            for field in {'interest_income','interest_expense','total_assets','total_equity','net_income'}}
+    series['net_profit']=series.pop('net_income')
+    data={'standard':'MSFO','periods':['2025','2024'],'series':series}
+    row=analytics.snapshot(data,kind='bank')
+    income=float(periods['2025']['interest_income']);expense=float(periods['2025']['interest_expense'])
+    assert expense<0
+    average=(float(periods['2025']['total_assets'])+float(periods['2024']['total_assets']))/2
+    assert row['nim']==pytest.approx((income+expense)/average*100)

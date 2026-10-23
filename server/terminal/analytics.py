@@ -78,7 +78,9 @@ def snapshot(data, *, kind="industry", year=None, market_cap=None):
         if current.get("net_interest_income_before_provisions") is None:
             income, expense = v("interest_income"), v("interest_expense")
             if income is not None and expense is not None:
-                current["net_interest_income_before_provisions"] = income - expense
+                # Reviewed IFRS stores expense as a negative amount; NSBU
+                # commonly supplies its positive magnitude. Both are costs.
+                current["net_interest_income_before_provisions"] = income - abs(expense)
         for item in financial_ratios(current, {}, opening, "bank", "ifrs" if data.get("standard") == "MSFO" else "nsbu", period):
             if item["metric"] in {"nim", "cost_of_risk"}:result[item["metric"]] = item["value"]
     if period:

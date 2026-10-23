@@ -208,13 +208,16 @@ def latest(ticker):
     rows = snapshots(ticker)
     if not rows:
         return None
+    from catalogue.organization import organization_kind
+    kind=organization_kind(ticker)
+    org_type={'bank':'bank','insurance':'insurance'}.get(kind,'jsc')
     def convert(row):
         meta = row["payload"]["classification"]
         period = period_key(meta)
         quarter = int(period[-1]) if "Q" in period else 0
         values = {f: float(Decimal(v) / 1000) for f, v in row["payload"]["normalized_uzs"].items()}
         return {**values, "year": int(period[:4]), "quarter": quarter, "is_ytd": bool(quarter),
-                "period_months": quarter * 3 if quarter else 12, "org_type": "bank", "standard": "MSFO",
+                "period_months": quarter * 3 if quarter else 12, "org_type": org_type, "standard": "MSFO",
                 "balance": {"assets_end": values.get("total_assets"), "equity_end": values.get("total_equity")},
                 "field_periods": {}, "report_id": None, "snapshot_id": row["id"],
                 "scope": meta["scope"], "updated_at": row["created_at"]}
@@ -238,9 +241,11 @@ def catalog_labels(ticker):
         return labels
     c = store.connect()
     try:
+        candidate_ids=[row['candidate_id'] for row in rows]
         current = {r["id"] for r in c.execute(
             "SELECT x.id FROM ingest_candidates x JOIN ingest_versions v ON v.id=x.version_id "
-            "JOIN ingest_sources s ON s.latest_version=v.id")}
+            "JOIN ingest_sources s ON s.latest_version=v.id WHERE x.id IN ("
+            + ','.join('?' for _ in candidate_ids) + ')', candidate_ids)}
     finally:
         c.close()
     for row in rows:
