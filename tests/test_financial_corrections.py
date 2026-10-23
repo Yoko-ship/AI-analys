@@ -190,3 +190,17 @@ def test_every_correction_reaches_the_public_api_in_full_uzs(monkeypatch, tmp_pa
         assert body["series"][public_field]["values"][period] == pytest.approx(
             expected * catalogue_fields.NSBU_THOUSANDS_UZS
         ), (correction.ticker, correction.period, correction.field)
+
+
+def test_reviewed_insurer_year_end_overlay_matches_current_source_column():
+    import json
+    from pathlib import Path
+    from catalogue.parsing import extract_insurance_balance
+    from tests.test_insurance_balance_consistency import workbook
+    detail=json.loads((Path(__file__).parent/'fixtures/insurance_balance_filings.json').read_text())['UZAS_annual_307']
+    filed=extract_insurance_balance(workbook(detail))
+    registered=fc.corrections_for('UZAS','2025Q4')
+    for field in ['total_equity','total_liabilities']:
+        assert registered[field].value_thousands_uzs==pytest.approx(filed[field])
+    # Closing amounts must reconcile with the explicitly filed assets.
+    assert sum(registered[f].value_thousands_uzs for f in ['total_equity','total_liabilities'])==pytest.approx(filed['total_assets'])
