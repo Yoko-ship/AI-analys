@@ -49,30 +49,34 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
 for (const width of [1280, 390, 320]) {
-  test(`heatmap opens directly on the map without scrolling at ${width}px`, async ({ page }, testInfo) => {
+  test(`heatmap opens with the main movement and metrics above the map at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
     const errors = await openMap(page, "stock", "/heatmap", false);
-    const assertMapFirst = async () => {
+    const assertSummaryFirst = async () => {
       await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
       await expect.poll(() => page.evaluate(() => {
         const tree = document.querySelector('.heatmap-tree').getBoundingClientRect();
-        return { atTop: scrollY === 0, mapInFirstScreen: tree.top < 360 && tree.bottom > tree.top + 200,
-          detailsBelowMap: document.querySelector('.heatmap-metric-details').getBoundingClientRect().top >= tree.bottom,
+        const wrap = document.querySelector('.heatmap-wrap');
+        const focus = document.querySelector('.heatmap-focus-strip').getBoundingClientRect();
+        const details = document.querySelector('.heatmap-metric-details').getBoundingClientRect();
+        return { atTop: scrollY === 0, focusFirst: wrap.firstElementChild.matches('.heatmap-focus-strip'),
+          metricsAfterFocus: details.top >= focus.bottom,
+          detailsAboveMap: details.bottom <= tree.top,
           summaryBelowMap: document.querySelector('.market-stats-grid').getBoundingClientRect().top >= tree.bottom,
           noOverflow: document.documentElement.scrollWidth <= innerWidth };
-      })).toEqual({ atTop: true, mapInFirstScreen: true, detailsBelowMap: true, summaryBelowMap: true, noOverflow: true });
+      })).toEqual({ atTop: true, focusFirst: true, metricsAfterFocus: true, detailsAboveMap: true, summaryBelowMap: true, noOverflow: true });
     };
-    await assertMapFirst();
-    await page.screenshot({ path: testInfo.outputPath('map-on-arrival.png') });
+    await assertSummaryFirst();
+    await page.screenshot({ path: testInfo.outputPath('summary-on-arrival.png') });
     await page.reload();
-    await assertMapFirst();
+    await assertSummaryFirst();
     await page.locator('.market-view-toggle button[title="Таблица"]').click();
     await expect(page).toHaveURL(/\/market$/);
     await expect(page.locator('.market-hero-search')).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.locator('.market-view-toggle button[title="Карта рынка"]').click();
     await expect(page).toHaveURL(/\/heatmap$/);
-    await assertMapFirst();
+    await assertSummaryFirst();
     expect(errors).toEqual([]);
   });
 }

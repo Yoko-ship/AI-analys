@@ -337,6 +337,41 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 
   return (
     <div className="heatmap-wrap">
+      {focusRow && (
+        <button
+          className="heatmap-focus-strip"
+          type="button"
+          onClick={() => (onOpenCompany ? onOpenCompany(focusRow.ticker) : onAnalyze(focusRow.ticker))}
+          aria-live="polite"
+        >
+          <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
+          <span className="heatmap-focus-identity">
+            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
+            <span>
+              <strong>{focusRow.ticker}</strong>
+              <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
+                {focusStatus === "ok" ? formatPct(focusRow.changePercent) : "—"}
+              </b>
+            </span>
+            <em>{focusName}</em>
+          </span>
+          <span className="heatmap-focus-facts">
+            <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
+            <span><small>{mapCopy.sectors}</small><strong>{sectorLabel(lang, sectorKeyOf(focusRow.ticker))}</strong></span>
+          </span>
+          <span className="heatmap-focus-open">{type === "bond"
+            ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
+            : mapCopy.open}<b>↗</b></span>
+        </button>
+      )}
+
+      {focusRow && selectedMetrics.length > 0 && <div className="heatmap-metric-details" aria-live="polite" data-ticker={focusRow.ticker}>
+        {selectedMetrics.map(({ key, label }) => <div key={key} data-metric={key}>
+          <small>{label}</small><strong>{formatMapMetric(key, focusMetrics[key], lang)}</strong>
+          {windowed && mapMetricCoverage(focusRow, key, lang) && <small className="heatmap-metric-note">{mapMetricCoverage(focusRow, key, lang)}</small>}
+        </div>)}
+      </div>}
+
       <div className="heatmap-tree" ref={treeRef} role="group" aria-label={mapCopy.board}>
         {sectorLayout.map((sector) => {
           const sectorRows = sector.stocks.map((stock) => stock.row);
@@ -381,7 +416,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const values = marketVolumeMetrics(row, stats);
                 // A tile carries only what the reader compares across the map:
                 // price and turnover. Every other trading metric lives in the
-                // panel below the map and in the tooltip.
+                // panel above the map and in the tooltip.
                 const tilePrice = marketDisplayPrice(row);
                 const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
                 const tileMetrics = [
@@ -525,40 +560,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </label>
       </div>
 
-      {focusRow && (
-        <button
-          className="heatmap-focus-strip"
-          type="button"
-          onClick={() => (onOpenCompany ? onOpenCompany(focusRow.ticker) : onAnalyze(focusRow.ticker))}
-          aria-live="polite"
-        >
-          <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
-          <span className="heatmap-focus-identity">
-            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
-            <span>
-              <strong>{focusRow.ticker}</strong>
-              <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
-                {focusStatus === "ok" ? formatPct(focusRow.changePercent) : "—"}
-              </b>
-            </span>
-            <em>{focusName}</em>
-          </span>
-          <span className="heatmap-focus-facts">
-            <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
-            <span><small>{mapCopy.sectors}</small><strong>{sectorLabel(lang, sectorKeyOf(focusRow.ticker))}</strong></span>
-          </span>
-          <span className="heatmap-focus-open">{type === "bond"
-            ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
-            : mapCopy.open}<b>↗</b></span>
-        </button>
-      )}
-
-      {focusRow && selectedMetrics.length > 0 && <div className="heatmap-metric-details" aria-live="polite" data-ticker={focusRow.ticker}>
-        {selectedMetrics.map(({ key, label }) => <div key={key} data-metric={key}>
-          <small>{label}</small><strong>{formatMapMetric(key, focusMetrics[key], lang)}</strong>
-          {windowed && mapMetricCoverage(focusRow, key, lang) && <small className="heatmap-metric-note">{mapMetricCoverage(focusRow, key, lang)}</small>}
-        </div>)}
-      </div>}
 
     </div>
   );
