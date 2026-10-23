@@ -289,6 +289,36 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
+.htt-logo {
+  --logo-surface: #fff;
+  display: flex;
+  flex: 0 0 var(--logo-size);
+  width: var(--logo-size);
+  height: var(--logo-size);
+  margin-bottom: 4px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--logo-surface);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.htt-logo > .chip-logo,
+.htt-logo > .chip-logo-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  box-sizing: border-box;
+}
+
+.htt-logo > .chip-logo {
+  padding: 12%;
+  object-fit: contain;
+}
+
+.htt-logo > .chip-logo-fallback {
+  font-size: calc(var(--logo-size) * 0.36);
+}
+
 .htt-ticker,
 .htt-name,
 .htt-pct,

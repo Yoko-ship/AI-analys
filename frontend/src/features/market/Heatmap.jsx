@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
+import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { orderSectors, sectorOf } from "../../lib/sectors.js";
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
 import { formatCompactVolume, marketDisplayPrice } from "../../shared/marketModel.jsx";
@@ -478,13 +479,18 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                 const tickerMinWidth = Math.max(34, row.ticker.length * 5 + 12);
                 const showTicker = width >= tickerMinWidth && height >= 24;
                 const showPercent = width >= 58 && height >= 40;
-                const showName = width > 105 && height > 62;
+                // Reserve room for identity and movement before adding a logo.
+                // Small cells remain readable even when the map is crowded.
+                const showLogo = showTicker && width >= 58 && height >= 88;
+                const logoSize = showLogo ? Math.max(20, Math.min(56, width * 0.28, (height - 52) / 2)) : 0;
+                const logoSpace = showLogo ? logoSize + 6 : 0;
+                const showName = width > 105 && height > (showLogo ? 80 + logoSpace : 62);
                 const values = marketVolumeMetrics(row, stats);
                 // A tile carries only what the reader compares across the map:
                 // price and turnover. Every other trading metric lives in the
                 // panel above the map and in the tooltip.
                 const tilePrice = marketDisplayPrice(row);
-                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80) / 17)) : 0;
+                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
                 const tileMetrics = [
                   { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
                   { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
@@ -518,6 +524,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     onFocus={() => setHover({ ticker: row.ticker, row })}
                     onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
                   >
+                    {showLogo && <span className="htt-logo" style={{ "--logo-size": `${logoSize}px` }} aria-hidden="true">
+                      <CompanyLogo logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}
+                        name={companyName} ticker={row.ticker} />
+                    </span>}
                     {showTicker && (
                       <span className="htt-ticker" style={{ fontSize: tickerSize }}>
                         {row.ticker}{showPreferredBadge && <em title={mapCopy.preferred}>P</em>}

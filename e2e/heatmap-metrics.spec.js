@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import path from "node:path";
 
 const day = "2026-09-25";
 const row = (ticker, type, price, prev, volume, quantity, count, industry) => ({
@@ -31,7 +32,8 @@ async function openMap(page, type = "stock", path = "/heatmap") {
     const url = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.pathname === "/api/companies") return json({ companies: all.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
-    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(all.map((r) => [r.ticker, { ...r, security_type: r.type }])) });
+    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(all.map((r) => [r.ticker, { ...r, security_type: r.type,
+      logo_url: r.ticker === "AGBA" ? "/logos/AGBA.png" : r.ticker === "KVTS" ? "/logos/KVTS.png" : null }])) });
     if (url.pathname === "/api/market/stocks") return json({ stocks: url.searchParams.get("type") === "bond" ? bonds : stocks });
     if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: tradeStats });
     if (url.pathname === "/api/market/changes") return json({ ok: true, changes });
@@ -46,6 +48,39 @@ async function openMap(page, type = "stock", path = "/heatmap") {
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+for (const width of [1280, 390]) {
+  test(`round company logos fit heatmap tiles at ${width}px and survive image failures`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/logos/AGBA.png', route => route.fulfill({ path: path.resolve('logos/AGBA.png'), contentType: 'image/png' }));
+    await page.route('**/logos/KVTS.png', route => route.fulfill({ status: 404, body: '' }));
+    const errors = await openMap(page);
+    const agba = page.locator('.heatmap-tree-tile[data-ticker="AGBA"]');
+    const logo = agba.locator('.htt-logo');
+    await expect(logo).toBeVisible();
+    await expect(logo).toHaveCSS('border-radius', '50%');
+    await expect.poll(() => logo.locator('img').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(page.locator('.heatmap-tree-tile[data-ticker="KVTS"] .htt-logo .chip-logo-fallback')).toHaveText('KV');
+    await expect(page.locator('.heatmap-tree-tile.is-micro .htt-logo')).toHaveCount(0);
+    for (const theme of ['dark', 'light']) {
+      await page.evaluate(theme => document.body.dataset.theme = theme, theme);
+      const bounds = await agba.evaluate(tile => {
+        const t = tile.getBoundingClientRect();
+        const badge = tile.querySelector('.htt-logo').getBoundingClientRect();
+        const ticker = tile.querySelector('.htt-ticker').getBoundingClientRect();
+        return { square: Math.abs(badge.width - badge.height) < 1,
+          inside: badge.top >= t.top && badge.left >= t.left && badge.right <= t.right,
+          aboveTicker: badge.bottom <= ticker.top,
+          fits: tile.scrollHeight <= tile.clientHeight && tile.scrollWidth <= tile.clientWidth };
+      });
+      expect(bounds).toEqual({ square: true, inside: true, aboveTicker: true, fits: true });
+      await page.locator('.heatmap-tree').screenshot({ path: testInfo.outputPath(`logos-${theme}.png`) });
+    }
+    await agba.click();
+    await expect(page).toHaveURL(/\/company\/AGBA$/);
+    expect(errors).toEqual([]);
+  });
+}
+
 for (const type of ["stock", "bond"]) {
   for (const width of [1280, 390]) {
     test(`${type} map exposes all six trading metrics at ${width}px`, async ({ page }, testInfo) => {
