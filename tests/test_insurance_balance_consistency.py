@@ -114,3 +114,16 @@ def test_insurer_short_term_investments_preserve_filed_current_and_opening():
     assert float(snapshot['current_values']['short_term_investments'])==56_790_000
     assert float(snapshot['opening_values']['short_term_investments'])==59_478_954.1
     assert snapshot['field_sources']['short_term_investments']['source_line_id']=='insurance:balance:c460'
+
+
+@pytest.mark.parametrize('closing,expected',[(69_033_187.4,-69_033_187.4),(0,0),(None,None)])
+def test_insurer_expense_line_090_does_not_block_history_refresh(closing,expected):
+    filing=json.loads((Path(__file__).parent/'fixtures/sector_v22_filings.json').read_text())['UZAS']
+    income=deepcopy(filing['workbook']['income'])
+    for sheet in income['sheets']:
+        for row in sheet.get('table_rows',[]):
+            if str(row.get('label','')).startswith('Расходы периода, всего'):
+                row['source_cells'][-1]=closing
+                if closing is None:row['source_cells'][-2]=None
+    values=parsing.compute_filing_values(income,filing['workbook']['balance'])['source_values']
+    assert values['operating_expenses']==expected

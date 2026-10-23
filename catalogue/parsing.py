@@ -897,7 +897,7 @@ def compute_filing_values(income_data: dict | None, balance_data: dict | None) -
 
 
 def _commercial_period_expenses(row: dict) -> float | None:
-    """Read form 2 line 040's current income minus expense, including zero.
+    """Read period expenses: commercial line 040 or insurer line 090.
 
     Its four amount columns are prior income/expense then current income/expense.
     The strict balance reader's closing column is the prior expense here.
@@ -907,7 +907,7 @@ def _commercial_period_expenses(row: dict) -> float | None:
 
     original = row.get("source_cells")
     if original:
-        code_index = next((i for i, value in enumerate(original) if number(value) == 40), None)
+        code_index = next((i for i, value in enumerate(original) if number(value) in (40, 90)), None)
         if code_index is None or len(original) < code_index + 5:
             return None
         income = number(original[code_index + 3])
@@ -918,6 +918,6 @@ def _commercial_period_expenses(row: dict) -> float | None:
     nums = row.get("numeric_values") or []
     # Legacy snapshots omit source_cells. Accept only a complete form 2 pair
     # layout; shorter numeric lists cannot identify the current period safely.
-    if len(nums) == 5 and number(nums[0]) == 40:
+    if len(nums) == 5 and number(nums[0]) in (40, 90):
         return _row_value(nums, strict_period=True)
     return None
