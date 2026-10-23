@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 import securities_catalog
+import company_imports
 
 
 LOGO_ROOT = Path(__file__).resolve().parents[1]
@@ -51,3 +52,30 @@ def test_preferred_share_uses_the_same_issuer_logo() -> None:
     logos = {"KFSK": "/logos/KFSK.png"}
 
     assert securities_catalog.resolve_logo("KFSKP", logos) == "/logos/KFSK.png"
+
+
+@pytest.mark.parametrize("ticker,registry,expected", [
+    ("IPKY", {"IPKY": "/logos/IPKY_MARK.svg"}, "/logos/IPKY_MARK.svg"),
+    ("IPTBP", {"IPTB": "/logos/IPTB_MARK.svg"}, "/logos/IPTB_MARK.svg"),
+    ("NEW", {}, "/logos/imported-company.svg"),
+])
+def test_deployed_logo_survives_approved_metadata_overlay(
+    tmp_path, monkeypatch, ticker, registry, expected,
+):
+    """Approved imports can retain the old favicon across a deployment."""
+    monkeypatch.setattr(securities_catalog, "DB_PATH", tmp_path / "securities.db")
+    registry_path = tmp_path / "logos.json"
+    registry_path.write_text(json.dumps(registry))
+    monkeypatch.setattr(securities_catalog, "_COMPANY_LOGOS_PATH", registry_path)
+    imported_logo = "/logos/IPKY.jpg" if ticker == "IPKY" else "/logos/imported-company.svg"
+    monkeypatch.setattr(company_imports, "approved_metadata_map", lambda: {
+        ticker: {"logo_url": imported_logo, "company_name": "Reviewed company name"},
+    })
+    securities_catalog.sync_securities([
+        {"ticker": ticker, "isin": "UZ0000000001", "name": "Feed name", "type": "stock"},
+    ], {})
+
+    security = securities_catalog.get_securities_map()[ticker]
+
+    assert security["logo_url"] == expected
+    assert security["company_name"] == "Reviewed company name"

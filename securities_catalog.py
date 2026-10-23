@@ -411,9 +411,6 @@ def get_securities_map() -> dict[str, dict]:
         # shape guess that mislabelled BNGP, or the feed's own «ordinary» for
         # UZINP — answers correctly without waiting for the next sync.
         d["is_preferred"] = _preferred_flag(d.get("share_type"), d.get("name"), d.get("ticker"))
-        current_logo = resolve_logo(d.get("ticker", ""), logos)
-        if current_logo:
-            d["logo_url"] = current_logo
         imported = approved.get(d["ticker"]) or {}
         if imported:
             d["name"] = imported.get("company_name") or d.get("name")
@@ -425,6 +422,12 @@ def get_securities_map() -> dict[str, dict]:
             d["share_type"] = imported.get("share_type") or d.get("share_type")
             d["is_preferred"] = _preferred_flag(
                 d.get("share_type"), d.get("name"), d.get("ticker"))
+        # Both securities and approved imports can retain an older logo URL.
+        # Apply the deployed registry last so imported metadata cannot undo a
+        # curated asset replacement; unregistered issuers keep their import.
+        current_logo = resolve_logo(d.get("ticker", ""), logos)
+        if current_logo:
+            d["logo_url"] = current_logo
         vr = records.get(d["ticker"])
         if vr:
             d["max_volume"] = vr["max_volume"]
