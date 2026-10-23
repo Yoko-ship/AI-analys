@@ -1,15 +1,14 @@
 import React from 'react';
 import { normalizeLanguage } from '../../shared/i18n.jsx';
-import { ProFeatureGate } from '../../shared/ProFeatureGate.jsx';
 import { formatMarketNumber, formatRatio, formatChangePercent } from '../../lib/numberFormat.js';
 import { portfolioCopy, portfolioError } from './copy.js';
 import { usePortfolio } from './usePortfolio.js';
 import { TransactionForm } from './TransactionForm.jsx';
 
-export function PortfolioView({ language, apiFetch, signedIn, hasProAccess, onUpgrade, onOpenCompany }) {
+export function PortfolioView({ language, apiFetch, signedIn, onSignIn, onOpenCompany }) {
   const lang = normalizeLanguage(language);
   const text = portfolioCopy(lang);
-  const { data, loading, refreshError, refresh, beginMutation, endMutation } = usePortfolio(apiFetch, hasProAccess);
+  const { data, loading, refreshError, refresh, beginMutation, endMutation } = usePortfolio(apiFetch, signedIn);
   const [editor, setEditor] = React.useState(null);
   const [deleting, setDeleting] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
@@ -36,7 +35,12 @@ export function PortfolioView({ language, apiFetch, signedIn, hasProAccess, onUp
     } catch (err) { setError(err.message || text('failed')); }
     finally { setBusy(false); endMutation(); }
   };
-  if (!hasProAccess) return <ProFeatureGate language={lang} title={text('title')} description={text('gate')} signedIn={signedIn} onUpgrade={onUpgrade} />;
+  if (!signedIn) return <section className="pro-gate panel" aria-label={text('title')}>
+    <h1>{text('title')}</h1>
+    <p>{text('gate')}</p>
+    <p className="muted">{text('signInHelp')}</p>
+    <button type="button" className="primary-btn" onClick={onSignIn}>{text('signIn')}</button>
+  </section>;
   const records = [...(data?.transactions || [])].reverse();
   const checked = data?.checked_at ? new Date(data.checked_at).toLocaleTimeString(lang === 'uz' ? 'uz-UZ' : lang, { hour: '2-digit', minute: '2-digit' }) : null;
   return <section className="portfolio-view stack">

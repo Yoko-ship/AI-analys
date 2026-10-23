@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from fastapi import Header
 from fastapi import Request
 from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse
 from functools import partial
 from pydantic import BaseModel
 from pydantic import Field
@@ -18,6 +19,7 @@ import requests
 import server.auth.access as auth_access
 import server.auth.limits as auth_limits
 import server.auth.oauth as auth_oauth
+import server.auth.local as auth_local
 import server.http as http
 import web_auth as identity
 import identity.settings as identity_settings
@@ -26,6 +28,13 @@ import identity.users as identity_users
 
 
 router = APIRouter()
+
+
+@router.post("/api/auth/local-session")
+async def api_local_session(request: Request):
+    payload = await asyncio.get_running_loop().run_in_executor(
+        None, auth_local.issue_demo_session, request, identity.web_auth_store)
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
 
 class RegisterRequest(BaseModel):

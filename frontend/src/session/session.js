@@ -86,6 +86,19 @@ export function createSession({ persistentStorage, temporaryStorage, fetcher, re
     publish({ token: data.token, user: data.user || null, profile: null, apiFetch: requestWith(data.token) });
   }
 
+  async function startLocalSession(hostname) {
+    if (snapshot.token || !["localhost", "127.0.0.1", "[::1]"].includes(hostname)) return;
+    const current = generation;
+    try {
+      const response = await fetcher("/api/auth/local-session", { method: "POST", cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (current === generation && !snapshot.token && data.ok && data.token) {
+        acceptSession(data, { remember: false });
+      }
+    } catch { /* Local demo is optional; ordinary sign-in remains available. */ }
+  }
+
   async function refreshSession() {
     if (!snapshot.token) return null;
     const current = generation;
@@ -155,6 +168,6 @@ export function createSession({ persistentStorage, temporaryStorage, fetcher, re
   return {
     getSnapshot: () => snapshot,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    acceptSession, refreshSession, refreshProfile, saveProfile, logout,
+    acceptSession, startLocalSession, refreshSession, refreshProfile, saveProfile, logout,
   };
 }

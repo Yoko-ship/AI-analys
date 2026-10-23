@@ -510,18 +510,22 @@ async def _portfolio_input(payload):
         row = normalize_transaction(payload.model_dump())
     except ValueError as exc:
         raise _portfolio_error(exc) from exc
+    await _portfolio_security(row["ticker"])
+    return row
+
+
+async def _portfolio_security(ticker):
     securities = await asyncio.get_running_loop().run_in_executor(None, securities_store.get_securities_map)
-    security = securities.get(row["ticker"])
+    security = securities.get(ticker)
     if not security:
         raise HTTPException(status_code=404, detail={"code": "UNKNOWN_SECURITY"})
     if security.get("type") != "stock":
         raise HTTPException(status_code=422, detail={"code": "SHARES_ONLY"})
-    return row
 
 
 @router.get("/api/portfolio")
 async def api_portfolio(response: Response,
-                        current_user: identity_users.WebUser = Depends(auth_access._require_pro)) -> dict[str, Any]:
+                        current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
     """Read the user's ledger and our existing collector's stored prices only."""
     loop = asyncio.get_running_loop()
     transactions, listings, securities, quotes, stats = await asyncio.gather(
@@ -543,7 +547,7 @@ async def api_portfolio(response: Response,
 @router.post("/api/portfolio/transactions")
 async def api_portfolio_transaction_create(
     payload: PortfolioTransactionCreate,
-    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ):
     row = await _portfolio_input(payload)
     try:
@@ -557,7 +561,7 @@ async def api_portfolio_transaction_create(
 @router.put("/api/portfolio/transactions/{transaction_id}")
 async def api_portfolio_transaction_update(
     transaction_id: str, payload: PortfolioTransactionUpdate,
-    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ):
     row = await _portfolio_input(payload)
     try:
@@ -571,7 +575,7 @@ async def api_portfolio_transaction_update(
 @router.delete("/api/portfolio/transactions/{transaction_id}")
 async def api_portfolio_transaction_delete(
     transaction_id: str, version: int = Query(ge=1),
-    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ):
     try:
         await asyncio.get_running_loop().run_in_executor(None, partial(
@@ -584,12 +588,10 @@ async def api_portfolio_transaction_delete(
 @router.put("/api/portfolio/positions")
 async def api_portfolio_position_upsert(
     payload: PortfolioPositionRequest,
-    current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+    current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     ticker = payload.ticker.strip().upper()
-    securities = await asyncio.get_running_loop().run_in_executor(None, securities_store.get_securities_map)
-    if ticker not in securities:
-        raise HTTPException(status_code=404, detail="Unknown security ticker")
+    await _portfolio_security(ticker)
     try:
         position = await asyncio.get_running_loop().run_in_executor(
             None, partial(identity.web_auth_store.portfolio.upsert_portfolio_position, current_user.id, ticker,
@@ -602,7 +604,7 @@ async def api_portfolio_position_upsert(
 
 @router.delete("/api/portfolio/positions/{ticker}")
 async def api_portfolio_position_delete(
-    ticker: str, current_user: identity_users.WebUser = Depends(auth_access._require_pro),
+    ticker: str, current_user: identity_users.WebUser = Depends(auth_access._require_user),
 ) -> dict[str, Any]:
     try:
         deleted = await asyncio.get_running_loop().run_in_executor(

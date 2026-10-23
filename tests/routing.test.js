@@ -147,8 +147,11 @@ describe("one list of URL languages", () => {
   });
 });
 
-it('opens the portfolio in Russian and Uzbek instead of redirecting home', () => {
-  assert.equal(pathToView('/portfolio').view, 'portfolio');
-  assert.equal(pathToView('/uz/portfolio').view, 'portfolio');
-  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
+it('keeps portfolio bookmarks and navigation on the home page while hidden', () => {
+  for (const pathname of ['/portfolio', '/portfolio/', '/uz/portfolio', '/uz/portfolio/']) {
+    assert.equal(pathToView(pathname).view, 'main');
+  }
+  assert.equal(viewToPath('portfolio'), '/');
+  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz');
+  assert.ok(HIDDEN_VIEWS.has('portfolio'));
 });

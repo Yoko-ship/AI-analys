@@ -12,9 +12,9 @@ from tests.test_web_entitlements import _user
 from tests.test_portfolio_ledger import trade, SECURITIES
 
 
-@pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setattr(web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: _user(tier="pro"))
+@pytest.fixture(params=["free", "pro"])
+def client(monkeypatch, request):
+    monkeypatch.setattr(web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: _user(tier=request.param))
     monkeypatch.setattr(securities_catalog, "get_securities_map", lambda: SECURITIES)
     monkeypatch.setattr(market, "get_all_listings", lambda: {})
     monkeypatch.setattr(market, "get_all_trade_stats", lambda: {})
@@ -58,13 +58,26 @@ def test_api_rejects_invalid_transactions_before_any_write(client, monkeypatch, 
     assert client.post("/api/portfolio/transactions", json={**payload, "id": str(uuid4()), **patch}).status_code == 422
 
 
-def test_portfolio_and_mutations_require_account_and_pro_entitlement(client, monkeypatch):
-    for user, status in [(None, 401), (_user(), 403)]:
-        monkeypatch.setattr(web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: user)
-        assert client.get("/api/portfolio").status_code == status
-        assert client.post("/api/portfolio/transactions", json={}).status_code == status
-        assert client.put("/api/portfolio/transactions/example", json={}).status_code == status
-        assert client.delete("/api/portfolio/transactions/example?version=1").status_code == status
+def test_portfolio_and_mutations_require_a_signed_in_account(client, monkeypatch):
+    monkeypatch.setattr(web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: None)
+    assert client.get("/api/portfolio").status_code == 401
+    assert client.post("/api/portfolio/transactions", json={}).status_code == 401
+    assert client.put("/api/portfolio/transactions/example", json={}).status_code == 401
+    assert client.delete("/api/portfolio/transactions/example?version=1").status_code == 401
+    assert client.put("/api/portfolio/positions", json={}).status_code == 401
+    assert client.delete("/api/portfolio/positions/AGBA").status_code == 401
+
+
+def test_signed_in_users_can_delete_legacy_positions(client, monkeypatch):
+    owners = []
+
+    def remove(user_id, ticker):
+        owners.append((user_id, ticker))
+        return True
+
+    monkeypatch.setattr(web_auth.web_auth_store.portfolio, "delete_portfolio_position", remove)
+    assert client.delete("/api/portfolio/positions/AGBA").status_code == 200
+    assert owners == [(101, "AGBA")]
 
 
 def test_api_surfaces_edit_conflicts_and_ownership_without_leaking_records(client, monkeypatch):
@@ -76,3 +89,26 @@ def test_api_surfaces_edit_conflicts_and_ownership_without_leaking_records(clien
         raise ValueError("TRANSACTION_NOT_FOUND")
     monkeypatch.setattr(web_auth.web_auth_store.portfolio, "delete_transaction", missing, raising=False)
     assert client.delete("/api/portfolio/transactions/example?version=1").status_code == 404
+
+
+@pytest.mark.parametrize("ticker, status", [("BFMT3V2", 422), ("AGBA", 200)])
+def test_legacy_positions_enforce_the_same_share_only_rule(client, monkeypatch, ticker, status):
+    # BFMT3V2 / UZ6057687AB2 is a bond in the restored production securities DB.
+    securities = {**SECURITIES, "BFMT3V2": {"isin": "UZ6057687AB2", "type": "bond"}}
+    monkeypatch.setattr(securities_catalog, "get_securities_map", lambda: securities)
+    writes = []
+
+    def save(user_id, ticker, **values):
+        writes.append(ticker)
+        return {"ticker": ticker, **values}
+
+    monkeypatch.setattr(web_auth.web_auth_store.portfolio, "upsert_portfolio_position", save)
+    response = client.put("/api/portfolio/positions", json={
+        "ticker": ticker, "quantity": 10, "average_cost": 100,
+    })
+    assert response.status_code == status, response.text
+    if status == 422:
+        assert response.json()["detail"]["code"] == "SHARES_ONLY"
+        assert writes == []
+    else:
+        assert writes == [ticker]

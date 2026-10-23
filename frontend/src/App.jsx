@@ -12,7 +12,6 @@ import { BondCard } from "./features/bonds/index.js";
 import { MarketView } from "./features/market/index.js";
 import { BankFxPage } from "./features/currency/index.js";
 import { FeedbackPage } from "./features/feedback/index.js";
-import { PortfolioView } from "./features/portfolio/index.js";
 import { useSession } from "./session/useSession.js";
 import { StepUpDialog } from "./session/StepUpDialog.jsx";
 import { usePreferences } from "./app/usePreferences.jsx";
@@ -246,11 +245,6 @@ function App() {
               onSignIn={() => setActiveView("auth")} />
           )}
 
-          {activeView === "portfolio" && (
-            <PortfolioView key={user?.id || "guest"} language={language} apiFetch={apiFetch} signedIn={Boolean(token)}
-              hasProAccess={hasProAccess} onUpgrade={() => setActiveView(token ? "profile" : "auth")}
-              onOpenCompany={openCompanyPage} />
-          )}
 
 
 

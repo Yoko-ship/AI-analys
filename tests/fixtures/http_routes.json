@@ -1850,7 +1850,7 @@
     ],
     "name": "api_portfolio",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -1860,7 +1860,7 @@
     ],
     "name": "api_portfolio_position_upsert",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -1870,7 +1870,7 @@
     ],
     "name": "api_portfolio_position_delete",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -3878,7 +3878,7 @@
     ],
     "name": "api_portfolio__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -3888,7 +3888,7 @@
     ],
     "name": "api_portfolio_position_upsert__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -3898,7 +3898,7 @@
     ],
     "name": "api_portfolio_position_delete__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4316,7 +4316,7 @@
     ],
     "name": "api_portfolio_transaction_create",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4326,7 +4326,7 @@
     ],
     "name": "api_portfolio_transaction_update",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4336,7 +4336,7 @@
     ],
     "name": "api_portfolio_transaction_delete",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4346,7 +4346,7 @@
     ],
     "name": "api_portfolio_transaction_create__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4356,7 +4356,7 @@
     ],
     "name": "api_portfolio_transaction_update__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
   },
   {
@@ -4366,7 +4366,23 @@
     ],
     "name": "api_portfolio_transaction_delete__v2",
     "dependencies": [
-      "_require_pro"
+      "_require_user"
     ]
+  },
+  {
+    "path": "/api/auth/local-session",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_local_session",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/auth/local-session",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_local_session__v2",
+    "dependencies": []
   }
 ]

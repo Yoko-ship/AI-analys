@@ -64,7 +64,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   }, []);
 
   const navItems = token
-    ? ["main", "market", "catalog", "news", "portfolio", "feedback", "profile"]
+    ? ["main", "market", "catalog", "news", "feedback", "profile"]
     : ["main", "market", "catalog", "news", "feedback", "auth"];
 
   // One hover drop-down open at a time: «Рынок» or «Новости».
@@ -358,9 +358,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   </div>
                   <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}>
                     {t(language, "nav.profile")}
-                  </button>
-                  <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("portfolio"); }}>
-                    {language === "en" ? "Portfolio" : language === "uz" ? "Portfel" : "Портфель"}
                   </button>
                   <button type="button" role="menuitem" className="is-logout" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }}>
                     {t(language, "auth.logout")}

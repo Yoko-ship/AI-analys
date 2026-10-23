@@ -20,6 +20,37 @@ function setup(fetcher = async () => json({}), initial = {}) {
     session: createSession({ persistentStorage, temporaryStorage, fetcher }) };
 }
 
+test("localhost bootstraps a temporary demo session without registration", async () => {
+  const { session, persistentStorage, temporaryStorage } = setup(async (path, options) => {
+    assert.equal(path, '/api/auth/local-session');
+    assert.equal(options.method, 'POST');
+    return json({ ok: true, token: 'local-demo', user: { id: 42 } });
+  });
+  await session.startLocalSession('localhost');
+  assert.equal(session.getSnapshot().user.id, 42);
+  assert.equal(temporaryStorage.getItem(TOKEN_KEY), 'local-demo');
+  assert.equal(persistentStorage.getItem(TOKEN_KEY), null);
+});
+
+test("demo bootstrap never runs on public hosts or replaces an existing login", async () => {
+  const noRequest = () => { throw new Error('unexpected request'); };
+  await setup(noRequest).session.startLocalSession('uzstock.uz');
+  await setup(noRequest, { [TOKEN_KEY]: 'existing' }).session.startLocalSession('localhost');
+});
+
+test("late demo bootstrap cannot replace a manual login or undo logout", async () => {
+  for (const action of ['login', 'logout']) {
+    const pending = deferred();
+    const { session } = setup(() => pending.promise);
+    const loading = session.startLocalSession('127.0.0.1');
+    if (action === 'login') session.acceptSession({ token: 'real' });
+    else await session.logout();
+    pending.resolve(json({ ok: true, token: 'demo' }));
+    await loading;
+    assert.equal(session.getSnapshot().token, action === 'login' ? 'real' : '');
+  }
+});
+
 test("remembered sessions survive restoration; temporary sessions do not become persistent", () => {
   const { session, persistentStorage, temporaryStorage } = setup();
   session.acceptSession({ token: "remembered", user: { id: 1 } });

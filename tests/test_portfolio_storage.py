@@ -122,8 +122,7 @@ def test_http_records_and_values_transactions_against_real_postgres(pg_store, mo
     import catalogue.market_store as market
     from tests.test_portfolio_ledger import SECURITIES
     user, token = pg_store.accounts.register_user('portfolio-http@example.test', 'example-pass-123')
-    with pg_store.database.connect() as conn:
-        conn.execute("UPDATE web_users SET tier='pro' WHERE id=%s", (user.id,))
+    assert user.tier == 'free' and not user.has_pro_access
     monkeypatch.setattr(web_auth, 'web_auth_store', pg_store)
     monkeypatch.setattr(securities_catalog, 'get_securities_map', lambda: SECURITIES)
     monkeypatch.setattr(market, 'get_all_listings', lambda: {})

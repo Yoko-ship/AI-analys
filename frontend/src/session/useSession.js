@@ -13,7 +13,13 @@ export function useSession(language) {
   const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
 
   useEffect(() => {
-    if (snapshot.token) session.refreshSession().catch(() => {});
+    session.startLocalSession(window.location.hostname);
+  }, [session]);
+
+  useEffect(() => {
+    if (snapshot.token) session.refreshSession().catch(() => {
+      session.startLocalSession(window.location.hostname);
+    });
   }, [session, snapshot.token]);
 
   useEffect(() => {

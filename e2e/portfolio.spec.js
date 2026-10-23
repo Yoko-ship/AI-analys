@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 
+// Retain transaction-flow coverage for re-enabling the feature. Public hiding
+// and bookmark behavior are exercised by portfolio-hidden.spec.js.
+test.skip(true, 'Portfolio is temporarily hidden from the public interface');
+
 const user = { id: 99, full_name: 'Portfolio Investor', email: 'portfolio@example.test', pro_access: true, tier: 'pro' };
 const empty = { ok: true, items: [], transactions: [], instruments: [{ ticker: 'AGBA', name: 'Agrobank' }],
   count: 0, priced_count: 0, valuation_complete: true, market_value: '0', cost_value: '0',
@@ -15,7 +19,7 @@ function held(price = '589') {
       market_value: String(Number(price) * 100), unrealized_pnl: String(Number(price) * 100 - 50100),
       unrealized_pnl_pct: '17.56', allocation_pct: '100', valuation_status: 'AVAILABLE' }] };
 }
-async function setup(page, initial = empty, { pro = true, signedIn = true } = {}) {
+async function setup(page, initial = empty, { pro = false, signedIn = true } = {}) {
   const state = { data: initial, writes: [], reads: 0, marketReads: 0, failRead: false, failWrite: false };
   await page.addInitScript(({ signedIn }) => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
@@ -24,8 +28,8 @@ async function setup(page, initial = empty, { pro = true, signedIn = true } = {}
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     const send = (body, status = 200) => route.fulfill({ status, json: body });
-    if (path === '/api/auth/me') return send({ user: { ...user, pro_access: pro } });
-    if (path === '/api/profile') return send({ ok: true, user: { ...user, pro_access: pro }, stats: {},
+    if (path === '/api/auth/me') return send({ user: signedIn ? { ...user, pro_access: pro, tier: pro ? 'pro' : 'free' } : null });
+    if (path === '/api/profile') return send({ ok: true, user: { ...user, pro_access: pro, tier: pro ? 'pro' : 'free' }, stats: {},
       preferences: { language: 'en' }, favorites: [], recent_analyses: [], security: {} });
     if (path === '/api/portfolio') {
       state.reads++;
@@ -128,10 +132,32 @@ for (const [name, viewport] of [['desktop', { width: 1440, height: 1000 }], ['ph
   });
 }
 
-test('free and signed-out accounts do not fetch private holdings', async ({ page }) => {
-  const state = await setup(page, empty, { pro: false });
+test('signed-out visitors must sign in without a paid upgrade and do not fetch holdings', async ({ page }) => {
+  const state = await setup(page, empty, { signedIn: false });
   await page.goto('/portfolio');
   await expect(page.getByRole('heading', { name: 'Portfolio', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true }).last()).toBeVisible();
+  await expect(page.getByText('PRO feature', { exact: true })).toHaveCount(0);
   expect(state.reads).toBe(0);
+});
+
+test('Pro subscribers retain portfolio access', async ({ page }) => {
+  await setup(page, empty, { pro: true });
+  await page.goto('/portfolio');
+  await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
+});
+
+test('an enabled localhost demo opens the portfolio without registration', async ({ page }) => {
+  await setup(page, empty, { signedIn: false });
+  const demoUser = { ...user, tier: 'free', pro_access: false };
+  await page.route('**/api/auth/local-session', route => route.fulfill({ json: {
+    ok: true, token: 'local-demo', user: demoUser,
+  } }));
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { ok: true, user: demoUser } }));
+  await page.goto('/portfolio');
+  await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => localStorage.getItem('uz_stock_analyzer_token'))).toBeNull();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
 });
