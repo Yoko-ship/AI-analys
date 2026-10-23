@@ -843,7 +843,8 @@ def map_insurance_lines(snapshot, workbook):
                   "c320": "net_income", "c011": "direct_insurance_premiums",
                   "c013": "accepted_reinsurance_premiums"}
     balance_map = {"c012": "fixed_assets", "c030": "long_term_investments", "c100": "construction_in_progress",
-                   "c190": "receivables", "c410": "cash", "c490": "total_assets", "c570": "total_equity",
+                   "c190": "receivables", "c410": "cash", "c460": "short_term_investments",
+                   "c490": "total_assets", "c570": "total_equity",
                    "c580": "gross_insurance_reserves", "c670": "reinsurer_share_in_reserves",
                    "c720": "net_insurance_reserves", "c1190": "other_liabilities"}
     staged = {"current_values": {}, "previous_values": {}, "opening_values": {}}

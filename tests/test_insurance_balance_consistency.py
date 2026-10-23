@@ -105,3 +105,12 @@ def test_uzas_import_storage_quality_scan_and_both_public_returns_agree(monkeypa
     for code, expected in [('roe', 0.398936377693087), ('roa', 0.16907820997416934)]:
         assert market[code]['value'] == pytest.approx(expected, rel=1e-10)
         assert analysis[code]['value'] == pytest.approx(expected, rel=1e-10)
+
+
+def test_insurer_short_term_investments_preserve_filed_current_and_opening():
+    filing=json.loads((Path(__file__).parent/'fixtures/sector_v22_filings.json').read_text())['UZAS']
+    snapshot={'current_values':{},'previous_values':{},'opening_values':{}}
+    map_special_lines(snapshot,filing['workbook'],'insurance')
+    assert float(snapshot['current_values']['short_term_investments'])==56_790_000
+    assert float(snapshot['opening_values']['short_term_investments'])==59_478_954.1
+    assert snapshot['field_sources']['short_term_investments']['source_line_id']=='insurance:balance:c460'
