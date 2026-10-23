@@ -1,0 +1,42 @@
+{
+  "retrieved_on": "2026-10-23",
+  "assets": {
+    "IPKY_MARK.svg": {
+      "url": "https://ru.ipakyulibank.uz/images/iyb_logo_v2.svg",
+      "preparation": "Standalone brand mark paths from the official logo, unchanged geometry and colors; square viewBox."
+    },
+    "IPTB_MARK.svg": {
+      "url": "https://www.ipotekabank.uz/local/templates/ipotekatmpl/images/brand_logo.svg?v=3",
+      "preparation": "Standalone brand mark paths, unchanged geometry; colors from the official full-color logo.",
+      "color_source": "https://www.ipotekabank.uz/local/templates/ipotekatmpl/images/bank_logo.CNPl83kA.png?v=3"
+    },
+    "UZTL_MARK.svg": {
+      "url": "https://uztelecom.uz/ru",
+      "preparation": "Standalone brand mark paths from the official logo, unchanged geometry and colors; square viewBox."
+    },
+    "HMKB_MARK.png": {
+      "url": "https://hamkorbank.uz/apple-touch-icon.png",
+      "preparation": "Original official asset, no raster upscaling."
+    },
+    "TRSB_MARK.png": {
+      "url": "https://trustbank.uz/upload/iblock/455/5cx7mcfaku44el70nt398twg7fxam4zu/logo-_2_.png",
+      "preparation": "Original official asset, no raster upscaling."
+    },
+    "UNVB_MARK.png": {
+      "url": "https://universalbank.uz/apple-touch-icon.png",
+      "preparation": "Original official asset, no raster upscaling."
+    },
+    "TNGB_MARK.png": {
+      "url": "https://tengebank.uz/themes/halyk/assets/favicon/apple-touch-icon.png",
+      "preparation": "Original official asset, no raster upscaling."
+    },
+    "UZNGP_MARK.png": {
+      "url": "https://www.ung.uz/logo-512.png",
+      "preparation": "Original official asset, no raster upscaling."
+    },
+    "MCBA_MARK.svg": {
+      "url": "https://mkbank.uz/favicons/favicon-120x120.svg",
+      "preparation": "Original official asset, no raster upscaling."
+    }
+  }
+}
