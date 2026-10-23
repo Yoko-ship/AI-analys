@@ -318,6 +318,10 @@ def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: in
     periods, so the figures are refused instead of stored under the wrong
     year.
     """
+    quarter = int(quarter or 0)
+    stated_quarter = _stated_quarter(parsed) if quarter else None
+    if stated_quarter is not None and stated_quarter != quarter:
+        return f"workbook header states Q{stated_quarter}, catalogued as {year}Q{quarter}"
     stated = _stated_reporting_date(parsed)
     if stated is None or not year:
         return None
@@ -327,10 +331,14 @@ def header_period_conflict(parsed: dict[str, Any] | None, year: int, quarter: in
         published = None
     if published is not None and stated > published + timedelta(days=1):
         return None
-    quarter = int(quarter or 0)
     if quarter:
         month = quarter * 3
         end = date(int(year), month, 30 if month in (6, 9) else 31)
+        # Some late filers stamp the upload day, not the period end. Accept
+        # that evidence only when the workbook explicitly names this quarter
+        # and the stamp agrees with the publication day in the same year.
+        if stated_quarter == quarter and stated == published and stated.year == int(year) and stated >= end:
+            return None
         low, high = _HEADER_WINDOW_DAYS["quarter"]
     else:
         end = date(int(year), 12, 31)

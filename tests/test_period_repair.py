@@ -144,3 +144,40 @@ def test_quarter_zero_quarterlies_go_with_only_the_annual_figures_read_from_them
         assert [r[0] for r in c.execute("SELECT id FROM source_reports")] == [genuine]
     finally:
         c.close()
+
+
+def test_late_uzas_q3_uses_explicit_quarter_instead_of_filing_day_cutoff():
+    import json
+    from pathlib import Path
+    from catalogue import periods
+
+    fixture = json.loads((Path(__file__).parent / "fixtures/uzas_2025q3_header.json").read_text())
+    buf = BytesIO()
+    pd.DataFrame(fixture["rows"]).to_excel(buf, header=False, index=False)
+    parsed = _parse_excel_workbook(buf.getvalue())
+    assert periods._stated_quarter(parsed) == 3
+    assert periods.header_period_conflict(parsed, 2025, 3, fixture["published_at"]) is None
+    for year, quarter in [(2025, 2), (2025, 4), (2024, 3), (2026, 3)]:
+        assert periods.header_period_conflict(parsed, year, quarter, fixture["published_at"])
+    # A different publication date does not establish that the header is the
+    # upload day; the existing period-end checks must still reject it.
+    assert periods.header_period_conflict(parsed, 2025, 3, "2025-12-20")
+
+
+def test_explicit_quarter_conflict_cannot_hide_inside_the_date_tolerance():
+    from catalogue import periods
+
+    parsed = workbook(3, "2025-12-01")
+    assert periods.header_period_conflict(parsed, 2025, 4, "2025-12-01")
+
+
+def test_history_checkpoint_digest_includes_period_validation_rules(monkeypatch, tmp_path):
+    from financial_ingestion import nsbu_history
+    from catalogue import periods
+
+    path = tmp_path / "period_rules.py"
+    path.write_text("original period validation")
+    monkeypatch.setattr(periods, "__file__", str(path))
+    before = nsbu_history.implementation_digest()
+    path.write_text("changed period validation")
+    assert nsbu_history.implementation_digest() != before

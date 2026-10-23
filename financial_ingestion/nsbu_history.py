@@ -29,7 +29,7 @@ from financial_ingestion import comparative
 from . import store
 
 log = logging.getLogger(__name__)
-_PARSE_MODULES = (catalogue_parsing, catalogue_sources, collectors_openinfo_workbooks,
+_PARSE_MODULES = (catalogue_parsing, catalogue_periods, catalogue_sources, collectors_openinfo_workbooks,
                   financial_analysis_balance_subtotals, financial_analysis_sector_inputs)
 _REQUIRED = ("revenue", "gross_profit", "net_income", "operating_income",
              "cash", "total_assets", "total_equity", "total_liabilities", "operating_expenses")
