@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from datetime import datetime, timezone
 from functools import partial
 import logging
@@ -87,6 +88,34 @@ def bank_metrics(bank):
 
 
 async def screener(form="NSBU", scope="separate", year=None):
+    """Share simultaneous identical reads, without retaining completed results.
+
+    SQLite batches serialize across requests as well as across issuers. The
+    state belongs to the running loop, so tests/app restarts cannot inherit a
+    task or lock from a closed loop. Each consumer gets its own result object.
+    """
+    loop = asyncio.get_running_loop()
+    state = getattr(loop, '_terminal_screener_reads', None)
+    if state is None:
+        state = {'lock': asyncio.Lock(), 'pending': {}}
+        loop._terminal_screener_reads = state
+    key = (form, scope, str(year) if year is not None else None)
+    task = state['pending'].get(key)
+    if task is None:
+        async def build():
+            try:
+                async with state['lock']:
+                    return await _screener_batch(form, scope, year)
+            finally:
+                state['pending'].pop(key, None)
+        task = asyncio.create_task(build())
+        state['pending'][key] = task
+        # A disconnected sole waiter must not leave an unobserved exception.
+        task.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+    return deepcopy(await asyncio.shield(task))
+
+
+async def _screener_batch(form, scope, year):
     from catalogue.read_batch import scope as read_scope
     with read_scope():
         return await _screener(form, scope, year)

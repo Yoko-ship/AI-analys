@@ -235,3 +235,69 @@ def test_russian_cbu_page_with_uzbek_attachment_keeps_date_and_bank_identity():
     sqbn=next(r for r in data['rows'] if r['ticker']=='SQBN')
     assert sqbn['loans_bn']==pytest.approx(47360.34525894)
     assert next(r for r in data['rows'] if r['ticker']=='HMKB')['household_loans_bn']>0
+
+
+@pytest.mark.parametrize('page,kind,day,expected',[
+    ('276492','main','2020-06-01',{'assets_bn':42448,'assets_share_pct':13.7}),
+    ('134864','structure','2020-02-01',{'loans_bn':30604,'household_loans_bn':3300,'company_loans_bn':27304}),
+])
+def test_official_historical_html_preserves_spanned_columns_and_source(page,kind,day,expected):
+    html=(Path(__file__).parent/f'fixtures/cbu_{page}.html').read_text()
+    url=f'https://cbu.uz/ru/statistics/bankstats/{page}/'
+    data=cbu.parse_bank_page(html,kind,url)
+    assert data['date']==day and data['source_url']==url
+    assert data['source_format']=='html'
+    row=next(r for r in data['rows'] if r['ticker']=='SQBN')
+    for field,value in expected.items():assert row[field]==value
+
+
+def test_html_date_must_come_from_observation_and_agree_with_table():
+    html=(Path(__file__).parent/'fixtures/cbu_276492.html').read_text()
+    with pytest.raises(cbu.FormatChanged):
+        cbu.parse_bank_page(html.replace('1 июня 2020','1 июля 2020',1),'main','https://cbu.uz/test')
+    from bs4 import BeautifulSoup
+    source=BeautifulSoup((Path(__file__).parent/'fixtures/cbu_134864.html').read_text(),'html.parser')
+    source.h1.decompose()
+    with pytest.raises(cbu.FormatChanged):
+        cbu.parse_bank_page(str(source)+'<div class="main_date">1 февраля 2020</div>','structure','https://cbu.uz/test')
+
+
+@pytest.mark.parametrize('page,kind,month,broken_attachment',[
+    ('276492','main',6,True),('134864','structure',2,False),
+])
+def test_sync_recovers_official_html_when_attachment_is_wrong_or_absent(monkeypatch,page,kind,month,broken_attachment):
+    import requests,openpyxl
+    from types import SimpleNamespace
+    html=(Path(__file__).parent/f'fixtures/cbu_{page}.html').read_text()
+    if broken_attachment:html+='<a href="/wrong.xlsx">XLSX</a>'
+    title={'main':'Сведения об основных показателях коммерческих банков','structure':'Сведения кредитах и депозитах коммерческих банков'}[kind]
+    url=f'https://cbu.uz/ru/statistics/bankstats/{page}/';saved=[]
+    def get(address,**kw):
+        text=f'<a href="{url}">{title}</a>' if '?year=' in address else html
+        return SimpleNamespace(text=text,content=b'wrong-table',raise_for_status=lambda:None)
+    monkeypatch.setattr(requests,'get',get)
+    monkeypatch.setattr(openpyxl,'load_workbook',lambda *a,**k:SimpleNamespace(active=SimpleNamespace(values=[['Wrong sector overview']]),close=lambda:None))
+    monkeypatch.setattr(cbu,'save',lambda *a:saved.append(a))
+    result=cbu.sync_month(2020,month,with_sdmx=False,kinds=[kind])
+    assert result=={'loaded':[kind],'errors':[]}
+    assert saved[0][1]==f'2020-{month:02d}-01'
+    assert saved[0][2]['source_url']==url
+    assert journal.events(event='load_format_changed')['total']==0
+
+
+def test_html_percent_columns_are_points_even_without_cell_percent_sign():
+    html=(Path(__file__).parent/'fixtures/cbu_276492.html').read_text().replace('13,7%','13,7')
+    data=cbu.parse_bank_page(html,'main','https://cbu.uz/test')
+    assert next(r for r in data['rows'] if r['ticker']=='SQBN')['assets_share_pct']==13.7
+
+
+def test_invalid_html_spans_report_one_failure_and_preserve_last_good_data(monkeypatch):
+    import requests
+    from types import SimpleNamespace
+    html=(Path(__file__).parent/'fixtures/cbu_134864.html').read_text().replace('rowspan="2"','rowspan="broken"',1)
+    monkeypatch.setattr(requests,'get',lambda *a,**k:SimpleNamespace(text=html,raise_for_status=lambda:None))
+    saved=[];monkeypatch.setattr(cbu,'save',lambda *a:saved.append(a))
+    with pytest.raises(cbu.FormatChanged):
+        cbu._read_month_table(html,'structure','https://cbu.uz/test','2020-02')
+    assert not saved
+    assert journal.events(event='load_format_changed')['total']==1

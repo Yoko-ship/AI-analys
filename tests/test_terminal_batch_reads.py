@@ -59,3 +59,68 @@ def test_screener_serializes_issuer_reads_to_avoid_sqlite_contention(monkeypatch
     result=asyncio.run(service.screener())
     assert len(result['rows'])==12
     assert peak==1
+
+
+def test_simultaneous_screeners_share_only_inflight_work_and_isolate_results(monkeypatch):
+    from server.terminal import service
+    calls=[]
+    async def build(form,scope,year):
+        calls.append((form,scope,year));await asyncio.sleep(.01)
+        return {'rows':[{'value':len(calls)}]}
+    monkeypatch.setattr(service,'_screener',build)
+    async def scenario():
+        a,b=await asyncio.gather(service.screener(),service.screener())
+        assert len(calls)==1
+        a['rows'][0]['value']=99
+        assert b['rows'][0]['value']==1
+        assert (await service.screener())['rows'][0]['value']==2
+    asyncio.run(scenario())
+
+
+def test_distinct_screener_contexts_do_not_contend_for_sqlite(monkeypatch):
+    from server.terminal import service
+    active=peak=0
+    async def build(form,scope,year):
+        nonlocal active,peak
+        active+=1;peak=max(peak,active);await asyncio.sleep(.01);active-=1
+        return {'context':[form,scope,year]}
+    monkeypatch.setattr(service,'_screener',build)
+    async def scenario():
+        return await asyncio.gather(service.screener(),service.screener('MSFO','consolidated'),service.screener(year='2024'))
+    results=asyncio.run(scenario())
+    assert peak==1
+    assert [r['context'] for r in results]==[['NSBU','separate',None],['MSFO','consolidated',None],['NSBU','separate','2024']]
+
+
+def test_cancelled_screener_waiter_does_not_cancel_shared_build(monkeypatch):
+    from server.terminal import service
+    calls=[]
+    async def scenario():
+        started=asyncio.Event();finish=asyncio.Event()
+        async def build(*args):
+            calls.append(1);started.set();await finish.wait();return {'ok':True}
+        monkeypatch.setattr(service,'_screener',build)
+        first=asyncio.create_task(service.screener());await started.wait()
+        second=asyncio.create_task(service.screener());await asyncio.sleep(0)
+        first.cancel()
+        try:await first
+        except asyncio.CancelledError:pass
+        finish.set();assert await second=={'ok':True}
+        assert len(calls)==1
+    asyncio.run(scenario())
+
+
+def test_failed_screener_build_is_retried_and_never_cached(monkeypatch):
+    from server.terminal import service
+    calls=[]
+    async def build(*args):
+        calls.append(1)
+        if len(calls)==1:raise ValueError('source unavailable')
+        return {'ok':True}
+    monkeypatch.setattr(service,'_screener',build)
+    async def scenario():
+        import pytest
+        with pytest.raises(ValueError):await service.screener()
+        assert await service.screener()=={'ok':True}
+    asyncio.run(scenario())
+    assert len(calls)==2

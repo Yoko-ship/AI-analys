@@ -5,6 +5,7 @@ Failed parses never overwrite the last successfully loaded snapshot.
 """
 from __future__ import annotations
 from datetime import date
+from contextvars import ContextVar
 import io
 import json
 import os
@@ -30,6 +31,7 @@ BANK_NAMES = {
     "узсаноаткурилишбанк":"SQBN",
 }
 SDMX_CATALOGUE = BASE + "/en/statistics/e-gdds/data/"
+_probing_format = ContextVar('cbu_probing_format', default=False)
 
 
 class FormatChanged(ValueError):
@@ -37,7 +39,8 @@ class FormatChanged(ValueError):
 
 
 def reject(source, reason):
-    journal.emit("load_format_changed", message=f"CBU: {reason}", source_url=source)
+    if not _probing_format.get():
+        journal.emit("load_format_changed", message=f"CBU: {reason}", source_url=source)
     raise FormatChanged(reason)
 
 
@@ -49,7 +52,7 @@ def norm(value):
             'юридикшахслар':'юридическиелица'}.get(key,key)
 
 
-def parse_bank_rows(rows, kind, source_url):
+def parse_bank_rows(rows, kind, source_url, *, percent_points=False):
     title=" ".join(str(c) for row in rows[:12] for c in row if c is not None)
     match=re.search(r"(?:на|состоянию на)\s+(\d{1,2})\s+([а-я]+)\s+(20\d{2})",title.lower())
     uzbek=re.search(r'(20\d{2})\s+йил\s+(\d{1,2})\s+([а-я]+)',title.lower())
@@ -112,7 +115,7 @@ def parse_bank_rows(rows, kind, source_url):
                     item.setdefault('quality_issues',[]).append({'field':field,'original_value':v,'code':'NEGATIVE_COMPONENT'})
                     continue
                 reject(source_url,"Negative bank value: "+str(name))
-            item[field]=v if not field.endswith("pct") or isinstance(raw,str) and "%" in raw else v*100
+            item[field]=v if not field.endswith("pct") or percent_points or isinstance(raw,str) and "%" in raw else v*100
         if kind=="npl":
             if (item['npl_bn'] is not None and item['loans_bn'] is not None and item["npl_bn"]>item["loans_bn"]
                     or item['npl_pct'] is not None and item["npl_pct"]>100):reject(source_url,"Invalid NPL units")
@@ -122,6 +125,99 @@ def parse_bank_rows(rows, kind, source_url):
     if len(output)<10 or not totals:reject(source_url,"Incomplete bank table")
     if len({norm(r["name"]) for r in output})!=len(output):reject(source_url,"Duplicate bank name")
     return {"kind":kind,"date":day,"unit":"billion UZS","source_url":source_url,"rows":output,"sector":totals}
+
+
+def parse_bank_page(html, kind, source_url):
+    """Read the official HTML table when its workbook is absent or unusable.
+
+    Keep merged-cell positions, explicit observation dates and stated units.
+    A publication timestamp never supplies the observation date.
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+    tables = [t for t in soup.select('table') if 'наименованиебанка' in norm(t.get_text(' ', strip=True))]
+    if len(tables) != 1:
+        reject(source_url, 'Expected one bank observation table')
+    table = tables[0]
+    heading = soup.find('h1')
+    container = table.find_parent(class_='detail-text') or table.parent
+    units = ' '.join(str(t) for t in container.find_all(string=True)
+                     if not t.find_parent('table') and 'млрд' in str(t).lower())
+    grid = {}
+    for row_index, tr in enumerate(table.select('tr')):
+        column = 0
+        for cell in tr.find_all(['td', 'th'], recursive=False):
+            while (row_index, column) in grid:
+                column += 1
+            value = cell.get_text(' ', strip=True)
+            if column == 0 and re.fullmatch(r'\d+', value):
+                value = int(value)
+            try:
+                rowspan, colspan = int(cell.get('rowspan', 1)), int(cell.get('colspan', 1))
+            except (TypeError, ValueError):
+                reject(source_url, 'Invalid table span')
+            if not 1 <= rowspan <= 100 or not 1 <= colspan <= 100:
+                reject(source_url, 'Invalid table span')
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    grid[row_index + dr, column + dc] = value if dr == dc == 0 else None
+            column += colspan
+    if not grid:
+        reject(source_url, 'Empty HTML table')
+    height = max(r for r, _ in grid) + 1
+    width = max(c for _, c in grid) + 1
+    rows = [[heading.get_text(' ', strip=True) if heading else '', units]]
+    rows += [[grid.get((r, c)) for c in range(width)] for r in range(height)]
+    title = ' '.join(str(c) for row in rows[:12] for c in row if c is not None).lower()
+    dates = {(int(y), MONTHS.get(m), int(d)) for d, m, y in
+             re.findall(r'(?:на|состоянию на)\s+(\d{1,2})\s+([а-я]+)\s+(20\d{2})', title)}
+    if len(dates) > 1:
+        reject(source_url, 'Conflicting observation dates')
+    return {**parse_bank_rows(rows, kind, source_url, percent_points=True), 'source_format': 'html'}
+
+
+def _read_month_table(html, kind, page, expected_month):
+    import requests
+    import openpyxl
+    from bs4 import BeautifulSoup
+
+    def check(payload):
+        if expected_month and payload['date'][:7] != expected_month:
+            raise FormatChanged('Observation date differs from requested month')
+        return payload
+
+    errors = []
+    token = _probing_format.set(True)
+    try:
+        sheet = next((a.get('href') for a in BeautifulSoup(html, 'html.parser').select('a[href]')
+                      if '.xlsx' in a.get('href', '').lower()), None)
+        if sheet:
+            source = urljoin(BASE, sheet)
+            try:
+                if not source.startswith(BASE + '/'):
+                    raise FormatChanged('Unexpected attachment host')
+                response = requests.get(source, timeout=30)
+                response.raise_for_status()
+                workbook = openpyxl.load_workbook(io.BytesIO(response.content), data_only=True, read_only=True)
+                try:
+                    parser = parse_bank_rows if kind in {'npl', 'main', 'structure'} else parse_sector_rows
+                    return check(parser(list(workbook.active.values), kind, source))
+                finally:
+                    workbook.close()
+            except Exception as exc:
+                errors.append(f'XLSX: {type(exc).__name__}: {exc}')
+        else:
+            errors.append('No XLSX attachment')
+        if kind in {'npl', 'main', 'structure'}:
+            try:
+                payload = check(parse_bank_page(html, kind, page))
+                payload['attachment_issues'] = errors
+                return payload
+            except FormatChanged as exc:
+                errors.append(f'HTML: {exc}')
+    finally:
+        _probing_format.reset(token)
+    reject(page, '; '.join(errors))
 
 
 def parse_sdmx(content, source_url):
@@ -219,7 +315,6 @@ def discover_sdmx(html):
 
 def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
     import requests
-    import openpyxl
     from bs4 import BeautifulSoup
     url=BASE+"/ru/statistics/bankstats/"
     if year and month:url+=f"?year={int(year)}&month={int(month):02d}&set_filter=Y"
@@ -244,16 +339,8 @@ def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
         page=urljoin(BASE,link)
         try:
             detail=requests.get(page,timeout=20);detail.raise_for_status()
-            sheet=next((a.get("href") for a in BeautifulSoup(detail.text,"html.parser").select("a[href]") if ".xlsx" in a.get("href","").lower()),None)
-            if not sheet:reject(page,"No XLSX attachment")
-            source=urljoin(BASE,sheet)
-            if not source.startswith(BASE+"/"):reject(page,"Unexpected attachment host")
-            response=requests.get(source,timeout=30);response.raise_for_status()
-            workbook=openpyxl.load_workbook(io.BytesIO(response.content),data_only=True,read_only=True)
-            try:payload=(parse_bank_rows if kind in {"npl","main","structure"} else parse_sector_rows)(list(workbook.active.values),kind,source)
-            finally:workbook.close()
-            if year and month and payload['date'][:7]!=f'{int(year):04d}-{int(month):02d}':
-                reject(source,'Observation date differs from requested month')
+            expected = f'{int(year):04d}-{int(month):02d}' if year and month else None
+            payload = _read_month_table(detail.text, kind, page, expected)
             save(kind,payload["date"],payload);result["loaded"].append(kind)
         except Exception as exc:result["errors"].append(f"{kind}: {type(exc).__name__}: {exc}")
     if with_sdmx:
