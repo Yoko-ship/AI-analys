@@ -19,6 +19,7 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
   });
   await page.goto(`/catalog?t=${ticker}&f=${func}&std=${form}`);
   if(func==='PL'){
+    await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
     const overview=page.locator('.terminal-statement-overview');
     await expect(overview.getByRole('img',{name:'Мост: от доходов к чистой прибыли'})).toBeVisible();
     if(kind==='insurance'){
