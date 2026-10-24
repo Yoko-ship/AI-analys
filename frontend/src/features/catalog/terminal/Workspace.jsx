@@ -1,4 +1,5 @@
 import { BankComparison } from './BankComparison.jsx';
+import { WorkspacePanel } from './WorkspacePanel.jsx';
 import React from "react";
 import { filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
 import { ISSUER_FUNCTIONS, functionLabel } from "../../../lib/terminalCommands.js";
@@ -217,13 +218,13 @@ export function PanelWorkspace({companies,terminal,lang,user,apiFetch}) {
     {user?.id&&<button className="primary-btn" disabled={!dirty||saving} onClick={save}>{words(lang,"Сохранить раскладку","Panellarni saqlash","Save layout")}</button>}</div></header>
     <p className="muted">{user?.id?words(lang,"Раскладка сохраняется в профиле по кнопке «Сохранить».","Panellar profilga saqlanadi.","Save your layout to your account."):words(lang,"Раскладка сохраняется автоматически в этом браузере.","Panellar shu brauzerda avtomatik saqlanadi.","Layout is saved automatically in this browser.")}</p>
     {error&&<p role="alert">{error}</p>}{loading&&<p role="status">{words(lang,"Загрузка…","Yuklanmoqda…","Loading…")}</p>}
-    <div className="terminal-panel-grid">{panels.map((panel,i)=><section className="panel terminal-work-panel" key={i} data-terminal-ticker={panel.ticker} data-terminal-function={panel.func} data-terminal-standard={panel.form} data-terminal-scope={panel.scope}>
+    <div className="terminal-panel-grid">{panels.map((panel,i)=><WorkspacePanel key={i} panel={panel} lang={lang} saving={saving} onRemove={()=>change(panels.filter((_,n)=>n!==i))}>
       <div className="terminal-controls"><label>{words(lang,"Эмитент","Emitent","Issuer")}<select disabled={saving} value={panel.ticker} onChange={e=>change(panels.map((p,n)=>n===i?{...p,ticker:e.target.value}:p))}>{companies.map(c=><option key={c.ticker} value={c.ticker}>{c.ticker} · {c.company_name}</option>)}</select></label>
       <label>{words(lang,"Функция","Funksiya","Function")}<select disabled={saving} value={panel.func} onChange={e=>change(panels.map((p,n)=>n===i?{...p,func:e.target.value}:p))}>{ISSUER_FUNCTIONS.map(f=><option key={f.code} value={f.code}>{f.code} · {functionLabel(f.code,lang)}</option>)}</select></label>
-      <button className="ghost-btn" disabled={saving} aria-label={words(lang,"Удалить панель","Panelni o‘chirish","Remove panel")} onClick={()=>change(panels.filter((_,n)=>n!==i))}>×</button></div>
+      </div>
       <ContextControls {...panel} lang={lang} onForm={form=>change(panels.map((p,n)=>n===i?{...p,form,scope:"separate"}:p))} onScope={scope=>change(panels.map((p,n)=>n===i?{...p,scope}:p))}/>
       <PanelScreen panel={panel} lang={lang} user={user} apiFetch={apiFetch} onChange={next=>change(panels.map((p,n)=>n===i?next:p))} onOpen={ticker=>terminal.go({ticker,func:"SUM"})}/>
-    </section>)}</div>
+    </WorkspacePanel>)}</div>
   </section>;
 }
 

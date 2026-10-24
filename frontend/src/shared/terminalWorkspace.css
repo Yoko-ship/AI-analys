@@ -24,6 +24,12 @@
 .terminal-monitor-tile.negative b,.terminal-quarter-map .negative{color:var(--negative,#c44848)}
 .terminal-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .terminal-work-panel{min-width:0;padding:16px;overflow:auto}
+.terminal-work-panel:only-child{grid-column:1/-1}
+.terminal-panel-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.terminal-panel-actions strong{font-size:12px}
+.terminal-panel-actions>div{display:flex;gap:8px}
+.terminal-work-panel.is-expanded{position:fixed;inset:0;z-index:2000;width:100%;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0;box-sizing:border-box;background:var(--bg);color:var(--text);overscroll-behavior:contain}
+.terminal-work-panel.is-expanded .terminal-panel-actions{position:sticky;top:-16px;z-index:5;background:var(--bg);padding:12px 0}
 .terminal-work-panel .terminal-controls>label{flex:1 1 120px}
 .terminal-warning{border-left:3px solid var(--warning,#b58b34);padding:12px;background:var(--bg-2);font-size:13px}
 .terminal-context{font:12px 'IBM Plex Mono',monospace;color:var(--muted)}

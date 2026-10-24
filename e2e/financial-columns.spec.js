@@ -154,6 +154,65 @@ test('SUM workspace panels include the same year columns', async ({ page }) => {
   await expect(panel.locator('.terminal-summary')).toBeVisible();
 });
 
+for (const fallback of [false, true]) test(`report panels expand and restore without losing state (fallback=${fallback})`, async ({ page }, testInfo) => {
+  if (fallback) await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.reject(new Error('Fullscreen unavailable'));
+  });
+  await setup(page, { ticker: 'HMKB', func: 'SUM', theme: fallback ? 'light' : 'dark', reports: recentReports });
+  await page.getByRole('button', { name: 'PNL · Panels', exact: true }).click();
+  const panels = page.locator('.terminal-work-panel'), first = panels.first();
+  await expect(panels).toHaveCount(1);
+  const grid = await page.locator('.terminal-panel-grid').boundingBox();
+  expect((await first.boundingBox()).width).toBeGreaterThan(grid.width - 2);
+  await page.getByRole('button', { name: 'Add panel', exact: true }).click();
+  await expect(panels).toHaveCount(2);
+  const second = panels.nth(1);
+  const search = second.getByRole('searchbox');
+  await search.fill('процентных доходов');
+  const assertExpanded = async () => {
+    await expect(second).toHaveClass(/is-expanded/);
+    const box = await second.boundingBox(), viewport = page.viewportSize();
+    expect(Math.abs(box.width - viewport.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box.height - viewport.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box.x) + Math.abs(box.y)).toBeLessThanOrEqual(1);
+    await expect(second.getByRole('button', { name: 'Restore', exact: true })).toBeInViewport();
+    await expect(second.locator('.fc-table thead')).toContainText('2026 · 9M');
+  };
+  await second.getByRole('button', { name: 'Full screen', exact: true }).click();
+  await assertExpanded();
+  if (!fallback) await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await second.locator('.fc-table tbody td').last().getByRole('button').click();
+  await expect(page.getByRole('dialog', { name: 'Source passport' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Source passport' })).toHaveCount(0);
+  await assertExpanded();
+  await page.screenshot({ path: testInfo.outputPath(`panel-fullscreen-${fallback}.png`), animations: 'disabled' });
+  await second.getByRole('button', { name: 'Restore', exact: true }).click();
+  await expect(second).not.toHaveClass(/is-expanded/);
+  await expect(search).toHaveValue('процентных доходов');
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+  expect((await second.boundingBox()).width).toBeLessThan(grid.width * .6);
+  if (!fallback) {
+    await second.getByRole('button', { name: 'Full screen', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(second).not.toHaveClass(/is-expanded/);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await second.getByRole('button', { name: 'Full screen', exact: true }).click();
+  await assertExpanded();
+  await page.screenshot({ path: testInfo.outputPath(`panel-fullscreen-${fallback}-mobile.png`), animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await expect(second).not.toHaveClass(/is-expanded/);
+  await expect(search).toHaveValue('процентных доходов');
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+  await first.getByRole('button', { name: 'Full screen', exact: true }).click();
+  await first.getByRole('button', { name: 'Remove panel', exact: true }).click();
+  await expect(panels).toHaveCount(1);
+  await expect(panels.first()).not.toHaveClass(/is-expanded/);
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+});
+
 test('source columns preserve units, periods and passports at desktop and mobile sizes', async ({ page }, testInfo) => {
   await setup(page);
   const terminal = page.getByTestId('financial-columns');

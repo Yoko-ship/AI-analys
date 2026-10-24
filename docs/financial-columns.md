@@ -93,6 +93,11 @@ The interface includes original forms, source passports, calculation inputs,
 history charts, shareholders and data-quality explanations. The new module
 contains no fair-value model, DCF or forecast.
 
+Each PNL workspace panel can expand to the viewport with Full screen and return
+with Restore or Escape without resetting its controls. Native fullscreen is
+used when supported; embedded browsers retain the viewport fallback. A single
+panel fills the grid width, while multiple panels keep the comparison layout.
+
 ## Verification
 
 Tests cover actual ALKB, IPTB, KFSK, UZAL and UZTL workbook layouts, a damaged
