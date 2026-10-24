@@ -41,6 +41,20 @@ def test_reference_projection_keeps_source_order_independent_and_missing_rows_em
     assert len(source) == 3
 
 
+@pytest.mark.parametrize('standard,form,code,metric,expected', [
+    ('NSBU', 'BANK_PL', '1л', 'interest_income', 'Итого процентных доходов'),
+    ('MSFO', 'PL', None, 'interest_eir', 'Процентный доход по эффективной ставке (EIR)'),
+])
+def test_reference_labels_replace_source_labels_without_losing_provenance(standard,form,code,metric,expected):
+    source = row(form,code,metric)
+    source['label'] = 'Long original filing label'
+    result = project(payload([source],standard=standard))['rows'][0]
+    assert result['label'] == expected
+    assert result['source_label'] == source['label'] == 'Long original filing label'
+    assert result['cells'] == source['cells']
+    assert result['id'] == source['id']
+
+
 @pytest.mark.parametrize('name,kind,expected', [
     ('O‘zbektelekom','industry','telecom'),('Regional Telecom Services','industry','telecom'),
     ('O‘zagrolizing','financial','leasing'),('Example Leasing','financial','leasing'),

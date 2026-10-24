@@ -48,7 +48,9 @@ def project(payload):
                     if (row['id'] not in used and row['source_form'] == form
                             and row.get('metric_id') == metric
                             and (code is None or row.get('source_code') == code)):
-                        selected.append({**row, 'display_field': field['field_id'], 'display_group': group['label']})
+                        selected.append({**row, 'label': field['label'],
+                                         'source_label': row.get('source_label') or row.get('label') or row.get('raw_label'),
+                                         'display_field': field['field_id'], 'display_group': group['label']})
                         used.add(row['id'])
     allowed_ratios = set(RATIOS[template][standard].split())
     return {**payload, 'presentation': 'template', 'display_template': template,

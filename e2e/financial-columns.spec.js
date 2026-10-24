@@ -113,8 +113,11 @@ test('source columns preserve units, periods and passports at desktop and mobile
   const income = terminal.locator('tr[data-metric="interest_income"]').filter({ hasText: 'Итого' });
   await expect(income).toContainText('9,447,836,814');
   await expect(terminal.getByText('Amounts: thousands UZS', { exact: false })).toBeVisible();
+  await expect(income.locator('th')).toHaveText('Итого процентных доходовBANK_PL 1л');
   await income.getByRole('button').last().click();
   const passport = page.getByRole('dialog', { name: 'Source passport' });
+  await expect(passport.locator('h4').first()).toHaveText('Итого процентных доходов');
+  await expect(passport).toContainText('л. Итого процентных доходов');
   await expect(passport).toContainText('1л');
   await expect(passport).toContainText('separate');
   await expect(passport.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', /openinfo/);

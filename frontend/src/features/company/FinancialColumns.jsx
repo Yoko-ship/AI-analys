@@ -43,7 +43,7 @@ function SourcePassport({ item, close, t, format }) {
     [t('Стандарт / периметр', 'Standart / qamrov', 'Standard / scope'), `${cell.standard || item.standard} · ${cell.scope || item.scope}`],
     [t('Период', 'Davr', 'Period'), `${cell.period_start || item.end} — ${cell.period_end || item.end}`],
     [t('Форма / код', 'Shakl / kod', 'Form / code'), `${cell.source_form || item.row.source_form} · ${cell.source_code || item.row.source_code || '—'}`],
-    [t('Исходное название', 'Asl nomi', 'Original label'), cell.raw_label || item.row.label],
+    [t('Исходное название', 'Asl nomi', 'Original label'), cell.raw_label || item.row.source_label || item.row.label],
     [t('Исходное значение', 'Asl qiymat', 'Original amount'), cell.raw_value == null ? '—' : String(cell.raw_value)],
     [t('Валюта / масштаб', 'Valyuta / miqyos', 'Currency / source scale'), `${cell.currency || '—'} · ${cell.unit_scale || '—'}`],
     [t('Страница / лист / строка', 'Sahifa / varaq / qator', 'Page / sheet / row'), [cell.page, cell.sheet, cell.row].filter(v => v != null).join(' · ') || '—'],

@@ -146,7 +146,13 @@ def test_reference_view_keeps_only_named_bank_fields_and_exports_the_same_rows(s
     assert len(selected['rows']) < len(raw['rows'])
     for row in selected['rows']:
         assert row['cells'] == next(r for r in raw['rows'] if r['id'] == row['id'])['cells']
+    income = next(r for r in selected['rows'] if r['id'] == 'BANK_PL:1л')
+    raw_income = next(r for r in raw['rows'] if r['id'] == income['id'])
+    assert income['label'] == 'Итого процентных доходов'
+    assert income['source_label'] == raw_income['label']
+    assert income['cells']['2026-09-30']['raw_label'] == raw_income['label']
     rows = list(csv.DictReader(io.StringIO(exported.content.decode('utf-8-sig'))))
+    assert next(r for r in rows if r['source_code'] == '1л')['label'] == income['label']
     assert not any((r['source_form'], r['source_code']) in {('BANK_PL','7а'), ('BANK_PL','7в'), ('BANK_BS','31')} for r in rows)
     assert any(r['source_code'] == '1л' and r['value'] == '9447836814' for r in rows)
     assert all(r['metric_id'] in {'roe','roa','nim','cir','cost_of_risk','loans_to_deposits'} for r in selected['ratios'])
