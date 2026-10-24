@@ -11,6 +11,7 @@ const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.
 async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB', reports } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(() => {
+    sessionStorage.setItem('uz_sponsor_seen', '1');
     localStorage.setItem('uz_stock_analyzer_language', 'en');
     localStorage.setItem('uz_stock_analyzer_token', 'columns-admin');
   });
@@ -180,6 +181,15 @@ for (const fallback of [false, true]) test(`report panels expand and restore wit
   };
   await second.getByRole('button', { name: 'Full screen', exact: true }).click();
   await assertExpanded();
+  if (fallback) {
+    await page.evaluate(() => {
+      const overlay = document.createElement('aside');
+      overlay.className = 'sponsor-overlay'; overlay.dataset.fullscreenTest = 'true';
+      overlay.style.height = '390px'; overlay.textContent = 'Advertisement';
+      document.body.append(overlay);
+    });
+    await expect(page.locator('[data-fullscreen-test]')).toBeHidden();
+  }
   if (!fallback) await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
   await second.locator('.fc-table tbody td').last().getByRole('button').click();
   await expect(page.getByRole('dialog', { name: 'Source passport' })).toBeVisible();
@@ -189,6 +199,7 @@ for (const fallback of [false, true]) test(`report panels expand and restore wit
   await page.screenshot({ path: testInfo.outputPath(`panel-fullscreen-${fallback}.png`), animations: 'disabled' });
   await second.getByRole('button', { name: 'Restore', exact: true }).click();
   await expect(second).not.toHaveClass(/is-expanded/);
+  if (fallback) await page.locator('[data-fullscreen-test]').evaluate(el => el.remove());
   await expect(search).toHaveValue('процентных доходов');
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
   expect((await second.boundingBox()).width).toBeLessThan(grid.width * .6);

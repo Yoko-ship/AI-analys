@@ -6,6 +6,9 @@ export function WorkspacePanel({ panel, lang, children, onRemove, saving }) {
   const button = React.useRef(null);
   const native = React.useRef(false);
   const [expanded, setExpanded] = React.useState(false);
+  const revealControl = React.useCallback(() => {
+    requestAnimationFrame(() => button.current?.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  }, []);
   const restore = React.useCallback(() => {
     setExpanded(false);
     if (document.fullscreenElement === element.current) document.exitFullscreen?.().catch(() => {});
@@ -14,11 +17,11 @@ export function WorkspacePanel({ panel, lang, children, onRemove, saving }) {
   React.useEffect(() => {
     const changed = () => {
       if (document.fullscreenElement === element.current) native.current = true;
-      else if (native.current) { native.current = false; setExpanded(false); }
+      else if (native.current) { native.current = false; setExpanded(false); revealControl(); }
     };
     document.addEventListener('fullscreenchange', changed);
     return () => document.removeEventListener('fullscreenchange', changed);
-  }, []);
+  }, [revealControl]);
 
   React.useEffect(() => {
     if (!expanded) return undefined;
@@ -41,14 +44,17 @@ export function WorkspacePanel({ panel, lang, children, onRemove, saving }) {
       }
     };
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('terminal-panel-fullscreen');
     document.addEventListener('keydown', keydown, true);
     toggleButton?.focus({ preventScroll: true });
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.classList.remove('terminal-panel-fullscreen');
       document.removeEventListener('keydown', keydown, true);
       toggleButton?.focus({ preventScroll: true });
+      if (!document.fullscreenElement) revealControl();
     };
-  }, [expanded, restore]);
+  }, [expanded, restore, revealControl]);
 
   const toggle = () => {
     if (expanded) { restore(); return; }
