@@ -18,8 +18,8 @@ test("IFRS interim captions retain YTD basis without NSBU or QoQ claims", async 
   await page.goto("/company/SQBN?tab=financials&freq=quarterly");
   await page.getByRole("button", { name: "МСФО", exact: true }).click();
   await expect(page.getByText(/IFRS: income and expenses are cumulative from January/)).toBeVisible();
-  await expect(page.getByText(/Sums in UZS from interim IFRS filings/)).toBeVisible();
-  await expect(page.getByText(/Sums in UZS per discrete quarter/)).toHaveCount(0);
+  await expect(page.getByText(/Sums in thousands of UZS from interim IFRS filings/)).toBeVisible();
+  await expect(page.getByText(/Sums in thousands of UZS per discrete quarter/)).toHaveCount(0);
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.getByText("Growth QoQ", { exact: true })).toHaveCount(0);
 });

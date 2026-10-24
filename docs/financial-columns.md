@@ -5,6 +5,11 @@ amounts are displayed in **thousands of UZS**; per-share amounts remain UZS.
 Existing published financial APIs remain public, and catalog access remains
 restricted to administrators.
 
+The public company Finance tab also displays UZS monetary history in thousands
+in both tables and charts. This is a display conversion of the full-UZS history
+API; source passports and stored amounts are unchanged. Ratios, percentages,
+per-share values and the separate USD conversion keep their existing units.
+
 ## Data and publication
 
 * NSBU workbook imports retain every physical sheet, row and cell in immutable

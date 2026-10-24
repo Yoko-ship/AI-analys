@@ -25,9 +25,9 @@ test("scope switch isolates tables and passport requests and remains usable when
   await page.getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.getByRole("button", { name: "Consolidated group", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Separate entity", exact: true }).click();
-  await expect(page.locator(".company-financials table")).toContainText("100,000");
-  await expect(page.locator(".company-financials table")).not.toContainText("500,000");
-  await page.getByRole("button", { name: "100,000", exact: true }).click();
+  await expect(page.locator(".company-financials table").getByRole('button', { name: '100', exact: true })).toBeVisible();
+  await expect(page.locator(".company-financials table").getByRole('button', { name: '500', exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "100", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("separate");
   await expect(page.getByRole("dialog")).toContainText("USD");
   await expect(page.getByRole("dialog")).toContainText("12920.48");
@@ -39,5 +39,5 @@ test("scope switch isolates tables and passport requests and remains usable when
   await expect(page.getByRole("button", { name: "Consolidated group", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Annual", exact: true }).click();
   await page.getByRole("button", { name: "Consolidated group", exact: true }).click();
-  await expect(page.locator(".company-financials table")).toContainText("500,000");
+  await expect(page.locator(".company-financials table").getByRole('button', { name: '500', exact: true })).toBeVisible();
 });

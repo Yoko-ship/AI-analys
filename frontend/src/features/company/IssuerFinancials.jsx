@@ -2,6 +2,7 @@ import React from "react";
 import { convertSeries, periodEnd } from "../../lib/terminalCurrency.js";
 import { CompanyFinancialsTab } from "./Financials.jsx";
 import { financialsUrl } from '../../lib/financialHistoryRequest.js';
+import { financialDisplaySeries } from '../../lib/financialDisplayScale.js';
 
 // The Финансы tab together with the data behind it. The company page and the
 // catalog terminal (PL / BS / RAT) both open it, so it owns its own requests:
@@ -134,7 +135,7 @@ function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStan
       standard={standard} onStandardChange={showContextControls ? setStandard : undefined}
       scope={scope || series?.scope}
       onScopeChange={showContextControls ? setScope : undefined}
-      series={convertSeries(series?.series || {}, fx, currency)}
+      series={financialDisplaySeries(convertSeries(series?.series || {}, fx, currency))}
       organizationType={series?.organization_type}
       currency={currency}
       periods={periods}
