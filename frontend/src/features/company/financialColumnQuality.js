@@ -1,4 +1,5 @@
 const REASONS = {
+  ANNUAL_INCOME_NOT_IMPORTED: ['Годовой отчёт о финансовых результатах отсутствует в загруженных источниках. Промежуточные суммы не заменяют годовые.', 'Yillik moliyaviy natijalar hisoboti yuklangan manbalarda yo‘q. Oraliq summalar yillik qiymat o‘rniga qo‘yilmaydi.', 'Annual income statement is not available in the imported sources. Interim amounts do not replace annual figures.'],
   NOTES_MISSING: ['Примечания отсутствуют или не проверены.', 'Izohlar yo‘q yoki tekshirilmagan.', 'Notes are missing or have not been verified.'],
   NO_IMPORTED_SOURCE_ROWS: ['Исходные строки ещё не импортированы.', 'Asl qatorlar hali import qilinmagan.', 'Original source rows have not been imported yet.'],
   LEGACY_PARTIAL_IMPORT: ['Ранее были загружены только основные показатели.', 'Oldin faqat asosiy ko‘rsatkichlar yuklangan.', 'The earlier import contains headline figures only.'],

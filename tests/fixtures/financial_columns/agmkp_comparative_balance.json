@@ -1,0 +1,258 @@
+[
+  {
+    "kind": "flow",
+    "mapping_issue": null,
+    "metric_id": "revenue",
+    "raw_cells": [
+      "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+      "010",
+      30502192671,
+      0,
+      31048339169,
+      0
+    ],
+    "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+    "row": 133,
+    "sheet": "Квартальный отчет АО рус",
+    "source_code": "010",
+    "source_form": "F2",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5218&lang=ru",
+    "unit": "UZS_thousand",
+    "quality": "valid",
+    "raw_value": [
+      31048339169,
+      0
+    ],
+    "value": "31048339169",
+    "standard": "NSBU",
+    "scope": "separate",
+    "issuer_id": "372",
+    "period_end": "2023-12-31",
+    "period_start": "2023-01-01",
+    "role": "PRIMARY",
+    "source_version": "37ba6399ad87e1b4f965269dcd843d0bbb419c22d9248b9cfbc5fed1c459d475",
+    "published_at": "2024-09-25T14:56:41",
+    "previous_version": null,
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "normalization": "raw × unit_scale / 1000",
+    "reason": null,
+    "aliases": [
+      "Чистая выручка от реализации продукции (товаров, работ и услуг)"
+    ],
+    "sources": [
+      {
+        "source_version": "37ba6399ad87e1b4f965269dcd843d0bbb419c22d9248b9cfbc5fed1c459d475",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5218&lang=ru",
+        "page": null,
+        "sheet": "Квартальный отчет АО рус",
+        "row": 133,
+        "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)"
+      }
+    ]
+  },
+  {
+    "kind": "flow",
+    "mapping_issue": null,
+    "metric_id": "revenue",
+    "raw_cells": [
+      "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+      "010",
+      21590580941,
+      0,
+      30187472907,
+      0
+    ],
+    "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+    "row": 133,
+    "sheet": "Квартальный отчет АО рус",
+    "source_code": "010",
+    "source_form": "F2",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+    "unit": "UZS_thousand",
+    "quality": "valid",
+    "raw_value": [
+      30187472907,
+      0
+    ],
+    "value": "30187472907",
+    "standard": "NSBU",
+    "scope": "separate",
+    "issuer_id": "372",
+    "period_end": "2026-06-30",
+    "period_start": "2026-01-01",
+    "role": "PRIMARY",
+    "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+    "published_at": "2026-07-31T10:49:30",
+    "previous_version": null,
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "normalization": "raw × unit_scale / 1000",
+    "reason": null,
+    "aliases": [
+      "Чистая выручка от реализации продукции (товаров, работ и услуг)"
+    ],
+    "sources": [
+      {
+        "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+        "page": null,
+        "sheet": "Квартальный отчет АО рус",
+        "row": 133,
+        "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)"
+      }
+    ]
+  },
+  {
+    "kind": "stock",
+    "mapping_issue": null,
+    "metric_id": "ppe",
+    "raw_cells": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)",
+      "012",
+      10261657450,
+      9254638003,
+      null,
+      null
+    ],
+    "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)",
+    "row": 40,
+    "sheet": "Квартальный отчет АО рус",
+    "source_code": "012",
+    "source_form": "F1",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5218&lang=ru",
+    "unit": "UZS_thousand",
+    "quality": "valid",
+    "raw_value": 9254638003,
+    "value": "9254638003",
+    "standard": "NSBU",
+    "scope": "separate",
+    "issuer_id": "372",
+    "period_end": "2023-12-31",
+    "period_start": "2023-12-31",
+    "role": "PRIMARY",
+    "source_version": "37ba6399ad87e1b4f965269dcd843d0bbb419c22d9248b9cfbc5fed1c459d475",
+    "published_at": "2024-09-25T14:56:41",
+    "previous_version": null,
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "normalization": "raw × unit_scale / 1000",
+    "reason": null,
+    "aliases": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)"
+    ],
+    "sources": [
+      {
+        "source_version": "37ba6399ad87e1b4f965269dcd843d0bbb419c22d9248b9cfbc5fed1c459d475",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5218&lang=ru",
+        "page": null,
+        "sheet": "Квартальный отчет АО рус",
+        "row": 40,
+        "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)"
+      }
+    ]
+  },
+  {
+    "kind": "stock",
+    "mapping_issue": null,
+    "metric_id": "ppe",
+    "raw_cells": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)",
+      "012",
+      13358866945,
+      12847404960,
+      null,
+      null
+    ],
+    "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)",
+    "row": 40,
+    "sheet": "Квартальный отчет АО рус",
+    "source_code": "012",
+    "source_form": "F1",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+    "unit": "UZS_thousand",
+    "quality": "valid",
+    "raw_value": 13358866945,
+    "value": "13358866945",
+    "standard": "NSBU",
+    "scope": "separate",
+    "issuer_id": "372",
+    "period_end": "2025-12-31",
+    "period_start": "2025-12-31",
+    "role": "COMPARATIVE",
+    "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+    "published_at": "2026-07-31T10:49:30",
+    "previous_version": null,
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "normalization": "raw × unit_scale / 1000",
+    "reason": null,
+    "aliases": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)"
+    ],
+    "sources": [
+      {
+        "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+        "page": null,
+        "sheet": "Квартальный отчет АО рус",
+        "row": 40,
+        "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)"
+      }
+    ]
+  },
+  {
+    "kind": "stock",
+    "mapping_issue": null,
+    "metric_id": "ppe",
+    "raw_cells": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)",
+      "012",
+      13358866945,
+      12847404960,
+      null,
+      null
+    ],
+    "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)",
+    "row": 40,
+    "sheet": "Квартальный отчет АО рус",
+    "source_code": "012",
+    "source_form": "F1",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+    "unit": "UZS_thousand",
+    "quality": "valid",
+    "raw_value": 12847404960,
+    "value": "12847404960",
+    "standard": "NSBU",
+    "scope": "separate",
+    "issuer_id": "372",
+    "period_end": "2026-06-30",
+    "period_start": "2026-06-30",
+    "role": "PRIMARY",
+    "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+    "published_at": "2026-07-31T10:49:30",
+    "previous_version": null,
+    "accounting_model": null,
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "normalization": "raw × unit_scale / 1000",
+    "reason": null,
+    "aliases": [
+      "Остаточная (балансовая) стоимость (стр. 010-011)"
+    ],
+    "sources": [
+      {
+        "source_version": "23862c22050d8122df4585b5d2e7dc2357869d364003836869f9e2bdce987b1a",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18760&lang=ru",
+        "page": null,
+        "sheet": "Квартальный отчет АО рус",
+        "row": 40,
+        "raw_label": "Остаточная (балансовая) стоимость (стр. 010-011)"
+      }
+    ]
+  }
+]

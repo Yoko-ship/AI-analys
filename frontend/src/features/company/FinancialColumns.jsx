@@ -3,6 +3,7 @@ import { words } from '../../shared/TerminalTables.jsx';
 import { safeHref } from '../../lib/safeHref.js';
 import { qualityReason } from './financialColumnQuality.js';
 import { financialGroup } from './financialColumnGroups.js';
+import { financialChartRows } from './financialColumnChart.js';
 import './financialColumns.css';
 
 const FORM_ORDER = ['F2', 'BANK_PL', 'INSURANCE_PL', 'PL', 'ASSETS', 'EQUITY', 'CF', 'DEBT', 'F1', 'BANK_BS', 'INSURANCE_BS', 'BS', 'Equity', 'Notes', 'DERIVED', 'RAT'];
@@ -73,7 +74,7 @@ function SourcePassport({ item, close, t, format }) {
 
 function HistoryChart({ rows, columns, format, t }) {
   const [selected, setSelected] = React.useState('');
-  const available = rows.filter(row => columns.some(c => row.cells[c.key]?.value != null && ['valid', 'warn'].includes(row.cells[c.key].quality)));
+  const available = financialChartRows(rows, columns);
   const row = available.find(r => r.id === selected) || available[0];
   if (!row) return <p className="fc-empty">{t('Нет проверенных значений для графика.', 'Grafik uchun tekshirilgan qiymatlar yo‘q.', 'No verified values to chart.')}</p>;
   const points = columns.map(c => ({ ...c, value: row.cells[c.key]?.value == null || !['valid', 'warn'].includes(row.cells[c.key]?.quality) ? null : Number(row.cells[c.key].value) }));
@@ -148,6 +149,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
     {current?.error && <div role="alert" className="fc-empty">{t('Не удалось загрузить отчётность.', 'Hisobotni yuklab bo‘lmadi.', 'Could not load financial statements.')} <button type="button" onClick={() => setRetry(n => n+1)}>{t('Повторить', 'Qayta urinish', 'Retry')}</button></div>}
     {data && <>
       <div className="fc-source-line">{standard === 'MSFO' ? 'IFRS' : 'NSBU'} · {scope} <Status value={data.coverage?.complete ? 'valid' : 'warn'} t={t}/>{!data.coverage?.complete && <span>{t('Частичное покрытие источников', 'Manbalar qisman mavjud', 'Partial source coverage')}</span>}</div>
+      {columns.filter(column => column.notice).map(column => <p key={column.key} className="fc-notice fc-period-notice"><strong>{column.label}:</strong> {qualityReason(column.notice, t)} {column.balance_source === 'comparative' && t('Баланс взят из сравнительной колонки более позднего отчёта.', 'Balans keyingi hisobotning taqqoslash ustunidan olingan.', 'Balance figures come from a comparative column in a later filing.')}</p>)}
       {standard === 'MSFO' && data.coverage?.notes !== 'present' && <p className="fc-notice">{t('Примечания отсутствуют или не проверены.', 'Izohlar yo‘q yoki tekshirilmagan.', 'Notes are missing or have not been verified.')}</p>}
       {!data.rows?.length && <p className="fc-empty">{t('Нет проверенных строк источника в этом периметре.', 'Ushbu qamrovda tekshirilgan manba qatorlari yo‘q.', 'No verified source rows in this accounting scope.')}</p>}
       {view === 'original' && data.presentation !== 'template' && <OriginalDocuments forms={data.source_forms || []} t={t}/>}

@@ -1,4 +1,23 @@
 from financial_columns import matrix, ratios
+import json
+from pathlib import Path
+
+
+def test_agmkp_comparative_balance_does_not_claim_an_annual_income_filing():
+    rows = json.loads(Path('tests/fixtures/financial_columns/agmkp_comparative_balance.json').read_text(encoding='utf-8'))
+    result = matrix.build(rows, mode='annual', recent=True)
+    column = next(c for c in result['columns'] if c['key'] == '2025')
+    assert column['notice'] == 'ANNUAL_INCOME_NOT_IMPORTED'
+    assert column['balance_source'] == 'comparative'
+    income = next(r for r in result['rows'] if r['metric_id'] == 'revenue')
+    assert income['cells']['2025']['value'] is None
+    assert income['cells']['2025']['reason'] == 'ANNUAL_INCOME_NOT_IMPORTED'
+    balance = next(r for r in result['rows'] if r['metric_id'] == 'ppe')
+    assert balance['cells']['2025']['value'] == '13358866945'
+    # A genuinely filed flow, including an explicit zero, removes the notice.
+    rows.append(observation('revenue', 0, '2025-12-31', 'flow', source_code='010'))
+    complete = matrix.build(rows, mode='annual', recent=True)
+    assert 'notice' not in next(c for c in complete['columns'] if c['key'] == '2025')
 
 
 def observation(metric, value, end, kind='stock', **extra):

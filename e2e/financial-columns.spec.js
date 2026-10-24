@@ -8,6 +8,49 @@ const hmkbFixture = JSON.parse(readFileSync('e2e/fixtures/hmkb-overview.json', '
 const hmkbLabels = JSON.parse(readFileSync('tests/fixtures/financial_columns/hmkb_overview_labels.json', 'utf8'));
 const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 
+test('HMKB chart includes the separate loan and lease values already shown in the table', async ({page}, testInfo) => {
+  await setup(page, {ticker:'HMKB', func:'SUM', reports:recentReports});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
+  const select=terminal.locator('.fc-chart select');
+  await expect(select.locator('option').filter({hasText:'Кредиты и лизинговые операции, брутто · 7а'})).toHaveCount(1);
+  await select.selectOption({label:'Кредиты и лизинговые операции, брутто · 7а'});
+  await expect(terminal.locator('.fc-chart svg rect')).toHaveCount(3);
+  await expect(terminal.locator('.fc-chart')).toContainText('30,361,825,389');
+  await select.selectOption({label:'Кредиты и лизинговые операции, брутто · 7б'});
+  await expect(terminal.locator('.fc-chart')).toContainText('1,056,352,067');
+  await expect(terminal.locator('.fc-chart')).not.toContainText('31,418,177,456');
+  await terminal.locator('.fc-chart').scrollIntoViewIfNeeded();
+  await page.screenshot({path:testInfo.outputPath('hmkb-component-chart.png')});
+  await page.setViewportSize({width:390,height:844});
+  await terminal.locator('.fc-chart').scrollIntoViewIfNeeded();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('hmkb-component-chart-mobile.png')});
+});
+
+test('annual income gaps explain why a comparative balance can still be populated', async ({page},testInfo) => {
+  const reports=structuredClone(recentReports);
+  reports.columns=[{key:'2023',label:'2023',end:'2023-12-31',basis:'annual'},
+    {key:'2025',label:'2025',end:'2025-12-31',basis:'annual',notice:'ANNUAL_INCOME_NOT_IMPORTED',balance_source:'comparative'},
+    {key:'2026-06-30',label:'2026 · 6M',end:'2026-06-30',basis:'ytd'}];
+  const observations=JSON.parse(readFileSync('tests/fixtures/financial_columns/agmkp_comparative_balance.json','utf8'));
+  reports.rows=['revenue','ppe'].map(metric=>{
+    const cells=observations.filter(c=>c.metric_id===metric), sample=cells[0];
+    return {id:metric,metric_id:metric,label:sample.raw_label,source_form:sample.source_form,source_code:sample.source_code,
+      cells:Object.fromEntries(reports.columns.map(c=>[c.key,cells.find(v=>v.period_end===c.end)||{value:null,quality:'missing'}]))};
+  });
+  reports.overview_rows=reports.rows;
+  await setup(page,{ticker:'AGMKP',func:'SUM',reports});
+  const terminal=page.getByTestId('financial-columns');
+  await expect(terminal.locator('.fc-period-notice')).toContainText('2025');
+  await expect(terminal.locator('.fc-period-notice')).toContainText('Annual income statement is not available');
+  await expect(terminal.locator('.fc-period-notice')).toContainText('comparative');
+  await expect(terminal.locator('tr[data-metric="revenue"] td').nth(1)).toHaveText('—');
+  await expect(terminal.locator('tr[data-metric="ppe"] td').nth(1)).toHaveText('13,358,866,945');
+  await terminal.locator('.fc-period-notice').scrollIntoViewIfNeeded();
+  await page.screenshot({path:testInfo.outputPath('agmkp-annual-income-notice.png')});
+});
+
 async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB', reports } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(() => {

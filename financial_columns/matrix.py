@@ -39,6 +39,16 @@ def build(observations, *, mode, recent=False):
         columns = [{'key': end, 'label': (end[:4] + ' Q' + str(int(end[5:7]) // 3)) if mode == 'quarter' else end,
                     'end': end, 'basis': 'quarter' if mode == 'quarter' else 'ytd'} for end in ends
                    if mode == 'quarter' or end[5:] in {'06-30', '09-30'}]
+    for column in columns:
+        if column['basis'] != 'annual':
+            continue
+        dated = [r for r in observations if r['period_end'] == column['end']]
+        stocks = [r for r in dated if r['kind'] == 'stock']
+        annual_flows = [r for r in dated if r['kind'] == 'flow' and r.get('period_start') == column['end'][:4] + '-01-01']
+        if stocks and not annual_flows:
+            column['notice'] = 'ANNUAL_INCOME_NOT_IMPORTED'
+            if all(r.get('role') == 'COMPARATIVE' for r in stocks):
+                column['balance_source'] = 'comparative'
     grouped = defaultdict(list)
     for row in observations:
         identity = (row['source_form'], row.get('source_code') or row.get('metric_id') or row['raw_label'])
@@ -61,6 +71,8 @@ def build(observations, *, mode, recent=False):
                 candidates = [r for r in items if r['period_end'] == end and
                               (stock or r.get('period_start') == end[:4] + '-01-01')]
                 value = choose(candidates)
+                if not candidates and not stock and column.get('notice'):
+                    value['reason'] = column['notice']
             cells[column['key']] = value
         rows.append({k: sample.get(k) for k in ('metric_id', 'source_form', 'source_code', 'kind', 'unit')} |
                     {'id': form + ':' + str(code), 'label': sample['raw_label'], 'cells': cells})
