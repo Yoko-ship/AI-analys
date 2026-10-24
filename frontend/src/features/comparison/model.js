@@ -78,7 +78,7 @@ export function comparisonCsv(state,language,data) {
     [comparisonText(language,'standard'),data.standard],
     [comparisonText(language,'scope'),comparisonText(language,data.scope)],
     [comparisonText(language,'unit'),comparisonText(language,state.unit)],
-    [comparisonText(language,'tableNote')],[],
+    [comparisonText(language,'exportNote')],[],
     [comparisonText(language,'metric'),...state.tickers],
     ...METRICS.map(metric=>[translatedLabel(metric.label,language),...state.tickers.map(ticker=>{
       const {value}=comparisonValue(ticker,metric.key,state,data);

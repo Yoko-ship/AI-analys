@@ -358,6 +358,133 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# One dividend, one record
+#
+# openinfo keys its calendar by FILING, and an issuer files the same decision
+# more than once: a plain re-submission (same decision, same amounts — Ammofos-
+# Maxam 772/833, Farg'onaazot 2244/2246) or a correction filed days later for
+# the same payout window with a new amount (ORFI 81 → 171: 1 355 then 215 сум
+# for the register of 31.05–29.07.2016; Beshariq 3 130 → 1 565). Stored per
+# filing, both read as two dividends: the history doubles and any trailing sum
+# counts the payout twice. The identity of a dividend is the issuer, the share
+# class and the decision — or, where a correction restates the window, the
+# window it pays in — never the filing id.
+# ---------------------------------------------------------------------------
+
+_DIV_CLASSES = ("ordinary", "preferred")
+
+
+def _day(value: Any) -> str | None:
+    text = str(value or "").strip()[:10]
+    return text if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text) else None
+
+
+def valid_decision_date(item: dict[str, Any]) -> str | None:
+    """The decision date, unless it cannot be true.
+
+    Decision dates are issuer-typed free text: DORI filed «2108-10-02», and ORFI
+    171 says it was decided on 28.07.2016 in a filing published on 01.07.2016. A
+    decision cannot postdate the filing that reports it.
+    """
+    decision, pub = _day(item.get("decision_date")), _day(item.get("pub_date"))
+    if decision and pub and decision > pub:
+        return None
+    return decision
+
+
+def _declared(item: dict[str, Any]) -> dict[str, float]:
+    out = {}
+    for cls in _DIV_CLASSES:
+        amount = item.get(f"{cls}_amount")
+        if isinstance(amount, (int, float)) and amount > 0:
+            out[cls] = float(amount)
+    return out
+
+
+def _filing_order(item: dict[str, Any]) -> tuple[str, int]:
+    fid = str(item.get("filing_id") or "")
+    return (str(item.get("pub_date") or ""), int(fid) if fid.isdigit() else -1)
+
+
+def collapse_refilings(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fold re-filed and corrected dividend filings into one record each.
+
+    ``items`` are normalised filings (:func:`normalize_row`). Two rules, both
+    within one issuer (``org_id``):
+
+    * **Re-submission** — the same valid decision date and the same amount for
+      every class: one dividend. The last-published filing is kept.
+    * **Correction** — no distinct valid decision, the same class paying in
+      the same window (start AND end),
+      the later filing published on a later day and no later than that window's
+      end: the later filing restates the earlier one for that class. A class the
+      correction restates is dropped from the earlier filing; a filing with no
+      class left is dropped.
+
+    Deliberately NOT collapsed, because the calendar alone cannot tell them from
+    two payouts: filings published the same day with different amounts
+    (DD General 30,34 and 347,21 on 28.06.2022), and a "correction" that
+    arrives after its window closed (Surxondaryodonmahsulotlari's 2022 decision
+    repeats the 2021 window). Quarterly payers (Kapitalbank, CLICK) decide
+    each payout separately and have different decisions and windows.
+
+    Returns ``(kept, dropped)``; ``dropped`` carries ``superseded_by``.
+    """
+    ordered = sorted(items, key=_filing_order)
+    dropped: dict[int, str] = {}
+    blanked: dict[int, set[str]] = {}
+
+    by_org: dict[str, list[int]] = {}
+    for i, item in enumerate(ordered):
+        org = str(item.get("org_id") or item.get("organization") or "")
+        if org and _declared(item):
+            by_org.setdefault(org, []).append(i)
+
+    for idx in by_org.values():
+        for pos, i in enumerate(idx):
+            early = ordered[i]
+            early_decl = _declared(early)
+            early_pub = _day(early.get("pub_date"))
+            for j in idx[pos + 1:]:
+                late = ordered[j]
+                late_decl = _declared(late)
+                decision = valid_decision_date(early)
+                late_decision = valid_decision_date(late)
+                if decision and decision == late_decision and early_decl == late_decl:
+                    dropped[i] = str(late.get("filing_id"))
+                    break
+                if decision and late_decision and decision != late_decision:
+                    continue
+                late_pub = _day(late.get("pub_date"))
+                if not (early_pub and late_pub and late_pub > early_pub):
+                    continue
+                for cls in early_decl:
+                    if cls not in late_decl:
+                        continue
+                    window = (_day(early.get(f"{cls}_start")), _day(early.get(f"{cls}_end")))
+                    if (None not in window
+                            and window == (_day(late.get(f"{cls}_start")), _day(late.get(f"{cls}_end")))
+                            and late_pub <= window[1]):
+                        blanked.setdefault(i, set()).add(cls)
+                if early_decl and set(early_decl) <= blanked.get(i, set()):
+                    dropped[i] = str(late.get("filing_id"))
+                    break
+
+    kept, gone = [], []
+    for i, item in enumerate(ordered):
+        if i in dropped:
+            gone.append({**item, "superseded_by": dropped[i]})
+            continue
+        if blanked.get(i):
+            item = dict(item)
+            for cls in blanked[i]:
+                for field in ("amount", "percent", "start", "end"):
+                    item[f"{cls}_{field}"] = None
+        kept.append(item)
+    return kept, gone
+
+
 def _name_index(universe: list[dict[str, Any]]) -> dict[str, set[str]]:
     """core-name key → the tickers known by that name."""
     index: dict[str, set[str]] = {}
@@ -401,11 +528,22 @@ def map_rows(
     # column is what claimed one of them.
     org_known = {t for tickers in by_org.values() for t in tickers}
 
-    out: dict[tuple[str, str], dict[str, Any]] = {}
+    raw_by_filing: dict[str, dict[str, Any]] = {}
+    items: list[dict[str, Any]] = []
     for raw in rows:
         item = normalize_row(raw)
-        if not item["filing_id"]:
-            continue
+        if item["filing_id"]:
+            raw_by_filing[item["filing_id"]] = raw
+            items.append(item)
+    items, superseded = collapse_refilings(items)
+    if superseded:
+        logger.info("dividends: %d re-filed or corrected filings folded into their successor: %s",
+                    len(superseded),
+                    ", ".join(f"{s['filing_id']}→{s['superseded_by']}" for s in superseded[:20]))
+
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in items:
+        raw = raw_by_filing[item["filing_id"]]
 
         matched_by = None
         targets: set[str] = set()
@@ -534,7 +672,29 @@ def read_snapshot(ticker: str) -> list[dict[str, Any]]:
         ).fetchall()
     finally:
         conn.close()
-    return [dict(row) for row in rows]
+    return _collapse_stored([dict(row) for row in rows])
+
+
+def _collapse_stored(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """:func:`collapse_refilings` over stored rows, one security at a time, in
+    the order given.
+
+    A snapshot written before the rule existed still holds both copies of a
+    re-filed dividend; reading through the rule fixes it on deploy rather than at
+    the next calendar refresh. Per security, because the store keeps one copy of
+    every filing per class of the issuer, and two classes' copies of one filing
+    are not a re-filing of each other.
+    """
+    by_ticker: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_ticker.setdefault(str(row.get("ticker") or ""), []).append(row)
+    survivors: dict[tuple[str, str], dict[str, Any]] = {}
+    for ticker, group in by_ticker.items():
+        kept, _ = collapse_refilings(group)
+        survivors.update({(ticker, str(r.get("filing_id"))): r for r in kept})
+    return [survivors[key] for key in
+            ((str(r.get("ticker") or ""), str(r.get("filing_id"))) for r in rows)
+            if key in survivors]
 
 
 def read_all(limit: int = 400) -> list[dict[str, Any]]:
@@ -562,8 +722,7 @@ def read_all(limit: int = 400) -> list[dict[str, Any]]:
         conn.close()
 
     by_filing: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        record = dict(row)
+    for record in _collapse_stored([dict(row) for row in rows]):
         filing_id = str(record.get("filing_id") or "")
         kept = by_filing.get(filing_id)
         if kept is None:

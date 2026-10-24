@@ -190,7 +190,8 @@ def announcement_detail(
 
     cache_key = (item_id, lang)
     now = time.time()
-    if session is None:
+    use_cache = session is None
+    if use_cache:
         with _DETAIL_CACHE_LOCK:
             cached = _detail_cache.get(cache_key)
         if cached and now - cached[0] < DETAIL_TTL_SECONDS:
@@ -221,7 +222,7 @@ def announcement_detail(
         raise AnnouncementSourceError(f"OpenInfo returned HTTP {response.status_code}") from exc
 
     payload = _announcement_page(response.text, item_id, lang)
-    if session is None:
+    if use_cache:
         with _DETAIL_CACHE_LOCK:
             _detail_cache[cache_key] = (now, payload)
     return payload

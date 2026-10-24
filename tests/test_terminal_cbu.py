@@ -7,6 +7,34 @@ from server.terminal import journal
 FIXTURE=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_202609.json').read_text())
 
 
+def test_bank_ranks_include_unlisted_banks_and_keep_missing_assets_unknown(monkeypatch):
+    dataset=cbu.parse_bank_rows(FIXTURE['main']['rows'],'main',FIXTURE['main']['source_url'])
+    monkeypatch.setattr(cbu,'latest',lambda kind:dataset if kind=='main' else None)
+    banks=cbu.context()['banks']
+    assert banks['AGBA']['main']['assets_rank']==2
+    assert banks['HMKB']['main']['assets_rank']==8
+    assert banks['HMKB']['main']['rank_population']==35
+    next(row for row in dataset['rows'] if row['ticker']=='HMKB')['assets_bn']=None
+    assert cbu.context()['banks']['HMKB']['main']['assets_rank'] is None
+
+
+def test_bank_history_keeps_observation_dates_units_and_gaps(tmp_path,monkeypatch):
+    from copy import deepcopy
+    monkeypatch.setenv('CBU_DATA_DB',str(tmp_path/'cbu.sqlite3'))
+    september=cbu.parse_bank_rows(FIXTURE['main']['rows'],'main',FIXTURE['main']['source_url'])
+    july=deepcopy(september)
+    july['date']='2026-07-01'
+    for row in july['rows']:row['date']='2026-07-01'
+    cbu.save('main',july['date'],july)
+    cbu.save('main',september['date'],september)
+    rows=cbu.monthly_bank_history('HMKB')
+    assert [row['date'] for row in rows]==['2026-07-01','2026-09-01']
+    assert rows[-1]['assets_bn']==pytest.approx(43114.828277036795)
+    assert rows[-1]['assets_rank']==8
+    assert rows[-1]['source_url']==september['source_url']
+    assert cbu.monthly_bank_history('NOT_A_BANK')==[]
+
+
 def test_all_seventeen_banks_match_official_september_npl():
     data=cbu.parse_bank_rows(FIXTURE['npl']['rows'],'npl',FIXTURE['npl']['source_url'])
     banks={r['ticker']:r for r in data['rows'] if r['ticker']}

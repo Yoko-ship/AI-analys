@@ -47,6 +47,14 @@ def test_what_diagnoses_a_failure_stays(line) -> None:
 
 
 def test_the_full_log_stays_on_the_server_and_only_a_tail_is_shown(tmp_path, monkeypatch, capsys) -> None:
+    opened_modes = []
+    original_open = ci_log.os.open
+
+    def private_open(path, flags, mode=0o777, **kwargs):
+        opened_modes.append(mode)
+        return original_open(path, flags, mode, **kwargs)
+
+    monkeypatch.setattr(ci_log.os, "open", private_open)
     monkeypatch.setattr(ci_log, "LOG_DIR", tmp_path)
     monkeypatch.setattr(sys, "stdin", io.StringIO("".join(f"line {i} reader@example.com\n" for i in range(10))))
     assert ci_log.main(["web-start", "3"]) == 0
@@ -54,7 +62,9 @@ def test_the_full_log_stays_on_the_server_and_only_a_tail_is_shown(tmp_path, mon
     assert "reader@example.com" not in shown and "line 9 [email]" in shown and "line 6" not in shown
     saved = list(tmp_path.glob("web-start-*.log"))
     assert len(saved) == 1 and "line 0 reader@example.com" in saved[0].read_text()
-    assert saved[0].stat().st_mode & 0o777 == 0o600
+    assert opened_modes == [0o600]
+    if sys.platform != "win32":  # Windows stat does not report POSIX permissions.
+        assert saved[0].stat().st_mode & 0o777 == 0o600
 
 
 def test_old_logs_are_pruned(tmp_path, monkeypatch) -> None:

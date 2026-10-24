@@ -70,3 +70,26 @@ def test_other_hosts_on_the_session_are_not_openinfo_requests(state, monkeypatch
         h.make_session().get("https://uzse.uz/isu_infos/STK?isu_cd=UZ7011340005")
     h._flush_count()
     assert not list(state.glob("openinfo-requests-*.json"))
+
+
+def test_parallel_collectors_do_not_lose_daily_counts(state):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = """
+import sys
+from pathlib import Path
+import openinfo_http as h
+h._state_dir = lambda: Path(sys.argv[1])
+for _ in range(10):
+    h._record(200, 'https://new-api.openinfo.uz/api/v2/organizations/538/reports/')
+    h._flush_count()
+"""
+    processes = [subprocess.Popen([sys.executable, '-c', script, str(state)],
+                                 cwd=Path(__file__).resolve().parent.parent)
+                 for _ in range(3)]
+    for process in processes:
+        assert process.wait(timeout=30) == 0
+    [counter] = state.glob('openinfo-requests-*.json')
+    assert json.loads(counter.read_text())['requests'] == 30

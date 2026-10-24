@@ -1,0 +1,93 @@
+/* The supplied terminal mockup: a compact issuer rail and readable data
+   cards. Scope the palette and density to the catalog, keeping light mode. */
+.catalog-layout.catalog-terminal-ui{gap:8px;padding:12px;font:12px 'IBM Plex Mono',monospace}
+.catalog-terminal-ui button,.catalog-terminal-ui input,.catalog-terminal-ui select{font-family:inherit}
+body[data-theme="dark"] .catalog-layout.catalog-terminal-ui{
+  --bg:#070910;--panel:#161a22;--bg-2:#12151c;--surface-2:#1b2029;--border:#232833;
+  --text:#e5edf5;--text-secondary:#bdc9d8;--muted:#96a7bc;--accent:#f0a020;--accent-hover:#ffb93f;
+  --accent-light:#352911;--positive:#3fbf6a;--negative:#e05252;--warning:#f0a020;--terminal-chart:#4bb8e8;
+  --catalog-accent:var(--accent);--catalog-accent-hover:var(--accent-hover);--catalog-accent-soft:var(--accent-light);
+  --catalog-surface:var(--bg-2);--catalog-surface-2:var(--surface-2);--catalog-border:var(--border);
+  --catalog-ink:var(--text);--catalog-muted:var(--muted);background:var(--bg);color:var(--text)
+}
+.catalog-terminal-ui .catalog-terminal-head{padding:0;align-items:center;gap:8px}
+.catalog-terminal-ui .catalog-terminal-head h1{font-size:16px;margin:0;line-height:1.4}
+.catalog-terminal-ui .catalog-terminal-head p{font-size:10px}
+.catalog-terminal-ui .catalog-terminal-head .catalog-eyebrow{display:none}
+.catalog-terminal-ui .terminal-market-nav{margin:0;gap:6px}
+.catalog-terminal-ui .terminal-market-nav button{padding:5px 9px;min-height:30px;font-size:11px;border-radius:3px}
+.catalog-terminal-ui .catalog-body{grid-template-columns:280px minmax(0,1fr);gap:16px}
+.catalog-terminal-ui .catalog-sidebar{padding:0 10px 0 0;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;min-width:0}
+.catalog-terminal-ui .catalog-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:0;border:0;border-radius:0;gap:6px}
+.catalog-terminal-ui .catalog-search-field{min-height:32px;padding:0 8px;border-radius:3px}
+.catalog-terminal-ui .catalog-toolbar .catalog-search-field{grid-column:1/-1}
+.catalog-terminal-ui .terminal-command-field{grid-column:auto}
+.catalog-terminal-ui .terminal-run{min-height:32px;border-radius:3px;font-size:11px;box-shadow:none}
+.catalog-terminal-ui .catalog-search-field input{font-size:11px}
+.catalog-terminal-ui .catalog-filter-control{min-width:0}
+.catalog-terminal-ui .catalog-filter-trigger{font-size:11px;min-height:32px;border-radius:3px;padding:6px 8px}
+.catalog-terminal-ui .catalog-toolbar-count{font-size:10px;white-space:normal}
+.catalog-terminal-ui .catalog-sidebar-head{font-size:10px;padding:8px 0}
+.catalog-terminal-ui .catalog-company-list{gap:0;max-height:calc(100vh - 310px);min-height:200px}
+.catalog-terminal-ui .catalog-company-item{grid-template-columns:minmax(0,1fr) auto;gap:6px;min-height:42px;padding:6px;border-radius:0;border-bottom:1px solid var(--border)}
+.catalog-terminal-ui .catalog-company-item>.chip-logo,.catalog-terminal-ui .catalog-company-item>.chip-logo-fallback{display:none}
+.catalog-terminal-ui .catalog-company-title{font-size:11px;font-weight:500;line-height:1.3}
+.catalog-terminal-ui .catalog-company-ticker{font-size:10px;color:var(--accent)}
+.catalog-terminal-ui .catalog-company-count{font-size:10px;min-width:22px;border-radius:2px}
+.catalog-terminal-ui .catalog-company-summary{padding:6px 0 10px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent}
+.catalog-terminal-ui .catalog-company-identity>.chip-logo,.catalog-terminal-ui .catalog-company-identity>.chip-logo-fallback{display:none}
+.catalog-terminal-ui .catalog-company-identity h2{font-size:15px;line-height:1.5;margin:0}
+.catalog-terminal-ui .catalog-company-identity p{color:var(--accent);font-size:11px;margin-top:3px}
+.catalog-terminal-ui .catalog-company-identity .catalog-eyebrow{font-size:10px;letter-spacing:0;text-transform:none;color:var(--muted)}
+.catalog-terminal-ui .catalog-company-header{grid-template-columns:minmax(0,1fr) auto;gap:12px}
+.catalog-terminal-ui .catalog-company-actions{display:flex;margin:0;width:auto}
+.catalog-terminal-ui .catalog-company-actions .ghost-btn{min-height:30px;padding:5px 8px;font-size:11px;border-radius:3px;flex:none}
+.catalog-terminal-ui .catalog-report-stats{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 0;border:0}
+.catalog-terminal-ui .catalog-report-stats>span{display:flex;flex-direction:row;align-items:baseline;gap:5px;padding:0;border:0}
+.catalog-terminal-ui .catalog-report-stats>span:first-child{display:none}
+.catalog-terminal-ui .catalog-report-stats small{font-size:9px;letter-spacing:0}
+.catalog-terminal-ui .catalog-report-stats strong{font-size:10px;font-weight:500}
+.catalog-terminal-ui .terminal-tabs-row{flex-wrap:wrap;gap:8px}
+.catalog-terminal-ui .terminal-tabs{flex-wrap:wrap;overflow:visible;gap:5px}
+.catalog-terminal-ui .terminal-tab{min-height:30px;padding:5px 7px;border-radius:3px;font-size:11px}
+.catalog-terminal-ui .terminal-tab kbd{font-size:10px}
+.catalog-terminal-ui .terminal-history{margin-left:auto}
+.catalog-terminal-ui .terminal-controls{gap:8px;margin:4px 0 10px}
+.catalog-terminal-ui .terminal-controls input,.catalog-terminal-ui .terminal-controls select{min-height:32px;padding:4px 8px;border-radius:3px}
+.catalog-terminal-ui .terminal-controls label{font-size:10px}
+.catalog-terminal-ui .terminal-table{width:100%;border-collapse:collapse;font-size:12px}
+.catalog-terminal-ui .terminal-table th,.catalog-terminal-ui .terminal-table td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;line-height:1.5}
+.catalog-terminal-ui .terminal-table th:first-child,.catalog-terminal-ui .terminal-table td:first-child{text-align:left}
+.catalog-terminal-ui .terminal-table thead th{font-weight:400;color:var(--muted);font-size:11px}
+.catalog-terminal-ui .terminal-table tbody th{font-weight:500}
+.catalog-terminal-ui .terminal-fv-table td:nth-child(2){text-align:left}
+.catalog-terminal-ui .terminal-csv{min-height:26px;padding:4px 8px;border-radius:3px;font-size:10px;margin-top:4px;color:var(--text);background:var(--surface-2);border:1px solid var(--border)}
+.catalog-terminal-ui .terminal-csv:hover{color:var(--text);background:var(--bg-2)}
+.catalog-terminal-ui .ghost-btn::before{content:none}
+.catalog-terminal-ui .terminal-warning{padding:8px 10px;font-size:12px}
+.catalog-terminal-ui .terminal-context{font-size:11px;margin:0 0 8px}
+.catalog-terminal-ui .terminal-context-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:16px;border-bottom:1px solid var(--border);padding:0 0 4px;margin:0 0 8px}
+.catalog-terminal-ui .terminal-context-tabs>div{display:flex;gap:4px;flex-wrap:wrap}
+.catalog-terminal-ui .terminal-context-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;min-height:34px;font-size:11px}
+.catalog-terminal-ui .terminal-context-tabs button.active{border-bottom-color:var(--accent);color:var(--text)}
+.catalog-terminal-ui .terminal-context-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.catalog-terminal-ui .fin-panel{border-radius:4px;background:var(--panel);border-color:var(--border);padding:12px}
+.catalog-terminal-ui .fin-picker-chip{border-radius:3px}
+@media(max-width:1000px){.catalog-terminal-ui .catalog-body{grid-template-columns:230px minmax(0,1fr)}}
+@media(max-width:860px){
+  .catalog-layout.catalog-terminal-ui{padding:10px}
+  .catalog-terminal-ui .catalog-body{grid-template-columns:minmax(0,1fr)}
+  .catalog-terminal-ui .catalog-sidebar{border-right:0;border-bottom:1px solid var(--border);padding:0 0 8px}
+  .catalog-terminal-ui .catalog-company-list{max-height:160px;min-height:0}
+  .catalog-terminal-ui .catalog-company-item{min-height:44px}
+  .catalog-terminal-ui .terminal-market-nav{display:flex}
+  .catalog-terminal-ui .terminal-market-nav button{width:auto;min-height:36px}
+}
+@media(max-width:600px){
+  .catalog-terminal-ui .catalog-terminal-head{flex-direction:row}
+  .catalog-terminal-ui .catalog-terminal-head h1{font-size:14px}
+  .catalog-terminal-ui .catalog-terminal-head p{max-width:240px}
+  .catalog-terminal-ui .catalog-search-field input,.catalog-terminal-ui .terminal-controls select,.catalog-terminal-ui .terminal-controls input{font-size:16px}
+  .catalog-terminal-ui .terminal-tab{min-height:40px}
+  .catalog-terminal-ui .terminal-history{margin-left:0}
+}

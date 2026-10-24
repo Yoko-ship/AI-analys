@@ -175,6 +175,7 @@ async def issuer(ticker, form="NSBU", scope="separate"):
     snap = {**analytics.snapshot(annual, kind=kind, market_cap=context.get("market_cap")), **context}
     payment = analytics.dividend(payments, context.get("price"))
     snap["dy"] = payment["dy"]
+    bank_history=await loop.run_in_executor(None,cbu.monthly_bank_history,ticker) if kind=='bank' and central['banks'].get(ticker) else []
     growth = []
     if snap["period"]:
         for field in ("net_profit", "total_equity", "total_assets"):
@@ -182,7 +183,7 @@ async def issuer(ticker, form="NSBU", scope="separate"):
                 growth.append({"field": field, **analytics.growth(analytics.values(annual, field), snap["period"], years, inflation=central.get("inflation"), fx=fx)})
     return {"ok": True, "ticker": ticker, "snapshot": snap, "growth": growth,
             "quarters": analytics.quarters(quarterly), "template": template, "deposit": central.get("deposit"), "dividend":payment,
-            "cbu": central["banks"].get(ticker, {}), "sector": central.get("sector", {}), "sector_series":central.get("sector_series", {}),
+            "cbu": central["banks"].get(ticker, {}), "cbu_history":bank_history, "sector": central.get("sector", {}), "sector_series":central.get("sector_series", {}),
             "macro_sources": {"inflation": cbu.INFLATION_URL, "fx": "https://cbu.uz/ru/arkhiv-kursov-valyut/"}}
 
 

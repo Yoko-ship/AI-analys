@@ -1,0 +1,45 @@
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+const report=JSON.parse(readFileSync(new URL('../tests/fixtures/sector_ui_report.json',import.meta.url),'utf8'));
+
+test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest gaps',async({page},testInfo)=>{
+  await page.setViewportSize({width:1440,height:1000});
+  await page.route('**/api/**',route=>{
+    const url=new URL(route.request().url()),path=url.pathname;
+    const json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
+    if(path==='/api/auth/me')return route.fulfill({status:401,body:'{}'});
+    if(path.endsWith('/ai-report'))return json(report);
+    if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker:'UZMK',company_name:'Узметкомбинат',sector:'manufacturing',total_count:24}]});
+    if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:'Узметкомбинат',availability:{NSBU:{annual:[{year:2025,quarter:0}],quarter:[]}}});
+    if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind:'industry',period:'2025',net_profit:1e9},growth:[],quarters:{rows:[]}});
+    if(path.endsWith('/financials'))return json({ok:true,standard:'NSBU',scope:'separate',periods:['2025','2023'],series:{net_revenue:{money:true,values:{2023:100e9,2025:120e9}},net_profit:{money:true,values:{2023:-5e9,2025:0}},total_assets:{money:true,values:{2023:200e9,2025:220e9}},total_equity:{money:true,values:{2023:50e9,2025:60e9}},total_liabilities:{money:true,values:{2023:150e9,2025:160e9}}}});
+    if(path==='/api/currency/rates')return json({ok:true,as_of:url.searchParams.get('as_of'),rates:[{ccy:'USD',per_unit:10000,effective_date:url.searchParams.get('as_of')}]});
+    return json({ok:true,items:[],rows:[],companies_synced:1,total_reports:24});
+  });
+  await page.goto('/catalog?t=UZMK&f=SUM&std=NSBU');
+  const sum=page.locator('.terminal-summary');
+  await expect(sum.locator('.terminal-summary-kpis > div')).toHaveCount(6);
+  await expect(sum.locator('.terminal-summary-kpis')).toContainText('315,89');
+  await expect(sum.locator('.terminal-summary-kpis')).toContainText('2026Q2');
+  await expect(sum.getByRole('heading',{name:'Вывод',exact:true})).toBeVisible();
+  await expect(sum.getByRole('heading',{name:'Риски и что смотреть',exact:true})).toBeVisible();
+  await expect(sum.getByText('Качество прибыли',{exact:true})).toBeVisible();
+  await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toBeVisible();
+  await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toBeVisible();
+  const axisBoxes=await sum.getByRole('img',{name:'Выручка и прибыль по годам'}).locator('text[x="52"]').evaluateAll(nodes=>nodes.map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom};}).sort((a,b)=>a.top-b.top));
+  expect(axisBoxes.every((box,i)=>i===0||box.top>=axisBoxes[i-1].bottom)).toBe(true);
+  await expect(sum).toContainText('2024');
+  await expect(sum.locator('.terminal-history-gap')).toContainText('2024');
+  await expect(page.locator('.catalog-selected-report')).toHaveCount(0);
+  await expect(page.locator('.catalog-report-section')).toHaveCount(0);
+  await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+  await page.screenshot({path:testInfo.outputPath('sum-desktop.png'),fullPage:true,animations:'disabled'});
+  await sum.getByLabel('Валюта истории').selectOption('USD');
+  await expect(sum.locator('.terminal-fx-rates')).toContainText('2025-12-31');
+  await sum.getByText('Таблица истории',{exact:true}).click();
+  await expect(sum.locator('.terminal-history-table')).toContainText('12');
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+  await page.screenshot({path:testInfo.outputPath('sum-mobile.png'),fullPage:true,animations:'disabled'});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});

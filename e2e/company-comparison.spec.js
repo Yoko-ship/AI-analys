@@ -53,6 +53,40 @@ test('homepage comparison displays backend figures without requesting analysis',
   expect(dataRequests).toEqual([]);
 });
 
+for (const locale of [
+  {language: 'ru', path: '/compare', market: 'Рынок', profit: 'Чистая прибыль', removed: ['Цена акции', 'Капитализация', 'Оборот за сессию']},
+  {language: 'uz', path: '/uz/compare', market: 'Bozor', profit: 'Sof foyda', removed: ['Aksiya narxi', 'Kapitallashuv', 'Sessiya aylanmasi']},
+  {language: 'en', path: '/compare', market: 'Market', profit: 'Net profit', removed: ['Share price', 'Market capitalization', 'Session turnover']},
+]) {
+  test(`comparison omits the market section with populated quotes (${locale.language})`, async ({page}, testInfo) => {
+    await page.addInitScript(language => localStorage.setItem('uz_stock_analyzer_language', language), locale.language);
+    await page.route('**/api/company-comparison?**', route => {
+      const response = responseFor(new URL(route.request().url()));
+      for (const company of response.companies) Object.assign(company.metrics, {
+        price: {value: 107.01, status: 'reported'},
+        market_cap: {value: 13880391000000, status: 'reported'},
+        turnover: {value: 48000000, status: 'reported'},
+        pe: {value: 8.14, status: 'calculated'},
+        pb: {value: 1.2, status: 'calculated'},
+      });
+      return route.fulfill({json: response});
+    });
+    await page.goto(locale.path);
+    const screen = page.getByTestId('company-comparison');
+    const table = screen.getByRole('table');
+    await expect(table.getByRole('rowheader', {name: locale.profit, exact: true})).toBeVisible();
+    await expect(table.getByRole('row').filter({has: page.getByRole('rowheader', {name: /P\/E/})})).toContainText(locale.language === 'en' ? '8.14' : '8,14');
+    for (const name of locale.removed) await expect(table.getByRole('rowheader', {name, exact: true})).toHaveCount(0);
+    await expect(screen.locator('.cc-categories').getByRole('button', {name: locale.market, exact: true})).toHaveCount(0);
+    await expect(table.locator('.cc-section')).toHaveCount(3);
+    await expect(table.getByRole('rowheader', {name: /P\/E/})).toBeVisible();
+    await expect(table.getByRole('rowheader', {name: /P\/B/})).toBeVisible();
+    await page.evaluate(() => {document.body.dataset.theme = document.documentElement.dataset.theme = 'dark';});
+    await screen.locator('.cc-table-wrap').evaluate(element => {element.scrollTop = element.scrollHeight;});
+    await page.screenshot({path: testInfo.outputPath(`comparison-financials-${locale.language}.png`), fullPage: true});
+  });
+}
+
 test('backend failure shows retry and never falls back to sample figures', async ({ page }) => {
   const requests = [];
   page.on('request', request => { if (request.url().includes('/api/')) requests.push(new URL(request.url()).pathname); });

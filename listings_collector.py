@@ -527,6 +527,30 @@ def _discover_org(session: Any, ticker: str, isin: str,
     return None
 
 
+def _pinned_isin_code(ticker: str, isin: str, rfb: dict[str, Any]) -> dict[str, Any]:
+    """The security line for a ticker whose ISIN is pinned.
+
+    A pin says the card cannot be trusted to NAME the issuer's securities
+    (DRBK's org carries Asia Insurance's AISK), not that it is wrong about a
+    security it lists under that very ISIN. Where it does list it, the card's
+    class code and count stand: the pin used to stamp every pinned line «01»,
+    so ORFIP — openinfo stock_type 02, 400 000 shares, which with ORFI's
+    2 867 124 015 make up the bank's 3 584 405 018 750 charter at a 1 250 par
+    exactly — was published as a second ORDINARY line with no count. The count
+    is the openinfo fallback the exchange's own still replaces, as on any row.
+    """
+    card = next((ic for ic in rfb.get("isin_codes") or []
+                 if str(ic.get("isu_cd") or "").strip().upper() == isin.upper()), None) or {}
+    return {
+        "ticker": ticker,
+        "isu_cd": isin,
+        "stock_type": str(card.get("stock_type") or "01"),
+        "listing_date": _LISTING_DATE_OVERRIDES.get(ticker) or card.get("listing_date"),
+        "list_shares": card.get("list_shares"),
+        "card_listed": bool(card),
+    }
+
+
 def collect_listing_rows() -> list[dict[str, Any]]:
     """One row per RFB-registered security across all catalogued issuers."""
     session = _make_session()
@@ -558,17 +582,17 @@ def collect_listing_rows() -> list[dict[str, Any]]:
             # DRBK and publish AISK under the wrong issuer. Build the row from the
             # exchange's authoritative security card instead.
             pinned_isin = ISIN_OVERRIDES.get(ticker)
-            isin_codes = ([{
-                "ticker": ticker,
-                "isu_cd": pinned_isin,
-                "stock_type": "01",
-                "listing_date": _LISTING_DATE_OVERRIDES.get(ticker),
-            }] if pinned_isin else (rfb.get("isin_codes") or []))
+            isin_codes = ([_pinned_isin_code(ticker, pinned_isin, rfb)]
+                          if pinned_isin else (rfb.get("isin_codes") or []))
+            # A card that lists the pinned ISIN itself is this issuer's card, and
+            # its charter judges the count like any other row's.
+            card_trusted = not pinned_isin or bool(isin_codes[0].get("card_listed"))
             # Every share class on the card, delisted ones included — together they
             # make up the charter capital the upsert holds the counts to.
-            equity_classes = len({str(ic.get("isu_cd") or "").strip().upper() for ic in isin_codes
+            equity_classes = len({str(ic.get("isu_cd") or "").strip().upper()
+                                  for ic in (rfb.get("isin_codes") or [] if card_trusted else isin_codes)
                                   if str(ic.get("isu_cd") or "").strip().upper().startswith("UZ7")})
-            if equity_classes and not pinned_isin and org_id not in filed_charter_cache:
+            if equity_classes and card_trusted and org_id not in filed_charter_cache:
                 filed_charter_cache[org_id] = _filed_charters(session, org_id)
             for ic in isin_codes:
                 tk = str(ic.get("ticker") or "").strip().upper()
@@ -653,13 +677,14 @@ def collect_listing_rows() -> list[dict[str, Any]]:
                     "volume": _num(last.get("trading_value")) if last else None,
                     "market_cap": (shares * price_for_cap) if (shares and price_for_cap) else None,
                     # Not stored: the upsert judges the count by them (market_store).
-                    # A pinned ISIN means this org's card is known to be wrong, so its
-                    # charter capital is another issuer's (DRBK's org carries AISK).
+                    # A pinned ISIN the card does not list means this org's card is
+                    # known to be wrong, so its charter capital may be another
+                    # issuer's (DRBK's org carries AISK).
                     "shares_source": shares_source,
-                    "charter_capital": None if pinned_isin else _num(rfb.get("ustav_capitalization")),
-                    "filed_charter_capital": None if pinned_isin else filed_charter_cache.get(org_id),
+                    "charter_capital": _num(rfb.get("ustav_capitalization")) if card_trusted else None,
+                    "filed_charter_capital": filed_charter_cache.get(org_id) if card_trusted else None,
                     # Not stored either: which classes are one issuer, for that check.
-                    "org_id": None if pinned_isin else org_id,
+                    "org_id": org_id if card_trusted else None,
                     "org_equity_classes": equity_classes,
                 })
 

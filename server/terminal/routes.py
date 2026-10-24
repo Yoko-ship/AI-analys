@@ -205,6 +205,23 @@ async def api_terminal_export(level: list[str] = Query(default=[]), event: str |
                              headers={"Content-Disposition": 'attachment; filename="terminal-journal.csv"'})
 
 
+@admin_router.get("/api/admin/terminal/valuations")
+async def api_terminal_valuations(form: Literal["NSBU", "MSFO"] = "NSBU",
+                                  scope: Literal["separate", "consolidated"] = "separate"):
+    """The screener's model comparison shares FV's calculation and access gate."""
+    from server.terminal import service, valuation, configuration
+    scope = scope if form == "MSFO" else "separate"
+    data = await service.screener(form, scope)
+    config = await _run(configuration.parameters)
+    rows = []
+    for base in data['rows']:
+        result = valuation.calculate(base, data['rows'], config['values'])
+        rows.append({key: result[key] for key in ('ticker', 'period', 'standard', 'scope')} |
+                    {'price_to_value_pct': result['summary']['price_to_value_pct'],
+                     'method_count': result['summary']['method_count']})
+    return {'ok': True, 'rows': rows, 'configuration': config, 'public_enabled': False}
+
+
 @admin_router.get("/api/admin/terminal/valuation/{ticker}")
 async def api_terminal_valuation(ticker: str, form: Literal["NSBU", "MSFO"] = "NSBU",
                                  scope: Literal["separate", "consolidated"] = "separate",

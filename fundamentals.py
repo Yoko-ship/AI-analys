@@ -339,6 +339,10 @@ def balance_snapshot(fin: dict[str, Any] | None,
     bal = (fin or {}).get("balance") or {}
     eq_end = _num(bal.get("equity_end"))
     as_end = _num(bal.get("assets_end"))
+    if as_end is not None and as_end <= 0:
+        # An unfilled balance must not replace the dated indicator fallback.
+        # OCBK's all-zero 9M form otherwise presents zero equity as a fact.
+        eq_end = as_end = None
     if eq_end is not None or as_end is not None:
         eq_start = _opening(bal.get("equity_start"), eq_end)
         as_start = _opening(bal.get("assets_start"), as_end)

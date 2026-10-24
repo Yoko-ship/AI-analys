@@ -1,0 +1,2848 @@
+{
+  "source_fixture": "sector_v22_filings.json",
+  "generator": "tests.test_financial_ratios._report; 2026-08-30 reporting date",
+  "reports": {
+    "HMKB": {
+      "status": "available",
+      "period": "2026Q2",
+      "issuer": {
+        "id": "8",
+        "ticker": "HMKB",
+        "name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+        "organization_type": "bank",
+        "sector": "bank"
+      },
+      "sector_template_code": "bank",
+      "verified_facts": [
+        {
+          "metric_code": "additional_capital",
+          "current": 77751387.0,
+          "value": 77751387.0,
+          "previous": 77751387.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "cash",
+          "current": 1806864457.0,
+          "value": 1806864457.0,
+          "previous": 1812525921.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "central_bank_balances",
+          "current": 629149813.0,
+          "value": 629149813.0,
+          "previous": 1054779915.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "credit_loss_provisions",
+          "current": 405384742.0,
+          "value": 405384742.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "customer_funds",
+          "current": 16821142146.0,
+          "value": 16821142146.0,
+          "previous": 14592061148.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "demand_deposits",
+          "current": 5558724579.0,
+          "value": 5558724579.0,
+          "previous": 4529330139.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "due_from_banks",
+          "current": 2323315834.0,
+          "value": 2323315834.0,
+          "previous": 3024023702.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "fee_expenses",
+          "current": 289921026.0,
+          "value": 289921026.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "fee_income",
+          "current": 677376796.0,
+          "value": 677376796.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "fx_expenses",
+          "current": 1215017046.0,
+          "value": 1215017046.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "fx_income",
+          "current": 1590498186.0,
+          "value": 1590498186.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "interest_expenses",
+          "current": 1520167682.0,
+          "value": 1520167682.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "interest_income",
+          "current": 2994355667.0,
+          "value": 2994355667.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "loan_portfolio",
+          "current": 29002998524.0,
+          "value": 29002998524.0,
+          "previous": 26378874646.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "loan_reserves",
+          "current": 479621382.0,
+          "value": 479621382.0,
+          "previous": 408469721.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "net_income",
+          "current": 969962031.0,
+          "value": 969962031.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "net_interest_income_after_provisions",
+          "current": 994645347.0,
+          "value": 994645347.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "net_interest_income_before_provisions",
+          "current": 1474187985.0,
+          "value": 1474187985.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "net_revenue_before_operating_expenses",
+          "current": 2296912825.0,
+          "value": 2296912825.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "noninterest_expenses",
+          "current": 1505607496.0,
+          "value": 1505607496.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "noninterest_income",
+          "current": 2807874974.0,
+          "value": 2807874974.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "operating_expenses",
+          "current": 1145753724.0,
+          "value": 1145753724.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "other_noninterest_income",
+          "current": 537449992.0,
+          "value": 537449992.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "profit_before_tax",
+          "current": 1151159101.0,
+          "value": 1151159101.0,
+          "previous": null,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "retained_earnings",
+          "current": 5491066932.0,
+          "value": 5491066932.0,
+          "previous": 4988755905.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "savings_deposits",
+          "current": 0.0,
+          "value": 0.0,
+          "previous": 0.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "share_capital",
+          "current": 646648980.0,
+          "value": 646648980.0,
+          "previous": 646648980.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "term_deposits",
+          "current": 11262417567.0,
+          "value": 11262417567.0,
+          "previous": 10062731009.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_assets",
+          "current": 41314813995.0,
+          "value": 41314813995.0,
+          "previous": 38615791939.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_equity",
+          "current": 7674671935.0,
+          "value": 7674671935.0,
+          "previous": 7172385698.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_liabilities",
+          "current": 33640142060.0,
+          "value": 33640142060.0,
+          "previous": 31443406241.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        }
+      ],
+      "ratios": [
+        {
+          "metric_code": "roa",
+          "value": 4.695468463768888,
+          "unit": "percent",
+          "annualised": true,
+          "name_ru": "Рентабельность активов (ROA)",
+          "name_en": "Return on assets (ROA)",
+          "name_uz": "Aktivlar rentabelligi (ROA)"
+        },
+        {
+          "metric_code": "roe",
+          "value": 25.27696399833148,
+          "unit": "percent",
+          "annualised": true,
+          "name_ru": "Рентабельность капитала (ROE)",
+          "name_en": "Return on equity (ROE)",
+          "name_uz": "Kapital rentabelligi (ROE)"
+        },
+        {
+          "metric_code": "equity_to_assets",
+          "value": 18.57607766533526,
+          "unit": "percent",
+          "name_ru": "Капитал к активам",
+          "name_en": "Equity to assets",
+          "name_uz": "Kapitalning aktivlarga nisbati"
+        },
+        {
+          "metric_code": "loans_to_deposits",
+          "value": 1.7241991222871151,
+          "unit": "ratio",
+          "name_ru": "Кредиты к средствам клиентов",
+          "name_en": "Loans to customer funds",
+          "name_uz": "Kreditlarning mijozlar mablag‘lariga nisbati"
+        },
+        {
+          "metric_code": "liquid_to_deposits",
+          "value": 28.293739287684158,
+          "unit": "percent",
+          "name_ru": "Ликвидные средства к средствам клиентов",
+          "name_en": "Liquid funds to customer funds",
+          "name_uz": "Likvid mablag‘larning mijozlar mablag‘lariga nisbati"
+        },
+        {
+          "metric_code": "loan_reserve_coverage",
+          "value": 1.653695846666037,
+          "unit": "percent",
+          "name_ru": "Резервы к кредитному портфелю",
+          "name_en": "Reserves to loans",
+          "name_uz": "Zaxiralarning kredit portfeliga nisbati"
+        },
+        {
+          "metric_code": "cost_to_income",
+          "value": 49.88233386698078,
+          "unit": "percent",
+          "name_ru": "Операционные расходы к доходу",
+          "name_en": "Cost to income",
+          "name_uz": "Operatsion xarajatlarning daromadga nisbati"
+        },
+        {
+          "metric_code": "provisions_to_net_interest_income",
+          "value": 27.498849951622688,
+          "unit": "percent",
+          "name_ru": "Отчисления в резервы к процентному доходу",
+          "name_en": "Provisions to net interest income",
+          "name_uz": "Zaxira ajratmalarining foiz daromadiga nisbati"
+        },
+        {
+          "metric_code": "nim",
+          "value": 7.1363651070940755,
+          "unit": "percent",
+          "name_ru": "Чистая процентная маржа / средние активы",
+          "name_en": "Net interest margin / average assets",
+          "name_uz": "Sof foiz marjasi / o‘rtacha aktivlar"
+        },
+        {
+          "metric_code": "cost_of_risk",
+          "value": 2.7954677973351196,
+          "unit": "percent",
+          "name_ru": "Стоимость риска",
+          "name_en": "Cost of risk",
+          "name_uz": "Xatar qiymati"
+        }
+      ],
+      "scope": "separate",
+      "headline": "Чистая прибыль за 2026Q2 — 970 млрд сум, а активы выросли на 7%.",
+      "verdict_line": "Вердикт: требует внимания — прибыль во многом валютная.",
+      "risks": [
+        {
+          "code": "profit_quality",
+          "category": "financial",
+          "title": "Качество прибыли",
+          "severity": "high",
+          "direction": "negative",
+          "metric_code": "fx_income",
+          "actual_value": 375481140.0,
+          "unit": "thousand UZS",
+          "threshold": "net_fx_share_of_pretax > 30%",
+          "comparison_value": null,
+          "comparison_change_pct": null,
+          "threshold_unit": "rule",
+          "threshold_type": "comparable_period_rule",
+          "comparison_period": "2025Q2",
+          "evidence_source_id": "filing:da3ca7ca6acb049751efb21d",
+          "source_line_ids": [
+            "income:Квартальный отчет Банк рус:row131",
+            "income:Квартальный отчет Банк рус:row124",
+            "income:Квартальный отчет Банк рус:row147"
+          ],
+          "source_url": "https://openinfo.uz/ru/reports/to_pdf30758/",
+          "consequence": "Снижает качество результата или запас финансовой устойчивости.",
+          "monitoring_trigger": "Следующий сопоставимый отчёт",
+          "confidence": "high"
+        }
+      ],
+      "sections": [
+        {
+          "id": "headline",
+          "number": "",
+          "title": null,
+          "style": "lead",
+          "text": "Чистая прибыль за 2026Q2 — 970 млрд сум, а активы выросли на 7%. Вердикт: требует внимания — прибыль во многом валютная.",
+          "blocks": [
+            {
+              "text": "Чистая прибыль за 2026Q2 — 970 млрд сум, а активы выросли на 7%."
+            },
+            {
+              "text": "Вердикт: требует внимания — прибыль во многом валютная.",
+              "style": "verdict"
+            }
+          ]
+        },
+        {
+          "id": "key_points",
+          "number": "01",
+          "title": "Главное",
+          "style": "list",
+          "text": "Активы выросли до 41,3 трлн сум, за счёт роста кредитного портфеля на 2,62 трлн сум. Кредитный портфель увеличился на 9,9% — до 29 трлн сум. Средства клиентов существенно прибавили 15% — до 16,8 трлн сум, за счёт роста срочных депозитов на 1,2 трлн сум. Средства в других банках значительно снизились на 23% — до 2,32 трлн сум. Собственный капитал вырос на 7% — до 7,67 трлн сум, за счёт роста нераспределённой прибыли на 502 млрд сум.",
+          "blocks": [
+            {
+              "text": "Активы выросли до 41,3 трлн сум, за счёт роста кредитного портфеля на 2,62 трлн сум."
+            },
+            {
+              "text": "Кредитный портфель увеличился на 9,9% — до 29 трлн сум."
+            },
+            {
+              "text": "Средства клиентов существенно прибавили 15% — до 16,8 трлн сум, за счёт роста срочных депозитов на 1,2 трлн сум."
+            },
+            {
+              "text": "Средства в других банках значительно снизились на 23% — до 2,32 трлн сум."
+            },
+            {
+              "text": "Собственный капитал вырос на 7% — до 7,67 трлн сум, за счёт роста нераспределённой прибыли на 502 млрд сум."
+            }
+          ]
+        },
+        {
+          "id": "results",
+          "number": "02",
+          "title": "Результаты",
+          "text": "Процентные доходы за период — 2,99 трлн сум. Процентные расходы за период — 1,52 трлн сум. Чистый процентный доход за период — 1,47 трлн сум. Непроцентные доходы за период — 2,81 трлн сум. Операционные расходы за период — 1,15 трлн сум. Отчисления в резервы за период — 405 млрд сум. Процентные расходы забирают около половины процентных доходов. Отчисления в резервы забирают около 27% чистого процентного дохода. Операционные расходы поглощают около половины чистого дохода банка.",
+          "blocks": [
+            {
+              "text": "Процентные доходы за период — 2,99 трлн сум. Процентные расходы за период — 1,52 трлн сум. Чистый процентный доход за период — 1,47 трлн сум. Непроцентные доходы за период — 2,81 трлн сум. Операционные расходы за период — 1,15 трлн сум. Отчисления в резервы за период — 405 млрд сум. Процентные расходы забирают около половины процентных доходов. Отчисления в резервы забирают около 27% чистого процентного дохода. Операционные расходы поглощают около половины чистого дохода банка."
+            }
+          ]
+        },
+        {
+          "id": "balance",
+          "number": "03",
+          "title": "Баланс",
+          "text": "Крупнейшая статья активов — кредитный портфель: большая часть активов. Доля средств в других банках снизилась с 7,8% до 5,6% активов. Средства клиентов формируют около половины всех обязательств; доля выросла с 46% до 50%. Крупнейшая часть средств клиентов — срочные депозиты: около двух третей.",
+          "blocks": [
+            {
+              "text": "Крупнейшая статья активов — кредитный портфель: большая часть активов. Доля средств в других банках снизилась с 7,8% до 5,6% активов."
+            },
+            {
+              "text": "Средства клиентов формируют около половины всех обязательств; доля выросла с 46% до 50%. Крупнейшая часть средств клиентов — срочные депозиты: около двух третей."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "04",
+          "title": "Устойчивость",
+          "text": "Собственный капитал составляет около пятой части активов. Кредитный портфель превышает средства клиентов в 1,7 раза. Денежные средства и остатки в ЦБ и других банках покрывают около 28% средств клиентов. Резервы по кредитам равны 1,7% кредитного портфеля. Обязательства выросли на 7% — до 33,6 трлн сум, за счёт роста средств клиентов на 2,23 трлн сум. Нераспределённая прибыль формирует большую часть собственного капитала. Кредитный портфель рос медленнее, чем средства клиентов.",
+          "blocks": [
+            {
+              "text": "Собственный капитал составляет около пятой части активов. Кредитный портфель превышает средства клиентов в 1,7 раза. Денежные средства и остатки в ЦБ и других банках покрывают около 28% средств клиентов. Резервы по кредитам равны 1,7% кредитного портфеля. Обязательства выросли на 7% — до 33,6 трлн сум, за счёт роста средств клиентов на 2,23 трлн сум. Нераспределённая прибыль формирует большую часть собственного капитала. Кредитный портфель рос медленнее, чем средства клиентов."
+            }
+          ]
+        },
+        {
+          "id": "risks",
+          "number": "05",
+          "title": "Риски и что смотреть дальше",
+          "text": "Чистый валютный доход — около трети прибыли до налога: результат во многом зависит от курса, смотреть, повторится ли он.",
+          "blocks": [
+            {
+              "text": "Чистый валютный доход — около трети прибыли до налога: результат во многом зависит от курса, смотреть, повторится ли он."
+            }
+          ]
+        },
+        {
+          "id": "footnote",
+          "number": "",
+          "title": null,
+          "style": "footnote",
+          "text": "Сравнение: баланс — с 1 января 2026 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
+          "blocks": [
+            {
+              "text": "Сравнение: баланс — с 1 января 2026 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Нормативы ЦБ по этим данным не рассчитываются.",
+              "style": "footnote"
+            }
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "document_id": "filing:da3ca7ca6acb049751efb21d",
+          "url": "https://openinfo.uz/ru/reports/to_pdf30758/",
+          "publication_date": "2026-07-13T15:36:07",
+          "provider": "openinfo/catalog"
+        }
+      ]
+    },
+    "UZAS": {
+      "status": "available",
+      "period": "2026Q2",
+      "issuer": {
+        "id": "669",
+        "ticker": "UZAS",
+        "name": "\"O'zagrosug'urta\" aksiyadorlik jamiyati",
+        "organization_type": "insurance",
+        "sector": "insurance"
+      },
+      "sector_template_code": "insurance",
+      "verified_facts": [
+        {
+          "metric_code": "cash",
+          "current": 2114946.6,
+          "value": 2114946.6,
+          "previous": 2398527.1,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "ceded_premiums",
+          "current": 6453693.6,
+          "value": 6453693.6,
+          "previous": 176489364.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "construction_in_progress",
+          "current": 245957.6,
+          "value": 245957.6,
+          "previous": 258562.6,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "expenses",
+          "current": 69033187.4,
+          "value": 69033187.4,
+          "previous": 67740483.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "financial_expenses",
+          "current": 2617313.1,
+          "value": 2617313.1,
+          "previous": 1298244.6,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "financial_income",
+          "current": 8742661.2,
+          "value": 8742661.2,
+          "previous": 7552513.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "fixed_assets",
+          "current": 73904784.1,
+          "value": 73904784.1,
+          "previous": 75795239.8,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "fx_expenses",
+          "current": 2598244.7,
+          "value": 2598244.7,
+          "previous": 1229233.8,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "fx_income",
+          "current": 2706301.8,
+          "value": 2706301.8,
+          "previous": 558447.5,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "gross_insurance_reserves",
+          "current": 261035521.4,
+          "value": 261035521.4,
+          "previous": 328904506.2,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "insurance_premiums",
+          "current": 94587125.9,
+          "value": 94587125.9,
+          "previous": 224014641.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "insurance_service_cost",
+          "current": 50911399.2,
+          "value": 50911399.2,
+          "previous": 31554881.2,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "insurance_service_result",
+          "current": 60980509.3,
+          "value": 60980509.3,
+          "previous": 44241937.6,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "long_term_investments",
+          "current": 92649946.2,
+          "value": 92649946.2,
+          "previous": 94665084.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "net_income",
+          "current": 294295.9,
+          "value": 294295.9,
+          "previous": 3501207.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "net_insurance_reserves",
+          "current": 104525700.3,
+          "value": 104525700.3,
+          "previous": 128284176.5,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "operating_income",
+          "current": -5547703.4,
+          "value": -5547703.4,
+          "previous": -1876050.2,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "other_liabilities",
+          "current": 80360618.0,
+          "value": 80360618.0,
+          "previous": 87985108.0,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "profit_before_tax",
+          "current": 577644.7,
+          "value": 577644.7,
+          "previous": 4378218.9,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "receivables",
+          "current": 102520033.5,
+          "value": 102520033.5,
+          "previous": 126315901.1,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "reinsurer_share_in_reserves",
+          "current": 156509821.1,
+          "value": 156509821.1,
+          "previous": 200620329.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "revenue",
+          "current": 111891908.5,
+          "value": 111891908.5,
+          "previous": 75796818.8,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "previous"
+        },
+        {
+          "metric_code": "short_term_investments",
+          "current": 56790000.0,
+          "value": 56790000.0,
+          "previous": 59478954.1,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_assets",
+          "current": 332548245.7,
+          "value": 332548245.7,
+          "previous": 363687892.7,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_equity",
+          "current": 147661927.4,
+          "value": 147661927.4,
+          "previous": 147418608.2,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        },
+        {
+          "metric_code": "total_liabilities",
+          "current": 184886318.3,
+          "value": 184886318.3,
+          "previous": 216269284.5,
+          "unit": "thousand UZS",
+          "period": "2026Q2",
+          "verification_status": "verified",
+          "comparison_basis": "opening"
+        }
+      ],
+      "ratios": [
+        {
+          "metric_code": "roa",
+          "value": 0.1690782099741693,
+          "unit": "percent",
+          "annualised": true,
+          "name_ru": "Рентабельность активов (ROA)",
+          "name_en": "Return on assets (ROA)",
+          "name_uz": "Aktivlar rentabelligi (ROA)"
+        },
+        {
+          "metric_code": "roe",
+          "value": 0.398936377693087,
+          "unit": "percent",
+          "annualised": true,
+          "name_ru": "Рентабельность капитала (ROE)",
+          "name_en": "Return on equity (ROE)",
+          "name_uz": "Kapital rentabelligi (ROE)"
+        },
+        {
+          "metric_code": "equity_to_assets",
+          "value": 44.40315933382174,
+          "unit": "percent",
+          "name_ru": "Капитал к активам",
+          "name_en": "Equity to assets",
+          "name_uz": "Kapitalning aktivlarga nisbati"
+        },
+        {
+          "metric_code": "reinsurer_share_of_reserves",
+          "value": 59.957288671134854,
+          "unit": "percent",
+          "name_ru": "Доля перестраховщиков в резервах",
+          "name_en": "Reinsurers’ share of reserves",
+          "name_uz": "Qayta sug‘urtalovchilarning zaxiralardagi ulushi"
+        },
+        {
+          "metric_code": "insurance_reserves_to_liabilities",
+          "value": 56.535119126767746,
+          "unit": "percent",
+          "name_ru": "Страховые резервы в обязательствах",
+          "name_en": "Insurance reserves to liabilities",
+          "name_uz": "Majburiyatlardagi sug‘urta zaxiralari"
+        },
+        {
+          "metric_code": "premium_growth",
+          "value": -57.77636431361645,
+          "unit": "percent",
+          "name_ru": "Рост начисленных премий",
+          "name_en": "Written premium growth",
+          "name_uz": "Hisoblangan mukofotlar o‘sishi"
+        },
+        {
+          "metric_code": "retention",
+          "value": 93.17698519899736,
+          "unit": "percent",
+          "name_ru": "Удержание премий",
+          "name_en": "Premium retention",
+          "name_uz": "Mukofotlarni saqlash"
+        },
+        {
+          "metric_code": "loss_ratio",
+          "value": 45.50051910143261,
+          "unit": "percent",
+          "name_ru": "Убыточность",
+          "name_en": "Loss ratio",
+          "name_uz": "Zararlilik"
+        },
+        {
+          "metric_code": "expense_ratio",
+          "value": 61.69631774580018,
+          "unit": "percent",
+          "name_ru": "Доля расходов",
+          "name_en": "Expense ratio",
+          "name_uz": "Xarajatlar ulushi"
+        },
+        {
+          "metric_code": "combined_ratio",
+          "value": 107.19683684723279,
+          "unit": "percent",
+          "name_ru": "Комбинированный коэффициент",
+          "name_en": "Combined ratio",
+          "name_uz": "Kombinatsiyalangan koeffitsient"
+        },
+        {
+          "metric_code": "investment_to_premiums",
+          "value": 7.813488318505176,
+          "unit": "percent",
+          "name_ru": "Инвестдоход / премии",
+          "name_en": "Investment income / premiums",
+          "name_uz": "Investitsiya daromadi / mukofotlar"
+        },
+        {
+          "metric_code": "net_reserves_to_equity",
+          "value": 0.7078717049172149,
+          "unit": "ratio",
+          "name_ru": "Резервы нетто / капитал",
+          "name_en": "Net reserves / equity",
+          "name_uz": "Sof zaxiralar / kapital"
+        }
+      ],
+      "scope": "separate",
+      "headline": "Страховые премии сократились в 2,4 раза, и чистая прибыль снизилась с 3,5 до 0,29 млрд сум.",
+      "verdict_line": "Вердикт: требует внимания — прибыль упала более чем на пятую часть.",
+      "risks": [
+        {
+          "code": "net_income_decline",
+          "category": "financial",
+          "title": "Чистая прибыль (убыток) — ухудшение",
+          "severity": "high",
+          "direction": "negative",
+          "metric_code": "net_income",
+          "actual_value": 294295.9,
+          "unit": "thousand UZS",
+          "threshold": -20,
+          "comparison_value": 3501207.7,
+          "comparison_change_pct": -91.59444611069489,
+          "threshold_unit": "percent",
+          "threshold_type": "comparable_period_rule",
+          "comparison_period": "2025Q2",
+          "evidence_source_id": "filing:1d802cdb2f270246fbc27c61",
+          "source_line_ids": [
+            "insurance:income:c320"
+          ],
+          "source_url": "https://openinfo.uz/ru/reports/to_pdf30959/",
+          "consequence": "Снижает качество результата или запас финансовой устойчивости.",
+          "monitoring_trigger": "Следующий сопоставимый отчёт",
+          "confidence": "high"
+        },
+        {
+          "code": "operating_income_decline",
+          "category": "financial",
+          "title": "Прибыль основной деятельности — ухудшение",
+          "severity": "medium",
+          "direction": "negative",
+          "metric_code": "operating_income",
+          "actual_value": -5547703.4,
+          "unit": "thousand UZS",
+          "threshold": -20,
+          "comparison_value": -1876050.2,
+          "comparison_change_pct": -195.71188446876315,
+          "threshold_unit": "percent",
+          "threshold_type": "comparable_period_rule",
+          "comparison_period": "2025Q2",
+          "evidence_source_id": "filing:1d802cdb2f270246fbc27c61",
+          "source_line_ids": [
+            "insurance:income:c150"
+          ],
+          "source_url": "https://openinfo.uz/ru/reports/to_pdf30959/",
+          "consequence": "Снижает качество результата или запас финансовой устойчивости.",
+          "monitoring_trigger": "Следующий сопоставимый отчёт",
+          "confidence": "high"
+        }
+      ],
+      "sections": [
+        {
+          "id": "headline",
+          "number": "",
+          "title": null,
+          "style": "lead",
+          "text": "Страховые премии сократились в 2,4 раза, и чистая прибыль снизилась с 3,5 до 0,29 млрд сум. Вердикт: требует внимания — прибыль упала более чем на пятую часть.",
+          "blocks": [
+            {
+              "text": "Страховые премии сократились в 2,4 раза, и чистая прибыль снизилась с 3,5 до 0,29 млрд сум."
+            },
+            {
+              "text": "Вердикт: требует внимания — прибыль упала более чем на пятую часть.",
+              "style": "verdict"
+            }
+          ]
+        },
+        {
+          "id": "key_points",
+          "number": "01",
+          "title": "Главное",
+          "style": "list",
+          "text": "Страховые премии снизились до 94,6 млрд сум. Чистая выручка от страховых услуг значительно выросла на 48% — до 112 млрд сум. Активы сократились на 8,6% — до 333 млрд сум, за счёт снижения дебиторской задолженности на 23,8 млрд сум. Дебиторская задолженность существенно уменьшилась на 19% — до 103 млрд сум. Операционный убыток вырос с 1,88 до 5,55 млрд сум.",
+          "blocks": [
+            {
+              "text": "Страховые премии снизились до 94,6 млрд сум."
+            },
+            {
+              "text": "Чистая выручка от страховых услуг значительно выросла на 48% — до 112 млрд сум."
+            },
+            {
+              "text": "Активы сократились на 8,6% — до 333 млрд сум, за счёт снижения дебиторской задолженности на 23,8 млрд сум."
+            },
+            {
+              "text": "Дебиторская задолженность существенно уменьшилась на 19% — до 103 млрд сум."
+            },
+            {
+              "text": "Операционный убыток вырос с 1,88 до 5,55 млрд сум."
+            }
+          ]
+        },
+        {
+          "id": "results",
+          "number": "02",
+          "title": "Результаты",
+          "text": "Расходы на страховые услуги резко выросли на 61% — до 50,9 млрд сум. Результат от страховых услуг заметно увеличился на 38% — до 61 млрд сум. Финансовые доходы существенно прибавили 16% — до 8,74 млрд сум. Финансовые расходы выросли с 1,3 до 2,62 млрд сум. Расходы на страховые услуги росли быстрее, чем чистая выручка от страховых услуг. Перестраховщикам уходит небольшая доля (6,8%) премий. Между операционным убытком 5,55 млрд сум и чистой прибылью 294 млн сум стоят финансовые доходы — 8,74 млрд сум, финансовые расходы — 2,62 млрд сум.",
+          "blocks": [
+            {
+              "text": "Расходы на страховые услуги резко выросли на 61% — до 50,9 млрд сум. Результат от страховых услуг заметно увеличился на 38% — до 61 млрд сум. Финансовые доходы существенно прибавили 16% — до 8,74 млрд сум. Финансовые расходы выросли с 1,3 до 2,62 млрд сум. Расходы на страховые услуги росли быстрее, чем чистая выручка от страховых услуг. Перестраховщикам уходит небольшая доля (6,8%) премий. Между операционным убытком 5,55 млрд сум и чистой прибылью 294 млн сум стоят финансовые доходы — 8,74 млрд сум, финансовые расходы — 2,62 млрд сум."
+            }
+          ]
+        },
+        {
+          "id": "balance",
+          "number": "03",
+          "title": "Баланс",
+          "text": "Доля дебиторской задолженности снизилась с 35% до 31% активов. Долгосрочные инвестиции составляют около 28% активов. На долю основных средств приходится около 22% активов.",
+          "blocks": [
+            {
+              "text": "Доля дебиторской задолженности снизилась с 35% до 31% активов. Долгосрочные инвестиции составляют около 28% активов. На долю основных средств приходится около 22% активов."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "04",
+          "title": "Устойчивость",
+          "text": "Собственный капитал составляет более трети активов; доля выросла с 41% до 44%. На перестраховщиков приходится более половины страховых резервов. Чистые страховые резервы формируют более половины обязательств. Обязательства снизились на 15% — до 185 млрд сум, за счёт снижения чистых страховых резервов на 23,8 млрд сум. Собственный капитал остался практически неизменным — 148 млрд сум.",
+          "blocks": [
+            {
+              "text": "Собственный капитал составляет более трети активов; доля выросла с 41% до 44%. На перестраховщиков приходится более половины страховых резервов. Чистые страховые резервы формируют более половины обязательств. Обязательства снизились на 15% — до 185 млрд сум, за счёт снижения чистых страховых резервов на 23,8 млрд сум. Собственный капитал остался практически неизменным — 148 млрд сум."
+            }
+          ]
+        },
+        {
+          "id": "risks",
+          "number": "05",
+          "title": "Риски и что смотреть дальше",
+          "text": "Основная деятельность убыточна: смотреть, покроет ли маржа расходы в следующем квартале. Чистая прибыль упала более чем на пятую часть: проверить, повторится ли спад в следующем периоде.",
+          "blocks": [
+            {
+              "text": "Основная деятельность убыточна: смотреть, покроет ли маржа расходы в следующем квартале. Чистая прибыль упала более чем на пятую часть: проверить, повторится ли спад в следующем периоде."
+            }
+          ]
+        },
+        {
+          "id": "footnote",
+          "number": "",
+          "title": null,
+          "style": "footnote",
+          "text": "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
+          "blocks": [
+            {
+              "text": "Сравнение: баланс — с 1 января 2026 года; результаты — с тем же периодом 2025 года. НСБУ, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности.",
+              "style": "footnote"
+            }
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "document_id": "filing:1d802cdb2f270246fbc27c61",
+          "url": "https://openinfo.uz/ru/reports/to_pdf30959/",
+          "publication_date": "2026-07-27T10:53:58",
+          "provider": "openinfo/catalog"
+        }
+      ]
+    },
+    "UZNF": {
+      "status": "available",
+      "period": "2025",
+      "issuer": {
+        "id": "UZNF",
+        "ticker": "UZNF",
+        "name": "National Fund",
+        "organization_type": "investment_fund_ifrs_annual",
+        "sector": "investment_fund_ifrs_annual"
+      },
+      "sector_template_code": "investment_fund_ifrs_annual",
+      "verified_facts": [
+        {
+          "id": "3dd99609f3e4e9f256d94063",
+          "issuer_id": "UZNF",
+          "metric": "accounts_payable",
+          "metric_code": "accounts_payable",
+          "label": "Кредиторская задолженность",
+          "raw": 206144000.0,
+          "value_raw": "206144",
+          "value": 206144000.0,
+          "value_normalized": "206144000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:other_payables",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 206144000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "2300e14c9830cf073361405f",
+          "issuer_id": "UZNF",
+          "metric": "cash",
+          "metric_code": "cash",
+          "label": "Деньги",
+          "raw": 32730000.0,
+          "value_raw": "32730",
+          "value": 32730000.0,
+          "value_normalized": "32730000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:cash_and_cash_equivalents",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 32730000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "b9b19ed7151aa42dddf4e3dc",
+          "issuer_id": "UZNF",
+          "metric": "dividend_income",
+          "metric_code": "dividend_income",
+          "label": "Дивидендный доход",
+          "raw": 171535000.0,
+          "value_raw": "171535",
+          "value": 171535000.0,
+          "value_normalized": "171535000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p8:gross_dividend_income",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "previous",
+          "current": 171535000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "daa3a925527ec84e720f39d0",
+          "issuer_id": "UZNF",
+          "metric": "dividends_receivable",
+          "metric_code": "dividends_receivable",
+          "label": "Дивиденды к получению",
+          "raw": 128374000.0,
+          "value_raw": "128374",
+          "value": 128374000.0,
+          "value_normalized": "128374000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:dividends_receivable",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 128374000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "86fa955d27881fed422ad1d5",
+          "issuer_id": "UZNF",
+          "metric": "largest_holding",
+          "metric_code": "largest_holding",
+          "label": "Крупнейшая позиция",
+          "raw": 4853513000.0,
+          "value_raw": "4853513",
+          "value": 4853513000.0,
+          "value_normalized": "4853513000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p61:note12:Uzbekistan_Airways",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 4853513000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "608ebe5abb457b10d75fe028",
+          "issuer_id": "UZNF",
+          "metric": "level3_investments",
+          "metric_code": "level3_investments",
+          "label": "Инвестиции Level 3",
+          "raw": 30120689000.0,
+          "value_raw": "30120689",
+          "value": 30120689000.0,
+          "value_normalized": "30120689000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:note5:fair_value_hierarchy",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 30120689000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "728cfe89c1f933376e33df75",
+          "issuer_id": "UZNF",
+          "metric": "management_expenses",
+          "metric_code": "management_expenses",
+          "label": "Расходы управляющего",
+          "raw": 175353000.0,
+          "value_raw": "175353",
+          "value": 175353000.0,
+          "value_normalized": "175353000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:note8:management_fees",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "previous",
+          "current": 175353000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "1f4eaa4e50ebfa4c9ed7bdbc",
+          "issuer_id": "UZNF",
+          "metric": "net_income",
+          "metric_code": "net_income",
+          "label": "Чистая прибыль (убыток)",
+          "raw": 1403150000.0,
+          "value_raw": "1403150",
+          "value": 1403150000.0,
+          "value_normalized": "1403150000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p8:profit_for_period",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "previous",
+          "current": 1403150000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "edaf9080ded64a03bddab418",
+          "issuer_id": "UZNF",
+          "metric": "portfolio_fair_value",
+          "metric_code": "portfolio_fair_value",
+          "label": "Стоимость портфеля",
+          "raw": 30120689000.0,
+          "value_raw": "30120689",
+          "value": 30120689000.0,
+          "value_normalized": "30120689000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p61:note12:total_equity_investments",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 30120689000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "1c88959303c4e0825164e7bf",
+          "issuer_id": "UZNF",
+          "metric": "tax",
+          "metric_code": "tax",
+          "label": "Налог",
+          "raw": 227435000.0,
+          "value_raw": "227435",
+          "value": 227435000.0,
+          "value_normalized": "227435000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p8:income_tax_expense",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "previous",
+          "current": 227435000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "34f4ce26dc6e313d78a35eec",
+          "issuer_id": "UZNF",
+          "metric": "top5_holdings",
+          "metric_code": "top5_holdings",
+          "label": "Пять крупнейших позиций",
+          "raw": 20551141000.0,
+          "value_raw": "20551141",
+          "value": 20551141000.0,
+          "value_normalized": "20551141000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p61:note12:sum_top5",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 20551141000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "6a539c31a199908668f405b7",
+          "issuer_id": "UZNF",
+          "metric": "total_assets",
+          "metric_code": "total_assets",
+          "label": "Активы",
+          "raw": 30286541000.0,
+          "value_raw": "30286541",
+          "value": 30286541000.0,
+          "value_normalized": "30286541000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:total_assets",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 30286541000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "489c28ccca05b8fa7c167cc7",
+          "issuer_id": "UZNF",
+          "metric": "total_equity",
+          "metric_code": "total_equity",
+          "label": "Капитал",
+          "raw": 29861539000.0,
+          "value_raw": "29861539",
+          "value": 29861539000.0,
+          "value_normalized": "29861539000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:total_equity",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 29861539000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "ea9d81df862e0618e32c6911",
+          "issuer_id": "UZNF",
+          "metric": "total_liabilities",
+          "metric_code": "total_liabilities",
+          "label": "Обязательства",
+          "raw": 425002000.0,
+          "value_raw": "425002",
+          "value": 425002000.0,
+          "value_normalized": "425002000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p9:total_liabilities",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "opening",
+          "current": 425002000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        },
+        {
+          "id": "81d8ea77668558d7763de3aa",
+          "issuer_id": "UZNF",
+          "metric": "unrealized_fair_value_gain",
+          "metric_code": "unrealized_fair_value_gain",
+          "label": "Нереализованная переоценка",
+          "raw": 1662300000.0,
+          "value_raw": "1662300",
+          "value": 1662300000.0,
+          "value_normalized": "1662300000",
+          "unit": "thousand UZS",
+          "unit_raw": "million UZS",
+          "unit_normalized": "thousand UZS",
+          "currency": "UZS",
+          "multiplier": 1.0,
+          "period": "2025",
+          "period_start": "2024-12-24",
+          "period_end": "2025-12-31",
+          "period_kind": "annual_first_reporting_period",
+          "accounting_standard": "IFRS",
+          "consolidation_scope": "separate",
+          "source": {
+            "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+            "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+            "publication_date": "2026-03-30"
+          },
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_id": "PDF:p8:net_unrealized_gain",
+          "source_document_hash": null,
+          "source_published_at": "2026-03-30",
+          "source_received_at": null,
+          "source_location": {},
+          "source_original_line": null,
+          "mapping_rule_version": "nsbu-lines-2.3",
+          "parser_version": "catalog",
+          "verification_status": "verified",
+          "confidence": "high",
+          "comparison_basis": "previous",
+          "current": 1662300000.0,
+          "previous": null,
+          "change_value": null,
+          "change_pct": null,
+          "base_effect": false,
+          "sign_change": false,
+          "previous_date": null,
+          "conversion_rule": "million UZS * 1000 = thousand UZS"
+        }
+      ],
+      "ratios": [],
+      "scope": "separate",
+      "headline": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум.",
+      "verdict_line": "Вердикт: требует внимания — прибыль во многом из переоценки.",
+      "risks": [
+        {
+          "code": "profit_quality",
+          "category": "financial",
+          "title": "Качество прибыли",
+          "severity": "high",
+          "direction": "negative",
+          "metric_code": "unrealized_fair_value_gain",
+          "actual_value": 1662300000.0,
+          "unit": "thousand UZS",
+          "threshold": "share_of_net_income >= 50%",
+          "comparison_value": null,
+          "comparison_change_pct": null,
+          "threshold_unit": "rule",
+          "threshold_type": "comparable_period_rule",
+          "comparison_period": null,
+          "evidence_source_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "source_line_ids": [
+            "PDF:p8:net_unrealized_gain",
+            "PDF:p8:profit_for_period"
+          ],
+          "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "consequence": "Снижает качество результата или запас финансовой устойчивости.",
+          "monitoring_trigger": "Следующий сопоставимый отчёт",
+          "confidence": "high"
+        }
+      ],
+      "sections": [
+        {
+          "id": "headline",
+          "number": "",
+          "title": null,
+          "style": "lead",
+          "text": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум. Вердикт: требует внимания — прибыль во многом из переоценки.",
+          "blocks": [
+            {
+              "text": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум."
+            },
+            {
+              "text": "Вердикт: требует внимания — прибыль во многом из переоценки.",
+              "style": "verdict"
+            }
+          ]
+        },
+        {
+          "id": "key_points",
+          "number": "01",
+          "title": "Главное",
+          "style": "list",
+          "text": "Крупнейшая статья активов — инвестиционный портфель: подавляющая часть активов. Собственный капитал составляет подавляющую часть активов.",
+          "blocks": [
+            {
+              "text": "Крупнейшая статья активов — инвестиционный портфель: подавляющая часть активов."
+            },
+            {
+              "text": "Собственный капитал составляет подавляющую часть активов."
+            }
+          ]
+        },
+        {
+          "id": "results",
+          "number": "02",
+          "title": "Результаты",
+          "text": "Нереализованная переоценка за период — 1,66 трлн сум. Расходы управляющего за период — 175 млрд сум.",
+          "blocks": [
+            {
+              "text": "Нереализованная переоценка за период — 1,66 трлн сум. Расходы управляющего за период — 175 млрд сум."
+            }
+          ]
+        },
+        {
+          "id": "balance",
+          "number": "03",
+          "title": "Баланс",
+          "text": "Кредиторская задолженность формирует почти половину всех обязательств.",
+          "blocks": [
+            {
+              "text": "Кредиторская задолженность формирует почти половину всех обязательств."
+            }
+          ]
+        },
+        {
+          "id": "strength",
+          "number": "04",
+          "title": "Устойчивость",
+          "text": "Чистые активы фонда (NAV) — 29,9 трлн сум. Крупнейшая позиция составляет около 16% портфеля. Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля. Пять крупнейших позиций формируют около двух третей портфеля. Обязательства составляют менее 5% активов фонда. После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — −769 млрд сум, отчётный NAV не изменён.",
+          "blocks": [
+            {
+              "text": "Чистые активы фонда (NAV) — 29,9 трлн сум. Крупнейшая позиция составляет около 16% портфеля. Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля. Пять крупнейших позиций формируют около двух третей портфеля. Обязательства составляют менее 5% активов фонда. После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — −769 млрд сум, отчётный NAV не изменён."
+            }
+          ]
+        },
+        {
+          "id": "risks",
+          "number": "05",
+          "title": "Риски и что смотреть дальше",
+          "text": "Прибыль во многом сформирована нереализованной переоценкой, а не основной деятельностью: смотреть, повторится ли этот эффект.",
+          "blocks": [
+            {
+              "text": "Прибыль во многом сформирована нереализованной переоценкой, а не основной деятельностью: смотреть, повторится ли этот эффект."
+            }
+          ]
+        },
+        {
+          "id": "footnote",
+          "number": "",
+          "title": null,
+          "style": "footnote",
+          "text": "Сопоставимого периода в отчётах эмитента нет; текст — срез на отчётную дату. МСФО, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Цена/NAV не рассчитывается до сверки количества и номинала акций.",
+          "blocks": [
+            {
+              "text": "Сопоставимого периода в отчётах эмитента нет; текст — срез на отчётную дату. МСФО, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Цена/NAV не рассчитывается до сверки количества и номинала акций.",
+              "style": "footnote"
+            }
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "document_id": "UZNF-audited-IFRS-2025",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        }
+      ],
+      "nav": {
+        "value_mln_uzs": 29861539.0,
+        "per_exchange_share_uzs": null
+      },
+      "valuation": {
+        "price_to_nav": null,
+        "premium_to_nav_pct": null,
+        "blocked_reason": "SHARE_BASIS_NOT_RECONCILED"
+      },
+      "portfolio": {
+        "portfolio_to_assets_pct": 99.45239041988981,
+        "level_3_share_pct": 100.0,
+        "top_1_pct": 16.11355238255008,
+        "top_5_pct": 68.22931905707735
+      },
+      "market_as_of": null
+    }
+  },
+  "fund_verified_share_basis": {
+    "status": "available",
+    "period": "2025",
+    "issuer": {
+      "id": "UZNF",
+      "ticker": "UZNF",
+      "name": "National Fund",
+      "organization_type": "investment_fund_ifrs_annual",
+      "sector": "investment_fund_ifrs_annual"
+    },
+    "sector_template_code": "investment_fund_ifrs_annual",
+    "verified_facts": [
+      {
+        "id": "3dd99609f3e4e9f256d94063",
+        "issuer_id": "UZNF",
+        "metric": "accounts_payable",
+        "metric_code": "accounts_payable",
+        "label": "Кредиторская задолженность",
+        "raw": 206144000.0,
+        "value_raw": "206144",
+        "value": 206144000.0,
+        "value_normalized": "206144000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:other_payables",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 206144000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "2300e14c9830cf073361405f",
+        "issuer_id": "UZNF",
+        "metric": "cash",
+        "metric_code": "cash",
+        "label": "Деньги",
+        "raw": 32730000.0,
+        "value_raw": "32730",
+        "value": 32730000.0,
+        "value_normalized": "32730000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:cash_and_cash_equivalents",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 32730000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "b9b19ed7151aa42dddf4e3dc",
+        "issuer_id": "UZNF",
+        "metric": "dividend_income",
+        "metric_code": "dividend_income",
+        "label": "Дивидендный доход",
+        "raw": 171535000.0,
+        "value_raw": "171535",
+        "value": 171535000.0,
+        "value_normalized": "171535000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p8:gross_dividend_income",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "previous",
+        "current": 171535000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "daa3a925527ec84e720f39d0",
+        "issuer_id": "UZNF",
+        "metric": "dividends_receivable",
+        "metric_code": "dividends_receivable",
+        "label": "Дивиденды к получению",
+        "raw": 128374000.0,
+        "value_raw": "128374",
+        "value": 128374000.0,
+        "value_normalized": "128374000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:dividends_receivable",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 128374000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "86fa955d27881fed422ad1d5",
+        "issuer_id": "UZNF",
+        "metric": "largest_holding",
+        "metric_code": "largest_holding",
+        "label": "Крупнейшая позиция",
+        "raw": 4853513000.0,
+        "value_raw": "4853513",
+        "value": 4853513000.0,
+        "value_normalized": "4853513000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p61:note12:Uzbekistan_Airways",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 4853513000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "608ebe5abb457b10d75fe028",
+        "issuer_id": "UZNF",
+        "metric": "level3_investments",
+        "metric_code": "level3_investments",
+        "label": "Инвестиции Level 3",
+        "raw": 30120689000.0,
+        "value_raw": "30120689",
+        "value": 30120689000.0,
+        "value_normalized": "30120689000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:note5:fair_value_hierarchy",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 30120689000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "728cfe89c1f933376e33df75",
+        "issuer_id": "UZNF",
+        "metric": "management_expenses",
+        "metric_code": "management_expenses",
+        "label": "Расходы управляющего",
+        "raw": 175353000.0,
+        "value_raw": "175353",
+        "value": 175353000.0,
+        "value_normalized": "175353000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:note8:management_fees",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "previous",
+        "current": 175353000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "1f4eaa4e50ebfa4c9ed7bdbc",
+        "issuer_id": "UZNF",
+        "metric": "net_income",
+        "metric_code": "net_income",
+        "label": "Чистая прибыль (убыток)",
+        "raw": 1403150000.0,
+        "value_raw": "1403150",
+        "value": 1403150000.0,
+        "value_normalized": "1403150000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p8:profit_for_period",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "previous",
+        "current": 1403150000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "edaf9080ded64a03bddab418",
+        "issuer_id": "UZNF",
+        "metric": "portfolio_fair_value",
+        "metric_code": "portfolio_fair_value",
+        "label": "Стоимость портфеля",
+        "raw": 30120689000.0,
+        "value_raw": "30120689",
+        "value": 30120689000.0,
+        "value_normalized": "30120689000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p61:note12:total_equity_investments",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 30120689000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "1c88959303c4e0825164e7bf",
+        "issuer_id": "UZNF",
+        "metric": "tax",
+        "metric_code": "tax",
+        "label": "Налог",
+        "raw": 227435000.0,
+        "value_raw": "227435",
+        "value": 227435000.0,
+        "value_normalized": "227435000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p8:income_tax_expense",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "previous",
+        "current": 227435000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "34f4ce26dc6e313d78a35eec",
+        "issuer_id": "UZNF",
+        "metric": "top5_holdings",
+        "metric_code": "top5_holdings",
+        "label": "Пять крупнейших позиций",
+        "raw": 20551141000.0,
+        "value_raw": "20551141",
+        "value": 20551141000.0,
+        "value_normalized": "20551141000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p61:note12:sum_top5",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 20551141000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "6a539c31a199908668f405b7",
+        "issuer_id": "UZNF",
+        "metric": "total_assets",
+        "metric_code": "total_assets",
+        "label": "Активы",
+        "raw": 30286541000.0,
+        "value_raw": "30286541",
+        "value": 30286541000.0,
+        "value_normalized": "30286541000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:total_assets",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 30286541000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "489c28ccca05b8fa7c167cc7",
+        "issuer_id": "UZNF",
+        "metric": "total_equity",
+        "metric_code": "total_equity",
+        "label": "Капитал",
+        "raw": 29861539000.0,
+        "value_raw": "29861539",
+        "value": 29861539000.0,
+        "value_normalized": "29861539000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:total_equity",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 29861539000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "ea9d81df862e0618e32c6911",
+        "issuer_id": "UZNF",
+        "metric": "total_liabilities",
+        "metric_code": "total_liabilities",
+        "label": "Обязательства",
+        "raw": 425002000.0,
+        "value_raw": "425002",
+        "value": 425002000.0,
+        "value_normalized": "425002000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p9:total_liabilities",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "opening",
+        "current": 425002000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      },
+      {
+        "id": "81d8ea77668558d7763de3aa",
+        "issuer_id": "UZNF",
+        "metric": "unrealized_fair_value_gain",
+        "metric_code": "unrealized_fair_value_gain",
+        "label": "Нереализованная переоценка",
+        "raw": 1662300000.0,
+        "value_raw": "1662300",
+        "value": 1662300000.0,
+        "value_normalized": "1662300000",
+        "unit": "thousand UZS",
+        "unit_raw": "million UZS",
+        "unit_normalized": "thousand UZS",
+        "currency": "UZS",
+        "multiplier": 1.0,
+        "period": "2025",
+        "period_start": "2024-12-24",
+        "period_end": "2025-12-31",
+        "period_kind": "annual_first_reporting_period",
+        "accounting_standard": "IFRS",
+        "consolidation_scope": "separate",
+        "source": {
+          "document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+          "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+          "publication_date": "2026-03-30"
+        },
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "source_document_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_id": "PDF:p8:net_unrealized_gain",
+        "source_document_hash": null,
+        "source_published_at": "2026-03-30",
+        "source_received_at": null,
+        "source_location": {},
+        "source_original_line": null,
+        "mapping_rule_version": "nsbu-lines-2.3",
+        "parser_version": "catalog",
+        "verification_status": "verified",
+        "confidence": "high",
+        "comparison_basis": "previous",
+        "current": 1662300000.0,
+        "previous": null,
+        "change_value": null,
+        "change_pct": null,
+        "base_effect": false,
+        "sign_change": false,
+        "previous_date": null,
+        "conversion_rule": "million UZS * 1000 = thousand UZS"
+      }
+    ],
+    "ratios": [],
+    "scope": "separate",
+    "headline": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум.",
+    "verdict_line": "Вердикт: требует внимания — прибыль во многом из переоценки.",
+    "risks": [
+      {
+        "code": "profit_quality",
+        "category": "financial",
+        "title": "Качество прибыли",
+        "severity": "high",
+        "direction": "negative",
+        "metric_code": "unrealized_fair_value_gain",
+        "actual_value": 1662300000.0,
+        "unit": "thousand UZS",
+        "threshold": "share_of_net_income >= 50%",
+        "comparison_value": null,
+        "comparison_change_pct": null,
+        "threshold_unit": "rule",
+        "threshold_type": "comparable_period_rule",
+        "comparison_period": null,
+        "evidence_source_id": "filing:6b8ca461a39cd0e2eb6e4361",
+        "source_line_ids": [
+          "PDF:p8:net_unrealized_gain",
+          "PDF:p8:profit_for_period"
+        ],
+        "source_url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "consequence": "Снижает качество результата или запас финансовой устойчивости.",
+        "monitoring_trigger": "Следующий сопоставимый отчёт",
+        "confidence": "high"
+      }
+    ],
+    "sections": [
+      {
+        "id": "headline",
+        "number": "",
+        "title": null,
+        "style": "lead",
+        "text": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум. Вердикт: требует внимания — прибыль во многом из переоценки.",
+        "blocks": [
+          {
+            "text": "За 2025: чистая прибыль — 1,4 трлн сум, дивидендный доход — 172 млрд сум."
+          },
+          {
+            "text": "Вердикт: требует внимания — прибыль во многом из переоценки.",
+            "style": "verdict"
+          }
+        ]
+      },
+      {
+        "id": "key_points",
+        "number": "01",
+        "title": "Главное",
+        "style": "list",
+        "text": "Крупнейшая статья активов — инвестиционный портфель: подавляющая часть активов. Собственный капитал составляет подавляющую часть активов.",
+        "blocks": [
+          {
+            "text": "Крупнейшая статья активов — инвестиционный портфель: подавляющая часть активов."
+          },
+          {
+            "text": "Собственный капитал составляет подавляющую часть активов."
+          }
+        ]
+      },
+      {
+        "id": "results",
+        "number": "02",
+        "title": "Результаты",
+        "text": "Нереализованная переоценка за период — 1,66 трлн сум. Расходы управляющего за период — 175 млрд сум.",
+        "blocks": [
+          {
+            "text": "Нереализованная переоценка за период — 1,66 трлн сум. Расходы управляющего за период — 175 млрд сум."
+          }
+        ]
+      },
+      {
+        "id": "balance",
+        "number": "03",
+        "title": "Баланс",
+        "text": "Кредиторская задолженность формирует почти половину всех обязательств.",
+        "blocks": [
+          {
+            "text": "Кредиторская задолженность формирует почти половину всех обязательств."
+          }
+        ]
+      },
+      {
+        "id": "strength",
+        "number": "04",
+        "title": "Устойчивость",
+        "text": "Чистые активы фонда (NAV) — 29,9 трлн сум. Крупнейшая позиция составляет около 16% портфеля. Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля. Пять крупнейших позиций формируют около двух третей портфеля. Обязательства составляют менее 5% активов фонда. После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — −769 млрд сум, отчётный NAV не изменён.",
+        "blocks": [
+          {
+            "text": "Чистые активы фонда (NAV) — 29,9 трлн сум. Крупнейшая позиция составляет около 16% портфеля. Инвестиции уровня 3, оцениваемые по моделям, составляют подавляющую часть портфеля. Пять крупнейших позиций формируют около двух третей портфеля. Обязательства составляют менее 5% активов фонда. После отчётной даты фонд обменял часть портфеля: оценочный эффект на NAV — −769 млрд сум, отчётный NAV не изменён."
+          }
+        ]
+      },
+      {
+        "id": "risks",
+        "number": "05",
+        "title": "Риски и что смотреть дальше",
+        "text": "Прибыль во многом сформирована нереализованной переоценкой, а не основной деятельностью: смотреть, повторится ли этот эффект.",
+        "blocks": [
+          {
+            "text": "Прибыль во многом сформирована нереализованной переоценкой, а не основной деятельностью: смотреть, повторится ли этот эффект."
+          }
+        ]
+      },
+      {
+        "id": "footnote",
+        "number": "",
+        "title": null,
+        "style": "footnote",
+        "text": "Сопоставимого периода в отчётах эмитента нет; текст — срез на отчётную дату. МСФО, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Цена/NAV не рассчитывается до сверки количества и номинала акций.",
+        "blocks": [
+          {
+            "text": "Сопоставимого периода в отчётах эмитента нет; текст — срез на отчётную дату. МСФО, отдельная отчётность. Причины изменений можно подтвердить только примечаниями к отчётности. Цена/NAV не рассчитывается до сверки количества и номинала акций.",
+            "style": "footnote"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "document_id": "UZNF-audited-IFRS-2025",
+        "url": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf",
+        "publication_date": "2026-03-30"
+      }
+    ],
+    "nav": {
+      "value_mln_uzs": 29861539.0,
+      "per_exchange_share_uzs": 5.908189140571111
+    },
+    "valuation": {
+      "price_to_nav": 1.1424820430422977,
+      "premium_to_nav_pct": 14.248204304229766,
+      "blocked_reason": null,
+      "financial_as_of": "2025-12-31",
+      "market_as_of": "2026-08-28"
+    },
+    "portfolio": {
+      "portfolio_to_assets_pct": 99.45239041988981,
+      "level_3_share_pct": 100.0,
+      "top_1_pct": 16.11355238255008,
+      "top_5_pct": 68.22931905707735
+    },
+    "market_as_of": "2026-08-28"
+  },
+  "fund_source": "fund_analysis.audited_snapshot: audited UZNF 2025. Verified-share variant uses the existing test_sector_contract_v22 reconciliation inputs."
+}

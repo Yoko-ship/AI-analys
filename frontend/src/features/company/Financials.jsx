@@ -1,6 +1,7 @@
 import { safeHref } from "../../lib/safeHref.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import { nearestPointIndex } from "../../lib/geometry.js";
+import { continuousPoints } from "../../lib/financialHistory.js";
 import React from "react";
 import { formatCompactVolume } from "../../shared/marketModel.jsx";
 import { formatRatio } from "../../shared/format.jsx";
@@ -9,6 +10,8 @@ import { createPortal } from "react-dom";
 import { TermInfo } from "../../shared/TermInfo.jsx";
 import { dividendSummary } from "./keyStats.jsx";
 import { formatChangePercent } from "../../shared/format.jsx";
+
+const seriesLabel = (field, series, lang) => series?.[field]?.[`label_${lang}`] || finLabel(field, lang);
 
 // The Финансы tab, on the reference page's shape: sub-tabs across the statement,
 // a multi-series chart of the section's headline lines, then a table with one
@@ -193,13 +196,13 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
           <text key={`l${i}`} x={PAD.l - 8} y={y(min + f * span) + 3.5} textAnchor="end"
             fontSize="10" fill="currentColor" opacity="0.5">{axis(min + f * span)}</text>
         ))}
-        {drawn.map((d) => {
-          const pts = cols.map((c, i) => ({ i, v: d.s.values[c] })).filter((pt) => Number.isFinite(pt.v));
-          if (pts.length < 2) return null;
-          const path = pts.map((pt, k) => `${k ? "L" : "M"}${x(pt.i).toFixed(1)},${y(pt.v).toFixed(1)}`).join(" ");
-          return <path key={d.f} d={path} fill="none" stroke={d.color} strokeWidth="2"
+        {drawn.flatMap((d) => continuousPoints(d.s.values, cols).map((points, index) => {
+          const key = `${d.f}:${index}`;
+          if (points.length === 1) return <circle key={key} cx={x(points[0].index)} cy={y(points[0].value)} r="3" fill={d.color}/>;
+          const path = points.map((point, i) => `${i ? "L" : "M"}${x(point.index).toFixed(1)},${y(point.value).toFixed(1)}`).join(" ");
+          return <path key={key} d={path} fill="none" stroke={d.color} strokeWidth="2"
             strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
-        })}
+        }))}
         {cols.map((c, i) => {
           // A quarterly series can put 15+ columns here; labels every ~60px at
           // most, the ends always named.
@@ -236,7 +239,7 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
             const v = d.s.values[cols[hover]];
             return (
               <div className="cpc-tt-row" key={d.f}>
-                <span><i className="fin-tt-dot" style={{ background: d.color }} />{finLabel(d.f, lang)}</span>
+                <span><i className="fin-tt-dot" style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}</span>
                 <b>{!Number.isFinite(v) ? "—"
                   : d.s.money ? formatCompactVolume(v, lang)
                   : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
@@ -249,11 +252,11 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
         {drawn.map((d) => (onToggle ? (
           <button key={d.f} type="button" className="fin-legend-item clickable"
             onClick={() => onToggle(d.f)}>
-            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+            <i style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}
           </button>
         ) : (
           <span key={d.f} className="fin-legend-item">
-            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+            <i style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}
           </span>
         )))}
       </div>
@@ -363,7 +366,7 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
             const v = d.s.values[cols[hover]];
             return (
               <div className="cpc-tt-row" key={d.f}>
-                <span><i className="fin-tt-dot" style={{ background: d.color }} />{finLabel(d.f, lang)}</span>
+                <span><i className="fin-tt-dot" style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}</span>
                 <b>{!Number.isFinite(v) ? "—"
                   : d.s.money ? formatCompactVolume(v, lang)
                   : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
@@ -376,11 +379,11 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
         {drawn.map((d) => (onToggle ? (
           <button key={d.f} type="button" className="fin-legend-item clickable"
             onClick={() => onToggle(d.f)}>
-            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+            <i style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}
           </button>
         ) : (
           <span key={d.f} className="fin-legend-item">
-            <i style={{ background: d.color }} />{finLabel(d.f, lang)}
+            <i style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}
           </span>
         )))}
       </div>
@@ -567,7 +570,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange }) {
+function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange, organizationType }) {
   const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   // A host may steer the sub-tab: the catalog terminal opens PL, BS and RAT as
   // sections of this one view. A click is still the tab's own (the host only
@@ -679,6 +682,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
       margins: [], chart: ["interest_income", "operating_income", "net_profit"],
     } : sec) : (quarterly ? FIN_SECTIONS_QUARTER : FIN_SECTIONS);
   const available = sections
+    .map(sec=>organizationType==='fund'&&sec.key==='income'?{...sec,rows:['net_profit'],margins:[],chart:['net_profit']}:sec)
     .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
     .filter((sec) => sec.rows.length + sec.margins.length > 0);
 
@@ -861,13 +865,13 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
               : t("Показать на графике", "Grafikda korsatish", "Show on chart")}>
             <i className="fin-row-dot"
               style={selected.includes(f) ? { background: colorOf(f) } : undefined} />
-            {finLabel(f, lang)}
+            {seriesLabel(f, series, lang)}
           </button>
           {/* Beside the label, not inside the toggle: the row header is already
               a button (it draws the line on the chart), and a button inside a
               button is invalid markup — the ⓘ would put a line on the chart
               instead of explaining the term. */}
-          <TermInfo termId={FIN_FIELD_TERMS[f]} lang={lang} label={finLabel(f, lang)} />
+          <TermInfo termId={FIN_FIELD_TERMS[f]} lang={lang} label={seriesLabel(f, series, lang)} />
         </th>
         {cols.map((p) => {
           const value = series[f].values[p];
@@ -987,7 +991,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
                   aria-pressed={selected.includes(f)}
                   onClick={() => toggleChartField(f)}>
                   <i style={selected.includes(f) ? { background: colorOf(f) } : undefined} />
-                  {finLabel(f, lang)}
+                  {seriesLabel(f, series, lang)}
                 </button>
               ))}
             </div>

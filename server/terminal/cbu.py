@@ -275,6 +275,24 @@ def latest(kind):
     finally:c.close()
 
 
+def ranked_banks(dataset):
+    """Rank within the complete dated CBU table, including unlisted banks."""
+    rows=dataset.get('rows',[])
+    amounts=[value for row in rows if (value:=number(row.get('assets_bn'))) is not None and value>=0]
+    return [{**row,'assets_rank':1+sum(other>value for other in amounts) if (value:=number(row.get('assets_bn'))) is not None and value>=0 else None,
+             'rank_population':len(amounts)} for row in rows]
+
+
+def monthly_bank_history(ticker):
+    """Only published observations; no interpolation for absent months."""
+    c=connect()
+    try:
+        datasets=[json.loads(row['payload']) for row in c.execute(
+            "SELECT payload FROM terminal_cbu WHERE kind='main' AND period>='2020-01-01' ORDER BY period")]
+    finally:c.close()
+    return [row for dataset in datasets for row in ranked_banks(dataset) if row.get('ticker')==ticker]
+
+
 def context():
     rates=latest("rates") or []
     # IMF ECOFIN: FITD_NC_WA_PA = term deposits, national currency,
@@ -287,7 +305,7 @@ def context():
         dataset=latest(kind)
         if not dataset:continue
         sector[kind]=dataset.get("sector")
-        for row in dataset["rows"]:
+        for row in ranked_banks(dataset) if kind=='main' else dataset['rows']:
             if row["ticker"]:banks.setdefault(row["ticker"],{})[kind]=row
     return {"banks":banks,"sector":sector,"deposit":deposit,"fsi":latest("fsi") or [], "inflation":annual_inflation(latest("inflation") or []),
             "sector_series":{kind:latest(kind) for kind in ("capital","liquidity","profitability","industry") if latest(kind)}}

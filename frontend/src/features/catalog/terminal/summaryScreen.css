@@ -1,0 +1,31 @@
+.terminal-summary{min-width:0}
+.terminal-bank-overview{margin-top:20px;min-width:0}
+.terminal-bank-overview .terminal-bank-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.terminal-summary-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.terminal-summary-kpis>div,.terminal-summary-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:12px;min-width:0}
+.terminal-summary-kpis dt{font-size:10px;color:var(--muted);text-transform:uppercase;min-height:28px}
+.terminal-summary-kpis dd{font-size:18px;font-weight:650;margin:8px 0;overflow-wrap:anywhere}
+.terminal-summary-kpis small{font-size:10px;color:var(--muted)}
+.terminal-summary-narrative{display:grid;grid-template-columns:1.8fr 1fr;gap:12px;margin-bottom:12px}
+.terminal-summary-card h3{font-size:12px;text-transform:uppercase;margin:0 0 10px;line-height:1.5}
+.terminal-summary-card p{font-size:12px;line-height:1.7}
+.terminal-summary-card a{font-size:11px}
+.terminal-summary-headline{font-weight:600}
+.terminal-verdict{padding:8px;border-left:3px solid var(--warning,var(--accent));background:var(--bg-2)}
+.terminal-risk{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.6}
+.terminal-risk p{margin:4px 0 0;font-size:11px;color:var(--muted)}
+.terminal-risk-level{font-size:10px;padding:2px 5px;background:var(--bg-2);border:1px solid var(--border);white-space:nowrap}
+.terminal-risk-level.high{color:var(--negative,#e05252);border-color:currentColor}
+.terminal-risk-level.medium{color:var(--warning,#c5881b)}
+.terminal-summary-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.terminal-history-chart{display:block;width:100%;font:11px 'IBM Plex Mono',monospace}
+.terminal-history-chart text{fill:var(--muted)}
+.terminal-chart-grid{stroke:var(--border);stroke-width:1}
+.terminal-chart-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10px;color:var(--muted)}
+.terminal-chart-legend span{display:inline-flex;align-items:center;gap:5px}
+.terminal-chart-legend i{width:8px;height:8px;border-radius:2px}
+.terminal-history-data{margin:12px 0;font-size:12px}
+.terminal-history-data summary{cursor:pointer;min-height:32px;display:list-item;padding:6px 0}
+@media(max-width:1200px){.terminal-summary-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.terminal-summary-narrative{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:860px){.terminal-summary-charts{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.terminal-summary-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-summary-kpis dd{font-size:16px}.terminal-summary-charts .terminal-summary-card{overflow-x:auto}.terminal-history-chart{min-width:560px}}

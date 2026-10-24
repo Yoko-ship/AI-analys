@@ -4436,6 +4436,26 @@
     ]
   },
   {
+    "path": "/api/v2/admin/terminal/valuations",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_valuations__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/terminal/valuations",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_terminal_valuations",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
     "path": "/api/company-comparison",
     "methods": [
       "GET"

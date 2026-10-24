@@ -273,7 +273,25 @@ async def financial_passport(ticker: str, period: str, field: str, form: str='NS
 async def financial_series(ticker: str, freq: str='annual', form: str='NSBU', scope: str | None=None) -> dict[str, Any]:
     from server.terminal.quarantine import protect
     data = await _financial_series(ticker, freq, form, scope)
-    return await asyncio.to_thread(protect, data, ticker.upper(), form.upper())
+    data = await asyncio.to_thread(protect, data, ticker.upper(), form.upper())
+    return await asyncio.to_thread(_sector_presentation, data, ticker.upper())
+
+
+def _sector_presentation(data, ticker):
+    """Keep the history feed's labels and ratio applicability tied to its form."""
+    from catalogue.organization import organization_kind
+    index = catalogue_filings.get_company_index(ticker) or {}
+    kind = organization_kind(ticker, name=index.get('company_name'), sector=index.get('sector'))
+    data['organization_type'] = kind
+    series = data.get('series') or {}
+    if kind in {'bank', 'insurance', 'fund'}:
+        for field in ('net_margin', 'net_profit_margin'):
+            series.pop(field, None)
+    labels = {'bank': ('Совокупные доходы', 'Jami daromad', 'Total income'),
+              'insurance': ('Заработанные премии', 'Ishlab topilgan mukofotlar', 'Earned premiums')}
+    if kind in labels and 'net_revenue' in series:
+        series['net_revenue'].update(zip(('label_ru', 'label_uz', 'label_en'), labels[kind]))
+    return data
 
 
 async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', scope: str | None=None) -> dict[str, Any]:

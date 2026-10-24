@@ -20,6 +20,8 @@ import { useTerminal } from "./terminal/useTerminal.js";
 import { MarketScreen, PanelWorkspace, DividendsScreen, AnalyticsScreen, Reconciliation, PeersScreen, ContextControls } from "./terminal/Workspace.jsx";
 import { useTableExports } from "../../shared/TerminalTables.jsx";
 import { TerminalValuation } from "../../shared/TerminalValuation.jsx";
+import "./terminal/catalogTerminal.css";
+import { StatementOverview } from "./terminal/StatementOverview.jsx";
 import { TerminalAdmin } from "../../admin/TerminalAdmin.jsx";
 
 // The terminal's PL, BS and RAT are sections of the one Финансы view.
@@ -770,7 +772,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   };
 
   return (
-    <section className="catalog-layout" ref={exportRoot}>
+    <section className="catalog-layout catalog-terminal-ui" ref={exportRoot}>
       <header className="catalog-terminal-head">
         <div>
           <div className="catalog-eyebrow">{catalogTerminalText(lang, "eyebrow")}</div>
@@ -798,11 +800,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       <nav className="terminal-market-nav" aria-label="Terminal">
         {MARKET_FUNCTIONS.filter(f => f.code !== "ADM" || user?.is_admin).map(f => <button type="button" key={f.code} className={`ghost-btn ${terminal.market === f.code ? "active" : ""}`} onClick={() => terminal.run(f.code)}>{f.code} · {functionLabel(f.code,lang)}</button>)}
       </nav>
-      {["EQS", "MON"].includes(terminal.market) && <MarketScreen mode={terminal.market} terminal={terminal} lang={lang} />}
+      {["EQS", "MON"].includes(terminal.market) && <MarketScreen mode={terminal.market} terminal={terminal} lang={lang} user={user} apiFetch={apiFetch} />}
       {terminal.market === "PNL" && <PanelWorkspace companies={catalogComps} terminal={{...terminal,ticker}} lang={lang} user={user} apiFetch={apiFetch} />}
       {terminal.market === "ADM" && <TerminalAdmin language={lang} apiFetch={apiFetch} />}
       {!terminal.market && <>
 
+      <div className="catalog-body">
+        <aside className="catalog-sidebar">
       <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
         <label className="catalog-search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -846,8 +850,6 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
         <span className="catalog-toolbar-count">{filteredComps.length} {catalogTerminalText(lang, "results")}</span>
       </div>
 
-      <div className="catalog-body">
-        <aside className="catalog-sidebar">
           <div className="catalog-sidebar-head">
             <span>{catalogTerminalText(lang, "issuers")}</span>
             <span>{filteredComps.length}</span>
@@ -921,9 +923,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
               </section>
 
+              <ContextControls tabs form={terminal.form} scope={terminal.scope} onForm={terminal.setForm} onScope={terminal.setScope} lang={lang} />
               <FunctionTabs terminal={terminal} lang={lang} />
-              {!FINANCIAL_SECTIONS[terminal.func] && <ContextControls form={terminal.form} scope={terminal.scope} onForm={terminal.setForm} onScope={terminal.setScope} lang={lang} />}
-              {["SUM", "RAT"].includes(terminal.func) && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary={terminal.func === "SUM"} />}
+              {["SUM", "RAT"].includes(terminal.func) && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary={terminal.func === "SUM"} fromYear={terminal.fromYear} />}
               {terminal.func === "REC" && <Reconciliation ticker={ticker} scope={terminal.scope} lang={lang} />}
               {terminal.func === "RV" && <PeersScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} onOpen={t => terminal.go({ticker:t,func:"SUM"})} />}
               {terminal.func === "FV" && (user?.is_admin ? <TerminalValuation ticker={ticker} form={terminal.form} scope={terminal.scope} apiFetch={apiFetch} lang={lang}/> : <p className="terminal-warning">{lang === "ru" ? "Оценка доступна администраторам до проверки моделей на 10 эмитентах." : "Valuation is restricted to administrators pending validation on ten issuers."}</p>)}
@@ -932,7 +934,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {FINANCIAL_SECTIONS[terminal.func] && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
-                    <IssuerFinancials ticker={ticker} lang={lang}
+                    <StatementOverview ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}/>
+                    <IssuerFinancials ticker={ticker} lang={lang} showContextControls={false}
                       standard={terminal.form} onStandardChange={terminal.setForm}
                       scope={terminal.scope} onScopeChange={terminal.setScope}
                       section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}
@@ -960,7 +963,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               )}
 
 
-              {terminal.func === "SUM" && year && isCurrentAvail && currentReport && (
+              {terminal.func === "CF" && year && isCurrentAvail && currentReport && (
                 <section className="catalog-selected-report" id="catalog-selected-report">
                   <div className="catalog-selected-summary">
                     <div>
@@ -1022,7 +1025,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 </section>
               )}
 
-              {terminal.func === "SUM" && result && (
+              {terminal.func === "CF" && result && (
                 <article className="panel catalog-result-panel" id="catalog-print-target">
                   <div className="panel-head">
                     <div>
@@ -1044,7 +1047,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                 </article>
               )}
 
-              {["SUM", "CF"].includes(terminal.func) && <section className="catalog-report-section">
+              {terminal.func === "CF" && <section className="catalog-report-section">
                 <div className="catalog-report-head">
                   <div>
                     <h3>{catalogTerminalText(lang, "reports")}</h3>

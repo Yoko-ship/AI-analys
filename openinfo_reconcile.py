@@ -420,7 +420,8 @@ def _insurance_block(bal, key):
     filed_net = end_value(_by_tnum(bal, "720"), key)
     net = reserve_totals(gross, share, filed_net, None)['net_insurance_reserves']
     return {"gross_insurance_reserves": gross, "reinsurer_share_in_reserves": share,
-            "net_insurance_reserves": net}
+            "net_insurance_reserves": net,
+            "short_term_investments": end_value(_by_tnum(bal, "460"), key)}
 
 
 def extract_metrics(detail):

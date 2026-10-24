@@ -54,10 +54,20 @@ def test_the_filter_drops_only_withheld_keys() -> None:
         assert kept in out
 
 
-def test_the_worker_file_is_private(tmp_path) -> None:
+def test_the_worker_file_is_private(tmp_path, monkeypatch) -> None:
+    opened_modes = []
+    original_open = worker_env.os.open
+
+    def private_open(path, flags, mode=0o777, **kwargs):
+        opened_modes.append(mode)
+        return original_open(path, flags, mode, **kwargs)
+
+    monkeypatch.setattr(worker_env.os, "open", private_open)
     source = tmp_path / ".env"
     source.write_text("A=1\nGOOGLE_CLIENT_ID=x\n")
     target = tmp_path / "worker.env"
     worker_env.write(source, target)
     assert target.read_text() == "A=1\n"
-    assert target.stat().st_mode & 0o777 == 0o600
+    assert opened_modes == [0o600]
+    if worker_env.os.name == "posix":
+        assert target.stat().st_mode & 0o777 == 0o600

@@ -35,12 +35,12 @@ function FunctionTabs({ terminal, lang }) {
         );
       })}
     </nav>
-    <div className="fin-freq terminal-history" role="group" aria-label={copy.historyLabel}>
+    {["SUM","PL","BS","RAT"].includes(terminal.func)&&<div className="fin-freq terminal-history" role="group" aria-label={copy.historyLabel}>
       {[[false, copy.historyRecent], [true, copy.historyAll]].map(([all, label]) => (
         <button key={label} type="button" className={`fin-freq-btn ${terminal.fullHistory === all ? "active" : ""}`}
           aria-pressed={terminal.fullHistory === all} onClick={() => terminal.setFullHistory(all)}>{label}</button>
       ))}
-    </div>
+    </div>}
     </div>
   );
 }

@@ -81,6 +81,23 @@ def test_bank_comparison_exposes_dated_market_shares_and_structure():
     assert service.bank_metrics({})['cbu_assets_share_pct'] is None
 
 
+def test_issuer_overview_exposes_cbu_history_without_mixing_annual_periods(monkeypatch):
+    from server.currency import history
+    observations=[{'ticker':'HMKB','date':'2026-09-01','assets_rank':8,'assets_bn':43114.828277036795}]
+    async def financials(*args):return {'periods':['2025'],'series':{},'standard':'NSBU'}
+    monkeypatch.setattr(service,'financial_series',financials)
+    monkeypatch.setattr(service,'market_context',lambda:{})
+    monkeypatch.setattr(service.organization,'organization_kind',lambda t:'bank')
+    monkeypatch.setattr(service.filings,'get_company_index',lambda t:{})
+    monkeypatch.setattr(cbu,'context',lambda:{'banks':{'HMKB':{'main':observations[-1]}}})
+    monkeypatch.setattr(cbu,'monthly_bank_history',lambda ticker:observations,raising=False)
+    monkeypatch.setattr(history,'cached_usd',lambda:{})
+    monkeypatch.setattr(service.dividends,'read_snapshot',lambda ticker:[])
+    result=asyncio.run(service.issuer('HMKB'))
+    assert result['snapshot']['period']=='2025'
+    assert result['cbu_history']==observations
+
+
 def test_market_context_excludes_confirmed_inactive_preferred_and_stale_dividend_price(monkeypatch):
     import catalogue.market_store as market
     from datetime import timedelta

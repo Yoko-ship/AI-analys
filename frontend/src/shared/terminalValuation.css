@@ -1,0 +1,26 @@
+.terminal-valuation{min-width:0;width:100%;font-variant-numeric:tabular-nums}
+.terminal-fv-assumptions{line-height:1.65;margin:0 0 10px}
+.terminal-fv-assumptions small{display:block;font-size:11px;color:var(--muted)}
+.terminal-fv-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.terminal-fv-kpis>div,.terminal-fv-card{min-width:0;border:1px solid var(--border);border-radius:4px;background:var(--panel);padding:12px}
+.terminal-fv-kpis dt{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);min-height:27px}
+.terminal-fv-kpis dd{margin:6px 0;font-size:18px;font-weight:650;overflow-wrap:anywhere}
+.terminal-fv-kpis small{font-size:11px;color:var(--muted);line-height:1.5}
+.terminal-fv-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.terminal-fv-card h3{margin:0;font-size:12px;text-transform:uppercase;line-height:1.5}
+.terminal-fv-card p{font-size:11px;line-height:1.6;margin:6px 0 12px}
+.terminal-fv-chart{display:block;width:100%;font:11px 'IBM Plex Mono',monospace;overflow:visible}
+.terminal-fv-chart text{fill:var(--text)}
+.terminal-fv-chart .terminal-fv-range-label{fill:var(--muted)}
+.terminal-fv-band{stroke:var(--terminal-chart,#4bb8e8);stroke-width:6;stroke-linecap:round}
+.terminal-fv-dot{fill:var(--text);stroke:var(--panel);stroke-width:1}
+.terminal-fv-price line{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3}
+.terminal-fv-price text{fill:var(--accent)}
+.terminal-fv-table{width:100%;border-collapse:collapse;font-size:11px}
+.terminal-fv-table th,.terminal-fv-table td{border-bottom:1px solid var(--border);padding:7px 5px;vertical-align:top}
+.terminal-fv-table th,.terminal-fv-table td:nth-child(2){text-align:left;white-space:normal;line-height:1.6}
+.terminal-fv-table td:last-child{text-align:right;white-space:nowrap}
+.terminal-fv-table thead th{font-weight:400;color:var(--muted)}
+.terminal-fv-empty{padding:24px 0;color:var(--muted)}
+@media(max-width:1200px){.terminal-fv-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.terminal-fv-detail{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.terminal-fv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-fv-kpis dd{font-size:16px}.terminal-fv-card{padding:10px}.terminal-fv-chart{font-size:16px}}

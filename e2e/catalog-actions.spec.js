@@ -19,7 +19,7 @@ async function catalogFixture(page, { signedIn = true, errors = [], status = 200
     if (path === "/api/catalog/status") return json({ ok: true, total_reports: refreshed ? 2 : 1, companies_synced: 1 });
     return json({ ok: true, companies: [], securities: {}, items: [], points: [] });
   });
-  await page.goto("/catalog");
+  await page.goto("/catalog?t=BIOK&f=CF");
   await expect(page.getByRole("heading", { name: "Biokimyo", exact: true })).toBeVisible();
   return syncRequests;
 }

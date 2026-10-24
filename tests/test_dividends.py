@@ -267,7 +267,8 @@ class TestStore:
 
     def test_a_refresh_replaces_rather_than_accumulates(self, catalog):
         universe = [entry("UNVB", org="9", names=['ATB "Universal bank"'])]
-        dividends.replace_snapshot(dividends.map_rows([filing(1, "9", "x"), filing(2, "9", "x")], universe))
+        dividends.replace_snapshot(dividends.map_rows([filing(1, "9", "x"), filing(2, "9", "x", decision="2026-06-17")], universe))
+        assert dividends.snapshot_state()["filings"] == 2
         dividends.replace_snapshot(dividends.map_rows([filing(1, "9", "x")], universe))
         assert dividends.snapshot_state()["filings"] == 1
 
@@ -276,9 +277,21 @@ class TestStore:
         trips down; the boundary must not swallow the remainder."""
         monkeypatch.setattr(dividends, "INSERT_CHUNK", 3)
         universe = [entry("UNVB", org="9", names=["x"])]
-        records = dividends.map_rows([filing(i, "9", "x") for i in range(1, 9)], universe)
+        records = dividends.map_rows([filing(i, "9", "x", decision=f"2026-06-{i:02d}") for i in range(1, 9)], universe)
         assert dividends.replace_snapshot(records) == 8
         assert dividends.snapshot_state()["filings"] == 8
+
+    def test_existing_snapshot_hides_the_superseded_orfi_filing_without_refresh(self, catalog):
+        # Real ORFI 81 -> 171 correction, already stored by an older collector.
+        records=[]
+        for fid,decision,published,amount in [(81,"2016-05-30","2016-06-02",1355),
+                                               (171,"2016-07-28","2016-07-01",215)]:
+            raw=filing(fid,"16","ORFI",decision=decision,common=amount)
+            raw.update(pub_date=published,common_share_start_date="2016-05-31",common_share_end_date="2016-07-29")
+            records.append({**dividends.normalize_row(raw),"ticker":"ORFI"})
+        assert dividends.replace_snapshot(records)==2
+        assert [r['filing_id'] for r in dividends.read_snapshot('ORFI')]==['171']
+        assert [r['filing_id'] for r in dividends.read_all()]==['171']
 
 
 class TestAge:

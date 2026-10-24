@@ -25,7 +25,7 @@ function useControllable(value, onChange, initial) {
 }
 
 function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStandardChange,
-  scope: scopeProp, onScopeChange, freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null }) {
+  scope: scopeProp, onScopeChange, freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null, showContextControls = true }) {
   const [standard, setStandard] = useControllable(standardProp, onStandardChange, "NSBU");
   const [freq, setFreq] = useControllable(freqProp, onFreqChange, initialFreq);
   const [scope, setScope] = useControllable(scopeProp, onScopeChange, "");
@@ -137,10 +137,11 @@ function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStan
     </details>}
     <CompanyFinancialsTab ticker={ticker} ratios={ratios ?? ownRatios ?? {}} lang={lang}
       key={`${ticker}:${standard}:${scope}:${freq}`}
-      standard={standard} onStandardChange={setStandard}
+      standard={standard} onStandardChange={showContextControls ? setStandard : undefined}
       scope={scope || series?.scope}
-      onScopeChange={setScope}
+      onScopeChange={showContextControls ? setScope : undefined}
       series={convertSeries(series?.series || {}, fx, currency)}
+      organizationType={series?.organization_type}
       currency={currency}
       periods={periods}
       dataGaps={dataGaps}

@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 from collections import Counter
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -155,6 +156,27 @@ def _record(status: int | None, url: str, tries: int = 1) -> None:
         _flush_count()
 
 
+@contextmanager
+def _counter_lock(fh):
+    """Serialize shared counts on both the production host and Windows."""
+    fh.seek(0)
+    if os.name == "nt":
+        import msvcrt
+        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(fh, fcntl.LOCK_EX)
+    try:
+        yield
+    finally:
+        fh.flush()
+        fh.seek(0)
+        if os.name == "nt":
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def _flush_count() -> None:
     """Add this process's unflushed requests to today's shared count (UTC day)."""
     with _STATE_LOCK:
@@ -165,10 +187,8 @@ def _flush_count() -> None:
         return
     path = _state_dir() / f"openinfo-requests-{datetime.now(timezone.utc):%Y-%m-%d}.json"
     try:
-        import fcntl
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a+", encoding="utf-8") as fh:
-            fcntl.flock(fh, fcntl.LOCK_EX)
+        with open(path, "a+", encoding="utf-8") as fh, _counter_lock(fh):
             fh.seek(0)
             try:
                 data = json.loads(fh.read() or "{}")

@@ -84,7 +84,7 @@ const COPY = {
   banks: ['Банки', 'Banklar', 'Banks'],
   corporate: ['Компании', 'Kompaniyalar', 'Companies'],
   emptyTitle: ['Начните с двух компаний', 'Ikkita kompaniyadan boshlang', 'Start with two companies'],
-  emptyText: ['Выберите компании, чтобы сопоставить финансы, коэффициенты и рыночные показатели.', 'Moliya, koeffitsiyentlar va bozor ko‘rsatkichlarini solishtirish uchun kompaniyalarni tanlang.', 'Choose companies to compare their financials, ratios and market figures.'],
+  emptyText: ['Выберите компании, чтобы сопоставить финансы и коэффициенты.', 'Moliya va koeffitsiyentlarni solishtirish uchun kompaniyalarni tanlang.', 'Choose companies to compare their financials and ratios.'],
   addAnother: ['Добавьте ещё компанию для сравнения.', 'Solishtirish uchun yana kompaniya qo‘shing.', 'Add another company to compare.'],
   noStatements: ['Часть отчётности за выбранный период, стандарт или периметр недоступна. Отсутствующие значения показаны прочерком.', 'Tanlangan davr, standart yoki doira uchun ayrim hisobotlar mavjud emas. Yetishmayotgan qiymatlar chiziqcha bilan ko‘rsatilgan.', 'Some statements are unavailable for this period, standard or scope. Missing values are shown as dashes.'],
   mixed: ['Разные отрасли. Сравнивайте общие показатели; отраслевые строки применимы не ко всем компаниям.', 'Turli sohalar. Umumiy ko‘rsatkichlarni solishtiring; sohaviy qatorlar barcha kompaniyalarga tegishli emas.', 'Different industries. Compare shared metrics; industry-specific rows do not apply to every company.'],
@@ -101,7 +101,8 @@ const COPY = {
   sourceTitle: ['Источники данных', 'Ma’lumot manbalari', 'Data sources'],
   sourceText: ['Показатели взяты из опубликованной отчётности. ROE и ROA приведены к годовому выражению; P/E использует TTM, когда доступны все составляющие. Базовый период указан в ячейке.', 'Ko‘rsatkichlar e’lon qilingan hisobotlardan olingan. ROE va ROA yillik ko‘rinishda; barcha qismlar mavjud bo‘lsa P/E TTM asosida. Asosiy davr katakda ko‘rsatilgan.', 'Figures come from published statements. ROE and ROA are annualised; P/E uses TTM when all components exist. Each valuation cell identifies its basis.'],
   marketDate: ['Рыночные данные · дата в источнике каждой компании', 'Bozor ma’lumotlari · har bir kompaniya manbasida sana', 'Market data · dates in each company’s sources'],
-  tableNote: ['Суммы — в выбранных единицах. Цены акций — в сумах. «—» не означает ноль.', 'Summalar tanlangan birliklarda. Aksiya narxlari so‘mda. «—» nol degani emas.', 'Amounts use the selected units. Share prices are in UZS. A dash does not mean zero.'],
+  tableNote: ['Суммы — в выбранных единицах. «—» не означает ноль.', 'Summalar tanlangan birliklarda. «—» nol degani emas.', 'Amounts use the selected units. A dash does not mean zero.'],
+  exportNote: ['Суммы — в выбранных единицах. Цены акций — в сумах. «—» не означает ноль.', 'Summalar tanlangan birliklarda. Aksiya narxlari so‘mda. «—» nol degani emas.', 'Amounts use the selected units. Share prices are in UZS. A dash does not mean zero.'],
   delete: ['Удалить', 'O‘chirish', 'Delete'],
   reset: ['Сбросить фильтр', 'Filtrni tiklash', 'Clear search'],
 };

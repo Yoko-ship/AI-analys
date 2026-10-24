@@ -107,7 +107,7 @@ function MetricTable({ state, companies, metrics, changes, language, onAdd, onRe
   const tx = key => comparisonText(language, key);
   const canAdd = companies.length < MAX_COMPANIES;
   const columns = companies.length + (canAdd ? 1 : 0);
-  const groups = ['income', 'balance', 'ratios', 'market'].filter(group => metrics.some(metric => metric.group === group));
+  const groups = ['income', 'balance', 'ratios'].filter(group => metrics.some(metric => metric.group === group));
   return <div className="cc-table-wrap" role="region" aria-label={tx('table')} tabIndex={0}>
     <table className="cc-table" style={{ '--cc-columns': columns }}>
       <caption className="sr-only">{tx('table')} · {periodLabel(data?.period || state.period, language)}</caption>
@@ -136,7 +136,7 @@ function MetricTable({ state, companies, metrics, changes, language, onAdd, onRe
       <tbody>
         {groups.map(group => <Fragment key={group}>
           <tr className="cc-section"><th colSpan={columns + 1} scope="colgroup">
-            <span>{tx(group)}</span>{group === 'market' && <small>{tx('marketDate')}</small>}
+            <span>{tx(group)}</span>
           </th></tr>
           {metrics.filter(metric => metric.group === group).map(metric => {
             const label = translatedLabel(metric.label, language);
@@ -200,7 +200,7 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
   const families = new Set(companies.map(company => company.family));
   const unavailable = ready && data.companies.some(company => company.status === 'unavailable');
   const metrics = METRICS.filter(metric =>
-    (!metric.family || families.has(metric.family))
+    metric.group !== 'market' && (!metric.family || families.has(metric.family))
     && (category === 'all' || (category === 'financial' ? ['income', 'balance'].includes(metric.group) : metric.group === category))
     && translatedLabel(metric.label, language).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const update = patch => { setState(current => ({ ...current, ...patch })); setMessage(''); };
@@ -293,7 +293,7 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
       {companies.length === 1 && <p className="cc-notice"><Icon name="info" />{tx('addAnother')}</p>}
       <div className="cc-table-tools">
         <div className="cc-categories" role="group" aria-label={tx('metric')}>
-          {['all', 'financial', 'ratios', 'market'].map(key => <button key={key} type="button" aria-pressed={category === key}
+          {['all', 'financial', 'ratios'].map(key => <button key={key} type="button" aria-pressed={category === key}
             onClick={() => setCategory(key)}>{tx(key)}</button>)}
         </div>
         <div className="cc-table-options">

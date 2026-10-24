@@ -81,14 +81,54 @@ test("PL converts each year at its own CBU closing rate and reports missing rate
   await page.screenshot({path:'/tmp/uzstock-terminal-mobile.png',fullPage:true});
 });
 
-test("RAT shows sector ratios and dated CBU observations with quarter heatmap",async({page})=>{
+test("RAT keeps bank figures and quarterly ratios without CBU sector accordions",async({page},testInfo)=>{
   await fixture(page);
+  const sectorSeries = Object.fromEntries(['capital','liquidity','profitability','industry'].map(key => [key, {
+    date: '2026-09-01', source_url: `https://cbu.uz/${key}`,
+    rows: [{name: key, unit: '%', observations: {'2026-09-01': 12}}],
+  }]));
   await page.route('**/api/v1/issuers/AGBA/ai-report?*',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({status:'available',period:'2026Q2',scope:'separate',ratios:[{metric_code:'nim',name_ru:'Чистая процентная маржа',value:4.2,unit:'percent'}],verdict_line:'Вердикт: смешанно',sources:[]})}));
-  await page.route('**/api/terminal/issuer/AGBA/analytics?*',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,snapshot:{period:'2025'},growth:[],quarters:{rows:[{period:'2026Q1',value:100,yoy:10}]},cbu:{npl:{date:'2026-09-01',npl_pct:3.4,source_url:'https://cbu.uz/npl'}},template:{selected_template:'bank'}})}));
+  await page.route('**/api/terminal/issuer/AGBA/analytics?*',r=>r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,snapshot:{period:'2025',kind:'bank'},growth:[],quarters:{rows:[{period:'2026Q1',value:100,yoy:10}]},cbu:{npl:{date:'2026-09-01',npl_pct:3.4,company_deposits_bn:150,source_url:'https://cbu.uz/npl'}},sector_series:sectorSeries,template:{selected_template:'bank'}})}));
   await run(page,'AGBA RAT');
   await expect(page.getByText('Чистая процентная маржа',{exact:true})).toBeVisible();
   await expect(page.locator('.terminal-cbu')).toContainText('2026-09-01');
+  await expect(page.locator('.terminal-cbu')).toContainText('Депозиты юрлиц');
   await expect(page.locator('.terminal-heatmap')).toContainText('2026');
+  for (const name of ['Достаточность капитала','Ликвидность','Доходность сектора','Кредиты по отраслям']) {
+    await expect(page.getByText(`${name} · CBU · 2026-09-01`, {exact: true})).toHaveCount(0);
+  }
+  await page.locator('.terminal-analytics').screenshot({path:testInfo.outputPath('catalog-rat-desktop.png')});
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('.terminal-analytics').screenshot({path:testInfo.outputPath('catalog-rat-mobile.png')});
+});
+
+test('quarterly profit and LTM display and export billions without scaling percentages', async ({page}, testInfo) => {
+  await fixture(page);
+  await page.route('**/api/terminal/issuer/AGBA/analytics?*', route => route.fulfill({json: {
+    ok: true, snapshot: {period: '2025', kind: 'bank'}, growth: [], template: {selected_template: 'bank'},
+    quarters: {rows: [
+      {period: '2026Q1', value: -1500000000, yoy: -5.2, ltm: 0, seasonality: null, cg3: -3.4},
+      {period: '2026Q2', value: 0, yoy: 0, ltm: null, seasonality: 0, cg3: null},
+      {period: '2026Q3', value: 510460312000, yoy: 10.73, ltm: 1917587479000, seasonality: null, cg3: 10.75},
+    ]},
+  }}));
+  await run(page, 'AGBA RAT');
+  const table = page.locator('.terminal-quarter-map');
+  await expect(table.locator('thead th')).toHaveText(['Квартал', 'млрд UZS', 'YoY, %', 'LTM, млрд UZS', 'Доля в году, %', 'CAGR 3Y, %']);
+  const cells = period => table.getByRole('row').filter({has: page.getByRole('rowheader', {name: period, exact: true})}).getByRole('cell');
+  await expect(cells('2026Q1')).toHaveText(['-1,5', '-5,2', '0', '—', '-3,4']);
+  await expect(cells('2026Q2')).toHaveText(['0', '0', '—', '0', '—']);
+  await expect(cells('2026Q3')).toHaveText(['510,46', '10,73', /1\s917,59/, '—', '10,75']);
+  const wrapper = table.locator('..');
+  const pendingDownload = page.waitForEvent('download');
+  await wrapper.getByRole('button', {name: 'CSV', exact: true}).click();
+  const {readFile} = await import('node:fs/promises');
+  const csv = await readFile(await (await pendingDownload).path(), 'utf8');
+  expect(csv).toContain('Квартал,млрд UZS,"YoY, %","LTM, млрд UZS"');
+  expect(csv).toMatch(/2026Q3,"510,46","10,73","1\s917,59",—,"10,75"/);
+  await wrapper.screenshot({path: testInfo.outputPath('quarterly-billions-desktop.png')});
+  await page.setViewportSize({width: 390, height: 844});
+  await wrapper.screenshot({path: testInfo.outputPath('quarterly-billions-mobile.png')});
 });
 
 test("direct PNL visit waits for the issuer list before creating its first panel",async({page})=>{

@@ -524,6 +524,8 @@ def extract_insurance_balance(balance_data: dict | None) -> dict[str, float | No
         "filed_net_insurance_reserves": filed_net,
         "other_liabilities": other_liabilities,
         "total_liabilities": totals['total_liabilities'],
+        "short_term_investments": next((_strict_balance_row_value(row) for row in rows
+            if "краткосрочные инвестиции" in str(row.get("label") or "").lower()), None),
     }
 
 

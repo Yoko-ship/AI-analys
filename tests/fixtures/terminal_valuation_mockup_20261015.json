@@ -1,0 +1,287 @@
+{
+  "source": "User-supplied UZStock_terminal_TZ_maket (3).html, October 2026 snapshot. Regression examples only; not current production data.",
+  "rows": [
+    {
+      "ticker": "AGBA",
+      "kind": "bank",
+      "price": 581,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 6354667225978,
+      "net_profit": 98827172000,
+      "equity": 13774358264000,
+      "pb": 0.4613403473457092,
+      "pe": 64.30081016562934,
+      "roe": 0.7174720600834809,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "ALKB",
+      "kind": "bank",
+      "price": 0.9,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 3322650642268.5,
+      "net_profit": 251453457000,
+      "equity": 3846878282000,
+      "pb": 0.8637264812394966,
+      "pe": 13.213779925358114,
+      "roe": 6.53655869946758,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "BRBN",
+      "kind": "bank",
+      "price": 91.21,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 4359273663410.0796,
+      "net_profit": 503029723000,
+      "equity": 5269433892000,
+      "pb": 0.8272755200569617,
+      "pe": 8.666035949947394,
+      "roe": 9.546181493304138,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "DRBK",
+      "kind": "bank",
+      "price": 5000,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 500000000000,
+      "net_profit": 631497451000,
+      "equity": 2028680402000,
+      "pb": 0.24646563327918422,
+      "pe": 0.7917688332838575,
+      "roe": 31.128483834981118,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "GRBK",
+      "kind": "bank",
+      "price": 2600,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 12992200000000,
+      "net_profit": 5152355000,
+      "equity": 552060543000,
+      "pb": 23.534013007700135,
+      "pe": 2521.6041984684675,
+      "roe": 0.9332952817097092,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "HMKB",
+      "kind": "bank",
+      "price": 97.44,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 12655068960240,
+      "net_profit": 1704969118000,
+      "equity": 6704709904000,
+      "pb": 1.8874894128812407,
+      "pe": 7.4224622760821175,
+      "roe": 25.429424127400697,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "INFB",
+      "kind": "bank",
+      "price": 1000,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 1940000000000,
+      "net_profit": 112669159000,
+      "equity": 1824109480000,
+      "pb": 1.0635326559456288,
+      "pe": 17.21855401441312,
+      "roe": 6.176666490434554,
+      "dividend": {
+        "decision": {
+          "ordinary_amount": 236.91000000000003
+        }
+      }
+    },
+    {
+      "ticker": "IPKY",
+      "kind": "bank",
+      "price": 213.99,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 12890745887043.361,
+      "net_profit": 929260663000,
+      "equity": 4425744211000,
+      "pb": 2.912673049428378,
+      "pe": 13.872045164838061,
+      "roe": 20.996709676315273,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "IPTB",
+      "kind": "bank",
+      "price": 4.25,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 17988505175499.25,
+      "net_profit": 399925532000,
+      "equity": 7734691283000,
+      "pb": 2.3256914228801873,
+      "pe": 44.979636797730755,
+      "roe": 5.170542913315653,
+      "dividend": {
+        "decision": {
+          "ordinary_amount": 0.22
+        }
+      }
+    },
+    {
+      "ticker": "MCBA",
+      "kind": "bank",
+      "price": 1068,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 7147487619816.001,
+      "net_profit": 160802633000,
+      "equity": 5739210946000,
+      "pb": 1.2453780993705263,
+      "pe": 44.448822052658805,
+      "roe": 2.80182475453482,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "OCBK",
+      "kind": "bank",
+      "price": 47000,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 23500000000000,
+      "net_profit": 266391398000,
+      "equity": 1020971144000,
+      "pb": 23.017300868985185,
+      "pe": 88.2160616913013,
+      "roe": 26.091961517768418,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "ORFI",
+      "kind": "bank",
+      "price": 573.95,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 1646305832409.2502,
+      "net_profit": 1044054735000,
+      "equity": 3997777535000,
+      "pb": 0.4118052637987147,
+      "pe": 1.5768386246620014,
+      "roe": 26.115878781634105,
+      "dividend": {
+        "decision": {
+          "ordinary_amount": 458.88
+        }
+      }
+    },
+    {
+      "ticker": "SQBN",
+      "kind": "bank",
+      "price": 42.9,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 10481815852561.799,
+      "net_profit": 1880069362000,
+      "equity": 11875165808000,
+      "pb": 0.8826669052065331,
+      "pe": 5.575228267861002,
+      "roe": 15.83194199051473,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "TNBN",
+      "kind": "bank",
+      "price": 1628.97,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 2248916188017.38,
+      "net_profit": 24936908000,
+      "equity": 2092140259000,
+      "pb": 1.0749356685542275,
+      "pe": 90.18424369281789,
+      "roe": 1.191932897076381,
+      "dividend": {
+        "decision": null
+      }
+    },
+    {
+      "ticker": "TRSB",
+      "kind": "bank",
+      "price": 8901.01,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 17811801913740,
+      "net_profit": 865149690000,
+      "equity": 3665002558000,
+      "pb": 4.859969845003311,
+      "pe": 20.588115697920436,
+      "roe": 23.60570494313963,
+      "dividend": {
+        "decision": {
+          "ordinary_amount": 192
+        }
+      }
+    },
+    {
+      "ticker": "UNVB",
+      "kind": "bank",
+      "price": 12570,
+      "period": "2025",
+      "standard": "NSBU",
+      "scope": "separate",
+      "market_cap": 1257000000000,
+      "net_profit": 240856384000,
+      "equity": 806429157000,
+      "pb": 1.5587234031519523,
+      "pe": 5.218877652833981,
+      "roe": 29.867023272820482,
+      "dividend": {
+        "decision": {
+          "ordinary_amount": 500
+        }
+      }
+    }
+  ]
+}
