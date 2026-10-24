@@ -6,6 +6,7 @@ import { reportScreenLoad } from "../../../lib/terminalJournal.js";
 import { edHeadline, newsArticlePath, newsRelTime } from "../../news/index.js";
 import { READY_FUNCTIONS } from "./useTerminal.js";
 import { terminalCopy } from "./terminalCopy.js";
+import { financialsUrl } from '../../../lib/financialHistoryRequest.js';
 
 const READY_MARKET = new Set(MARKET_FUNCTIONS.map(f => f.code));
 
@@ -177,8 +178,8 @@ function NewsScreen({ ticker, lang }) {
 function QualityScreen({ ticker, form, scope = "separate", lang, fromYear = null }) {
   const copy = terminalCopy(lang);
   const badge = useScreenData(`/api/audit/badge/${encodeURIComponent(ticker)}`, { ticker, func: "DQ", form });
-  const annual = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}`, { ticker, func: "DQ", form });
-  const quarterly = useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}&freq=quarterly`, { ticker, func: "DQ", form });
+  const annual = useScreenData(financialsUrl(ticker, form, scope), { ticker, func: "DQ", form });
+  const quarterly = useScreenData(financialsUrl(ticker, form, scope, true), { ticker, func: "DQ", form });
   if (badge.error || annual.error || quarterly.error) return <p className="terminal-empty tone-error">{copy.dqError}</p>;
   if (!badge.data || !annual.data || !quarterly.data) return <p className="terminal-empty">{copy.loading}</p>;
   const b = badge.data;

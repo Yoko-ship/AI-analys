@@ -3,6 +3,7 @@ import {words} from '../../../shared/TerminalTables.jsx';
 import {profitBridge,assetComposition,statementFacts} from '../../../lib/terminalStatements.js';
 import {reportKind} from '../../../lib/terminalSummary.js';
 import {useScreenData} from './TerminalPanels.jsx';
+import {financialsUrl} from '../../../lib/financialHistoryRequest.js';
 import './summaryScreen.css';
 import './statementOverview.css';
 
@@ -88,7 +89,7 @@ function InsuranceResult({report,lang,fmt}) {
 
 export function StatementOverview({ticker,form,scope,lang,section,fromYear=2020}) {
   const {data:report,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:section==='income'?'PL':'BS'});
-  const {data:history}=useScreenData(section==='income'?`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}`:null,{ticker,form,func:'PL'});
+  const {data:history}=useScreenData(section==='income'?financialsUrl(ticker,form,scope):null,{ticker,form,func:'PL'});
   const t=(ru,uz,en)=>words(lang,ru,uz,en);
   const fmt=value=>value==null?'—':Number(value).toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2});
   const kind=reportKind(report);

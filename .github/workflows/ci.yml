@@ -32,6 +32,11 @@ on:
         required: false
         type: string
         default: ""
+      backfill_column_sources:
+        description: Populate recent NSBU source tables for all catalogued issuers
+        required: false
+        type: boolean
+        default: false
 
 # A push that supersedes an in-flight run cancels it — CI feedback should be about
 # the current head, not a queue of stale ones.
@@ -1488,6 +1493,44 @@ jobs:
               raise SystemExit("No persisted news usage record was found")
           print("NEWS_USAGE_REPORT=" + json.dumps(dict(row), ensure_ascii=False, sort_keys=True))
           PY
+          REMOTE
+
+  backfill-column-sources:
+    name: Restore detailed financial source tables
+    environment: uzstock-production
+    needs: deploy-production
+    if: github.event_name == 'workflow_dispatch' && inputs.backfill_column_sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect and restore recent source reports
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          pwd -P
+          git rev-parse HEAD
+          docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
+          systemctl show uzstock-financial-ingestion.service -p FragmentPath -p ActiveState
+          docker exec uzstock-web python -m financial_columns.backfill --inspect
+          docker exec uzstock-web python -u -m financial_columns.backfill --annual-periods 2 --max-periods 1000
+          docker exec uzstock-web python -m financial_columns.backfill --inspect
           REMOTE
 
   backfill-company-financials:

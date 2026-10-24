@@ -16,7 +16,10 @@ async function fixture(page) {
     if(u.pathname==="/api/terminal/screener") return json({ok:true,rows,years:[2025,2024],standard:"NSBU",scope:"separate",deposit_rate:null});
     if(u.pathname.endsWith("/reconciliation")) return json({ok:true,rows:[{field:"net_profit",period:"2025",nsbu:20e9,ifrs:25e9,difference:5e9}],same_scope:false,nsbu_scope:"separate",ifrs_scope:"consolidated"});
     if(u.pathname.endsWith("/analytics")) return json({ok:true,snapshot:rows[0],growth:[],quarters:{rows:[]},template:{selected_template:"bank",reason_code:"filing_form"}});
-    if(u.pathname.endsWith("/financials")) return json({ok:true,standard:u.searchParams.get("form")||"NSBU",scope:"separate",periods:["2025","2024"],series:{net_profit:{money:true,unit:"UZS",values:{2025:20e9,2024:18e9}}}});
+    if(u.pathname.endsWith("/financials")) {
+      if(u.searchParams.get('form')==='NSBU'&&u.searchParams.has('scope'))return route.fulfill({status:422,json:{detail:'scope requires MSFO'}});
+      return json({ok:true,standard:u.searchParams.get("form")||"NSBU",scope:"separate",periods:["2025","2024"],series:{net_profit:{money:true,unit:"UZS",values:{2025:20e9,2024:18e9}}}});
+    }
     return json({ok:true,items:[],rows:[],points:[],companies:[],total_reports:11,companies_synced:2});
   });
   await page.goto("/catalog");
@@ -185,6 +188,12 @@ test("direct PNL visit waits for the issuer list before creating its first panel
   await page.route('**/api/catalog/companies',async r=>{await new Promise(resolve=>setTimeout(resolve,200));return r.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,companies:[{ticker:'AGBA',company_name:'Агробанк'}]})});});
   await page.goto('/catalog?view=PNL');
   await expect(page.locator('.terminal-work-panel')).toHaveCount(1);
+});
+
+test('DQ loads both NSBU history frequencies with the accepted scope contract', async ({page}) => {
+  await fixture(page);
+  await run(page, 'AGBA DQ');
+  await expect(page.locator('.terminal-dq')).toBeVisible();
 });
 
 test("DQ cannot report clean coverage when the statement request fails",async({page})=>{

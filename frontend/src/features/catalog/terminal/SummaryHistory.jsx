@@ -3,6 +3,7 @@ import {words} from '../../../shared/TerminalTables.jsx';
 import {historyRows} from '../../../lib/terminalSummary.js';
 import {convertSeries,periodEnd} from '../../../lib/terminalCurrency.js';
 import {useScreenData} from './TerminalPanels.jsx';
+import {financialsUrl} from '../../../lib/financialHistoryRequest.js';
 
 function AnnualChart({rows,fields,stacked=false,title,fmt,divisor}) {
   const values=rows.flatMap(row=>stacked?(row.balance_complete?[Math.max(0,row.total_liabilities)+Math.max(0,row.total_equity),Math.min(0,row.total_liabilities)+Math.min(0,row.total_equity)]:[]):fields.map(f=>row[f.key]).filter(v=>v!=null));
@@ -36,7 +37,7 @@ function AnnualChart({rows,fields,stacked=false,title,fmt,divisor}) {
 }
 
 export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
-  const {data,error}=useScreenData(`/api/company/${encodeURIComponent(ticker)}/financials?form=${form}&scope=${scope}`,{ticker,form,func:'SUM'});
+  const {data,error}=useScreenData(financialsUrl(ticker,form,scope),{ticker,form,func:'SUM'});
   const [currency,setCurrency]=React.useState('UZS');
   const [rates,setRates]=React.useState({key:'',values:{},loading:false});
   const periods=(data?.periods||[]).filter(p=>/^\d{4}$/.test(p)&&Number(p)>=fromYear).sort();

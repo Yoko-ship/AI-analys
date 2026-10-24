@@ -53,6 +53,15 @@ published figures. Missing ratio bases are not filled with estimates.
 
 ## Interfaces
 
+For an existing catalogue that predates full-source retention, run
+`python -m financial_columns.backfill --inspect`, then
+`python -m financial_columns.backfill --annual-periods 2 --max-periods 1000`.
+This resumes missing source tables for each issuer's latest two annual reports
+and latest quarter, grouping share aliases by issuer. It does not rewrite the
+older summary history or IFRS publication. Failed downloads remain retryable;
+the nightly NSBU collector fills the longer source history. The CI maintenance
+input `backfill_column_sources` runs this on production after deployment.
+
 `GET /api/company/{ticker}/financials/columns` accepts `form=NSBU|MSFO`,
 `scope=separate|consolidated|unknown`, `freq=annual|quarter|interim`, and
 `view=full|template|overview` (default `full`). The terminal requests

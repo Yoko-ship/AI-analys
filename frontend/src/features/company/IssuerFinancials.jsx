@@ -1,6 +1,7 @@
 import React from "react";
 import { convertSeries, periodEnd } from "../../lib/terminalCurrency.js";
 import { CompanyFinancialsTab } from "./Financials.jsx";
+import { financialsUrl } from '../../lib/financialHistoryRequest.js';
 
 // The Финансы tab together with the data behind it. The company page and the
 // catalog terminal (PL / BS / RAT) both open it, so it owns its own requests:
@@ -11,13 +12,6 @@ import { CompanyFinancialsTab } from "./Financials.jsx";
 // scope drops the cached series; keeping NSBU rows while the header says IFRS
 // would be worse than a moment of loading. The quarterly series and the splits
 // register are their own requests, made only when that view is opened.
-
-function financialsUrl(ticker, standard, scope, quarterly) {
-  const params = new URLSearchParams({ form: standard });
-  if (quarterly) params.set("freq", "quarterly");
-  if (standard === "MSFO" && scope) params.set("scope", scope);
-  return `/api/company/${encodeURIComponent(ticker)}/financials?${params}`;
-}
 
 function useControllable(value, onChange, initial) {
   const [own, setOwn] = React.useState(initial);

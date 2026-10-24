@@ -8,11 +8,14 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
   const report=reports[ticker],kind=report.issuer.organization_type,form=ticker==='UZNF'?'MSFO':'NSBU';
   const main={ticker,date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx',assets_bn:43114.828277036795,assets_share_pct:4.2,assets_rank:8,rank_population:35};
   await page.route('**/api/**',route=>{
-    const path=new URL(route.request().url()).pathname;
+    const url=new URL(route.request().url()),path=url.pathname;
     const json=body=>route.fulfill({json:body});
     if(path==='/api/auth/me')return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
     if(path.endsWith('/ai-report'))return json(report);
-    if(path.endsWith('/financials'))return json({ok:true,organization_type:ticker==='UZNF'?'fund':kind,periods:['2025','2024'],series:{net_revenue:{money:true,label_ru:kind==='insurance'?'Заработанные премии':'Совокупные доходы',values:{2025:100e9,2024:80e9}},net_profit:{money:true,values:{2025:5e9,2024:4e9}}}});
+    if(path.endsWith('/financials')){
+      if(url.searchParams.get('form')==='NSBU'&&url.searchParams.has('scope'))return route.fulfill({status:422,json:{detail:'scope must be consolidated or separate and requires MSFO'}});
+      return json({ok:true,organization_type:ticker==='UZNF'?'fund':kind,periods:['2025','2024'],series:{net_revenue:{money:true,label_ru:kind==='insurance'?'Заработанные премии':'Совокупные доходы',values:{2025:100e9,2024:80e9}},net_profit:{money:true,values:{2025:5e9,2024:4e9}}}});
+    }
     if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker,company_name:report.issuer.name,sector:'finance'}]});
     if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:report.issuer.name,availability:{[form]:{annual:[{year:2025,quarter:0}],quarter:[]}}});
     if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind,period:'2025'},growth:[],quarters:{rows:[]},cbu:kind==='bank'?{main,npl:{ticker,date:'2026-08-01',npl_pct:1.4,source_url:'https://cbu.uz/npl.xlsx'}}:{},cbu_history:kind==='bank'?[{...main,date:'2026-07-01'},main]:[]});
@@ -61,6 +64,8 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     return;
   }
   const sum=page.locator('.terminal-summary');
+  await expect(sum.locator('.terminal-summary-history').getByRole('img').first()).toBeVisible();
+  await expect(sum.locator('.terminal-summary-history')).not.toContainText('Не удалось загрузить историю.');
   await expect(sum.locator(':scope > .terminal-summary-kpis>div')).toHaveCount(6);
   if(kind==='insurance'){
     await expect(sum.locator('.terminal-summary-kpis')).toContainText('Заработанные премии');
