@@ -3,6 +3,36 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {summaryKpis, historyRows} from '../frontend/src/lib/terminalSummary.js';
 
+test('HMKB history adds current YTD flows and latest balance beside completed years', () => {
+  const annual = {standard:'NSBU',periods:['2025'],series:{net_profit:{values:{2025:1704969118000}}}};
+  const quarterly = {standard:'NSBU',periods:['2026Q3','2026Q2','2026Q1'],series:{
+    net_profit:{values:{'2026Q1':467675795000,'2026Q2':502286236000,'2026Q3':510460312000}},
+    total_liabilities:{values:{'2026Q1':31443406241000,'2026Q2':33640142060000,'2026Q3':36204146303000}},
+    total_equity:{values:{'2026Q1':7172385698000,'2026Q2':7674671935000,'2026Q3':8185132247000}},
+  }};
+  const rows=historyRows(annual,2020,quarterly);
+  assert.deepEqual(rows.map(r=>r.period),['2025','2026Q3']);
+  assert.equal(rows[1].net_profit,1480422343000);
+  assert.equal(rows[1].total_equity,8185132247000);
+  assert.equal(rows[1].total_liabilities,36204146303000);
+  assert.equal(rows[1].balance_complete,true);
+  assert.equal(rows[1].current,true);
+  quarterly.series.net_profit.values['2026Q2']=null;
+  assert.equal(historyRows(annual,2020,quarterly)[1].net_profit,null);
+  assert.equal(historyRows(annual,2020,quarterly)[1].total_equity,8185132247000);
+});
+
+test('current IFRS history uses reported YTD directly and keeps standards/scopes separate', () => {
+  const annual={standard:'MSFO',scope:'consolidated',periods:['2025'],series:{}};
+  const quarter={standard:'MSFO',scope:'consolidated',period_basis:'cumulative_ytd',periods:['2026Q2','2026Q1'],series:{net_profit:{values:{'2026Q1':10,'2026Q2':25}}}};
+  assert.equal(historyRows(annual,2020,quarter)[1].net_profit,25);
+  assert.equal(historyRows(annual,2020,{...quarter,scope:'separate'}).length,1);
+  assert.equal(historyRows(annual,2020,{...quarter,standard:'NSBU'}).length,1);
+  assert.equal(historyRows(annual,2020,{...quarter,periods:['2025Q3']}).length,1);
+  assert.equal(historyRows({...annual,periods:[]},2020,quarter)[0].net_profit,25);
+  assert.equal(historyRows(annual,2020,{...quarter,period_basis:undefined})[1].net_profit,null);
+});
+
 const report=JSON.parse(readFileSync(new URL('./fixtures/sector_ui_report.json',import.meta.url),'utf8'));
 const sectorReports=JSON.parse(readFileSync(new URL('./fixtures/terminal_sector_reports.json',import.meta.url),'utf8')).reports;
 

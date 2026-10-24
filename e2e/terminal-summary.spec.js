@@ -13,6 +13,10 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
     if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker:'UZMK',company_name:'Узметкомбинат',sector:'manufacturing',total_count:24}]});
     if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:'Узметкомбинат',availability:{NSBU:{annual:[{year:2025,quarter:0}],quarter:[]}}});
     if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind:'industry',period:'2025',net_profit:1e9},growth:[],quarters:{rows:[]}});
+    if(path.endsWith('/financials')&&url.searchParams.get('freq')==='quarterly')return json({ok:true,standard:'NSBU',scope:'separate',periods:['2026Q2','2026Q1'],series:{
+      net_revenue:{money:true,values:{'2026Q1':50e9,'2026Q2':60e9}},net_profit:{money:true,values:{'2026Q1':2e9,'2026Q2':3e9}},
+      total_equity:{money:true,values:{'2026Q1':70e9,'2026Q2':80e9}},total_liabilities:{money:true,values:{'2026Q1':180e9,'2026Q2':190e9}},
+    }});
     if(path.endsWith('/financials'))return json({ok:true,standard:'NSBU',scope:'separate',periods:['2025','2023'],series:{net_revenue:{money:true,values:{2023:100e9,2025:120e9}},net_profit:{money:true,values:{2023:-5e9,2025:0}},total_assets:{money:true,values:{2023:200e9,2025:220e9}},total_equity:{money:true,values:{2023:50e9,2025:60e9}},total_liabilities:{money:true,values:{2023:150e9,2025:160e9}}}});
     if(path==='/api/currency/rates')return json({ok:true,as_of:url.searchParams.get('as_of'),rates:[{ccy:'USD',per_unit:10000,effective_date:url.searchParams.get('as_of')}]});
     return json({ok:true,items:[],rows:[],companies_synced:1,total_reports:24});
@@ -27,6 +31,9 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(sum.getByText('Качество прибыли',{exact:true})).toBeVisible();
   await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toBeVisible();
   await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toBeVisible();
+  await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toContainText('2026 · 6M');
+  await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toContainText('Выручка: 110');
+  await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toContainText('Капитал: 80');
   const axisBoxes=await sum.getByRole('img',{name:'Выручка и прибыль по годам'}).locator('text[x="52"]').evaluateAll(nodes=>nodes.map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom};}).sort((a,b)=>a.top-b.top));
   expect(axisBoxes.every((box,i)=>i===0||box.top>=axisBoxes[i-1].bottom)).toBe(true);
   await expect(sum).toContainText('2024');
@@ -37,10 +44,20 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await page.screenshot({path:testInfo.outputPath('sum-desktop.png'),fullPage:true,animations:'disabled'});
   await sum.getByLabel('Валюта истории').selectOption('USD');
   await expect(sum.locator('.terminal-fx-rates')).toContainText('2025-12-31');
+  await expect(sum.locator('.terminal-fx-rates')).toContainText('2026-06-30');
   await sum.getByText('Таблица истории',{exact:true}).click();
   await expect(sum.locator('.terminal-history-table')).toContainText('12');
+  const current=sum.locator('.terminal-history-table tr').filter({hasText:'2026 · 6M'});
+  await expect(current).toContainText('11');
+  await expect(current).toContainText('0,5');
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   await page.screenshot({path:testInfo.outputPath('sum-mobile.png'),fullPage:true,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await page.route('**/api/company/UZMK/financials?**',route=>new URL(route.request().url()).searchParams.get('freq')==='quarterly'
+    ? route.fulfill({status:503,json:{detail:'Current filing temporarily unavailable'}}) : route.fallback());
+  await page.reload();
+  await expect(sum.locator('.terminal-summary-history [role="alert"]')).toHaveText('Не удалось загрузить текущий отчёт.');
+  await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toContainText('2025');
+  await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).not.toContainText('2026');
 });

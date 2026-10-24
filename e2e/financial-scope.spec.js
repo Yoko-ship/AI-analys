@@ -10,8 +10,8 @@ test("scope switch isolates tables and passport requests and remains usable when
       const scope = url.searchParams.get("scope") || "consolidated";
       const empty = url.searchParams.get("freq") === "quarterly";
       result = { ok: true, scope, available_scopes: ["consolidated", "separate"], periods: empty ? [] : ["2024"], series: empty ? {} : {
-        interest_income: { money: true, unit: "UZS", values: { "2024": scope === "separate" ? 200000 : 800000 } },
-        net_profit: { money: true, unit: "UZS", values: { "2024": scope === "separate" ? 100000 : 500000 } },
+        interest_income: { money: true, unit: "UZS", values: { "2024": scope === "separate" ? 200e9 : 800e9 } },
+        net_profit: { money: true, unit: "UZS", values: { "2024": scope === "separate" ? 100e9 : 500e9 } },
       } };
     }
     if (url.pathname.endsWith("/financials/passport")) {

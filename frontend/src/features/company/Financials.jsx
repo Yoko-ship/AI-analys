@@ -835,11 +835,11 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
     if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
     return { value: ((v - prev) / Math.abs(prev)) * 100 };
   };
-  // IssuerFinancials supplies UZS amounts in thousands for both table and
+  // IssuerFinancials supplies UZS amounts in billions for both table and
   // chart. Margins and coefficients retain their published scale; passports
   // are fetched independently and retain the source amount and unit.
   const fmtFull = new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU",
-                                        { maximumFractionDigits: 0 });
+                                        { maximumFractionDigits: currency === "UZS" ? 2 : 0 });
   const cell = (f, p) => {
     const v = series[f].values[p];
     if (!Number.isFinite(v)) return "—";
@@ -1021,7 +1021,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
                 <th scope="col">{quarterly
                   ? t("Квартальные данные", "Choraklik malumotlar", "Fiscal quarter")
                   : t("Годовые данные", "Yillik malumotlar", "Fiscal year")}
-                  {(active.rows || []).some(f => series[f]?.money) && <small> · {currency === "UZS" ? t("тыс. UZS", "ming UZS", "thousands UZS") : currency}</small>}
+                  {(active.rows || []).some(f => series[f]?.money) && <small> · {currency === "UZS" ? t("млрд UZS", "mlrd UZS", "billion UZS") : currency}</small>}
                 </th>
                 {cols.map((p) => <th key={p} scope="col" className="num">{finPeriodLabel(p)}</th>)}
               </tr>
@@ -1043,16 +1043,16 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
 
         <p className="fin-note muted">
           {currency === "USD" ? t("Суммы в USD по курсу ЦБ на конец каждого периода. Коэффициенты рассчитаны в UZS. Паспорт показывает исходные данные в UZS.", "Summalar davr oxiridagi MB kursida USDda. Koeffitsiyentlar UZSda hisoblangan.", "Amounts in USD at each period-end CBU rate. Ratios are calculated in UZS. Source passports show original UZS data.") : periodBasis === "cumulative_ytd"
-            ? t("Суммы в тыс. UZS по промежуточной отчётности МСФО. Доходы и расходы — с начала года; активы, обязательства и капитал — на отчётную дату. Рост г/г сравнивает одинаковую длительность периода.",
-                "Summalar ming UZSda, MHXS oraliq hisobotlaridan. Daromad va xarajatlar yil boshidan jamlangan; aktivlar, majburiyatlar va kapital hisobot sanasiga. Yillik o‘sish bir xil davomiylikdagi davrlarni taqqoslaydi.",
-                "Sums in thousands of UZS from interim IFRS filings. Income and expenses are year-to-date; assets, liabilities and equity are at the reporting date. YoY growth compares periods of equal duration.")
+            ? t("Суммы в млрд UZS по промежуточной отчётности МСФО. Доходы и расходы — с начала года; активы, обязательства и капитал — на отчётную дату. Рост г/г сравнивает одинаковую длительность периода.",
+                "Summalar mlrd UZSda, MHXS oraliq hisobotlaridan. Daromad va xarajatlar yil boshidan jamlangan; aktivlar, majburiyatlar va kapital hisobot sanasiga. Yillik o‘sish bir xil davomiylikdagi davrlarni taqqoslaydi.",
+                "Sums in billions of UZS from interim IFRS filings. Income and expenses are year-to-date; assets, liabilities and equity are at the reporting date. YoY growth compares periods of equal duration.")
             : quarterly
-            ? t("Суммы в тыс. UZS, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Активы, обязательства и капитал — на конец квартала.",
-                "Summalar ming UZSda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan. Aktivlar, majburiyatlar va kapital — chorak oxiriga.",
-                "Sums in thousands of UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Assets, liabilities and equity are quarter-end snapshots.")
-            : t("Суммы в тыс. UZS, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
-                "Summalar ming UZSda, emitentning yillik hisobotlari boyicha.",
-                "Sums in thousands of UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
+            ? t("Суммы в млрд UZS, за отдельный квартал (3 месяца) — рассчитаны из накопительных квартальных отчётов НСБУ; IV квартал — разница годового и девятимесячного отчётов. Рост г/г — к тому же кварталу прошлого года, кв/кв — к предыдущему кварталу. Активы, обязательства и капитал — на конец квартала.",
+                "Summalar mlrd UZSda, alohida chorak (3 oy) uchun — NSBU choraklik hisobotlaridan hisoblangan; IV chorak — yillik va 9 oylik hisobotlar farqi. Osish y/y — otgan yilning shu chorogiga, ch/ch — oldingi chorakka nisbatan. Aktivlar, majburiyatlar va kapital — chorak oxiriga.",
+                "Sums in billions of UZS per discrete quarter (3 months), derived from the cumulative NSBU filings; Q4 is the annual less the nine-month filing. Growth YoY compares the same quarter a year earlier, QoQ the preceding quarter. Assets, liabilities and equity are quarter-end snapshots.")
+            : t("Суммы в млрд UZS, по годовым отчётам эмитента. Коэффициенты — в тех единицах, в которых они опубликованы.",
+                "Summalar mlrd UZSda, emitentning yillik hisobotlari boyicha.",
+                "Sums in billions of UZS, from the issuer's annual filings. Ratios in the units they were published in.")}
           {/* Said once, under the table, rather than left for the reader to
               notice that 2019 is simply not there. Half the issuers on this
               market have at least one such hole. */}

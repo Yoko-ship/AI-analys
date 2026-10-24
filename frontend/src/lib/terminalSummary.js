@@ -42,17 +42,33 @@ export function summaryKpis(report,snapshot={}) {
     unit:['revenue','interest_income','net_profit','assets','equity','earned_premiums','nav'].includes(key)?'UZS':key==='nav_per_share'?'UZS/share':['loans_to_deposits','price_to_nav'].includes(key)?'ratio':'%'}))};
 }
 
-export function historyRows(data,fromYear=2020) {
+export const HISTORY_FIELDS=['net_revenue','interest_income','net_profit','total_assets','total_equity','total_liabilities'];
+
+export function historyRows(data,fromYear=2020,quarterly=null) {
   const periods=(data?.periods||[]).map(String).filter(p=>/^\d{4}$/.test(p)&&Number(p)>=fromYear).sort();
-  if(!periods.length)return [];
   const rows=[];
-  for(let year=Number(periods[0]);year<=Number(periods.at(-1));year++){
+  for(let year=Number(periods[0]);periods.length&&year<=Number(periods.at(-1));year++){
     const period=String(year),row={period,published:periods.includes(period)};
-    for(const field of ['net_revenue','interest_income','net_profit','total_assets','total_equity','total_liabilities']){
+    for(const field of HISTORY_FIELDS){
       row[field]=row.published?finite(data.series?.[field]?.values?.[period]):null;
     }
     row.balance_complete=row.total_liabilities!=null&&row.total_equity!=null;
     rows.push(row);
   }
+  if(!quarterly||(data?.standard&&quarterly.standard!==data.standard)||(data?.scope&&quarterly.scope&&quarterly.scope!==data.scope))return rows;
+  const latest=(quarterly.periods||[]).filter(p=>/^\d{4}Q[1-4]$/.test(p)&&Number(p.slice(0,4))>=fromYear).sort().at(-1);
+  if(!latest||(periods.length&&latest.slice(0,4)<=periods.at(-1)))return rows;
+  const year=latest.slice(0,4),quarter=Number(latest.at(-1));
+  const current={period:latest,label:`${year} · ${quarter*3}M`,published:true,current:true};
+  for(const field of HISTORY_FIELDS){
+    const values=quarterly.series?.[field]?.values||{};
+    if(field.startsWith('total_')||quarterly.period_basis==='cumulative_ytd')current[field]=finite(values[latest]);
+    else if(quarterly.standard==='NSBU'){
+      const parts=Array.from({length:quarter},(_,i)=>finite(values[`${year}Q${i+1}`]));
+      current[field]=parts.every(value=>value!=null)?parts.reduce((sum,value)=>sum+value,0):null;
+    }else current[field]=null;
+  }
+  current.balance_complete=current.total_liabilities!=null&&current.total_equity!=null;
+  rows.push(current);
   return rows;
 }

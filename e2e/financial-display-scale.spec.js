@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('UZTL financial tables and charts use thousands while source passports keep original amounts', async ({ page }, testInfo) => {
+test('UZTL financial tables and charts use billions while source passports keep original amounts', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
     sessionStorage.setItem('uz_sponsor_seen', '1');
@@ -23,20 +23,20 @@ test('UZTL financial tables and charts use thousands while source passports keep
   await page.goto('/company/UZTL?tab=financials');
   await page.getByRole('button', { name: 'Table', exact: true }).click();
   const view = page.locator('.company-financials');
-  await expect(view.getByRole('button', { name: '10,512,797,471', exact: true })).toBeVisible();
-  await expect(view.getByRole('button', { name: '590,906,080', exact: true })).toBeVisible();
-  await expect(view.locator('.fin-note')).toContainText('thousands of UZS');
-  await expect(view.locator('.fin-table thead th').first()).toContainText('thousands UZS');
+  await expect(view.getByRole('button', { name: '10,512.8', exact: true })).toBeVisible();
+  await expect(view.getByRole('button', { name: '590.91', exact: true })).toBeVisible();
+  await expect(view.locator('.fin-note')).toContainText('billions of UZS');
+  await expect(view.locator('.fin-table thead th').first()).toContainText('billion UZS');
   await expect(view.locator('.fin-table')).toContainText('5.62%');
   await expect(view.locator('.fin-table')).toContainText('+17.27%');
-  await view.getByRole('button', { name: '590,906,080', exact: true }).click();
+  await view.getByRole('button', { name: '590.91', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('590906080000');
   await expect(page.getByRole('dialog')).toContainText('×1000');
   await page.getByRole('button', { name: 'Close source passport' }).click();
   await page.screenshot({ path: testInfo.outputPath('uztl-thousands.png'), fullPage: true });
   await view.getByRole('button', { name: 'Bars', exact: true }).click();
   await expect(view.locator('svg')).toBeVisible();
-  await expect(view.locator('.fin-note')).toContainText('thousands of UZS');
+  await expect(view.locator('.fin-note')).toContainText('billions of UZS');
   await page.setViewportSize({ width: 390, height: 844 });
   await view.getByRole('button', { name: 'Table', exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

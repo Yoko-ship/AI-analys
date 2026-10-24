@@ -5,10 +5,17 @@ amounts are displayed in **thousands of UZS**; per-share amounts remain UZS.
 Existing published financial APIs remain public, and catalog access remains
 restricted to administrators.
 
-The public company Finance tab also displays UZS monetary history in thousands
+The public company Finance tab displays UZS monetary history in billions
 in both tables and charts. This is a display conversion of the full-UZS history
 API; source passports and stored amounts are unchanged. Ratios, percentages,
 per-share values and the separate USD conversion keep their existing units.
+
+The SUM history charts append the latest reporting period after the completed
+annual history for every issuer. NSBU flows require all discrete quarters from
+January through that period; IFRS YTD flows are read directly. Balance values
+come from the latest period only. Incomplete flows remain missing, and a current
+report from a different standard or scope cannot be appended. USD conversion
+uses the current report's closing rate for the whole YTD amount.
 
 ## Data and publication
 
