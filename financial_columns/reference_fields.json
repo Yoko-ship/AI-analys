@@ -5,7 +5,6 @@
         "label": "Финансовые результаты · банковская форма",
         "fields": [
           {
-            "key": "interest_income",
             "label": "Итого процентных доходов",
             "ref": "Отчёт о финансовых результатах: 1.л",
             "kind": "flow",
@@ -15,10 +14,10 @@
                 "1л",
                 "interest_income"
               ]
-            ]
+            ],
+            "field_id": "interest_income"
           },
           {
-            "key": "bank_nsbu_cbu_interest",
             "label": "Процентный доход по средствам в ЦБРУ",
             "ref": "1.a",
             "kind": "flow",
@@ -28,10 +27,10 @@
                 "1а",
                 "interest_central_bank"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_cbu_interest"
           },
           {
-            "key": "bank_nsbu_interbank_interest",
             "label": "Процентный доход по средствам в других банках",
             "ref": "1.б",
             "kind": "flow",
@@ -41,10 +40,10 @@
                 "1б",
                 "interest_banks"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_interbank_interest"
           },
           {
-            "key": "bank_nsbu_loan_interest",
             "label": "Проценты и дисконт по кредитным и лизинговым операциям",
             "ref": "1.з",
             "kind": "flow",
@@ -54,10 +53,10 @@
                 "1з",
                 "interest_loans_leases"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_loan_interest"
           },
           {
-            "key": "interest_expenses",
             "label": "Итого процентных расходов",
             "ref": "2.л",
             "kind": "flow",
@@ -67,10 +66,10 @@
                 "2л",
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "nii",
             "label": "Чистый процентный доход до резерва",
             "ref": "3",
             "kind": "flow",
@@ -80,10 +79,10 @@
                 "3",
                 "net_interest_before_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii"
           },
           {
-            "key": "credit_loss",
             "label": "Минус: резерв возможных убытков по кредитам и лизингу",
             "ref": "3.a",
             "kind": "flow",
@@ -93,10 +92,10 @@
                 "3а",
                 "credit_loss_expense"
               ]
-            ]
+            ],
+            "field_id": "credit_loss"
           },
           {
-            "key": "nii_after",
             "label": "Чистый процентный доход после резервов",
             "ref": "3.б",
             "kind": "flow",
@@ -106,10 +105,10 @@
                 "3б",
                 "net_interest_after_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii_after"
           },
           {
-            "key": "fees_income",
             "label": "Комиссии и плата за услуги",
             "ref": "4.a",
             "kind": "flow",
@@ -119,10 +118,10 @@
                 "4а",
                 "fee_income"
               ]
-            ]
+            ],
+            "field_id": "fees_income"
           },
           {
-            "key": "fx_result",
             "label": "Прибыль от операций в иностранной валюте",
             "ref": "4.б",
             "kind": "flow",
@@ -132,10 +131,10 @@
                 "4б",
                 "fx_income"
               ]
-            ]
+            ],
+            "field_id": "fx_result"
           },
           {
-            "key": "bank_nsbu_noninterest_income",
             "label": "Итого непроцентных доходов",
             "ref": "4.е",
             "kind": "flow",
@@ -145,10 +144,10 @@
                 "4е",
                 "noninterest_income"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_noninterest_income"
           },
           {
-            "key": "fees_expense",
             "label": "Комиссионные расходы и плата за услуги",
             "ref": "5.a",
             "kind": "flow",
@@ -158,10 +157,10 @@
                 "5а",
                 "fee_expense"
               ]
-            ]
+            ],
+            "field_id": "fees_expense"
           },
           {
-            "key": "bank_nsbu_noninterest_expenses",
             "label": "Итого непроцентных расходов",
             "ref": "5.е",
             "kind": "flow",
@@ -171,10 +170,10 @@
                 "5е",
                 "noninterest_expense"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_noninterest_expenses"
           },
           {
-            "key": "bank_nsbu_pre_op",
             "label": "Чистый доход до операционных расходов",
             "ref": "6",
             "kind": "flow",
@@ -184,10 +183,10 @@
                 "6",
                 "income_before_opex"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_pre_op"
           },
           {
-            "key": "operating_expense",
             "label": "Итого операционных расходов",
             "ref": "7.з",
             "kind": "flow",
@@ -197,10 +196,10 @@
                 "7з",
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "bank_nsbu_noncredit_loss",
             "label": "Оценка некредитных убытков",
             "ref": "8",
             "kind": "flow",
@@ -210,10 +209,10 @@
                 "8",
                 "noncredit_impairment"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_noncredit_loss"
           },
           {
-            "key": "profit_before_tax",
             "label": "Чистая прибыль до уплаты налогов",
             "ref": "9",
             "kind": "flow",
@@ -223,10 +222,10 @@
                 "9",
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "tax",
             "label": "Налог на прибыль",
             "ref": "10.a",
             "kind": "flow",
@@ -236,10 +235,10 @@
                 "9а",
                 "income_tax"
               ]
-            ]
+            ],
+            "field_id": "tax"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль (убыток)",
             "ref": "11",
             "kind": "flow",
@@ -249,7 +248,8 @@
                 "11",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -257,7 +257,6 @@
         "label": "Баланс банка · активы",
         "fields": [
           {
-            "key": "cash",
             "label": "Кассовая наличность и платёжные документы",
             "ref": "БС 1",
             "kind": "stock",
@@ -267,10 +266,10 @@
                 "1",
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "bank_nsbu_cbu_receivable",
             "label": "К получению из ЦБРУ",
             "ref": "БС 2",
             "kind": "stock",
@@ -280,10 +279,10 @@
                 "2",
                 "central_bank_balances"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_cbu_receivable"
           },
           {
-            "key": "due_banks",
             "label": "К получению из других банков",
             "ref": "БС 3",
             "kind": "stock",
@@ -293,10 +292,10 @@
                 "3",
                 "bank_balances"
               ]
-            ]
+            ],
+            "field_id": "due_banks"
           },
           {
-            "key": "bank_nsbu_trade_gross",
             "label": "Счета купли-продажи · брутто",
             "ref": "БС 4",
             "kind": "stock",
@@ -306,10 +305,10 @@
                 "4",
                 "trading_assets"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_trade_gross"
           },
           {
-            "key": "securities",
             "label": "Инвестиции, нетто",
             "ref": "БС 5.в",
             "kind": "stock",
@@ -319,10 +318,10 @@
                 "5в",
                 "investments_net"
               ]
-            ]
+            ],
+            "field_id": "securities"
           },
           {
-            "key": "gross_loans",
             "label": "Кредиты и лизинговые операции, брутто",
             "ref": "БС 7.a/б",
             "kind": "stock",
@@ -337,10 +336,10 @@
                 "7б",
                 "leases_gross"
               ]
-            ]
+            ],
+            "field_id": "gross_loans"
           },
           {
-            "key": "bank_nsbu_allowance",
             "label": "Резервы возможных убытков по кредитам и лизингу",
             "ref": "БС 7.в",
             "kind": "stock",
@@ -350,10 +349,10 @@
                 "7в",
                 "loan_lease_allowance"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_allowance"
           },
           {
-            "key": "net_loans",
             "label": "Кредиты и лизинговые операции, чистые",
             "ref": "БС 7.г",
             "kind": "stock",
@@ -363,10 +362,10 @@
                 "7г",
                 "loans_leases_net"
               ]
-            ]
+            ],
+            "field_id": "net_loans"
           },
           {
-            "key": "bank_nsbu_receivable_interest",
             "label": "Начисленные проценты к получению",
             "ref": "БС 11",
             "kind": "stock",
@@ -376,10 +375,10 @@
                 "11",
                 "interest_receivables"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_receivable_interest"
           },
           {
-            "key": "bank_nsbu_property",
             "label": "Основные средства, нетто",
             "ref": "БС 10",
             "kind": "stock",
@@ -389,10 +388,10 @@
                 "10",
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_property"
           },
           {
-            "key": "assets",
             "label": "Итого активов",
             "ref": "БС 14",
             "kind": "stock",
@@ -402,7 +401,8 @@
                 "14",
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           }
         ]
       },
@@ -410,7 +410,6 @@
         "label": "Баланс банка · обязательства и капитал",
         "fields": [
           {
-            "key": "bank_nsbu_demand_deposits",
             "label": "Депозиты до востребования",
             "ref": "БС 15",
             "kind": "stock",
@@ -420,10 +419,10 @@
                 "15",
                 "demand_deposits"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_demand_deposits"
           },
           {
-            "key": "bank_nsbu_savings_deposits",
             "label": "Сберегательные депозиты",
             "ref": "БС 16",
             "kind": "stock",
@@ -433,10 +432,10 @@
                 "16",
                 "savings_deposits"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_savings_deposits"
           },
           {
-            "key": "bank_nsbu_term_deposits",
             "label": "Срочные депозиты",
             "ref": "БС 17",
             "kind": "stock",
@@ -446,10 +445,10 @@
                 "17",
                 "term_deposits"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_term_deposits"
           },
           {
-            "key": "customer_accounts",
             "label": "Депозиты клиентов, если раскрыт итог",
             "ref": "БС 15–17, расчётный итог",
             "kind": "stock",
@@ -464,10 +463,10 @@
                 null,
                 "customer_funds"
               ]
-            ]
+            ],
+            "field_id": "customer_accounts"
           },
           {
-            "key": "bank_nsbu_due_banks",
             "label": "К оплате в другие банки",
             "ref": "БС 19",
             "kind": "stock",
@@ -477,10 +476,10 @@
                 "19",
                 "bank_funding"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_due_banks"
           },
           {
-            "key": "borrowings",
             "label": "Кредиты и лизинговые операции к оплате",
             "ref": "БС 21",
             "kind": "stock",
@@ -490,10 +489,10 @@
                 "21",
                 "borrowings_and_leases"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "bank_nsbu_subdebt",
             "label": "Субординированный долг",
             "ref": "БС 22",
             "kind": "stock",
@@ -503,10 +502,10 @@
                 "22",
                 "subordinated_debt"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_subdebt"
           },
           {
-            "key": "liabilities",
             "label": "Итого обязательств",
             "ref": "БС 25",
             "kind": "stock",
@@ -516,10 +515,10 @@
                 "25",
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "bank_nsbu_charter",
             "label": "Уставный капитал",
             "ref": "БС 26",
             "kind": "stock",
@@ -529,10 +528,10 @@
                 "26",
                 "share_capital"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_charter"
           },
           {
-            "key": "bank_nsbu_reserves",
             "label": "Резервный капитал",
             "ref": "БС 28",
             "kind": "stock",
@@ -542,10 +541,10 @@
                 "28",
                 "reserve_capital"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_reserves"
           },
           {
-            "key": "bank_nsbu_retained",
             "label": "Нераспределённая прибыль",
             "ref": "БС 29",
             "kind": "stock",
@@ -555,10 +554,10 @@
                 "29",
                 "retained_earnings"
               ]
-            ]
+            ],
+            "field_id": "bank_nsbu_retained"
           },
           {
-            "key": "equity",
             "label": "Итого собственного капитала",
             "ref": "БС 30",
             "kind": "stock",
@@ -568,7 +567,8 @@
                 "30",
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       }
@@ -578,7 +578,6 @@
         "label": "Statement of profit or loss · процентный результат",
         "fields": [
           {
-            "key": "interest_income",
             "label": "Процентный доход по эффективной ставке (EIR)",
             "ref": "PL · Interest income EIR",
             "kind": "flow",
@@ -588,10 +587,10 @@
                 null,
                 "interest_eir"
               ]
-            ]
+            ],
+            "field_id": "interest_income"
           },
           {
-            "key": "bank_ifrs_other_interest",
             "label": "Прочие процентные доходы",
             "ref": "PL · Other interest income",
             "kind": "flow",
@@ -601,10 +600,10 @@
                 null,
                 "other_interest_income"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_other_interest"
           },
           {
-            "key": "interest_expenses",
             "label": "Процентные расходы",
             "ref": "PL · Interest expense",
             "kind": "flow",
@@ -614,10 +613,10 @@
                 null,
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "nii",
             "label": "Чистый процентный доход до ECL",
             "ref": "PL · Net interest income",
             "kind": "flow",
@@ -627,10 +626,10 @@
                 null,
                 "net_interest_before_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii"
           },
           {
-            "key": "credit_loss",
             "label": "Расходы / восстановление ECL",
             "ref": "PL · Credit loss allowance",
             "kind": "flow",
@@ -640,10 +639,10 @@
                 null,
                 "credit_loss_expense"
               ]
-            ]
+            ],
+            "field_id": "credit_loss"
           },
           {
-            "key": "nii_after",
             "label": "Чистый процентный результат после ECL",
             "ref": "PL · Net margin after credit losses",
             "kind": "flow",
@@ -653,10 +652,10 @@
                 null,
                 "net_interest_after_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii_after"
           },
           {
-            "key": "fees_income",
             "label": "Комиссионные доходы",
             "ref": "PL · Fee and commission income",
             "kind": "flow",
@@ -666,10 +665,10 @@
                 null,
                 "fee_income"
               ]
-            ]
+            ],
+            "field_id": "fees_income"
           },
           {
-            "key": "fees_expense",
             "label": "Комиссионные расходы",
             "ref": "PL · Fee and commission expense",
             "kind": "flow",
@@ -679,10 +678,10 @@
                 null,
                 "fee_expense"
               ]
-            ]
+            ],
+            "field_id": "fees_expense"
           },
           {
-            "key": "fx_result",
             "label": "Результат операций с иностранной валютой",
             "ref": "PL · Trading in FX",
             "kind": "flow",
@@ -692,10 +691,10 @@
                 null,
                 "fx_gain_loss"
               ]
-            ]
+            ],
+            "field_id": "fx_result"
           },
           {
-            "key": "bank_ifrs_deriv",
             "label": "Доходы / убытки по производным инструментам",
             "ref": "PL · Derivatives",
             "kind": "flow",
@@ -705,10 +704,10 @@
                 null,
                 "derivative_gain_loss"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_deriv"
           },
           {
-            "key": "operating_expense",
             "label": "Административные и прочие операционные расходы",
             "ref": "PL · Administrative expenses",
             "kind": "flow",
@@ -718,10 +717,10 @@
                 null,
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налогообложения",
             "ref": "PL · Profit before tax",
             "kind": "flow",
@@ -731,10 +730,10 @@
                 null,
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "tax",
             "label": "Расходы по налогу на прибыль",
             "ref": "PL · Income tax",
             "kind": "flow",
@@ -744,10 +743,10 @@
                 null,
                 "income_tax"
               ]
-            ]
+            ],
+            "field_id": "tax"
           },
           {
-            "key": "net_profit",
             "label": "Прибыль за год",
             "ref": "PL · Profit for the year",
             "kind": "flow",
@@ -757,7 +756,8 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -765,7 +765,6 @@
         "label": "Consolidated statement of financial position · активы",
         "fields": [
           {
-            "key": "cash",
             "label": "Денежные средства и их эквиваленты",
             "ref": "BS · Cash and cash equivalents",
             "kind": "stock",
@@ -775,10 +774,10 @@
                 null,
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "due_banks",
             "label": "Средства в других банках",
             "ref": "BS · Due from other banks",
             "kind": "stock",
@@ -788,10 +787,10 @@
                 null,
                 "bank_balances"
               ]
-            ]
+            ],
+            "field_id": "due_banks"
           },
           {
-            "key": "securities",
             "label": "Долговые ценные бумаги / финансовые инвестиции",
             "ref": "BS · Investments in debt securities",
             "kind": "stock",
@@ -806,10 +805,10 @@
                 null,
                 "investments_debt_securities"
               ]
-            ]
+            ],
+            "field_id": "securities"
           },
           {
-            "key": "bank_ifrs_fvtpl",
             "label": "Долевые бумаги по FVTPL",
             "ref": "BS · Equity securities FVTPL",
             "kind": "stock",
@@ -819,10 +818,10 @@
                 null,
                 "equity_investments_fvtpl"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_fvtpl"
           },
           {
-            "key": "net_loans",
             "label": "Кредиты и авансы клиентам, нетто ECL",
             "ref": "BS · Loans to customers",
             "kind": "stock",
@@ -832,10 +831,10 @@
                 null,
                 "loans_net"
               ]
-            ]
+            ],
+            "field_id": "net_loans"
           },
           {
-            "key": "bank_ifrs_derivative",
             "label": "Производные финансовые активы",
             "ref": "BS · Derivatives",
             "kind": "stock",
@@ -845,10 +844,10 @@
                 null,
                 "derivative_assets"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_derivative"
           },
           {
-            "key": "bank_ifrs_right",
             "label": "Активы права пользования",
             "ref": "BS · Right-of-use assets",
             "kind": "stock",
@@ -858,10 +857,10 @@
                 null,
                 "rou_assets"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_right"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -871,7 +870,8 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           }
         ]
       },
@@ -879,7 +879,6 @@
         "label": "Consolidated statement of financial position · обязательства",
         "fields": [
           {
-            "key": "customer_accounts",
             "label": "Средства клиентов",
             "ref": "BS · Customer accounts",
             "kind": "stock",
@@ -889,10 +888,10 @@
                 null,
                 "customer_funds"
               ]
-            ]
+            ],
+            "field_id": "customer_accounts"
           },
           {
-            "key": "bank_ifrs_interbank_due",
             "label": "Средства других банков",
             "ref": "BS · Due to other banks",
             "kind": "stock",
@@ -902,10 +901,10 @@
                 null,
                 "bank_funding"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_interbank_due"
           },
           {
-            "key": "borrowings",
             "label": "Прочие привлечённые средства",
             "ref": "BS · Other borrowed funds",
             "kind": "stock",
@@ -925,10 +924,10 @@
                 null,
                 "borrowings_long"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "bank_ifrs_secissued",
             "label": "Выпущенные долговые бумаги",
             "ref": "BS · Debt securities in issue",
             "kind": "stock",
@@ -938,10 +937,10 @@
                 null,
                 "debt_securities_issued"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_secissued"
           },
           {
-            "key": "bank_ifrs_subdebt",
             "label": "Субординированный долг",
             "ref": "BS · Subordinated debt",
             "kind": "stock",
@@ -951,10 +950,10 @@
                 null,
                 "subordinated_debt"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_subdebt"
           },
           {
-            "key": "bank_ifrs_lease",
             "label": "Арендные обязательства",
             "ref": "BS · Lease liabilities",
             "kind": "stock",
@@ -964,10 +963,10 @@
                 null,
                 "lease_liabilities"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_lease"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -977,10 +976,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "bank_ifrs_share",
             "label": "Акционерный капитал",
             "ref": "BS · Share capital",
             "kind": "stock",
@@ -990,10 +989,10 @@
                 null,
                 "share_capital"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_share"
           },
           {
-            "key": "bank_ifrs_retained",
             "label": "Нераспределённая прибыль",
             "ref": "BS · Retained earnings",
             "kind": "stock",
@@ -1003,10 +1002,10 @@
                 null,
                 "retained_earnings"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_retained"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -1016,7 +1015,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       },
@@ -1024,7 +1024,6 @@
         "label": "Cash flows и примечания",
         "fields": [
           {
-            "key": "cfo",
             "label": "Денежный поток от операционной деятельности",
             "ref": "CF · Net cash from operating activities",
             "kind": "flow",
@@ -1034,10 +1033,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Денежный поток от инвестиционной деятельности",
             "ref": "CF · Net cash from investing activities",
             "kind": "flow",
@@ -1047,10 +1046,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Денежный поток от финансовой деятельности",
             "ref": "CF · Net cash from financing activities",
             "kind": "flow",
@@ -1060,10 +1059,10 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           },
           {
-            "key": "bank_ifrs_stages",
             "label": "Кредиты Stage 1 / 2 / 3",
             "ref": "Notes · ECL stages",
             "kind": "stock",
@@ -1083,10 +1082,10 @@
                 null,
                 "stage3_loans"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_stages"
           },
           {
-            "key": "bank_ifrs_eclexposure",
             "label": "Резервы ECL по стадиям",
             "ref": "Notes · ECL allowances",
             "kind": "stock",
@@ -1096,10 +1095,10 @@
                 null,
                 "ecl_allowance"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_eclexposure"
           },
           {
-            "key": "bank_ifrs_eps",
             "label": "Прибыль на акцию (сум/акцию)",
             "ref": "Notes · EPS",
             "kind": "flow",
@@ -1114,7 +1113,8 @@
                 null,
                 "eps_diluted"
               ]
-            ]
+            ],
+            "field_id": "bank_ifrs_eps"
           }
         ]
       }
@@ -1126,7 +1126,6 @@
         "label": "Страховой отчёт о финансовых результатах",
         "fields": [
           {
-            "key": "gross_premiums",
             "label": "Премии по прямому страхованию и сострахованию",
             "ref": "Ф.2 · 011",
             "kind": "flow",
@@ -1136,10 +1135,10 @@
                 "011",
                 "direct_premiums"
               ]
-            ]
+            ],
+            "field_id": "gross_premiums"
           },
           {
-            "key": "ceded_premiums",
             "label": "Переданные перестраховочные премии",
             "ref": "Ф.2 · 012",
             "kind": "flow",
@@ -1149,10 +1148,10 @@
                 "012",
                 "ceded_premiums"
               ]
-            ]
+            ],
+            "field_id": "ceded_premiums"
           },
           {
-            "key": "assumed_premiums",
             "label": "Премии по принятому перестрахованию",
             "ref": "Ф.2 · 013",
             "kind": "flow",
@@ -1162,10 +1161,10 @@
                 "013",
                 "assumed_premiums"
               ]
-            ]
+            ],
+            "field_id": "assumed_premiums"
           },
           {
-            "key": "insurance_nsbu_rnp",
             "label": "Изменение резерва незаработанной премии",
             "ref": "Ф.2 · 014",
             "kind": "flow",
@@ -1175,10 +1174,10 @@
                 "014",
                 "change_upr_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_rnp"
           },
           {
-            "key": "insurance_nsbu_rbns",
             "label": "Изменение резерва заявленных убытков",
             "ref": "Ф.2 · 015",
             "kind": "flow",
@@ -1188,10 +1187,10 @@
                 "015",
                 "change_reported_claims_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_rbns"
           },
           {
-            "key": "insurance_nsbu_ibnr",
             "label": "Изменение резерва незаявленных убытков",
             "ref": "Ф.2 · 016",
             "kind": "flow",
@@ -1201,10 +1200,10 @@
                 "016",
                 "change_ibnr_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_ibnr"
           },
           {
-            "key": "insurance_nsbu_life",
             "label": "Изменение резервов по страхованию жизни",
             "ref": "Ф.2 · 017",
             "kind": "flow",
@@ -1214,10 +1213,10 @@
                 "017",
                 "change_life_reserves_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_life"
           },
           {
-            "key": "insurance_nsbu_otherres",
             "label": "Изменение прочих технических резервов",
             "ref": "Ф.2 · 018",
             "kind": "flow",
@@ -1227,10 +1226,10 @@
                 "018",
                 "change_other_reserves_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_otherres"
           },
           {
-            "key": "earned_premium",
             "label": "Чистая выручка от страховых услуг",
             "ref": "Ф.2 · 060",
             "kind": "flow",
@@ -1240,10 +1239,10 @@
                 "060",
                 "net_insurance_revenue"
               ]
-            ]
+            ],
+            "field_id": "earned_premium"
           },
           {
-            "key": "insurance_nsbu_cogs",
             "label": "Себестоимость оказанных страховых услуг",
             "ref": "Ф.2 · 070",
             "kind": "flow",
@@ -1253,10 +1252,10 @@
                 "070",
                 "insurance_cost"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_cogs"
           },
           {
-            "key": "insurance_result",
             "label": "Валовая прибыль от страховых услуг",
             "ref": "Ф.2 · 080",
             "kind": "flow",
@@ -1266,10 +1265,10 @@
                 "080",
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "insurance_result"
           },
           {
-            "key": "operating_expense",
             "label": "Расходы периода",
             "ref": "Ф.2 · 090",
             "kind": "flow",
@@ -1279,10 +1278,10 @@
                 "090",
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налога",
             "ref": "Ф.2 · 290",
             "kind": "flow",
@@ -1292,10 +1291,10 @@
                 "290",
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль",
             "ref": "Ф.2 · 320",
             "kind": "flow",
@@ -1305,7 +1304,8 @@
                 "320",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -1313,7 +1313,6 @@
         "label": "Баланс страховой организации",
         "fields": [
           {
-            "key": "insurance_receivables",
             "label": "Дебиторская задолженность по страховым операциям",
             "ref": "Ф.1 · 220",
             "kind": "stock",
@@ -1323,10 +1322,10 @@
                 "220",
                 "insurance_receivables"
               ]
-            ]
+            ],
+            "field_id": "insurance_receivables"
           },
           {
-            "key": "insurance_nsbu_policy",
             "label": "Задолженность страхователей",
             "ref": "Ф.1 · 230",
             "kind": "stock",
@@ -1336,10 +1335,10 @@
                 "230",
                 "policyholder_receivables"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_policy"
           },
           {
-            "key": "insurance_nsbu_brokers",
             "label": "Задолженность агентов и брокеров",
             "ref": "Ф.1 · 240",
             "kind": "stock",
@@ -1349,10 +1348,10 @@
                 "240",
                 "agent_receivables"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_brokers"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "Ф.1 · итог",
             "kind": "stock",
@@ -1367,10 +1366,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "insurance_reserves",
             "label": "Всего страховых резервов",
             "ref": "Ф.1 · 580",
             "kind": "stock",
@@ -1380,10 +1379,10 @@
                 "580",
                 "insurance_reserves_gross"
               ]
-            ]
+            ],
+            "field_id": "insurance_reserves"
           },
           {
-            "key": "insurance_nsbu_upr",
             "label": "Резерв незаработанной премии",
             "ref": "Ф.1 · 590",
             "kind": "stock",
@@ -1393,10 +1392,10 @@
                 "590",
                 "unearned_premium_reserve"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_upr"
           },
           {
-            "key": "insurance_nsbu_ibnr_st",
             "label": "Резерв произошедших, но незаявленных убытков",
             "ref": "Ф.1 · 600",
             "kind": "stock",
@@ -1406,10 +1405,10 @@
                 "600",
                 "ibnr"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_ibnr_st"
           },
           {
-            "key": "insurance_nsbu_rbns_st",
             "label": "Резерв заявленных, но неурегулированных убытков",
             "ref": "Ф.1 · 610",
             "kind": "stock",
@@ -1419,10 +1418,10 @@
                 "610",
                 "reported_claims_reserve"
               ]
-            ]
+            ],
+            "field_id": "insurance_nsbu_rbns_st"
           },
           {
-            "key": "reins_assets",
             "label": "Доля перестраховщиков в резервах",
             "ref": "Ф.1 · 670",
             "kind": "stock",
@@ -1432,10 +1431,10 @@
                 "670",
                 "reinsurer_share_reserves"
               ]
-            ]
+            ],
+            "field_id": "reins_assets"
           },
           {
-            "key": "liabilities",
             "label": "Итого обязательств",
             "ref": "Ф.1 · итог",
             "kind": "stock",
@@ -1450,10 +1449,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Итого собственный капитал",
             "ref": "Ф.1 · итог",
             "kind": "stock",
@@ -1468,7 +1467,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       }
@@ -1478,7 +1478,6 @@
         "label": "Profit or loss · модель с премиями и резервами",
         "fields": [
           {
-            "key": "insurance_ifrs_written",
             "label": "Заработанные премии по договорам страхования",
             "ref": "PL · Earned premiums",
             "kind": "flow",
@@ -1488,10 +1487,10 @@
                 null,
                 "earned_premiums"
               ]
-            ]
+            ],
+            "field_id": "insurance_ifrs_written"
           },
           {
-            "key": "insurance_ifrs_rnp",
             "label": "Изменение РНП",
             "ref": "PL · Change in unearned premium reserve",
             "kind": "flow",
@@ -1501,10 +1500,10 @@
                 null,
                 "change_upr_net"
               ]
-            ]
+            ],
+            "field_id": "insurance_ifrs_rnp"
           },
           {
-            "key": "ceded_premiums",
             "label": "Премии, переданные в перестрахование",
             "ref": "PL · Reinsurance premiums ceded",
             "kind": "flow",
@@ -1514,10 +1513,10 @@
                 null,
                 "ceded_premiums"
               ]
-            ]
+            ],
+            "field_id": "ceded_premiums"
           },
           {
-            "key": "assumed_premiums",
             "label": "Премии по договорам принятого перестрахования",
             "ref": "PL · Inward reinsurance",
             "kind": "flow",
@@ -1527,10 +1526,10 @@
                 null,
                 "assumed_premiums"
               ]
-            ]
+            ],
+            "field_id": "assumed_premiums"
           },
           {
-            "key": "earned_premium",
             "label": "Заработанная премия нетто",
             "ref": "PL · Net earned premiums",
             "kind": "flow",
@@ -1540,10 +1539,10 @@
                 null,
                 "net_earned_premiums"
               ]
-            ]
+            ],
+            "field_id": "earned_premium"
           },
           {
-            "key": "claims",
             "label": "Страховые выплаты всего",
             "ref": "PL · Claims paid",
             "kind": "flow",
@@ -1553,10 +1552,10 @@
                 null,
                 "claims_paid"
               ]
-            ]
+            ],
+            "field_id": "claims"
           },
           {
-            "key": "claims_reserve_change",
             "label": "Изменение резервов убытков",
             "ref": "PL · Change in loss reserves",
             "kind": "flow",
@@ -1566,10 +1565,10 @@
                 null,
                 "change_claims_reserves"
               ]
-            ]
+            ],
+            "field_id": "claims_reserve_change"
           },
           {
-            "key": "insurance_ifrs_salvage",
             "label": "Доходы по регрессам и суброгации",
             "ref": "PL · Salvage and subrogation",
             "kind": "flow",
@@ -1579,10 +1578,10 @@
                 null,
                 "salvage_subrogation_income"
               ]
-            ]
+            ],
+            "field_id": "insurance_ifrs_salvage"
           },
           {
-            "key": "acquisition",
             "label": "Аквизиционные расходы",
             "ref": "PL · Acquisition expenses",
             "kind": "flow",
@@ -1592,10 +1591,10 @@
                 null,
                 "acquisition_expense"
               ]
-            ]
+            ],
+            "field_id": "acquisition"
           },
           {
-            "key": "insurance_result",
             "label": "Результат страховой деятельности",
             "ref": "PL · Insurance result",
             "kind": "flow",
@@ -1605,10 +1604,10 @@
                 null,
                 "insurance_result"
               ]
-            ]
+            ],
+            "field_id": "insurance_result"
           },
           {
-            "key": "financial_income",
             "label": "Доходы от финансовой деятельности",
             "ref": "PL · Finance income",
             "kind": "flow",
@@ -1618,10 +1617,10 @@
                 null,
                 "finance_income"
               ]
-            ]
+            ],
+            "field_id": "financial_income"
           },
           {
-            "key": "operating_expense",
             "label": "Общие и административные расходы",
             "ref": "PL · General and administrative",
             "kind": "flow",
@@ -1631,10 +1630,10 @@
                 null,
                 "admin_expense"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль",
             "ref": "PL · Profit for the year",
             "kind": "flow",
@@ -1644,7 +1643,8 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -1652,7 +1652,6 @@
         "label": "Statement of financial position · страховые статьи",
         "fields": [
           {
-            "key": "insurance_reserves",
             "label": "Страховые резервы / страховые обязательства",
             "ref": "BS · Insurance reserves",
             "kind": "stock",
@@ -1662,10 +1661,10 @@
                 null,
                 "insurance_reserves_gross"
               ]
-            ]
+            ],
+            "field_id": "insurance_reserves"
           },
           {
-            "key": "reins_assets",
             "label": "Доля перестраховщиков в страховых резервах",
             "ref": "BS · Reinsurance assets",
             "kind": "stock",
@@ -1675,10 +1674,10 @@
                 null,
                 "reinsurer_share_reserves"
               ]
-            ]
+            ],
+            "field_id": "reins_assets"
           },
           {
-            "key": "insurance_receivables",
             "label": "Дебиторская задолженность по страхованию и перестрахованию",
             "ref": "BS · Insurance receivables",
             "kind": "stock",
@@ -1688,10 +1687,10 @@
                 null,
                 "insurance_receivables"
               ]
-            ]
+            ],
+            "field_id": "insurance_receivables"
           },
           {
-            "key": "insurance_ifrs_dac",
             "label": "Отложенные аквизиционные расходы",
             "ref": "BS · Deferred acquisition costs",
             "kind": "stock",
@@ -1701,10 +1700,10 @@
                 null,
                 "deferred_acquisition_costs"
               ]
-            ]
+            ],
+            "field_id": "insurance_ifrs_dac"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -1714,10 +1713,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -1727,10 +1726,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Собственный капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -1740,7 +1739,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       },
@@ -1748,7 +1748,6 @@
         "label": "IFRS 17 · отдельная модель, только при применении",
         "fields": [
           {
-            "key": "ifrs17_insurance_rev",
             "label": "Insurance revenue · страховая выручка IFRS 17",
             "ref": "IFRS 17 · PL",
             "kind": "flow",
@@ -1758,10 +1757,10 @@
                 null,
                 "insurance_revenue"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_insurance_rev"
           },
           {
-            "key": "ifrs17_service_exp",
             "label": "Insurance service expenses · страховые расходы",
             "ref": "IFRS 17 · PL",
             "kind": "flow",
@@ -1771,10 +1770,10 @@
                 null,
                 "insurance_service_expense"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_service_exp"
           },
           {
-            "key": "ifrs17_result",
             "label": "Insurance service result · страховой результат",
             "ref": "IFRS 17 · PL",
             "kind": "flow",
@@ -1784,10 +1783,10 @@
                 null,
                 "insurance_service_result"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_result"
           },
           {
-            "key": "ifrs17_reinsurance",
             "label": "Результат перестрахования по IFRS 17",
             "ref": "IFRS 17 · PL",
             "kind": "flow",
@@ -1797,10 +1796,10 @@
                 null,
                 "reinsurance_result"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_reinsurance"
           },
           {
-            "key": "ifrs17_lrc",
             "label": "Liability for remaining coverage (LRC)",
             "ref": "IFRS 17 · BS",
             "kind": "stock",
@@ -1810,10 +1809,10 @@
                 null,
                 "lrc"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_lrc"
           },
           {
-            "key": "ifrs17_lic",
             "label": "Liability for incurred claims (LIC)",
             "ref": "IFRS 17 · BS",
             "kind": "stock",
@@ -1823,10 +1822,10 @@
                 null,
                 "lic"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_lic"
           },
           {
-            "key": "ifrs17_csm",
             "label": "Contractual service margin (CSM)",
             "ref": "IFRS 17 · Notes",
             "kind": "stock",
@@ -1836,7 +1835,8 @@
                 null,
                 "csm"
               ]
-            ]
+            ],
+            "field_id": "ifrs17_csm"
           }
         ]
       },
@@ -1844,7 +1844,6 @@
         "label": "Денежные потоки",
         "fields": [
           {
-            "key": "cfo",
             "label": "Чистый денежный поток от операционной деятельности",
             "ref": "CF",
             "kind": "flow",
@@ -1854,10 +1853,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Чистый поток от инвестиционной деятельности",
             "ref": "CF",
             "kind": "flow",
@@ -1867,10 +1866,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Чистый поток от финансовой деятельности",
             "ref": "CF",
             "kind": "flow",
@@ -1880,7 +1879,8 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           }
         ]
       }
@@ -1892,7 +1892,6 @@
         "label": "Форма №2 · финансовый результат",
         "fields": [
           {
-            "key": "revenue",
             "label": "Чистая выручка от реализации",
             "ref": "Ф.2 · 010",
             "kind": "flow",
@@ -1902,10 +1901,10 @@
                 "010",
                 "revenue"
               ]
-            ]
+            ],
+            "field_id": "revenue"
           },
           {
-            "key": "cost_of_sales",
             "label": "Себестоимость реализации",
             "ref": "Ф.2 · 020",
             "kind": "flow",
@@ -1915,10 +1914,10 @@
                 "020",
                 "cost_of_sales"
               ]
-            ]
+            ],
+            "field_id": "cost_of_sales"
           },
           {
-            "key": "gross_profit",
             "label": "Валовая прибыль",
             "ref": "Ф.2 · 030",
             "kind": "flow",
@@ -1928,10 +1927,10 @@
                 "030",
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "gross_profit"
           },
           {
-            "key": "operating_expense",
             "label": "Расходы периода",
             "ref": "Ф.2 · 040",
             "kind": "flow",
@@ -1941,10 +1940,10 @@
                 "040",
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "operating_profit",
             "label": "Прибыль от основной деятельности",
             "ref": "Ф.2 · 100",
             "kind": "flow",
@@ -1954,10 +1953,10 @@
                 "100",
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_profit"
           },
           {
-            "key": "financial_income",
             "label": "Доходы от финансовой деятельности",
             "ref": "Ф.2 · 110",
             "kind": "flow",
@@ -1967,10 +1966,10 @@
                 "110",
                 "finance_income"
               ]
-            ]
+            ],
+            "field_id": "financial_income"
           },
           {
-            "key": "leasing_nsbu_leaseincome",
             "label": "Доходы от финансовой аренды",
             "ref": "Ф.2 · 140",
             "kind": "flow",
@@ -1980,10 +1979,10 @@
                 "140",
                 "lease_income"
               ]
-            ]
+            ],
+            "field_id": "leasing_nsbu_leaseincome"
           },
           {
-            "key": "interest_expenses",
             "label": "Процентные расходы",
             "ref": "Ф.2 · 180",
             "kind": "flow",
@@ -1993,10 +1992,10 @@
                 "180",
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налогообложения",
             "ref": "Ф.2 · 240",
             "kind": "flow",
@@ -2006,10 +2005,10 @@
                 "240",
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль",
             "ref": "Ф.2 · 270",
             "kind": "flow",
@@ -2019,7 +2018,8 @@
                 "270",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -2027,7 +2027,6 @@
         "label": "Форма №1 · баланс и долг",
         "fields": [
           {
-            "key": "ppe",
             "label": "Основные средства, остаточная стоимость",
             "ref": "Ф.1 · 012",
             "kind": "stock",
@@ -2037,10 +2036,10 @@
                 "012",
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "ppe"
           },
           {
-            "key": "leasing_nsbu_longreceiv",
             "label": "Долгосрочная дебиторская задолженность",
             "ref": "Ф.1 · 110",
             "kind": "stock",
@@ -2050,10 +2049,10 @@
                 "110",
                 "long_term_receivables"
               ]
-            ]
+            ],
+            "field_id": "leasing_nsbu_longreceiv"
           },
           {
-            "key": "receivables",
             "label": "Дебиторская задолженность",
             "ref": "Ф.1 · 210",
             "kind": "stock",
@@ -2063,10 +2062,10 @@
                 "210",
                 "receivables"
               ]
-            ]
+            ],
+            "field_id": "receivables"
           },
           {
-            "key": "cash",
             "label": "Денежные средства",
             "ref": "Ф.1 · 320",
             "kind": "stock",
@@ -2076,10 +2075,10 @@
                 "320",
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "Ф.1 · 400",
             "kind": "stock",
@@ -2089,10 +2088,10 @@
                 "400",
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "leasing_nsbu_longloans",
             "label": "Долгосрочные кредиты и займы",
             "ref": "Ф.1 · 570–580",
             "kind": "stock",
@@ -2107,10 +2106,10 @@
                 "580",
                 "other_borrowings_long"
               ]
-            ]
+            ],
+            "field_id": "leasing_nsbu_longloans"
           },
           {
-            "key": "borrowings",
             "label": "Краткосрочные кредиты и займы",
             "ref": "Ф.1 · 730–750",
             "kind": "stock",
@@ -2130,10 +2129,10 @@
                 "750",
                 "current_portion_long_term_debt"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "Ф.1 · 770",
             "kind": "stock",
@@ -2143,10 +2142,10 @@
                 "770",
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "Ф.1 · 480",
             "kind": "stock",
@@ -2156,7 +2155,8 @@
                 "480",
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       }
@@ -2166,7 +2166,6 @@
         "label": "Profit or loss · лизинговый доход",
         "fields": [
           {
-            "key": "interest_income",
             "label": "Процентные доходы по финансовой аренде (EIR)",
             "ref": "PL · Interest income EIR",
             "kind": "flow",
@@ -2176,10 +2175,10 @@
                 null,
                 "interest_eir"
               ]
-            ]
+            ],
+            "field_id": "interest_income"
           },
           {
-            "key": "interest_expenses",
             "label": "Процентные расходы по заимствованиям",
             "ref": "PL · Interest expenses",
             "kind": "flow",
@@ -2189,10 +2188,10 @@
                 null,
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "nii",
             "label": "Чистый процентный доход",
             "ref": "PL · Net interest income",
             "kind": "flow",
@@ -2202,10 +2201,10 @@
                 null,
                 "net_interest_before_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii"
           },
           {
-            "key": "ecl",
             "label": "Ожидаемые кредитные убытки по лизингу (ECL)",
             "ref": "PL · ECL on leases",
             "kind": "flow",
@@ -2215,10 +2214,10 @@
                 null,
                 "credit_loss_expense"
               ]
-            ]
+            ],
+            "field_id": "ecl"
           },
           {
-            "key": "nii_after",
             "label": "Чистый процентный результат после ECL",
             "ref": "PL · Net interest income after ECL",
             "kind": "flow",
@@ -2228,10 +2227,10 @@
                 null,
                 "net_interest_after_ecl"
               ]
-            ]
+            ],
+            "field_id": "nii_after"
           },
           {
-            "key": "operating_expense",
             "label": "Операционные и административные расходы",
             "ref": "PL · Opex",
             "kind": "flow",
@@ -2241,10 +2240,10 @@
                 null,
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налогообложения",
             "ref": "PL · Profit before tax",
             "kind": "flow",
@@ -2254,10 +2253,10 @@
                 null,
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "net_profit",
             "label": "Прибыль за год",
             "ref": "PL · Profit for the year",
             "kind": "flow",
@@ -2267,7 +2266,8 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -2275,7 +2275,6 @@
         "label": "Statement of financial position · лизинг",
         "fields": [
           {
-            "key": "lease_investments",
             "label": "Чистые инвестиции в финансовую аренду",
             "ref": "BS · Net investments in leases",
             "kind": "stock",
@@ -2285,10 +2284,10 @@
                 null,
                 "net_lease_investment"
               ]
-            ]
+            ],
+            "field_id": "lease_investments"
           },
           {
-            "key": "leasing_ifrs_gross",
             "label": "Валовые инвестиции в финансовую аренду",
             "ref": "Notes · Gross lease investments",
             "kind": "stock",
@@ -2298,10 +2297,10 @@
                 null,
                 "gross_lease_investment"
               ]
-            ]
+            ],
+            "field_id": "leasing_ifrs_gross"
           },
           {
-            "key": "leasing_ifrs_ecl",
             "label": "Резерв ECL по лизинговому портфелю",
             "ref": "Notes · ECL allowance",
             "kind": "stock",
@@ -2311,10 +2310,10 @@
                 null,
                 "lease_ecl_allowance"
               ]
-            ]
+            ],
+            "field_id": "leasing_ifrs_ecl"
           },
           {
-            "key": "cash",
             "label": "Денежные средства и эквиваленты",
             "ref": "BS · Cash",
             "kind": "stock",
@@ -2324,10 +2323,10 @@
                 null,
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -2337,10 +2336,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "borrowings",
             "label": "Кредиты и займы",
             "ref": "BS · Borrowings",
             "kind": "stock",
@@ -2360,10 +2359,10 @@
                 null,
                 "borrowings_long"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -2373,10 +2372,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Всего капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -2386,7 +2385,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       },
@@ -2394,7 +2394,6 @@
         "label": "Cash flows",
         "fields": [
           {
-            "key": "cfo",
             "label": "Денежный поток по основной деятельности",
             "ref": "CF · Operating cash flows",
             "kind": "flow",
@@ -2404,10 +2403,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Инвестиционный денежный поток",
             "ref": "CF · Investing cash flows",
             "kind": "flow",
@@ -2417,10 +2416,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Финансовый денежный поток",
             "ref": "CF · Financing cash flows",
             "kind": "flow",
@@ -2430,7 +2429,8 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           }
         ]
       }
@@ -2442,7 +2442,6 @@
         "label": "Форма №2 · выручка и прибыль",
         "fields": [
           {
-            "key": "revenue",
             "label": "Чистая выручка от реализации",
             "ref": "Ф.2 · 010",
             "kind": "flow",
@@ -2452,10 +2451,10 @@
                 "010",
                 "revenue"
               ]
-            ]
+            ],
+            "field_id": "revenue"
           },
           {
-            "key": "cost_of_sales",
             "label": "Себестоимость реализованной продукции",
             "ref": "Ф.2 · 020",
             "kind": "flow",
@@ -2465,10 +2464,10 @@
                 "020",
                 "cost_of_sales"
               ]
-            ]
+            ],
+            "field_id": "cost_of_sales"
           },
           {
-            "key": "gross_profit",
             "label": "Валовая прибыль (убыток)",
             "ref": "Ф.2 · 030",
             "kind": "flow",
@@ -2478,10 +2477,10 @@
                 "030",
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "gross_profit"
           },
           {
-            "key": "operating_expense",
             "label": "Расходы периода",
             "ref": "Ф.2 · 040",
             "kind": "flow",
@@ -2491,10 +2490,10 @@
                 "040",
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "selling",
             "label": "Расходы по реализации",
             "ref": "Ф.2 · 050",
             "kind": "flow",
@@ -2504,10 +2503,10 @@
                 "050",
                 "selling_expense"
               ]
-            ]
+            ],
+            "field_id": "selling"
           },
           {
-            "key": "admin",
             "label": "Административные расходы",
             "ref": "Ф.2 · 060",
             "kind": "flow",
@@ -2517,10 +2516,10 @@
                 "060",
                 "admin_expense"
               ]
-            ]
+            ],
+            "field_id": "admin"
           },
           {
-            "key": "general_nsbu_otheroper",
             "label": "Прочие операционные расходы",
             "ref": "Ф.2 · 070",
             "kind": "flow",
@@ -2530,10 +2529,10 @@
                 "070",
                 "other_operating_expense"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_otheroper"
           },
           {
-            "key": "general_nsbu_otherinc",
             "label": "Прочие доходы основной деятельности",
             "ref": "Ф.2 · 090",
             "kind": "flow",
@@ -2543,10 +2542,10 @@
                 "090",
                 "other_operating_income"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_otherinc"
           },
           {
-            "key": "operating_profit",
             "label": "Прибыль от основной деятельности",
             "ref": "Ф.2 · 100",
             "kind": "flow",
@@ -2556,10 +2555,10 @@
                 "100",
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_profit"
           },
           {
-            "key": "financial_income",
             "label": "Доходы от финансовой деятельности",
             "ref": "Ф.2 · 110",
             "kind": "flow",
@@ -2569,10 +2568,10 @@
                 "110",
                 "finance_income"
               ]
-            ]
+            ],
+            "field_id": "financial_income"
           },
           {
-            "key": "interest_income",
             "label": "Доходы в виде процентов",
             "ref": "Ф.2 · 130",
             "kind": "flow",
@@ -2582,10 +2581,10 @@
                 "130",
                 "interest_income"
               ]
-            ]
+            ],
+            "field_id": "interest_income"
           },
           {
-            "key": "interest_expenses",
             "label": "Расходы в виде процентов",
             "ref": "Ф.2 · 180",
             "kind": "flow",
@@ -2595,10 +2594,10 @@
                 "180",
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налогообложения",
             "ref": "Ф.2 · 240",
             "kind": "flow",
@@ -2608,10 +2607,10 @@
                 "240",
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "tax",
             "label": "Налог на прибыль",
             "ref": "Ф.2 · 250",
             "kind": "flow",
@@ -2621,10 +2620,10 @@
                 "250",
                 "income_tax"
               ]
-            ]
+            ],
+            "field_id": "tax"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль (убыток)",
             "ref": "Ф.2 · 270",
             "kind": "flow",
@@ -2634,7 +2633,8 @@
                 "270",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -2642,7 +2642,6 @@
         "label": "Форма №1 · активы",
         "fields": [
           {
-            "key": "ppe",
             "label": "Основные средства, остаточная стоимость",
             "ref": "Ф.1 · 012",
             "kind": "stock",
@@ -2652,10 +2651,10 @@
                 "012",
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "ppe"
           },
           {
-            "key": "intangibles",
             "label": "Нематериальные активы, остаточная стоимость",
             "ref": "Ф.1 · 022",
             "kind": "stock",
@@ -2665,10 +2664,10 @@
                 "022",
                 "intangibles"
               ]
-            ]
+            ],
+            "field_id": "intangibles"
           },
           {
-            "key": "general_nsbu_longinvest",
             "label": "Долгосрочные инвестиции, всего",
             "ref": "Ф.1 · 030",
             "kind": "stock",
@@ -2678,10 +2677,10 @@
                 "030",
                 "long_term_investments"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_longinvest"
           },
           {
-            "key": "general_nsbu_capex",
             "label": "Капитальные вложения",
             "ref": "Ф.1 · 100",
             "kind": "stock",
@@ -2691,10 +2690,10 @@
                 "100",
                 "construction_in_progress"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_capex"
           },
           {
-            "key": "general_nsbu_fixedtotal",
             "label": "Итого внеоборотных активов",
             "ref": "Ф.1 · 130",
             "kind": "stock",
@@ -2704,10 +2703,10 @@
                 "130",
                 "noncurrent_assets"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_fixedtotal"
           },
           {
-            "key": "inventories",
             "label": "Запасы, всего",
             "ref": "Ф.1 · 140",
             "kind": "stock",
@@ -2717,10 +2716,10 @@
                 "140",
                 "inventory"
               ]
-            ]
+            ],
+            "field_id": "inventories"
           },
           {
-            "key": "receivables",
             "label": "Дебиторская задолженность, всего",
             "ref": "Ф.1 · 210",
             "kind": "stock",
@@ -2730,10 +2729,10 @@
                 "210",
                 "receivables"
               ]
-            ]
+            ],
+            "field_id": "receivables"
           },
           {
-            "key": "cash",
             "label": "Денежные средства, всего",
             "ref": "Ф.1 · 320",
             "kind": "stock",
@@ -2743,10 +2742,10 @@
                 "320",
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "general_nsbu_shortinvest",
             "label": "Краткосрочные инвестиции",
             "ref": "Ф.1 · 370",
             "kind": "stock",
@@ -2756,10 +2755,10 @@
                 "370",
                 "short_term_investments"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_shortinvest"
           },
           {
-            "key": "general_nsbu_currenttotal",
             "label": "Итого оборотных активов",
             "ref": "Ф.1 · 390",
             "kind": "stock",
@@ -2769,10 +2768,10 @@
                 "390",
                 "current_assets"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_currenttotal"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "Ф.1 · 400",
             "kind": "stock",
@@ -2782,7 +2781,8 @@
                 "400",
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           }
         ]
       },
@@ -2790,7 +2790,6 @@
         "label": "Форма №1 · собственный капитал и обязательства",
         "fields": [
           {
-            "key": "general_nsbu_charter",
             "label": "Уставный капитал",
             "ref": "Ф.1 · 410",
             "kind": "stock",
@@ -2800,10 +2799,10 @@
                 "410",
                 "share_capital"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_charter"
           },
           {
-            "key": "general_nsbu_extra",
             "label": "Добавочный капитал",
             "ref": "Ф.1 · 420",
             "kind": "stock",
@@ -2813,10 +2812,10 @@
                 "420",
                 "share_premium"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_extra"
           },
           {
-            "key": "general_nsbu_reserves",
             "label": "Резервный капитал",
             "ref": "Ф.1 · 430",
             "kind": "stock",
@@ -2826,10 +2825,10 @@
                 "430",
                 "reserve_capital"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_reserves"
           },
           {
-            "key": "general_nsbu_retained",
             "label": "Нераспределённая прибыль (убыток)",
             "ref": "Ф.1 · 450",
             "kind": "stock",
@@ -2839,10 +2838,10 @@
                 "450",
                 "retained_earnings"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_retained"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "Ф.1 · 480",
             "kind": "stock",
@@ -2852,10 +2851,10 @@
                 "480",
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           },
           {
-            "key": "general_nsbu_longliab",
             "label": "Долгосрочные обязательства",
             "ref": "Ф.1 · 490",
             "kind": "stock",
@@ -2865,10 +2864,10 @@
                 "490",
                 "noncurrent_liabilities"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_longliab"
           },
           {
-            "key": "general_nsbu_shortliab",
             "label": "Краткосрочные обязательства",
             "ref": "Ф.1 · 600",
             "kind": "stock",
@@ -2878,10 +2877,10 @@
                 "600",
                 "current_liabilities"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_shortliab"
           },
           {
-            "key": "borrowings",
             "label": "Банковские кредиты и займы (раздельно)",
             "ref": "Ф.1 · 570/580/730/740",
             "kind": "stock",
@@ -2906,10 +2905,10 @@
                 "740",
                 "other_borrowings_short"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "Ф.1 · 770",
             "kind": "stock",
@@ -2919,7 +2918,8 @@
                 "770",
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           }
         ]
       }
@@ -2929,7 +2929,6 @@
         "label": "Statement of profit or loss",
         "fields": [
           {
-            "key": "revenue",
             "label": "Выручка по договорам с покупателями",
             "ref": "PL · Revenue from contracts",
             "kind": "flow",
@@ -2939,10 +2938,10 @@
                 null,
                 "revenue"
               ]
-            ]
+            ],
+            "field_id": "revenue"
           },
           {
-            "key": "cost_of_sales",
             "label": "Себестоимость продаж",
             "ref": "PL · Cost of sales",
             "kind": "flow",
@@ -2952,10 +2951,10 @@
                 null,
                 "cost_of_sales"
               ]
-            ]
+            ],
+            "field_id": "cost_of_sales"
           },
           {
-            "key": "gross_profit",
             "label": "Валовая прибыль",
             "ref": "PL · Gross profit",
             "kind": "flow",
@@ -2965,10 +2964,10 @@
                 null,
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "gross_profit"
           },
           {
-            "key": "selling",
             "label": "Коммерческие расходы",
             "ref": "PL · Selling expenses",
             "kind": "flow",
@@ -2978,10 +2977,10 @@
                 null,
                 "selling_expense"
               ]
-            ]
+            ],
+            "field_id": "selling"
           },
           {
-            "key": "admin",
             "label": "Общие и административные расходы",
             "ref": "PL · G&A",
             "kind": "flow",
@@ -2991,10 +2990,10 @@
                 null,
                 "admin_expense"
               ]
-            ]
+            ],
+            "field_id": "admin"
           },
           {
-            "key": "general_ifrs_impair",
             "label": "Обесценение финансовых и нефинансовых активов",
             "ref": "PL/Notes · Impairment",
             "kind": "flow",
@@ -3004,10 +3003,10 @@
                 null,
                 "impairment"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_impair"
           },
           {
-            "key": "operating_profit",
             "label": "Прибыль от операционной деятельности",
             "ref": "PL · Operating profit",
             "kind": "flow",
@@ -3017,10 +3016,10 @@
                 null,
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_profit"
           },
           {
-            "key": "financial_income",
             "label": "Финансовые доходы",
             "ref": "PL · Finance income",
             "kind": "flow",
@@ -3030,10 +3029,10 @@
                 null,
                 "finance_income"
               ]
-            ]
+            ],
+            "field_id": "financial_income"
           },
           {
-            "key": "interest_expenses",
             "label": "Финансовые расходы",
             "ref": "PL · Finance costs",
             "kind": "flow",
@@ -3043,10 +3042,10 @@
                 null,
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "general_ifrs_fx",
             "label": "Курсовые разницы (нетто)",
             "ref": "PL · FX gain/loss",
             "kind": "flow",
@@ -3056,10 +3055,10 @@
                 null,
                 "fx_gain_loss"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_fx"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налога",
             "ref": "PL · Profit before tax",
             "kind": "flow",
@@ -3069,10 +3068,10 @@
                 null,
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "tax",
             "label": "Налог на прибыль",
             "ref": "PL · Income tax",
             "kind": "flow",
@@ -3082,10 +3081,10 @@
                 null,
                 "income_tax"
               ]
-            ]
+            ],
+            "field_id": "tax"
           },
           {
-            "key": "net_profit",
             "label": "Прибыль (убыток) за период",
             "ref": "PL · Profit for the period",
             "kind": "flow",
@@ -3095,10 +3094,10 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           },
           {
-            "key": "general_ifrs_oci",
             "label": "Прочий совокупный доход",
             "ref": "PL · OCI",
             "kind": "flow",
@@ -3108,7 +3107,8 @@
                 null,
                 "oci"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_oci"
           }
         ]
       },
@@ -3116,7 +3116,6 @@
         "label": "Statement of financial position",
         "fields": [
           {
-            "key": "ppe",
             "label": "Основные средства (PPE)",
             "ref": "BS · Property, plant and equipment",
             "kind": "stock",
@@ -3126,10 +3125,10 @@
                 null,
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "ppe"
           },
           {
-            "key": "intangibles",
             "label": "Нематериальные активы",
             "ref": "BS · Intangible assets",
             "kind": "stock",
@@ -3139,10 +3138,10 @@
                 null,
                 "intangibles"
               ]
-            ]
+            ],
+            "field_id": "intangibles"
           },
           {
-            "key": "right_of_use",
             "label": "Активы права пользования",
             "ref": "BS · Right-of-use assets",
             "kind": "stock",
@@ -3152,10 +3151,10 @@
                 null,
                 "rou_assets"
               ]
-            ]
+            ],
+            "field_id": "right_of_use"
           },
           {
-            "key": "inventories",
             "label": "Запасы",
             "ref": "BS · Inventories",
             "kind": "stock",
@@ -3165,10 +3164,10 @@
                 null,
                 "inventory"
               ]
-            ]
+            ],
+            "field_id": "inventories"
           },
           {
-            "key": "receivables",
             "label": "Торговая и прочая дебиторская задолженность",
             "ref": "BS · Trade receivables",
             "kind": "stock",
@@ -3178,10 +3177,10 @@
                 null,
                 "trade_receivables"
               ]
-            ]
+            ],
+            "field_id": "receivables"
           },
           {
-            "key": "cash",
             "label": "Денежные средства и эквиваленты",
             "ref": "BS · Cash",
             "kind": "stock",
@@ -3191,10 +3190,10 @@
                 null,
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "general_ifrs_current",
             "label": "Оборотные активы",
             "ref": "BS · Current assets",
             "kind": "stock",
@@ -3204,10 +3203,10 @@
                 null,
                 "current_assets"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_current"
           },
           {
-            "key": "general_ifrs_noncurrent",
             "label": "Внеоборотные активы",
             "ref": "BS · Non-current assets",
             "kind": "stock",
@@ -3217,10 +3216,10 @@
                 null,
                 "noncurrent_assets"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_noncurrent"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -3230,10 +3229,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "general_ifrs_borrow_short",
             "label": "Краткосрочные кредиты и займы",
             "ref": "BS · Current borrowings",
             "kind": "stock",
@@ -3243,10 +3242,10 @@
                 null,
                 "borrowings_short"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_borrow_short"
           },
           {
-            "key": "general_ifrs_borrow_long",
             "label": "Долгосрочные кредиты и займы",
             "ref": "BS · Non-current borrowings",
             "kind": "stock",
@@ -3256,10 +3255,10 @@
                 null,
                 "borrowings_long"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_borrow_long"
           },
           {
-            "key": "lease_liab",
             "label": "Арендные обязательства",
             "ref": "BS · Lease liabilities",
             "kind": "stock",
@@ -3269,10 +3268,10 @@
                 null,
                 "lease_liabilities"
               ]
-            ]
+            ],
+            "field_id": "lease_liab"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -3282,10 +3281,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -3295,7 +3294,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       },
@@ -3303,7 +3303,6 @@
         "label": "Statement of cash flows",
         "fields": [
           {
-            "key": "cfo",
             "label": "Чистый поток от операционной деятельности",
             "ref": "CF · CFO",
             "kind": "flow",
@@ -3313,10 +3312,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Чистый поток от инвестиционной деятельности",
             "ref": "CF · CFI",
             "kind": "flow",
@@ -3326,10 +3325,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Чистый поток от финансовой деятельности",
             "ref": "CF · CFF",
             "kind": "flow",
@@ -3339,10 +3338,10 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           },
           {
-            "key": "capex",
             "label": "Приобретение основных средств (CAPEX)",
             "ref": "CF · Purchase of PPE",
             "kind": "flow",
@@ -3352,10 +3351,10 @@
                 null,
                 "purchase_ppe"
               ]
-            ]
+            ],
+            "field_id": "capex"
           },
           {
-            "key": "general_ifrs_divpaid",
             "label": "Выплаченные дивиденды",
             "ref": "CF/Equity · Dividends paid",
             "kind": "flow",
@@ -3365,7 +3364,8 @@
                 null,
                 "dividends_paid"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_divpaid"
           }
         ]
       },
@@ -3373,7 +3373,6 @@
         "label": "Statement of changes in equity / Notes",
         "fields": [
           {
-            "key": "general_ifrs_shareissue",
             "label": "Выпуск акций",
             "ref": "Equity · Share issuance",
             "kind": "flow",
@@ -3383,10 +3382,10 @@
                 null,
                 "share_issuance"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_shareissue"
           },
           {
-            "key": "general_ifrs_nci",
             "label": "Неконтролирующие доли участия",
             "ref": "Equity · NCI",
             "kind": "stock",
@@ -3396,10 +3395,10 @@
                 null,
                 "nci"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_nci"
           },
           {
-            "key": "general_ifrs_eps",
             "label": "Прибыль на акцию (сум/акция)",
             "ref": "Notes · EPS",
             "kind": "flow",
@@ -3414,7 +3413,8 @@
                 null,
                 "eps_diluted"
               ]
-            ]
+            ],
+            "field_id": "general_ifrs_eps"
           }
         ]
       }
@@ -3426,7 +3426,6 @@
         "label": "Отчёт о результатах · телеком",
         "fields": [
           {
-            "key": "revenue",
             "label": "Выручка от услуг связи и оборудования",
             "ref": "PL · Revenue",
             "kind": "flow",
@@ -3436,10 +3435,10 @@
                 null,
                 "revenue"
               ]
-            ]
+            ],
+            "field_id": "revenue"
           },
           {
-            "key": "telecom_ifrs_fixed",
             "label": "Доходы от фиксированной связи",
             "ref": "Notes · Service revenue",
             "kind": "flow",
@@ -3449,10 +3448,10 @@
                 null,
                 "fixed_line_revenue"
               ]
-            ]
+            ],
+            "field_id": "telecom_ifrs_fixed"
           },
           {
-            "key": "telecom_ifrs_mobile",
             "label": "Доходы от мобильной связи",
             "ref": "Notes · Mobile revenue",
             "kind": "flow",
@@ -3462,10 +3461,10 @@
                 null,
                 "mobile_revenue"
               ]
-            ]
+            ],
+            "field_id": "telecom_ifrs_mobile"
           },
           {
-            "key": "cost_of_sales",
             "label": "Себестоимость услуг и оборудования",
             "ref": "PL · Cost of sales",
             "kind": "flow",
@@ -3475,10 +3474,10 @@
                 null,
                 "cost_of_sales"
               ]
-            ]
+            ],
+            "field_id": "cost_of_sales"
           },
           {
-            "key": "gross_profit",
             "label": "Валовая прибыль",
             "ref": "PL · Gross profit",
             "kind": "flow",
@@ -3488,10 +3487,10 @@
                 null,
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "gross_profit"
           },
           {
-            "key": "operating_profit",
             "label": "Операционная прибыль",
             "ref": "PL · Operating profit",
             "kind": "flow",
@@ -3501,10 +3500,10 @@
                 null,
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_profit"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль",
             "ref": "PL · Profit for the year",
             "kind": "flow",
@@ -3514,7 +3513,8 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -3522,7 +3522,6 @@
         "label": "Баланс · телеком",
         "fields": [
           {
-            "key": "ppe",
             "label": "Сетевое оборудование и основные средства",
             "ref": "BS/Notes · PPE",
             "kind": "stock",
@@ -3532,10 +3531,10 @@
                 null,
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "ppe"
           },
           {
-            "key": "intangibles",
             "label": "Лицензии и нематериальные активы",
             "ref": "BS/Notes · Intangibles",
             "kind": "stock",
@@ -3545,10 +3544,10 @@
                 null,
                 "intangibles"
               ]
-            ]
+            ],
+            "field_id": "intangibles"
           },
           {
-            "key": "right_of_use",
             "label": "Активы права пользования",
             "ref": "BS · Right-of-use",
             "kind": "stock",
@@ -3558,10 +3557,10 @@
                 null,
                 "rou_assets"
               ]
-            ]
+            ],
+            "field_id": "right_of_use"
           },
           {
-            "key": "cash",
             "label": "Денежные средства",
             "ref": "BS · Cash",
             "kind": "stock",
@@ -3571,10 +3570,10 @@
                 null,
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -3584,10 +3583,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "borrowings",
             "label": "Займы и кредиты",
             "ref": "BS · Borrowings",
             "kind": "stock",
@@ -3607,10 +3606,10 @@
                 null,
                 "borrowings_long"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "lease_liab",
             "label": "Арендные обязательства",
             "ref": "BS · Lease liabilities",
             "kind": "stock",
@@ -3620,10 +3619,10 @@
                 null,
                 "lease_liabilities"
               ]
-            ]
+            ],
+            "field_id": "lease_liab"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -3633,10 +3632,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Собственный капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -3646,7 +3645,8 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           }
         ]
       },
@@ -3654,7 +3654,6 @@
         "label": "Денежные потоки",
         "fields": [
           {
-            "key": "cfo",
             "label": "Операционный поток",
             "ref": "CF · CFO",
             "kind": "flow",
@@ -3664,10 +3663,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Инвестиционный поток",
             "ref": "CF · CFI",
             "kind": "flow",
@@ -3677,10 +3676,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Финансовый поток",
             "ref": "CF · CFF",
             "kind": "flow",
@@ -3690,10 +3689,10 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           },
           {
-            "key": "capex",
             "label": "Инвестиции в сеть / CAPEX",
             "ref": "CF/Notes · Purchases of PPE",
             "kind": "flow",
@@ -3703,7 +3702,8 @@
                 null,
                 "purchase_ppe"
               ]
-            ]
+            ],
+            "field_id": "capex"
           }
         ]
       }
@@ -3713,7 +3713,6 @@
         "label": "Форма №2 · выручка и прибыль",
         "fields": [
           {
-            "key": "revenue",
             "label": "Чистая выручка от реализации",
             "ref": "Ф.2 · 010",
             "kind": "flow",
@@ -3723,10 +3722,10 @@
                 "010",
                 "revenue"
               ]
-            ]
+            ],
+            "field_id": "revenue"
           },
           {
-            "key": "cost_of_sales",
             "label": "Себестоимость реализованной продукции",
             "ref": "Ф.2 · 020",
             "kind": "flow",
@@ -3736,10 +3735,10 @@
                 "020",
                 "cost_of_sales"
               ]
-            ]
+            ],
+            "field_id": "cost_of_sales"
           },
           {
-            "key": "gross_profit",
             "label": "Валовая прибыль (убыток)",
             "ref": "Ф.2 · 030",
             "kind": "flow",
@@ -3749,10 +3748,10 @@
                 "030",
                 "gross_profit"
               ]
-            ]
+            ],
+            "field_id": "gross_profit"
           },
           {
-            "key": "operating_expense",
             "label": "Расходы периода",
             "ref": "Ф.2 · 040",
             "kind": "flow",
@@ -3762,10 +3761,10 @@
                 "040",
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "selling",
             "label": "Расходы по реализации",
             "ref": "Ф.2 · 050",
             "kind": "flow",
@@ -3775,10 +3774,10 @@
                 "050",
                 "selling_expense"
               ]
-            ]
+            ],
+            "field_id": "selling"
           },
           {
-            "key": "admin",
             "label": "Административные расходы",
             "ref": "Ф.2 · 060",
             "kind": "flow",
@@ -3788,10 +3787,10 @@
                 "060",
                 "admin_expense"
               ]
-            ]
+            ],
+            "field_id": "admin"
           },
           {
-            "key": "general_nsbu_otheroper",
             "label": "Прочие операционные расходы",
             "ref": "Ф.2 · 070",
             "kind": "flow",
@@ -3801,10 +3800,10 @@
                 "070",
                 "other_operating_expense"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_otheroper"
           },
           {
-            "key": "general_nsbu_otherinc",
             "label": "Прочие доходы основной деятельности",
             "ref": "Ф.2 · 090",
             "kind": "flow",
@@ -3814,10 +3813,10 @@
                 "090",
                 "other_operating_income"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_otherinc"
           },
           {
-            "key": "operating_profit",
             "label": "Прибыль от основной деятельности",
             "ref": "Ф.2 · 100",
             "kind": "flow",
@@ -3827,10 +3826,10 @@
                 "100",
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_profit"
           },
           {
-            "key": "financial_income",
             "label": "Доходы от финансовой деятельности",
             "ref": "Ф.2 · 110",
             "kind": "flow",
@@ -3840,10 +3839,10 @@
                 "110",
                 "finance_income"
               ]
-            ]
+            ],
+            "field_id": "financial_income"
           },
           {
-            "key": "interest_income",
             "label": "Доходы в виде процентов",
             "ref": "Ф.2 · 130",
             "kind": "flow",
@@ -3853,10 +3852,10 @@
                 "130",
                 "interest_income"
               ]
-            ]
+            ],
+            "field_id": "interest_income"
           },
           {
-            "key": "interest_expenses",
             "label": "Расходы в виде процентов",
             "ref": "Ф.2 · 180",
             "kind": "flow",
@@ -3866,10 +3865,10 @@
                 "180",
                 "interest_expense"
               ]
-            ]
+            ],
+            "field_id": "interest_expenses"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налогообложения",
             "ref": "Ф.2 · 240",
             "kind": "flow",
@@ -3879,10 +3878,10 @@
                 "240",
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "tax",
             "label": "Налог на прибыль",
             "ref": "Ф.2 · 250",
             "kind": "flow",
@@ -3892,10 +3891,10 @@
                 "250",
                 "income_tax"
               ]
-            ]
+            ],
+            "field_id": "tax"
           },
           {
-            "key": "net_profit",
             "label": "Чистая прибыль (убыток)",
             "ref": "Ф.2 · 270",
             "kind": "flow",
@@ -3905,7 +3904,8 @@
                 "270",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -3913,7 +3913,6 @@
         "label": "Форма №1 · активы",
         "fields": [
           {
-            "key": "ppe",
             "label": "Основные средства, остаточная стоимость",
             "ref": "Ф.1 · 012",
             "kind": "stock",
@@ -3923,10 +3922,10 @@
                 "012",
                 "ppe"
               ]
-            ]
+            ],
+            "field_id": "ppe"
           },
           {
-            "key": "intangibles",
             "label": "Нематериальные активы, остаточная стоимость",
             "ref": "Ф.1 · 022",
             "kind": "stock",
@@ -3936,10 +3935,10 @@
                 "022",
                 "intangibles"
               ]
-            ]
+            ],
+            "field_id": "intangibles"
           },
           {
-            "key": "general_nsbu_longinvest",
             "label": "Долгосрочные инвестиции, всего",
             "ref": "Ф.1 · 030",
             "kind": "stock",
@@ -3949,10 +3948,10 @@
                 "030",
                 "long_term_investments"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_longinvest"
           },
           {
-            "key": "general_nsbu_capex",
             "label": "Капитальные вложения",
             "ref": "Ф.1 · 100",
             "kind": "stock",
@@ -3962,10 +3961,10 @@
                 "100",
                 "construction_in_progress"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_capex"
           },
           {
-            "key": "general_nsbu_fixedtotal",
             "label": "Итого внеоборотных активов",
             "ref": "Ф.1 · 130",
             "kind": "stock",
@@ -3975,10 +3974,10 @@
                 "130",
                 "noncurrent_assets"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_fixedtotal"
           },
           {
-            "key": "inventories",
             "label": "Запасы, всего",
             "ref": "Ф.1 · 140",
             "kind": "stock",
@@ -3988,10 +3987,10 @@
                 "140",
                 "inventory"
               ]
-            ]
+            ],
+            "field_id": "inventories"
           },
           {
-            "key": "receivables",
             "label": "Дебиторская задолженность, всего",
             "ref": "Ф.1 · 210",
             "kind": "stock",
@@ -4001,10 +4000,10 @@
                 "210",
                 "receivables"
               ]
-            ]
+            ],
+            "field_id": "receivables"
           },
           {
-            "key": "cash",
             "label": "Денежные средства, всего",
             "ref": "Ф.1 · 320",
             "kind": "stock",
@@ -4014,10 +4013,10 @@
                 "320",
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "general_nsbu_shortinvest",
             "label": "Краткосрочные инвестиции",
             "ref": "Ф.1 · 370",
             "kind": "stock",
@@ -4027,10 +4026,10 @@
                 "370",
                 "short_term_investments"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_shortinvest"
           },
           {
-            "key": "general_nsbu_currenttotal",
             "label": "Итого оборотных активов",
             "ref": "Ф.1 · 390",
             "kind": "stock",
@@ -4040,10 +4039,10 @@
                 "390",
                 "current_assets"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_currenttotal"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "Ф.1 · 400",
             "kind": "stock",
@@ -4053,7 +4052,8 @@
                 "400",
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           }
         ]
       },
@@ -4061,7 +4061,6 @@
         "label": "Форма №1 · собственный капитал и обязательства",
         "fields": [
           {
-            "key": "general_nsbu_charter",
             "label": "Уставный капитал",
             "ref": "Ф.1 · 410",
             "kind": "stock",
@@ -4071,10 +4070,10 @@
                 "410",
                 "share_capital"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_charter"
           },
           {
-            "key": "general_nsbu_extra",
             "label": "Добавочный капитал",
             "ref": "Ф.1 · 420",
             "kind": "stock",
@@ -4084,10 +4083,10 @@
                 "420",
                 "share_premium"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_extra"
           },
           {
-            "key": "general_nsbu_reserves",
             "label": "Резервный капитал",
             "ref": "Ф.1 · 430",
             "kind": "stock",
@@ -4097,10 +4096,10 @@
                 "430",
                 "reserve_capital"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_reserves"
           },
           {
-            "key": "general_nsbu_retained",
             "label": "Нераспределённая прибыль (убыток)",
             "ref": "Ф.1 · 450",
             "kind": "stock",
@@ -4110,10 +4109,10 @@
                 "450",
                 "retained_earnings"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_retained"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "Ф.1 · 480",
             "kind": "stock",
@@ -4123,10 +4122,10 @@
                 "480",
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           },
           {
-            "key": "general_nsbu_longliab",
             "label": "Долгосрочные обязательства",
             "ref": "Ф.1 · 490",
             "kind": "stock",
@@ -4136,10 +4135,10 @@
                 "490",
                 "noncurrent_liabilities"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_longliab"
           },
           {
-            "key": "general_nsbu_shortliab",
             "label": "Краткосрочные обязательства",
             "ref": "Ф.1 · 600",
             "kind": "stock",
@@ -4149,10 +4148,10 @@
                 "600",
                 "current_liabilities"
               ]
-            ]
+            ],
+            "field_id": "general_nsbu_shortliab"
           },
           {
-            "key": "borrowings",
             "label": "Банковские кредиты и займы (раздельно)",
             "ref": "Ф.1 · 570/580/730/740",
             "kind": "stock",
@@ -4177,10 +4176,10 @@
                 "740",
                 "other_borrowings_short"
               ]
-            ]
+            ],
+            "field_id": "borrowings"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "Ф.1 · 770",
             "kind": "stock",
@@ -4190,7 +4189,8 @@
                 "770",
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           }
         ]
       },
@@ -4198,7 +4198,6 @@
         "label": "Телеком · дополнительное раскрытие",
         "fields": [
           {
-            "key": "telecom_nsbu_service",
             "label": "Выручка от услуг связи по сегментам",
             "ref": "НСБУ · если раскрыто",
             "kind": "flow",
@@ -4208,10 +4207,10 @@
                 null,
                 "telecom_nsbu_service"
               ]
-            ]
+            ],
+            "field_id": "telecom_nsbu_service"
           },
           {
-            "key": "telecom_nsbu_network",
             "label": "Инвестиции в развитие телекоммуникационной сети",
             "ref": "НСБУ · при наличии",
             "kind": "stock",
@@ -4221,7 +4220,8 @@
                 null,
                 "telecom_nsbu_network"
               ]
-            ]
+            ],
+            "field_id": "telecom_nsbu_network"
           }
         ]
       }
@@ -4233,7 +4233,6 @@
         "label": "Основные показатели по опубликованной форме",
         "fields": [
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "НСБУ · форма эмитента",
             "kind": "stock",
@@ -4243,10 +4242,10 @@
                 "400",
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "НСБУ · форма эмитента",
             "kind": "stock",
@@ -4256,10 +4255,10 @@
                 "770",
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Собственный капитал",
             "ref": "НСБУ · форма эмитента",
             "kind": "stock",
@@ -4269,10 +4268,10 @@
                 "480",
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           },
           {
-            "key": "net_profit",
             "label": "Прибыль / убыток",
             "ref": "НСБУ · форма эмитента",
             "kind": "flow",
@@ -4282,10 +4281,10 @@
                 "270",
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           },
           {
-            "key": "fund_nsbu_invest",
             "label": "Инвестиционные активы (при раскрытии)",
             "ref": "НСБУ · примечание",
             "kind": "stock",
@@ -4300,7 +4299,8 @@
                 "370",
                 "short_term_investments"
               ]
-            ]
+            ],
+            "field_id": "fund_nsbu_invest"
           }
         ]
       }
@@ -4310,7 +4310,6 @@
         "label": "Condensed statement of comprehensive income",
         "fields": [
           {
-            "key": "unrealized_gain",
             "label": "Нереализованная прибыль от инвестиций по FVTPL",
             "ref": "PL · Unrealized gains",
             "kind": "flow",
@@ -4320,10 +4319,10 @@
                 null,
                 "unrealized_investment_gain"
               ]
-            ]
+            ],
+            "field_id": "unrealized_gain"
           },
           {
-            "key": "dividend_income",
             "label": "Валовый доход от дивидендов",
             "ref": "PL · Gross dividend income",
             "kind": "flow",
@@ -4333,10 +4332,10 @@
                 null,
                 "dividend_income"
               ]
-            ]
+            ],
+            "field_id": "dividend_income"
           },
           {
-            "key": "operating_income",
             "label": "Чистый операционный доход",
             "ref": "PL · Net operating income",
             "kind": "flow",
@@ -4346,10 +4345,10 @@
                 null,
                 "operating_income"
               ]
-            ]
+            ],
+            "field_id": "operating_income"
           },
           {
-            "key": "operating_expense",
             "label": "Операционные расходы",
             "ref": "PL · Operating expenses",
             "kind": "flow",
@@ -4359,10 +4358,10 @@
                 null,
                 "operating_expenses"
               ]
-            ]
+            ],
+            "field_id": "operating_expense"
           },
           {
-            "key": "profit_before_tax",
             "label": "Прибыль до налога",
             "ref": "PL · Profit before tax",
             "kind": "flow",
@@ -4372,10 +4371,10 @@
                 null,
                 "profit_before_tax"
               ]
-            ]
+            ],
+            "field_id": "profit_before_tax"
           },
           {
-            "key": "net_profit",
             "label": "Прибыль за отчётный период",
             "ref": "PL · Profit for period",
             "kind": "flow",
@@ -4385,7 +4384,8 @@
                 null,
                 "net_income"
               ]
-            ]
+            ],
+            "field_id": "net_profit"
           }
         ]
       },
@@ -4393,7 +4393,6 @@
         "label": "Condensed statement of financial position",
         "fields": [
           {
-            "key": "cash",
             "label": "Денежные средства и эквиваленты",
             "ref": "BS · Cash",
             "kind": "stock",
@@ -4403,10 +4402,10 @@
                 null,
                 "cash"
               ]
-            ]
+            ],
+            "field_id": "cash"
           },
           {
-            "key": "investments_fvtpl",
             "label": "Инвестиции в долевые инструменты по FVTPL",
             "ref": "BS · Equity investments at FVTPL",
             "kind": "stock",
@@ -4416,10 +4415,10 @@
                 null,
                 "financial_assets_fvtpl"
               ]
-            ]
+            ],
+            "field_id": "investments_fvtpl"
           },
           {
-            "key": "dividends_receivable",
             "label": "Дивиденды к получению",
             "ref": "BS · Dividends receivable",
             "kind": "stock",
@@ -4429,10 +4428,10 @@
                 null,
                 "dividends_receivable"
               ]
-            ]
+            ],
+            "field_id": "dividends_receivable"
           },
           {
-            "key": "assets",
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",
@@ -4442,10 +4441,10 @@
                 null,
                 "total_assets"
               ]
-            ]
+            ],
+            "field_id": "assets"
           },
           {
-            "key": "liabilities",
             "label": "Всего обязательств",
             "ref": "BS · Total liabilities",
             "kind": "stock",
@@ -4455,10 +4454,10 @@
                 null,
                 "total_liabilities"
               ]
-            ]
+            ],
+            "field_id": "liabilities"
           },
           {
-            "key": "equity",
             "label": "Всего собственный капитал",
             "ref": "BS · Total equity",
             "kind": "stock",
@@ -4468,10 +4467,10 @@
                 null,
                 "total_equity"
               ]
-            ]
+            ],
+            "field_id": "equity"
           },
           {
-            "key": "nav",
             "label": "Балансовая база чистых активов для NAV",
             "ref": "BS · Assets minus liabilities",
             "kind": "stock",
@@ -4481,7 +4480,8 @@
                 null,
                 "nav"
               ]
-            ]
+            ],
+            "field_id": "nav"
           }
         ]
       },
@@ -4489,7 +4489,6 @@
         "label": "Condensed cash flows / изменения капитала",
         "fields": [
           {
-            "key": "cfo",
             "label": "Денежный поток от операционной деятельности",
             "ref": "CF · Net operating cash flow",
             "kind": "flow",
@@ -4499,10 +4498,10 @@
                 null,
                 "cfo"
               ]
-            ]
+            ],
+            "field_id": "cfo"
           },
           {
-            "key": "cfi",
             "label": "Денежный поток от инвестиционной деятельности",
             "ref": "CF · Investing cash flow",
             "kind": "flow",
@@ -4512,10 +4511,10 @@
                 null,
                 "cfi"
               ]
-            ]
+            ],
+            "field_id": "cfi"
           },
           {
-            "key": "cff",
             "label": "Денежный поток от финансовой деятельности",
             "ref": "CF · Financing cash flow",
             "kind": "flow",
@@ -4525,10 +4524,10 @@
                 null,
                 "cff"
               ]
-            ]
+            ],
+            "field_id": "cff"
           },
           {
-            "key": "fund_ifrs_treasury",
             "label": "Выкупленные собственные акции",
             "ref": "Equity · Treasury shares",
             "kind": "stock",
@@ -4538,10 +4537,10 @@
                 null,
                 "treasury_shares"
               ]
-            ]
+            ],
+            "field_id": "fund_ifrs_treasury"
           },
           {
-            "key": "fund_ifrs_div",
             "label": "Выплаченные дивиденды",
             "ref": "Equity/CF · Dividends",
             "kind": "flow",
@@ -4551,7 +4550,8 @@
                 null,
                 "dividends_paid"
               ]
-            ]
+            ],
+            "field_id": "fund_ifrs_div"
           }
         ]
       }

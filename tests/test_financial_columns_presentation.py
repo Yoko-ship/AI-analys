@@ -76,5 +76,5 @@ def test_all_twelve_reference_lists_are_explicit():
         assert tuple(sum(len(g['fields']) for g in FIELDS[sector][standard]) for standard in ['nsbu','ifrs'])==expected
         for standard in ['nsbu','ifrs']:
             fields=[f for g in FIELDS[sector][standard] for f in g['fields']]
-            assert len({f['key'] for f in fields})==len(fields)
+            assert len({f['field_id'] for f in fields})==len(fields)
             assert all(f['selectors'] for f in fields)
