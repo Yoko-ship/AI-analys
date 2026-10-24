@@ -25,6 +25,8 @@ def cell(raw):
 def _flow_pair(raw):
     """Income minus expense columns; explicit crossed cells are inapplicable."""
     a, b = [cell(v) for v in raw]
+    if a['quality'] == b['quality'] == 'not_applicable':
+        return {'raw_value': raw, 'value': None, 'quality': 'not_applicable'}
     values = [Decimal(c['value']) if c['value'] is not None else
               Decimal(0) if c['quality'] == 'not_applicable' else None for c in (a, b)]
     if None in values:

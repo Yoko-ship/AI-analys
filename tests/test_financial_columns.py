@@ -162,3 +162,13 @@ def test_kafolat_2025_subtotals_and_reserve_changes_have_literal_meanings():
     assert mapped['INSURANCE_PL', '015']['metric_id'] == 'change_reported_claims_net'
     assert mapped['INSURANCE_PL', '130']['metric_id'] == 'excluded_period_expenses'
     assert mapped['INSURANCE_PL', '140']['metric_id'] == 'other_operating_income'
+
+
+def test_fully_crossed_income_and_expense_cells_remain_not_applicable():
+    from financial_columns.nsbu import rows
+    workbook = {'sheets': [{'sheet': 'Форма 2', 'source_rows': [
+        {'row': 1, 'cells': ['Валовая прибыль', '030', 0, 'X', 'X', 'Х']}]}]}
+    row = rows(workbook, template='industry', default_form='F2')[0]
+    assert row['previous']['value'] == '0'
+    assert row['current']['value'] is None
+    assert row['current']['quality'] == 'not_applicable'
