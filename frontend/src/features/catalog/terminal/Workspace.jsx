@@ -4,7 +4,7 @@ import { filterRows, normalizeLayout, profitSparkline } from "../../../lib/termi
 import { ISSUER_FUNCTIONS, functionLabel } from "../../../lib/terminalCommands.js";
 import { reportScreenLoad } from "../../../lib/terminalJournal.js";
 import { safeHref } from "../../../lib/safeHref.js";
-import { IssuerFinancials, IssuerDividends } from "../../company/index.js";
+import { IssuerFinancials, IssuerDividends, FinancialColumns } from "../../company/index.js";
 import { NewsScreen, QualityScreen, useScreenData } from "./TerminalPanels.jsx";
 import { words } from "../../../shared/TerminalTables.jsx";
 import { SummaryScreen } from "./SummaryScreen.jsx";
@@ -166,7 +166,7 @@ function FilingsScreen({ticker,lang}) {
 export function PanelScreen({panel,onChange,lang,onOpen,user,apiFetch}) {
   const {ticker,func,form,scope}=panel;
   if(func==="FV"&&user?.is_admin)return <TerminalValuation {...panel} apiFetch={apiFetch} lang={lang}/>;
-  if(["PL","BS"].includes(func))return <IssuerFinancials ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} section={func==="PL"?"income":"balance"} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})}/>;
+  if(["PL","BS"].includes(func))return <FinancialColumns ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})} fallback={<IssuerFinancials ticker={ticker} lang={lang} standard={form} scope={scope} section={func==="PL"?"income":"balance"} fromYear={2020}/>}/>;
   if(func==="RAT"||func==="SUM")return <AnalyticsScreen {...panel} lang={lang} summary={func==="SUM"}/>;
   if(func==="REC")return <Reconciliation {...panel} lang={lang}/>;
   if(func==="RV")return <PeersScreen {...panel} lang={lang} onOpen={onOpen}/>;

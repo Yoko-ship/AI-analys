@@ -304,6 +304,14 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
 
         provenance.set_state(report_id, "parsed")
 
+        if form == 'NSBU' and urls:
+            from financial_columns.source_store import record_nsbu
+            from catalogue.organization import organization_kind
+            issuer = catalogue_filings.get_company_index(ticker) or {}
+            kind = organization_kind(ticker, name=issuer.get('company_name'), sector=issuer.get('sector'))
+            record_nsbu(ticker=ticker, issuer_id=str(issuer.get('org_id') or f'ticker:{ticker}'),
+                        year=year, quarter=quarter or 0, template=kind, data=data, urls=urls)
+
         usable = [k for k in _PROVENANCE_FIELDS if (values or {}).get(k) is not None]
 
         if not usable:

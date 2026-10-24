@@ -69,11 +69,12 @@ test("PL converts each year at its own CBU closing rate and reports missing rate
     return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,as_of:day,rates:[{ccy:'USD',per_unit:day.startsWith('2025')?10000:9000,effective_date:day}]})});
   });
   await run(page,'AGBA PL');
+  await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
   await page.getByLabel('Валюта').selectOption('USD');
   await expect(page.locator('.terminal-fx-rates')).toContainText('2025-12-31');
   await expect(page.locator('.terminal-fx-rates')).toContainText('2024-12-31');
   await expect(page.locator('.fin-note').filter({hasText:'Суммы в USD'})).toBeVisible();
-  await page.getByRole('button',{name:'Таблица',exact:true}).click();
+  await page.locator('[data-currency=USD]').getByRole('button',{name:'Таблица',exact:true}).click();
   await expect(page.locator('.fin-table')).toContainText(/2[\s\u00a0]000[\s\u00a0]000/);
   const pendingDownload=page.waitForEvent('download');
   await page.locator('[data-currency=USD]').getByRole('button',{name:'CSV',exact:true}).click();

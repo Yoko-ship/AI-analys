@@ -58,8 +58,8 @@ def _classify_excel_row(label: str, sheet_name: str) -> str:
 def _parse_excel_workbook(
     content: bytes,
     *,
-    max_sheets: int = 12,
-    max_rows_per_sheet: int = 360,
+    max_sheets: int | None = None,
+    max_rows_per_sheet: int | None = None,
     max_matched_rows_per_sheet: int = 24,
 ) -> dict[str, Any]:
     import pandas as pd
@@ -68,19 +68,39 @@ def _parse_excel_workbook(
     sheets: list[dict[str, Any]] = []
     facts_count = 0
     warnings: list[str] = []
+    coverage_issues: list[str] = []
+    if max_sheets is not None and len(workbook.sheet_names) > max_sheets:
+        coverage_issues.append("SHEET_LIMIT")
     reporting_date: str | None = None
 
     for sheet_name in workbook.sheet_names[:max_sheets]:
         try:
-            frame = workbook.parse(sheet_name, header=None, nrows=max_rows_per_sheet)
+            # Keep the complete physical grid separately from the compact
+            # financial-row projection used by the existing collectors.
+            frame = workbook.parse(sheet_name, header=None, dtype=object, keep_default_na=False,
+                                   nrows=max_rows_per_sheet + 1 if max_rows_per_sheet is not None else None)
+            if max_rows_per_sheet is not None and len(frame) > max_rows_per_sheet:
+                coverage_issues.append(f"ROW_LIMIT:{sheet_name}")
+                frame = frame.iloc[:max_rows_per_sheet]
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"{sheet_name}: {exc}")
+            coverage_issues.append(f"SHEET_UNREADABLE:{sheet_name}")
             continue
 
+        def literal(value):
+            if value is None or value == "" or pd.isna(value):
+                return None
+            if hasattr(value, "isoformat"):
+                return value.isoformat()
+            return value.item() if hasattr(value, "item") else value
+
+        source_rows = [{"row": int(index) + 1, "cells": [literal(v) for v in row.tolist()]}
+                       for index, row in frame.iterrows()]
         frame = frame.dropna(how="all").dropna(axis=1, how="all")
         matched_rows: list[dict[str, Any]] = []
         table_rows: list[dict[str, Any]] = []
-        max_table_rows = max(0, min(collectors_openinfo_settings.EXCEL_MAX_TABLE_ROWS_PER_SHEET, max_rows_per_sheet))
+        max_table_rows = max(0, min(collectors_openinfo_settings.EXCEL_MAX_TABLE_ROWS_PER_SHEET,
+                                   max_rows_per_sheet if max_rows_per_sheet is not None else len(frame)))
 
         for index, row in frame.iterrows():
             raw_values = [collectors_openinfo_cells._compact_cell(value) for value in row.tolist()]
@@ -122,12 +142,13 @@ def _parse_excel_workbook(
                 })
                 facts_count += 1
 
-        if matched_rows or table_rows:
+        if source_rows:
             sheets.append({
                 "sheet": str(sheet_name),
                 "rows_scanned": int(len(frame)),
                 "matched_rows": matched_rows,
                 "table_rows": table_rows,
+                "source_rows": source_rows,
             })
 
     return {
@@ -138,4 +159,5 @@ def _parse_excel_workbook(
         "reporting_date": reporting_date,
         "sheets": sheets,
         "warnings": warnings[:5],
+        "source_coverage": {"complete": not coverage_issues, "issues": coverage_issues},
     }

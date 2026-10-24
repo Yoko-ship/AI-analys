@@ -4700,5 +4700,37 @@
     ],
     "name": "api_terminal_screener__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/financials/columns",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_columns",
+    "dependencies": []
+  },
+  {
+    "path": "/api/company/{ticker}/financials/columns.{extension}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_columns_export",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/financials/columns",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_columns__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/financials/columns.{extension}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_financial_columns_export__v2",
+    "dependencies": []
   }
 ]

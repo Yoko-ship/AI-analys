@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v7'
+VERSION = 'statement-columns-v8'
 
 
 def compact(value):
@@ -43,8 +43,8 @@ MONTHS = {'december':12,'декабря':12,'march':3,'марта':3,'june':6,'�
 START_MONTHS = {**MONTHS, 'january':1, 'января':1, 'february':2, 'февраля':2,
                 'april':4, 'апреля':4, 'may':5, 'мая':5, 'july':7, 'июля':7,
                 'august':8, 'августа':8, 'october':10, 'октября':10, 'november':11, 'ноября':11}
-# A grouped integer must use groups of three. A dash is an explicit printed
-# zero, but an absent cell never becomes one. Decimal comma is accepted only
+# A grouped integer must use groups of three. A printed dash has no numeric
+# meaning without a documented source convention. Decimal comma is accepted only
 # with one/two fractional digits, avoiding confusion with thousands separators.
 NUMBER = re.compile(r'(?<!\d)(?:\(*[−-]?(?:\d{1,3}(?:[,.]\d{3})+|\d{1,4}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d{1,2})?\)*|[—–-])(?!\d)')
 
@@ -52,7 +52,7 @@ NUMBER = re.compile(r'(?<!\d)(?:\(*[−-]?(?:\d{1,3}(?:[,.]\d{3})+|\d{1,4}(?:[ \
 def numeric(value):
     value = value.strip().replace('−', '-')
     if value in {'—','–','-'}:
-        return '0'
+        return None
     negative = value.startswith('(') and value.endswith(')')
     if value.startswith('(') != value.endswith(')'):
         raise ArithmeticError('Unbalanced amount parentheses')
@@ -365,6 +365,10 @@ def report_flow_contexts(pages):
 
 def proposals(pages, evidence):
     """Extract all supported columns and keep incompatible scopes separate."""
+    from financial_columns.ifrs import extract as extract_source_forms
+    from financial_columns.ownership import extract as extract_shareholders
+    source = extract_source_forms(pages, page_count=evidence.get('page_count', len(pages)))
+    shareholders = extract_shareholders(pages)
     joined='\n'.join(pages.values())
     standard='MSFO' if is_ifrs(joined) else None
     flow_contexts = report_flow_contexts(pages)
@@ -475,6 +479,9 @@ def proposals(pages, evidence):
                 continue
             for (year,end),value in zip(cols,values):
                 g=groups[(scope,end,scale,denomination)]
+                if value is None:
+                    issues.append(f'MISSING_AMOUNT:{number}:{label}')
+                    continue
                 figure={'raw_value':value,'raw_label':label,'page':number,'column_year':year}
                 if field == '_net_interest':
                     figure['before_credit_losses'] = not credit_loss_seen
@@ -553,5 +560,14 @@ def proposals(pages, evidence):
         g['page_evidence']={str(n):pages[n][:20000] for n in set(g['statement_pages']) | g.pop('period_context_pages', set())}
         g['extraction']={**evidence,'parser':VERSION,'issues':sorted(set(issues)),
                          'requires_review':True,'issuer_identity_verified':False}
+        g['source_forms'] = source['forms']
+        g['source_coverage'] = source['coverage']
+        from financial_columns.ifrs import accounting_model
+        policy = accounting_model(pages)
+        meta['accounting_model'] = policy['model']
+        meta['accounting_model_evidence'] = policy['evidence']
+        g['source_rows'] = [row for row in source['rows'] if row.get('statement_period_end', row['period_end']) == meta['period_end']
+                            and row['scope'] in {meta['scope'], 'unknown'}]
+        g['shareholders'] = [row for row in shareholders if row['date'] == meta['period_end'] and row['scope'] == meta['scope']]
         result.append(g)
     return result

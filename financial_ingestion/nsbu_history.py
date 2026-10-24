@@ -26,11 +26,13 @@ import collectors.openinfo.workbooks as collectors_openinfo_workbooks
 import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
 import financial_analysis.sector_inputs as financial_analysis_sector_inputs
 from financial_ingestion import comparative
+from financial_columns import nsbu, registry, source_store
 from . import store
 
 log = logging.getLogger(__name__)
 _PARSE_MODULES = (catalogue_parsing, catalogue_periods, catalogue_sources, collectors_openinfo_workbooks,
-                  financial_analysis_balance_subtotals, financial_analysis_sector_inputs)
+                  financial_analysis_balance_subtotals, financial_analysis_sector_inputs,
+                  nsbu, registry, source_store)
 _REQUIRED = ("revenue", "gross_profit", "net_income", "operating_income",
              "cash", "total_assets", "total_equity", "total_liabilities", "operating_expenses")
 

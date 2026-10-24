@@ -48,4 +48,4 @@ EXCEL_CACHE_PATH = Path(
 ).expanduser()
 
 
-EXCEL_PARSER_VERSION = "openinfo-excel-source-cells-v4"
+EXCEL_PARSER_VERSION = "openinfo-excel-complete-source-v5"

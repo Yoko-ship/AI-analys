@@ -14,6 +14,35 @@ from . import financials
 router = APIRouter()
 
 
+@router.get('/api/company/{ticker}/financials/columns')
+async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU',
+                                scope: str | None = None, freq: str = 'annual') -> Response:
+    from financial_columns.service import load
+    try:
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _etag_json(request, payload, max_age=300)
+
+
+@router.get('/api/company/{ticker}/financials/columns.{extension}')
+async def api_financial_columns_export(ticker: str, extension: str, form: str = 'NSBU',
+                                       scope: str | None = None, freq: str = 'annual') -> Response:
+    from financial_columns.service import load
+    from financial_columns.exports import export
+    if extension not in {'csv', 'xlsx'}:
+        raise HTTPException(status_code=404, detail='Unknown export format')
+    try:
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq)
+        body, media_type = await asyncio.to_thread(export, payload, extension)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    filename = re.sub(r'[^A-Za-z0-9_-]', '_', ticker)[:32] or 'issuer'
+    return Response(body, media_type=media_type, headers={
+        'Content-Disposition': f'attachment; filename="{filename}-{form}-{freq}.{extension}"',
+        'X-Content-Type-Options': 'nosniff'})
+
+
 @router.get("/api/company/{ticker}/financials/passport")
 async def api_company_financial_passport(
     ticker: str, period: str, field: str, form: str = "NSBU", scope: str | None = None,

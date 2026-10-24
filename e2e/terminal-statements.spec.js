@@ -17,6 +17,7 @@ for(const [func,label] of [['PL','Мост: от доходов к чистой 
       return json({ok:true,items:[],rows:[],companies_synced:1,total_reports:24});
     });
     await page.goto(`/catalog?t=UZMK&f=${func}&std=NSBU`);
+    await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
     const overview=page.locator('.terminal-statement-overview');
     await expect(overview.getByRole('img',{name:label})).toBeVisible();
     await expect(overview).toContainText('2026Q2');

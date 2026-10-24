@@ -66,6 +66,37 @@ def validate(payload, *, page_count):
     for key in ("period_evidence", "unit_evidence", "issuer_evidence"):
         if not meta.get(key):
             errors.append(key.upper() + "_MISSING")
+    for row in payload.get('source_rows') or []:
+        if (not row.get('raw_label') or not row.get('raw_line') or type(row.get('page')) is not int
+                or not 1 <= row['page'] <= page_count
+                or row.get('statement_period_end', row.get('period_end')) != meta.get('period_end')
+                or row.get('scope') not in {meta.get('scope'), 'unknown'}
+                or row.get('quality') not in {'valid', 'warn', 'blocked', 'missing', 'not_applicable'}):
+            errors.append('SOURCE_ROW_EVIDENCE_INVALID')
+        if row.get('quality') in {'valid', 'warn'}:
+            try:
+                amount(row.get('raw_value'))
+                if (row.get('currency') not in {'UZS', 'USD', 'shares'}
+                        or str(row.get('unit_scale')) not in {'1', '1000', '1000000'}
+                        or row.get('scope') == 'unknown'):
+                    raise ValueError('Unresolved source row context')
+                row_end = date.fromisoformat(row['period_end'])
+                if row_end.isoformat() != meta.get('period_end') and not (
+                        row.get('metric_id') == 'cash_begin' and row.get('kind') == 'stock'
+                        and row_end.toordinal() + 1 == date.fromisoformat(meta['period_start']).toordinal()):
+                    raise ValueError('Invalid opening balance date')
+            except ValueError:
+                errors.append('SOURCE_ROW_VALUE_INVALID')
+    for owner in payload.get('shareholders') or []:
+        try:
+            share = amount(owner.get('share'))
+            if (not 0 <= share <= 100 or not owner.get('name') or not owner.get('raw_line')
+                    or type(owner.get('page')) is not int or not 1 <= owner['page'] <= page_count
+                    or owner.get('date') != meta.get('period_end') or owner.get('scope') != meta.get('scope')
+                    or owner.get('share_class') not in {'ordinary', 'preferred', 'ownership_interest'}):
+                raise ValueError('Invalid ownership evidence')
+        except (ValueError, TypeError):
+            errors.append('SHAREHOLDER_EVIDENCE_INVALID')
     figures = payload.get("figures") or {}
     normalized = {}
     if not figures:

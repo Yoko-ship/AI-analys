@@ -18,6 +18,10 @@ import catalogue.history as history
 @pytest.fixture
 def source(monkeypatch, tmp_path):
     data = json.loads(Path('tests/fixtures/openinfo/iptb_2026q3_replaced.json').read_text())
+    # These tests exercise same-version cache refresh. Parser migrations have
+    # their own invalidation behavior and must not trigger every mocked read.
+    for version in ('cached', 'current'):
+        data[version]['parser_version'] = settings.EXCEL_PARSER_VERSION
     monkeypatch.setattr(settings, 'EXCEL_CACHE_PATH', tmp_path / 'cache.json')
     monkeypatch.setattr(cache, '_EXCEL_CACHE_MEMO', None)
     monkeypatch.setattr(settings, 'EXCEL_CACHE_TTL_SECONDS', 30 * 86400)

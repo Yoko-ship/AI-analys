@@ -1,0 +1,126 @@
+import json
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+import pytest
+
+from fastapi import FastAPI
+from server.company.financial_routes import router
+from catalogue.storage import get_catalog_conn
+from financial_columns import source_store
+
+app = FastAPI()
+app.include_router(router)
+
+
+@pytest.fixture
+def source(monkeypatch, tmp_path):
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    c = get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('IPTB','Ipoteka bank','217')")
+    c.close()
+    data = json.loads(Path('tests/fixtures/openinfo/iptb_2026q3_complete_rows.json').read_text(encoding='utf-8'))
+    source_store.record_nsbu(ticker='IPTB', issuer_id='217', year=2026, quarter=3, template='bank',
+                            data={'ok': True, 'income': data, 'balance': data},
+                            urls={'excel_url': data['source_url'], 'published_at': '2026-10-20'})
+    return data
+
+
+def test_public_matrix_uses_full_stored_forms_and_keeps_stocks_out_of_ttm(source):
+    with TestClient(app) as client:
+        response = client.get('/api/company/IPTB/financials/columns?form=NSBU&scope=separate&freq=interim')
+    assert response.status_code == 200
+    result = response.json()
+    assert result['unit'] == 'UZS_thousand'
+    income = next(r for r in result['rows'] if r['id'] == 'BANK_PL:1л')
+    cell = income['cells']['2026-09-30']
+    assert cell['value'] == '9447836814'
+    assert cell['source_url'] == source['source_url']
+    assert cell['source_code'] == '1л'
+    assert cell['scope'] == 'separate'
+    assert cell['raw_value'] == 9447836814
+    assert result['source_forms']
+    assert result['coverage']['notes'] == 'not_applicable'
+
+
+def test_matrix_rejects_invalid_context_and_never_reads_nsbu_as_consolidated(source):
+    with TestClient(app) as client:
+        assert client.get('/api/company/IPTB/financials/columns?form=BAD').status_code == 422
+        assert client.get('/api/company/IPTB/financials/columns?freq=BAD').status_code == 422
+        result = client.get('/api/company/IPTB/financials/columns?scope=consolidated').json()
+    assert result['rows'] == []
+
+
+def test_csv_and_excel_export_include_source_context_and_zero_cells(source):
+    import csv
+    import io
+    from openpyxl import load_workbook
+    with TestClient(app) as client:
+        csv_response = client.get('/api/company/IPTB/financials/columns.csv?freq=interim')
+        excel_response = client.get('/api/company/IPTB/financials/columns.xlsx?freq=interim')
+    assert csv_response.status_code == excel_response.status_code == 200
+    rows = list(csv.DictReader(io.StringIO(csv_response.content.decode('utf-8-sig'))))
+    item = next(r for r in rows if r['source_code'] == '1л' and r['period_end'] == '2026-09-30')
+    assert item['standard'] == 'NSBU' and item['scope'] == 'separate'
+    assert item['source_url'] == source['source_url']
+    assert item['quality'] == 'valid'
+    assert item['value'] == '9447836814'
+    assert any(r['value'] == '0' for r in rows)
+    workbook = load_workbook(io.BytesIO(excel_response.content))
+    assert list(workbook.active.values)[0] == tuple(rows[0].keys())
+    assert len(list(workbook.active.values)) == len(rows) + 1
+
+
+def test_openinfo_ratios_are_separate_from_uzstock_calculations(source):
+    from catalogue.facts import upsert_facts
+    upsert_facts([{'entity_id': '217', 'dataset': 'financial_indicators', 'field': 'roe',
+                   'period': '2025', 'value': 12.5, 'unit': '%',
+                   'source': 'openinfo_financial_indicators', 'source_url': source['source_url']},
+                  {'entity_id': '217', 'dataset': 'financial_indicators', 'field': 'roe',
+                   'period': '2025', 'value': 99, 'unit': '%',
+                   'source': 'nsbu_derived', 'source_url': source['source_url']}])
+    with TestClient(app) as client:
+        result = client.get('/api/company/IPTB/financials/columns').json()
+    assert len(result['published_ratios']) == 1
+    assert result['published_ratios'][0]['value'] == '12.5'
+    assert result['published_ratios'][0]['origin'] == 'OpenInfo_published'
+    assert all(cell['origin'] == 'UZStock_calculated' for r in result['ratios'] for cell in r['cells'].values())
+
+
+def test_exports_include_published_ratios_owners_and_literal_spreadsheet_labels():
+    import csv
+    import io
+    from financial_columns.exports import export
+    payload = {'ticker':'UZNF', 'issuer_id':'1059', 'standard':'MSFO', 'scope':'separate',
+               'rows':[], 'ratios':[], 'columns':[],
+               'published_ratios':[{'field':'roe', 'period':'2024', 'value':'-12.5', 'unit':'%',
+                                    'source_url':'https://openinfo.uz', 'origin':'OpenInfo_published'}],
+               'shareholders':[{'name':'-HYPERLINK("https://example.com")', 'share':'75', 'date':'2024-12-31',
+                                'quality':'valid', 'share_class':'ordinary', 'page':6, 'source_url':'https://openinfo.uz'}]}
+    content, _ = export(payload, 'csv')
+    rows = list(csv.DictReader(io.StringIO(content.decode('utf-8-sig'))))
+    assert next(r for r in rows if r['metric_id'] == 'roe')['value'] == '-12.5'
+    owner = next(r for r in rows if r['source_form'] == 'OWNERS')
+    assert owner['label'].startswith("'-HYPERLINK")
+    assert owner['share_class'] == 'ordinary'
+    assert owner['page'] == '6'
+
+
+def test_real_leasing_form_exposes_calculated_debt_and_the_leasing_ratio(source):
+    c = get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('UZAL','O‘zagrolizing','638')")
+    c.close()
+    data = json.loads(Path('tests/fixtures/openinfo/uzal_2025_complete_rows.json').read_text(encoding='utf-8'))
+    source_store.record_nsbu(ticker='UZAL', issuer_id='638', year=2025, quarter=0, template='financial',
+                            data={'ok':True, 'balance':data, 'income':data}, urls={'excel_url':data.get('source_url', data.get('url'))})
+    with TestClient(app) as client:
+        result = client.get('/api/company/UZAL/financials/columns').json()
+    assert result['template'] == 'leasing'
+    debt = next(r for r in result['rows'] if r['metric_id'] == 'interest_bearing_debt')
+    assert debt['cells']['2025']['value'] is not None
+    assert len(debt['cells']['2025']['components']) == 5
+    cost = next(r for r in result['ratios'] if r['metric_id'] == 'funding_cost')
+    assert cost['cells']['2025']['quality'] == 'valid'
+    assert float(cost['cells']['2025']['value']) > 0

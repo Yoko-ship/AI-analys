@@ -13,7 +13,7 @@ import { formatMarketTimestamp } from "../../shared/marketModel.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { reportScreenLoad } from "../../lib/terminalJournal.js";
 import { functionLabel, MARKET_FUNCTIONS } from "../../lib/terminalCommands.js";
-import { IssuerFinancials } from "../company/index.js";
+import { IssuerFinancials, FinancialColumns } from "../company/index.js";
 import { CommandBar } from "./terminal/CommandBar.jsx";
 import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, QualityScreen } from "./terminal/TerminalPanels.jsx";
 import { useTerminal } from "./terminal/useTerminal.js";
@@ -934,13 +934,16 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {FINANCIAL_SECTIONS[terminal.func] && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
-                    <StatementOverview ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}/>
+                    <FinancialColumns ticker={ticker} lang={lang} standard={terminal.form} scope={terminal.scope}
+                      onStandardChange={terminal.setForm} onScopeChange={terminal.setScope} fromYear={terminal.fromYear}
+                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })}
+                      fallback={<><StatementOverview ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}/>
                     <IssuerFinancials ticker={ticker} lang={lang} showContextControls={false}
                       standard={terminal.form} onStandardChange={terminal.setForm}
                       scope={terminal.scope} onScopeChange={terminal.setScope}
                       section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}
                       onSectionChange={(key) => SECTION_FUNCTIONS[key] && terminal.go({ func: SECTION_FUNCTIONS[key] })}
-                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })} />
+                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })} /></>}/>
                   </section>
                 </React.Suspense>
               )}

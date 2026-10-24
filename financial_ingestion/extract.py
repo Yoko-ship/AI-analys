@@ -86,7 +86,9 @@ def page_texts(payload, *, ocr=False):
         for i, page in enumerate(pdf.pages):
             native[i + 1] = layout.word_lines(page.extract_words())
             page.close()  # Brochure discovery must not retain every page's objects.
-        pages = {number: native[number] for number in statement_page_numbers(native)}
+        # Native text has already been read for every page. Keep it all:
+        # statement-page prioritization is an OCR budget, not a Notes filter.
+        pages = native
     evidence = {"page_count": count, "ocr_pages": [], "ocr_errors": [], "text_pages": list(pages)}
     if not ocr:
         return pages, evidence
