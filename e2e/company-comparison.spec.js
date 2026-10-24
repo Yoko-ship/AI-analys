@@ -39,9 +39,35 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('homepage comparison displays backend figures without requesting analysis', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('.lv-ghost').click();
+for (const { role, language, label } of [
+  { role: 'guest', language: 'ru', label: 'Сравнить компании' },
+  { role: 'member', language: 'uz', label: 'Kompaniyalarni solishtirish' },
+  { role: 'admin', language: 'en', label: 'Compare companies' },
+]) {
+  test(`homepage comparison button is hidden for ${role}`, async ({ page }, testInfo) => {
+    await page.addInitScript(({ role, language }) => {
+      localStorage.setItem('uz_stock_analyzer_language', language);
+      if (role !== 'guest') localStorage.setItem('uz_stock_analyzer_token', 'homepage-session');
+    }, { role, language });
+    await page.route('**/api/auth/me', route => route.fulfill({ json: {
+      user: { id: 1, email: 'homepage@example.test', is_admin: role === 'admin' },
+    } }));
+    await page.goto(language === 'uz' ? '/uz' : '/');
+    await expect(page.locator('.lv-h1')).toBeVisible();
+    if (role !== 'guest') await expect(page.locator('.account-button')).toBeVisible();
+    await expect(page.locator('.landing-view').getByRole('button', { name: label, exact: true })).toHaveCount(0);
+    await expect(page.locator('.lv-stage .lv-go')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('homepage-desktop.png'), animations: 'disabled' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('.landing-view').getByRole('button', { name: label, exact: true })).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath('homepage-mobile.png'), animations: 'disabled' });
+    await page.locator('.lv-stage .lv-go').click();
+    await expect(page).toHaveURL(/\/market$/);
+  });
+}
+
+test('comparison displays backend figures without requesting analysis', async ({ page }) => {
+  await page.goto('/compare');
   await expect(page).toHaveURL(/\/compare/);
   const screen = page.getByTestId('company-comparison');
   await expect(screen.getByRole('heading', { name: 'Compare companies', level: 1 })).toBeVisible();
@@ -340,9 +366,8 @@ test('sign-out clears account saves even if a delayed account request completes'
   await page.locator('.topbar').getByRole('button', {name: /Account:/}).click();
   await page.getByRole('menuitem', {name: 'Log out', exact: true}).click();
   release();
-  // Sign-out opens login; return through the public entry point without a reload.
-  await page.getByRole('navigation').getByRole('button', {name: 'Main', exact: true}).click();
-  await page.locator('.lv-ghost').click();
+  // Sign-out opens login; browser back must not restore private state.
+  await page.goBack();
   await page.getByText('Saved comparisons', {exact: true}).click();
   await expect(page.getByRole('button', {name: 'Private coverage', exact: true})).toHaveCount(0);
   await expect(page.getByTestId('company-comparison')).toContainText('In this browser');

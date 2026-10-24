@@ -21,7 +21,6 @@ const LANDING_TX = {
     h1: ["Открытый", "рынок"],
     lede: "Фондовая биржа «Тошкент» — как на ладони: котировки, отчётность эмитентов и новости, влияющие на цену. Официальные данные Узбекистана, собранные в одну платформу.",
     ctaMarket: "Смотреть рынок",
-    ctaCompare: "Сравнить компании",
     s2Title: ["Табло", "рынка"],
     s2Sub: "Все бумаги биржи в одной таблице: цена, изменение за день и график за месяц. Сортировка по любой колонке, тепловая карта секторов и фильтры — в один клик.",
     boardTitle: "Итоги сессии",
@@ -54,7 +53,6 @@ const LANDING_TX = {
     h1: ["Ochiq", "bozor"],
     lede: "«Toshkent» fond birjasi — kaftdek ko'rinadi: kotirovkalar, emitentlar hisobotlari va narxga ta'sir qiluvchi yangiliklar. O'zbekistonning rasmiy ma'lumotlari bitta platformada.",
     ctaMarket: "Bozorni ko'rish",
-    ctaCompare: "Kompaniyalarni solishtirish",
     s2Title: ["Bozor", "taxtasi"],
     s2Sub: "Birjaning barcha qog'ozlari bitta jadvalda: narx, kunlik o'zgarish va oylik grafik. Istalgan ustun bo'yicha saralash, sektorlar xaritasi va filtrlar — bir bosishda.",
     boardTitle: "Sessiya yakunlari",
@@ -87,7 +85,6 @@ const LANDING_TX = {
     h1: ["The open", "market"],
     lede: "The Tashkent Stock Exchange at a glance: quotes, issuer financials and the news that moves prices. Uzbekistan's official data, gathered into one platform.",
     ctaMarket: "View the market",
-    ctaCompare: "Compare companies",
     s2Title: ["The market", "board"],
     s2Sub: "Every listed security in one table: price, daily change and a one-month chart. Sort by any column, switch to the sector heatmap, filter in one click.",
     boardTitle: "Session results",
@@ -522,7 +519,6 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
             <p>{LT.lede}</p>
             <div className="lv-actions">
               <button type="button" className="lv-go" onClick={() => onNavigate("market")}>{LT.ctaMarket}</button>
-              <button type="button" className="lv-ghost" onClick={() => onNavigate("companyCompare")}>{LT.ctaCompare}</button>
             </div>
           </div>
         </div>
