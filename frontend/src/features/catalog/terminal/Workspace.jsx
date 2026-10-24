@@ -147,10 +147,17 @@ export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2
 }
 
 export function PeersScreen({ticker,form,scope,lang,onOpen}) {
-  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}`,{ticker,form,func:"RV"});
+  const [year,setYear]=React.useState("");
+  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}${year?`&year=${year}`:""}`,{ticker,form,func:"RV"});
+  const years=[...new Set([...(data?.years||[]).map(String),...(year?[year]:[])])].sort().reverse();
   const base=(data?.rows||[]).find(r=>r.ticker===ticker);
   const rows=base?(data?.rows||[]).filter(r=>r.ticker!==ticker&&["kind","standard","scope","period"].every(k=>r[k]===base[k])):[];
-  return <section><h3>RV · {functionLabel("RV",lang)}</h3><p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {base?.kind}</p><State data={data} error={error} lang={lang}>
+  return <section><h3>RV · {functionLabel("RV",lang)}</h3>
+    <div className="terminal-controls"><label>{words(lang,"Год отчётности","Hisobot yili","Reporting year")}<select value={year} onChange={e=>setYear(e.target.value)}>
+      <option value="">{words(lang,"Последний","Oxirgi","Latest")}</option>{years.map(y=><option key={y} value={y}>{y}</option>)}
+    </select></label></div>
+    <p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {base?.kind}</p>
+    <p className="muted">{words(lang,"Год относится к финансовой отчётности. Данные ЦБ имеют отдельные даты; исторические рыночные коэффициенты без котировок недоступны.","Yil moliyaviy hisobotga tegishli. MB ma’lumotlarining sanalari alohida; tarixiy kotirovkalarsiz bozor koeffitsiyentlari mavjud emas.","The year applies to financial statements. CBU observations have separate dates; historical market ratios require historical quotes.")}</p><State data={data} error={error} lang={lang}>
     <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,"Эмитент","Emitent","Issuer")}</th>{METRICS.map(([k,l])=><th key={k}>{l}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>onOpen?.(r.ticker)}>{r.ticker}</button></td>{METRICS.map(([k])=><td key={k} title={k==="npl"?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{fmt(r[k],lang,k)}{k==="npl"&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>
     <BankComparison rows={base?[base,...rows]:rows} lang={lang} sectorSeries={data?.sector_series}/>
     {!rows.length&&<p className="terminal-empty">{words(lang,"Сопоставимые эмитенты не найдены","Mos emitentlar topilmadi","No comparable issuers found")}</p>}

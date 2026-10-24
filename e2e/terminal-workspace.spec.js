@@ -44,6 +44,41 @@ test("REC compares standards and explains different reporting scopes", async({pa
   await expect(page.locator(".terminal-reconciliation")).toContainText("2025");
   await expect(page.locator(".terminal-reconciliation")).toContainText("Периметры различаются");
 });
+
+test("RV compares the selected reporting year and handles missing peers", async({page},testInfo)=>{
+  await fixture(page);
+  const requests=[];
+  await page.route('**/api/terminal/screener?**', route=>{
+    const year=new URL(route.request().url()).searchParams.get('year')||'2025';
+    requests.push(year);
+    const base={kind:'bank',standard:'NSBU',scope:'separate',period:year,years:['2025','2024','2023']};
+    return route.fulfill({json:{ok:true,years:['2025','2024','2023'],rows:[
+      {...base,ticker:'AGBA'},
+      ...(year==='2023'?[]:[{...base,ticker:'ALKB',roe:year==='2024'?14:27}]),
+      {...base,ticker:'WRONG',period:'2022',roe:99},
+    ]}});
+  });
+  await run(page,'AGBA RV');
+  const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
+  const year=screen.getByRole('combobox',{name:'Год отчётности',exact:true});
+  const peers=screen.locator('table').first();
+  await expect(year).toHaveValue('');
+  await expect(peers.locator('tbody tr')).toHaveCount(1);
+  await expect(peers).toContainText('27');
+  await year.selectOption('2024');
+  await expect(peers).toContainText('14');
+  await expect(screen).toContainText('2024 · bank');
+  expect(requests).toContain('2024');
+  await page.screenshot({path:testInfo.outputPath('rv-year-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:testInfo.outputPath('rv-year-mobile.png'),fullPage:true});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await year.selectOption('2023');
+  await expect(screen.getByText('Сопоставимые эмитенты не найдены',{exact:true})).toBeVisible();
+  await expect(peers.locator('tbody tr')).toHaveCount(0);
+  await year.selectOption('');
+  await expect(peers).toContainText('27');
+});
 test("PNL saves independent admin panels to the profile and survives reload", async({page})=>{
   await fixture(page); await run(page,"PNL");
   await page.getByRole("button",{name:"Добавить панель",exact:true}).click();
