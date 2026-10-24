@@ -44,6 +44,25 @@ def test_public_matrix_uses_full_stored_forms_and_keeps_stocks_out_of_ttm(source
     assert result['coverage']['notes'] == 'not_applicable'
 
 
+@pytest.mark.parametrize('view', ['template', 'overview'])
+def test_iptb_annual_screen_and_export_include_current_report_amounts(source, view):
+    import csv
+    import io
+    with TestClient(app) as client:
+        response = client.get(f'/api/company/IPTB/financials/columns?view={view}')
+        exported = client.get(f'/api/company/IPTB/financials/columns.csv?view={view}')
+    assert response.status_code == exported.status_code == 200
+    result = response.json()
+    assert [(c['label'], c['basis']) for c in result['columns']] == [('2025', 'annual'), ('2026 · 9M', 'ytd')]
+    current = result['columns'][-1]['key']
+    income = next(r for r in result['rows'] if r['source_form'] == 'BANK_PL' and r['source_code'] == '1л')
+    assert income['cells'][current]['value'] == '9447836814'
+    assert income['cells'][current]['period_start'] == '2026-01-01'
+    assert income['cells'][current]['source_url'] == source['source_url']
+    rows = list(csv.DictReader(io.StringIO(exported.content.decode('utf-8-sig'))))
+    assert any(r['source_code'] == '1л' and r['value'] == '9447836814' and r['period_end'] == '2026-09-30' for r in rows)
+
+
 def test_matrix_rejects_invalid_context_and_never_reads_nsbu_as_consolidated(source):
     with TestClient(app) as client:
         assert client.get('/api/company/IPTB/financials/columns?form=BAD').status_code == 422

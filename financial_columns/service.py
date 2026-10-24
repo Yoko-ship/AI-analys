@@ -71,7 +71,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
             row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
     issues = observations.check(source_rows)
     source_rows = derived.enrich(source_rows)
-    table = matrix.build(source_rows, mode=freq)
+    table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview'})
     ratio_rows = []
     for column in table['columns']:
         for ratio in ratios.calculate(source_rows, ticker=ticker, template=template,

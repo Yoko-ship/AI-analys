@@ -17,16 +17,24 @@ def choose(items):
             'sources': [{k: r.get(k) for k in ('source_version', 'source_url', 'page', 'sheet', 'row', 'raw_label')} for r in items]}
 
 
-def build(observations, *, mode):
+def build(observations, *, mode, recent=False):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
     ends = sorted({r['period_end'] for r in observations})
     if mode == 'annual':
         columns = [{'key': end[:4], 'label': end[:4], 'end': end, 'basis': 'annual'} for end in ends if end.endswith('-12-31')]
+        if recent:
+            columns = columns[-2:]
         if ends and not ends[-1].endswith('-12-31'):
             latest = ends[-1]
-            columns += [{'key': 'asof:' + latest, 'label': latest, 'end': latest, 'basis': 'as_of'},
-                        {'key': 'ttm:' + latest, 'label': 'TTM · ' + latest, 'end': latest, 'basis': 'ttm'}]
+            if recent:
+                # One filed current-period column: stocks at the reporting date,
+                # flows from January through that date (not a rolling-year estimate).
+                columns.append({'key': latest, 'label': f'{latest[:4]} · {int(latest[5:7])}M',
+                                'end': latest, 'basis': 'ytd'})
+            else:
+                columns += [{'key': 'asof:' + latest, 'label': latest, 'end': latest, 'basis': 'as_of'},
+                            {'key': 'ttm:' + latest, 'label': 'TTM · ' + latest, 'end': latest, 'basis': 'ttm'}]
     else:
         columns = [{'key': end, 'label': (end[:4] + ' Q' + str(int(end[5:7]) // 3)) if mode == 'quarter' else end,
                     'end': end, 'basis': 'quarter' if mode == 'quarter' else 'ytd'} for end in ends

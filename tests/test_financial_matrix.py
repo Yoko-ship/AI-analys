@@ -17,6 +17,33 @@ def data():
         observation('total_assets', 700, '2025-06-30')]
 
 
+def test_recent_annual_view_shows_two_completed_years_and_latest_ytd_together():
+    inputs = data() + [observation('total_assets', 400, '2023-12-31'),
+                       observation('total_assets', 300, '2022-12-31')]
+    result = matrix.build(inputs, mode='annual', recent=True)
+    assert [(c['label'], c['basis']) for c in result['columns']] == [
+        ('2023', 'annual'), ('2024', 'annual'), ('2025 · 6M', 'ytd')]
+    current = result['columns'][-1]['key']
+    profit = next(r for r in result['rows'] if r['metric_id'] == 'net_income')
+    assets = next(r for r in result['rows'] if r['metric_id'] == 'total_assets')
+    assert profit['cells'][current]['value'] == '50'  # Filed YTD, neither Q2 nor TTM.
+    assert assets['cells'][current]['value'] == '700'
+    assert profit['cells'][current]['source_version'] == 'source:2025-06-30'
+    assert profit['cells']['2023']['value'] is None
+    assert '2022' not in assets['cells']
+    assert any(c['basis'] == 'ttm' for c in matrix.build(inputs, mode='annual')['columns'])
+    for mode in ('quarter', 'interim'):
+        assert matrix.build(inputs, mode=mode, recent=True) == matrix.build(inputs, mode=mode)
+
+
+def test_recent_view_does_not_invent_a_current_period_or_duplicate_annual_report():
+    annual = [observation('total_assets', 100, f'{year}-12-31') for year in (2022, 2023, 2024)]
+    assert [c['label'] for c in matrix.build(annual, mode='annual', recent=True)['columns']] == ['2023', '2024']
+    assert matrix.build([], mode='annual', recent=True) == {'columns': [], 'rows': []}
+    current = [observation('total_assets', 100, '2026-03-31')]
+    assert [c['label'] for c in matrix.build(current, mode='annual', recent=True)['columns']] == ['2026 · 3M']
+
+
 def test_matrix_has_distinct_latest_stock_date_and_flow_ttm():
     result = matrix.build(data(), mode='annual')
     assert [(c['key'], c['basis']) for c in result['columns']] == [

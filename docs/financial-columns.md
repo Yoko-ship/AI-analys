@@ -75,6 +75,12 @@ rows. Multiple source components share one display row but retain separate
 amount buttons and passports; no total is invented. The longer reference list
 is available under Original forms. Overview exports request `view=overview` and
 retain each component's source code and amount as separate export records.
+In annual mode these two display views show the latest two available year-end
+reports followed by the newest interim report, for example 2024, 2025 and
+2026 · 9M. The current column contains stocks at the reporting date and flows
+from the start of that year (YTD), with original source passports. It is not
+TTM or a full-year estimate. Missing periods are not manufactured. Quarter and
+interim modes, and the full audit API's historical/TTM columns, remain available.
 Table values and passports remain unchanged. Unavailable fields are not inferred, and an empty selection
 does not fall back to an unrestricted table. Raw imports remain accessible via
 the full API for audit. The reference’s bank tax label is matched to the actual

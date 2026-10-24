@@ -6,8 +6,9 @@ const templateFixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns-
 const original = JSON.parse(readFileSync('tests/fixtures/openinfo/iptb_2026q3_complete_rows.json', 'utf8'));
 const hmkbFixture = JSON.parse(readFileSync('e2e/fixtures/hmkb-overview.json', 'utf8'));
 const hmkbLabels = JSON.parse(readFileSync('tests/fixtures/financial_columns/hmkb_overview_labels.json', 'utf8'));
+const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 
-async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB' } = {}) {
+async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB', reports } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(() => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
@@ -21,7 +22,7 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker 
     if (path === `/api/catalog/index/${ticker}`) return json({ ok: true, company_name: ticker === 'HMKB' ? 'Hamkorbank' : 'Ipoteka bank', availability: { NSBU: { annual: [{ year: 2025 }], quarter: [{ year: 2026, quarter: 3 }] } } });
     if (path.endsWith('/financials/columns')) {
       if (fail) return route.fulfill({ status: 503, json: { detail: 'Source temporarily unavailable' } });
-      const data = ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual'];
+      const data = reports || (ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual']);
       if (url.searchParams.get('form') === 'MSFO') return json({ ...data, standard: 'MSFO', rows: [], overview_rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
       return json({ ...data, source_forms: [{ period_end: '2026-09-30', documents: [original] }] });
     }
@@ -29,6 +30,28 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker 
   });
   await page.goto(`/catalog?t=${ticker}&f=${func}`);
 }
+
+for (const theme of ['light', 'dark']) test(`two annual reports and the current report appear together (${theme})`, async ({ page }, testInfo) => {
+  await setup(page, { ticker: 'HMKB', func: 'SUM', theme, reports: recentReports });
+  const terminal = page.getByTestId('financial-columns');
+  await expect(terminal.locator('.fc-table thead th')).toHaveText(['Metric', '2024', '2025', '2026 · 9MYTD']);
+  await expect(terminal.locator('.fc-table tbody tr[data-metric]')).toHaveCount(24);
+  await expect(terminal.locator('.fc-stats > div').filter({ hasText: 'Net profit' })).toContainText('1,480,422,343');
+  const income = terminal.locator('.fc-table tr[data-metric="interest_income"]');
+  await expect(income.locator('td')).toHaveCount(3);
+  await expect(income.locator('td').last()).not.toHaveText('—');
+  await income.locator('td').last().getByRole('button').click();
+  await expect(page.getByRole('dialog')).toContainText('2026-01-01 — 2026-09-30');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await terminal.locator('.fc-table').evaluate(el => el.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() => window.scrollBy(0, -130));
+  await page.screenshot({ path: testInfo.outputPath(`recent-reports-${theme}.png`), animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await terminal.locator('.fc-scroll').evaluate(el => { el.scrollLeft = el.scrollWidth; });
+  await expect(terminal.getByRole('columnheader', { name: /2026 · 9M/ })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath(`recent-reports-${theme}-mobile.png`), animations: 'disabled' });
+});
 
 for (const theme of ['light', 'dark']) test(`HMKB overview matches the HTML's exact 24 fields (${theme})`, async ({ page }, testInfo) => {
   await setup(page, { ticker: 'HMKB', func: 'SUM', theme });
