@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const fixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns.json', 'utf8'));
 const original = JSON.parse(readFileSync('tests/fixtures/openinfo/iptb_2026q3_complete_rows.json', 'utf8'));
 
-async function setup(page, { fail = false, theme = 'light' } = {}) {
+async function setup(page, { fail = false, theme = 'light', func = 'PL' } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(() => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
@@ -24,7 +24,7 @@ async function setup(page, { fail = false, theme = 'light' } = {}) {
     }
     return json({ ok: true, companies_synced: 1, total_reports: 2, companies: [], rows: [], items: [], series: {}, periods: [], rates: [], availability: {} });
   });
-  await page.goto('/catalog?t=IPTB&f=PL');
+  await page.goto(`/catalog?t=IPTB&f=${func}`);
 }
 
 for (const theme of ['light','dark']) test(`financial statements share the catalog theme and controls (${theme})`, async ({page},testInfo) => {
@@ -45,6 +45,45 @@ for (const theme of ['light','dark']) test(`financial statements share the catal
   await expect(terminal.getByRole('img',{name:'Financial history'})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:testInfo.outputPath(`financial-integrated-${theme}-mobile.png`),fullPage:true,animations:'disabled'});
+});
+
+for (const theme of ['light', 'dark']) test(`SUM shows financial year columns directly in the overview (${theme})`, async ({ page }, testInfo) => {
+  await setup(page, { func: 'SUM', theme });
+  const terminal = page.getByTestId('financial-columns');
+  await expect(terminal).toHaveCount(1);
+  await expect(terminal.locator('.fc-table thead')).toContainText('2025');
+  await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="total_assets"]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'NSBU', exact: true })).toHaveCount(1);
+  const summary = page.locator('.terminal-summary');
+  await expect(summary).toBeVisible();
+  expect((await terminal.boundingBox()).y).toBeLessThan((await summary.boundingBox()).y);
+  await terminal.locator(".fc-stats").evaluate(el => el.scrollIntoView({ block: "start" }));
+  await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}.png`), animations: "disabled" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await terminal.getByRole('button', { name: '6M / 9M', exact: true }).click();
+  const income = terminal.locator('tr[data-metric="interest_income"]').filter({ hasText: 'Итого' });
+  await expect(income).toContainText('9,447,836,814');
+  await income.getByRole('button').last().click();
+  const passport = page.getByRole('dialog', { name: 'Source passport' });
+  await expect(passport.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', /openinfo/);
+  await passport.getByRole('button', { name: 'Close', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await terminal.locator(".fc-stats").evaluate(el => el.scrollIntoView({ block: "start" }));
+  await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}-mobile.png`), animations: "disabled" });
+  await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
+  await expect(terminal.locator('tr[data-metric="total_assets"]')).toHaveCount(0);
+  await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
+});
+
+test('SUM workspace panels include the same year columns', async ({ page }) => {
+  await setup(page, { func: 'SUM' });
+  await page.getByRole('button', { name: 'PNL · Panels', exact: true }).click();
+  const panel = page.locator('.terminal-work-panel').first();
+  await expect(panel).toHaveAttribute('data-terminal-function', 'SUM');
+  await expect(panel.getByTestId('financial-columns').locator('.fc-table thead')).toContainText('2025');
+  await expect(panel.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(panel.locator('.terminal-summary')).toBeVisible();
 });
 
 test('source columns preserve units, periods and passports at desktop and mobile sizes', async ({ page }, testInfo) => {
