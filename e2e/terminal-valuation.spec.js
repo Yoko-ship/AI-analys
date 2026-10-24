@@ -96,9 +96,9 @@ test('FV explains load errors and retries without leaving a stale valuation',asy
   await expect(fv.getByRole('alert')).toHaveCount(0);
 });
 
-test('FV remains restricted until the ten-issuer validation is approved',async({page})=>{
+test('a non-admin cannot open a catalog valuation bookmark',async({page})=>{
   const requests=await setup(page,{admin:false});
-  await expect(page.getByText('Valuation is restricted to administrators pending validation on ten issuers.')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Administrators only',exact:true})).toBeVisible();
   await expect(page.locator('.terminal-valuation')).toHaveCount(0);
   expect(requests).toHaveLength(0);
 });

@@ -1,12 +1,16 @@
 import { test, expect } from "@playwright/test";
 
 async function fixture(page) {
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
+  let preferences = {};
   const companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}];
   const rows = companies.map((c,i)=>({...c,name:c.company_name,kind:i?"industry":"bank",standard:"NSBU",scope:"separate",period:"2025",roe:i?8:20,pb:1,pe:8,de:i?2:null,cg5:10,dy:12,issues:[]}));
   await page.route("**/api/**", route => {
     const u = new URL(route.request().url());
     const json = body => route.fulfill({contentType:"application/json",body:JSON.stringify(body)});
-    if(u.pathname==="/api/auth/me") return route.fulfill({status:401,body:"{}"});
+    if(u.pathname==="/api/auth/me") return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
+    if(u.pathname==="/api/profile") return json({preferences});
+    if(u.pathname==="/api/profile/preferences") { preferences = route.request().postDataJSON(); return json({ok:true,preferences}); }
     if(u.pathname==="/api/catalog/companies") return json({ok:true,companies});
     if(u.pathname.startsWith("/api/catalog/index/")) return json({ok:true,company_name:companies.find(c=>u.pathname.endsWith(c.ticker))?.company_name,availability:{NSBU:{annual:[{year:2025,quarter:0}],quarter:[]}}});
     if(u.pathname==="/api/terminal/screener") return json({ok:true,rows,years:[2025,2024],standard:"NSBU",scope:"separate",deposit_rate:null});
@@ -40,11 +44,13 @@ test("REC compares standards and explains different reporting scopes", async({pa
   await expect(page.locator(".terminal-reconciliation")).toContainText("2025");
   await expect(page.locator(".terminal-reconciliation")).toContainText("Периметры различаются");
 });
-test("PNL stores up to four independent guest panels and survives reload", async({page})=>{
+test("PNL saves independent admin panels to the profile and survives reload", async({page})=>{
   await fixture(page); await run(page,"PNL");
   await page.getByRole("button",{name:"Добавить панель",exact:true}).click();
   await expect(page.locator(".terminal-work-panel")).toHaveCount(2);
   await page.locator(".terminal-work-panel").nth(1).getByLabel("Эмитент").selectOption("QZSM");
+  await page.getByRole('button',{name:'Сохранить раскладку',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Сохранить раскладку',exact:true})).toBeDisabled();
   await page.reload();
   await expect(page.locator(".terminal-work-panel")).toHaveCount(2);
   await expect(page.locator(".terminal-work-panel").nth(1).getByLabel("Эмитент")).toHaveValue("QZSM");

@@ -7,7 +7,7 @@ async function catalogFixture(page, { signedIn = true, errors = [], status = 200
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname;
     const json = (body, code = 200) => route.fulfill({ status: code, contentType: "application/json", body: JSON.stringify(body) });
-    if (path === "/api/auth/me") return json(signedIn ? { user: { id: 1, email: "reader@example.test", tier: "free", is_admin: false } } : { detail: "Sign in required" }, signedIn ? 200 : 401);
+    if (path === "/api/auth/me") return json(signedIn ? { user: { id: 1, email: "admin@example.test", tier: "free", is_admin: true } } : { detail: "Sign in required" }, signedIn ? 200 : 401);
     if (path === "/api/catalog/sync") {
       syncRequests.push(route.request().postDataJSON());
       await waitForSync;
@@ -20,7 +20,7 @@ async function catalogFixture(page, { signedIn = true, errors = [], status = 200
     return json({ ok: true, companies: [], securities: {}, items: [], points: [] });
   });
   await page.goto("/catalog?t=BIOK&f=CF");
-  await expect(page.getByRole("heading", { name: "Biokimyo", exact: true })).toBeVisible();
+  if (signedIn) await expect(page.getByRole("heading", { name: "Biokimyo", exact: true })).toBeVisible();
   return syncRequests;
 }
 
@@ -31,7 +31,8 @@ test("catalog refresh updates reports and the obsolete analysis shortcut is abse
   await expect(page.getByRole("button", { name: "Открыть в Анализе" })).toHaveCount(0);
   await page.getByRole("button", { name: "Обновить", exact: true }).click();
   try {
-    await expect(page.getByRole("button", { name: "Синхронизация...", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Синхронизация...", exact: true })).toHaveCount(2);
+    for (const button of await page.getByRole("button", { name: "Синхронизация...", exact: true }).all()) await expect(button).toBeDisabled();
     expect(requests).toEqual([{ force: true, ticker: "BIOK" }]);
   } finally { finish(); }
   await expect(page.locator(".catalog-report-table tbody tr")).toHaveCount(2);
@@ -56,9 +57,9 @@ test("catalog refresh surfaces HTTP failures and allows retry", async ({ page })
   await expect(page.getByRole("button", { name: "Обновить", exact: true })).toBeEnabled();
 });
 
-test("catalog refresh requires sign-in before starting a source sync", async ({ page }) => {
+test("guests cannot open the catalog or start a source sync", async ({ page }) => {
   const requests = await catalogFixture(page, { signedIn: false });
-  await page.getByRole("button", { name: "Обновить", exact: true }).click();
-  await expect(page.getByText("Войдите для синхронизации", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Только для администраторов", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Обновить", exact: true })).toHaveCount(0);
   expect(requests).toHaveLength(0);
 });

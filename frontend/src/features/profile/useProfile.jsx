@@ -247,7 +247,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                         ) : (
                           <p className="pf-watch-empty">{t(language, "profile.favoritesEmpty")}</p>
                         )}
-                        <button className="pf-btn pf-btn-on-ink" type="button" onClick={() => setActiveView("catalog")}>
+                        <button className="pf-btn pf-btn-on-ink" type="button" onClick={() => setActiveView("market")}>
                           <span aria-hidden="true">＋</span>{t(language, "profile.command.addTicker")}
                         </button>
                       </section>

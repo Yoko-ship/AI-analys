@@ -4,11 +4,12 @@ const report=JSON.parse(readFileSync(new URL('../tests/fixtures/sector_ui_report
 
 for(const [func,label] of [['PL','Мост: от доходов к чистой прибыли'],['BS','Из чего состоят активы']]){
   test(`${func} renders the mockup's statement overview using verified report facts`,async({page},testInfo)=>{
+    await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
     await page.setViewportSize({width:1440,height:1000});
     await page.route('**/api/**',route=>{
       const path=new URL(route.request().url()).pathname;
       const json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
-      if(path==='/api/auth/me')return route.fulfill({status:401,body:'{}'});
+      if(path==='/api/auth/me')return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
       if(path.endsWith('/ai-report'))return json(report);
       if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker:'UZMK',company_name:'Узметкомбинат',sector:'manufacturing'}]});
       if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:'Узметкомбинат',availability:{NSBU:{annual:[{year:2025,quarter:0}],quarter:[]}}});

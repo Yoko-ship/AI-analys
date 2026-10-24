@@ -15,7 +15,7 @@ import { ToastStack } from "./toasts.jsx";
 import { SponsorOverlay } from "./SponsorOverlay.jsx";
 
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
-  const { token, user } = sessionModule;
+  const { token, user, canAccessCatalog } = sessionModule;
   const { language, setLanguage, stepTextScale, textScale, setTextScale, toggleTheme, theme } = preferencesModule;
   const { activeView, setActiveView, openNewsTab } = navigationModule;
   const { catalogStatus } = marketModule;
@@ -63,9 +63,10 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     };
   }, []);
 
-  const navItems = token
+  const navItems = (token
     ? ["main", "market", "catalog", "news", "feedback", "profile"]
-    : ["main", "market", "catalog", "news", "feedback", "auth"];
+    : ["main", "market", "catalog", "news", "feedback", "auth"])
+    .filter(key => key !== "catalog" || canAccessCatalog);
 
   // One hover drop-down open at a time: «Рынок» or «Новости».
   const [navMenu, setNavMenu] = useState(null);

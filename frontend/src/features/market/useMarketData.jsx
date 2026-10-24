@@ -5,11 +5,11 @@ import { splitLanguagePath } from "../../lib/languagePath.js";
 export function useMarketData({ toasts: toastsModule, preferences: preferencesModule, session: sessionModule, navigation: navigationModule }) {
   const { addToast } = toastsModule;
   const { language } = preferencesModule;
-  const { apiFetch } = sessionModule;
+  const { apiFetch, canAccessCatalog } = sessionModule;
   const { activeView } = navigationModule;
   // Comparison owns its bounded data request; avoid fetching the full market
   // and catalog again in the shell. Load normal data when leaving it.
-  const needsCatalog = activeView !== "companyCompare";
+  const needsCatalog = activeView !== "companyCompare" && (activeView !== "catalog" || canAccessCatalog);
   const [companies, setCompanies] = useState([]);
 
   const [catalogStatus, setCatalogStatus] = useState(null);
@@ -42,12 +42,12 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   }, [language, needsCatalog]);
 
   useEffect(() => {
-    if (!needsCatalog) return;
+    if (!needsCatalog || !canAccessCatalog) return;
     apiFetch("/api/catalog/status")
       .then((r) => r.json())
       .then((d) => { if (d.ok) setCatalogStatus(d); })
       .catch(() => {});
-  }, [apiFetch, needsCatalog]);
+  }, [apiFetch, needsCatalog, canAccessCatalog]);
 
   useEffect(() => {
     // "main": the landing's ticker tape, board preview and movers are the real

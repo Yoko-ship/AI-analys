@@ -3,12 +3,13 @@ import {readFileSync} from 'node:fs';
 const reports=JSON.parse(readFileSync(new URL('../tests/fixtures/terminal_sector_reports.json',import.meta.url),'utf8')).reports;
 
 for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`${ticker} ${func} follows its sector template`,async({page},testInfo)=>{
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
   const report=reports[ticker],kind=report.issuer.organization_type,form=ticker==='UZNF'?'MSFO':'NSBU';
   const main={ticker,date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx',assets_bn:43114.828277036795,assets_share_pct:4.2,assets_rank:8,rank_population:35};
   await page.route('**/api/**',route=>{
     const path=new URL(route.request().url()).pathname;
     const json=body=>route.fulfill({json:body});
-    if(path==='/api/auth/me')return route.fulfill({status:401,body:'{}'});
+    if(path==='/api/auth/me')return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
     if(path.endsWith('/ai-report'))return json(report);
     if(path.endsWith('/financials'))return json({ok:true,organization_type:ticker==='UZNF'?'fund':kind,periods:['2025','2024'],series:{net_revenue:{money:true,label_ru:kind==='insurance'?'Заработанные премии':'Совокупные доходы',values:{2025:100e9,2024:80e9}},net_profit:{money:true,values:{2025:5e9,2024:4e9}}}});
     if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker,company_name:report.issuer.name,sector:'finance'}]});

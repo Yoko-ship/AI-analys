@@ -199,7 +199,7 @@ const TEXTS = {
         topCompany: "Чаще всего смотрят",
       },
       empty: "Профиль появится после входа в систему.",
-      favoritesEmpty: "Добавляйте компании в избранное из каталога или карточки компании.",
+      favoritesEmpty: "Добавляйте компании в избранное на рынке или в карточке компании.",
       command: {
         watchlist: "Избранное",
         addTicker: "Добавить компанию",
@@ -536,7 +536,7 @@ const TEXTS = {
         topCompany: "Most viewed",
       },
       empty: "Profile appears after sign in.",
-      favoritesEmpty: "Add companies to your watchlist from the catalog or a company page.",
+      favoritesEmpty: "Add companies to your watchlist from the market or a company page.",
       command: {
         watchlist: "Watchlist",
         addTicker: "Add company",
@@ -873,7 +873,7 @@ const TEXTS = {
         topCompany: "Eng ko'p ko'rilgan",
       },
       empty: "Profil tizimga kirgandan keyin ko'rinadi.",
-      favoritesEmpty: "Kompaniyalarni katalog yoki kompaniya sahifasidan tanlanganlarga qo'shing.",
+      favoritesEmpty: "Kompaniyalarni bozor yoki kompaniya sahifasidan tanlanganlarga qo'shing.",
       command: {
         watchlist: "Tanlanganlar",
         addTicker: "Kompaniya qo'shish",

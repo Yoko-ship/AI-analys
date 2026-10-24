@@ -4,10 +4,11 @@ const report=JSON.parse(readFileSync(new URL('../tests/fixtures/sector_ui_report
 
 for(const [func,kind] of [['RAT','bank'],['BS','insurance']]){
   test(`${func} keeps financial-sector ratios and reporting periods explicit`,async({page})=>{
+    await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
     await page.route('**/api/**',route=>{
       const path=new URL(route.request().url()).pathname;
       const json=body=>route.fulfill({contentType:'application/json',body:JSON.stringify(body)});
-      if(path==='/api/auth/me')return route.fulfill({status:401,body:'{}'});
+      if(path==='/api/auth/me')return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
       if(path.endsWith('/ai-report'))return json({...report,issuer:{...report.issuer,organization_type:kind},ratios:[{metric_code:'nim',name_ru:'Чистая процентная маржа',value:4.2,unit:'percent'}]});
       if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker:'TEST',company_name:'Test issuer',sector:'finance'}]});
       if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:'Test issuer',availability:{NSBU:{annual:[{year:2025,quarter:0}],quarter:[]}}});
