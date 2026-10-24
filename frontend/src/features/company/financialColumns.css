@@ -1,19 +1,91 @@
-.financial-columns{--fc-line:#30364d;--fc-muted:#b0bdd7;--fc-ink:#f1f3ff;--fc-purple:#9478f5;--panel:#141c2b;--text:var(--fc-ink);--muted:var(--fc-muted);--border:var(--fc-line);--bg-2:#191f30;background:#101420;color:var(--fc-ink);border:1px solid var(--fc-line);border-radius:16px;overflow:hidden;min-width:0;font:13px Inter,system-ui,sans-serif}
-.financial-columns button,.financial-columns select,.financial-columns input,.fc-passport button{font:inherit;color:inherit;border:1px solid var(--fc-line);border-radius:8px;background:#191f30;min-height:36px;padding:8px 12px;cursor:pointer}
-.financial-columns{--text-primary:var(--fc-ink);--text-secondary:var(--fc-muted);--text-muted:var(--fc-muted);--surface-1:#141c2b;--surface-2:#191f30;--catalog-ink:var(--fc-ink);--catalog-muted:var(--fc-muted);--catalog-border:var(--fc-line)}
-.financial-columns button:focus-visible,.financial-columns a:focus-visible,.financial-columns select:focus-visible,.financial-columns input:focus-visible,.fc-passport button:focus-visible{outline:2px solid #bdaaff;outline-offset:2px}
-.financial-columns a{color:#c8bbff}.fc-toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:18px 20px;border-bottom:1px solid var(--fc-line);background:linear-gradient(110deg,#181c2c,#111520)}
-.fc-label{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--fc-muted);margin-bottom:7px}.fc-segment{display:flex;padding:3px;border:1px solid var(--fc-line);border-radius:9px;background:#171b2a;gap:3px}
-.financial-columns .fc-segment button{border:0;background:transparent;white-space:nowrap;min-height:31px;padding:7px 13px}.financial-columns .fc-segment button[aria-pressed=true]{background:var(--fc-purple);color:#fff;box-shadow:0 2px 8px #8f70ed33}
-.fc-exports{display:flex;gap:8px;margin-left:auto}.fc-exports a{padding:10px;border:1px solid var(--fc-line);border-radius:8px;text-decoration:none;color:var(--fc-ink)}
-.fc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px 20px}.fc-stats>div{min-width:0;background:#141c2b;border:1px solid var(--fc-line);border-radius:12px;padding:14px}.fc-stats>div:first-child{background:#24213f;border-color:#5b4e87}
-.fc-stats span,.fc-stats small{display:block;color:var(--fc-muted);font-size:10px;overflow-wrap:anywhere}.fc-stats strong{display:block;font-size:clamp(15px,1.3vw,21px);margin:8px 0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.fc-subnav{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 15px}.fc-subnav [role=tablist]{display:flex;flex-wrap:wrap;gap:5px;flex:1}.fc-subnav button[aria-selected=true]{border-color:#b79fff;background:#292442}.fc-subnav input{width:190px;min-width:0;max-width:100%}.fc-source-line{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 20px 14px;color:var(--fc-muted);font-size:11px}
-.fc-status{font-size:10px;white-space:nowrap;display:inline-block;border-radius:4px;padding:4px 7px;background:#29324a;color:#d6e1ff}.fc-status-valid{color:#8ee6c9;background:#163c35}.fc-status-warn{color:#f5d999;background:#403722}.fc-status-blocked{color:#ffc2cb;background:#452b37}
-.fc-scroll{max-width:100%;overflow:auto;overscroll-behavior-x:contain}.fc-table{width:100%;border-collapse:separate;border-spacing:0;min-width:580px;font-variant-numeric:tabular-nums}.financial-columns .fc-table th,.financial-columns .fc-table td{padding:12px 14px;border-bottom:1px solid #293147;text-align:right;line-height:1.4}.financial-columns .fc-table thead th{color:#f0f0ff;background:#20283a;font-size:11px}.financial-columns .fc-table th:first-child{text-align:left;min-width:245px;max-width:400px;font-weight:400;position:sticky;left:0;z-index:1;background:#121827}.financial-columns .fc-table small{display:block;color:var(--fc-muted);font-size:9px;margin-top:4px}
-.financial-columns .fc-table .fc-group th{padding:0;background:#25223f;border-top:1px solid #554e78}.financial-columns .fc-group button{border:0;background:transparent;text-align:left;width:100%;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#c7b6ff;padding:11px 14px}
-.financial-columns .fc-value{font-variant-numeric:tabular-nums;white-space:nowrap;padding:4px 0;border:0;border-bottom:1px dotted #89819f;min-height:28px;border-radius:0;background:transparent}.financial-columns .fc-value-missing,.financial-columns .fc-value-not_applicable{color:#9cabc3;border-color:transparent}.financial-columns .fc-value-blocked{color:#ffb2c0}.financial-columns .fc-value-warn{color:#f1d69c}
-.fc-empty,.fc-quality,.fc-notice,.fc-published,.fc-documents,.fc-legacy{padding:14px 20px;margin:0}.fc-empty{color:var(--fc-muted);line-height:1.7}.fc-notice{color:#f1d69c;background:#332b2033}.fc-documents summary,.fc-legacy summary{cursor:pointer;color:#c7b6ff;margin-bottom:10px}.fc-documents select{max-width:100%;margin-bottom:10px}.fc-documents a{display:inline-block;margin:8px}.fc-documents pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:520px;overflow:auto}.fc-documents td{padding:6px;min-width:70px;white-space:pre-wrap;border-bottom:1px solid var(--fc-line)}
-.fc-chart{padding:20px}.fc-chart label{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.fc-chart select{max-width:100%}.fc-chart svg{width:100%;max-height:390px;display:block;color:var(--fc-muted)}.fc-chart svg text{fill:currentColor;font-size:10px}.fc-muted{color:var(--fc-muted)}
-.financial-columns footer{padding:16px 20px;border-top:1px solid var(--fc-line);font-size:10px;line-height:1.7;color:var(--fc-muted);display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}.fc-passport{--fc-line:#3d405c;color:#f3f1ff;background:#151b2c;border:1px solid var(--fc-line);border-radius:16px;padding:24px;width:min(720px,calc(100vw - 36px));max-height:85vh;overflow:auto;box-sizing:border-box}.fc-passport::backdrop{background:#040710cc}.fc-passport header{display:flex;align-items:center;justify-content:space-between;gap:12px}.fc-passport h3{margin:0}.fc-passport dl{display:grid;grid-template-columns:minmax(120px,1fr) 2fr;gap:10px;font-size:12px}.fc-passport dt{color:#acb8d4}.fc-passport dd{margin:0;overflow-wrap:anywhere}.fc-passport pre{white-space:pre-wrap;overflow-wrap:anywhere}.fc-passport a{color:#c8baff}.fc-passport table{font-size:12px;border-collapse:collapse}.fc-passport td,.fc-passport th{padding:6px;text-align:left;border-bottom:1px solid var(--fc-line)}
-@media(max-width:700px){.fc-toolbar{padding:14px;gap:10px}.fc-toolbar>div,.fc-toolbar>label{max-width:100%}.fc-toolbar .fc-exports{margin-left:0}.fc-stats{padding:14px;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.fc-stats>div{padding:12px}.fc-subnav{padding:0 14px 14px}.fc-subnav [role=tablist]{flex-basis:100%}.fc-subnav input{flex:1}.financial-columns .fc-table th:first-child{min-width:185px;max-width:210px}.fc-passport dl{grid-template-columns:1fr}.fc-passport dd{margin-bottom:6px}.financial-columns footer{padding:14px}.fc-source-line{margin-left:14px}.fc-chart{padding:12px}}
+/* Financial statements belong to the surrounding terminal, including its theme.
+   Keep these controls scoped so embedded legacy tables retain their own styles. */
+.financial-columns {
+  --fc-line: var(--border);
+  --fc-muted: var(--muted);
+  --fc-ink: var(--text);
+  --fc-accent: var(--accent);
+  min-width: 0;
+  color: inherit;
+  font: inherit;
+}
+:is(.fc-toolbar, .fc-subnav, .fc-chart, .fc-documents, .fc-empty, .fc-passport) :is(button, select, input) {
+  font: inherit; color: inherit; border: 1px solid var(--border); border-radius: 3px;
+  background: var(--panel); min-height: 32px; padding: 6px 9px; cursor: pointer;
+}
+.financial-columns :is(button, a, select, input):focus-visible, .fc-passport button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.financial-columns a, .fc-passport a { color: var(--accent); }
+.fc-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--fc-line); }
+.fc-label { display: block; font-size: 10px; color: var(--fc-muted); margin-bottom: 6px; }
+.fc-segment { display: flex; gap: 4px; flex-wrap: wrap; }
+.fc-segment button { white-space: nowrap; background: transparent; }
+.fc-segment button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
+.fc-exports { display: flex; gap: 6px; margin-left: auto; }
+.fc-exports a { padding: 7px 9px; border: 1px solid var(--fc-line); border-radius: 3px; text-decoration: none; color: inherit; }
+.fc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--fc-line); }
+.fc-stats-embedded { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fc-stats>div { min-width: 0; }
+.fc-stats span, .fc-stats small { display: block; color: var(--fc-muted); font-size: 10px; overflow-wrap: anywhere; }
+.fc-stats strong { display: block; font-size: clamp(15px, 1.3vw, 20px); margin: 7px 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.fc-subnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; }
+.fc-subnav [role=tablist] { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+.fc-subnav [role=tab] { background: transparent; border-color: transparent; border-bottom: 2px solid transparent; border-radius: 0; }
+.fc-subnav [role=tab][aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
+.fc-subnav input { width: 180px; min-width: 0; max-width: 100%; }
+.fc-source-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; color: var(--fc-muted); font-size: 11px; }
+.fc-status { font-size: 10px; white-space: nowrap; display: inline-block; border: 1px solid var(--fc-line); border-radius: 3px; padding: 3px 6px; color: var(--fc-ink); }
+.fc-status-valid { border-left: 3px solid var(--positive, #23966c); }
+.fc-status-warn { border-left: 3px solid var(--warning, #c5881b); }
+.fc-status-blocked { border-left: 3px solid var(--negative, #c44848); }
+.fc-scroll { max-width: 100%; overflow: auto; overscroll-behavior-x: contain; }
+.fc-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 580px; font-variant-numeric: tabular-nums; background: var(--panel); }
+.fc-table th, .fc-table td { padding: 7px 9px; border-bottom: 1px solid var(--fc-line); text-align: right; line-height: 1.5; }
+.fc-table thead th { color: var(--fc-muted); background: var(--panel); font-size: 11px; font-weight: 400; }
+.fc-table th:first-child { text-align: left; min-width: 245px; max-width: 400px; font-weight: 400; position: sticky; left: 0; z-index: 1; background: var(--panel); }
+.fc-table small { display: block; color: var(--fc-muted); font-size: 10px; margin-top: 3px; }
+.fc-table .fc-group th { padding: 0; background: var(--bg-2); border-top: 1px solid var(--fc-line); }
+.fc-group button { font: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; width: 100%; font-weight: 600; padding: 9px; }
+.fc-value { font: inherit; color: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 2px 0; border: 0; border-bottom: 1px dotted var(--fc-line); min-height: 28px; border-radius: 0; background: transparent; cursor: pointer; }
+.fc-value:hover { color: var(--accent); border-bottom-color: currentColor; }
+.fc-value-missing, .fc-value-not_applicable { color: var(--fc-muted); border-color: transparent; }
+.fc-value-blocked, .fc-value-warn { text-decoration: underline dotted; text-underline-offset: 4px; }
+.fc-empty, .fc-quality, .fc-notice, .fc-published, .fc-documents { padding: 12px 0; margin: 0; }
+.fc-empty { color: var(--fc-muted); line-height: 1.7; }
+.fc-notice { border-left: 3px solid var(--warning, #c5881b); padding-left: 12px; }
+.fc-legacy { padding: 14px 0 0; margin: 12px 0; border-top: 1px solid var(--fc-line); }
+.fc-documents summary, .fc-legacy summary { cursor: pointer; color: inherit; margin-bottom: 10px; }
+.fc-documents select { max-width: 100%; margin-bottom: 10px; }
+.fc-documents a { display: inline-block; margin: 8px; }
+.fc-documents pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 520px; overflow: auto; }
+.fc-documents td { padding: 6px; min-width: 70px; white-space: pre-wrap; border-bottom: 1px solid var(--fc-line); }
+.fc-chart { padding: 12px 0; }
+.fc-chart label { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fc-chart select { max-width: 100%; }
+.fc-chart svg { width: 100%; max-height: 390px; display: block; color: var(--fc-muted); }
+.fc-chart svg text { fill: currentColor; font-size: 10px; }
+.fc-muted { color: var(--fc-muted); }
+.financial-columns>footer { padding: 12px 0; border-top: 1px solid var(--fc-line); font-size: 10px; line-height: 1.7; color: var(--fc-muted); display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
+.fc-passport { color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 24px; width: min(720px, calc(100vw - 36px)); max-height: 85vh; overflow: auto; box-sizing: border-box; font: inherit; }
+.fc-passport::backdrop { background: #0008; }
+.fc-passport header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.fc-passport h3 { margin: 0; }
+.fc-passport dl { display: grid; grid-template-columns: minmax(120px, 1fr) 2fr; gap: 10px; font-size: 12px; }
+.fc-passport dt { color: var(--muted); }
+.fc-passport dd { margin: 0; overflow-wrap: anywhere; }
+.fc-passport pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fc-passport table { font-size: 12px; border-collapse: collapse; }
+.fc-passport td, .fc-passport th { padding: 6px; text-align: left; border-bottom: 1px solid var(--border); }
+@media(max-width:700px) {
+  .fc-toolbar { gap: 12px; }
+  .fc-toolbar>div, .fc-toolbar>label { max-width: 100%; }
+  .fc-toolbar .fc-exports { margin-left: 0; }
+  .fc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .fc-stats-embedded>div:last-child { grid-column: 1/-1; }
+  .fc-subnav [role=tablist] { flex-basis: 100%; }
+  .fc-subnav input { flex: 1; }
+  .fc-table th:first-child { min-width: 185px; max-width: 210px; }
+  .fc-passport dl { grid-template-columns: 1fr; }
+  .fc-passport dd { margin-bottom: 6px; }
+}

@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 const fixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns.json', 'utf8'));
 const original = JSON.parse(readFileSync('tests/fixtures/openinfo/iptb_2026q3_complete_rows.json', 'utf8'));
 
-async function setup(page, { fail = false } = {}) {
+async function setup(page, { fail = false, theme = 'light' } = {}) {
+  await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(() => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
     localStorage.setItem('uz_stock_analyzer_token', 'columns-admin');
@@ -21,10 +22,30 @@ async function setup(page, { fail = false } = {}) {
       if (url.searchParams.get('form') === 'MSFO') return json({ ...data, standard: 'MSFO', rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
       return json({ ...data, source_forms: [{ period_end: '2026-09-30', documents: [original] }] });
     }
-    return json({ ok: true, companies: [], rows: [], items: [], series: {}, periods: [], rates: [], availability: {} });
+    return json({ ok: true, companies_synced: 1, total_reports: 2, companies: [], rows: [], items: [], series: {}, periods: [], rates: [], availability: {} });
   });
   await page.goto('/catalog?t=IPTB&f=PL');
 }
+
+for (const theme of ['light','dark']) test(`financial statements share the catalog theme and controls (${theme})`, async ({page},testInfo) => {
+  await setup(page,{theme});
+  const terminal=page.getByTestId('financial-columns');
+  await expect(terminal.locator('tr[data-metric="total_assets"]')).toBeVisible();
+  const styles=await terminal.evaluate(el=>{
+    const own=getComputedStyle(el), catalog=getComputedStyle(el.closest('.catalog-terminal-ui'));
+    return {ownColor:own.color,catalogColor:catalog.color,ownFont:own.fontFamily,catalogFont:catalog.fontFamily};
+  });
+  expect(styles.ownColor).toBe(styles.catalogColor);
+  expect(styles.ownFont).toBe(styles.catalogFont);
+  await expect(page.getByRole('button',{name:'NSBU',exact:true})).toHaveCount(1);
+  await expect(terminal.locator('.fc-toolbar').getByRole('button',{name:'IFRS',exact:true})).toHaveCount(0);
+  await page.screenshot({path:testInfo.outputPath(`financial-integrated-${theme}.png`),fullPage:true,animations:'disabled'});
+  await page.setViewportSize({width:390,height:844});
+  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
+  await expect(terminal.getByRole('img',{name:'Financial history'})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath(`financial-integrated-${theme}-mobile.png`),fullPage:true,animations:'disabled'});
+});
 
 test('source columns preserve units, periods and passports at desktop and mobile sizes', async ({ page }, testInfo) => {
   await setup(page);
@@ -63,7 +84,7 @@ test('changing standard clears source rows and gives an explicit missing-data st
   await setup(page);
   const terminal = page.getByTestId('financial-columns');
   await expect(terminal.locator('tr[data-metric="total_assets"]')).toBeVisible();
-  await terminal.getByRole('button', { name: 'IFRS', exact: true }).click();
+  await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
   await expect(terminal.locator('tr[data-metric="total_assets"]')).toHaveCount(0);
   await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
   await expect(terminal.getByText('Notes are missing or have not been verified.')).toBeVisible();

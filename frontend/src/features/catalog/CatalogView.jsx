@@ -934,7 +934,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {FINANCIAL_SECTIONS[terminal.func] && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
-                    <FinancialColumns ticker={ticker} lang={lang} standard={terminal.form} scope={terminal.scope}
+                    <FinancialColumns showContextControls={false} ticker={ticker} lang={lang} standard={terminal.form} scope={terminal.scope}
                       onStandardChange={terminal.setForm} onScopeChange={terminal.setScope} fromYear={terminal.fromYear}
                       onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })}
                       fallback={<><StatementOverview ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}/>

@@ -38,6 +38,8 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     });
     for(const ratio of contrast)expect(ratio).toBeGreaterThanOrEqual(4.5);
     if(ticker==='HMKB'){
+      await page.locator('.company-financials').getByRole('button',{name:'Таблица',exact:true}).click();
+      await expect(page.locator('.fin-table td button').first()).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
       await page.evaluate(()=>window.scrollTo(0,0));
       await page.screenshot({path:testInfo.outputPath('hmkb-chart-light-theme.png'),fullPage:true,animations:'disabled'});
     }
