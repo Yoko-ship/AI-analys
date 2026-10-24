@@ -7,6 +7,32 @@ from server.terminal import journal
 FIXTURE=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_202609.json').read_text())
 
 
+def test_year_context_uses_real_historical_observations_without_latest_fallback(tmp_path,monkeypatch):
+    monkeypatch.setenv('CBU_DATA_DB',str(tmp_path/'cbu.sqlite3'))
+    historical=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_2020.json').read_text())
+    for fixture in (historical,FIXTURE):
+        for kind in ('npl','structure'):
+            dataset=cbu.parse_bank_rows(fixture[kind]['rows'],kind,fixture[kind]['source_url'])
+            cbu.save(kind,dataset['date'],dataset)
+    main=cbu.parse_bank_rows(FIXTURE['main']['rows'],'main',FIXTURE['main']['source_url'])
+    cbu.save('main',main['date'],main)
+    for day,value in [('2020-05-01',11),('2020-12-01',12),('2026-09-01',26)]:
+        cbu.save('profitability',day,{'date':day,'metrics':{'roe':{'value':value}},'source_url':'https://cbu.uz/example'})
+    cbu.save('rates','2026-08',[{'indicator':'FITD_NC_WA_PA','dimensions':{'FREQ':'M'},'period':p,'value':v}
+                             for p,v in [('2020-10',10),('2020-12',12),('2026-08',26)]])
+    old=cbu.context(year=2020)
+    expected=cbu.parse_bank_rows(historical['npl']['rows'],'npl',historical['npl']['source_url'])
+    agba=next(r for r in expected['rows'] if r['ticker']=='AGBA')
+    assert old['banks']['AGBA']['npl']==agba
+    assert old['banks']['AGBA']['structure']['date'].startswith('2020-')
+    assert 'main' not in old['banks']['AGBA']
+    assert old['sector_series']['profitability']['date']=='2020-12-01'
+    assert old['deposit']['period']=='2020-12'
+    absent=cbu.context(year=2024)
+    assert absent['banks']=={} and absent['sector_series']=={} and absent['deposit'] is None
+    assert cbu.context()['banks']['AGBA']['npl']['date']=='2026-09-01'
+
+
 def test_bank_ranks_include_unlisted_banks_and_keep_missing_assets_unknown(monkeypatch):
     dataset=cbu.parse_bank_rows(FIXTURE['main']['rows'],'main',FIXTURE['main']['source_url'])
     monkeypatch.setattr(cbu,'latest',lambda kind:dataset if kind=='main' else None)

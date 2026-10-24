@@ -4,6 +4,26 @@ import pytest
 from server.terminal import service, analytics, cbu
 
 
+def test_screener_passes_selected_year_to_all_cbu_comparisons(monkeypatch):
+    seen=[]
+    def context(year=None):
+        seen.append(year)
+        return {'banks':{'HMKB':{'main':{'date':f'{year}-12-01','assets_share_pct':4.2},
+                                'npl':{'date':f'{year}-11-01','npl_pct':1.8}}},
+                'sector_series':{'profitability':{'date':f'{year}-12-01'}}}
+    monkeypatch.setattr(cbu,'context',context)
+    monkeypatch.setattr(service,'universe',lambda:[{'ticker':'HMKB','kind':'bank'}])
+    monkeypatch.setattr(service,'market_context',lambda:{})
+    monkeypatch.setattr(service.dividends,'read_snapshot',lambda ticker:[])
+    async def financials(*args):return {'periods':['2024','2025'],'series':{},'standard':'NSBU'}
+    monkeypatch.setattr(service,'financial_series',financials)
+    result=asyncio.run(service.screener(year=2024))
+    assert seen==[2024]
+    assert result['rows'][0]['cbu']['main']['date']=='2024-12-01'
+    assert result['rows'][0]['npl']==1.8
+    assert result['sector_series']['profitability']['date']=='2024-12-01'
+
+
 def test_screener_joins_official_bank_data_without_changing_report_period(monkeypatch):
     monkeypatch.setattr(service,'universe',lambda:[{'ticker':'AGBA','kind':'bank','name':'Agrobank'}])
     monkeypatch.setattr(service,'market_context',lambda:{'AGBA':{'market_cap':200,'price':10}})

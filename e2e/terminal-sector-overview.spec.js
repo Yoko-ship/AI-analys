@@ -4,6 +4,7 @@ const reports=JSON.parse(readFileSync(new URL('../tests/fixtures/terminal_sector
 
 for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`${ticker} ${func} follows its sector template`,async({page},testInfo)=>{
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
   const report=reports[ticker],kind=report.issuer.organization_type,form=ticker==='UZNF'?'MSFO':'NSBU';
   const main={ticker,date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx',assets_bn:43114.828277036795,assets_share_pct:4.2,assets_rank:8,rank_population:35};
   await page.route('**/api/**',route=>{
@@ -22,6 +23,24 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
     const overview=page.locator('.terminal-statement-overview');
     await expect(overview.getByRole('img',{name:'Мост: от доходов к чистой прибыли'})).toBeVisible();
+    const contrast=await overview.evaluate(root=>{
+      const luminance=color=>{
+        const rgb=color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
+        return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;
+      };
+      return [...root.querySelectorAll('.terminal-summary-card h3,svg text,td,.terminal-csv')].map(node=>{
+        let parent=node;
+        while(parent && ['rgba(0, 0, 0, 0)','transparent'].includes(getComputedStyle(parent).backgroundColor))parent=parent.parentElement;
+        const background=luminance(parent?getComputedStyle(parent).backgroundColor:'rgb(255,255,255)');
+        const ink=luminance(node.tagName==='text'?getComputedStyle(node).fill:getComputedStyle(node).color);
+        return (Math.max(ink,background)+.05)/(Math.min(ink,background)+.05);
+      });
+    });
+    for(const ratio of contrast)expect(ratio).toBeGreaterThanOrEqual(4.5);
+    if(ticker==='HMKB'){
+      await page.evaluate(()=>window.scrollTo(0,0));
+      await page.screenshot({path:testInfo.outputPath('hmkb-chart-light-theme.png'),fullPage:true,animations:'disabled'});
+    }
     if(kind==='insurance'){
       await expect(page.locator('.company-financials')).toContainText('Заработанные премии');
       await expect(overview).toContainText('Заработанные премии');

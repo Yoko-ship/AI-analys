@@ -123,7 +123,8 @@ async def _screener_batch(form, scope, year):
 
 async def _screener(form="NSBU", scope="separate", year=None):
     loop = asyncio.get_running_loop()
-    companies, market, central = await asyncio.gather(loop.run_in_executor(None, universe), loop.run_in_executor(None, market_context), loop.run_in_executor(None, cbu.context))
+    central_read = partial(cbu.context,year=year) if year is not None else cbu.context
+    companies, market, central = await asyncio.gather(loop.run_in_executor(None, universe), loop.run_in_executor(None, market_context), loop.run_in_executor(None, central_read))
     # SQLite issuer reads contend across executor threads: the 65-issuer
     # production probe took 1.33s serialized versus 4.19s with six readers.
     semaphore = asyncio.Semaphore(1)

@@ -51,7 +51,9 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await page.route('**/api/terminal/screener?**', route=>{
     const year=new URL(route.request().url()).searchParams.get('year')||'2025';
     requests.push(year);
-    const base={kind:'bank',standard:'NSBU',scope:'separate',period:year,years:['2025','2024','2023']};
+    const base={kind:'bank',standard:'NSBU',scope:'separate',period:year,years:['2025','2024','2023'],
+      cbu:year==='2023'?{}:{main:{date:`${year}-12-01`,source_url:`https://cbu.uz/${year}`}},
+      cbu_assets_share_pct:year==='2023'?null:year==='2024'?4.2:5.1};
     return route.fulfill({json:{ok:true,years:['2025','2024','2023'],rows:[
       {...base,ticker:'AGBA'},
       ...(year==='2023'?[]:[{...base,ticker:'ALKB',roe:year==='2024'?14:27}]),
@@ -68,6 +70,9 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await year.selectOption('2024');
   await expect(peers).toContainText('14');
   await expect(screen).toContainText('2024 · bank');
+  await expect(screen.locator('.terminal-bank-comparison')).toContainText('2024-12-01');
+  await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2025-12-01');
+  await expect(screen.locator('.terminal-bank-comparison')).toContainText('4,2');
   expect(requests).toContain('2024');
   await page.screenshot({path:testInfo.outputPath('rv-year-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -76,8 +81,10 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await year.selectOption('2023');
   await expect(screen.getByText('Сопоставимые эмитенты не найдены',{exact:true})).toBeVisible();
   await expect(peers.locator('tbody tr')).toHaveCount(0);
+  await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2024-12-01');
   await year.selectOption('');
   await expect(peers).toContainText('27');
+  await expect(screen.locator('.terminal-bank-comparison')).toContainText('2025-12-01');
 });
 test("PNL saves independent admin panels to the profile and survives reload", async({page})=>{
   await fixture(page); await run(page,"PNL");

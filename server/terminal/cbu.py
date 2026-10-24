@@ -267,10 +267,13 @@ def save(kind,period,payload):
     finally:c.close()
 
 
-def latest(kind):
+def latest(kind, year=None):
+    """Latest stored observation, optionally restricted to one calendar year."""
     c=connect()
     try:
-        row=c.execute("SELECT payload FROM terminal_cbu WHERE kind=? ORDER BY period DESC LIMIT 1",(kind,)).fetchone()
+        bounds = " AND period>=? AND period<?" if year is not None else ""
+        params = (kind, f'{int(year):04d}-01-01', f'{int(year)+1:04d}-01-01') if year is not None else (kind,)
+        row=c.execute(f"SELECT payload FROM terminal_cbu WHERE kind=?{bounds} ORDER BY period DESC LIMIT 1",params).fetchone()
         return json.loads(row["payload"]) if row else None
     finally:c.close()
 
@@ -293,22 +296,27 @@ def monthly_bank_history(ticker):
     return [row for dataset in datasets for row in ranked_banks(dataset) if row.get('ticker')==ticker]
 
 
-def context():
+def context(year=None):
     rates=latest("rates") or []
     # IMF ECOFIN: FITD_NC_WA_PA = term deposits, national currency,
     # weighted average, percent per annum. Other series keep their dimensions.
-    deposits=[r for r in rates if r["indicator"]=="FITD_NC_WA_PA" and r["dimensions"].get("FREQ")=="M"]
+    deposits=[r for r in rates if r["indicator"]=="FITD_NC_WA_PA" and r["dimensions"].get("FREQ")=="M"
+              and (year is None or r['period'][:4]==str(year))]
     deposit=max(deposits,key=lambda r:r["period"],default=None)
     banks={}
     sector={}
     for kind in ("npl","main","structure"):
-        dataset=latest(kind)
+        dataset=latest(kind) if year is None else latest(kind,year)
         if not dataset:continue
         sector[kind]=dataset.get("sector")
         for row in ranked_banks(dataset) if kind=='main' else dataset['rows']:
             if row["ticker"]:banks.setdefault(row["ticker"],{})[kind]=row
+    sector_series={}
+    for kind in ('capital','liquidity','profitability','industry'):
+        dataset=latest(kind) if year is None else latest(kind,year)
+        if dataset:sector_series[kind]=dataset
     return {"banks":banks,"sector":sector,"deposit":deposit,"fsi":latest("fsi") or [], "inflation":annual_inflation(latest("inflation") or []),
-            "sector_series":{kind:latest(kind) for kind in ("capital","liquidity","profitability","industry") if latest(kind)}}
+            "sector_series":sector_series}
 
 
 def discover_sdmx(html):
