@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 const fixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns.json', 'utf8'));
+const templateFixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns-template.json', 'utf8'));
 const original = JSON.parse(readFileSync('tests/fixtures/openinfo/iptb_2026q3_complete_rows.json', 'utf8'));
 
 async function setup(page, { fail = false, theme = 'light', func = 'PL' } = {}) {
@@ -18,7 +19,7 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL' } = {}) 
     if (path === '/api/catalog/index/IPTB') return json({ ok: true, company_name: 'Ipoteka bank', availability: { NSBU: { annual: [{ year: 2025 }], quarter: [{ year: 2026, quarter: 3 }] } } });
     if (path.endsWith('/financials/columns')) {
       if (fail) return route.fulfill({ status: 503, json: { detail: 'Source temporarily unavailable' } });
-      const data = fixture[url.searchParams.get('freq') || 'annual'];
+      const data = (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual'];
       if (url.searchParams.get('form') === 'MSFO') return json({ ...data, standard: 'MSFO', rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
       return json({ ...data, source_forms: [{ period_end: '2026-09-30', documents: [original] }] });
     }
@@ -26,6 +27,23 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL' } = {}) 
   });
   await page.goto(`/catalog?t=IPTB&f=${func}`);
 }
+
+test('the terminal displays and exports only the reference field list', async ({ page }) => {
+  await setup(page, { func: 'SUM' });
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', { name: '6M / 9M', exact: true }).click();
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(1);
+  await expect(terminal.getByRole('button', { name: '▾ Баланс банка · активы', exact: true })).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
+  await expect(terminal.locator('tr[data-metric="travel_expense"]')).toHaveCount(0);
+  await expect(terminal.getByRole('link', { name: 'CSV', exact: true })).toHaveAttribute('href', /view=template/);
+  await expect(terminal.getByRole('link', { name: 'XLSX', exact: true })).toHaveAttribute('href', /view=template/);
+  await terminal.getByRole('tab', { name: 'Original forms', exact: true }).click();
+  await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
+  await expect(terminal.locator('.fc-documents')).toHaveCount(0);
+  await terminal.getByRole('searchbox').fill('7а');
+  await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
+});
 
 for (const theme of ['light','dark']) test(`financial statements share the catalog theme and controls (${theme})`, async ({page},testInfo) => {
   await setup(page,{theme});
@@ -105,10 +123,7 @@ test('source columns preserve units, periods and passports at desktop and mobile
   await expect(terminal.getByRole('img', { name: 'Financial history' })).toBeVisible();
   await terminal.getByRole('button', { name: 'Table', exact: true }).click();
   await terminal.getByRole('tab', { name: 'Original forms', exact: true }).click();
-  await terminal.getByText('Complete original form', { exact: true }).click();
-  await expect(terminal.getByRole('combobox', { name: 'Source document' })).toBeVisible();
-  await expect(terminal.locator('.fc-documents')).toContainText('9447836814');
-  await terminal.getByText('Complete original form', { exact: true }).click();
+  await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
   await terminal.getByRole('searchbox').fill('1л');
   await expect(terminal.locator('tbody tr[data-metric]')).toHaveCount(1);
   await terminal.getByRole('button', { name: 'Reset', exact: true }).click();
@@ -127,6 +142,7 @@ test('changing standard clears source rows and gives an explicit missing-data st
   await expect(terminal.locator('tr[data-metric="total_assets"]')).toHaveCount(0);
   await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
   await expect(terminal.getByText('Notes are missing or have not been verified.')).toBeVisible();
+  await expect(terminal.locator('.fc-legacy')).toHaveCount(0);
   await terminal.getByRole('tab', { name: 'Data quality', exact: true }).click();
   await expect(terminal.locator('.fc-quality')).toContainText('Notes are missing or have not been verified.');
 });

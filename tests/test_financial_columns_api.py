@@ -124,3 +124,35 @@ def test_real_leasing_form_exposes_calculated_debt_and_the_leasing_ratio(source)
     cost = next(r for r in result['ratios'] if r['metric_id'] == 'funding_cost')
     assert cost['cells']['2025']['quality'] == 'valid'
     assert float(cost['cells']['2025']['value']) > 0
+
+
+def test_reference_view_keeps_only_named_bank_fields_and_exports_the_same_rows(source):
+    import csv
+    import io
+    with TestClient(app) as client:
+        raw = client.get('/api/company/IPTB/financials/columns?freq=interim').json()
+        selected = client.get('/api/company/IPTB/financials/columns?freq=interim&view=template').json()
+        exported = client.get('/api/company/IPTB/financials/columns.csv?freq=interim&view=template')
+    assert selected['presentation'] == 'template'
+    codes = {(r['source_form'], r['source_code']) for r in selected['rows']}
+    assert ('BANK_PL', '1л') in codes
+    assert ('BANK_PL', '1а') in codes
+    assert ('BANK_PL', '7з') in codes
+    assert ('BANK_BS', '14') in codes
+    assert ('BANK_PL', '7а') not in codes  # staff expense is not a reference field
+    assert ('BANK_PL', '7в') not in codes  # travel expense
+    assert ('BANK_PL', '1') not in codes   # heading must not duplicate the total
+    assert ('BANK_BS', '31') not in codes # unlisted balance check total
+    assert len(selected['rows']) < len(raw['rows'])
+    for row in selected['rows']:
+        assert row['cells'] == next(r for r in raw['rows'] if r['id'] == row['id'])['cells']
+    rows = list(csv.DictReader(io.StringIO(exported.content.decode('utf-8-sig'))))
+    assert not any((r['source_form'], r['source_code']) in {('BANK_PL','7а'), ('BANK_PL','7в'), ('BANK_BS','31')} for r in rows)
+    assert any(r['source_code'] == '1л' and r['value'] == '9447836814' for r in rows)
+    assert all(r['metric_id'] in {'roe','roa','nim','cir','cost_of_risk','loans_to_deposits'} for r in selected['ratios'])
+
+
+def test_reference_view_rejects_unknown_view(source):
+    with TestClient(app) as client:
+        assert client.get('/api/company/IPTB/financials/columns?view=bad').status_code == 422
+        assert client.get('/api/company/IPTB/financials/columns.csv?view=bad').status_code == 422

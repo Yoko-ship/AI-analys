@@ -54,7 +54,17 @@ published figures. Missing ratio bases are not filled with estimates.
 ## Interfaces
 
 `GET /api/company/{ticker}/financials/columns` accepts `form=NSBU|MSFO`,
-`scope=separate|consolidated|unknown`, and `freq=annual|quarter|interim`.
+`scope=separate|consolidated|unknown`, `freq=annual|quarter|interim`, and
+`view=full|template` (default `full`). The terminal and its exports request
+`view=template`: only the fields listed in the supplied
+`UZStock_Financial_Terminal_NSBU_IFRS_Corrected.html` are displayed, in that
+reference’s sector/standard order. `reference_fields.json` records all twelve
+field lists and explicit source-form/code/metric selectors. Table values and
+passports remain unchanged; components explicitly listed together retain their
+own source rows. Unavailable fields are not inferred, and an empty selection
+does not fall back to an unrestricted table. Raw imports remain accessible via
+the full API for audit. The reference’s bank tax label is matched to the actual
+verified income-tax field (9а), not the unrelated adjustment at its demo code 10а.
 The `.csv` and `.xlsx` routes export period, accounting context, source code,
 source location/version, quality and formula, including published ratios and
 shareholder evidence. The normal v2 aliases are registered too.

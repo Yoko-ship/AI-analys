@@ -16,10 +16,10 @@ router = APIRouter()
 
 @router.get('/api/company/{ticker}/financials/columns')
 async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU',
-                                scope: str | None = None, freq: str = 'annual') -> Response:
+                                scope: str | None = None, freq: str = 'annual', view: str = 'full') -> Response:
     from financial_columns.service import load
     try:
-        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq)
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _etag_json(request, payload, max_age=300)
@@ -27,13 +27,13 @@ async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU
 
 @router.get('/api/company/{ticker}/financials/columns.{extension}')
 async def api_financial_columns_export(ticker: str, extension: str, form: str = 'NSBU',
-                                       scope: str | None = None, freq: str = 'annual') -> Response:
+                                       scope: str | None = None, freq: str = 'annual', view: str = 'full') -> Response:
     from financial_columns.service import load
     from financial_columns.exports import export
     if extension not in {'csv', 'xlsx'}:
         raise HTTPException(status_code=404, detail='Unknown export format')
     try:
-        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq)
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view)
         body, media_type = await asyncio.to_thread(export, payload, extension)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

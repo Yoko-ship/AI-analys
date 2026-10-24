@@ -2,6 +2,7 @@ const EQUITY = new Set(['share_capital', 'share_premium', 'retained_earnings', '
 const DEBT = new Set(['borrowings_short', 'borrowings_long', 'lease_liabilities', 'trade_payables', 'contract_liabilities', 'provisions', 'current_liabilities', 'noncurrent_liabilities', 'deferred_tax_liability', 'total_liabilities', 'customer_funds', 'bank_funding', 'subordinated_debt', 'insurance_contract_liabilities', 'reinsurance_contract_liabilities', 'insurance_reserves_gross', 'preferred_share_liability', 'interest_bearing_debt']);
 
 export function financialGroup(row, view) {
+  if (row.display_group) return row.display_group;
   if (view !== 'summary') return row.source_form;
   const code = parseInt(row.source_code, 10);
   if (row.source_form === 'F1') return code < 410 ? 'ASSETS' : code <= 480 ? 'EQUITY' : 'DEBT';

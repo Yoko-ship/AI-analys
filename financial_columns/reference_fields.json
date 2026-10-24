@@ -1,0 +1,4560 @@
+{
+  "bank": {
+    "nsbu": [
+      {
+        "label": "Финансовые результаты · банковская форма",
+        "fields": [
+          {
+            "key": "interest_income",
+            "label": "Итого процентных доходов",
+            "ref": "Отчёт о финансовых результатах: 1.л",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "1л",
+                "interest_income"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_cbu_interest",
+            "label": "Процентный доход по средствам в ЦБРУ",
+            "ref": "1.a",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "1а",
+                "interest_central_bank"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_interbank_interest",
+            "label": "Процентный доход по средствам в других банках",
+            "ref": "1.б",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "1б",
+                "interest_banks"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_loan_interest",
+            "label": "Проценты и дисконт по кредитным и лизинговым операциям",
+            "ref": "1.з",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "1з",
+                "interest_loans_leases"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Итого процентных расходов",
+            "ref": "2.л",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "2л",
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii",
+            "label": "Чистый процентный доход до резерва",
+            "ref": "3",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "3",
+                "net_interest_before_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "credit_loss",
+            "label": "Минус: резерв возможных убытков по кредитам и лизингу",
+            "ref": "3.a",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "3а",
+                "credit_loss_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii_after",
+            "label": "Чистый процентный доход после резервов",
+            "ref": "3.б",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "3б",
+                "net_interest_after_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "fees_income",
+            "label": "Комиссии и плата за услуги",
+            "ref": "4.a",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "4а",
+                "fee_income"
+              ]
+            ]
+          },
+          {
+            "key": "fx_result",
+            "label": "Прибыль от операций в иностранной валюте",
+            "ref": "4.б",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "4б",
+                "fx_income"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_noninterest_income",
+            "label": "Итого непроцентных доходов",
+            "ref": "4.е",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "4е",
+                "noninterest_income"
+              ]
+            ]
+          },
+          {
+            "key": "fees_expense",
+            "label": "Комиссионные расходы и плата за услуги",
+            "ref": "5.a",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "5а",
+                "fee_expense"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_noninterest_expenses",
+            "label": "Итого непроцентных расходов",
+            "ref": "5.е",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "5е",
+                "noninterest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_pre_op",
+            "label": "Чистый доход до операционных расходов",
+            "ref": "6",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "6",
+                "income_before_opex"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Итого операционных расходов",
+            "ref": "7.з",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "7з",
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_noncredit_loss",
+            "label": "Оценка некредитных убытков",
+            "ref": "8",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "8",
+                "noncredit_impairment"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Чистая прибыль до уплаты налогов",
+            "ref": "9",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "9",
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "tax",
+            "label": "Налог на прибыль",
+            "ref": "10.a",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "9а",
+                "income_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль (убыток)",
+            "ref": "11",
+            "kind": "flow",
+            "selectors": [
+              [
+                "BANK_PL",
+                "11",
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Баланс банка · активы",
+        "fields": [
+          {
+            "key": "cash",
+            "label": "Кассовая наличность и платёжные документы",
+            "ref": "БС 1",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "1",
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_cbu_receivable",
+            "label": "К получению из ЦБРУ",
+            "ref": "БС 2",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "2",
+                "central_bank_balances"
+              ]
+            ]
+          },
+          {
+            "key": "due_banks",
+            "label": "К получению из других банков",
+            "ref": "БС 3",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "3",
+                "bank_balances"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_trade_gross",
+            "label": "Счета купли-продажи · брутто",
+            "ref": "БС 4",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "4",
+                "trading_assets"
+              ]
+            ]
+          },
+          {
+            "key": "securities",
+            "label": "Инвестиции, нетто",
+            "ref": "БС 5.в",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "5в",
+                "investments_net"
+              ]
+            ]
+          },
+          {
+            "key": "gross_loans",
+            "label": "Кредиты и лизинговые операции, брутто",
+            "ref": "БС 7.a/б",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "7а",
+                "loans_gross"
+              ],
+              [
+                "BANK_BS",
+                "7б",
+                "leases_gross"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_allowance",
+            "label": "Резервы возможных убытков по кредитам и лизингу",
+            "ref": "БС 7.в",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "7в",
+                "loan_lease_allowance"
+              ]
+            ]
+          },
+          {
+            "key": "net_loans",
+            "label": "Кредиты и лизинговые операции, чистые",
+            "ref": "БС 7.г",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "7г",
+                "loans_leases_net"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_receivable_interest",
+            "label": "Начисленные проценты к получению",
+            "ref": "БС 11",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "11",
+                "interest_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_property",
+            "label": "Основные средства, нетто",
+            "ref": "БС 10",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "10",
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Итого активов",
+            "ref": "БС 14",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "14",
+                "total_assets"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Баланс банка · обязательства и капитал",
+        "fields": [
+          {
+            "key": "bank_nsbu_demand_deposits",
+            "label": "Депозиты до востребования",
+            "ref": "БС 15",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "15",
+                "demand_deposits"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_savings_deposits",
+            "label": "Сберегательные депозиты",
+            "ref": "БС 16",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "16",
+                "savings_deposits"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_term_deposits",
+            "label": "Срочные депозиты",
+            "ref": "БС 17",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "17",
+                "term_deposits"
+              ]
+            ]
+          },
+          {
+            "key": "customer_accounts",
+            "label": "Депозиты клиентов, если раскрыт итог",
+            "ref": "БС 15–17, расчётный итог",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                null,
+                "customer_funds"
+              ],
+              [
+                "DERIVED",
+                null,
+                "customer_funds"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_due_banks",
+            "label": "К оплате в другие банки",
+            "ref": "БС 19",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "19",
+                "bank_funding"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Кредиты и лизинговые операции к оплате",
+            "ref": "БС 21",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "21",
+                "borrowings_and_leases"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_subdebt",
+            "label": "Субординированный долг",
+            "ref": "БС 22",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "22",
+                "subordinated_debt"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Итого обязательств",
+            "ref": "БС 25",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "25",
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_charter",
+            "label": "Уставный капитал",
+            "ref": "БС 26",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "26",
+                "share_capital"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_reserves",
+            "label": "Резервный капитал",
+            "ref": "БС 28",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "28",
+                "reserve_capital"
+              ]
+            ]
+          },
+          {
+            "key": "bank_nsbu_retained",
+            "label": "Нераспределённая прибыль",
+            "ref": "БС 29",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "29",
+                "retained_earnings"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Итого собственного капитала",
+            "ref": "БС 30",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BANK_BS",
+                "30",
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "ifrs": [
+      {
+        "label": "Statement of profit or loss · процентный результат",
+        "fields": [
+          {
+            "key": "interest_income",
+            "label": "Процентный доход по эффективной ставке (EIR)",
+            "ref": "PL · Interest income EIR",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "interest_eir"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_other_interest",
+            "label": "Прочие процентные доходы",
+            "ref": "PL · Other interest income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "other_interest_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Процентные расходы",
+            "ref": "PL · Interest expense",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii",
+            "label": "Чистый процентный доход до ECL",
+            "ref": "PL · Net interest income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_interest_before_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "credit_loss",
+            "label": "Расходы / восстановление ECL",
+            "ref": "PL · Credit loss allowance",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "credit_loss_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii_after",
+            "label": "Чистый процентный результат после ECL",
+            "ref": "PL · Net margin after credit losses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_interest_after_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "fees_income",
+            "label": "Комиссионные доходы",
+            "ref": "PL · Fee and commission income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "fee_income"
+              ]
+            ]
+          },
+          {
+            "key": "fees_expense",
+            "label": "Комиссионные расходы",
+            "ref": "PL · Fee and commission expense",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "fee_expense"
+              ]
+            ]
+          },
+          {
+            "key": "fx_result",
+            "label": "Результат операций с иностранной валютой",
+            "ref": "PL · Trading in FX",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "fx_gain_loss"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_deriv",
+            "label": "Доходы / убытки по производным инструментам",
+            "ref": "PL · Derivatives",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "derivative_gain_loss"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Административные и прочие операционные расходы",
+            "ref": "PL · Administrative expenses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налогообложения",
+            "ref": "PL · Profit before tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "tax",
+            "label": "Расходы по налогу на прибыль",
+            "ref": "PL · Income tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "income_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Прибыль за год",
+            "ref": "PL · Profit for the year",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Consolidated statement of financial position · активы",
+        "fields": [
+          {
+            "key": "cash",
+            "label": "Денежные средства и их эквиваленты",
+            "ref": "BS · Cash and cash equivalents",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "due_banks",
+            "label": "Средства в других банках",
+            "ref": "BS · Due from other banks",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "bank_balances"
+              ]
+            ]
+          },
+          {
+            "key": "securities",
+            "label": "Долговые ценные бумаги / финансовые инвестиции",
+            "ref": "BS · Investments in debt securities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "debt_securities"
+              ],
+              [
+                "BS",
+                null,
+                "investments_debt_securities"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_fvtpl",
+            "label": "Долевые бумаги по FVTPL",
+            "ref": "BS · Equity securities FVTPL",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "equity_investments_fvtpl"
+              ]
+            ]
+          },
+          {
+            "key": "net_loans",
+            "label": "Кредиты и авансы клиентам, нетто ECL",
+            "ref": "BS · Loans to customers",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "loans_net"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_derivative",
+            "label": "Производные финансовые активы",
+            "ref": "BS · Derivatives",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "derivative_assets"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_right",
+            "label": "Активы права пользования",
+            "ref": "BS · Right-of-use assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "rou_assets"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Consolidated statement of financial position · обязательства",
+        "fields": [
+          {
+            "key": "customer_accounts",
+            "label": "Средства клиентов",
+            "ref": "BS · Customer accounts",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "customer_funds"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_interbank_due",
+            "label": "Средства других банков",
+            "ref": "BS · Due to other banks",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "bank_funding"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Прочие привлечённые средства",
+            "ref": "BS · Other borrowed funds",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "borrowings"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_short"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_long"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_secissued",
+            "label": "Выпущенные долговые бумаги",
+            "ref": "BS · Debt securities in issue",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "debt_securities_issued"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_subdebt",
+            "label": "Субординированный долг",
+            "ref": "BS · Subordinated debt",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "subordinated_debt"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_lease",
+            "label": "Арендные обязательства",
+            "ref": "BS · Lease liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "lease_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_share",
+            "label": "Акционерный капитал",
+            "ref": "BS · Share capital",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "share_capital"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_retained",
+            "label": "Нераспределённая прибыль",
+            "ref": "BS · Retained earnings",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "retained_earnings"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Cash flows и примечания",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Денежный поток от операционной деятельности",
+            "ref": "CF · Net cash from operating activities",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Денежный поток от инвестиционной деятельности",
+            "ref": "CF · Net cash from investing activities",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Денежный поток от финансовой деятельности",
+            "ref": "CF · Net cash from financing activities",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_stages",
+            "label": "Кредиты Stage 1 / 2 / 3",
+            "ref": "Notes · ECL stages",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "stage1_loans"
+              ],
+              [
+                "Notes",
+                null,
+                "stage2_loans"
+              ],
+              [
+                "Notes",
+                null,
+                "stage3_loans"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_eclexposure",
+            "label": "Резервы ECL по стадиям",
+            "ref": "Notes · ECL allowances",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "ecl_allowance"
+              ]
+            ]
+          },
+          {
+            "key": "bank_ifrs_eps",
+            "label": "Прибыль на акцию (сум/акцию)",
+            "ref": "Notes · EPS",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "eps_basic"
+              ],
+              [
+                "PL",
+                null,
+                "eps_diluted"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "insurance": {
+    "nsbu": [
+      {
+        "label": "Страховой отчёт о финансовых результатах",
+        "fields": [
+          {
+            "key": "gross_premiums",
+            "label": "Премии по прямому страхованию и сострахованию",
+            "ref": "Ф.2 · 011",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "011",
+                "direct_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "ceded_premiums",
+            "label": "Переданные перестраховочные премии",
+            "ref": "Ф.2 · 012",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "012",
+                "ceded_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "assumed_premiums",
+            "label": "Премии по принятому перестрахованию",
+            "ref": "Ф.2 · 013",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "013",
+                "assumed_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_rnp",
+            "label": "Изменение резерва незаработанной премии",
+            "ref": "Ф.2 · 014",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "014",
+                "change_upr_net"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_rbns",
+            "label": "Изменение резерва заявленных убытков",
+            "ref": "Ф.2 · 015",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "015",
+                "change_reported_claims_net"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_ibnr",
+            "label": "Изменение резерва незаявленных убытков",
+            "ref": "Ф.2 · 016",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "016",
+                "change_ibnr_net"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_life",
+            "label": "Изменение резервов по страхованию жизни",
+            "ref": "Ф.2 · 017",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "017",
+                "change_life_reserves_net"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_otherres",
+            "label": "Изменение прочих технических резервов",
+            "ref": "Ф.2 · 018",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "018",
+                "change_other_reserves_net"
+              ]
+            ]
+          },
+          {
+            "key": "earned_premium",
+            "label": "Чистая выручка от страховых услуг",
+            "ref": "Ф.2 · 060",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "060",
+                "net_insurance_revenue"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_cogs",
+            "label": "Себестоимость оказанных страховых услуг",
+            "ref": "Ф.2 · 070",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "070",
+                "insurance_cost"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_result",
+            "label": "Валовая прибыль от страховых услуг",
+            "ref": "Ф.2 · 080",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "080",
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Расходы периода",
+            "ref": "Ф.2 · 090",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "090",
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налога",
+            "ref": "Ф.2 · 290",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "290",
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль",
+            "ref": "Ф.2 · 320",
+            "kind": "flow",
+            "selectors": [
+              [
+                "INSURANCE_PL",
+                "320",
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Баланс страховой организации",
+        "fields": [
+          {
+            "key": "insurance_receivables",
+            "label": "Дебиторская задолженность по страховым операциям",
+            "ref": "Ф.1 · 220",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "220",
+                "insurance_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_policy",
+            "label": "Задолженность страхователей",
+            "ref": "Ф.1 · 230",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "230",
+                "policyholder_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_brokers",
+            "label": "Задолженность агентов и брокеров",
+            "ref": "Ф.1 · 240",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "240",
+                "agent_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "Ф.1 · итог",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                null,
+                "total_assets"
+              ],
+              [
+                "DERIVED",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_reserves",
+            "label": "Всего страховых резервов",
+            "ref": "Ф.1 · 580",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "580",
+                "insurance_reserves_gross"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_upr",
+            "label": "Резерв незаработанной премии",
+            "ref": "Ф.1 · 590",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "590",
+                "unearned_premium_reserve"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_ibnr_st",
+            "label": "Резерв произошедших, но незаявленных убытков",
+            "ref": "Ф.1 · 600",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "600",
+                "ibnr"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_nsbu_rbns_st",
+            "label": "Резерв заявленных, но неурегулированных убытков",
+            "ref": "Ф.1 · 610",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "610",
+                "reported_claims_reserve"
+              ]
+            ]
+          },
+          {
+            "key": "reins_assets",
+            "label": "Доля перестраховщиков в резервах",
+            "ref": "Ф.1 · 670",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                "670",
+                "reinsurer_share_reserves"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Итого обязательств",
+            "ref": "Ф.1 · итог",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                null,
+                "total_liabilities"
+              ],
+              [
+                "DERIVED",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Итого собственный капитал",
+            "ref": "Ф.1 · итог",
+            "kind": "stock",
+            "selectors": [
+              [
+                "INSURANCE_BS",
+                null,
+                "total_equity"
+              ],
+              [
+                "DERIVED",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "ifrs": [
+      {
+        "label": "Profit or loss · модель с премиями и резервами",
+        "fields": [
+          {
+            "key": "insurance_ifrs_written",
+            "label": "Заработанные премии по договорам страхования",
+            "ref": "PL · Earned premiums",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "earned_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_ifrs_rnp",
+            "label": "Изменение РНП",
+            "ref": "PL · Change in unearned premium reserve",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "change_upr_net"
+              ]
+            ]
+          },
+          {
+            "key": "ceded_premiums",
+            "label": "Премии, переданные в перестрахование",
+            "ref": "PL · Reinsurance premiums ceded",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "ceded_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "assumed_premiums",
+            "label": "Премии по договорам принятого перестрахования",
+            "ref": "PL · Inward reinsurance",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "assumed_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "earned_premium",
+            "label": "Заработанная премия нетто",
+            "ref": "PL · Net earned premiums",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_earned_premiums"
+              ]
+            ]
+          },
+          {
+            "key": "claims",
+            "label": "Страховые выплаты всего",
+            "ref": "PL · Claims paid",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "claims_paid"
+              ]
+            ]
+          },
+          {
+            "key": "claims_reserve_change",
+            "label": "Изменение резервов убытков",
+            "ref": "PL · Change in loss reserves",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "change_claims_reserves"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_ifrs_salvage",
+            "label": "Доходы по регрессам и суброгации",
+            "ref": "PL · Salvage and subrogation",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "salvage_subrogation_income"
+              ]
+            ]
+          },
+          {
+            "key": "acquisition",
+            "label": "Аквизиционные расходы",
+            "ref": "PL · Acquisition expenses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "acquisition_expense"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_result",
+            "label": "Результат страховой деятельности",
+            "ref": "PL · Insurance result",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "insurance_result"
+              ]
+            ]
+          },
+          {
+            "key": "financial_income",
+            "label": "Доходы от финансовой деятельности",
+            "ref": "PL · Finance income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "finance_income"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Общие и административные расходы",
+            "ref": "PL · General and administrative",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "admin_expense"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль",
+            "ref": "PL · Profit for the year",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Statement of financial position · страховые статьи",
+        "fields": [
+          {
+            "key": "insurance_reserves",
+            "label": "Страховые резервы / страховые обязательства",
+            "ref": "BS · Insurance reserves",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "insurance_reserves_gross"
+              ]
+            ]
+          },
+          {
+            "key": "reins_assets",
+            "label": "Доля перестраховщиков в страховых резервах",
+            "ref": "BS · Reinsurance assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "reinsurer_share_reserves"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_receivables",
+            "label": "Дебиторская задолженность по страхованию и перестрахованию",
+            "ref": "BS · Insurance receivables",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "insurance_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "insurance_ifrs_dac",
+            "label": "Отложенные аквизиционные расходы",
+            "ref": "BS · Deferred acquisition costs",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "deferred_acquisition_costs"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Собственный капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "IFRS 17 · отдельная модель, только при применении",
+        "fields": [
+          {
+            "key": "ifrs17_insurance_rev",
+            "label": "Insurance revenue · страховая выручка IFRS 17",
+            "ref": "IFRS 17 · PL",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "insurance_revenue"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_service_exp",
+            "label": "Insurance service expenses · страховые расходы",
+            "ref": "IFRS 17 · PL",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "insurance_service_expense"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_result",
+            "label": "Insurance service result · страховой результат",
+            "ref": "IFRS 17 · PL",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "insurance_service_result"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_reinsurance",
+            "label": "Результат перестрахования по IFRS 17",
+            "ref": "IFRS 17 · PL",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "reinsurance_result"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_lrc",
+            "label": "Liability for remaining coverage (LRC)",
+            "ref": "IFRS 17 · BS",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "lrc"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_lic",
+            "label": "Liability for incurred claims (LIC)",
+            "ref": "IFRS 17 · BS",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "lic"
+              ]
+            ]
+          },
+          {
+            "key": "ifrs17_csm",
+            "label": "Contractual service margin (CSM)",
+            "ref": "IFRS 17 · Notes",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "csm"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Денежные потоки",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Чистый денежный поток от операционной деятельности",
+            "ref": "CF",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Чистый поток от инвестиционной деятельности",
+            "ref": "CF",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Чистый поток от финансовой деятельности",
+            "ref": "CF",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "leasing": {
+    "nsbu": [
+      {
+        "label": "Форма №2 · финансовый результат",
+        "fields": [
+          {
+            "key": "revenue",
+            "label": "Чистая выручка от реализации",
+            "ref": "Ф.2 · 010",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "010",
+                "revenue"
+              ]
+            ]
+          },
+          {
+            "key": "cost_of_sales",
+            "label": "Себестоимость реализации",
+            "ref": "Ф.2 · 020",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "020",
+                "cost_of_sales"
+              ]
+            ]
+          },
+          {
+            "key": "gross_profit",
+            "label": "Валовая прибыль",
+            "ref": "Ф.2 · 030",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "030",
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Расходы периода",
+            "ref": "Ф.2 · 040",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "040",
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "operating_profit",
+            "label": "Прибыль от основной деятельности",
+            "ref": "Ф.2 · 100",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "100",
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "financial_income",
+            "label": "Доходы от финансовой деятельности",
+            "ref": "Ф.2 · 110",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "110",
+                "finance_income"
+              ]
+            ]
+          },
+          {
+            "key": "leasing_nsbu_leaseincome",
+            "label": "Доходы от финансовой аренды",
+            "ref": "Ф.2 · 140",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "140",
+                "lease_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Процентные расходы",
+            "ref": "Ф.2 · 180",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "180",
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налогообложения",
+            "ref": "Ф.2 · 240",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "240",
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль",
+            "ref": "Ф.2 · 270",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "270",
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Форма №1 · баланс и долг",
+        "fields": [
+          {
+            "key": "ppe",
+            "label": "Основные средства, остаточная стоимость",
+            "ref": "Ф.1 · 012",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "012",
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "leasing_nsbu_longreceiv",
+            "label": "Долгосрочная дебиторская задолженность",
+            "ref": "Ф.1 · 110",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "110",
+                "long_term_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "receivables",
+            "label": "Дебиторская задолженность",
+            "ref": "Ф.1 · 210",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "210",
+                "receivables"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства",
+            "ref": "Ф.1 · 320",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "320",
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "Ф.1 · 400",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "400",
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "leasing_nsbu_longloans",
+            "label": "Долгосрочные кредиты и займы",
+            "ref": "Ф.1 · 570–580",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "570",
+                "bank_borrowings_long"
+              ],
+              [
+                "F1",
+                "580",
+                "other_borrowings_long"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Краткосрочные кредиты и займы",
+            "ref": "Ф.1 · 730–750",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "730",
+                "bank_borrowings_short"
+              ],
+              [
+                "F1",
+                "740",
+                "other_borrowings_short"
+              ],
+              [
+                "F1",
+                "750",
+                "current_portion_long_term_debt"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "Ф.1 · 770",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "770",
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "Ф.1 · 480",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "480",
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "ifrs": [
+      {
+        "label": "Profit or loss · лизинговый доход",
+        "fields": [
+          {
+            "key": "interest_income",
+            "label": "Процентные доходы по финансовой аренде (EIR)",
+            "ref": "PL · Interest income EIR",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "interest_eir"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Процентные расходы по заимствованиям",
+            "ref": "PL · Interest expenses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii",
+            "label": "Чистый процентный доход",
+            "ref": "PL · Net interest income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_interest_before_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "ecl",
+            "label": "Ожидаемые кредитные убытки по лизингу (ECL)",
+            "ref": "PL · ECL on leases",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "credit_loss_expense"
+              ]
+            ]
+          },
+          {
+            "key": "nii_after",
+            "label": "Чистый процентный результат после ECL",
+            "ref": "PL · Net interest income after ECL",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_interest_after_ecl"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Операционные и административные расходы",
+            "ref": "PL · Opex",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налогообложения",
+            "ref": "PL · Profit before tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Прибыль за год",
+            "ref": "PL · Profit for the year",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Statement of financial position · лизинг",
+        "fields": [
+          {
+            "key": "lease_investments",
+            "label": "Чистые инвестиции в финансовую аренду",
+            "ref": "BS · Net investments in leases",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "net_lease_investment"
+              ]
+            ]
+          },
+          {
+            "key": "leasing_ifrs_gross",
+            "label": "Валовые инвестиции в финансовую аренду",
+            "ref": "Notes · Gross lease investments",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "gross_lease_investment"
+              ]
+            ]
+          },
+          {
+            "key": "leasing_ifrs_ecl",
+            "label": "Резерв ECL по лизинговому портфелю",
+            "ref": "Notes · ECL allowance",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "lease_ecl_allowance"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства и эквиваленты",
+            "ref": "BS · Cash",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Кредиты и займы",
+            "ref": "BS · Borrowings",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "borrowings"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_short"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_long"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Cash flows",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Денежный поток по основной деятельности",
+            "ref": "CF · Operating cash flows",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Инвестиционный денежный поток",
+            "ref": "CF · Investing cash flows",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Финансовый денежный поток",
+            "ref": "CF · Financing cash flows",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "general": {
+    "nsbu": [
+      {
+        "label": "Форма №2 · выручка и прибыль",
+        "fields": [
+          {
+            "key": "revenue",
+            "label": "Чистая выручка от реализации",
+            "ref": "Ф.2 · 010",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "010",
+                "revenue"
+              ]
+            ]
+          },
+          {
+            "key": "cost_of_sales",
+            "label": "Себестоимость реализованной продукции",
+            "ref": "Ф.2 · 020",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "020",
+                "cost_of_sales"
+              ]
+            ]
+          },
+          {
+            "key": "gross_profit",
+            "label": "Валовая прибыль (убыток)",
+            "ref": "Ф.2 · 030",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "030",
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Расходы периода",
+            "ref": "Ф.2 · 040",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "040",
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "selling",
+            "label": "Расходы по реализации",
+            "ref": "Ф.2 · 050",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "050",
+                "selling_expense"
+              ]
+            ]
+          },
+          {
+            "key": "admin",
+            "label": "Административные расходы",
+            "ref": "Ф.2 · 060",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "060",
+                "admin_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_otheroper",
+            "label": "Прочие операционные расходы",
+            "ref": "Ф.2 · 070",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "070",
+                "other_operating_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_otherinc",
+            "label": "Прочие доходы основной деятельности",
+            "ref": "Ф.2 · 090",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "090",
+                "other_operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "operating_profit",
+            "label": "Прибыль от основной деятельности",
+            "ref": "Ф.2 · 100",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "100",
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "financial_income",
+            "label": "Доходы от финансовой деятельности",
+            "ref": "Ф.2 · 110",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "110",
+                "finance_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_income",
+            "label": "Доходы в виде процентов",
+            "ref": "Ф.2 · 130",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "130",
+                "interest_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Расходы в виде процентов",
+            "ref": "Ф.2 · 180",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "180",
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налогообложения",
+            "ref": "Ф.2 · 240",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "240",
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "tax",
+            "label": "Налог на прибыль",
+            "ref": "Ф.2 · 250",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "250",
+                "income_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль (убыток)",
+            "ref": "Ф.2 · 270",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "270",
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Форма №1 · активы",
+        "fields": [
+          {
+            "key": "ppe",
+            "label": "Основные средства, остаточная стоимость",
+            "ref": "Ф.1 · 012",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "012",
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "intangibles",
+            "label": "Нематериальные активы, остаточная стоимость",
+            "ref": "Ф.1 · 022",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "022",
+                "intangibles"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_longinvest",
+            "label": "Долгосрочные инвестиции, всего",
+            "ref": "Ф.1 · 030",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "030",
+                "long_term_investments"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_capex",
+            "label": "Капитальные вложения",
+            "ref": "Ф.1 · 100",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "100",
+                "construction_in_progress"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_fixedtotal",
+            "label": "Итого внеоборотных активов",
+            "ref": "Ф.1 · 130",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "130",
+                "noncurrent_assets"
+              ]
+            ]
+          },
+          {
+            "key": "inventories",
+            "label": "Запасы, всего",
+            "ref": "Ф.1 · 140",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "140",
+                "inventory"
+              ]
+            ]
+          },
+          {
+            "key": "receivables",
+            "label": "Дебиторская задолженность, всего",
+            "ref": "Ф.1 · 210",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "210",
+                "receivables"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства, всего",
+            "ref": "Ф.1 · 320",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "320",
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_shortinvest",
+            "label": "Краткосрочные инвестиции",
+            "ref": "Ф.1 · 370",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "370",
+                "short_term_investments"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_currenttotal",
+            "label": "Итого оборотных активов",
+            "ref": "Ф.1 · 390",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "390",
+                "current_assets"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "Ф.1 · 400",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "400",
+                "total_assets"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Форма №1 · собственный капитал и обязательства",
+        "fields": [
+          {
+            "key": "general_nsbu_charter",
+            "label": "Уставный капитал",
+            "ref": "Ф.1 · 410",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "410",
+                "share_capital"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_extra",
+            "label": "Добавочный капитал",
+            "ref": "Ф.1 · 420",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "420",
+                "share_premium"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_reserves",
+            "label": "Резервный капитал",
+            "ref": "Ф.1 · 430",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "430",
+                "reserve_capital"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_retained",
+            "label": "Нераспределённая прибыль (убыток)",
+            "ref": "Ф.1 · 450",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "450",
+                "retained_earnings"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "Ф.1 · 480",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "480",
+                "total_equity"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_longliab",
+            "label": "Долгосрочные обязательства",
+            "ref": "Ф.1 · 490",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "490",
+                "noncurrent_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_shortliab",
+            "label": "Краткосрочные обязательства",
+            "ref": "Ф.1 · 600",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "600",
+                "current_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Банковские кредиты и займы (раздельно)",
+            "ref": "Ф.1 · 570/580/730/740",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "570",
+                "bank_borrowings_long"
+              ],
+              [
+                "F1",
+                "580",
+                "other_borrowings_long"
+              ],
+              [
+                "F1",
+                "730",
+                "bank_borrowings_short"
+              ],
+              [
+                "F1",
+                "740",
+                "other_borrowings_short"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "Ф.1 · 770",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "770",
+                "total_liabilities"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "ifrs": [
+      {
+        "label": "Statement of profit or loss",
+        "fields": [
+          {
+            "key": "revenue",
+            "label": "Выручка по договорам с покупателями",
+            "ref": "PL · Revenue from contracts",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "revenue"
+              ]
+            ]
+          },
+          {
+            "key": "cost_of_sales",
+            "label": "Себестоимость продаж",
+            "ref": "PL · Cost of sales",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "cost_of_sales"
+              ]
+            ]
+          },
+          {
+            "key": "gross_profit",
+            "label": "Валовая прибыль",
+            "ref": "PL · Gross profit",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "selling",
+            "label": "Коммерческие расходы",
+            "ref": "PL · Selling expenses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "selling_expense"
+              ]
+            ]
+          },
+          {
+            "key": "admin",
+            "label": "Общие и административные расходы",
+            "ref": "PL · G&A",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "admin_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_impair",
+            "label": "Обесценение финансовых и нефинансовых активов",
+            "ref": "PL/Notes · Impairment",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "impairment"
+              ]
+            ]
+          },
+          {
+            "key": "operating_profit",
+            "label": "Прибыль от операционной деятельности",
+            "ref": "PL · Operating profit",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "financial_income",
+            "label": "Финансовые доходы",
+            "ref": "PL · Finance income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "finance_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Финансовые расходы",
+            "ref": "PL · Finance costs",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_fx",
+            "label": "Курсовые разницы (нетто)",
+            "ref": "PL · FX gain/loss",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "fx_gain_loss"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налога",
+            "ref": "PL · Profit before tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "tax",
+            "label": "Налог на прибыль",
+            "ref": "PL · Income tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "income_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Прибыль (убыток) за период",
+            "ref": "PL · Profit for the period",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_oci",
+            "label": "Прочий совокупный доход",
+            "ref": "PL · OCI",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "oci"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Statement of financial position",
+        "fields": [
+          {
+            "key": "ppe",
+            "label": "Основные средства (PPE)",
+            "ref": "BS · Property, plant and equipment",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "intangibles",
+            "label": "Нематериальные активы",
+            "ref": "BS · Intangible assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "intangibles"
+              ]
+            ]
+          },
+          {
+            "key": "right_of_use",
+            "label": "Активы права пользования",
+            "ref": "BS · Right-of-use assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "rou_assets"
+              ]
+            ]
+          },
+          {
+            "key": "inventories",
+            "label": "Запасы",
+            "ref": "BS · Inventories",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "inventory"
+              ]
+            ]
+          },
+          {
+            "key": "receivables",
+            "label": "Торговая и прочая дебиторская задолженность",
+            "ref": "BS · Trade receivables",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "trade_receivables"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства и эквиваленты",
+            "ref": "BS · Cash",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_current",
+            "label": "Оборотные активы",
+            "ref": "BS · Current assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "current_assets"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_noncurrent",
+            "label": "Внеоборотные активы",
+            "ref": "BS · Non-current assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "noncurrent_assets"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_borrow_short",
+            "label": "Краткосрочные кредиты и займы",
+            "ref": "BS · Current borrowings",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "borrowings_short"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_borrow_long",
+            "label": "Долгосрочные кредиты и займы",
+            "ref": "BS · Non-current borrowings",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "borrowings_long"
+              ]
+            ]
+          },
+          {
+            "key": "lease_liab",
+            "label": "Арендные обязательства",
+            "ref": "BS · Lease liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "lease_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Statement of cash flows",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Чистый поток от операционной деятельности",
+            "ref": "CF · CFO",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Чистый поток от инвестиционной деятельности",
+            "ref": "CF · CFI",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Чистый поток от финансовой деятельности",
+            "ref": "CF · CFF",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          },
+          {
+            "key": "capex",
+            "label": "Приобретение основных средств (CAPEX)",
+            "ref": "CF · Purchase of PPE",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "purchase_ppe"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_divpaid",
+            "label": "Выплаченные дивиденды",
+            "ref": "CF/Equity · Dividends paid",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "dividends_paid"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Statement of changes in equity / Notes",
+        "fields": [
+          {
+            "key": "general_ifrs_shareissue",
+            "label": "Выпуск акций",
+            "ref": "Equity · Share issuance",
+            "kind": "flow",
+            "selectors": [
+              [
+                "Equity",
+                null,
+                "share_issuance"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_nci",
+            "label": "Неконтролирующие доли участия",
+            "ref": "Equity · NCI",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "nci"
+              ]
+            ]
+          },
+          {
+            "key": "general_ifrs_eps",
+            "label": "Прибыль на акцию (сум/акция)",
+            "ref": "Notes · EPS",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "eps_basic"
+              ],
+              [
+                "PL",
+                null,
+                "eps_diluted"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "telecom": {
+    "ifrs": [
+      {
+        "label": "Отчёт о результатах · телеком",
+        "fields": [
+          {
+            "key": "revenue",
+            "label": "Выручка от услуг связи и оборудования",
+            "ref": "PL · Revenue",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "revenue"
+              ]
+            ]
+          },
+          {
+            "key": "telecom_ifrs_fixed",
+            "label": "Доходы от фиксированной связи",
+            "ref": "Notes · Service revenue",
+            "kind": "flow",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "fixed_line_revenue"
+              ]
+            ]
+          },
+          {
+            "key": "telecom_ifrs_mobile",
+            "label": "Доходы от мобильной связи",
+            "ref": "Notes · Mobile revenue",
+            "kind": "flow",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "mobile_revenue"
+              ]
+            ]
+          },
+          {
+            "key": "cost_of_sales",
+            "label": "Себестоимость услуг и оборудования",
+            "ref": "PL · Cost of sales",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "cost_of_sales"
+              ]
+            ]
+          },
+          {
+            "key": "gross_profit",
+            "label": "Валовая прибыль",
+            "ref": "PL · Gross profit",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "operating_profit",
+            "label": "Операционная прибыль",
+            "ref": "PL · Operating profit",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль",
+            "ref": "PL · Profit for the year",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Баланс · телеком",
+        "fields": [
+          {
+            "key": "ppe",
+            "label": "Сетевое оборудование и основные средства",
+            "ref": "BS/Notes · PPE",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "intangibles",
+            "label": "Лицензии и нематериальные активы",
+            "ref": "BS/Notes · Intangibles",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "intangibles"
+              ]
+            ]
+          },
+          {
+            "key": "right_of_use",
+            "label": "Активы права пользования",
+            "ref": "BS · Right-of-use",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "rou_assets"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства",
+            "ref": "BS · Cash",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Займы и кредиты",
+            "ref": "BS · Borrowings",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "borrowings"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_short"
+              ],
+              [
+                "BS",
+                null,
+                "borrowings_long"
+              ]
+            ]
+          },
+          {
+            "key": "lease_liab",
+            "label": "Арендные обязательства",
+            "ref": "BS · Lease liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "lease_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Собственный капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Денежные потоки",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Операционный поток",
+            "ref": "CF · CFO",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Инвестиционный поток",
+            "ref": "CF · CFI",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Финансовый поток",
+            "ref": "CF · CFF",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          },
+          {
+            "key": "capex",
+            "label": "Инвестиции в сеть / CAPEX",
+            "ref": "CF/Notes · Purchases of PPE",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "purchase_ppe"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "nsbu": [
+      {
+        "label": "Форма №2 · выручка и прибыль",
+        "fields": [
+          {
+            "key": "revenue",
+            "label": "Чистая выручка от реализации",
+            "ref": "Ф.2 · 010",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "010",
+                "revenue"
+              ]
+            ]
+          },
+          {
+            "key": "cost_of_sales",
+            "label": "Себестоимость реализованной продукции",
+            "ref": "Ф.2 · 020",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "020",
+                "cost_of_sales"
+              ]
+            ]
+          },
+          {
+            "key": "gross_profit",
+            "label": "Валовая прибыль (убыток)",
+            "ref": "Ф.2 · 030",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "030",
+                "gross_profit"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Расходы периода",
+            "ref": "Ф.2 · 040",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "040",
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "selling",
+            "label": "Расходы по реализации",
+            "ref": "Ф.2 · 050",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "050",
+                "selling_expense"
+              ]
+            ]
+          },
+          {
+            "key": "admin",
+            "label": "Административные расходы",
+            "ref": "Ф.2 · 060",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "060",
+                "admin_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_otheroper",
+            "label": "Прочие операционные расходы",
+            "ref": "Ф.2 · 070",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "070",
+                "other_operating_expense"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_otherinc",
+            "label": "Прочие доходы основной деятельности",
+            "ref": "Ф.2 · 090",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "090",
+                "other_operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "operating_profit",
+            "label": "Прибыль от основной деятельности",
+            "ref": "Ф.2 · 100",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "100",
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "financial_income",
+            "label": "Доходы от финансовой деятельности",
+            "ref": "Ф.2 · 110",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "110",
+                "finance_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_income",
+            "label": "Доходы в виде процентов",
+            "ref": "Ф.2 · 130",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "130",
+                "interest_income"
+              ]
+            ]
+          },
+          {
+            "key": "interest_expenses",
+            "label": "Расходы в виде процентов",
+            "ref": "Ф.2 · 180",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "180",
+                "interest_expense"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налогообложения",
+            "ref": "Ф.2 · 240",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "240",
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "tax",
+            "label": "Налог на прибыль",
+            "ref": "Ф.2 · 250",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "250",
+                "income_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Чистая прибыль (убыток)",
+            "ref": "Ф.2 · 270",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "270",
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Форма №1 · активы",
+        "fields": [
+          {
+            "key": "ppe",
+            "label": "Основные средства, остаточная стоимость",
+            "ref": "Ф.1 · 012",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "012",
+                "ppe"
+              ]
+            ]
+          },
+          {
+            "key": "intangibles",
+            "label": "Нематериальные активы, остаточная стоимость",
+            "ref": "Ф.1 · 022",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "022",
+                "intangibles"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_longinvest",
+            "label": "Долгосрочные инвестиции, всего",
+            "ref": "Ф.1 · 030",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "030",
+                "long_term_investments"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_capex",
+            "label": "Капитальные вложения",
+            "ref": "Ф.1 · 100",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "100",
+                "construction_in_progress"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_fixedtotal",
+            "label": "Итого внеоборотных активов",
+            "ref": "Ф.1 · 130",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "130",
+                "noncurrent_assets"
+              ]
+            ]
+          },
+          {
+            "key": "inventories",
+            "label": "Запасы, всего",
+            "ref": "Ф.1 · 140",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "140",
+                "inventory"
+              ]
+            ]
+          },
+          {
+            "key": "receivables",
+            "label": "Дебиторская задолженность, всего",
+            "ref": "Ф.1 · 210",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "210",
+                "receivables"
+              ]
+            ]
+          },
+          {
+            "key": "cash",
+            "label": "Денежные средства, всего",
+            "ref": "Ф.1 · 320",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "320",
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_shortinvest",
+            "label": "Краткосрочные инвестиции",
+            "ref": "Ф.1 · 370",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "370",
+                "short_term_investments"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_currenttotal",
+            "label": "Итого оборотных активов",
+            "ref": "Ф.1 · 390",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "390",
+                "current_assets"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "Ф.1 · 400",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "400",
+                "total_assets"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Форма №1 · собственный капитал и обязательства",
+        "fields": [
+          {
+            "key": "general_nsbu_charter",
+            "label": "Уставный капитал",
+            "ref": "Ф.1 · 410",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "410",
+                "share_capital"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_extra",
+            "label": "Добавочный капитал",
+            "ref": "Ф.1 · 420",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "420",
+                "share_premium"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_reserves",
+            "label": "Резервный капитал",
+            "ref": "Ф.1 · 430",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "430",
+                "reserve_capital"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_retained",
+            "label": "Нераспределённая прибыль (убыток)",
+            "ref": "Ф.1 · 450",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "450",
+                "retained_earnings"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "Ф.1 · 480",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "480",
+                "total_equity"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_longliab",
+            "label": "Долгосрочные обязательства",
+            "ref": "Ф.1 · 490",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "490",
+                "noncurrent_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "general_nsbu_shortliab",
+            "label": "Краткосрочные обязательства",
+            "ref": "Ф.1 · 600",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "600",
+                "current_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "borrowings",
+            "label": "Банковские кредиты и займы (раздельно)",
+            "ref": "Ф.1 · 570/580/730/740",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "570",
+                "bank_borrowings_long"
+              ],
+              [
+                "F1",
+                "580",
+                "other_borrowings_long"
+              ],
+              [
+                "F1",
+                "730",
+                "bank_borrowings_short"
+              ],
+              [
+                "F1",
+                "740",
+                "other_borrowings_short"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "Ф.1 · 770",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "770",
+                "total_liabilities"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Телеком · дополнительное раскрытие",
+        "fields": [
+          {
+            "key": "telecom_nsbu_service",
+            "label": "Выручка от услуг связи по сегментам",
+            "ref": "НСБУ · если раскрыто",
+            "kind": "flow",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "telecom_nsbu_service"
+              ]
+            ]
+          },
+          {
+            "key": "telecom_nsbu_network",
+            "label": "Инвестиции в развитие телекоммуникационной сети",
+            "ref": "НСБУ · при наличии",
+            "kind": "stock",
+            "selectors": [
+              [
+                "Notes",
+                null,
+                "telecom_nsbu_network"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "fund": {
+    "nsbu": [
+      {
+        "label": "Основные показатели по опубликованной форме",
+        "fields": [
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "НСБУ · форма эмитента",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "400",
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "НСБУ · форма эмитента",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "770",
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Собственный капитал",
+            "ref": "НСБУ · форма эмитента",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "480",
+                "total_equity"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Прибыль / убыток",
+            "ref": "НСБУ · форма эмитента",
+            "kind": "flow",
+            "selectors": [
+              [
+                "F2",
+                "270",
+                "net_income"
+              ]
+            ]
+          },
+          {
+            "key": "fund_nsbu_invest",
+            "label": "Инвестиционные активы (при раскрытии)",
+            "ref": "НСБУ · примечание",
+            "kind": "stock",
+            "selectors": [
+              [
+                "F1",
+                "030",
+                "long_term_investments"
+              ],
+              [
+                "F1",
+                "370",
+                "short_term_investments"
+              ]
+            ]
+          }
+        ]
+      }
+    ],
+    "ifrs": [
+      {
+        "label": "Condensed statement of comprehensive income",
+        "fields": [
+          {
+            "key": "unrealized_gain",
+            "label": "Нереализованная прибыль от инвестиций по FVTPL",
+            "ref": "PL · Unrealized gains",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "unrealized_investment_gain"
+              ]
+            ]
+          },
+          {
+            "key": "dividend_income",
+            "label": "Валовый доход от дивидендов",
+            "ref": "PL · Gross dividend income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "dividend_income"
+              ]
+            ]
+          },
+          {
+            "key": "operating_income",
+            "label": "Чистый операционный доход",
+            "ref": "PL · Net operating income",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_income"
+              ]
+            ]
+          },
+          {
+            "key": "operating_expense",
+            "label": "Операционные расходы",
+            "ref": "PL · Operating expenses",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "operating_expenses"
+              ]
+            ]
+          },
+          {
+            "key": "profit_before_tax",
+            "label": "Прибыль до налога",
+            "ref": "PL · Profit before tax",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "profit_before_tax"
+              ]
+            ]
+          },
+          {
+            "key": "net_profit",
+            "label": "Прибыль за отчётный период",
+            "ref": "PL · Profit for period",
+            "kind": "flow",
+            "selectors": [
+              [
+                "PL",
+                null,
+                "net_income"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Condensed statement of financial position",
+        "fields": [
+          {
+            "key": "cash",
+            "label": "Денежные средства и эквиваленты",
+            "ref": "BS · Cash",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "cash"
+              ]
+            ]
+          },
+          {
+            "key": "investments_fvtpl",
+            "label": "Инвестиции в долевые инструменты по FVTPL",
+            "ref": "BS · Equity investments at FVTPL",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "financial_assets_fvtpl"
+              ]
+            ]
+          },
+          {
+            "key": "dividends_receivable",
+            "label": "Дивиденды к получению",
+            "ref": "BS · Dividends receivable",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "dividends_receivable"
+              ]
+            ]
+          },
+          {
+            "key": "assets",
+            "label": "Всего активов",
+            "ref": "BS · Total assets",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_assets"
+              ]
+            ]
+          },
+          {
+            "key": "liabilities",
+            "label": "Всего обязательств",
+            "ref": "BS · Total liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_liabilities"
+              ]
+            ]
+          },
+          {
+            "key": "equity",
+            "label": "Всего собственный капитал",
+            "ref": "BS · Total equity",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "total_equity"
+              ]
+            ]
+          },
+          {
+            "key": "nav",
+            "label": "Балансовая база чистых активов для NAV",
+            "ref": "BS · Assets minus liabilities",
+            "kind": "stock",
+            "selectors": [
+              [
+                "DERIVED",
+                null,
+                "nav"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "label": "Condensed cash flows / изменения капитала",
+        "fields": [
+          {
+            "key": "cfo",
+            "label": "Денежный поток от операционной деятельности",
+            "ref": "CF · Net operating cash flow",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfo"
+              ]
+            ]
+          },
+          {
+            "key": "cfi",
+            "label": "Денежный поток от инвестиционной деятельности",
+            "ref": "CF · Investing cash flow",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cfi"
+              ]
+            ]
+          },
+          {
+            "key": "cff",
+            "label": "Денежный поток от финансовой деятельности",
+            "ref": "CF · Financing cash flow",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "cff"
+              ]
+            ]
+          },
+          {
+            "key": "fund_ifrs_treasury",
+            "label": "Выкупленные собственные акции",
+            "ref": "Equity · Treasury shares",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "treasury_shares"
+              ]
+            ]
+          },
+          {
+            "key": "fund_ifrs_div",
+            "label": "Выплаченные дивиденды",
+            "ref": "Equity/CF · Dividends",
+            "kind": "flow",
+            "selectors": [
+              [
+                "CF",
+                null,
+                "dividends_paid"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

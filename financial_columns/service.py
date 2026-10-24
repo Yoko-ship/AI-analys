@@ -9,13 +9,15 @@ from financial_ingestion import publication
 from . import derived, matrix, observations, ratios, source_store
 
 
-def load(ticker, *, form='NSBU', scope=None, freq='annual'):
+def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
     ticker, form = ticker.upper().strip(), form.upper()
     form = 'MSFO' if form == 'IFRS' else form
     if form not in {'NSBU', 'MSFO'} or scope not in {None, 'separate', 'consolidated', 'unknown'}:
         raise ValueError('Unknown accounting context')
     if freq not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
+    if view not in {'full', 'template'}:
+        raise ValueError('Unknown financial view')
     c = get_catalog_conn()
     try:
         row = c.execute('SELECT company_name,org_id FROM catalog_companies WHERE ticker=?', (ticker,)).fetchone()
@@ -82,10 +84,14 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual'):
             existing['cells'][column['key']] = ratio
     if not source_rows:
         coverage['issues'] = sorted(set(coverage['issues'] + ['NO_IMPORTED_SOURCE_ROWS']))
-    return {'ok': True, 'ticker': ticker, 'issuer_id': issuer_id, 'issuer_name': issuer.get('company_name', ticker),
+    payload = {'ok': True, 'ticker': ticker, 'issuer_id': issuer_id, 'issuer_name': issuer.get('company_name', ticker),
             'standard': form, 'scope': scope, 'available_scopes': available_scopes, 'template': template,
             'unit': 'UZS_thousand', 'freq': freq, **table, 'ratios': ratio_rows,
             'published_ratios': [{**r, 'value': str(Decimal(str(r['value_num']))), 'origin': 'OpenInfo_published'} for r in published
                                  if r['field'] in {'roe', 'roa', 'current_ratio', 'quick_ratio', 'debt_ratio', 'debt_to_equity', 'cost_of_risk', 'net_profit_margin', 'asset_turnover', 'roce'}],
             'source_forms': forms, 'coverage': coverage, 'issues': issues,
             'shareholders': shareholders, 'shareholders_status': 'AVAILABLE' if shareholders else 'NOT_DISCLOSED_OR_NOT_VERIFIED'}
+    if view == 'template':
+        from .presentation import project
+        return project(payload)
+    return payload
