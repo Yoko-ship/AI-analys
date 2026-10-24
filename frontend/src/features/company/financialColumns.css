@@ -66,6 +66,8 @@
 .fc-chart svg { width: 100%; max-height: 390px; display: block; color: var(--fc-muted); }
 .fc-chart svg text { fill: currentColor; font-size: 10px; }
 .fc-muted { color: var(--fc-muted); }
+.fc-value-parts { display: grid; gap: 4px; justify-items: end; }
+.fc-value-parts small { color: var(--fc-muted); }
 .financial-columns>footer { padding: 12px 0; border-top: 1px solid var(--fc-line); font-size: 10px; line-height: 1.7; color: var(--fc-muted); display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
 .fc-passport { color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 24px; width: min(720px, calc(100vw - 36px)); max-height: 85vh; overflow: auto; box-sizing: border-box; font: inherit; }
 .fc-passport::backdrop { background: #0008; }

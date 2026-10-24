@@ -5,6 +5,37 @@ import pytest
 from financial_columns.presentation import project, template_for
 
 
+def test_hmkb_overview_matches_html_24_rows_and_preserves_component_values():
+    fixture = Path('tests/fixtures/financial_columns')
+    source = json.loads((fixture / 'hmkb_2025_matrix.json').read_text(encoding='utf-8'))
+    expected = json.loads((fixture / 'hmkb_overview_labels.json').read_text(encoding='utf-8'))
+    result = project(source)
+    overview = result.get('overview_rows', result['rows'])
+    assert [r['label'] for r in overview] == expected
+    assert len({r['display_field'] for r in overview}) == 24
+    loans = next(r for r in overview if r['display_field'] == 'gross_loans')
+    parts = loans['cells']['2025']['display_parts']
+    for part in parts:
+        original = next(r for r in source['rows'] if r['source_form'] == part['source_form'] and r['source_code'] == part['source_code'])
+        assert part == original['cells']['2025']
+    assert len(parts) == 2
+    deposit = next(r for r in overview if r['display_field'] == 'customer_accounts')
+    assert deposit['cells']['2025']['value'] is None
+    assert deposit['cells']['2025']['quality'] == 'missing'
+    assert len(result['rows']) == 42  # The longer reference list remains available separately.
+
+
+def test_overview_components_keep_codes_even_when_the_period_is_missing():
+    loans = row('BANK_BS', '7а', 'loans_gross')
+    leases = row('BANK_BS', '7б', 'leases_gross')
+    leases['cells']['2025'] = {'value': None, 'quality': 'blocked', 'reason': 'UNDER_REVIEW'}
+    overview = project(payload([loans, leases]))['overview_rows']
+    cell = next(r for r in overview if r['display_field'] == 'gross_loans')['cells']['2025']
+    assert cell['value'] is None  # Never present a partial total.
+    assert [(p['source_code'], p['value'], p['quality']) for p in cell['display_parts']] == [
+        ('7а', '0', 'valid'), ('7б', None, 'blocked')]
+
+
 def row(form, code, metric, value='0'):
     return dict(id=f'{form}:{code or metric}', source_form=form, source_code=code, metric_id=metric,
                 label=metric, kind='stock' if form.endswith('BS') else 'flow', unit='UZS_thousand',

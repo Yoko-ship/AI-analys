@@ -16,7 +16,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
         raise ValueError('Unknown accounting context')
     if freq not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
-    if view not in {'full', 'template'}:
+    if view not in {'full', 'template', 'overview'}:
         raise ValueError('Unknown financial view')
     c = get_catalog_conn()
     try:
@@ -91,7 +91,10 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
                                  if r['field'] in {'roe', 'roa', 'current_ratio', 'quick_ratio', 'debt_ratio', 'debt_to_equity', 'cost_of_risk', 'net_profit_margin', 'asset_turnover', 'roce'}],
             'source_forms': forms, 'coverage': coverage, 'issues': issues,
             'shareholders': shareholders, 'shareholders_status': 'AVAILABLE' if shareholders else 'NOT_DISCLOSED_OR_NOT_VERIFIED'}
-    if view == 'template':
+    if view in {'template', 'overview'}:
         from .presentation import project
-        return project(payload)
+        result = project(payload)
+        if view == 'overview':
+            return {**result, 'rows': result['overview_rows'], 'ratios': [], 'published_ratios': [], 'shareholders': []}
+        return result
     return payload

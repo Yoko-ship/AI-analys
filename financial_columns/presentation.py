@@ -8,6 +8,7 @@ rows and passports. An undisclosed field is not fabricated from a similar one.
 import json
 from pathlib import Path
 import re
+from .overview import compact_rows
 
 
 FIELDS = json.loads(Path(__file__).with_name('reference_fields.json').read_text(encoding='utf-8'))
@@ -40,8 +41,9 @@ def template_for(kind, name=''):
 def project(payload):
     template = template_for(payload['template'], payload.get('issuer_name'))
     standard = payload['standard']
+    groups = FIELDS[template]['nsbu' if standard == 'NSBU' else 'ifrs']
     selected, used = [], set()
-    for group in FIELDS[template]['nsbu' if standard == 'NSBU' else 'ifrs']:
+    for group in groups:
         for field in group['fields']:
             for form, code, metric in field['selectors']:
                 for row in payload['rows']:
@@ -50,9 +52,11 @@ def project(payload):
                             and (code is None or row.get('source_code') == code)):
                         selected.append({**row, 'label': field['label'],
                                          'source_label': row.get('source_label') or row.get('label') or row.get('raw_label'),
+                                         'display_ref': field['ref'],
                                          'display_field': field['field_id'], 'display_group': group['label']})
                         used.add(row['id'])
     allowed_ratios = set(RATIOS[template][standard].split())
     return {**payload, 'presentation': 'template', 'display_template': template,
+            'overview_rows': compact_rows(groups, selected, payload['columns']),
             'rows': selected, 'ratios': [r for r in payload.get('ratios', []) if r['metric_id'] in allowed_ratios],
             'published_ratios': [r for r in payload.get('published_ratios', []) if r['field'] in allowed_ratios]}

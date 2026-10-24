@@ -162,3 +162,18 @@ def test_reference_view_rejects_unknown_view(source):
     with TestClient(app) as client:
         assert client.get('/api/company/IPTB/financials/columns?view=bad').status_code == 422
         assert client.get('/api/company/IPTB/financials/columns.csv?view=bad').status_code == 422
+
+
+def test_overview_export_matches_the_compact_html_list(source):
+    import csv
+    import io
+    with TestClient(app) as client:
+        response = client.get('/api/company/IPTB/financials/columns?freq=interim&view=overview')
+        exported = client.get('/api/company/IPTB/financials/columns.csv?freq=interim&view=overview')
+    assert response.status_code == exported.status_code == 200
+    data = response.json()
+    assert len(data['rows']) == 24
+    rows = list(csv.DictReader(io.StringIO(exported.content.decode('utf-8-sig'))))
+    assert {r['label'] for r in rows} == {r['label'] for r in data['rows']}
+    assert not any(r['source_code'] == '7з' and r['source_form'] == 'BANK_PL' for r in rows)
+    assert any(r['source_code'] == '7а' and r['source_form'] == 'BANK_BS' and r['value'] for r in rows)

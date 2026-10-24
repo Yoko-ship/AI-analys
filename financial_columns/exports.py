@@ -13,7 +13,8 @@ def records(payload):
     for row in payload['rows'] + payload['ratios']:
         for column in payload['columns']:
             cell = row['cells'][column['key']]
-            yield {key: {**payload, **row, 'period_end': column['end'], 'basis': column['basis'], **cell}.get(key) for key in FIELDS}
+            for part in cell.get('display_parts') or [cell]:
+                yield {key: {**payload, **row, 'period_end': column['end'], 'basis': column['basis'], **part}.get(key) for key in FIELDS}
     for row in payload.get('published_ratios', []):
         item = {**payload, **row, 'metric_id': row['field'], 'label': row['field'],
                 'period_end': row['period'], 'source_form': 'PUBLISHED_RAT', 'basis': 'published',
