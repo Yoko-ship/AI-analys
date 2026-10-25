@@ -175,7 +175,7 @@ function FilingsScreen({ticker,lang}) {
 export function PanelScreen({panel,onChange,lang,onOpen,user,apiFetch}) {
   const {ticker,func,form,scope}=panel;
   if(func==="FV"&&user?.is_admin)return <TerminalValuation {...panel} apiFetch={apiFetch} lang={lang}/>;
-  if(["SUM","PL","BS"].includes(func))return <><FinancialColumns showContextControls={false} ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})} fallback={func!=="SUM"&&<IssuerFinancials ticker={ticker} lang={lang} standard={form} scope={scope} section={func==="PL"?"income":"balance"} fromYear={2020}/>}/>{func==="SUM"&&<AnalyticsScreen {...panel} lang={lang} summary/>}</>;
+  if(["SUM","PL","BS"].includes(func))return <><FinancialColumns statement={func === "BS" ? "balance" : "income"} showContextControls={false} ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})} fallback={func!=="SUM"&&<IssuerFinancials ticker={ticker} lang={lang} standard={form} scope={scope} section={func==="PL"?"income":"balance"} fromYear={2020}/>}/>{func==="SUM"&&<AnalyticsScreen {...panel} lang={lang} summary/>}</>;
   if(func==="RAT")return <AnalyticsScreen {...panel} lang={lang}/>;
   if(func==="REC")return <Reconciliation {...panel} lang={lang}/>;
   if(func==="RV")return <PeersScreen {...panel} lang={lang} onOpen={onOpen}/>;

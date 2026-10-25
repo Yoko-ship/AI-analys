@@ -102,13 +102,14 @@ function OriginalDocuments({ forms, t }) {
   </details>;
 }
 
-export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true }) {
+export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all' }) {
   const t = (...labels) => words(lang, ...labels);
   const [freq, setFreq] = React.useState('annual'), [view, setView] = React.useState('summary'), [representation, setRepresentation] = React.useState('table');
   const [query, setQuery] = React.useState(''), [loaded, setLoaded] = React.useState(null), [retry, setRetry] = React.useState(0), [passport, setPassport] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState({});
+  React.useEffect(() => { setPassport(null); }, [statement]);
   const params = new URLSearchParams({ form: standard, scope, freq, view: 'template' });
-  const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template' });
+  const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template', statement });
   const url = `/api/company/${encodeURIComponent(ticker)}/financials/columns?${params}`;
   const loadRef = React.useRef(onLoad); loadRef.current = onLoad;
   React.useEffect(() => {
@@ -128,7 +129,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const format = value => value == null ? '—' : new Intl.NumberFormat(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU', { maximumFractionDigits: 2 }).format(Number(value));
   const columns = (data?.columns || []).filter(c => Number(c.end.slice(0,4)) >= fromYear);
   const visibleRows = view === 'ratios' ? data?.ratios : view === 'summary' ? data?.overview_rows ?? data?.rows : data?.rows;
-  const rows = (visibleRows || []).filter(r => (view !== 'original' || r.source_form !== 'DERIVED') && `${r.label} ${r.display_ref || ''} ${r.source_code || ''} ${r.metric_id || ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  const rows = (visibleRows || []).filter(r => (['ratios','owners','quality'].includes(view) || statement === 'all' || (r.kind === 'stock') === (statement === 'balance')) && (view !== 'original' || r.source_form !== 'DERIVED') && `${r.label} ${r.display_ref || ''} ${r.source_code || ''} ${r.metric_id || ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const groups = [...new Set(rows.map(r => financialGroup(r, view)))];
   if (data?.presentation !== 'template') groups.sort((a,b) => FORM_ORDER.indexOf(a)-FORM_ORDER.indexOf(b));
   const stat = metric => {
@@ -150,7 +151,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
     {current?.error && <div role="alert" className="fc-empty">{t('Не удалось загрузить отчётность.', 'Hisobotni yuklab bo‘lmadi.', 'Could not load financial statements.')} <button type="button" onClick={() => setRetry(n => n+1)}>{t('Повторить', 'Qayta urinish', 'Retry')}</button></div>}
     {data && <>
       <div className="fc-source-line">{standard === 'MSFO' ? 'IFRS' : 'NSBU'} · {scope} <Status value={data.coverage?.complete ? 'valid' : 'warn'} t={t}/>{!data.coverage?.complete && <span>{t('Частичное покрытие источников', 'Manbalar qisman mavjud', 'Partial source coverage')}</span>}</div>
-      {columns.filter(column => column.notice).map(column => <p key={column.key} className="fc-notice fc-period-notice"><strong>{column.label}:</strong> {qualityReason(column.notice, t)} {column.balance_source === 'comparative' && t('Баланс взят из сравнительной колонки более позднего отчёта.', 'Balans keyingi hisobotning taqqoslash ustunidan olingan.', 'Balance figures come from a comparative column in a later filing.')}</p>)}
+      {columns.filter(column => column.notice && statement !== 'balance').map(column => <p key={column.key} className="fc-notice fc-period-notice"><strong>{column.label}:</strong> {qualityReason(column.notice, t)} {column.balance_source === 'comparative' && t('Баланс взят из сравнительной колонки более позднего отчёта.', 'Balans keyingi hisobotning taqqoslash ustunidan olingan.', 'Balance figures come from a comparative column in a later filing.')}</p>)}
       {standard === 'MSFO' && data.coverage?.notes !== 'present' && <p className="fc-notice">{t('Примечания отсутствуют или не проверены.', 'Izohlar yo‘q yoki tekshirilmagan.', 'Notes are missing or have not been verified.')}</p>}
       {!data.rows?.length && <p className="fc-empty">{t('Нет проверенных строк источника в этом периметре.', 'Ushbu qamrovda tekshirilgan manba qatorlari yo‘q.', 'No verified source rows in this accounting scope.')}</p>}
       {view === 'original' && data.presentation !== 'template' && <OriginalDocuments forms={data.source_forms || []} t={t}/>}

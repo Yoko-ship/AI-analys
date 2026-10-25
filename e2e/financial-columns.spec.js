@@ -8,8 +8,31 @@ const hmkbFixture = JSON.parse(readFileSync('e2e/fixtures/hmkb-overview.json', '
 const hmkbLabels = JSON.parse(readFileSync('tests/fixtures/financial_columns/hmkb_overview_labels.json', 'utf8'));
 const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 
+test('balance rows belong to BS while SUM and PL retain income rows',async({page},testInfo)=>{
+  await setup(page,{ticker:'HMKB',func:'SUM',reports:recentReports});
+  const terminal=page.getByTestId('financial-columns');
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="cash"]')).toHaveCount(0);
+  await page.getByRole('button',{name:/BS Balance/}).click();
+  await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
+  await expect(terminal.getByRole('link',{name:'CSV',exact:true})).toHaveAttribute('href',/statement=balance/);
+  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
+  await expect(terminal.locator('.fc-chart option').filter({hasText:'Итого процентных доходов'})).toHaveCount(0);
+  await expect(terminal.locator('.fc-chart option').filter({hasText:'Кассовая наличность'})).toHaveCount(1);
+  await terminal.getByRole('button',{name:'Table',exact:true}).click();
+  await terminal.getByRole('tab',{name:'Original forms',exact:true}).click();
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
+  await terminal.locator('.fc-table').scrollIntoViewIfNeeded();
+  await page.screenshot({path:testInfo.outputPath('balance-tab.png'),animations:'disabled'});
+  await page.getByRole('button',{name:/PL Profit/}).click();
+  await expect(terminal.locator('tr[data-metric="cash"]')).toHaveCount(0);
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
+  await expect(terminal.getByRole('link',{name:'XLSX',exact:true})).toHaveAttribute('href',/statement=income/);
+});
+
 test('HMKB chart includes the separate loan and lease values already shown in the table', async ({page}, testInfo) => {
-  await setup(page, {ticker:'HMKB', func:'SUM', reports:recentReports});
+  await setup(page, {ticker:'HMKB', func:'BS', reports:recentReports});
   const terminal=page.getByTestId('financial-columns');
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
   const select=terminal.locator('.fc-chart select');
@@ -36,7 +59,7 @@ test('annual income gaps explain why a comparative balance can still be populate
   const observations=JSON.parse(readFileSync('tests/fixtures/financial_columns/agmkp_comparative_balance.json','utf8'));
   reports.rows=['revenue','ppe'].map(metric=>{
     const cells=observations.filter(c=>c.metric_id===metric), sample=cells[0];
-    return {id:metric,metric_id:metric,label:sample.raw_label,source_form:sample.source_form,source_code:sample.source_code,
+    return {id:metric,metric_id:metric,label:sample.raw_label,kind:sample.kind,source_form:sample.source_form,source_code:sample.source_code,
       cells:Object.fromEntries(reports.columns.map(c=>[c.key,cells.find(v=>v.period_end===c.end)||{value:null,quality:'missing'}]))};
   });
   reports.overview_rows=reports.rows;
@@ -46,9 +69,12 @@ test('annual income gaps explain why a comparative balance can still be populate
   await expect(terminal.locator('.fc-period-notice')).toContainText('Annual income statement is not available');
   await expect(terminal.locator('.fc-period-notice')).toContainText('comparative');
   await expect(terminal.locator('tr[data-metric="revenue"] td').nth(1)).toHaveText('—');
-  await expect(terminal.locator('tr[data-metric="ppe"] td').nth(1)).toHaveText('13,358,866,945');
+  await expect(terminal.locator('tr[data-metric="ppe"]')).toHaveCount(0);
   await terminal.locator('.fc-period-notice').scrollIntoViewIfNeeded();
   await page.screenshot({path:testInfo.outputPath('agmkp-annual-income-notice.png')});
+  await page.getByRole('button',{name:/BS Balance/}).click();
+  await expect(terminal.locator('tr[data-metric="ppe"] td').nth(1)).toHaveText('13,358,866,945');
+  await expect(terminal.locator('.fc-period-notice')).toHaveCount(0);
 });
 
 async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB', reports } = {}) {
@@ -79,7 +105,7 @@ for (const theme of ['light', 'dark']) test(`two annual reports and the current 
   await setup(page, { ticker: 'HMKB', func: 'SUM', theme, reports: recentReports });
   const terminal = page.getByTestId('financial-columns');
   await expect(terminal.locator('.fc-table thead th')).toHaveText(['Metric', '2024', '2025', '2026 · 9MYTD']);
-  await expect(terminal.locator('.fc-table tbody tr[data-metric]')).toHaveCount(24);
+  await expect(terminal.locator('.fc-table tbody tr[data-metric]')).toHaveCount(8);
   await expect(terminal.locator('.fc-stats > div').filter({ hasText: 'Net profit' })).toContainText('1,480,422,343');
   const income = terminal.locator('.fc-table tr[data-metric="interest_income"]');
   await expect(income.locator('td')).toHaveCount(3);
@@ -97,12 +123,15 @@ for (const theme of ['light', 'dark']) test(`two annual reports and the current 
   await page.screenshot({ path: testInfo.outputPath(`recent-reports-${theme}-mobile.png`), animations: 'disabled' });
 });
 
-for (const theme of ['light', 'dark']) test(`HMKB overview matches the HTML's exact 24 fields (${theme})`, async ({ page }, testInfo) => {
+for (const theme of ['light', 'dark']) test(`HMKB reference fields are split between income and balance (${theme})`, async ({ page }, testInfo) => {
   await setup(page, { ticker: 'HMKB', func: 'SUM', theme });
   const terminal = page.getByTestId('financial-columns');
   const rows = terminal.locator('.fc-table tbody tr[data-metric]');
-  await expect(rows).toHaveCount(24);
-  expect(await rows.locator('th').evaluateAll(nodes => nodes.map(n => n.firstChild.textContent))).toEqual(hmkbLabels);
+  await expect(rows).toHaveCount(8);
+  expect(await rows.locator('th').evaluateAll(nodes => nodes.map(n => n.firstChild.textContent))).toEqual(hmkbLabels.slice(0,8));
+  await page.getByRole('button',{name:/BS Balance/}).click();
+  await expect(rows).toHaveCount(16);
+  expect(await rows.locator('th').evaluateAll(nodes => nodes.map(n => n.firstChild.textContent))).toEqual(hmkbLabels.slice(8));
   await expect(terminal.getByRole('link', { name: 'CSV', exact: true })).toHaveAttribute('href', /view=overview/);
   const loans = rows.filter({ hasText: 'Кредиты и лизинговые операции, брутто' });
   await expect(loans).toHaveCount(1);
@@ -113,14 +142,14 @@ for (const theme of ['light', 'dark']) test(`HMKB overview matches the HTML's ex
   await terminal.locator('.fc-subnav').scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath(`hmkb-overview-${theme}.png`), animations: 'disabled' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(rows).toHaveCount(24);
+  await expect(rows).toHaveCount(16);
   await terminal.locator('.fc-table').evaluate(el => el.scrollIntoView({ block: 'start' }));
   await page.screenshot({ path: testInfo.outputPath(`hmkb-overview-${theme}-mobile.png`), animations: 'disabled' });
   await terminal.getByRole('tab', { name: 'Original forms', exact: true }).click();
-  await expect(rows).toHaveCount(42);
+  await expect(rows).toHaveCount(hmkbFixture.rows.filter(r=>r.kind==='stock').length);
   await expect(terminal.getByRole('link', { name: 'CSV', exact: true })).toHaveAttribute('href', /view=template/);
   await terminal.getByRole('tab', { name: 'Overview', exact: true }).click();
-  await expect(rows).toHaveCount(24);
+  await expect(rows).toHaveCount(16);
 });
 
 test('the terminal displays and exports only the reference field list', async ({ page }) => {
@@ -128,7 +157,7 @@ test('the terminal displays and exports only the reference field list', async ({
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', { name: '6M / 9M', exact: true }).click();
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(1);
-  await expect(terminal.getByRole('button', { name: '▾ Баланс банка · активы', exact: true })).toBeVisible();
+  await expect(terminal.getByRole('button', { name: '▾ Баланс банка · активы', exact: true })).toHaveCount(0);
   await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
   await expect(terminal.locator('tr[data-metric="travel_expense"]')).toHaveCount(0);
   await expect(terminal.getByRole('link', { name: 'CSV', exact: true })).toHaveAttribute('href', /view=overview/);
@@ -141,7 +170,7 @@ test('the terminal displays and exports only the reference field list', async ({
 });
 
 for (const theme of ['light','dark']) test(`financial statements share the catalog theme and controls (${theme})`, async ({page},testInfo) => {
-  await setup(page,{theme});
+  await setup(page,{theme,func:'BS'});
   const terminal=page.getByTestId('financial-columns');
   await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
   const styles=await terminal.evaluate(el=>{
@@ -165,7 +194,7 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   const terminal = page.getByTestId('financial-columns');
   await expect(terminal).toHaveCount(1);
   await expect(terminal.locator('.fc-table thead')).toContainText('2025');
-  await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
   await expect(page.getByRole('button', { name: 'NSBU', exact: true })).toHaveCount(1);
   const summary = page.locator('.terminal-summary');
   await expect(summary).toBeVisible();
@@ -176,6 +205,8 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   await terminal.getByRole('button', { name: '6M / 9M', exact: true }).click();
   const income = terminal.locator('tr[data-metric="interest_income"]').filter({ hasText: 'Итого' });
   await expect(income).toContainText('9,447,836,814');
+  await terminal.locator('.fc-scroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await income.evaluate(el=>el.scrollIntoView({block:'center'}));
   await income.getByRole('button').last().click();
   const passport = page.getByRole('dialog', { name: 'Source passport' });
   await expect(passport.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', /openinfo/);
@@ -184,7 +215,7 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   await terminal.locator(".fc-stats").evaluate(el => el.scrollIntoView({ block: "start" }));
   await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}-mobile.png`), animations: "disabled" });
   await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
-  await expect(terminal.locator('tr[data-metric="cash"]')).toHaveCount(0);
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
   await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
 });
 
@@ -194,8 +225,12 @@ test('SUM workspace panels include the same year columns', async ({ page }) => {
   const panel = page.locator('.terminal-work-panel').first();
   await expect(panel).toHaveAttribute('data-terminal-function', 'SUM');
   await expect(panel.getByTestId('financial-columns').locator('.fc-table thead')).toContainText('2025');
-  await expect(panel.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(panel.locator('tr[data-metric="interest_income"]')).toBeVisible();
   await expect(panel.locator('.terminal-summary')).toBeVisible();
+  await expect(panel.locator('tr[data-metric="cash"]')).toHaveCount(0);
+  await panel.getByLabel(/^Function/).selectOption('BS');
+  await expect(panel.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(panel.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
 });
 
 for (const fallback of [false, true]) test(`report panels expand and restore without losing state (fallback=${fallback})`, async ({ page }, testInfo) => {
@@ -303,9 +338,9 @@ test('source columns preserve units, periods and passports at desktop and mobile
 test('changing standard clears source rows and gives an explicit missing-data state', async ({ page }) => {
   await setup(page);
   const terminal = page.getByTestId('financial-columns');
-  await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
   await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
-  await expect(terminal.locator('tr[data-metric="cash"]')).toHaveCount(0);
+  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
   await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
   await expect(terminal.getByText('Notes are missing or have not been verified.')).toBeVisible();
   await expect(terminal.locator('.fc-legacy')).toHaveCount(0);

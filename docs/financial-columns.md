@@ -83,7 +83,13 @@ reference’s sector/standard order. `reference_fields.json` records all twelve
 field lists and explicit source-form/code/metric selectors. Its `overview_rows`
 follow the HTML overview's first eight fields per section, in their exact order,
 with placeholders for undisclosed fields. HMKB NSBU therefore has 24 overview
-rows. Multiple source components share one display row but retain separate
+rows across the statement tabs: eight income rows in SUM/PL and sixteen balance
+rows in BS. The same split applies to all sector and accounting-standard
+templates, using each row's stock/flow classification. Charts, Original forms
+and CSV/XLSX exports follow the selected statement; headline KPI cards retain
+the full reporting context. `statement=all|income|balance` is supported by the
+columns and export endpoints (default `all`, preserving audit callers).
+Multiple source components share one display row but retain separate
 amount buttons and passports; no total is invented. The longer reference list
 is available under Original forms. Overview exports request `view=overview` and
 retain each component's source code and amount as separate export records.

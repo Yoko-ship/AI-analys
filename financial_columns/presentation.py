@@ -38,6 +38,16 @@ def template_for(kind, name=''):
     return 'general'
 
 
+def select_statement(payload, statement):
+    if statement == 'all':
+        return payload
+    def selected(rows):
+        return [r for r in rows if (r.get('kind') == 'stock') == (statement == 'balance')]
+    return {**payload, 'rows': selected(payload['rows']),
+            **({'overview_rows': selected(payload['overview_rows'])} if 'overview_rows' in payload else {}),
+            'ratios': [], 'published_ratios': [], 'shareholders': []}
+
+
 def project(payload):
     template = template_for(payload['template'], payload.get('issuer_name'))
     standard = payload['standard']

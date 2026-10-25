@@ -9,7 +9,7 @@ from financial_ingestion import publication
 from . import derived, matrix, observations, ratios, source_store
 
 
-def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
+def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all'):
     ticker, form = ticker.upper().strip(), form.upper()
     form = 'MSFO' if form == 'IFRS' else form
     if form not in {'NSBU', 'MSFO'} or scope not in {None, 'separate', 'consolidated', 'unknown'}:
@@ -18,6 +18,8 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
         raise ValueError('Unknown frequency')
     if view not in {'full', 'template', 'overview'}:
         raise ValueError('Unknown financial view')
+    if statement not in {'all', 'income', 'balance'}:
+        raise ValueError('Unknown financial statement')
     c = get_catalog_conn()
     try:
         row = c.execute('SELECT company_name,org_id FROM catalog_companies WHERE ticker=?', (ticker,)).fetchone()
@@ -93,8 +95,8 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full'):
             'shareholders': shareholders, 'shareholders_status': 'AVAILABLE' if shareholders else 'NOT_DISCLOSED_OR_NOT_VERIFIED'}
     if view in {'template', 'overview'}:
         from .presentation import project
-        result = project(payload)
+        payload = project(payload)
         if view == 'overview':
-            return {**result, 'rows': result['overview_rows'], 'ratios': [], 'published_ratios': [], 'shareholders': []}
-        return result
-    return payload
+            payload = {**payload, 'rows': payload['overview_rows'], 'ratios': [], 'published_ratios': [], 'shareholders': []}
+    from .presentation import select_statement
+    return select_statement(payload, statement)

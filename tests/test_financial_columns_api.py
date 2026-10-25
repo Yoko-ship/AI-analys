@@ -13,6 +13,30 @@ app = FastAPI()
 app.include_router(router)
 
 
+@pytest.mark.parametrize('statement,form', [('balance','BANK_BS'),('income','BANK_PL')])
+@pytest.mark.parametrize('view', ['template','overview'])
+def test_statement_tabs_and_exports_keep_only_the_requested_statement(source, statement, form, view):
+    import csv
+    import io
+    from openpyxl import load_workbook
+    query=f'view={view}&statement={statement}'
+    with TestClient(app) as client:
+        data=client.get(f'/api/company/IPTB/financials/columns?{query}').json()
+        csv_result=client.get(f'/api/company/IPTB/financials/columns.csv?{query}')
+        xlsx_result=client.get(f'/api/company/IPTB/financials/columns.xlsx?{query}')
+    assert data['rows'] and {r['source_form'] for r in data['rows']} == {form}
+    records=list(csv.DictReader(io.StringIO(csv_result.content.decode('utf-8-sig'))))
+    assert {r['source_form'] for r in records} == {form}
+    worksheet=list(load_workbook(io.BytesIO(xlsx_result.content)).active.values)
+    assert {r[worksheet[0].index('source_form')] for r in worksheet[1:]} == {form}
+    assert any(r['value'] not in {'',None} for r in records)
+
+
+def test_statement_filter_rejects_unknown_names(source):
+    with TestClient(app) as client:
+        assert client.get('/api/company/IPTB/financials/columns?statement=BAD').status_code == 422
+
+
 @pytest.fixture
 def source(monkeypatch, tmp_path):
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))

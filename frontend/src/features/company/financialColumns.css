@@ -87,7 +87,7 @@
   .fc-stats-embedded>div:last-child { grid-column: 1/-1; }
   .fc-subnav [role=tablist] { flex-basis: 100%; }
   .fc-subnav input { flex: 1; }
-  .fc-table th:first-child { min-width: 185px; max-width: 210px; }
+  .fc-table th:first-child { width: 185px; min-width: 185px; max-width: 210px; }
   .fc-passport dl { grid-template-columns: 1fr; }
   .fc-passport dd { margin-bottom: 6px; }
 }
