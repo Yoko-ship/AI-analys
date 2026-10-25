@@ -1,22 +1,25 @@
 /* ── Term explanations (lib/glossary.js) ──────────────────────────────────────
-   The ⓘ that says what an economic label means. Deliberately always visible
+   The ! that says what an economic label means. Deliberately always visible
    rather than hover-only: a marker nobody can see teaches nobody, which is the
    same mistake the multi-sort modifier made. Subdued until approached. */
 .term-info-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-left: 5px;
   padding: 0;
-  border: 0;
+  border: 1px solid currentColor;
   border-radius: 50%;
   background: none;
   color: var(--text-muted, #94a3b8);
   font-size: 11px;
+  font-weight: 700;
   line-height: 1;
   cursor: help;
-  opacity: 0.45;
+  opacity: 0.8;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
 }
 .term-info-btn:hover,
@@ -28,7 +31,7 @@
 }
 .market-table th.market-th-sortable .term-info-btn { text-transform: none; letter-spacing: 0; }
 /* In the column picker the marker sits at the row's right edge rather than beside
-   the label: the ⓘ line up into one scannable column instead of a ragged one, and
+   the label: the ! markers line up into one scannable column instead of a ragged one, and
    the tap target stays clear of the label text, which toggles the column. */
 .market-cols-row .term-info-btn { margin-left: auto; flex-shrink: 0; }
 /* The locked rows are dimmed as a whole, and a subdued marker inside a dimmed row
@@ -40,6 +43,8 @@
 /* Portaled to <body>: inside the board's horizontal scrollport it would be
    clipped, and z-index inside .app-shell cannot climb over the nav drawer. */
 .term-tooltip {
+  box-sizing: border-box;
+  overflow: auto;
   position: fixed;
   z-index: 400;
   padding: 10px 12px;
@@ -59,6 +64,7 @@
   color: var(--accent);
 }
 .term-tooltip-def {
+  white-space: pre-line;
   font-size: 12px;
   line-height: 1.5;
   color: var(--text);

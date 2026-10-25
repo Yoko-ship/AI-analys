@@ -93,7 +93,7 @@ const finPeriodLabel = (p, compact) => {
 // of these are the field's own name and the map only bridges the two that are
 // not). A ratio is where the reader actually needs the explanation: «Выручка»
 // says what it is, «ROCE» and «Долг/Активы» do not, and a coefficient printed
-// bare — 0,07 — says least of all. Only the fields listed here get an ⓘ; the
+// bare — 0,07 — says least of all. Only the fields listed here get a !; the
 // marker renders nothing for a term that has no entry, so an unmapped row
 // simply stays plain.
 const FIN_FIELD_TERMS = {

@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 // every scroll/resize, and on a phone a bottom sheet with its own scrollport,
 // so a thumb drag moves the list of columns and not the page behind it.
 /**
- * The ⓘ beside an economic label: what this term means, on hover, at the point
+ * The ! beside an economic label: what this term means, on hover, at the point
  * the reader met it. Definitions come from lib/glossary.js by id.
  *
  * It is portaled to <body> for the same reason the column picker is — inside the
@@ -23,8 +23,9 @@ import { createPortal } from "react-dom";
  * at all. Every pointer event stops at the marker: the header underneath sorts on
  * click and drags to reorder, and asking what a column means must do neither.
  */
-function TermInfo({ termId, lang, label }) {
-  const entry = termFor(termId, lang);
+function TermInfo({ termId, lang, label, description }) {
+  const entry = description ? {term:label || termId,def:description} : termFor(termId, lang);
+  const tooltipId = React.useId();
   const btnRef = useRef(null);
   const popRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -35,6 +36,7 @@ function TermInfo({ termId, lang, label }) {
   const [pinned, setPinned] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pos, setPos] = useState(null);
+  const positioned = pos !== null;
   const close = React.useCallback(() => { setOpen(false); setPinned(false); setCopied(false); }, []);
 
   useEffect(() => {
@@ -57,11 +59,13 @@ function TermInfo({ termId, lang, label }) {
       const markerTop = r.top / zoom, markerBottom = r.bottom / zoom;
       const width = Math.min(320, vw - 24);
       const left = Math.max(12, Math.min(mid - width / 2, vw - width - 12));
-      // Below the marker by default; above it when the viewport bottom is closer
-      // than the tooltip is tall, so it is never half off-screen.
-      const below = vh - markerBottom;
-      setPos({ left, width, top: below > 190 ? markerBottom + 8 : null,
-               bottom: below > 190 ? null : vh - markerTop + 8 });
+      const height = popRef.current?.getBoundingClientRect().height / zoom || 190;
+      const above = markerTop - 20, below = vh - markerBottom - 20;
+      // Prefer above; near the top edge use the available space below.
+      const onTop = above >= height || above >= below;
+      setPos({ left, width, top: onTop ? null : markerBottom + 8,
+               bottom: onTop ? vh - markerTop + 8 : null,
+               maxHeight: Math.max(60,onTop ? above : below) });
     };
     const schedule = () => { if (!raf) raf = requestAnimationFrame(place); };
     place();
@@ -75,11 +79,11 @@ function TermInfo({ termId, lang, label }) {
     };
     // Pinning adds the actions row, which changes the height the placement
     // above/below the marker is decided on.
-  }, [open, pinned]);
+  }, [open, pinned, positioned, entry?.def]);
 
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
     // A press inside the pinned tooltip is the start of a text selection or the
     // copy button — it must not be read as "clicked away".
     const onDocDown = (e) => {
@@ -87,15 +91,15 @@ function TermInfo({ termId, lang, label }) {
         || (popRef.current && popRef.current.contains(e.target));
       if (!inside) close();
     };
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     document.addEventListener("pointerdown", onDocDown);
     return () => {
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       document.removeEventListener("pointerdown", onDocDown);
     };
   }, [open, close]);
 
-  // A term with no entry yet renders nothing rather than an ⓘ that explains nothing.
+  // A term with no entry yet renders nothing rather than a ! that explains nothing.
   if (!entry) return null;
 
   const stop = (e) => { e.stopPropagation(); };
@@ -143,9 +147,9 @@ function TermInfo({ termId, lang, label }) {
         className={`term-info-btn${open ? " open" : ""}`}
         aria-label={`${label || entry.term} — ${lang === "en" ? "what this means" : lang === "uz" ? "bu nimani anglatadi" : "что это значит"}`}
         aria-expanded={open}
-        // Hover reads, click keeps: the second press unpins, and the tooltip
-        // stays up while the pointer is still on the marker.
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen(true); setPinned((v) => !v); setCopied(false); }}
+        aria-describedby={open ? tooltipId : undefined}
+        // Hover reads, click keeps; the second press closes on mouse or touch.
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); if(pinned)close(); else {setOpen(true);setPinned(true);setCopied(false);} }}
         onMouseDown={stop}
         onPointerDown={stop}
         onTouchStart={stop}
@@ -155,10 +159,11 @@ function TermInfo({ termId, lang, label }) {
         onBlur={() => { if (!pinned) setOpen(false); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); } }}
         onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      >ℹ</button>
+      >!</button>
       {open && pos && createPortal(
         <div
           ref={popRef}
+          id={tooltipId}
           className={`term-tooltip${pinned ? " is-pinned" : ""}`}
           role="tooltip"
           /* Pinned, the tooltip sits over a sortable header and a draggable
@@ -166,7 +171,7 @@ function TermInfo({ termId, lang, label }) {
           onPointerDown={stop}
           onMouseDown={stop}
           onClick={stop}
-          style={{ left: pos.left, width: pos.width, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }) }}
+          style={{ left: pos.left, width: pos.width, maxHeight:pos.maxHeight, ...(pos.top != null ? { top: pos.top } : { bottom: pos.bottom }) }}
         >
           <div className="term-tooltip-term">{entry.term}</div>
           <div className="term-tooltip-def">{entry.def}</div>
@@ -191,7 +196,7 @@ function TermInfo({ termId, lang, label }) {
             </div>
           )}
         </div>,
-        document.body,
+        document.fullscreenElement || document.body,
       )}
     </>
   );

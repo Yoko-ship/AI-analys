@@ -93,6 +93,12 @@ Missing or blocked components are not plotted as zero or added into a new total.
 An annual column without an imported annual income statement carries an explicit
 notice. When its balance comes only from comparative figures in later filings,
 that provenance is explained beside the table and in the missing flow's passport.
+Ratio explanations use the shared `!` control: hover or keyboard focus opens
+the description above the label when space permits, and tapping/clicking pins
+it for reading or copying. A second tap, Escape or an outside press closes it.
+The filing's own meaning and formula take precedence over glossary fallback;
+missing-data reasons remain visible in the table. Help markers are excluded
+from table CSV exports.
 In annual mode these two display views show the latest two available year-end
 reports followed by the newest interim report, for example 2024, 2025 and
 2026 · 9M. The current column contains stocks at the reporting date and flows

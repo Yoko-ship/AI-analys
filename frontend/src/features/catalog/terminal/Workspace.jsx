@@ -1,4 +1,5 @@
 import { BankComparison } from './BankComparison.jsx';
+import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
 import React from "react";
 import { filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
@@ -123,7 +124,7 @@ export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2
     {data?.template?.selected_template&&<p className="muted">{words(lang,"Шаблон","Andoza","Template")}: <strong>{data.template.selected_template}</strong> · {data.template.reason_code} · {data.template.rule_version}</p>}
     {summary?<SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>:<>
       <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
-      <div className="terminal-table-wrap"><table className="terminal-table terminal-annual-ratios"><caption>{words(lang,'Годовые показатели','Yillik ko‘rsatkichlar','Annual ratios')} · {snap.period||'—'} · {form} · {scope}</caption><tbody>{METRICS.filter(([k])=>!["pe","pb","dy","npl"].includes(k)&&(k!=='de'||['industry','non_financial'].includes(snap.kind))).map(([k,l])=><tr key={k}><th>{l}</th><td>{fmt(snap[k],lang)}</td></tr>)}</tbody></table></div>
+      <div className="terminal-table-wrap"><table className="terminal-table terminal-annual-ratios"><caption>{words(lang,'Годовые показатели','Yillik ko‘rsatkichlar','Annual ratios')} · {snap.period||'—'} · {form} · {scope}</caption><tbody>{METRICS.filter(([k])=>!["pe","pb","dy","npl"].includes(k)&&(k!=='de'||['industry','non_financial'].includes(snap.kind))).map(([k,l])=><tr key={k}><th>{l}<RatioInfo metric={k} label={l} lang={lang}/></th><td>{fmt(snap[k],lang)}</td></tr>)}</tbody></table></div>
     </>}
     {!summary&&<>
       <BankContext data={data?.cbu} sector={data?.sector} lang={lang}/>
@@ -232,7 +233,7 @@ function SectorMetrics({ticker,form,scope,lang,summary}) {
   const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:summary?'SUM':'RAT'});
   return <section className="terminal-sector-metrics"><State data={data} error={error} lang={lang}>
     <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {data?.scope||scope}</p>
-    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th><th>{words(lang,'Метод / причина пропуска','Usul / bo‘sh qiymat sababi','Method / missing-value reason')}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th>{r[`name_${lang}`]||r.name_ru||r.metric_code}</th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td><td>{r[`meaning_${lang}`]||r.reason_code||r.reason||r.method_id||'—'}</td></tr>)}</tbody></table></div>}
+    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th><th>{words(lang,'Метод / причина пропуска','Usul / bo‘sh qiymat sababi','Method / missing-value reason')}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th>{r[`name_${lang}`]||r.name_ru||r.metric_code}<RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||r.metric_code} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td><td>{r.reason_code||r.reason||r.method_id||'—'}</td></tr>)}</tbody></table></div>}
     {data?.status&& !['available','stale'].includes(data.status)&&<p className="terminal-warning">{data.availability?.reason_text||words(lang,'Отчёт не прошёл проверку данных. Показатели недоступны.','Hisobot tekshiruvdan o‘tmadi.','The filing did not pass data checks. Metrics unavailable.')}</p>}
     {data?.sources?.map((source,i)=>source.url&&<a key={i} href={safeHref(source.url)} target="_blank" rel="noreferrer">{words(lang,'Источник отчёта','Hisobot manbasi','Filing source')} ↗ </a>)}
   </State></section>;

@@ -2,6 +2,19 @@ import React from "react";
 import { tableCsv } from "../lib/terminalWorkspace.js";
 import { logTerminalEvent } from "../lib/terminalJournal.js";
 export const words = (lang, ru, uz, en) => ({ru,uz,en}[lang] || ru);
+function cellText(cell) {
+  if (!cell.querySelector('.term-info-btn')) return cell.innerText.trim();
+  const read = node => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+    if (node.nodeType !== Node.ELEMENT_NODE || node.matches('.term-info-btn')) return '';
+    if (node.tagName === 'BR') return '\n';
+    const style = getComputedStyle(node);
+    if (style.display === 'none' || style.visibility === 'hidden') return '';
+    const text = Array.from(node.childNodes, read).join('');
+    return node !== cell && ['block','flex','grid'].includes(style.display) ? `\n${text}\n` : text;
+  };
+  return read(cell).trim();
+}
 export function downloadCsv(rows, name, context={}) {
   const blob = new Blob([tableCsv(rows)],{type:"text/csv;charset=utf-8"});
   const url = URL.createObjectURL(blob);
@@ -28,7 +41,7 @@ export function useTableExports(root, context) {
           const ctx={...current.current,...(owner?{ticker:owner.dataset.terminalTicker,function:owner.dataset.terminalFunction,standard:owner.dataset.terminalStandard,scope:owner.dataset.terminalScope}:{})};
           const metadata=[["Ticker",ctx.ticker||"market"],["Function",ctx.function||""],["Standard",ctx.standard||""],["Scope",ctx.scope||""]];
           if(currency){metadata.push(["Currency",currency.dataset.currency]);currency.querySelectorAll(".terminal-fx-rates li").forEach(li=>metadata.push(["CBU FX",li.innerText.trim()]));}
-          downloadCsv([...metadata,[],...Array.from(table.rows,row=>Array.from(row.cells,c=>c.innerText.trim()))],
+          downloadCsv([...metadata,[],...Array.from(table.rows,row=>Array.from(row.cells,cellText))],
             `UZStock-${ctx.function || "table"}-${ctx.ticker || "market"}`,ctx);
         };
         table.before(button);attached.set(table,button);
