@@ -1745,7 +1745,8 @@ test.describe("mobile multi-sort", () => {
 
     const dateTh = page.locator('.market-table thead th[data-sort-key="date"]');
     await dateTh.scrollIntoViewIfNeeded();
-    await dateTh.tap();
+    // The centered definition marker opens its tooltip instead of sorting.
+    await dateTh.tap({ position: { x: 6, y: 6 } });
     await expect(tickers).toHaveText(["AAA", "BBB", "CCC"]);
     // The hint must not tell a phone to press a key it does not have.
     await expect(page.locator(".market-sort-teach")).toContainText("удерживайте");

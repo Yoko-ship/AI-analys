@@ -13,7 +13,7 @@ import { formatMarketTimestamp } from "../../shared/marketModel.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { reportScreenLoad } from "../../lib/terminalJournal.js";
 import { functionLabel, MARKET_FUNCTIONS } from "../../lib/terminalCommands.js";
-import { IssuerFinancials, FinancialColumns } from "../company/index.js";
+import { IssuerFinancials, FinancialColumns, InvestorView } from "../company/index.js";
 import { CommandBar } from "./terminal/CommandBar.jsx";
 import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, QualityScreen } from "./terminal/TerminalPanels.jsx";
 import { useTerminal } from "./terminal/useTerminal.js";
@@ -925,13 +925,14 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
               <ContextControls tabs form={terminal.form} scope={terminal.scope} onForm={terminal.setForm} onScope={terminal.setScope} lang={lang} />
               <FunctionTabs terminal={terminal} lang={lang} />
-              {terminal.func === "RAT" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} fromYear={terminal.fromYear} />}
+              {terminal.form !== "MSFO" && terminal.func === "RAT" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} fromYear={terminal.fromYear} />}
               {terminal.func === "REC" && <Reconciliation ticker={ticker} scope={terminal.scope} lang={lang} />}
               {terminal.func === "RV" && <PeersScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} onOpen={t => terminal.go({ticker:t,func:"SUM"})} />}
               {terminal.func === "FV" && (user?.is_admin ? <TerminalValuation ticker={ticker} form={terminal.form} scope={terminal.scope} apiFetch={apiFetch} lang={lang}/> : <p className="terminal-warning">{lang === "ru" ? "Оценка доступна администраторам до проверки моделей на 10 эмитентах." : "Valuation is restricted to administrators pending validation on ten issuers."}</p>)}
 
 
-              {(terminal.func === "SUM" || FINANCIAL_SECTIONS[terminal.func]) && (
+              {terminal.form === "MSFO" && ["SUM","PL","BS","RAT","DQ"].includes(terminal.func) && <React.Suspense fallback={<div className="catalog-loading">{clg(lang,"loading")}</div>}><InvestorView ticker={ticker} lang={lang} scope={terminal.scope} onScopeChange={terminal.setScope} initialTab={({SUM:"overview",PL:"pl",BS:"bs",RAT:"rat",DQ:"quality"})[terminal.func]} onLoad={load=>reportScreenLoad({ticker,func:terminal.func,form:terminal.form,...load})}/></React.Suspense>}
+              {terminal.form !== "MSFO" && (terminal.func === "SUM" || FINANCIAL_SECTIONS[terminal.func]) && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
                     <FinancialColumns statement={terminal.func === "BS" ? "balance" : "income"} showContextControls={false} ticker={ticker} lang={lang} standard={terminal.form} scope={terminal.scope}
@@ -947,7 +948,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   </section>
                 </React.Suspense>
               )}
-              {terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
+              {terminal.form !== "MSFO" && terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
               {terminal.func === "DVD" && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel("DVD", lang)}>
@@ -960,7 +961,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   <NewsScreen ticker={ticker} lang={lang} />
                 </section>
               )}
-              {terminal.func === "DQ" && (
+              {terminal.form !== "MSFO" && terminal.func === "DQ" && (
                 <section className="terminal-screen panel" aria-label={functionLabel("DQ", lang)}>
                   <QualityScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} fromYear={terminal.fromYear} />
                 </section>

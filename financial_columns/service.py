@@ -16,8 +16,10 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         raise ValueError('Unknown accounting context')
     if freq not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
-    if view not in {'full', 'template', 'overview'}:
+    if view not in {'full', 'template', 'overview', 'investor'}:
         raise ValueError('Unknown financial view')
+    if view == 'investor' and form != 'MSFO':
+        raise ValueError('Investor view requires IFRS')
     if statement not in {'all', 'income', 'balance'}:
         raise ValueError('Unknown financial statement')
     c = get_catalog_conn()
@@ -49,6 +51,12 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         scope = scope or (available_scopes[0] if available_scopes else 'separate')
         snapshots = publication.snapshots(ticker, scope=scope) if scope != 'unknown' else []
         source_rows = observations.ifrs(snapshots)
+        if view == 'investor':
+            from .investor_sources import audited_fund
+            imported_ends = {r['period_end'] for r in source_rows}
+            source_rows += [r for r in audited_fund(ticker, issuer_id, scope) if r['period_end'] not in imported_ends]
+            if source_rows and scope not in available_scopes:
+                available_scopes = [*available_scopes, scope]
         if snapshots:
             latest = max(snapshots, key=lambda s:s['period_end'])
             shareholders = [{**owner, 'standard': form, 'source_version': latest['id'],
@@ -73,7 +81,11 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
             row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
     issues = observations.check(source_rows)
     source_rows = derived.enrich(source_rows)
-    table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview'})
+    if view == 'investor':
+        from .investor import enrich
+        source_rows = enrich(source_rows)
+    table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'},
+                         interim_ttm=view == 'investor')
     ratio_rows = []
     for column in table['columns']:
         for ratio in ratios.calculate(source_rows, ticker=ticker, template=template,
@@ -93,6 +105,11 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
                                  if r['field'] in {'roe', 'roa', 'current_ratio', 'quick_ratio', 'debt_ratio', 'debt_to_equity', 'cost_of_risk', 'net_profit_margin', 'asset_turnover', 'roce'}],
             'source_forms': forms, 'coverage': coverage, 'issues': issues,
             'shareholders': shareholders, 'shareholders_status': 'AVAILABLE' if shareholders else 'NOT_DISCLOSED_OR_NOT_VERIFIED'}
+    if view == 'investor':
+        from .investor import project
+        from .investor_ratios import calculate
+        payload['ratios'] = calculate(source_rows, ratio_rows, table['columns'], template)
+        return project(payload, source_rows)
     if view in {'template', 'overview'}:
         from .presentation import project
         payload = project(payload)

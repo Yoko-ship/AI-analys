@@ -1,25 +1,31 @@
-import { test, expect } from "@playwright/test";
+import {test,expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
+const fixture=JSON.parse(readFileSync('e2e/fixtures/ifrs-investor.json','utf8'));
 
-test("IFRS interim captions retain YTD basis without NSBU or QoQ claims", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_language", "en"));
-  await page.route("**/api/**", route => {
-    const url = new URL(route.request().url());
-    let result = { ok: true, items: [], companies: [], securities: {} };
-    if (url.pathname === "/api/company/SQBN/financials") {
-      result = url.searchParams.get("form") === "MSFO" && url.searchParams.get("freq") === "quarterly"
-        ? { ok: true, periods: ["2024Q2", "2024Q1"], period_basis: "cumulative_ytd", series: {
-          interest_income: { money: true, unit: "UZS", values: { "2024Q2": 4243637000000, "2024Q1": 2000000000000 } },
-          net_profit: { money: true, unit: "UZS", values: { "2024Q2": 247268000000, "2024Q1": 100000000000 } },
-        } }
-        : { ok: true, periods: [], series: {} };
+test('IFRS interim captions retain YTD basis and BS excludes TTM',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('uz_stock_analyzer_language','en'));
+  await page.route('**/api/**',route=>{
+    const url=new URL(route.request().url());
+    let result={ok:true,items:[],companies:[],securities:{},periods:[],series:{}};
+    if(url.pathname.endsWith('/financials/columns')){
+      result=structuredClone(fixture);
+      result.columns=[{key:'2024-06-30',label:'2024-06-30',end:'2024-06-30',basis:'ytd'},{key:'ttm:2024-06-30',label:'TTM · 2024-06-30',end:'2024-06-30',basis:'ttm'}];
+      for(const row of [...result.rows,...Object.values(result.statements).flatMap(gs=>gs.flatMap(g=>g.rows)),...result.ratios]){
+        const cell=Object.values(row.cells)[0];
+        row.cells={'2024-06-30':{...cell,period_end:'2024-06-30',period_start:'2024-01-01'},'ttm:2024-06-30':{value:null,quality:row.kind==='stock'?'not_applicable':'missing'}};
+      }
     }
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify(result) });
+    return route.fulfill({json:result});
   });
-  await page.goto("/company/SQBN?tab=financials&freq=quarterly");
-  await page.getByRole("button", { name: "МСФО", exact: true }).click();
-  await expect(page.getByText(/IFRS: income and expenses are cumulative from January/)).toBeVisible();
-  await expect(page.getByText(/Sums in billions of UZS from interim IFRS filings/)).toBeVisible();
-  await expect(page.getByText(/Sums in billions of UZS per discrete quarter/)).toHaveCount(0);
-  await page.getByRole("button", { name: "Table", exact: true }).click();
-  await expect(page.getByText("Growth QoQ", { exact: true })).toHaveCount(0);
+  await page.goto('/company/SQBN?tab=financials');
+  await page.getByRole('button',{name:'МСФО',exact:true}).click();
+  const ui=page.getByTestId('ifrs-investor');
+  await ui.getByRole('button',{name:'6M / 9M / TTM',exact:true}).click();
+  await ui.getByRole('tab',{name:'PL Profit or loss',exact:true}).click();
+  await expect(ui.locator('thead')).toContainText('YTD');
+  await expect(ui.locator('thead')).toContainText('TTM');
+  await expect(ui).not.toContainText('Growth QoQ');
+  await ui.getByRole('tab',{name:'BS Balance',exact:true}).click();
+  await expect(ui.locator('thead')).not.toContainText('TTM');
+  await expect(ui.locator('thead')).toContainText('2024-06-30');
 });

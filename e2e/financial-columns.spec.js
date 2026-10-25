@@ -93,7 +93,7 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker 
     if (path.endsWith('/financials/columns')) {
       if (fail) return route.fulfill({ status: 503, json: { detail: 'Source temporarily unavailable' } });
       const data = reports || (ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual']);
-      if (url.searchParams.get('form') === 'MSFO') return json({ ...data, standard: 'MSFO', rows: [], overview_rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
+      if (url.searchParams.get('form') === 'MSFO') return json({ ...data, presentation:'investor',statements:{pl:[],bs:[],cf:[],equity:[]},standard: 'MSFO', rows: [], overview_rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
       return json({ ...data, source_forms: [{ period_end: '2026-09-30', documents: [original] }] });
     }
     return json({ ok: true, companies_synced: 1, total_reports: 2, companies: [], rows: [], items: [], series: {}, periods: [], rates: [], availability: {} });
@@ -216,7 +216,7 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}-mobile.png`), animations: "disabled" });
   await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
-  await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
+  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
 });
 
 test('SUM workspace panels include the same year columns', async ({ page }) => {
@@ -341,11 +341,10 @@ test('changing standard clears source rows and gives an explicit missing-data st
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
   await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
-  await expect(terminal.getByText('No verified source rows in this accounting scope.')).toBeVisible();
-  await expect(terminal.getByText('Notes are missing or have not been verified.')).toBeVisible();
+  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
   await expect(terminal.locator('.fc-legacy')).toHaveCount(0);
-  await terminal.getByRole('tab', { name: 'Data quality', exact: true }).click();
-  await expect(terminal.locator('.fc-quality')).toContainText('Notes are missing or have not been verified.');
+  await page.getByTestId('ifrs-investor').getByRole('tab', { name: 'Quality', exact: true }).click();
+  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
 });
 
 test('a failed financial source request can be retried without showing stale amounts', async ({ page }) => {

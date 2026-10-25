@@ -121,7 +121,7 @@ def extract(pages, *, page_count):
                 reason = ('COLUMN_PARTITION_UNRESOLVED' if values is None else
                           'UNIT_UNRESOLVED' if not unit or not scale else
                           'SCOPE_UNRESOLVED' if scope == 'unknown' else None)
-                kind = 'stock' if form == 'BS' or metric_id in {'cash_begin', 'cash_end'} else 'flow'
+                kind = 'stock' if form == 'BS' or metric_id in {'cash_begin', 'cash_end', 'equity_open'} else 'flow'
                 if per_share:
                     kind = 'per_share'
                 if form == 'Notes':
@@ -130,7 +130,7 @@ def extract(pages, *, page_count):
                 when = end
                 if kind in {'flow', 'per_share'} and not start:
                     reason = reason or 'PERIOD_START_UNRESOLVED'
-                if metric_id == 'cash_begin':
+                if metric_id in {'cash_begin', 'equity_open'}:
                     if start:
                         when = (date.fromisoformat(start) - timedelta(days=1)).isoformat()
                     else:

@@ -44,7 +44,7 @@ function FinancialValue({ cell, open, format, t }) {
   </button>)}</div>;
 }
 
-function SourcePassport({ item, close, t, format }) {
+export function SourcePassport({ item, close, t, format }) {
   const dialog = React.useRef(null);
   React.useEffect(() => { dialog.current?.showModal(); }, []);
   const cell = item.cell;
@@ -55,6 +55,7 @@ function SourcePassport({ item, close, t, format }) {
     [t('Исходное название', 'Asl nomi', 'Original label'), cell.raw_label || item.row.source_label || item.row.label],
     [t('Исходное значение', 'Asl qiymat', 'Original amount'), cell.raw_value == null ? '—' : String(cell.raw_value)],
     [t('Валюта / масштаб', 'Valyuta / miqyos', 'Currency / source scale'), `${cell.currency || '—'} · ${cell.unit_scale || '—'}`],
+    ...(cell.fx ? [[t('Курс / дата', 'Kurs / sana', 'Exchange rate / date'), `${cell.fx.rate ?? '—'} · ${cell.fx.as_of || '—'} · ${cell.fx.effective_date || '—'}`]] : []),
     [t('Страница / лист / строка', 'Sahifa / varaq / qator', 'Page / sheet / row'), [cell.page, cell.sheet, cell.row].filter(v => v != null).join(' · ') || '—'],
     [t('Публикация', 'E’lon qilingan', 'Published'), cell.published_at || '—'],
     [t('Версия источника', 'Manba versiyasi', 'Source version'), cell.source_version || '—'],

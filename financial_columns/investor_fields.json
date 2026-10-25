@@ -1,0 +1,1443 @@
+{
+  "bank": {
+    "pl": [
+      {
+        "g": "Процентная деятельность",
+        "rows": [
+          {
+            "id": "interestRevenue",
+            "label": "Процентные доходы"
+          },
+          {
+            "id": "interestExpense",
+            "label": "Процентные расходы"
+          },
+          {
+            "id": "netInterest",
+            "label": "Чистый процентный доход",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Комиссии и другие доходы",
+        "rows": [
+          {
+            "id": "feeIncome",
+            "label": "Комиссионные доходы"
+          },
+          {
+            "id": "feeExpense",
+            "label": "Комиссионные расходы"
+          },
+          {
+            "id": "netFee",
+            "label": "Чистый комиссионный доход",
+            "total": true
+          },
+          {
+            "id": "otherBankIncome",
+            "label": "Прочие операционные доходы"
+          },
+          {
+            "id": "bankOperatingIncome",
+            "label": "Операционный доход до расходов",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Расходы и финансовый результат",
+        "rows": [
+          {
+            "id": "personnel",
+            "label": "Расходы на персонал"
+          },
+          {
+            "id": "otherOperating",
+            "label": "Прочие операционные расходы"
+          },
+          {
+            "id": "operatingProfitPreECL",
+            "label": "Результат до ECL",
+            "total": true
+          },
+          {
+            "id": "ecl",
+            "label": "Ожидаемые кредитные убытки (ECL)"
+          },
+          {
+            "id": "pretax",
+            "label": "Прибыль до налога",
+            "total": true
+          },
+          {
+            "id": "tax",
+            "label": "Налог на прибыль"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "grand": true
+          },
+          {
+            "id": "owners",
+            "label": "Прибыль собственников материнской компании",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход (OCI)"
+          },
+          {
+            "id": "totalIncome",
+            "label": "Общий совокупный доход",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "bs": [
+      {
+        "g": "Активы банка",
+        "rows": [
+          {
+            "id": "cash",
+            "label": "Денежные средства и их эквиваленты"
+          },
+          {
+            "id": "bankPlacement",
+            "label": "Средства в Центральном банке и других банках"
+          },
+          {
+            "id": "loans",
+            "label": "Кредиты клиентам (валовой портфель)"
+          },
+          {
+            "id": "bankSecurities",
+            "label": "Инвестиции в долговые и долевые инструменты"
+          },
+          {
+            "id": "bankOtherAssets",
+            "label": "Прочие активы"
+          },
+          {
+            "id": "assets",
+            "label": "ВСЕГО АКТИВЫ",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Капитал",
+        "rows": [
+          {
+            "id": "issuedShareCapital",
+            "label": "Уставный капитал"
+          },
+          {
+            "id": "reserves",
+            "label": "Прочие резервы / добавочный капитал"
+          },
+          {
+            "id": "retainedEarnings",
+            "label": "Нераспределённая прибыль"
+          },
+          {
+            "id": "equity",
+            "label": "Итого собственный капитал",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Обязательства банка",
+        "rows": [
+          {
+            "id": "customerDeposits",
+            "label": "Средства клиентов"
+          },
+          {
+            "id": "bankInterbankLiab",
+            "label": "Обязательства перед банками"
+          },
+          {
+            "id": "borrowing",
+            "label": "Прочие процентные заимствования"
+          },
+          {
+            "id": "bankOtherLiab",
+            "label": "Прочие обязательства"
+          },
+          {
+            "id": "liabilities",
+            "label": "Всего обязательства",
+            "total": true
+          },
+          {
+            "id": "equityLiabilities",
+            "label": "КАПИТАЛ + ОБЯЗАТЕЛЬСТВА",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "cf": [
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "profit",
+            "label": "Чистая прибыль (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "cfo",
+            "label": "Чистые деньги от операционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиционная деятельность",
+        "rows": [
+          {
+            "id": "capex",
+            "label": "Покупка основных средств и НМА"
+          },
+          {
+            "id": "otherInvest",
+            "label": "Прочие инвестиционные потоки"
+          },
+          {
+            "id": "cfi",
+            "label": "Чистые деньги от инвестиционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Финансовая деятельность",
+        "rows": [
+          {
+            "id": "cff",
+            "label": "Чистые деньги от финансовой деятельности",
+            "grand": true
+          },
+          {
+            "id": "changeCash",
+            "label": "Итого изменение денег",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Сверка денежных средств",
+        "rows": [
+          {
+            "id": "cashStart",
+            "label": "Денежные средства на начало периода"
+          },
+          {
+            "id": "changeCash",
+            "label": "Изменение денежных средств",
+            "detail": true
+          },
+          {
+            "id": "cashEnd",
+            "label": "Денежные средства на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "equity": [
+      {
+        "g": "Отчёт об изменениях капитала",
+        "rows": [
+          {
+            "id": "equityOpen",
+            "label": "Капитал на начало периода"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход",
+            "detail": true
+          },
+          {
+            "id": "totalIncome",
+            "label": "Итого совокупный доход",
+            "total": true
+          },
+          {
+            "id": "dividends",
+            "label": "Дивиденды собственникам"
+          },
+          {
+            "id": "newShares",
+            "label": "Выпуск акций / взносы"
+          },
+          {
+            "id": "otherEquity",
+            "label": "Прочие движения капитала"
+          },
+          {
+            "id": "equity",
+            "label": "Капитал на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ]
+  },
+  "insurance": {
+    "pl": [
+      {
+        "g": "Страховая деятельность (IFRS 17)",
+        "rows": [
+          {
+            "id": "insRevenue",
+            "label": "Выручка по страховым договорам"
+          },
+          {
+            "id": "insServiceExpense",
+            "label": "Расходы по страховым услугам"
+          },
+          {
+            "id": "reinsurance",
+            "label": "Чистый результат перестрахования"
+          },
+          {
+            "id": "insServiceResult",
+            "label": "Результат страховых услуг",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиции и финансовый результат",
+        "rows": [
+          {
+            "id": "investmentReturn",
+            "label": "Инвестиционный доход"
+          },
+          {
+            "id": "insFinance",
+            "label": "Финансовые расходы по страховым договорам"
+          },
+          {
+            "id": "personnel",
+            "label": "Расходы на персонал"
+          },
+          {
+            "id": "otherOperating",
+            "label": "Прочие операционные расходы"
+          },
+          {
+            "id": "pretax",
+            "label": "Прибыль до налогообложения",
+            "total": true
+          },
+          {
+            "id": "tax",
+            "label": "Налог на прибыль"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "grand": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход"
+          },
+          {
+            "id": "totalIncome",
+            "label": "Общий совокупный доход",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "bs": [
+      {
+        "g": "Активы страховщика (IFRS 17)",
+        "rows": [
+          {
+            "id": "cash",
+            "label": "Денежные средства"
+          },
+          {
+            "id": "insuranceInvest",
+            "label": "Инвестиционные и финансовые активы"
+          },
+          {
+            "id": "reinsAssets",
+            "label": "Активы по договорам перестрахования"
+          },
+          {
+            "id": "insuranceRec",
+            "label": "Дебиторская задолженность"
+          },
+          {
+            "id": "insOtherAssets",
+            "label": "Прочие активы"
+          },
+          {
+            "id": "assets",
+            "label": "ВСЕГО АКТИВЫ",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Капитал",
+        "rows": [
+          {
+            "id": "issuedShareCapital",
+            "label": "Уставный капитал"
+          },
+          {
+            "id": "reserves",
+            "label": "Прочие резервы / добавочный капитал"
+          },
+          {
+            "id": "retainedEarnings",
+            "label": "Нераспределённая прибыль"
+          },
+          {
+            "id": "equity",
+            "label": "Итого собственный капитал",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Обязательства страховщика",
+        "rows": [
+          {
+            "id": "insuranceLiab",
+            "label": "Обязательства по договорам страхования"
+          },
+          {
+            "id": "insOtherLiab",
+            "label": "Прочие обязательства"
+          },
+          {
+            "id": "liabilities",
+            "label": "Всего обязательства",
+            "total": true
+          },
+          {
+            "id": "equityLiabilities",
+            "label": "КАПИТАЛ + ОБЯЗАТЕЛЬСТВА",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "cf": [
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "profit",
+            "label": "Чистая прибыль (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "cfo",
+            "label": "Чистые деньги от операционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиционная деятельность",
+        "rows": [
+          {
+            "id": "capex",
+            "label": "Покупка основных средств и НМА"
+          },
+          {
+            "id": "otherInvest",
+            "label": "Прочие инвестиционные потоки"
+          },
+          {
+            "id": "cfi",
+            "label": "Чистые деньги от инвестиционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Финансовая деятельность",
+        "rows": [
+          {
+            "id": "cff",
+            "label": "Чистые деньги от финансовой деятельности",
+            "grand": true
+          },
+          {
+            "id": "changeCash",
+            "label": "Итого изменение денег",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Сверка денежных средств",
+        "rows": [
+          {
+            "id": "cashStart",
+            "label": "Денежные средства на начало периода"
+          },
+          {
+            "id": "changeCash",
+            "label": "Изменение денежных средств",
+            "detail": true
+          },
+          {
+            "id": "cashEnd",
+            "label": "Денежные средства на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "equity": [
+      {
+        "g": "Отчёт об изменениях капитала",
+        "rows": [
+          {
+            "id": "equityOpen",
+            "label": "Капитал на начало периода"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход",
+            "detail": true
+          },
+          {
+            "id": "totalIncome",
+            "label": "Итого совокупный доход",
+            "total": true
+          },
+          {
+            "id": "dividends",
+            "label": "Дивиденды собственникам"
+          },
+          {
+            "id": "newShares",
+            "label": "Выпуск акций / взносы"
+          },
+          {
+            "id": "otherEquity",
+            "label": "Прочие движения капитала"
+          },
+          {
+            "id": "equity",
+            "label": "Капитал на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ]
+  },
+  "general": {
+    "pl": [
+      {
+        "g": "Выручка и валовая прибыль",
+        "rows": [
+          {
+            "id": "revenue",
+            "label": "Выручка"
+          },
+          {
+            "id": "cogs",
+            "label": "Себестоимость продаж"
+          },
+          {
+            "id": "grossProfit",
+            "label": "Валовая прибыль",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "salesExpense",
+            "label": "Коммерческие расходы"
+          },
+          {
+            "id": "adminExpense",
+            "label": "Административные расходы"
+          },
+          {
+            "id": "researchExpense",
+            "label": "Исследования и разработки",
+            "detail": true
+          },
+          {
+            "id": "otherIncome",
+            "label": "Прочие операционные доходы"
+          },
+          {
+            "id": "otherExpense",
+            "label": "Прочие расходы"
+          },
+          {
+            "id": "op",
+            "label": "Операционная прибыль",
+            "grand": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация",
+            "detail": true
+          },
+          {
+            "id": "ebitda",
+            "label": "EBITDA (расчётная)",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Финансы и итоговая прибыль",
+        "rows": [
+          {
+            "id": "financeIncome",
+            "label": "Финансовые доходы"
+          },
+          {
+            "id": "financeExpense",
+            "label": "Финансовые расходы"
+          },
+          {
+            "id": "associates",
+            "label": "Доля результата зависимых компаний",
+            "detail": true
+          },
+          {
+            "id": "pretax",
+            "label": "Прибыль до налога",
+            "total": true
+          },
+          {
+            "id": "tax",
+            "label": "Налог на прибыль"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "grand": true
+          },
+          {
+            "id": "owners",
+            "label": "Прибыль собственников",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход"
+          },
+          {
+            "id": "totalIncome",
+            "label": "Общий совокупный доход",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "bs": [
+      {
+        "g": "Внеоборотные активы",
+        "rows": [
+          {
+            "id": "ppe",
+            "label": "Основные средства"
+          },
+          {
+            "id": "intangibles",
+            "label": "Нематериальные активы и гудвил"
+          },
+          {
+            "id": "longInvest",
+            "label": "Долгосрочные финансовые и прочие активы"
+          },
+          {
+            "id": "noncurrentAssets",
+            "label": "Итого внеоборотные активы",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Оборотные активы",
+        "rows": [
+          {
+            "id": "inventory",
+            "label": "Запасы"
+          },
+          {
+            "id": "receivables",
+            "label": "Торговая и прочая дебиторская задолженность"
+          },
+          {
+            "id": "cash",
+            "label": "Деньги и денежные эквиваленты"
+          },
+          {
+            "id": "currentOther",
+            "label": "Прочие оборотные активы"
+          },
+          {
+            "id": "currentAssets",
+            "label": "Итого оборотные активы",
+            "total": true
+          },
+          {
+            "id": "assets",
+            "label": "ВСЕГО АКТИВЫ",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Капитал",
+        "rows": [
+          {
+            "id": "issuedShareCapital",
+            "label": "Уставный капитал"
+          },
+          {
+            "id": "reserves",
+            "label": "Прочие резервы / добавочный капитал"
+          },
+          {
+            "id": "retainedEarnings",
+            "label": "Нераспределённая прибыль"
+          },
+          {
+            "id": "equity",
+            "label": "Итого собственный капитал",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Обязательства",
+        "rows": [
+          {
+            "id": "debtLong",
+            "label": "Долгосрочные кредиты и займы",
+            "detail": true,
+            "annotation": true
+          },
+          {
+            "id": "debtShort",
+            "label": "Краткосрочные кредиты и займы",
+            "detail": true,
+            "annotation": true
+          },
+          {
+            "id": "noncurrentLiabilities",
+            "label": "Итого долгосрочные обязательства",
+            "total": true
+          },
+          {
+            "id": "currentLiabilities",
+            "label": "Итого краткосрочные обязательства",
+            "total": true
+          },
+          {
+            "id": "liabilities",
+            "label": "Итого обязательства",
+            "grand": true
+          },
+          {
+            "id": "equityLiabilities",
+            "label": "КАПИТАЛ + ОБЯЗАТЕЛЬСТВА",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "cf": [
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "profit",
+            "label": "Чистая прибыль (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "cfo",
+            "label": "Чистые деньги от операционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиционная деятельность",
+        "rows": [
+          {
+            "id": "capex",
+            "label": "Покупка основных средств и НМА"
+          },
+          {
+            "id": "otherInvest",
+            "label": "Прочие инвестиционные потоки"
+          },
+          {
+            "id": "cfi",
+            "label": "Чистые деньги от инвестиционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Финансовая деятельность",
+        "rows": [
+          {
+            "id": "cff",
+            "label": "Чистые деньги от финансовой деятельности",
+            "grand": true
+          },
+          {
+            "id": "changeCash",
+            "label": "Итого изменение денег",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Сверка денежных средств",
+        "rows": [
+          {
+            "id": "cashStart",
+            "label": "Денежные средства на начало периода"
+          },
+          {
+            "id": "changeCash",
+            "label": "Изменение денежных средств",
+            "detail": true
+          },
+          {
+            "id": "cashEnd",
+            "label": "Денежные средства на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "equity": [
+      {
+        "g": "Отчёт об изменениях капитала",
+        "rows": [
+          {
+            "id": "equityOpen",
+            "label": "Капитал на начало периода"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход",
+            "detail": true
+          },
+          {
+            "id": "totalIncome",
+            "label": "Итого совокупный доход",
+            "total": true
+          },
+          {
+            "id": "dividends",
+            "label": "Дивиденды собственникам"
+          },
+          {
+            "id": "newShares",
+            "label": "Выпуск акций / взносы"
+          },
+          {
+            "id": "otherEquity",
+            "label": "Прочие движения капитала"
+          },
+          {
+            "id": "equity",
+            "label": "Капитал на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ]
+  },
+  "fund": {
+    "pl": [
+      {
+        "g": "Инвестиционный результат",
+        "rows": [
+          {
+            "id": "investmentIncome",
+            "label": "Процентные и дивидендные доходы"
+          },
+          {
+            "id": "revaluation",
+            "label": "Изменение справедливой стоимости вложений"
+          },
+          {
+            "id": "revenue",
+            "label": "Общий инвестиционный доход",
+            "total": true
+          },
+          {
+            "id": "fundExpenses",
+            "label": "Расходы фонда"
+          },
+          {
+            "id": "pretax",
+            "label": "Результат до налога",
+            "total": true
+          },
+          {
+            "id": "tax",
+            "label": "Налог на прибыль"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "grand": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход"
+          },
+          {
+            "id": "totalIncome",
+            "label": "Совокупный доход",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "bs": [
+      {
+        "g": "Активы инвестиционного фонда",
+        "rows": [
+          {
+            "id": "fundInvestments",
+            "label": "Финансовые вложения и портфель инвестиций"
+          },
+          {
+            "id": "cash",
+            "label": "Денежные средства"
+          },
+          {
+            "id": "fundOtherAssets",
+            "label": "Прочие активы"
+          },
+          {
+            "id": "assets",
+            "label": "ВСЕГО АКТИВЫ",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Капитал",
+        "rows": [
+          {
+            "id": "issuedShareCapital",
+            "label": "Уставный капитал"
+          },
+          {
+            "id": "reserves",
+            "label": "Прочие резервы / добавочный капитал"
+          },
+          {
+            "id": "retainedEarnings",
+            "label": "Нераспределённая прибыль"
+          },
+          {
+            "id": "equity",
+            "label": "Итого собственный капитал",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Чистые активы (NAV)",
+        "rows": [
+          {
+            "id": "liabilities",
+            "label": "Всего обязательства"
+          },
+          {
+            "id": "nav",
+            "label": "СТОИМОСТЬ ЧИСТЫХ АКТИВОВ (NAV)",
+            "grand": true
+          },
+          {
+            "id": "equityLiabilities",
+            "label": "Капитал и обязательства",
+            "total": true
+          }
+        ]
+      }
+    ],
+    "cf": [
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "profit",
+            "label": "Чистая прибыль (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "cfo",
+            "label": "Чистые деньги от операционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиционная деятельность",
+        "rows": [
+          {
+            "id": "capex",
+            "label": "Покупка основных средств и НМА"
+          },
+          {
+            "id": "otherInvest",
+            "label": "Прочие инвестиционные потоки"
+          },
+          {
+            "id": "cfi",
+            "label": "Чистые деньги от инвестиционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Финансовая деятельность",
+        "rows": [
+          {
+            "id": "cff",
+            "label": "Чистые деньги от финансовой деятельности",
+            "grand": true
+          },
+          {
+            "id": "changeCash",
+            "label": "Итого изменение денег",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Сверка денежных средств",
+        "rows": [
+          {
+            "id": "cashStart",
+            "label": "Денежные средства на начало периода"
+          },
+          {
+            "id": "changeCash",
+            "label": "Изменение денежных средств",
+            "detail": true
+          },
+          {
+            "id": "cashEnd",
+            "label": "Денежные средства на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "equity": [
+      {
+        "g": "Отчёт об изменениях капитала",
+        "rows": [
+          {
+            "id": "equityOpen",
+            "label": "Капитал на начало периода"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход",
+            "detail": true
+          },
+          {
+            "id": "totalIncome",
+            "label": "Итого совокупный доход",
+            "total": true
+          },
+          {
+            "id": "dividends",
+            "label": "Дивиденды собственникам"
+          },
+          {
+            "id": "newShares",
+            "label": "Выпуск акций / взносы"
+          },
+          {
+            "id": "otherEquity",
+            "label": "Прочие движения капитала"
+          },
+          {
+            "id": "equity",
+            "label": "Капитал на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ]
+  },
+  "leasing": {
+    "pl": [
+      {
+        "g": "Выручка и валовая прибыль",
+        "rows": [
+          {
+            "id": "revenue",
+            "label": "Доходы лизинговой деятельности"
+          },
+          {
+            "id": "cogs",
+            "label": "Себестоимость продаж"
+          },
+          {
+            "id": "grossProfit",
+            "label": "Валовая прибыль",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "salesExpense",
+            "label": "Коммерческие расходы"
+          },
+          {
+            "id": "adminExpense",
+            "label": "Административные расходы"
+          },
+          {
+            "id": "researchExpense",
+            "label": "Исследования и разработки",
+            "detail": true
+          },
+          {
+            "id": "otherIncome",
+            "label": "Прочие операционные доходы"
+          },
+          {
+            "id": "otherExpense",
+            "label": "Прочие расходы"
+          },
+          {
+            "id": "op",
+            "label": "Операционная прибыль",
+            "grand": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация",
+            "detail": true
+          },
+          {
+            "id": "ebitda",
+            "label": "EBITDA (расчётная)",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Финансы и итоговая прибыль",
+        "rows": [
+          {
+            "id": "financeIncome",
+            "label": "Финансовые доходы"
+          },
+          {
+            "id": "financeExpense",
+            "label": "Финансовые расходы"
+          },
+          {
+            "id": "associates",
+            "label": "Доля результата зависимых компаний",
+            "detail": true
+          },
+          {
+            "id": "pretax",
+            "label": "Прибыль до налога",
+            "total": true
+          },
+          {
+            "id": "tax",
+            "label": "Налог на прибыль"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "grand": true
+          },
+          {
+            "id": "owners",
+            "label": "Прибыль собственников",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход"
+          },
+          {
+            "id": "totalIncome",
+            "label": "Общий совокупный доход",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "bs": [
+      {
+        "g": "Активы лизинговой компании",
+        "rows": [
+          {
+            "id": "inLeases",
+            "label": "Чистые инвестиции в финансовую аренду"
+          },
+          {
+            "id": "cash",
+            "label": "Денежные средства"
+          },
+          {
+            "id": "leaseOtherAssets",
+            "label": "Прочие и нефинансовые активы"
+          },
+          {
+            "id": "assets",
+            "label": "ВСЕГО АКТИВЫ",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Капитал",
+        "rows": [
+          {
+            "id": "issuedShareCapital",
+            "label": "Уставный капитал"
+          },
+          {
+            "id": "reserves",
+            "label": "Прочие резервы / добавочный капитал"
+          },
+          {
+            "id": "retainedEarnings",
+            "label": "Нераспределённая прибыль"
+          },
+          {
+            "id": "equity",
+            "label": "Итого собственный капитал",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Обязательства",
+        "rows": [
+          {
+            "id": "borrowing",
+            "label": "Кредиты и заимствования"
+          },
+          {
+            "id": "leaseOtherLiab",
+            "label": "Прочие обязательства"
+          },
+          {
+            "id": "liabilities",
+            "label": "Всего обязательства",
+            "total": true
+          },
+          {
+            "id": "equityLiabilities",
+            "label": "КАПИТАЛ + ОБЯЗАТЕЛЬСТВА",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "cf": [
+      {
+        "g": "Операционная деятельность",
+        "rows": [
+          {
+            "id": "profit",
+            "label": "Чистая прибыль (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "depreciation",
+            "label": "Амортизация (сверка, не суммировать)",
+            "annotation": true,
+            "detail": true
+          },
+          {
+            "id": "cfo",
+            "label": "Чистые деньги от операционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Инвестиционная деятельность",
+        "rows": [
+          {
+            "id": "capex",
+            "label": "Покупка основных средств и НМА"
+          },
+          {
+            "id": "otherInvest",
+            "label": "Прочие инвестиционные потоки"
+          },
+          {
+            "id": "cfi",
+            "label": "Чистые деньги от инвестиционной деятельности",
+            "grand": true
+          }
+        ]
+      },
+      {
+        "g": "Финансовая деятельность",
+        "rows": [
+          {
+            "id": "cff",
+            "label": "Чистые деньги от финансовой деятельности",
+            "grand": true
+          },
+          {
+            "id": "changeCash",
+            "label": "Итого изменение денег",
+            "total": true
+          }
+        ]
+      },
+      {
+        "g": "Сверка денежных средств",
+        "rows": [
+          {
+            "id": "cashStart",
+            "label": "Денежные средства на начало периода"
+          },
+          {
+            "id": "changeCash",
+            "label": "Изменение денежных средств",
+            "detail": true
+          },
+          {
+            "id": "cashEnd",
+            "label": "Денежные средства на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ],
+    "equity": [
+      {
+        "g": "Отчёт об изменениях капитала",
+        "rows": [
+          {
+            "id": "equityOpen",
+            "label": "Капитал на начало периода"
+          },
+          {
+            "id": "profit",
+            "label": "Чистая прибыль",
+            "detail": true
+          },
+          {
+            "id": "oci",
+            "label": "Прочий совокупный доход",
+            "detail": true
+          },
+          {
+            "id": "totalIncome",
+            "label": "Итого совокупный доход",
+            "total": true
+          },
+          {
+            "id": "dividends",
+            "label": "Дивиденды собственникам"
+          },
+          {
+            "id": "newShares",
+            "label": "Выпуск акций / взносы"
+          },
+          {
+            "id": "otherEquity",
+            "label": "Прочие движения капитала"
+          },
+          {
+            "id": "equity",
+            "label": "Капитал на конец периода",
+            "grand": true
+          }
+        ]
+      }
+    ]
+  }
+}

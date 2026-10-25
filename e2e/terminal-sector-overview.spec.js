@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
+const fund=JSON.parse(readFileSync(new URL('./fixtures/ifrs-investor-fund.json',import.meta.url),'utf8'));
 const reports=JSON.parse(readFileSync(new URL('../tests/fixtures/terminal_sector_reports.json',import.meta.url),'utf8')).reports;
 
 for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`${ticker} ${func} follows its sector template`,async({page},testInfo)=>{
@@ -11,6 +12,7 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     const url=new URL(route.request().url()),path=url.pathname;
     const json=body=>route.fulfill({json:body});
     if(path==='/api/auth/me')return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
+    if(path.endsWith('/financials/columns')&&ticker==='UZNF')return json(fund);
     if(path.endsWith('/ai-report'))return json(report);
     if(path.endsWith('/financials')){
       if(url.searchParams.get('form')==='NSBU'&&url.searchParams.has('scope'))return route.fulfill({status:422,json:{detail:'scope must be consolidated or separate and requires MSFO'}});
@@ -22,6 +24,18 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     return json({ok:true,rows:[],periods:[],series:{},companies_synced:1,total_reports:1});
   });
   await page.goto(`/catalog?t=${ticker}&f=${func}&std=${form}`);
+  if(ticker==='UZNF'){
+    const ui=page.getByTestId('ifrs-investor');
+    await expect(ui).toBeVisible();
+    if(func==='SUM'){
+      await expect(ui.locator('.investor-kpis')).toContainText('29 861,54'.replaceAll(' ','\u00a0'));
+    }else{
+      await expect(ui.locator('tr[data-field="profit"]')).toContainText('1 403,15'.replaceAll(' ','\u00a0'));
+      await expect(ui).toContainText('24.12.2024–31.12.2025');
+    }
+    await expect(ui).not.toContainText('5 400');
+    return;
+  }
   if(func==='PL'){
     await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
     const overview=page.locator('.terminal-statement-overview');

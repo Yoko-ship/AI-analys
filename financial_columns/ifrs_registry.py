@@ -137,3 +137,32 @@ lic|Liability for incurred claims|Обязательство по возникш
 csm|Contractual service margin|Маржа за предусмотренные договором услуги
 risk_adjustment|Risk adjustment|Рисковая поправка''',
 }
+
+# Combined investor rows have their own exact source identities. A narrower
+# disclosure (for example trade receivables alone) cannot fill a combined total.
+INVESTOR_DEFINITIONS = {
+    'BS': '''intangibles_goodwill|Intangible assets and goodwill|Нематериальные активы и гудвил
+long_term_financial_other_assets|Long-term financial and other assets|Долгосрочные финансовые и прочие активы
+trade_other_receivables|Trade and other receivables|Торговая и прочая дебиторская задолженность
+other_current_assets|Other current assets|Прочие оборотные активы
+central_bank_and_bank_placements|Balances with central bank and other banks|Средства в Центральном банке и других банках
+debt_equity_investments|Investments in debt and equity instruments|Инвестиции в долговые и долевые инструменты
+interest_bearing_debt|Interest-bearing debt|Процентный долг
+other_liabilities|Other liabilities|Прочие обязательства
+insurance_financial_investments|Financial investments of the insurer|Финансовые инвестиции страховщика
+investment_portfolio|Investment portfolio|Инвестиционный портфель''',
+    'PL': '''research_expense|Research and development expenses|Расходы на исследования и разработки
+staff_costs|Staff costs|Расходы на персонал
+operating_income_before_ecl|Operating income before expenses|Операционный доход до расходов
+operating_profit_before_ecl|Operating profit before credit losses|Операционная прибыль до кредитных убытков
+insurance_finance_expense|Insurance finance expenses|Финансовые расходы по страхованию
+investment_income|Investment income|Инвестиционные доходы
+fair_value_gain_loss|Net fair value gain or loss|Чистая прибыль или убыток от переоценки по справедливой стоимости
+fund_expenses|Fund expenses|Расходы фонда''',
+    'CF': '''other_investing_cash_flows|Other investing cash flows|Прочие инвестиционные потоки''',
+    'Equity': '''equity_open|Equity at beginning of period|Капитал на начало периода
+other_equity_changes|Other changes in equity|Прочие движения капитала''',
+    'Notes': '''unrestricted_cash|Unrestricted cash and cash equivalents|Неограниченные денежные средства и их эквиваленты''',
+}
+for _form, _definitions in INVESTOR_DEFINITIONS.items():
+    DEFINITIONS[_form] += '\n' + _definitions

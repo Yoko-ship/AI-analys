@@ -17,7 +17,7 @@ def choose(items):
             'sources': [{k: r.get(k) for k in ('source_version', 'source_url', 'page', 'sheet', 'row', 'raw_label')} for r in items]}
 
 
-def build(observations, *, mode, recent=False):
+def build(observations, *, mode, recent=False, interim_ttm=False):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
     ends = sorted({r['period_end'] for r in observations})
@@ -39,12 +39,19 @@ def build(observations, *, mode, recent=False):
         columns = [{'key': end, 'label': (end[:4] + ' Q' + str(int(end[5:7]) // 3)) if mode == 'quarter' else end,
                     'end': end, 'basis': 'quarter' if mode == 'quarter' else 'ytd'} for end in ends
                    if mode == 'quarter' or end[5:] in {'06-30', '09-30'}]
+    if mode == 'interim' and interim_ttm and columns:
+        end = columns[-1]['end']
+        columns.append({'key':'ttm:'+end, 'label':'TTM · '+end, 'end':end, 'basis':'ttm'})
     for column in columns:
         if column['basis'] != 'annual':
             continue
         dated = [r for r in observations if r['period_end'] == column['end']]
         stocks = [r for r in dated if r['kind'] == 'stock']
-        annual_flows = [r for r in dated if r['kind'] == 'flow' and r.get('period_start') == column['end'][:4] + '-01-01']
+        annual_flows = [r for r in dated if r['kind'] == 'flow' and (r.get('period_start') == column['end'][:4] + '-01-01' or r.get('reported_annual'))]
+        starts = {r.get('period_start') for r in annual_flows}
+        if len(starts) == 1 and next(iter(starts)) != column['end'][:4] + '-01-01':
+            start = next(iter(starts))
+            column['label'] = '.'.join(reversed(start.split('-'))) + '–' + '.'.join(reversed(column['end'].split('-')))
         if stocks and not annual_flows:
             column['notice'] = 'ANNUAL_INCOME_NOT_IMPORTED'
             if all(r.get('role') == 'COMPARATIVE' for r in stocks):
@@ -69,7 +76,7 @@ def build(observations, *, mode, recent=False):
                 value = periods.calculate(resolved, end, basis)
             else:
                 candidates = [r for r in items if r['period_end'] == end and
-                              (stock or r.get('period_start') == end[:4] + '-01-01')]
+                              (stock or r.get('period_start') == end[:4] + '-01-01' or (basis == 'annual' and r.get('reported_annual')))]
                 value = choose(candidates)
                 if not candidates and not stock and column.get('notice'):
                     value['reason'] = column['notice']

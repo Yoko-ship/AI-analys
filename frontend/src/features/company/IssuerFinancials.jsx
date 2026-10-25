@@ -3,6 +3,7 @@ import { convertSeries, periodEnd } from "../../lib/terminalCurrency.js";
 import { CompanyFinancialsTab } from "./Financials.jsx";
 import { financialsUrl } from '../../lib/financialHistoryRequest.js';
 import { financialDisplaySeries } from '../../lib/financialDisplayScale.js';
+import { InvestorView } from './investor/InvestorView.jsx';
 
 // The Финансы tab together with the data behind it. The company page and the
 // catalog terminal (PL / BS / RAT) both open it, so it owns its own requests:
@@ -19,7 +20,16 @@ function useControllable(value, onChange, initial) {
   return value === undefined ? [own, setOwn] : [value, onChange || (() => {})];
 }
 
-function IssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStandardChange,
+function IssuerFinancials(props) {
+  const [standard,setStandard]=useControllable(props.standard,props.onStandardChange,props.initialStandard||'NSBU');
+  if(standard==='MSFO')return <InvestorView ticker={props.ticker} lang={props.lang} scope={props.scope}
+    onScopeChange={props.onScopeChange} onStandardChange={props.showContextControls===false?undefined:setStandard}
+    initialMode={props.freq==='quarterly'?'quarter':'annual'} companies={props.companies} onTickerChange={props.onTickerChange}
+    initialTab={props.section==='balance'?'bs':props.section==='ratios'?'rat':'overview'} onLoad={props.onLoad}/>;
+  return <LegacyIssuerFinancials {...props} standard={standard} onStandardChange={setStandard}/>;
+}
+
+function LegacyIssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStandardChange,
   scope: scopeProp, onScopeChange, freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null, showContextControls = true }) {
   const [standard, setStandard] = useControllable(standardProp, onStandardChange, "NSBU");
   const [freq, setFreq] = useControllable(freqProp, onFreqChange, initialFreq);

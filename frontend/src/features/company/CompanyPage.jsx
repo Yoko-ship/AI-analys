@@ -72,7 +72,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // The Финансы tab loads its own series (IssuerFinancials). The reader's
   // standard and period choices live here, so leaving the tab and coming back
   // keeps them; the period also arrives from the URL (?freq=quarterly).
-  const [finStandard, setFinStandard] = React.useState("NSBU");
+  const [finStandard, setFinStandard] = React.useState(companyQuery.get('standard')==='MSFO'?'MSFO':'NSBU');
   const [finFreq, setFinFreq] = React.useState(companyQuery.get("freq") === "quarterly" ? "quarterly" : "annual");
   const [divLoading, setDivLoading] = React.useState(false);
 
@@ -584,6 +584,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               <span className="muted" style={{ marginLeft: 8 }}>{[qualityPeriod, qualityField].filter(Boolean).join(" · ")}</span>
             </div>}
             <IssuerFinancials ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
+              companies={marketRows} onTickerChange={next=>{const url=new URL(window.location.href);url.pathname=url.pathname.replace(/\/company\/[^/]+/,`/company/${encodeURIComponent(next)}`);url.search='?tab=financials&standard=MSFO';window.location.assign(url.href);}}
               standard={finStandard} onStandardChange={setFinStandard}
               freq={finFreq} onFreqChange={setFinFreq} />
           </>

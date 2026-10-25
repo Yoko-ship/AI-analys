@@ -1,0 +1,2957 @@
+{
+  "ticker": "HMKB",
+  "issuer_name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+  "issuer_id": "8",
+  "standard": "MSFO",
+  "scope": "consolidated",
+  "template": "bank",
+  "unit": "UZS_thousand",
+  "columns": [
+    {
+      "key": "2024",
+      "label": "2024",
+      "end": "2024-12-31",
+      "basis": "annual"
+    },
+    {
+      "key": "2025",
+      "label": "2025",
+      "end": "2025-12-31",
+      "basis": "annual"
+    }
+  ],
+  "rows": [
+    {
+      "metric_id": "cash",
+      "source_form": "BS",
+      "source_code": null,
+      "kind": "stock",
+      "unit": "UZS_thousand",
+      "id": "BS:cash",
+      "label": "Cash and cash equivalents",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 9,
+          "raw_label": "Cash and cash equivalents",
+          "raw_value": "5123671",
+          "metric_id": "cash",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "5123671000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Cash and cash equivalents"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Cash and cash equivalents"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 9,
+          "raw_label": "Cash and cash equivalents",
+          "raw_value": "4058206",
+          "metric_id": "cash",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "4058206000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Cash and cash equivalents"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Cash and cash equivalents"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "interest_expense",
+      "source_form": "PL",
+      "source_code": null,
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "PL:interest_expense",
+      "label": "Calculated sum of interest expense categories",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2024,
+          "components": [
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Interest expense",
+              "raw_value": "-2351279"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Other interest expense",
+              "raw_value": "-27377"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of interest expense categories",
+          "raw_value": "-2378656",
+          "metric_id": "interest_expense",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "-2378656000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of interest expense categories"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of interest expense categories"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2025,
+          "components": [
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Interest expense",
+              "raw_value": "-2798585"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Other interest expense",
+              "raw_value": "-19859"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of interest expense categories",
+          "raw_value": "-2818444",
+          "metric_id": "interest_expense",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "-2818444000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of interest expense categories"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of interest expense categories"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "interest_income",
+      "source_form": "PL",
+      "source_code": null,
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "PL:interest_income",
+      "label": "Calculated sum of interest income categories",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2024,
+          "components": [
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Interest income calculated using the effective interest method",
+              "raw_value": "4431196"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Other interest income",
+              "raw_value": "85498"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of interest income categories",
+          "raw_value": "4516694",
+          "metric_id": "interest_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "4516694000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of interest income categories"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of interest income categories"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2025,
+          "components": [
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Interest income calculated using the effective interest method",
+              "raw_value": "5339549"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Other interest income",
+              "raw_value": "105881"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of interest income categories",
+          "raw_value": "5445430",
+          "metric_id": "interest_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "5445430000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of interest income categories"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of interest income categories"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "net_income",
+      "source_form": "PL",
+      "source_code": null,
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "PL:net_income",
+      "label": "Profit / (loss) for the year",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 10,
+          "raw_label": "Profit / (loss) for the year",
+          "raw_value": "1504834",
+          "metric_id": "net_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "1504834000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Profit / (loss) for the year"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Profit / (loss) for the year"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 10,
+          "raw_label": "Profit / (loss) for the year",
+          "raw_value": "1786756",
+          "metric_id": "net_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "1786756000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Profit / (loss) for the year"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Profit / (loss) for the year"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "operating_expenses",
+      "source_form": "PL",
+      "source_code": null,
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "PL:operating_expenses",
+      "label": "Administrative and other operating expenses",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 10,
+          "raw_label": "Administrative and other operating expenses",
+          "raw_value": "-1428722",
+          "metric_id": "operating_expenses",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "-1428722000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Administrative and other operating expenses"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Administrative and other operating expenses"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 10,
+          "raw_label": "Administrative and other operating expenses",
+          "raw_value": "-1927723",
+          "metric_id": "operating_expenses",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "-1927723000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Administrative and other operating expenses"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Administrative and other operating expenses"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "operating_income",
+      "source_form": "PL",
+      "source_code": null,
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "PL:operating_income",
+      "label": "Calculated sum of operating income components, excluding share of associates",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2024,
+          "components": [
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "raw_value": "2033509"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Fee and commission income",
+              "raw_value": "791169"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Fee and commission expense",
+              "raw_value": "-277110"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "raw_value": "-1299"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Gains less losses from trading in foreign currencies",
+              "raw_value": "647673"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Gains less losses from financial derivative",
+              "raw_value": "39954"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Gains less losses from foreign exchange translation",
+              "raw_value": "-1300"
+            },
+            {
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Other operating income",
+              "raw_value": "52731"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "raw_value": "3285327",
+          "metric_id": "operating_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "3285327000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of operating income components, excluding share of associates"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of operating income components, excluding share of associates"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "calculation": "sum",
+          "column_year": 2025,
+          "components": [
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Net margin on interest and similar income after credit loss allowance",
+              "raw_value": "2501726"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Fee and commission income",
+              "raw_value": "1108639"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Fee and commission expense",
+              "raw_value": "-398304"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Gains less losses from securities at fair value through profit or loss",
+              "raw_value": "6239"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Gains less losses from trading in foreign currencies",
+              "raw_value": "767716"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Gains less losses from financial derivative",
+              "raw_value": "1651"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Gains less losses from foreign exchange translation",
+              "raw_value": "48625"
+            },
+            {
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Other operating income",
+              "raw_value": "64249"
+            }
+          ],
+          "page": 10,
+          "raw_label": "Calculated sum of operating income components, excluding share of associates",
+          "raw_value": "4100541",
+          "metric_id": "operating_income",
+          "kind": "flow",
+          "source_form": "PL",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "4100541000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Calculated sum of operating income components, excluding share of associates"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 10,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Calculated sum of operating income components, excluding share of associates"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "total_assets",
+      "source_form": "BS",
+      "source_code": null,
+      "kind": "stock",
+      "unit": "UZS_thousand",
+      "id": "BS:total_assets",
+      "label": "Total assets",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 9,
+          "raw_label": "Total assets",
+          "raw_value": "28940247",
+          "metric_id": "total_assets",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "28940247000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total assets"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total assets"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 9,
+          "raw_label": "Total assets",
+          "raw_value": "36022812",
+          "metric_id": "total_assets",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "36022812000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total assets"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total assets"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "total_equity",
+      "source_form": "BS",
+      "source_code": null,
+      "kind": "stock",
+      "unit": "UZS_thousand",
+      "id": "BS:total_equity",
+      "label": "Total equity",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 9,
+          "raw_label": "Total equity",
+          "raw_value": "5540552",
+          "metric_id": "total_equity",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "5540552000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total equity"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total equity"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 9,
+          "raw_label": "Total equity",
+          "raw_value": "7164416",
+          "metric_id": "total_equity",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "7164416000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total equity"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total equity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "metric_id": "total_liabilities",
+      "source_form": "BS",
+      "source_code": null,
+      "kind": "stock",
+      "unit": "UZS_thousand",
+      "id": "BS:total_liabilities",
+      "label": "Total liabilities",
+      "cells": {
+        "2024": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "COMPARATIVE",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2024,
+          "page": 9,
+          "raw_label": "Total liabilities",
+          "raw_value": "23399695",
+          "metric_id": "total_liabilities",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "23399695000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total liabilities"
+          ],
+          "sources": [
+            {
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total liabilities"
+            }
+          ]
+        },
+        "2025": {
+          "issuer_id": "8",
+          "standard": "MSFO",
+          "scope": "consolidated",
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+          "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+          "published_at": "2026-05-07T18:16:32.401897",
+          "role": "PRIMARY",
+          "audit_status": "unknown",
+          "accounting_model": null,
+          "currency": "UZS",
+          "unit_scale": "1000000",
+          "fx": null,
+          "column_year": 2025,
+          "page": 9,
+          "raw_label": "Total liabilities",
+          "raw_value": "28858396",
+          "metric_id": "total_liabilities",
+          "kind": "stock",
+          "source_form": "BS",
+          "source_code": null,
+          "unit": "UZS_thousand",
+          "value": "28858396000",
+          "quality": "valid",
+          "normalization": "approved normalized UZS / 1000",
+          "aliases": [
+            "Total liabilities"
+          ],
+          "sources": [
+            {
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "page": 9,
+              "sheet": null,
+              "row": null,
+              "raw_label": "Total liabilities"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "ratios": [
+    {
+      "id": "ratio:roe",
+      "metric_id": "roe",
+      "label": "ROE",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "roe",
+          "label": "ROE",
+          "value": "31.36283856454063952026445228",
+          "quality": "valid",
+          "reason": null,
+          "formula": "net_income / average(total_equity) × 100",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-01-01",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Profit / (loss) for the year",
+              "raw_value": "1504834",
+              "metric_id": "net_income",
+              "kind": "flow",
+              "source_form": "PL",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "1504834000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Profit / (loss) for the year"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 10,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Profit / (loss) for the year"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2023-12-31",
+              "period_start": "2023-12-31",
+              "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+              "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+              "published_at": "2025-04-14T11:07:07.116216",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2023,
+              "page": 11,
+              "raw_label": "Total equity",
+              "raw_value": "4055735",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "4055735000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+                  "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+                  "page": 11,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total equity",
+              "raw_value": "5540552",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "5540552000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "roe",
+          "label": "ROE",
+          "value": "28.12688705709451609795475282",
+          "quality": "valid",
+          "reason": null,
+          "formula": "net_income / average(total_equity) × 100",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-01-01",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Profit / (loss) for the year",
+              "raw_value": "1786756",
+              "metric_id": "net_income",
+              "kind": "flow",
+              "source_form": "PL",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "1786756000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Profit / (loss) for the year"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 10,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Profit / (loss) for the year"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total equity",
+              "raw_value": "5540552",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "5540552000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total equity",
+              "raw_value": "7164416",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "7164416000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:roa",
+      "metric_id": "roa",
+      "label": "ROA",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "roa",
+          "label": "ROA",
+          "value": "6.008164898840288275204147425",
+          "quality": "valid",
+          "reason": null,
+          "formula": "net_income / average(total_assets) × 100",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-01-01",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 10,
+              "raw_label": "Profit / (loss) for the year",
+              "raw_value": "1504834",
+              "metric_id": "net_income",
+              "kind": "flow",
+              "source_form": "PL",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "1504834000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Profit / (loss) for the year"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 10,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Profit / (loss) for the year"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2023-12-31",
+              "period_start": "2023-12-31",
+              "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+              "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+              "published_at": "2025-04-14T11:07:07.116216",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2023,
+              "page": 11,
+              "raw_label": "Total assets",
+              "raw_value": "21152719",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "21152719000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+                  "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+                  "page": 11,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "28940247",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28940247000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "roa",
+          "label": "ROA",
+          "value": "5.500837021852680921321762265",
+          "quality": "valid",
+          "reason": null,
+          "formula": "net_income / average(total_assets) × 100",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-01-01",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 10,
+              "raw_label": "Profit / (loss) for the year",
+              "raw_value": "1786756",
+              "metric_id": "net_income",
+              "kind": "flow",
+              "source_form": "PL",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "1786756000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Profit / (loss) for the year"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 10,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Profit / (loss) for the year"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "28940247",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28940247000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "36022812",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "36022812000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:current_ratio",
+      "metric_id": "current_ratio",
+      "label": "Current ratio",
+      "unit": "ratio",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "current_ratio",
+          "label": "Current ratio",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "current_assets / current_liabilities",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "current_ratio",
+          "label": "Current ratio",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "current_assets / current_liabilities",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:quick_ratio",
+      "metric_id": "quick_ratio",
+      "label": "Quick ratio",
+      "unit": "ratio",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "quick_ratio",
+          "label": "Quick ratio",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "(current_assets − inventory − prepaid_expenses) / current_liabilities",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING",
+              "components": [
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                }
+              ]
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "quick_ratio",
+          "label": "Quick ratio",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "(current_assets − inventory − prepaid_expenses) / current_liabilities",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING",
+              "components": [
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                }
+              ]
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:liabilities_to_assets",
+      "metric_id": "liabilities_to_assets",
+      "label": "Liabilities / assets",
+      "unit": "ratio",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "liabilities_to_assets",
+          "label": "Liabilities / assets",
+          "value": "0.8085520140861271847472483562",
+          "quality": "valid",
+          "reason": null,
+          "formula": "total_liabilities / total_assets",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total liabilities",
+              "raw_value": "23399695",
+              "metric_id": "total_liabilities",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "23399695000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total liabilities"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total liabilities"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "28940247",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28940247000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "liabilities_to_assets",
+          "label": "Liabilities / assets",
+          "value": "0.8011144715742902025527601787",
+          "quality": "valid",
+          "reason": null,
+          "formula": "total_liabilities / total_assets",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total liabilities",
+              "raw_value": "28858396",
+              "metric_id": "total_liabilities",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28858396000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total liabilities"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total liabilities"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "36022812",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "36022812000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:liabilities_to_equity",
+      "metric_id": "liabilities_to_equity",
+      "label": "Liabilities / equity",
+      "unit": "ratio",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "liabilities_to_equity",
+          "label": "Liabilities / equity",
+          "value": "4.223350850240192673942957308",
+          "quality": "valid",
+          "reason": null,
+          "formula": "total_liabilities / total_equity",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total liabilities",
+              "raw_value": "23399695",
+              "metric_id": "total_liabilities",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "23399695000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total liabilities"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total liabilities"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total equity",
+              "raw_value": "5540552",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "5540552000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "liabilities_to_equity",
+          "label": "Liabilities / equity",
+          "value": "4.028017915207603801900950475",
+          "quality": "valid",
+          "reason": null,
+          "formula": "total_liabilities / total_equity",
+          "components": [
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total liabilities",
+              "raw_value": "28858396",
+              "metric_id": "total_liabilities",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28858396000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total liabilities"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total liabilities"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total equity",
+              "raw_value": "7164416",
+              "metric_id": "total_equity",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "7164416000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total equity"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total equity"
+                }
+              ]
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:asset_turnover",
+      "metric_id": "asset_turnover",
+      "label": "Asset turnover",
+      "unit": "ratio",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "asset_turnover",
+          "label": "Asset turnover",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "revenue / average(total_assets)",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2023-12-31",
+              "period_start": "2023-12-31",
+              "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+              "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+              "published_at": "2025-04-14T11:07:07.116216",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2023,
+              "page": 11,
+              "raw_label": "Total assets",
+              "raw_value": "21152719",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "21152719000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "764cf0e6a0e51668daaccdf4411ae64cee218edd2d018f637b3ab56a3a2dcb3e",
+                  "source_url": "https://openinfo.uz/media/msfo/eb302c3c-5999-4f8a-bae5-986932590249.pdf",
+                  "page": 11,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "28940247",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28940247000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "asset_turnover",
+          "label": "Asset turnover",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "revenue / average(total_assets)",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2024-12-31",
+              "period_start": "2024-12-31",
+              "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "COMPARATIVE",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2024,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "28940247",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "28940247000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "571c5bf76063c6de7da922ff37545e2b6e82eed8415ad2dd0ac27b4b338218d9",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            },
+            {
+              "issuer_id": "8",
+              "standard": "MSFO",
+              "scope": "consolidated",
+              "period_end": "2025-12-31",
+              "period_start": "2025-12-31",
+              "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+              "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+              "published_at": "2026-05-07T18:16:32.401897",
+              "role": "PRIMARY",
+              "audit_status": "unknown",
+              "accounting_model": null,
+              "currency": "UZS",
+              "unit_scale": "1000000",
+              "fx": null,
+              "column_year": 2025,
+              "page": 9,
+              "raw_label": "Total assets",
+              "raw_value": "36022812",
+              "metric_id": "total_assets",
+              "kind": "stock",
+              "source_form": "BS",
+              "source_code": null,
+              "unit": "UZS_thousand",
+              "value": "36022812000",
+              "quality": "valid",
+              "normalization": "approved normalized UZS / 1000",
+              "aliases": [
+                "Total assets"
+              ],
+              "sources": [
+                {
+                  "source_version": "423cd5f8741d4237c3c9fe3271a59bd1b180bc72717d5dc09b29fd7d24fa0ba3",
+                  "source_url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+                  "page": 9,
+                  "sheet": null,
+                  "row": null,
+                  "raw_label": "Total assets"
+                }
+              ]
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "ratio",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:roce",
+      "metric_id": "roce",
+      "label": "ROCE",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "roce",
+          "label": "ROCE",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "NOPAT / average(invested capital) × 100; explicit NOPAT and invested-capital policy required",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "roce",
+          "label": "ROCE",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "NOPAT / average(invested capital) × 100; explicit NOPAT and invested-capital policy required",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:nim",
+      "metric_id": "nim",
+      "label": "NIM",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "nim",
+          "label": "NIM",
+          "value": null,
+          "quality": "missing",
+          "reason": "AVERAGE_EARNING_ASSETS_MISSING",
+          "formula": "net_interest_before_ecl / average(earning_assets) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "nim",
+          "label": "NIM",
+          "value": null,
+          "quality": "missing",
+          "reason": "AVERAGE_EARNING_ASSETS_MISSING",
+          "formula": "net_interest_before_ecl / average(earning_assets) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:cir",
+      "metric_id": "cir",
+      "label": "CIR",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "cir",
+          "label": "CIR",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "operating costs / operating income before credit losses × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "cir",
+          "label": "CIR",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "operating costs / operating income before credit losses × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:cost_of_risk",
+      "metric_id": "cost_of_risk",
+      "label": "Cost of risk",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "cost_of_risk",
+          "label": "Cost of risk",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "loan credit loss cost / average(gross loans) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "cost_of_risk",
+          "label": "Cost of risk",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "loan credit loss cost / average(gross loans) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:loss_ratio",
+      "metric_id": "loss_ratio",
+      "label": "Loss ratio (legacy)",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "loss_ratio",
+          "label": "Loss ratio (legacy)",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "net incurred claims / net earned premiums × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "loss_ratio",
+          "label": "Loss ratio (legacy)",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "net incurred claims / net earned premiums × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:combined_ratio",
+      "metric_id": "combined_ratio",
+      "label": "Combined ratio (legacy)",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "combined_ratio",
+          "label": "Combined ratio (legacy)",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "(net incurred claims + expenses explicitly excluding claims) / net earned premiums × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING",
+              "components": [
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                }
+              ]
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "combined_ratio",
+          "label": "Combined ratio (legacy)",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "(net incurred claims + expenses explicitly excluding claims) / net earned premiums × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING",
+              "components": [
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                },
+                {
+                  "value": null,
+                  "quality": "missing",
+                  "reason": "SOURCE_VALUE_MISSING"
+                }
+              ]
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:funding_cost",
+      "metric_id": "funding_cost",
+      "label": "Funding cost",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "funding_cost",
+          "label": "Funding cost",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "interest expense / average(interest-bearing debt) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "funding_cost",
+          "label": "Funding cost",
+          "value": null,
+          "quality": "not_applicable",
+          "reason": "SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE",
+          "formula": "interest expense / average(interest-bearing debt) × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    },
+    {
+      "id": "ratio:ecl_coverage",
+      "metric_id": "ecl_coverage",
+      "label": "ECL coverage",
+      "unit": "percent",
+      "source_form": "RAT",
+      "kind": "ratio",
+      "cells": {
+        "2024": {
+          "metric_id": "ecl_coverage",
+          "label": "ECL coverage",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "loan ECL allowance / gross loans of the same perimeter × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        },
+        "2025": {
+          "metric_id": "ecl_coverage",
+          "label": "ECL coverage",
+          "value": null,
+          "quality": "missing",
+          "reason": "INPUTS_MISSING",
+          "formula": "loan ECL allowance / gross loans of the same perimeter × 100",
+          "components": [
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            },
+            {
+              "value": null,
+              "quality": "missing",
+              "reason": "SOURCE_VALUE_MISSING"
+            }
+          ],
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "basis": "annual",
+          "annualized": false,
+          "unit": "percent",
+          "origin": "UZStock_calculated"
+        }
+      }
+    }
+  ],
+  "coverage": {
+    "complete": false,
+    "notes": "missing",
+    "issues": [
+      "LEGACY_PARTIAL_IMPORT"
+    ]
+  },
+  "issues": [],
+  "source_forms": []
+}
