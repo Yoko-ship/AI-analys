@@ -92,13 +92,13 @@ body[data-theme="dark"] .catalog-layout {
 }
 
 .catalog-layout .primary-btn {
-  border-color: var(--catalog-accent) !important;
-  background: var(--catalog-accent) !important;
+  border-color: var(--action-primary, var(--catalog-accent)) !important;
+  background: var(--action-primary, var(--catalog-accent)) !important;
   color: #fff !important;
   box-shadow: none;
 }
 
-.catalog-layout .primary-btn:hover { background: var(--catalog-accent-hover) !important; }
+.catalog-layout .primary-btn:hover { background: var(--action-primary-hover, var(--catalog-accent-hover)) !important; }
 
 .catalog-terminal-head {
   display: flex;

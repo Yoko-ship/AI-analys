@@ -10,6 +10,7 @@ import "./profile.css";
 import "./auth.css";
 import "./concept.css";
 import "./styles/workspace-ui.css";
+import "./styles/purple-workspace.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -145,3 +145,21 @@ source evidence but do not compete with actual bond income in lead summaries.
 Regression tests were run failing before each change. Real source timing
 fixtures cover both corrections and false candidates (board decisions,
 registry dates, prior meetings and a conflicting historical year).
+
+## Purple theme scope, excluding the screener
+
+The application shell marks every workspace except the `/market` screener with
+`data-ui="purple"`. `styles/purple-workspace.css` scopes reference navigation,
+controls and surfaces to that marker. The screener keeps its previous styling;
+desktop and phone captures in both themes were compared before and after.
+
+The catalog no longer overrides the dark theme with a black/amber terminal
+palette. Its issuer rail, command controls, report cards, NSBU year-column
+controls and IFRS investor panels use the same application roles. The effective
+HTML reference values remain violet `#7454df`, hover `#5635c8`, selected wash
+`#f0ebff`, canvas `#f7f7fb`, ink `#251b38` and border `#e9e7f0`. Filled primary
+buttons retain the reference violet with white text in both themes; dark-mode
+links use the reference's soft violet. Financial gains/losses retain their
+semantic green/red. Headings use Manrope, controls use Inter, and financial
+values retain tabular numerals. Cards use 16 px corners; controls use 10 px
+corners and a 40 px minimum height.

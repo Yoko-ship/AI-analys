@@ -2,13 +2,12 @@
    cards. Scope the palette and density to the catalog, keeping light mode. */
 .catalog-layout.catalog-terminal-ui{gap:8px;padding:12px;font:12px 'IBM Plex Mono',monospace}
 .catalog-terminal-ui button,.catalog-terminal-ui input,.catalog-terminal-ui select{font-family:inherit}
-body[data-theme="dark"] .catalog-layout.catalog-terminal-ui{
-  --bg:#070910;--panel:#161a22;--bg-2:#12151c;--surface-2:#1b2029;--border:#232833;
-  --text:#e5edf5;--text-secondary:#bdc9d8;--muted:#96a7bc;--accent:#f0a020;--accent-hover:#ffb93f;
-  --accent-light:#352911;--positive:#3fbf6a;--negative:#e05252;--warning:#f0a020;--terminal-chart:#4bb8e8;
+/* Financial roles inherit the Purple application theme in both modes. */
+.catalog-layout.catalog-terminal-ui{
+  --positive:var(--success);--negative:var(--danger);--terminal-chart:var(--accent);
   --catalog-accent:var(--accent);--catalog-accent-hover:var(--accent-hover);--catalog-accent-soft:var(--accent-light);
-  --catalog-surface:var(--bg-2);--catalog-surface-2:var(--surface-2);--catalog-border:var(--border);
-  --catalog-ink:var(--text);--catalog-muted:var(--muted);background:var(--bg);color:var(--text)
+  --catalog-surface:var(--panel);--catalog-surface-2:var(--surface-2);--catalog-border:var(--border);
+  --catalog-ink:var(--text);--catalog-muted:var(--muted);color:var(--text)
 }
 .catalog-terminal-ui .catalog-terminal-head{padding:0;align-items:center;gap:8px}
 .catalog-terminal-ui .catalog-terminal-head h1{font-size:16px;margin:0;line-height:1.4}
