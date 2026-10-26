@@ -99,7 +99,7 @@ export const NEWSCAL_TX = {
       fact: "Существенный факт из ленты раскрытия эмитента.",
       listing: "Бумага допущена к торгам на Республиканской фондовой бирже «Тошкент».",
     },
-    note: "Даты выплат — окно, которое эмитент указал в решении. Дату закрытия реестра и экс-дивидендную дату openinfo.uz не публикует, поэтому их нет. Сроки отчётности не прогнозируются.",
+    note: "Даты выплат — окно, которое эмитент указал в решении. Неподтверждённые даты закрытия реестра и экс-дивидендные даты не показываются. Сроки отчётности не прогнозируются.",
     source: "Источник: openinfo.uz, РФБ «Тошкент»",
   },
   en: {
@@ -195,7 +195,7 @@ export const NEWSCAL_TX = {
       fact: "A material fact from the issuer's disclosure feed.",
       listing: "The security was admitted to trading on the Tashkent Stock Exchange.",
     },
-    note: "Payment dates are the window the issuer stated in its resolution. openinfo.uz publishes no record or ex-dividend date, so none are shown. Report deadlines are not forecast.",
+    note: "Payment dates are the window the issuer stated in its resolution. Unconfirmed record and ex-dividend dates are not shown. Report deadlines are not forecast.",
     source: "Source: openinfo.uz, Tashkent Stock Exchange",
   },
   uz: {
@@ -291,7 +291,7 @@ export const NEWSCAL_TX = {
       fact: "Emitentning oshkor qilish lentasidagi muhim fakt.",
       listing: "Qimmatli qog'oz «Toshkent» RFBda savdoga kiritildi.",
     },
-    note: "To'lov sanalari — emitent qarorida ko'rsatgan davr. Reyestr yopilish va ex-dividend sanalarini openinfo.uz e'lon qilmaydi, shuning uchun ular yo'q. Hisobot muddatlari bashorat qilinmaydi.",
+    note: "To'lov sanalari — emitent qarorida ko'rsatgan davr. Tasdiqlanmagan reyestr yopilish va ex-dividend sanalari ko‘rsatilmaydi. Hisobot muddatlari bashorat qilinmaydi.",
     source: "Manba: openinfo.uz, «Toshkent» RFB",
   },
 };

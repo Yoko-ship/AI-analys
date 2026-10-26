@@ -1831,3 +1831,69 @@ test("term definitions follow the interface language", async ({ page }) => {
   await page.locator('th[data-sort-key="volume"] .term-info-btn').hover();
   await expect(page.locator(".term-tooltip")).toContainText("turnover in soum");
 });
+
+test('calendar puts the month beside its agenda and lets readers select empty dates', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/news?tab=calendar');
+  const grid = page.locator('.newscal-grid');
+  const agenda = page.locator('.newscal-agenda');
+  await expect(agenda).toBeVisible();
+  const g = await grid.boundingBox(), a = await agenda.boundingBox();
+  expect(a.x).toBeGreaterThan(g.x + g.width);
+  expect(Math.abs(a.y - g.y)).toBeLessThan(2);
+  const empty = page.locator('.newscal-cell:not(.out):not(.has-events)').first();
+  await empty.locator('.newscal-daynum').click();
+  await expect(empty).toHaveAttribute('aria-selected', 'true');
+  await expect(agenda.locator('.newscal-row')).toHaveCount(0);
+  await expect(agenda).toContainText('0 событий');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.newscal-daynum:focus')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(empty).toHaveAttribute('aria-selected', 'false');
+  for (const width of [705, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    const mobileGrid = await grid.boundingBox(), mobileAgenda = await agenda.boundingBox();
+    expect(mobileAgenda.y).toBeGreaterThanOrEqual(mobileGrid.y + mobileGrid.height);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
+test('calendar dialog confines keyboard focus and restores the opened event', async ({ page }) => {
+  await page.goto('/news?tab=calendar');
+  const event = page.locator('.newscal-list .newscal-row').first();
+  await event.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  for (let i = 0; i < 15; i++) {
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(event).toBeFocused();
+});
+
+test('workspace headings and panels share the same visual system', async ({ page }) => {
+  const routes = [
+    ['/', '.lv-h1', '.hd-map-card'],
+    ['/market', '.market-board-head h2', '.market-board'],
+    ['/news', '.newsdesk-head h1', '.newsdesk-side-section'],
+    ['/news?tab=calendar', '.newscal-month', '.newscal'],
+    ['/news?tab=corporate', '.ce-heading h2', '.ce-categories'],
+  ];
+  for (const [route, heading, panel] of routes) {
+    await page.goto(route);
+    await expect(page.locator(heading).first()).toBeVisible();
+    expect(await page.locator(heading).first().evaluate(el => getComputedStyle(el).fontFamily)).toContain('Manrope');
+    await expect(page.locator(panel).first()).toBeVisible();
+    expect(await page.locator(panel).first().evaluate(el => getComputedStyle(el).borderRadius)).toBe('16px');
+  }
+});
+
+test('calendar labels a filing date as publication and shows meeting date evidence', async ({ page }) => {
+  const fact = {id:'fact:source',type:'fact',date:CAL_TODAY,organization:'BMKB-Agromash',title:'Решения акционеров', details:{link:'https://openinfo.uz/ru/facts/6/14892'}};
+  await page.route('**/api/news/calendar/events**', r=>r.fulfill({json:{ok:true,items:[fact],sources:{}}}));
+  await page.goto('/news?tab=calendar');
+  await page.locator('.newscal-row').first().click();
+  await expect(page.getByRole('dialog').locator('dt').first()).toHaveText('Опубликовано');
+});

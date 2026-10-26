@@ -178,12 +178,22 @@ def from_announcement(row, detail=None):
     dividend = bool(re.search(r"дивиденд|dividend", title + " " + text, re.I))
     periods = set(re.findall(r"(20\d{2})[-\s]*(?:yil|год)[^.!?\n]{0,90}(?:дивиденд|dividend)", text, re.I))
     meta = {x["label"].rstrip(":").casefold(): x["value"] for x in detail.get("metadata", [])}
-    event_date = day(row.get("meeting_date") or meta.get("дата собрания"))
+    from announcement_dates import meeting_schedule
+    schedule = meeting_schedule(detail)
+    metadata_date = day(row.get("meeting_date") or meta.get("дата собрания"))
+    event_date = None if schedule['ambiguous'] else schedule['date'] or metadata_date
     pub = row.get("pub_date") or day(meta.get("дата публикации")) or ""
+    unresolved = schedule['ambiguous'] or bool(schedule['date'] and metadata_date and
+        schedule['date'] != metadata_date and day(pub) and schedule['date'] < day(pub))
+    if unresolved:
+        event_date = None
     event = from_fact({}, source_url=detail.get("source_url") or f"https://openinfo.uz/ru/announce/{row['announcement_id']}", tickers=[row["ticker"]] if row.get("ticker") else [])
     event.update(issuer_id=str(row["org_id"]) if row.get("org_id") else None,
                  organization=detail.get("organization") or row.get("organization") or "",
                  original_title=title, published_at=pub, event_date=event_date,
+                 meeting_time=None if unresolved else schedule['time'], date_evidence=schedule['evidence'], date_unresolved=unresolved,
+                 date_source='announcement_body' if schedule['date'] else 'metadata',
+                 date_conflict=bool(schedule['ambiguous'] or (schedule['date'] and metadata_date and schedule['date'] != metadata_date)),
                  category="dividends" if dividend else "governance", priority=1 if dividend else 2,
                  stage="agenda" if dividend else "announced", confidence="confirmed" if detail.get("content") and event_date else "review",
                  period=next(iter(periods)) if len(periods)==1 else None, pdf_url=detail.get("pdf_url"),
@@ -282,6 +292,19 @@ def read_documents(lo, hi):
         conn.commit()
         rows = conn.execute("SELECT document_json, revisions_json FROM corporate_event_documents WHERE published_at >= ? AND published_at < ?",(lo,hi)).fetchall()
         return [{**json.loads(r["document_json"]),"revisions":json.loads(r["revisions_json"])} for r in rows]
+    finally:
+        conn.close()
+
+
+def read_announcement_documents():
+    """Stored source evidence; no network work in a calendar request."""
+    from catalogue.storage import get_catalog_conn
+    conn = get_catalog_conn()
+    try:
+        _schema(conn)
+        conn.commit()
+        rows = conn.execute("SELECT document_json FROM corporate_event_documents WHERE source_url LIKE '%/announce/%'").fetchall()
+        return [json.loads(row['document_json']) for row in rows]
     finally:
         conn.close()
 

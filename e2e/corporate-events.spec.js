@@ -74,3 +74,21 @@ test('payment totals and approved resolutions are explained separately from per-
  await expect(page.getByRole('dialog')).toContainText('6 060 825');
  await expect(page.getByRole('dialog')).toContainText('Dividendlar to‘liq to‘langan');
 });
+
+test('meeting documents distinguish publication from the date supported by source text', async ({ page }) => {
+  await setup(page);
+  const meeting = { ...b, id: '21404', source_url: 'https://openinfo.uz/ru/announce/21404',
+    organization: 'Issiqlik Elektr Stansiyalari', stage: 'announced',
+    title: {ru:'Объявлено собрание акционеров'}, published_at:'2026-10-02T17:33:06',
+    event_date:'2026-10-23', decision_date:null, meeting_time:'11:00', date_source:'announcement_body',
+    date_conflict:true, date_evidence:'2026-yil 23-oktabr kuni soat 11:00da yig‘ilishi bo‘lib o‘tishi ma’lum qilinadi.' };
+  await page.route('**/api/news/corporate-events?**', r => r.fulfill({json:{...payload,items:[{...meeting,story_id:'21404',documents:[meeting],document_count:1}]}}));
+  await page.reload();
+  const card = page.locator('.ce-story');
+  await expect(card.locator('time').first()).toHaveAttribute('datetime','2026-10-02T17:33:06');
+  await card.getByRole('button',{name:/Документы/}).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('11:00');
+  await expect(dialog).toContainText('Дата собрания взята из текста объявления');
+  await expect(dialog.locator('.ce-date-evidence')).toContainText(meeting.date_evidence);
+});

@@ -1,0 +1,139 @@
+/* Shared workspace scale. Calendar and disclosures use the same surfaces and
+   type as the market, account and currency workspaces. */
+:root {
+  --workspace-radius: 16px;
+  --workspace-control-radius: 10px;
+  --workspace-gap: 20px;
+  --workspace-title: var(--concept-title, Manrope, sans-serif);
+}
+.led .newscal { padding: 24px; border-radius: var(--workspace-radius); }
+.led .newscal :is(h3, .newscal-mh), .newscal-modal .newscal-detail h2 {
+  font-family: var(--workspace-title); letter-spacing: -.02em;
+}
+.led .newscal-bar { margin-bottom: 20px; gap: 16px; }
+.led .newscal-nav { flex-wrap: wrap; gap: 8px; }
+.led .newscal-month { font-size: 22px; margin-left: 8px; }
+.led .newscal :is(.newscal-arrow, .newscal-today, .newscal-toggle-btn, .newscal-search, .newscal-range input) {
+  min-height: 40px; border-radius: var(--workspace-control-radius); font-size: 13px;
+}
+.led .newscal-arrow { width: 40px; }
+.led .newscal-toggle { border-radius: 12px; background: var(--surface-2); padding: 4px; }
+.led .newscal-toggle-btn { padding: 8px 16px; }
+.led .newscal-toggle-btn.active { background: var(--accent-light); color: var(--accent); font-weight: 700; }
+.led .newscal-filters { border: 0; border-radius: 0; padding: 0 0 20px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+.led .newscal-types { gap: 8px; margin-bottom: 12px; }
+.led .newscal .newscal-type { min-height: 34px; border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.led .newscal .newscal-type.on { border-color: var(--border-hover); background: var(--surface-2); color: var(--text); }
+.led .newscal .newscal-type.all.on { background: var(--accent-light); color: var(--accent); border-color: var(--border-focus); }
+.led .newscal-filter-row { gap: 10px; }
+.led .newscal-search { flex: 1; max-width: 380px; padding: 8px 12px; }
+.led .newscal-range { gap: 6px; }
+.newscal-month-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .42fr); align-items: start; gap: var(--workspace-gap); }
+.led .newscal-grid { border-radius: 12px; }
+.led .newscal-dow { padding: 12px 8px; font-size: 11px; }
+.led .newscal-cell { min-height: 116px; padding: 6px; gap: 4px; cursor: pointer; }
+.led .newscal-daynum { min-width: 28px; min-height: 28px; font-size: 13px; color: var(--text); }
+.led .newscal-count { top: 13px; font-size: 10px; }
+.led .newscal-cell.past:not(.today) .newscal-pill { opacity: 1; }
+.led .newscal-cell.selected { background: var(--accent-light); }
+.led .newscal .newscal-pill { font-size: 11px; padding: 3px 5px; }
+.newscal-agenda { min-width: 0; border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--panel); }
+.led .newscal-agenda .newscal-listhead { margin: 0 0 12px; gap: 8px; }
+.led .newscal-listhead h3 { font-size: 17px; width: 100%; }
+.led .newscal-agenda .newscal-list { max-height: 610px; overflow-y: auto; scrollbar-width: thin; padding: 0 4px; overscroll-behavior: contain; }
+.led .newscal-agenda .newscal-row { flex-wrap: wrap; gap: 6px; padding: 14px 0; }
+.led .newscal-agenda .newscal-row-body { flex: 1 1 100%; min-width: 0; }
+.led .newscal-row-org { font-size: 13px; line-height: 1.5; }
+.led .newscal-row-title { font-size: 12px; line-height: 1.5; }
+.led .newscal-mh { border-bottom: 1px solid var(--border); font-size: 13px; padding: 12px 0 8px; }
+.led .newscal-mh-rel { font-size: 11px; white-space: nowrap; }
+.led .newscal-upcoming { margin: 24px 0 0; padding-top: 20px; border-top: 1px solid var(--border); }
+.led .newscal-upcoming h3 { font-size: 18px; margin-bottom: 14px; }
+.led .newscal-up-track { grid-auto-columns: minmax(220px, 1fr); padding-bottom: 10px; }
+.led .newscal-up-card { border-top-width: 1px; padding: 16px; gap: 6px; }
+.led .newscal-up-type { font-size: 10px; }
+.led .newscal-note { font-size: 12px; line-height: 1.6; }
+.newscal-modal { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; background: transparent; }
+.newscal-modal:not([open]) { display: none; }
+.newscal-modal::backdrop { background: #15122280; backdrop-filter: blur(3px); }
+.newscal-modal .newscal-detail { padding: 24px; width: min(640px, 100%); border-top-width: 1px; }
+.newscal-modal .newscal-detail h2 { font-size: 24px; }
+.newscal-modal :is(.newscal-close, .newscal-act, .newscal-tk-btn) { min-height: 40px; border-radius: var(--workspace-control-radius); }
+.newscal-modal .newscal-close { min-width: 40px; }
+.newscal-modal .newscal-detail-facts { padding: 16px; background: var(--surface-2); border-radius: 12px; gap: 12px; }
+.newscal-modal .newscal-detail-actions { padding-top: 16px; border-top: 1px solid var(--border); }
+@media (max-width: 1100px) {
+  .newscal-month-layout { grid-template-columns: minmax(0, 1fr); }
+  .led .newscal-agenda .newscal-list { max-height: 460px; }
+}
+@media (max-width: 700px) {
+  .led .newscal { padding: 14px; }
+  .led .newscal-bar { align-items: stretch; gap: 12px; }
+  .led .newscal-nav { width: 100%; }
+  .led .newscal-month { order: -1; flex: 1 1 100%; margin: 0 0 4px; font-size: 20px; }
+  .led .newscal-toggle { display: flex; }
+  .led .newscal-toggle-btn { flex: 1; }
+  .led .newscal-types { gap: 6px; }
+  .led .newscal .newscal-type { font-size: 11px; padding: 6px 8px; }
+  .led .newscal-search { min-width: 100%; font-size: 16px; }
+  .led .newscal-range { flex: 1; min-width: 0; }
+  .led .newscal-range input { width: 100%; min-width: 0; font-size: 12px; }
+  .led .newscal-dow { padding: 10px 3px; text-align: center; }
+  .led .newscal-cell { min-height: 68px; padding: 4px 2px; gap: 4px; }
+  .led .newscal-daynum { min-width: 26px; min-height: 30px; }
+  .led .newscal-count { position: static; font-size: 9px; padding-left: 4px; }
+  .led .newscal-dots { gap: 2px; padding: 0 3px; }
+  .led .newscal-dots .newscal-dot { width: 4px; height: 4px; flex-basis: 4px; }
+  .newscal-agenda { padding: 14px; }
+  .newscal-modal .newscal-detail { padding: 20px 16px; }
+  .newscal-modal .newscal-detail h2 { font-size: 20px; }
+  .newscal-modal .newscal-detail-facts { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .newscal-modal .newscal-detail-facts dd { margin-bottom: 8px; }
+}
+
+/* Application-wide primitives: retain each page's data layout while sharing
+   the heading family, card geometry, input treatment and focus state. */
+:root body :is(.concept-page-heading, .newsdesk-head, .market-hero, .catalog-terminal-header,
+  .company-page-header, .bondsec-header, .ce-heading, .ce-dialog, .pf, .led, .cmp) {
+  --led-serif: var(--workspace-title);
+}
+:root body :is(.concept-page-heading h1, .concept-page-heading h2, .newsdesk-head h1,
+  .market-hero-title, .market-board-head h2, .catalog-terminal-header h1, .company-page-name, .bondsec-title,
+  .ce-heading h2, .ce-story h3, .ce-document h3, .ce-dialog h2, .led-title,
+  .led-lead-title, .led-section-title, .cmp-title, .pf h2) {
+  font-family: var(--workspace-title); letter-spacing: -.025em;
+}
+:root body :is(.concept-card, .hd-map-card, .hd-stats article, .market-board,
+  .newsdesk-side-section, .newscal, .ce-story, .ce-categories, .ce-empty,
+  .pf-watch, .pf-lower-col, .iw-card, .investor-panel, .bondsec-panel,
+  .catalog-company-overview, .issuer-card) {
+  border-radius: var(--workspace-radius);
+  border-color: var(--border);
+  background-color: var(--panel);
+}
+:root body :is(.ce-controls, .hd-toolbar, .currency-converter-fields, .pf-watch-tools, .newsdesk-search) :is(input, select) {
+  border-radius: var(--workspace-control-radius); background: var(--panel);
+  border: 1px solid var(--border-hover); min-height: 44px; color: var(--text);
+}
+:root body :is(.ce-feed, .newscal, .concept-card, .newsdesk, .pf) .ghost-btn {
+  border-radius: var(--workspace-control-radius); min-height: 40px;
+}
+.ce-feed .ce-categories { padding: 12px; border: 1px solid var(--border); }
+.ce-feed .ce-modes { gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); width: fit-content; max-width: 100%; }
+.ce-feed .ce-modes button { border-radius: var(--workspace-control-radius); }
+.ce-feed .ce-modes button[aria-pressed=true], .ce-feed .ce-categories button[aria-pressed=true] { background: var(--accent-light); color: var(--accent); }
+.ce-story footer { border-top: 1px solid var(--border); padding-top: 12px; }
+.ce-dialog::backdrop { background: #15122280; backdrop-filter: blur(3px); }
+:root body :is(.ce-feed, .ce-dialog, .newscal, .concept-card, .newsdesk) :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 700px) {
+  .ce-feed .ce-categories { padding: 8px; }
+}
+.ce-date-evidence { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.ce-date-evidence p { font-size: 12px; line-height: 1.6; color: var(--text-secondary); margin: 0; }
+.ce-date-evidence blockquote { margin: 12px 0 0; border-left: 3px solid var(--accent); padding-left: 12px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; color: var(--muted); }
+.ce-meeting-time { font-size: 13px; font-variant-numeric: tabular-nums; }
+#root :is(h1, h2, h3), dialog :is(h1, h2, h3) { font-family: var(--workspace-title); }
+#root .panel { border-radius: var(--workspace-radius); }
+.led .newscal .newscal-type.on { box-shadow: none; }
+.led .newscal-agenda .newscal-row-date { display: none; }
+.led .newscal-agenda .newscal-row-type { flex: 1 1 100%; }

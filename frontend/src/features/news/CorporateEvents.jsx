@@ -1,3 +1,4 @@
+import { SourceDateEvidence } from './SourceDateEvidence.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { safeHref } from '../../lib/safeHref.js';
@@ -29,6 +30,8 @@ function Evidence({ document: d, tx, lang, locale }) {
     {d.capitalization_disclosed&&<p className="ce-caution">{lang==='en'?'The decision includes dividend capitalization; it is not all cash income.':lang==='uz'?'Qarorda dividend kapitalizatsiyasi bor; hammasi pul daromadi emas.':'Решение включает капитализацию дивидендов; это не только денежная выплата.'}</p>}
     {d.evidence?.length>0&&<details><summary>{lang==='en'?'Source wording':lang==='uz'?'Manbadagi matn':'Формулировки первоисточника'}</summary>{d.evidence.map((text,i)=><blockquote key={i}>{text}</blockquote>)}</details>}
     <dl className="ce-dates">{[['published_at','published'],['event_date','event'],['decision_date','decision'],['payment_start','payment_start'],['payment_end','payment_end'],['record_date','record']].filter(([key])=>d[key]).map(([key,label]) => <div key={key}><dt>{tx[label]}</dt><dd>{formatDay(d[key].slice(0,10),locale)}</dd></div>)}</dl>
+    {d.meeting_time && <p className="ce-meeting-time">{tx.event}: {d.meeting_time} (UTC+5)</p>}
+    <SourceDateEvidence document={d} language={lang} />
     <p className="ce-confidence">{d.confidence === 'confirmed' ? tx.confirmed : tx.review}{d.code ? ` · OpenInfo № ${d.code}` : ''}</p>
     {d.original_title && <p className="ce-original"><b>{tx.original}:</b> {d.original_title}</p>}
     <a href={safeHref(d.source_url)} target="_blank" rel="noreferrer">{tx.source} ↗</a>

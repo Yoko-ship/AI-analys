@@ -110,3 +110,38 @@ currency page links related economic news. Profile saved-screener shortcuts
 apply the selected account configuration on the market page. Portfolio
 allocation is shown only when the account's valuation is complete; incomplete
 positions never become a fabricated allocation chart.
+
+## Unified workspace and calendar (26 October 2026)
+
+`styles/workspace-ui.css` provides the shared Manrope heading family, 16 px card
+radius, 10 px control radius, 20 px layout spacing, theme-aware surfaces and
+violet focus states. Existing data tables and chart layouts retain their own
+information density. The month grid sits beside the selected day's agenda on
+wide screens and above it on phones. Today is selected initially; empty dates,
+arrow-key navigation, month/week/list views, filters and CSV remain available.
+Calendar details use a native modal with trapped focus, Escape, scroll locking
+and focus restoration. Publication-based entries label their date explicitly.
+
+The timing audit fetched 196 actual announcements. Portal metadata sometimes
+contains an upload date instead of the meeting described in the body. For
+example, announcement 21404 says 23 October 2026 at 11:00 in its text, while its
+metadata says 2 October; 21414 says 31 October at 10:00, not 7 October.
+`announcement_dates.py` accepts explicit scheduling paragraphs in Russian,
+Uzbek and English, retains the quoted evidence, and excludes registry,
+registration, supervisory-board and previously announced meeting dates. In this
+audit, 89 dates were supported by body text, 18 corrected the previous date,
+and six contradictory dates required review. Other announcements retain their
+metadata dates; these are not claimed to have been parsed from the body.
+Conflicting body dates, or a conflicting body date before publication, are
+withheld from the calendar and remain reviewable in corporate documents.
+
+The calendar reads saved announcement evidence without fetching upstream pages
+in user requests. Corrected events can move into another query window; notices
+stay on their original publication day. Extraction version 4 refreshes stored
+evidence through the existing bounded worker. Numeric summaries use localized
+grouping and decimal separators. Empty per-security income fields stay in the
+source evidence but do not compete with actual bond income in lead summaries.
+
+Regression tests were run failing before each change. Real source timing
+fixtures cover both corrections and false candidates (board decisions,
+registry dates, prior meetings and a conflicting historical year).

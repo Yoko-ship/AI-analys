@@ -92,50 +92,63 @@ def parse_range(start: str | None, end: str | None) -> tuple[date, date]:
 # Sources. Each takes [lo, hi) as ISO days and returns events.
 # ---------------------------------------------------------------------------
 
+def _meeting_evidence():
+    import corporate_events
+    return {str(d['announcement_id']): d for d in corporate_events.read_announcement_documents()
+            if d.get('announcement_id') and (d.get('date_source') == 'announcement_body' or d.get('date_conflict'))}
+
+
 def _meetings(lo: str, hi: str) -> list[dict[str, Any]]:
     import meetings
-
     meetings.ensure_snapshot()
+    evidence = _meeting_evidence()
+    rows = {str(r['announcement_id']): r for r in meetings.read_window(lo, hi)}
+    # A corrected date may enter this window even when the portal's date was
+    # outside it. Include stored evidence before filtering the final dates.
+    for aid, doc in evidence.items():
+        rows.setdefault(aid, {'announcement_id': aid, 'organization': doc.get('organization'),
+                             'ticker': next(iter(doc.get('tickers', [])), None),
+                             'title': doc.get('original_title'), 'pub_date': doc.get('published_at')})
     out = []
-    for row in meetings.read_window(lo, hi):
-        day = _day(row.get("meeting_date"))
-        if not day:
+    for aid, row in rows.items():
+        doc = evidence.get(aid)
+        day = doc.get('event_date') if doc else _day(row.get('meeting_date'))
+        if not day or not lo <= day < hi:
             continue
         out.append({
-            "id": f"meeting:{row.get('announcement_id')}",
-            "type": "meeting",
-            "date": day,
-            "time": _meeting_time(row.get("meeting_date")),
-            "organization": row.get("organization"),
-            "ticker": row.get("ticker"),
-            "title": row.get("title"),
-            "announcement_id": row.get("announcement_id"),
-            "details": {"pub_date": row.get("pub_date")},
+            'id': f'meeting:{aid}', 'type': 'meeting', 'date': day,
+            'time': doc.get('meeting_time') if doc else _meeting_time(row.get('meeting_date')),
+            'organization': row.get('organization'), 'ticker': row.get('ticker'),
+            'title': row.get('title'), 'announcement_id': row.get('announcement_id'),
+            'details': {'pub_date': row.get('pub_date'),
+                        'date_evidence': doc.get('date_evidence') if doc else None,
+                        'date_conflict': doc.get('date_conflict', False) if doc else False,
+                        'date_unresolved': doc.get('date_unresolved', False) if doc else False},
         })
     return out
 
 
 def _notices(lo: str, hi: str) -> list[dict[str, Any]]:
     import meetings
-
     meetings.ensure_snapshot()
+    evidence = _meeting_evidence()
     out = []
     for row in meetings.read_published(lo, hi):
-        day = _day(row.get("pub_date"))
+        day = _day(row.get('pub_date'))
         if not day:
             continue
+        doc = evidence.get(str(row['announcement_id']))
         out.append({
-            "id": f"notice:{row.get('announcement_id')}",
-            "type": "notice",
-            "date": day,
-            "time": None,
-            "organization": row.get("organization"),
-            "ticker": row.get("ticker"),
-            "title": row.get("title"),
-            "announcement_id": row.get("announcement_id"),
-            "details": {
-                "meeting_date": _day(row.get("meeting_date")),
-                "meeting_time": _meeting_time(row.get("meeting_date")),
+            'id': f"notice:{row.get('announcement_id')}", 'type': 'notice',
+            'date': day, 'time': None, 'organization': row.get('organization'),
+            'ticker': row.get('ticker'), 'title': row.get('title'),
+            'announcement_id': row.get('announcement_id'),
+            'details': {
+                'meeting_date': doc.get('event_date') if doc else _day(row.get('meeting_date')),
+                'meeting_time': doc.get('meeting_time') if doc else _meeting_time(row.get('meeting_date')),
+                'date_evidence': doc.get('date_evidence') if doc else None,
+                'date_conflict': doc.get('date_conflict', False) if doc else False,
+                'date_unresolved': doc.get('date_unresolved', False) if doc else False,
             },
         })
     return out

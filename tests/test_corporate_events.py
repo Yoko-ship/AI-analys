@@ -298,3 +298,22 @@ def test_announcement_without_body_retains_review_without_an_unknown_fact_summar
     event=ce.from_announcement({'announcement_id':'20828','ticker':'HMKB','pub_date':'2026-06-01','meeting_date':'2026-06-25'})
     assert event['confidence']=='review' and event['priority_provisional']
     assert '2026-06-25' in event['summary']['en']
+
+
+def test_readable_summary_formats_real_issue_quantity_without_float_artifacts():
+    from corporate_event_fields import summary_value
+    field = {'value': 30000000000.0, 'unit': 'count'}
+    assert summary_value(field, 'ru') == '30 000 000 000'
+    assert summary_value(field, 'en') == '30,000,000,000'
+    assert summary_value({'value': 1429129211.04, 'unit':'source_units'}, 'ru') == '1 429 129 211,04 (единицы источника)'
+    assert summary_value({'value': 1, 'unit':'records'}, 'ru') == '1 запись'
+
+
+def test_agat_bond_income_summary_does_not_promote_empty_share_fields():
+    raw = next(x['raw'] for x in json.loads((FIXTURES/'semantic_facts.json').read_text())
+               if str(x['raw'].get('fact_number')) == '32' and x['raw'].get('sum_per') == '2054.7900')
+    event = ce.from_fact(raw)
+    assert '2 054,79' in event['summary']['ru']
+    assert 'на акцию' not in event['summary']['ru']
+    # Keep the zero as original source evidence, but out of the lead summary.
+    assert any(f['source_field']=='sum_aksiya' and f['value']==0 for f in event['facts'])

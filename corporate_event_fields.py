@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 import re
 import math
 
-VERSION = 3
+VERSION = 4
 
 
 def words(ru, en, uz):
@@ -218,7 +218,18 @@ def summary_value(f, lang):
         'uzs_per_security': words(' сум на бумагу',' UZS per security',' so‘m / qog‘oz'),
         'records': words(' записей',' records',' yozuv'),
     }
-    return str(f['value'])[:200]+units.get(f['unit'],{}).get(lang,'')
+    value = f['value']
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        # Decimal(str()) preserves the extracted precision without binary tails.
+        value = format(Decimal(str(value)), ',f').rstrip('0').rstrip('.') if '.' in str(value) else format(value, ',')
+        if lang != 'en':
+            value = value.replace(',', ' ').replace('.', ',')
+    if f['unit'] == 'records' and lang == 'ru':
+        n = int(f['value'])
+        suffix = ' записей' if 11 <= n % 100 <= 14 else ' запись' if n % 10 == 1 else ' записи' if n % 10 in (2,3,4) else ' записей'
+    else:
+        suffix = units.get(f['unit'], {}).get(lang, '')
+    return str(value)[:200] + suffix
 
 
 def apply(document, raw):
@@ -279,9 +290,14 @@ def apply(document, raw):
     d['priority_reason']=reason;d['priority_explanation']=explanation
     # Show concise content, with source wording preserved separately. Never
     # pretend an untranslated issuer text is an official translation.
-    if facts and code not in {6,32,41,42}:
-        d['summary']={lang: ' '.join(f"{f['label'][lang]}: {summary_value(f,lang)}." for f in facts[:3]) for lang in ('ru','en','uz')}
-    elif facts and d['summary']==d['title']:
-        d['summary']={lang: ' '.join(f"{f['label'][lang]}: {summary_value(f,lang)}." for f in facts[:2]) for lang in ('ru','en','uz')}
+    summary_facts = [f for f in facts if not (f['unit'] == 'uzs_per_security' and f['value'] == 0)]
+    if summary_facts and code not in {6,32,41,42}:
+        d['summary']={lang: ' '.join(f"{f['label'][lang]}: {summary_value(f,lang)}." for f in summary_facts[:3]) for lang in ('ru','en','uz')}
+    elif summary_facts and d['summary']==d['title']:
+        d['summary']={lang: ' '.join(f"{f['label'][lang]}: {summary_value(f,lang)}." for f in summary_facts[:2]) for lang in ('ru','en','uz')}
+    if facts and not summary_facts:
+        d['summary'] = words('Поля дохода на бумагу заполнены нулями; положительная сумма не подтверждена.',
+                             'Per-security income fields contain zeros; a positive amount is not confirmed.',
+                             'Har bir qog‘oz daromadi maydonlarida nol ko‘rsatilgan; musbat summa tasdiqlanmagan.')
     d.pop('_stage_confidence',None)
     return d

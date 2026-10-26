@@ -9,6 +9,7 @@ import "./market.css";
 import "./profile.css";
 import "./auth.css";
 import "./concept.css";
+import "./styles/workspace-ui.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

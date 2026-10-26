@@ -55,7 +55,7 @@ export function useNewsCalendar({ language }) {
   const [range, setRangeState] = React.useState({ from: addDays(today, -7), to: addDays(today, 60) });
   const [types, setTypes] = React.useState(() => new Set(EVENT_TYPES));
   const [company, setCompany] = React.useState("");
-  const [day, setDay] = React.useState(null);
+  const [day, setDay] = React.useState(today);
   const [selected, setSelected] = React.useState(null);
   const [tick, setTick] = React.useState(0);
 
@@ -111,7 +111,7 @@ export function useNewsCalendar({ language }) {
   }, [view]);
 
   const goToday = React.useCallback(() => {
-    setDay(null);
+    setDay(today);
     setAnchor(today);
     if (view === "list") setRangeState({ from: addDays(today, -7), to: addDays(today, 60) });
   }, [today, view]);

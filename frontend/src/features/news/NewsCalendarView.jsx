@@ -1,3 +1,4 @@
+import { SourceDateEvidence } from "./SourceDateEvidence.jsx";
 import { safeHref } from "../../lib/safeHref.js";
 import React from "react";
 import { createPortal } from "react-dom";
@@ -103,8 +104,8 @@ function MonthView({ cal, ctx }) {
   const inMonth = (iso) => iso >= grid.first && iso <= grid.last;
   const listItems = day ? byDay.get(day) || [] : visible.filter((ev) => inMonth(ev.date));
   return (
-    <>
-      <div className="newscal-grid" role="grid">
+    <div className="newscal-month-layout">
+      <div className="newscal-grid" role="grid" aria-label={ctx.monthLabel}>
         {tx.weekdays.map((w) => <div key={w} className="newscal-dow" role="columnheader">{w}</div>)}
         {grid.days.map((iso) => {
           const evs = byDay.get(iso) || [];
@@ -114,10 +115,17 @@ function MonthView({ cal, ctx }) {
             .filter(Boolean).join(" ");
           return (
             <div key={iso} className={cls} role="gridcell" aria-selected={day === iso}
-              onClick={() => evs.length && setDay(day === iso ? null : iso)}>
-              <button type="button" className="newscal-daynum" disabled={!evs.length}
+              onClick={() => setDay(iso)}>
+              <button type="button" className="newscal-daynum" aria-pressed={day === iso}
+                onKeyDown={(e) => {
+                  const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 7, ArrowUp: -7 }[e.key];
+                  if (!step) return;
+                  e.preventDefault();
+                  const buttons = [...e.currentTarget.closest('.newscal-grid').querySelectorAll('.newscal-daynum')];
+                  buttons[buttons.indexOf(e.currentTarget) + step]?.focus();
+                }}
                 aria-label={`${ctx.fmtLong(iso)}${evs.length ? ` — ${tx.dayEvents(evs.length)}` : ""}`}
-                onClick={(e) => { e.stopPropagation(); setDay(day === iso ? null : iso); }}>
+                onClick={(e) => { e.stopPropagation(); setDay(iso); }}>
                 {splitDay(iso).d}
               </button>
               {evs.length > 0 && <span className="newscal-count">{evs.length}</span>}
@@ -139,6 +147,7 @@ function MonthView({ cal, ctx }) {
           );
         })}
       </div>
+      <section className="newscal-agenda" aria-label={day ? ctx.fmtLong(day) : ctx.monthLabel}>
       <div className="newscal-listhead">
         <h3>{day ? ctx.fmtLong(day) : ctx.monthLabel}</h3>
         <span className="muted">{tx.dayEvents(listItems.length)}</span>
@@ -147,7 +156,8 @@ function MonthView({ cal, ctx }) {
       {listItems.length
         ? <EventList items={listItems} today={today} ctx={ctx} grouped={!day} />
         : <div className="led-empty">{cal.filtered ? tx.emptyFiltered : tx.empty}</div>}
-    </>
+      </section>
+    </div>
   );
 }
 
@@ -217,16 +227,28 @@ function Upcoming({ cal, ctx }) {
 function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews }) {
   const { tx, locale, lang, forms } = ctx;
   const closeRef = React.useRef(null);
+  const dialogRef = React.useRef(null);
   const { setSelected } = cal;
   const close = () => setSelected(null);
   React.useEffect(() => {
     const before = document.activeElement;
+    const dialog = dialogRef.current;
+    dialog.showModal();
     closeRef.current?.focus();
-    const onKey = (e) => { if (e.key === "Escape") setSelected(null); };
-    window.addEventListener("keydown", onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key !== "Tab") return;
+      const controls = [...dialog.querySelectorAll('button:not(:disabled), a[href], input, select, [tabindex="0"]')];
+      const first = controls[0], last = controls.at(-1);
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+    };
+    dialog.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("keydown", onKey);
-      // Back to the event the reader opened, not the top of the page.
+      dialog.removeEventListener("keydown", onKey);
+      dialog.close();
+      document.body.style.overflow = overflow;
       if (before && typeof before.focus === "function") before.focus();
     };
   }, [setSelected]);
@@ -236,7 +258,7 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
   const fmt = (iso) => (iso ? formatDay(iso, locale) : "—");
   const rows = [];
   const add = (label, value) => { if (value != null && value !== "") rows.push([label, value]); };
-  add(tx.d.date, `${ctx.fmtLong(ev.date)}${ev.time ? `, ${ev.time}` : ""}`);
+  add(["notice", "fact", "report"].includes(ev.type) ? tx.d.published : tx.d.date, `${ctx.fmtLong(ev.date)}${ev.time ? `, ${ev.time}` : ""}`);
   if (ev.type === "notice") add(tx.d.meeting, d.meeting_date ? `${fmt(d.meeting_date)}${d.meeting_time ? `, ${d.meeting_time}` : ""}` : null);
   if (ev.type === "meeting") add(tx.d.published, d.pub_date ? fmt(d.pub_date.slice(0, 10)) : null);
   if (ev.type === "dividend") {
@@ -257,8 +279,9 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
   const newsPath = ev.type === "fact" && ev.news_id ? newsArticlePath({ id: ev.news_id }, lang) : "";
   const external = d.link || null;
   return createPortal(
-    <div className="newscal-modal" role="presentation" onClick={close}>
-      <div className={`newscal-detail ev-${ev.type}`} role="dialog" aria-modal="true" aria-labelledby="newscal-detail-title"
+    <dialog ref={dialogRef} className="newscal-modal" aria-labelledby="newscal-detail-title"
+      onCancel={(e) => { e.preventDefault(); close(); }} onClick={close}>
+      <div className={`newscal-detail ev-${ev.type}`}
         onClick={(e) => e.stopPropagation()}>
         <div className="newscal-detail-top">
           <span className="newscal-badge"><TypeDot type={ev.type} />{ev.type === "dividend" ? dividendKind(ev, tx) : tx.typeOne[ev.type]}</span>
@@ -296,6 +319,7 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
             </table>
           </div>
         )}
+        <SourceDateEvidence document={d} language={lang} />
         <div className="newscal-detail-actions">
           {ev.ticker && onOpenCompany && (
             <button type="button" className="newscal-act primary" onClick={() => { close(); onOpenCompany(ev.ticker); }}>{tx.d.openCompany}</button>
@@ -317,7 +341,7 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
           {external && <a className="newscal-act" href={safeHref(external)} target="_blank" rel="noreferrer">{tx.d.openSource} ↗</a>}
         </div>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }
@@ -352,8 +376,6 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
 
   return (
     <div className="newscal">
-      <Upcoming cal={cal} ctx={ctx} />
-
       <div className="newscal-bar">
         <div className="newscal-nav">
           <button type="button" className="newscal-arrow" aria-label={tx.prev} onClick={() => move(-1)}>‹</button>
@@ -416,6 +438,7 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
               : <div className="led-empty">{filtered ? tx.emptyFiltered : tx.empty}</div>)
               : <MonthView cal={cal} ctx={ctx} />}
 
+      <Upcoming cal={cal} ctx={ctx} />
       <p className="muted newscal-note">{tx.note}</p>
       <p className="muted newscal-note">{tx.source}</p>
 
