@@ -188,8 +188,10 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   { head: navDdLabel("Биржа", "Birja", "Exchange"), items: [
                     { label: navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments"), onSelect: () => setActiveView("market") },
                     { label: navDdLabel("Карта рынка", "Bozor xaritasi", "Market map"), onSelect: () => setActiveView("heatmap") },
-                    { label: navDdLabel("Каталог компаний", "Kompaniyalar katalogi", "Company directory"), onSelect: () => setActiveView("issuers") },
-                    { label: navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies"), onSelect: () => setActiveView("companyCompare") },
+                    ...(canAccessCatalog ? [
+                      { label: navDdLabel("Каталог компаний", "Kompaniyalar katalogi", "Company directory"), onSelect: () => setActiveView("issuers") },
+                      { label: navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies"), onSelect: () => setActiveView("companyCompare") },
+                    ] : []),
                   ] },
                   { head: navDdLabel("Валюта", "Valyuta", "Currency"), items: [
                     { label: navDdLabel("Курсы валют в банках", "Banklarda valyuta kurslari", "Bank exchange rates"), onSelect: () => setActiveView("bankfx") },
@@ -205,14 +207,14 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 >
                   {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
                 </button>
-                <button className="topbar-nav-btn nav-dd-mobile-item" type="button" onClick={() => {setActiveView('issuers');setMobileNavOpen(false);}}>{navDdLabel('Каталог компаний','Kompaniyalar katalogi','Company directory')}</button>
+                {canAccessCatalog && <><button className="topbar-nav-btn nav-dd-mobile-item" type="button" onClick={() => {setActiveView('issuers');setMobileNavOpen(false);}}>{navDdLabel('Каталог компаний','Kompaniyalar katalogi','Company directory')}</button>
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"
                   onClick={() => { setActiveView("companyCompare"); setMobileNavOpen(false); }}
                 >
                   {navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies")}
-                </button>
+                </button></>}
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-async function accessFixture(page, { signedIn = false, admin = false, ready = Promise.resolve() } = {}) {
+async function accessFixture(page, { signedIn = false, admin = false, pro = false, ready = Promise.resolve() } = {}) {
   await page.addInitScript(({ signedIn }) => {
     localStorage.setItem('uz_stock_analyzer_language', 'en');
     if (signedIn) localStorage.setItem('uz_stock_analyzer_token', 'catalog-access-session');
@@ -11,7 +11,7 @@ async function accessFixture(page, { signedIn = false, admin = false, ready = Pr
     const json = body => route.fulfill({ json: body });
     if (path === '/api/auth/me') {
       await ready;
-      return json({ user: { id: 1, email: 'catalog@example.test', is_admin: admin } });
+      return json({ user: { id: 1, email: 'catalog@example.test', is_admin: admin, pro_access: pro } });
     }
     if (path.startsWith('/api/catalog/') || path.startsWith('/api/terminal/')) requests.push(path);
     if (path === '/api/catalog/companies') return json({ ok: true, companies: [{ ticker: 'HMKB', company_name: 'Hamkorbank', sector: 'finance' }] });
@@ -20,6 +20,55 @@ async function accessFixture(page, { signedIn = false, admin = false, ready = Pr
   });
   return requests;
 }
+
+for (const role of ['guest', 'member', 'pro']) {
+  test(`company directory and comparison menu entries stay hidden for ${role}`, async ({page}) => {
+    await accessFixture(page, {signedIn:role !== 'guest', pro:role === 'pro'});
+    await page.goto('/');
+    await expect(page.locator('.lv-h1')).toBeVisible();
+    if(role !== 'guest') await expect(page.locator('.account-button')).toBeVisible();
+    await page.locator('.topbar-nav').getByRole('button',{name:'Market',exact:true}).hover();
+    const menu=page.getByRole('menu');
+    await expect(menu.getByRole('menuitem',{name:'Exchange instruments',exact:true})).toBeVisible();
+    for(const name of ['Company directory','Compare companies']) {
+      await expect(menu.getByRole('menuitem',{name,exact:true})).toHaveCount(0);
+      await expect(page.locator('.nav-dd-mobile-item').filter({hasText:name})).toHaveCount(0);
+    }
+    await page.setViewportSize({width:390,height:844});
+    await page.getByRole('button',{name:'Open menu',exact:true}).click();
+    for(const name of ['Company directory','Compare companies'])
+      await expect(page.locator('.topbar-nav').getByRole('button',{name,exact:true})).toHaveCount(0);
+    await expect(page.locator('.topbar-nav').getByRole('button',{name:'Market map',exact:true})).toBeVisible();
+  });
+}
+
+test('company menu entries require verified admin access and disappear on logout',async({page})=>{
+  let verify;
+  const ready=new Promise(resolve=>{verify=resolve;});
+  await accessFixture(page,{signedIn:true,admin:true,ready});
+  await page.goto('/');
+  const market=page.locator('.topbar-nav').getByRole('button',{name:'Market',exact:true});
+  try {
+    await market.hover();
+    await expect(page.getByRole('menu')).toBeVisible();
+    await expect(page.getByRole('menuitem',{name:'Company directory',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('menuitem',{name:'Compare companies',exact:true})).toHaveCount(0);
+  } finally {verify();}
+  await expect(page.locator('.account-button')).toBeVisible();
+  await market.hover();
+  await expect(page.getByRole('menuitem',{name:'Company directory',exact:true})).toBeVisible();
+  await expect(page.getByRole('menuitem',{name:'Compare companies',exact:true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'Open menu',exact:true}).click();
+  for(const name of ['Company directory','Compare companies'])
+    await expect(page.locator('.topbar-nav').getByRole('button',{name,exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Close menu',exact:true}).click();
+  await page.locator('.account-button').click();
+  await page.getByRole('menuitem',{name:'Log out',exact:true}).click();
+  await expect(page.locator('.account-button')).toHaveCount(0);
+  for(const name of ['Company directory','Compare companies'])
+    await expect(page.locator('.nav-dd-mobile-item').filter({hasText:name})).toHaveCount(0);
+});
 
 for (const signedIn of [false, true]) {
   test(`${signedIn ? 'member' : 'guest'} cannot open the catalog or find it in either menu`, async ({ page }, testInfo) => {

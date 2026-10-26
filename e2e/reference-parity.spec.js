@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
-async function setup(page){
+async function setup(page,{admin=false}={}){
  await page.addInitScript(()=>{localStorage.setItem('uz_stock_analyzer_language','en');localStorage.setItem('uz_stock_analyzer_theme','light');localStorage.setItem('uz_stock_analyzer_token','reference-test');sessionStorage.setItem('uz_sponsor_seen','1');});
- const user={id:19,full_name:'Investor',email:'investor@example.test'};
+ const user={id:19,full_name:'Investor',email:'investor@example.test',is_admin:admin};
  const stocks=[{ticker:'HMKB',name:'Hamkorbank',type:'stock',last_price:55,close_price:50,volume:4000000,quantity:1000,trade_count:7,last_trade_date:'2026-10-26'}];
  await page.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;return r.fulfill({json:path==='/api/auth/me'?{user}:path==='/api/profile'?{user,preferences:{saved_screeners:[]},favorites:[{ticker:'HMKB',company_name:'Hamkorbank'}],notes:[],security:{}}:path==='/api/market/stocks'?{stocks}:path==='/api/companies'?{companies:stocks.map(s=>({...s,company_name:s.name}))}:path==='/api/securities'?{ok:true,securities:{HMKB:{...stocks[0],sector:'banks'}}}:path==='/api/currency/rates'?{ok:true,rates:[{ccy:'USD',rate:12500,nominal:1,diff:0},{ccy:'EUR',rate:14000,nominal:1,diff:0}]}:path==='/api/bank-fx'?{ok:true,banks:[{bank_code:'hamkorbank',bank_name:'Hamkorbank',rates:{USD:{BANK:{buy:12400,sell:12600}}}}],best:{USD:{BANK:{best_buy:{value:12400},best_sell:{value:12600}}}}}:path==='/api/portfolio'?{ok:true,items:[],transactions:[],count:0,priced_count:0,market_value:'0',cost_value:'0',valuation_complete:true}:path==='/api/news/feed'?{ok:true,items:[{id:'a',title:'Market update',title_en:'Market update',published_at:'2026-10-26T09:00:00Z',summary_en:'Disclosed market events.',tickers:['HMKB'],category:'market'}]}:{ok:true,items:[],stats:{},changes:{}}});});
 }
@@ -42,8 +42,8 @@ test('home map can switch to a table without losing its search',async({page})=>{
  await map.getByRole('searchbox',{name:'Search map'}).fill('missing');await expect(map.getByRole('table').locator('tbody tr')).toHaveCount(0);
  await map.getByRole('button',{name:'Map view',exact:true}).click();await expect(map).toContainText('No securities match');
 });
-test('reference header exposes live source rates and the issuer directory on a phone',async({page})=>{
- await setup(page);await page.setViewportSize({width:390,height:844});await page.goto('/');
+test('reference header exposes live source rates and the issuer directory for an admin on a phone',async({page})=>{
+ await setup(page,{admin:true});await page.setViewportSize({width:390,height:844});await page.goto('/');
  await expect(page.getByTestId('market-source-strip')).toContainText('12,500');
  await page.getByRole('button',{name:'Open menu',exact:true}).click();
  await page.locator('.nav-dd-mobile-item').getByText('Company directory',{exact:true}).click();await expect(page).toHaveURL(/issuers$/);
