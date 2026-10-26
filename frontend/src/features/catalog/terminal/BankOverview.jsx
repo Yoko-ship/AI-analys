@@ -9,11 +9,12 @@ export function BankOverview({data={},history=[],lang}) {
   const source=row=><small>{row.date||'—'} {row.source_url&&<a href={safeHref(row.source_url)} target="_blank" rel="noreferrer">CBU ↗</a>}</small>;
   return <section className="terminal-bank-overview">
     <h3>{t('Банк · ежемесячные данные ЦБ','Bank · MB oylik ma’lumotlari','Bank · monthly CBU observations')}</h3>
-    <p className="muted">{t('Даты ЦБ отличаются от периода отчётности. Место по активам учитывает все банки таблицы ЦБ, включая небиржевые.','MB sanalari hisobot davridan farq qiladi. Aktivlar o‘rni barcha banklarni qamrab oladi.','CBU dates differ from financial reporting periods. Asset rank includes all banks in the CBU table, including unlisted banks.')}</p>
+    <p className="muted">{t('Даты ЦБ отличаются от периода отчётности. Места учитывают все банки таблицы ЦБ с доступным показателем, включая небиржевые. Чем ниже NPL, тем выше место.','MB sanalari hisobot davridan farq qiladi. O‘rinlar MB jadvalidagi ko‘rsatkichi mavjud barcha banklarni, shu jumladan birjada bo‘lmagan banklarni qamrab oladi. NPL qancha past bo‘lsa, o‘rin shuncha yuqori.','CBU dates differ from financial reporting periods. Ranks include all banks with an available metric in the CBU table, including unlisted banks. Lower NPL ranks higher.')}</p>
     <dl className="terminal-summary-kpis terminal-bank-kpis">
       <div><dt>{t('Доля активов, %','Aktivlar ulushi, %','Asset market share, %')}</dt><dd>{fmt(main.assets_share_pct)}</dd>{source(main)}</div>
       <div><dt>{t('Место по активам','Aktivlar bo‘yicha o‘rin','Asset rank')}</dt><dd>{main.assets_rank==null?'—':`${main.assets_rank} / ${main.rank_population}`}</dd>{source(main)}</div>
       <div><dt>NPL, %</dt><dd>{fmt(npl.npl_pct)}{npl.npl_flag?' ⚑':''}</dd>{source(npl)}</div>
+      <div><dt>{t('Место по NPL','NPL bo‘yicha o‘rin','NPL rank')}</dt><dd>{npl.npl_rank==null?'—':`${npl.npl_rank} / ${npl.rank_population}`}</dd>{source(npl)}</div>
     </dl>
     <details className="terminal-history-data"><summary>{t('Ежемесячная история ЦБ','MB oylik tarixi','Monthly CBU history')}</summary>
       {!history.length?<p className="muted">{t('Опубликованная история пока недоступна.','E’lon qilingan tarix mavjud emas.','Published history is unavailable.')}</p>:<div className="terminal-table-wrap"><table className="terminal-table">

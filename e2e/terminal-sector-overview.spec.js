@@ -7,6 +7,7 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
   const report=reports[ticker],kind=report.issuer.organization_type,form=ticker==='UZNF'?'MSFO':'NSBU';
+  let nplRank=7;
   const main={ticker,date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx',assets_bn:43114.828277036795,assets_share_pct:4.2,assets_rank:8,rank_population:35};
   await page.route('**/api/**',route=>{
     const url=new URL(route.request().url()),path=url.pathname;
@@ -20,7 +21,7 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     }
     if(path==='/api/catalog/companies')return json({ok:true,companies:[{ticker,company_name:report.issuer.name,sector:'finance'}]});
     if(path.startsWith('/api/catalog/index/'))return json({ok:true,company_name:report.issuer.name,availability:{[form]:{annual:[{year:2025,quarter:0}],quarter:[]}}});
-    if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind,period:'2025'},growth:[],quarters:{rows:[]},cbu:kind==='bank'?{main,npl:{ticker,date:'2026-08-01',npl_pct:1.4,source_url:'https://cbu.uz/npl.xlsx'}}:{},cbu_history:kind==='bank'?[{...main,date:'2026-07-01'},main]:[]});
+    if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind,period:'2025'},growth:[],quarters:{rows:[]},cbu:kind==='bank'?{main,npl:{ticker,date:'2026-08-01',npl_pct:1.4,npl_rank:nplRank,rank_population:35,source_url:'https://cbu.uz/npl.xlsx'}}:{},cbu_history:kind==='bank'?[{...main,date:'2026-07-01'},main]:[]});
     return json({ok:true,rows:[],periods:[],series:{},companies_synced:1,total_reports:1});
   });
   await page.goto(`/catalog?t=${ticker}&f=${func}&std=${form}`);
@@ -95,6 +96,12 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
   }else{
     const context=page.locator('.terminal-bank-overview');
     await expect(context).toContainText('8 / 35');
+    const nplCard=context.locator('.terminal-bank-kpis > div').filter({has:page.getByText('Место по NPL',{exact:true})});
+    await expect(nplCard.locator('dd')).toHaveText('7 / 35');
+    await expect(nplCard).toContainText('2026-08-01');
+    await expect(nplCard.getByRole('link')).toHaveAttribute('href','https://cbu.uz/npl.xlsx');
+    await expect(context).toContainText('Чем ниже NPL, тем выше место.');
+    expect(await context.locator('.terminal-bank-kpis').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(4);
     await expect(context).toContainText('2026-09-01');
     await expect(context).toContainText('2026-08-01');
     await context.getByText('Ежемесячная история ЦБ',{exact:true}).click();
@@ -105,4 +112,11 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:testInfo.outputPath(`${ticker}-overview-mobile.png`),fullPage:true});
+  if(kind==='bank'){
+    expect(await page.locator('.terminal-bank-kpis').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)).toBe(2);
+    nplRank=null;
+    await page.reload();
+    const nplCard=page.locator('.terminal-bank-kpis > div').filter({has:page.getByText('Место по NPL',{exact:true})});
+    await expect(nplCard.locator('dd')).toHaveText('—');
+  }
 });

@@ -23,7 +23,10 @@ def test_year_context_uses_real_historical_observations_without_latest_fallback(
     old=cbu.context(year=2020)
     expected=cbu.parse_bank_rows(historical['npl']['rows'],'npl',historical['npl']['source_url'])
     agba=next(r for r in expected['rows'] if r['ticker']=='AGBA')
-    assert old['banks']['AGBA']['npl']==agba
+    assert {key: old['banks']['AGBA']['npl'][key] for key in agba}==agba
+    assert old['banks']['AGBA']['npl']['npl_rank']==1+sum(
+        row['npl_pct']<agba['npl_pct'] for row in expected['rows'])
+    assert old['banks']['AGBA']['npl']['rank_population']==len(expected['rows'])
     assert old['banks']['AGBA']['structure']['date'].startswith('2020-')
     assert 'main' not in old['banks']['AGBA']
     assert old['sector_series']['profitability']['date']=='2020-12-01'
@@ -42,6 +45,31 @@ def test_bank_ranks_include_unlisted_banks_and_keep_missing_assets_unknown(monke
     assert banks['HMKB']['main']['rank_population']==35
     next(row for row in dataset['rows'] if row['ticker']=='HMKB')['assets_bn']=None
     assert cbu.context()['banks']['HMKB']['main']['assets_rank'] is None
+
+
+def test_npl_ranks_use_all_banks_lower_is_better_and_preserve_source(monkeypatch):
+    dataset=cbu.parse_bank_rows(FIXTURE['npl']['rows'],'npl',FIXTURE['npl']['source_url'])
+    monkeypatch.setattr(cbu,'latest',lambda kind:dataset if kind=='npl' else None)
+    banks=cbu.context()['banks']
+    for ticker,rank in {'HMKB':7,'AGBA':18,'OCBK':1,'ALKB':21,'TNBN':22,'MCBA':32}.items():
+        row=banks[ticker]['npl']
+        assert row['npl_rank']==rank
+        assert row['rank_population']==35
+        assert row['date']=='2026-09-01'
+        assert row['source_url']==FIXTURE['npl']['source_url']
+    assert all('npl_rank' not in row for row in dataset['rows'])
+
+
+@pytest.mark.parametrize('missing',[None,-1,101,float('nan'),float('inf')])
+def test_npl_rank_excludes_missing_and_invalid_percentages(monkeypatch,missing):
+    dataset=cbu.parse_bank_rows(FIXTURE['npl']['rows'],'npl',FIXTURE['npl']['source_url'])
+    next(row for row in dataset['rows'] if row['ticker']=='HMKB')['npl_pct']=missing
+    monkeypatch.setattr(cbu,'latest',lambda kind:dataset if kind=='npl' else None)
+    banks=cbu.context()['banks']
+    assert banks['HMKB']['npl']['npl_rank'] is None
+    assert banks['HMKB']['npl']['rank_population']==34
+    assert banks['IPKY']['npl']['npl_rank']==7
+    assert banks['OCBK']['npl']['npl_rank']==1
 
 
 def test_bank_history_keeps_observation_dates_units_and_gaps(tmp_path,monkeypatch):

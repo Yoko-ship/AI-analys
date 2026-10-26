@@ -1,6 +1,6 @@
 .terminal-summary{min-width:0}
 .terminal-bank-overview{margin-top:20px;min-width:0}
-.terminal-bank-overview .terminal-bank-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.terminal-bank-overview .terminal-bank-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
 .terminal-summary-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 12px}
 .terminal-summary-kpis>div,.terminal-summary-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:12px;min-width:0}
 .terminal-summary-kpis dt{font-size:10px;color:var(--muted);text-transform:uppercase;min-height:28px}
@@ -27,5 +27,5 @@
 .terminal-history-data{margin:12px 0;font-size:12px}
 .terminal-history-data summary{cursor:pointer;min-height:32px;display:list-item;padding:6px 0}
 @media(max-width:1200px){.terminal-summary-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.terminal-summary-narrative{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:860px){.terminal-summary-charts{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:860px){.terminal-summary-charts{grid-template-columns:minmax(0,1fr)}.terminal-bank-overview .terminal-bank-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.terminal-summary-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-summary-kpis dd{font-size:16px}.terminal-summary-charts .terminal-summary-card{overflow-x:auto}.terminal-history-chart{min-width:560px}}

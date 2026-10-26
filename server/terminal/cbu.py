@@ -278,12 +278,22 @@ def latest(kind, year=None):
     finally:c.close()
 
 
-def ranked_banks(dataset):
-    """Rank within the complete dated CBU table, including unlisted banks."""
+def ranked_banks(dataset, kind='main'):
+    """Competition ranks within one dated table, including unlisted banks.
+
+    Higher assets and lower NPL shares rank first. Missing/invalid values
+    are excluded from the population; equal values share the same rank.
+    """
     rows=dataset.get('rows',[])
-    amounts=[value for row in rows if (value:=number(row.get('assets_bn'))) is not None and value>=0]
-    return [{**row,'assets_rank':1+sum(other>value for other in amounts) if (value:=number(row.get('assets_bn'))) is not None and value>=0 else None,
-             'rank_population':len(amounts)} for row in rows]
+    field,rank_field={'main':('assets_bn','assets_rank'),'npl':('npl_pct','npl_rank')}[kind]
+    def valid_value(row):
+        value=number(row.get(field))
+        return value if value is not None and value>=0 and (kind!='npl' or value<=100) else None
+    values=[valid_value(row) for row in rows]
+    population=[value for value in values if value is not None]
+    return [{**row,rank_field:None if value is None else 1+sum(
+                other<value if kind=='npl' else other>value for other in population),
+             'rank_population':len(population)} for row,value in zip(rows,values)]
 
 
 def monthly_bank_history(ticker):
@@ -309,7 +319,7 @@ def context(year=None):
         dataset=latest(kind) if year is None else latest(kind,year)
         if not dataset:continue
         sector[kind]=dataset.get("sector")
-        for row in ranked_banks(dataset) if kind=='main' else dataset['rows']:
+        for row in ranked_banks(dataset,kind) if kind in {'main','npl'} else dataset['rows']:
             if row["ticker"]:banks.setdefault(row["ticker"],{})[kind]=row
     sector_series={}
     for kind in ('capital','liquidity','profitability','industry'):

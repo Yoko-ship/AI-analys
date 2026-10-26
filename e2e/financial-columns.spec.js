@@ -8,6 +8,49 @@ const hmkbFixture = JSON.parse(readFileSync('e2e/fixtures/hmkb-overview.json', '
 const hmkbLabels = JSON.parse(readFileSync('tests/fixtures/financial_columns/hmkb_overview_labels.json', 'utf8'));
 const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 
+test('HMKB current ratios show annualization and matching source periods',async({page},testInfo)=>{
+  const reports=structuredClone(recentReports),end='2026-09-30';
+  const source=(metric,period=end)=>reports.rows.find(r=>r.metric_id===metric).cells[period];
+  reports.ratios=[
+    ['roe','ROE','26.5133295211',true,'net_income / average(total_equity) × 100 × 12 / 9',
+      [source('net_income'),source('total_equity','2025'),source('total_equity')]],
+    ['roa','ROA','4.9162481672',true,'net_income / average(total_assets) × 100 × 12 / 9',
+      [source('net_income'),source('total_assets','2025'),source('total_assets')]],
+    ['cir','CIR',String(1819867178/4249412165*100),false,'operating costs / operating income before credit losses × 100',[]],
+    ['nim','NIM',null,false,'net_interest_before_ecl / average(earning_assets) × 100 × 12 / 9',[]],
+  ].map(([metric_id,label,value,annualized,formula,components])=>({
+    id:`ratio:${metric_id}`,metric_id,label,unit:'percent',source_form:'RAT',kind:'ratio',
+    cells:Object.fromEntries(reports.columns.map(c=>[c.key,c.key===end?
+      {value,quality:value==null?'missing':'valid',annualized,formula,components,
+        period_start:'2026-01-01',period_end:end,basis:'ytd',reason:value==null?'AVERAGE_EARNING_ASSETS_MISSING':null}:
+      {value:null,quality:'missing'}])),
+  }));
+  await setup(page,{ticker:'HMKB',func:'SUM',reports});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
+  const last=metric=>terminal.locator(`tr[data-metric="${metric}"] td`).last();
+  await expect(last('roe')).toContainText('26.51');
+  await expect(last('roe')).toContainText('annualized');
+  await expect(last('roa')).toContainText('4.92');
+  await expect(last('cir')).toHaveText('42.83');
+  await expect(last('nim')).toHaveText('—');
+  await last('roe').getByRole('button').click();
+  const passport=page.getByRole('dialog',{name:'Source passport'});
+  await expect(passport).toContainText('2026-01-01 — 2026-09-30');
+  await expect(passport).toContainText('2025-12-31');
+  await expect(passport).toContainText('× 12 / 9');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await last('nim').getByRole('button').click();
+  await expect(passport).toContainText('A comparable average interest-earning asset base is missing.');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await terminal.locator('.fc-table').scrollIntoViewIfNeeded();
+  await page.screenshot({path:testInfo.outputPath('hmkb-current-ratios.png')});
+  await page.setViewportSize({width:390,height:844});
+  await terminal.locator('.fc-scroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await expect(last('roe')).toContainText('26.51');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
 test('balance rows belong to BS while SUM and PL retain income rows',async({page},testInfo)=>{
   await setup(page,{ticker:'HMKB',func:'SUM',reports:recentReports});
   const terminal=page.getByTestId('financial-columns');

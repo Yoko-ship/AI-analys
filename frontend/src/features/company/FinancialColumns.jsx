@@ -41,6 +41,7 @@ function FinancialValue({ cell, open, format, t }) {
   const parts = cell.display_parts || [cell];
   return <div className={cell.display_parts ? 'fc-value-parts' : undefined}>{parts.map((part, i) => <button key={i} type="button" className={`fc-value fc-value-${part.quality}`} title={t(...(QUALITY[part.quality] || QUALITY.missing))} onClick={() => open(part)}>
     {cell.display_parts && <small>{part.source_code || part.raw_label || part.metric_id}: </small>}{format(part.value)}{['warn','blocked'].includes(part.quality) && <span aria-hidden="true"> ⚑</span>}
+    {part.annualized && part.value != null && <small>{t('в годовом выражении', 'yillik hisobda', 'annualized')}</small>}
   </button>)}</div>;
 }
 
