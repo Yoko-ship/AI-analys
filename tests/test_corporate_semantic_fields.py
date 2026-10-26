@@ -117,3 +117,21 @@ def test_summary_identifies_undocumented_amount_units_and_empty_table_rows_stay_
 def test_sparse_public_types_have_explicit_contracts_without_invented_historical_samples(code,body,priority):
     event=ce.from_fact({'fact_number':code,'id':1,'pub_date':'2026-10-26',**body})
     assert event['facts'] and event['priority']==priority and event['confidence']=='confirmed'
+
+
+def test_real_asset_growth_over_100_percent_is_not_an_ownership_percentage():
+    raw=next(x['raw'] for x in SAMPLES if x['global_id']==99257)
+    event=ce.from_fact(raw)
+    assert [f['value'] for f in event['facts'] if f['source_field'].endswith('.prosent')]==[197,150,133,124]
+    ownership=ce.from_fact({**sample(34),'factsshareinauthorized':[{'to_change_pro':197,'after_change_pro':150}]})
+    assert not any(f['unit']=='percent' for f in ownership['facts'])
+
+
+def test_table_evidence_keeps_original_row_indexes_after_ignoring_empty_rows():
+    event=ce.from_fact({**sample(6),'facts_decisions_wording':[{'decisions_wording':''},{'decisions_wording':'Appoint the meeting secretary.'}]})
+    assert any(f['source_field']=='facts_decisions_wording.1.decisions_wording' for f in event['facts'])
+
+
+def test_invalid_ownership_values_alone_cannot_confirm_a_holding_change():
+    event=ce.from_fact({**sample(34),'factsshareinauthorized':[{'to_change_pro':197,'after_change_pro':150}]})
+    assert event['confidence']=='review'

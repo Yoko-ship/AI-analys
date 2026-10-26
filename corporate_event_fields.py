@@ -165,6 +165,22 @@ NESTED_FIELDS = {
 }
 
 
+def table_percent(value, table, field_name, code):
+    n=numeric(value)
+    # Growth is a change relative to an earlier asset base. It can exceed
+    # 100%; ownership is a fraction of a whole and cannot.
+    growth=code==17 and table=='factsinformationlist' and field_name=='prosent'
+    return n if n is not None and (n<=100 or growth) else None
+
+
+def table_row_has_content(row, table, code):
+    if table=='facts_decisions_wording':return bool(content(row.get('decisions_wording')))
+    return (any((content(row.get(name)) if unit=='text' else numeric(row.get(name))) is not None
+                for name,(unit,_) in NESTED_FIELDS.items())
+            or any(table_percent(row.get(name),table,name,code) is not None
+                   for name in ('prosent','to_change_pro','after_change_pro')))
+
+
 def extract(raw, code):
     out=[]
     keys=SCHEMAS.get(code,())
@@ -173,19 +189,17 @@ def extract(raw, code):
     for key in keys:
         kind,label=FIELDS[key];value=raw.get(key)
         if kind=='table':
-            rows=[r for r in (value or []) if isinstance(r,dict)] if isinstance(value,list) else []
-            if key=='facts_decisions_wording':rows=[r for r in rows if content(r.get('decisions_wording'))]
-            else:rows=[r for r in rows if any(content(r.get(name)) for name in (*NESTED_FIELDS,'prosent','to_change_pro','after_change_pro'))]
+            rows=[(index,r) for index,r in enumerate(value) if isinstance(r,dict) and table_row_has_content(r,key,code)] if isinstance(value,list) else []
             if rows:out.append(dict(source_field=key,label=label,value=len(rows),unit='records'))
             # Only typed values from known source tables; no officer contacts.
-            for index,row in enumerate(rows[:8]):
+            for index,row in rows[:8]:
                 for name,(unit,labels) in NESTED_FIELDS.items():
                     value=content(row.get(name)) if unit=='text' else numeric(row.get(name))
                     if value is not None:
                         out.append(dict(source_field=f'{key}.{index}.{name}',label=labels,value=value,unit=unit))
                 for name in ('prosent','to_change_pro','after_change_pro'):
-                    n=numeric(row.get(name))
-                    if n is not None and n<=100:
+                    n=table_percent(row.get(name),key,name,code)
+                    if n is not None:
                         suffix=words('До изменения','Before change','O‘zgarishdan oldin') if name=='to_change_pro' else words('После изменения','After change','O‘zgarishdan keyin') if name=='after_change_pro' else words('Доля изменения','Change proportion','O‘zgarish ulushi')
                         out.append(dict(source_field=f'{key}.{index}.{name}',label=suffix,value=n,unit='percent'))
         else:
