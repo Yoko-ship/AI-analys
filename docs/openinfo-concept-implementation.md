@@ -8,7 +8,7 @@ References: `UZStock_Openinfo_Events_Before_After.pdf` (11 pages) and
 | Capability | Production implementation |
 | --- | --- |
 | Purple visual system | Shared light/dark colors, card shapes, typography and responsive dashboard/profile layouts from the concept. |
-| Home dashboard | Live market counts, searchable sector/period heatmap, selectable tile area, expand/collapse, market-table links, news, calendar events and account watchlist. |
+| Public landing page | Original Tashkent skyline, introduction, live market preview, company preview, news and market entry points restored on 26 October. Full market, heatmap, calendar and watchlist remain in their dedicated workspaces. |
 | Market and research tools | Existing real-data company pages, market table, chart, converter, bank comparison and CSV retained. |
 | Profile workspace | Overview, watchlist, portfolio, notes and settings tabs; account-derived counters; existing account editors and alert settings. |
 | Portfolio | Enabled navigation and bookmarks, transaction ledger, position calculations, fees, priced/unpriced valuation and account isolation. Login required. |
@@ -69,9 +69,11 @@ an AI provider or fetch arbitrary user-provided URLs.
 
 ## Completed reference follow-up
 
-The home page now follows the supplied composition: four market counters,
-interactive map/table view, market table beside watchlist and currency cards,
-then news and upcoming events. The profile overview places watchlist and
+The concept initially replaced the public landing page with four market counters,
+an interactive map/table view, market table beside watchlist and currency cards,
+then news and upcoming events. That homepage replacement was selectively reverted
+on 26 October: the original public landing composition is restored, with the
+shared header typography fix retained. The profile overview places watchlist and
 portfolio beside quick actions, interests and actual account security status.
 The news page uses compact rows and an events sidebar. The currency workspace
 includes four actual-data counters, a bank table, ranked exchange offers,

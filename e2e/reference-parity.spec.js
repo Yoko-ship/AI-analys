@@ -6,14 +6,6 @@ async function setup(page,{admin=false}={}){
  await page.route('**/api/**',r=>{const path=new URL(r.request().url()).pathname;return r.fulfill({json:path==='/api/auth/me'?{user}:path==='/api/profile'?{user,preferences:{saved_screeners:[]},favorites:[{ticker:'HMKB',company_name:'Hamkorbank'}],notes:[],security:{}}:path==='/api/market/stocks'?{stocks}:path==='/api/companies'?{companies:stocks.map(s=>({...s,company_name:s.name}))}:path==='/api/securities'?{ok:true,securities:{HMKB:{...stocks[0],sector:'banks'}}}:path==='/api/currency/rates'?{ok:true,rates:[{ccy:'USD',rate:12500,nominal:1,diff:0},{ccy:'EUR',rate:14000,nominal:1,diff:0}]}:path==='/api/bank-fx'?{ok:true,banks:[{bank_code:'hamkorbank',bank_name:'Hamkorbank',rates:{USD:{BANK:{buy:12400,sell:12600}}}}],best:{USD:{BANK:{best_buy:{value:12400},best_sell:{value:12600}}}}}:path==='/api/portfolio'?{ok:true,items:[],transactions:[],count:0,priced_count:0,market_value:'0',cost_value:'0',valuation_complete:true}:path==='/api/news/feed'?{ok:true,items:[{id:'a',title:'Market update',title_en:'Market update',published_at:'2026-10-26T09:00:00Z',summary_en:'Disclosed market events.',tickers:['HMKB'],category:'market'}]}:{ok:true,items:[],stats:{},changes:{}}});});
 }
 for(const width of [1440,390]){
- test(`reference home groups market, watchlist, currencies and events at ${width}px`,async({page})=>{
-  await page.setViewportSize({width,height:1000});await setup(page);await page.goto('/');
-  const board=page.getByTestId('home-market-table'),aside=page.getByTestId('home-personal-sidebar');
-  await expect(board).toBeVisible();await expect(aside).toBeVisible();
-  await expect(page.getByTestId('home-focus-news')).toBeVisible();await expect(page.getByTestId('home-currency-card')).toContainText('USD');
-  const a=await board.boundingBox(),b=await aside.boundingBox();expect(width>800?b.x>a.x+a.width-1:b.y>=a.y+a.height-1).toBeTruthy();
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
- });
  test(`reference profile has overview portfolio and quick actions at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:1000});await setup(page);await page.goto('/profile');
   await expect(page.getByTestId('profile-quick-actions')).toBeVisible();await expect(page.getByTestId('profile-portfolio-preview')).toBeVisible();
@@ -35,12 +27,6 @@ test('corporate detail shows extracted fields and the reason for its attention l
  await setup(page);await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{ok:true,items:[{id:'license',story_id:'license',organization:'Issuer',title:{en:'Licence returned'},summary:{en:'Voluntary licence return'},stage:'disclosed',category:'risks',priority:1,confidence:'confirmed',priority_provisional:false,priority_explanation:{en:'The issuer reports voluntary licence return.'},facts:[{source_field:'type_activity',label:{en:'Licensed activity'},value:'Payment system',unit:'text'}],source_url:'https://openinfo.uz/ru/facts/23/1',published_at:'2026-10-26',documents:[],document_count:1}],categories:{risks:{en:'Risks'}},facts:{}}}));
  await page.goto('/news?tab=corporate');await page.getByRole('button',{name:/Documents & history/}).click();
  await expect(page.getByRole('dialog')).toContainText('Payment system');await expect(page.getByRole('dialog')).toContainText('voluntary licence return');
-});
-test('home map can switch to a table without losing its search',async({page})=>{
- await setup(page);await page.goto('/');const map=page.getByTestId('home-market-dashboard');
- await map.getByRole('button',{name:'Table view',exact:true}).click();await expect(map.getByRole('table')).toContainText('HMKB');
- await map.getByRole('searchbox',{name:'Search map'}).fill('missing');await expect(map.getByRole('table').locator('tbody tr')).toHaveCount(0);
- await map.getByRole('button',{name:'Map view',exact:true}).click();await expect(map).toContainText('No securities match');
 });
 test('reference header exposes live source rates and the issuer directory for an admin on a phone',async({page})=>{
  await setup(page,{admin:true});await page.setViewportSize({width:390,height:844});await page.goto('/');

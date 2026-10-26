@@ -39,16 +39,6 @@ test('profile watchlist supports search and CSV export',async({page})=>{
  expect(body).toContain('KVTS');expect(body).not.toContain('AGBA');
 });
 
-test('home shows upcoming published events and the signed-in watchlist',async({page})=>{
- await setup(page);
- await page.route('**/api/news/calendar/events?**', route=>route.fulfill({json:{ok:true,items:[{id:'meeting:20828',type:'meeting',organization:'Hamkorbank',ticker:'HMKB',date:'2026-11-01',title:'Собрание акционеров'}]}}));
- await page.goto('/');
- await expect(page.getByTestId('landing-updates')).toContainText('Hamkorbank');
- await expect(page.getByTestId('home-personal-sidebar')).toContainText('AGBA');
- await page.getByTestId('landing-updates').getByRole('button',{name:'Календарь →',exact:true}).click();
- await expect(page).toHaveURL(/news\?tab=calendar/);
-});
-
 test('editorial news search narrows the current category and has an empty state',async({page})=>{
  await setup(page);
  await page.route('**/api/news/feed?**',route=>route.fulfill({json:{ok:true,items:[

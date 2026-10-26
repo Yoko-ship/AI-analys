@@ -290,7 +290,7 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.locator("header.topbar")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Обзор фондового рынка Узбекистана", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Открытый\s*рынок/, level: 1 })).toBeVisible();
   await expect(page.locator(".topbar-nav-btn").first()).toBeVisible();
   expect(errors, errors.join("\n")).toHaveLength(0);
 });
@@ -351,7 +351,7 @@ test("module routing preserves hidden workspace redirects and the bonds alias", 
   for (const path of ["/analysis"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Обзор фондового рынка Узбекистана", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Открытый\s*рынок/, level: 1 })).toBeVisible();
   }
   await page.goto("/bonds");
   await expect(page).toHaveURL(/\/market$/);
@@ -382,7 +382,7 @@ test("shared market data keeps all four market views aligned", async ({ page }, 
   await expect(page.locator(".ac-price")).toHaveText("144");
   await expect(page.locator(".ac-change")).toContainText(/\+20(?:[,.]00)?%/);
   await page.goto("/");
-  const company = page.getByTestId("home-market-table").locator("tbody tr").filter({ hasText: "AGBA" });
+  const company = page.locator(".lv-table tbody tr").filter({ hasText: "AGBA" });
   await expect(company).toContainText("144");
   await expect(company).toContainText(/\+20(?:[,.]00)?%/);
   expect(errors).toEqual([]);
@@ -421,7 +421,7 @@ test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".lv-h1")).toContainText(/\S/);
   await page.locator("#languageSelect").selectOption("en");
-  await expect(page.locator(".lv-h1")).toHaveText(/Uzbekistan stock market overview/);
+  await expect(page.locator(".lv-h1")).toHaveText(/The open\s*market/);
 });
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
@@ -1707,7 +1707,6 @@ test("the movers strip says who moved AND what was tradeable", async ({ page }) 
   }));
   // The strip lives on the main page; /market no longer carries it.
   await page.goto("/");
-  await page.getByRole("button",{name:"Лидеры рынка",exact:true}).click();
   await expect(page.locator(".lv-movers .market-movers-col")).toHaveCount(3);
 
   const names = (col) => page.locator(`.lv-movers .market-movers-col.${col} .market-movers-name`);
@@ -1875,7 +1874,6 @@ test('calendar dialog confines keyboard focus and restores the opened event', as
 
 test('workspace headings and panels share the same visual system', async ({ page }) => {
   const routes = [
-    ['/', '.lv-h1', '.hd-map-card'],
     ['/market', '.market-board-head h2', '.market-board'],
     ['/news', '.newsdesk-head h1', '.newsdesk-side-section'],
     ['/news?tab=calendar', '.newscal-month', '.newscal'],

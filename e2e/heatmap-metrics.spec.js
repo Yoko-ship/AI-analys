@@ -48,9 +48,9 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
-test('home map draws its tiles when market data arrives after mounting', async ({page}) => {
-  await openMap(page, 'stock', '/');
-  await expect(page.getByTestId('home-market-dashboard').locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+test('market map draws its tiles when market data arrives after mounting', async ({page}) => {
+  await openMap(page, 'stock', '/heatmap', false);
+  await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
 });
 for (const width of [1280, 390, 320]) {
   test(`heatmap opens with the main movement and metrics above the map at ${width}px`, async ({ page }, testInfo) => {

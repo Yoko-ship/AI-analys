@@ -44,11 +44,10 @@ test('failed account save stays visible and is retryable',async({page})=>{
  state.fail=false;await panel.getByRole('button',{name:'Save filter',exact:true}).click();
  await expect.poll(()=>state.preferences.saved_screeners?.length).toBe(1);
 });
-test('purple concept has a dashboard market map and a complete profile workspace',async({page})=>{
- const state={preferences:{}};await account(page,state);await page.goto('/');
- await expect(page.getByTestId('home-market-dashboard')).toBeVisible();
+test('profile retains the purple palette and complete investor workspace',async({page})=>{
+ const state={preferences:{}};await account(page,state);await page.goto('/profile');
  expect(await page.evaluate(()=>getComputedStyle(document.body).getPropertyValue('--accent').trim())).toBe('#7454df');
- await page.goto('/profile');await expect(page.getByTestId('profile-workspace-stats').locator('article')).toHaveCount(4);
+ await expect(page.getByTestId('profile-workspace-stats').locator('article')).toHaveCount(4);
  await page.getByRole('button',{name:'My portfolio',exact:true}).click();await expect(page.getByTestId('portfolio-market-value')).toBeVisible();
 });
 test('global search opens from the keyboard and finds a security',async({page})=>{
