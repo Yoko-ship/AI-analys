@@ -306,13 +306,32 @@ def feed(start=None, end=None):
     # Exact security identifiers come from the registry, never suffix guessing.
     try:
         from catalogue.market_store import get_all_listings
-        listings=get_all_listings()
-        for d in documents:
-            d["isins"]=sorted({listings[t]["isin"] for t in d.get("tickers",[]) if listings.get(t,{}).get("isin")})
+        from securities_catalog import get_securities_map
+        attach_securities(documents, get_all_listings(), get_securities_map())
     except Exception:
         pass
     return {"ok":True,"start":lo,"end":last.isoformat(),"items":group_stories(documents),
             "categories":CATEGORIES,"facts":FACTS,"sources":status}
+
+
+def attach_securities(documents, listings, securities):
+    """Use the traded and listed registries, never payment amounts or suffixes."""
+    listings, securities = listings or {}, securities or {}
+    for document in documents:
+        kinds, isins = set(), set()
+        for ticker in document.get("tickers", []):
+            listing, security = listings.get(ticker, {}), securities.get(ticker, {})
+            share_class = listing.get("share_type")
+            kind = security.get("type")
+            if kind not in {"stock", "bond"}:
+                kind = "stock" if share_class in {"ordinary", "preferred"} else "bond" if share_class == "bond" else None
+            if kind:
+                kinds.add(kind)
+            isin = security.get("isin") or listing.get("isin")
+            if isin:
+                isins.add(isin)
+        document["security_types"] = sorted(kinds)
+        document["isins"] = sorted(isins)
 
 
 def refresh_document(source):

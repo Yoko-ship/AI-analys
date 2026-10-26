@@ -81,7 +81,7 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
     const docs=s.documents||[s];
     return (!category||s.category===category) && (mode!=='important'||s.priority<=1) && (mode!=='mine'||mine(s))
       && (!code||docs.some(d=>String(d.code)===code)) && docs.some(matchesSecurity)
-      && (instrument==='all'||docs.some(d=>(d.amounts||[]).some(a=>instrument==='bond'?a.security==='bond':a.security!=='bond')))
+      && (instrument==='all'||docs.some(d=>(d.security_types||[]).includes(instrument)))
       && [s.organization,...(s.tickers||[]),...(s.isins||[]),...docs.map(d=>pick(d.title,lang))].join(' ').toLowerCase().includes(search.trim().toLowerCase());
   }).sort((a,b)=>(sort==='priority'?a.priority-b.priority:sort==='subscriptions'?Number(mine(b))-Number(mine(a)):0)||String(b.published_at).localeCompare(String(a.published_at)));
   const reset=()=>{setCategory('');setMode('all');setSearch('');setCode('');setSecurity('');setSort('recent');};

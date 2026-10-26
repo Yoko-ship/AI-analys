@@ -159,3 +159,14 @@ def test_refresh_does_not_fetch_arbitrary_or_unstored_sources(source, monkeypatc
     monkeypatch.setattr(cs, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
     with pytest.raises(ValueError):
         ce.refresh_document(source)
+
+
+def test_security_filters_use_registry_even_without_dividend_amounts():
+    document = ce.from_fact({"fact_number": 23, "id": 1}, tickers=["HMKB"])
+    bond = ce.from_fact({"fact_number": 21, "id": 2}, tickers=["TESTB"])
+    unknown = ce.from_fact({"fact_number": 6, "id": 3}, tickers=["UNKNOWNP"])
+    ce.attach_securities([document, bond, unknown], {"HMKB": {"share_type": "ordinary", "isin": "UZ7011340005"}, "TESTB": {"share_type": "ordinary"}}, {"TESTB": {"type": "bond"}})
+    assert document["security_types"] == ["stock"]
+    assert document["isins"] == ["UZ7011340005"]
+    assert bond["security_types"] == ["bond"]
+    assert unknown["security_types"] == []

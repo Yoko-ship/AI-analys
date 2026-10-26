@@ -1,13 +1,14 @@
 import { test, expect } from '@playwright/test';
 const doc = (id, code, ticker, category, stage, priority) => ({
   id, source_url: `https://openinfo.uz/ru/facts/${code}/${id}`, code, tickers: [ticker], isins: ['UZ7011340005'],
+  security_types: ['stock'],
   organization: ticker === 'HMKB' ? 'Hamkorbank' : 'O‘zbekgeofizika', category, stage, priority,
   title: { ru: stage === 'proposed' ? 'Набсовет рекомендовал дивиденды' : 'Компания утратила лицензию', en: 'Board recommended dividends' },
   published_at: '2026-07-06T15:01:18', decision_date: '2026-06-22', confidence: 'confirmed',
   amounts: [{ security: 'ordinary', amount: 8.01 }, { security: 'preferred', amount: 71.5 }],
 });
 const a = doc('577', 41, 'UZGF', 'dividends', 'proposed', 1);
-const b = doc('1', 23, 'HMKB', 'risks', 'disclosed', 0);
+const b = {...doc('1', 23, 'HMKB', 'risks', 'disclosed', 0), amounts: []};
 const payload = { ok: true, sources: { facts: { ok: true } },
   categories: { dividends: { ru: 'Дивиденды и выплаты' }, risks: { ru: 'Риски и лицензии' } },
   facts: { 41: { title: { ru: 'Набсовет рекомендовал дивиденды' } }, 23: { title: { ru: 'Компания утратила лицензию' } } },
@@ -54,4 +55,12 @@ for (const width of [390, 1440]) test(`corporate feed fits ${width}px in both th
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`events-${width}-${theme}.png`), fullPage: true });
   }
+});
+
+test('stock filter retains non-payment disclosures for registered shares', async ({page}) => {
+ await setup(page);
+ await page.locator('.newsdesk-subtabs').getByRole('button', {name:'Акции',exact:true}).click();
+ await expect(page.locator('.ce-story')).toHaveCount(2);
+ await page.locator('.newsdesk-subtabs').getByRole('button', {name:'Облигации',exact:true}).click();
+ await expect(page.locator('.ce-story')).toHaveCount(0);
 });
