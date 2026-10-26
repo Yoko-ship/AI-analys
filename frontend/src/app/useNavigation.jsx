@@ -135,5 +135,9 @@ export function useNavigation({ language } = {}) {
     if (activeView === "news") window.dispatchEvent(new PopStateEvent("popstate"));
     else setActiveView("news");
   };
-  return { activeView, adminSection, backToNewsCalendar, openNewsTab, chartState, companyTicker, newsId, openAnnouncementArticle, openBondPage, openChartPage, openCompanyPage, openNewsArticle, prevView, setActiveView, setAdminSection };
+  const openSavedScreener = id => {
+    window.history.pushState({view:'market'},'',localizedPath(`/market?screener=${encodeURIComponent(id)}`,languageRef.current));
+    setActiveView('market');
+  };
+  return { openSavedScreener, activeView, adminSection, backToNewsCalendar, openNewsTab, chartState, companyTicker, newsId, openAnnouncementArticle, openBondPage, openChartPage, openCompanyPage, openNewsArticle, prevView, setActiveView, setAdminSection };
 }

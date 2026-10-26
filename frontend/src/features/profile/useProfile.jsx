@@ -241,6 +241,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                         [label('Новая заметка','New note','Yangi qayd'),'+',()=>setProfileNoteEditor({open:true,note:null})],
                         [label('Персонализация','Personalization','Shaxsiylashtirish'),'⚙',()=>setWorkspaceTab('settings')]
                       ].map(([title,icon,action])=><button key={title} onClick={action}><span className="concept-icon" aria-hidden="true">{icon}</span><strong>{title}</strong></button>)}</div></section>}
+                      {workspaceTab==='overview'&&profile?.preferences?.saved_screeners?.length>0&&<section className="concept-card profile-saved-screeners" data-testid="profile-saved-screeners"><header><h2>{label('Сохранённые скринеры','Saved screeners','Saqlangan skrinerlar')}</h2></header>{profile.preferences.saved_screeners.slice(0,3).map(s=><button className="concept-watch-row" key={s.id} onClick={()=>navigationModule.openSavedScreener(s.id)}><strong>{s.name}</strong><span>→</span></button>)}</section>}
                       {workspaceTab==='overview'&&<PortfolioPreview key={profileUser.id} apiFetch={apiFetch} language={language} onOpen={()=>setWorkspaceTab('portfolio')}/>}
                       {workspaceTab==='portfolio'&&<Suspense fallback={<p role="status">…</p>}><PortfolioView key={profileUser.id} language={language} apiFetch={apiFetch} signedIn onOpenCompany={openCompanyPage}/></Suspense>}
                       {['overview','settings'].includes(workspaceTab)&&<div className="iw-grid">

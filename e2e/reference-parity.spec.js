@@ -59,3 +59,15 @@ test('profile allocation uses the account valuation and hides the chart when inc
  await page.goto('/profile');await expect(page.getByRole('img',{name:'Portfolio allocation'})).toBeVisible();await expect(page.getByTestId('profile-portfolio-preview')).toContainText('60%');
  complete=false;await page.reload();await expect(page.getByTestId('profile-portfolio-preview')).toContainText('HMKB');await expect(page.getByRole('img',{name:'Portfolio allocation'})).toHaveCount(0);
 });
+test('issuer directory presents the reference quote table with actual market values',async({page})=>{
+ await setup(page);await page.goto('/issuers');const table=page.getByRole('table');await expect(table).toContainText('HMKB');await expect(table).toContainText('55');await expect(table).toContainText('+10');
+});
+test('currency bank table sorts offers and links related news',async({page})=>{
+ await setup(page);await page.route('**/api/bank-fx',r=>r.fulfill({json:{ok:true,banks:[{bank_code:'a',bank_name:'Hamkorbank',rates:{USD:{BANK:{buy:12400,sell:12600}}}},{bank_code:'b',bank_name:'Second Bank',rates:{USD:{BANK:{buy:12500,sell:12800}}}}]}}));
+ await page.goto('/currency');const rows=page.getByTestId('currency-bank-table').locator('tbody tr');await expect(rows.first()).toContainText('Second Bank');await page.getByLabel('Sort bank quotes').selectOption('sell');await expect(rows.first()).toContainText('Hamkorbank');await page.getByLabel('Sort bank quotes').selectOption('spread');await expect(rows.first()).toContainText('Hamkorbank');
+ await page.getByTestId('currency-news').getByRole('button',{name:/Market update/}).click();await expect(page).toHaveURL(/news\/a$/);
+});
+test('profile applies an account saved screener from its overview',async({page})=>{
+ await setup(page);await page.route('**/api/profile',r=>r.fulfill({json:{user:{id:19,email:'investor@example.test',full_name:'Investor'},preferences:{saved_screeners:[{id:'gainers',name:'My gainers',filters:{sector:'',query:'HMKB',direction:'gain',period:'1d',type:'stock',favoriteOnly:false,sortKeys:[]}}]},favorites:[],notes:[],security:{}}}));
+ await page.goto('/profile');await page.getByTestId('profile-saved-screeners').getByRole('button',{name:'My gainers'}).click();await expect(page).toHaveURL(/market\?screener=gainers$/);await expect(page.getByTestId('saved-screeners').getByRole('button',{name:'Gainers',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.locator('.market-table-wrap tbody tr')).toContainText('HMKB');
+});

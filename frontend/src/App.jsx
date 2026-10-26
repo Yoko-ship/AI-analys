@@ -253,8 +253,8 @@ function App() {
 
           {activeView === "portfolio" && <Suspense fallback={<div role="status">…</div>}><PortfolioView key={user?.id || 'guest'} language={language} apiFetch={apiFetch} signedIn={Boolean(user)} onSignIn={() => setActiveView("auth")} onOpenCompany={openCompanyPage} /></Suspense>}
 
-          {activeView === "bankfx" && <BankFxPage language={language} />}
-          {activeView === "issuers" && <IssuerDirectory language={language} companies={companies} securitiesMap={securitiesMap} onOpenCompany={openCompanyPage}/>}
+          {activeView === "bankfx" && <BankFxPage language={language} onOpenNews={openNewsArticle} onNews={()=>setActiveView("news")} />}
+          {activeView === "issuers" && <IssuerDirectory language={language} companies={companies} securitiesMap={securitiesMap} marketRows={marketRows} tradeStats={marketTradeStats} onOpenCompany={openCompanyPage}/>}
 
           {activeView === "feedback" && (
             <FeedbackPage language={language} signedIn={Boolean(token)} apiFetch={apiFetch}

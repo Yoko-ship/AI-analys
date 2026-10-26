@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { readScreeners } from './savedScreeners.js';
 import { useSavedScreeners } from './useSavedScreeners.js';
 import './saved-screeners.css';
@@ -6,6 +6,12 @@ export function SavedScreeners({ lang, filters, onDirection, onApply, onReset, a
   const t=(ru,en,uz)=>lang==='en'?en:lang==='uz'?uz:ru;
   const {saved,busy,error,ready,retry,save,remove,importLocal}=useSavedScreeners(accountKey,apiFetch,onSaved);
   const [name,setName]=useState(''), [selected,setSelected]=useState('');
+  const applied=useRef('');
+  useEffect(()=>{
+    const id=new URLSearchParams(window.location.search).get('screener');
+    const item=ready&&saved.find(s=>s.id===id);
+    if(item&&applied.current!==id){applied.current=id;setSelected(id);onApply(item.filters);}
+  },[ready,saved,onApply]);
   return <section className="saved-screeners" data-testid="saved-screeners" aria-label={t('Скринер','Screener','Skriner')}>
     <div className="screener-direction" role="group" aria-label={t('Динамика цены','Price direction','Narx yo‘nalishi')}>
       {[['all',t('Все','All','Barchasi')],['gain',t('Растущие','Gainers','O‘sayotgan')],['loss',t('Снижающиеся','Decliners','Pasayayotgan')]].map(([key,label])=><button key={key} type="button" aria-pressed={filters.direction===key} onClick={()=>onDirection(key)}>{label}</button>)}

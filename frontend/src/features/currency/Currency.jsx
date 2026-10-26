@@ -310,7 +310,7 @@ function BankFxLogo({ code, name }) {
 // and direction are set on top, banks are RANKED by the resulting sum, and
 // the lag from the leader is stated in soums (variant Б of the mockups,
 // chosen by the customer 2026-08-19). Rates come from bankxizmatlari.uz.
-function BankFxPage({ language }) {
+function BankFxPage({ language, onOpenNews, onNews }) {
   const lang = normalizeLanguage(language);
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -400,7 +400,7 @@ function BankFxPage({ language }) {
 
   return (
     <section className="bankfx-page reference-currency">
-      <CurrencyWorkspace language={lang} data={data} cbu={cbu} ccy={activeCcy} channel={channel} onCcy={setCcy}>
+      <CurrencyWorkspace language={lang} data={data} cbu={cbu} ccy={activeCcy} channel={channel} onCcy={setCcy} onOpenNews={onOpenNews} onNews={onNews}>
       <article className="panel">
         <div className="panel-head">
           <div>

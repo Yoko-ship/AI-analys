@@ -52,10 +52,10 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   useEffect(() => {
     // "main": the landing's ticker tape, board preview and movers are the real
     // board, so the "/" page needs the same rows the market view reads.
-    if (activeView !== "market" && activeView !== "heatmap"
+    if (activeView !== "issuers" && activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main" && activeView !== "auth"
       && activeView !== "profile") return;
-    loadMarketStocks(activeView === "profile" ? "stock" : null).catch((error) => {
+    loadMarketStocks(["profile","issuers"].includes(activeView) ? "stock" : null).catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,7 +72,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   useEffect(() => {
     // "main" for the same reason as the stocks load above: the landing must
     // restate its rows against the same per-trade day statistics as /market.
-    if (activeView !== "market" && activeView !== "heatmap"
+    if (activeView !== "issuers" && activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main") return;
     if (!marketRows.length || marketLoading) return;
     fetch("/api/market/trade-stats")

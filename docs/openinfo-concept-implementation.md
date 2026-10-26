@@ -103,3 +103,10 @@ The enrichment worker records its extraction version. A new version checks
 recently processed documents once, including failed fetches, before returning
 to the normal seven-day cooldown. Requests remain bounded, paced and ordered
 with unseen/oldest evidence first. Existing source revisions are retained.
+
+The issuer directory uses a quote table backed by the same settled market rows
+as the main board. Bank offers can be sorted by buy, sell or spread, and the
+currency page links related economic news. Profile saved-screener shortcuts
+apply the selected account configuration on the market page. Portfolio
+allocation is shown only when the account's valuation is complete; incomplete
+positions never become a fabricated allocation chart.

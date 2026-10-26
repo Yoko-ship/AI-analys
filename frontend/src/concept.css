@@ -260,3 +260,6 @@ html[data-theme="dark"],html[data-theme="dark"] body,body[data-theme="dark"] {
 .portfolio-preview-allocation li i {width:8px;height:8px;border-radius:50%;}
 .portfolio-preview-allocation li span {margin-left:auto;}
 @media(max-width:400px){.portfolio-preview-allocation{gap:16px;}.portfolio-preview-donut {width:120px;height:120px;flex-basis:120px;}.portfolio-preview-donut>span{width:88px;height:88px;}}
+.currency-news {margin-top:24px;}
+.profile-reference-grid>.profile-saved-screeners {grid-column:2;grid-row:4;}
+@media(max-width:760px){.profile-reference-grid>.profile-saved-screeners {order:3;}}
