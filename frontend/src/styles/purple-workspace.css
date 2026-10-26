@@ -37,7 +37,8 @@ html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] {
 .app-shell-wrap[data-ui="purple"] .bg-glow { display: none; }
 .app-shell-wrap[data-ui="purple"] .topbar { background: var(--panel); border-color: var(--border); box-shadow: none; }
 .app-shell-wrap[data-ui="purple"] .concept-top-strip { background: var(--surface-2); }
-.app-shell-wrap[data-ui="purple"] .topbar-nav-btn { min-height: 40px; border-radius: 10px; font-size: 12px; }
+/* Header type belongs to the shared responsive navigation, including /market. */
+.app-shell-wrap[data-ui="purple"] .topbar-nav-btn { min-height: 40px; border-radius: 10px; }
 .app-shell-wrap[data-ui="purple"] .topbar-nav-btn.active { background: var(--accent-light); color: var(--accent); }
 .app-shell-wrap[data-ui="purple"] :is(.topbar-burger, .theme-toggle, .global-search-trigger) {
   border-radius: var(--control-radius); border-color: var(--border); background: var(--surface-2); color: var(--muted);
