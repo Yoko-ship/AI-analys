@@ -4,7 +4,7 @@ import { ProfileAvatar, readFileAsDataUrl } from "./avatar.jsx";
 import { formatDateLabel, formatMarketNumber, formatSignedPercent } from "../../shared/format.jsx";
 import { Icons } from "../../shared/Icons.jsx";
 import { InvestmentInterests, AccountSecuritySummary } from "./InvestmentInterests.jsx";
-import { PortfolioView } from "../portfolio/index.js";
+import { PortfolioView, PortfolioPreview } from "../portfolio/index.js";
 import { ProfileGlyph } from "./ProfileGlyph.jsx";
 import { profileMarketQuote } from "../../shared/marketModel.jsx";
 import { ProfileAccountCenter, ProfileFavoriteEditor, ProfileNoteEditor } from "./Editors.jsx";
@@ -205,6 +205,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                     </div>
                   ) : (
                     <>
+                      <header className="concept-page-heading"><div><span className="hd-eyebrow">UZSTOCK · {label("РАБОЧЕЕ ПРОСТРАНСТВО","WORKSPACE","ISH MAYDONI")}</span><h2>{label("Личный кабинет","Personal account","Shaxsiy kabinet")}</h2><p>{label("Ваши компании, портфель и инвестиционные инструменты.","Your companies, portfolio and investment tools.","Kompaniyalaringiz, portfelingiz va investitsiya vositalari.")}</p></div></header>
                       <header className="pf-band pf-hero">
                         <div className="pf-hero-identity">
                           <ProfileAvatar user={profileUser} src={displayedProfileAvatar} className="pf-avatar" />
@@ -233,6 +234,14 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                       <nav className="iw-tabs" aria-label={label('Разделы кабинета','Workspace sections','Kabinet bo‘limlari')}>
                         {[['overview',label('Обзор','Overview','Umumiy')],['watch',label('Избранное','Watchlist','Tanlanganlar')],['portfolio',label('Мой портфель','My portfolio','Mening portfelim')],['notes',label('Заметки','Notes','Qaydlar')],['settings',label('Настройки','Settings','Sozlamalar')]].map(([key,title])=><button key={key} type="button" aria-label={key==="settings"?label("Настройки кабинета","Workspace settings","Kabinet sozlamalari"):undefined} aria-pressed={workspaceTab===key} onClick={()=>setWorkspaceTab(key)}>{title}</button>)}
                       </nav>
+                      <div className={workspaceTab==='overview'?'profile-reference-grid':'profile-tab-content'}>
+                      {workspaceTab==='overview'&&<section className="concept-card profile-quick-actions" data-testid="profile-quick-actions"><header><h2>{label('Быстрые действия','Quick actions','Tezkor amallar')}</h2></header><div className="concept-action-grid">{[
+                        [label('Скринер','Screener','Skriner'),'⊞',()=>setActiveView('market')],
+                        [label('Календарь','Calendar','Taqvim'),'▦',()=>navigationModule.openNewsTab('calendar')],
+                        [label('Новая заметка','New note','Yangi qayd'),'+',()=>setProfileNoteEditor({open:true,note:null})],
+                        [label('Персонализация','Personalization','Shaxsiylashtirish'),'⚙',()=>setWorkspaceTab('settings')]
+                      ].map(([title,icon,action])=><button key={title} onClick={action}><span className="concept-icon" aria-hidden="true">{icon}</span><strong>{title}</strong></button>)}</div></section>}
+                      {workspaceTab==='overview'&&<PortfolioPreview key={profileUser.id} apiFetch={apiFetch} language={language} onOpen={()=>setWorkspaceTab('portfolio')}/>}
                       {workspaceTab==='portfolio'&&<Suspense fallback={<p role="status">…</p>}><PortfolioView key={profileUser.id} language={language} apiFetch={apiFetch} signedIn onOpenCompany={openCompanyPage}/></Suspense>}
                       {['overview','settings'].includes(workspaceTab)&&<div className="iw-grid">
                        <InvestmentInterests key={profileUser.id} language={language} values={profile?.preferences?.investment_interests||[]} apiFetch={apiFetch} onRefresh={loadProfile} onExplore={()=>navigationModule.openNewsTab('corporate', {mode:'personal'})}/>
@@ -322,6 +331,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                           </button>
                         </nav>
                       </div>}
+                      </div>
                     </>
                   )}
 

@@ -11,7 +11,7 @@ import { CompanyPage } from "./features/company/index.js";
 import { AdvancedChart } from "./features/charts/index.js";
 import { BondCard } from "./features/bonds/index.js";
 import { PortfolioView } from "./features/portfolio/index.js";
-import { MarketView } from "./features/market/index.js";
+import { MarketView, IssuerDirectory } from "./features/market/index.js";
 import { BankFxPage } from "./features/currency/index.js";
 import { FeedbackPage } from "./features/feedback/index.js";
 import { useSession } from "./session/useSession.js";
@@ -254,6 +254,7 @@ function App() {
           {activeView === "portfolio" && <Suspense fallback={<div role="status">…</div>}><PortfolioView key={user?.id || 'guest'} language={language} apiFetch={apiFetch} signedIn={Boolean(user)} onSignIn={() => setActiveView("auth")} onOpenCompany={openCompanyPage} /></Suspense>}
 
           {activeView === "bankfx" && <BankFxPage language={language} />}
+          {activeView === "issuers" && <IssuerDirectory language={language} companies={companies} securitiesMap={securitiesMap} onOpenCompany={openCompanyPage}/>}
 
           {activeView === "feedback" && (
             <FeedbackPage language={language} signedIn={Boolean(token)} apiFetch={apiFetch}

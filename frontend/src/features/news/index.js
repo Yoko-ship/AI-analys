@@ -12,3 +12,5 @@ export const AnnouncementArticleView = lazy(() => import("./AnnouncementArticleV
 export { EDNEWS_TX, edHeadline, interceptNav, newsArticlePath, newsRelTime } from "./editorial.jsx";
 export { addDays, tashkentToday, formatDay, eventTitle } from "./calendarEvents.js";
 export { NEWSCAL_TX } from "./calendarCopy.js";
+
+export {UpcomingEventsCard} from './EventPreview.jsx';

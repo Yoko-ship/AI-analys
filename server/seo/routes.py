@@ -76,6 +76,7 @@ _STATIC_PAGES: dict[str, tuple[str, str]] = {
         "Все акции и облигации компаний Узбекистана на Ташкентской фондовой бирже: цены, "
         "капитализация, P/E, P/B и ROE эмитентов.",
     ),
+    "/issuers": ("Каталог компаний Узбекистана | UZStock", "Эмитенты, тикеры, ISIN и финансовая отчётность компаний Узбекистана."),
     "/heatmap": (
         "Тепловая карта рынка акций Узбекистана | UZStock",
         "Карта изменений цен акций UZSE по секторам и капитализации.",
@@ -107,6 +108,7 @@ _STATIC_PAGES_UZ: dict[str, tuple[str, str]] = {
         "Toshkent fond birjasidagi O‘zbekiston kompaniyalarining barcha aksiyalari va obligatsiyalari: "
         "narxlar, kapitallashuv, emitentlarning P/E, P/B va ROE ko‘rsatkichlari.",
     ),
+    "/issuers": ("O‘zbekiston kompaniyalari katalogi | UZStock", "Emitentlar, tikerlar, ISIN va O‘zbekiston kompaniyalarining moliyaviy hisobotlari."),
     "/heatmap": (
         "O‘zbekiston aksiyalar bozorining issiqlik xaritasi | UZStock",
         "UZSE aksiyalari narxlarining sektorlar va kapitallashuv bo‘yicha o‘zgarishi xaritasi.",

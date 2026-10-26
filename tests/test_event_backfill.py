@@ -41,3 +41,24 @@ def test_rechecks_visit_oldest_evidence_before_recently_checked_documents(monkey
     assert calls==sources
     backfill.run(limit=1,now=now+timedelta(days=16))
     assert calls[-1]==sources[0]
+
+
+def test_new_extractor_version_rechecks_recent_sources_once_including_failures(monkeypatch,tmp_path):
+    import corporate_event_backfill as backfill
+    import corporate_event_fields as fields
+    import corporate_events as ce
+    import catalogue.storage as cs
+    monkeypatch.setattr(cs,'_catalog_db_path',lambda:str(tmp_path/'events.db'))
+    source='https://openinfo.uz/ru/facts/16/84524'
+    monkeypatch.setattr(ce,'feed',lambda *a:{'items':[{'documents':[{'source_url':source}]}]})
+    calls=[]
+    def refresh(url):
+        calls.append(url)
+        raise RuntimeError('temporarily unavailable')
+    monkeypatch.setattr(ce,'refresh_document',refresh)
+    now=datetime(2026,10,26,tzinfo=timezone.utc)
+    backfill.run(limit=1,now=now)
+    monkeypatch.setattr(fields,'VERSION',fields.VERSION+1)
+    assert backfill.run(limit=1,now=now)['attempted']==1
+    assert backfill.run(limit=1,now=now)['attempted']==0
+    assert len(calls)==2

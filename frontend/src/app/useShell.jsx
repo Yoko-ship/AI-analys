@@ -145,6 +145,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
+        <div className="concept-top-strip" data-testid="market-source-strip"><span><b>UZStock</b><span className="concept-strip-description"> · {navDdLabel('Данные рынка Узбекистана','O‘zbekiston bozori ma’lumotlari','Uzbekistan market data')}</span></span><TopbarFxTicker language={language} onOpen={() => {setActiveView('bankfx');setMobileNavOpen(false);}}/></div>
         <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
           <button
             className="topbar-burger"
@@ -174,7 +175,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 onMouseLeave={closeNavMenuSoon}
               >
                 <button
-                  className={`topbar-nav-btn ${activeView === key || activeView === "bankfx" || activeView === "heatmap" || activeView === "companyCompare" ? "active" : ""}`}
+                  className={`topbar-nav-btn ${activeView === key || activeView === "issuers" || activeView === "bankfx" || activeView === "heatmap" || activeView === "companyCompare" ? "active" : ""}`}
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={navMenu === "market"}
@@ -187,6 +188,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   { head: navDdLabel("Биржа", "Birja", "Exchange"), items: [
                     { label: navDdLabel("Биржевые инструменты", "Birja instrumentlari", "Exchange instruments"), onSelect: () => setActiveView("market") },
                     { label: navDdLabel("Карта рынка", "Bozor xaritasi", "Market map"), onSelect: () => setActiveView("heatmap") },
+                    { label: navDdLabel("Каталог компаний", "Kompaniyalar katalogi", "Company directory"), onSelect: () => setActiveView("issuers") },
                     { label: navDdLabel("Сравнение компаний", "Kompaniyalarni solishtirish", "Compare companies"), onSelect: () => setActiveView("companyCompare") },
                   ] },
                   { head: navDdLabel("Валюта", "Valyuta", "Currency"), items: [
@@ -203,6 +205,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 >
                   {navDdLabel("Карта рынка", "Bozor xaritasi", "Market map")}
                 </button>
+                <button className="topbar-nav-btn nav-dd-mobile-item" type="button" onClick={() => {setActiveView('issuers');setMobileNavOpen(false);}}>{navDdLabel('Каталог компаний','Kompaniyalar katalogi','Company directory')}</button>
                 <button
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"
@@ -385,14 +388,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
           <div className="topbar-meta">
             <div className="topbar-controls">
-              {/* The rate ticker, left of the language control — the place the
-                  customer pointed at (finko.uz). It used to sit in the CBU
-                  strip on /market only. */}
-              <TopbarFxTicker
-                language={language}
-                onOpen={() => { setActiveView("bankfx"); setMobileNavOpen(false); }}
-              />
-
               {/* The panel is not a product section, so it stays out of the main
                   nav — but an administrator should not have to type the URL. The
                   label collapses to the icon on narrow widths, where the topbar

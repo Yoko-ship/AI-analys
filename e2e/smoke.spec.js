@@ -382,9 +382,9 @@ test("shared market data keeps all four market views aligned", async ({ page }, 
   await expect(page.locator(".ac-price")).toHaveText("144");
   await expect(page.locator(".ac-change")).toContainText(/\+20(?:[,.]00)?%/);
   await page.goto("/");
-  const company = page.locator(".lv-company-card").filter({ hasText: "AGBA" });
-  await expect(company.locator(".lv-cc-pr")).toContainText("144");
-  await expect(company.locator(".lv-cc-pr")).toContainText(/\+20(?:[,.]00)?%/);
+  const company = page.getByTestId("home-market-table").locator("tbody tr").filter({ hasText: "AGBA" });
+  await expect(company).toContainText("144");
+  await expect(company).toContainText(/\+20(?:[,.]00)?%/);
   expect(errors).toEqual([]);
 });
 
@@ -1033,8 +1033,8 @@ test("Новости renders the editorial feed (§3.11)", async ({ page }, test
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
   await expect(page.locator(".newsdesk-head")).toContainText("Новости рынка");
-  await expect(page.locator(".newsdesk-priority-story--lead")).toContainText("Биржа расширяет листинг банков");
-  await expect(page.locator(".newsdesk-priority-story--secondary").first()).toContainText("ЦБ уточнил требования");
+  await expect(page.locator(".newsdesk-row").first()).toContainText("Биржа расширяет листинг банков");
+  await expect(page.locator(".newsdesk-row").nth(1)).toContainText("ЦБ уточнил требования");
   await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("news-desktop.png"), fullPage: true });
 });
@@ -1043,18 +1043,18 @@ test("Новости renders the editorial feed (§3.11)", async ({ page }, test
 // honest and compact instead of receiving a generated placeholder.
 test("the newsroom uses source imagery without inventing placeholders (§3.11)", async ({ page }) => {
   await page.goto("/news");
-  await expect(page.locator(".newsdesk-priority-story--lead")).toBeVisible();
-  await expect(page.locator(".newsdesk-priority-story--secondary")).toHaveCount(2);
-  await expect(page.locator(".newsdesk-priority-story--lead .newsdesk-priority-picture img")).toHaveCount(1);
-  await expect(page.locator(".newsdesk-priority-story--secondary .newsdesk-priority-picture img")).toHaveCount(0);
+  await expect(page.locator(".newsdesk-row").first()).toBeVisible();
+  await expect(page.locator(".newsdesk-row")).toHaveCount(3);
+  await expect(page.locator(".newsdesk-row").first().locator(".newsdesk-row-picture img")).toHaveCount(1);
+  await expect(page.locator(".newsdesk-row").filter({hasNot:page.locator("[src]")}).locator(".newsdesk-row-picture img")).toHaveCount(0);
 });
 
 test("a story opens on its own /news/{id} page instead of the source site (§3.11)", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
   // The card is a real link to our own route, not to the outlet.
-  await expect(page.locator(".newsdesk-priority-story--lead")).toHaveAttribute("href", "/news/11");
-  await page.locator(".newsdesk-priority-story--lead").click();
+  await expect(page.locator(".newsdesk-row").first()).toHaveAttribute("href", "/news/11");
+  await page.locator(".newsdesk-row").first().click();
   await expect(page).toHaveURL(/\/news\/11$/);
   await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".led-art-lead")).toContainText("Краткое изложение первой новости");
@@ -1085,7 +1085,7 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await expect(page.locator(".led-art-title")).toContainText("ЦБ уточнил требования");
   await page.locator(".led-back").click();
   await expect(page).toHaveURL(/\/news$/);
-  await expect(page.locator(".newsdesk-priority-story--lead")).toBeVisible();
+  await expect(page.locator(".newsdesk-row").first()).toBeVisible();
 });
 
 test("the story page shows what the price did around it, and hedges it (§3.11)", async ({ page }) => {
@@ -1277,10 +1277,10 @@ for (const [lang, expected] of [
       try { localStorage.setItem("uz_stock_analyzer_language", l); } catch { /* ignore */ }
     }, lang);
     await page.goto("/news");
-    await expect(page.locator(".newsdesk-priority-story--lead h2")).toHaveText(expected);
+    await expect(page.locator(".newsdesk-row").first().locator(".newsdesk-row-copy > strong")).toHaveText(expected);
     if (lang !== "ru") {
       // The summary is now the headline, so it must not also be printed as the dek…
-      await expect(page.locator(".newsdesk-priority-story--lead > p:not(.newsdesk-original)")).toHaveCount(0);
+      await expect(page.locator(".newsdesk-row").first().locator(".newsdesk-row-copy > small")).toHaveCount(0);
       // …and the publisher's own Russian headline stays on the card as attribution,
       // badged with the language it is in.
       await expect(page.locator(".newsdesk-original")).toContainText("ЦБ сохранил ставку");
@@ -1707,6 +1707,7 @@ test("the movers strip says who moved AND what was tradeable", async ({ page }) 
   }));
   // The strip lives on the main page; /market no longer carries it.
   await page.goto("/");
+  await page.getByRole("button",{name:"Лидеры рынка",exact:true}).click();
   await expect(page.locator(".lv-movers .market-movers-col")).toHaveCount(3);
 
   const names = (col) => page.locator(`.lv-movers .market-movers-col.${col} .market-movers-name`);

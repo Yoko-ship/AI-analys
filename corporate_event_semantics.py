@@ -31,7 +31,7 @@ def enrich(document, raw):
     d['summary'] = dict(d['title'])
     d['priority_reason'] = 'disclosure_type'
     if code == 6:
-        resolutions = [str(row.get('decisions_wording') or '') for row in raw.get('facts_decisions_wording', []) if isinstance(row, dict)]
+        resolutions = [str(row.get('decisions_wording') or '') for row in (raw.get('facts_decisions_wording') or []) if isinstance(row, dict) and str(row.get('decisions_wording') or '').strip()]
         dividend_rows = [text for text in resolutions if DIVIDEND.search(text)]
         d['evidence'] = [re.sub(r'\s+', ' ', text.replace('\\r\\n', ' ')).strip()[:3000] for text in (dividend_rows or resolutions)[:3]]
         # Only the adopted resolutions field participates, never agenda questions.
@@ -48,7 +48,7 @@ def enrich(document, raw):
         elif resolutions:
             # Administrative changes do not acquire dividend priority simply
             # because all shareholder decisions share public code 6.
-            material = bool(re.search(r'капитал|kapital|эмисси|emissi|credit|кредит|loan|акци|aksiya|share', ' '.join(resolutions), re.I))
+            material = bool(re.search(r'уставн.{0,20}капитал|ustav.{0,20}kapital|эмисси|emissi|credit|кредит|loan|выкуп.{0,20}акци|aksiya.{0,20}(?:chiqar|sotib)|share.{0,20}(?:issue|buyback)|capital.{0,20}(?:increase|reduc)', ' '.join(resolutions), re.I))
             d.update(priority=1 if material else 2, priority_reason='resolution_content')
             d['summary'] = tr('Опубликованы решения акционеров. Формулировки приведены в документах события.',
                               'Shareholder resolutions published. Their original wording is available in the event documents.',
@@ -93,4 +93,6 @@ def enrich(document, raw):
     d['period'] = d.get('period') or period_from(str(raw.get('dividend_period') or raw.get('reporting_period') or ''))
     if d['payment_start'] and d['payment_end'] and d['payment_start'] > d['payment_end']:
         d.update(payment_start=None, payment_end=None, confidence='review')
-    return d
+    from corporate_event_fields import apply
+    d['_stage_confidence'] = d['confidence']
+    return apply(d, raw)

@@ -164,7 +164,7 @@ export function NewsDeskRow({
           {tickers.length > 0 && <span className="newsdesk-row-tickers">{tickers.slice(0, 2).join(" · ")}</span>}
         </span>
         <strong>{head.text}</strong>
-        {detail && <small>{detail}</small>}
+        {head.original?<span className="newsdesk-original"><span>{head.lang}</span>{head.original}</span>:detail && <small>{detail}</small>}
       </span>
       <span className="newsdesk-row-end">
         <span className={`newsdesk-row-tone ${toneCls}`}>{etx.tone[item.tone] || item.tone || "—"}</span>

@@ -21,6 +21,8 @@ function Evidence({ document: d, tx, lang, locale }) {
     {d.stage === 'proposed' && <p className="ce-caution">{tx.proposal}</p>}
     {d.stage === 'agenda' && <p className="ce-caution">{tx.agenda}</p>}
     {d.summary&&<p>{pick(d.summary,lang)}</p>}
+    {d.priority_explanation&&<p className="ce-priority-explanation"><b>P{d.priority} · </b>{pick(d.priority_explanation,lang)}</p>}
+    {d.facts?.length>0&&<dl className="ce-extracted-fields">{d.facts.map(f=><div key={f.source_field}><dt>{pick(f.label,lang)}</dt><dd>{typeof f.value==='number'?new Intl.NumberFormat(locale,{maximumFractionDigits:6}).format(f.value):f.value}{f.unit==='percent'?'%':f.unit==='thousand_uzs'?` ${lang==='en'?'thousand UZS':lang==='uz'?'ming so‘m':'тыс. сум'}`:f.unit==='source_units'?` (${lang==='en'?'source units':lang==='uz'?'manba birliklari':'единицы источника'})`:f.unit==='uzs_per_security'?` ${tx.unit}`:''}</dd></div>)}</dl>}
     <Amounts document={d} tx={tx} locale={locale} />
     {d.isins?.length>0&&<p>ISIN: {d.isins.join(', ')}</p>}
     {d.payment&&<dl className="ce-dates">{[['calculated',lang==='en'?'Accrued':lang==='uz'?'Hisoblangan':'Начислено'],['paid',lang==='en'?'Paid':lang==='uz'?'To‘langan':'Выплачено'],['debt',lang==='en'?'Outstanding':lang==='uz'?'Qarzdorlik':'Задолженность']].map(([key,label])=><div key={key}><dt>{label}</dt><dd>{d.payment[key]==null?'—':new Intl.NumberFormat(locale).format(d.payment[key]).replaceAll('\u00a0',' ')} {lang==='en'?'thousand UZS':lang==='uz'?'ming so‘m':'тыс. сум'}</dd></div>)}</dl>}
@@ -35,7 +37,7 @@ function Evidence({ document: d, tx, lang, locale }) {
 }
 function StoryDialog({ story, onClose, tx, lang, locale, onUpdated }) {
   const ref = useRef(null);
-  const [documents,setDocuments] = useState(story.documents);
+  const [documents,setDocuments] = useState(story.documents?.length?story.documents:[story]);
   const [busy,setBusy] = useState('');
   const [error,setError] = useState(false);
   useEffect(() => {

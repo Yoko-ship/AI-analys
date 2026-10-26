@@ -5,3 +5,4 @@ export { useMarketData } from "./useMarketData.jsx";
 export { MarketMovers } from "./MarketMovers.jsx";
 
 export { MarketHeatmap } from "./Heatmap.jsx";
+export {IssuerDirectory} from './IssuerDirectory.jsx';

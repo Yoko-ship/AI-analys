@@ -1,10 +1,12 @@
+import {marketDisplayPrice} from '../../shared/marketModel.jsx';
+import {price,pct} from '../../lib/format.js';
 import {useState,useEffect,useRef} from 'react';
 import {MarketHeatmap} from '../market/index.js';
 import {sectorOf} from '../../lib/sectors.js';
 import {sectorLabel} from '../../shared/marketCopy.jsx';
 import {CHANGE_PERIODS,changePeriodLabel} from '../../shared/marketPeriods.jsx';
 export function HomeMarketDashboard({rows,stats,companies,securitiesMap,language,onOpenCompany,onNavigate,period,onPeriod,changes}){
- const [query,setQuery]=useState(''),[sector,setSector]=useState(''),[mapData,setMapData]=useState(null),[expanded,setExpanded]=useState(false);
+ const [query,setQuery]=useState(''),[sector,setSector]=useState(''),[mapData,setMapData]=useState(null),[expanded,setExpanded]=useState(false),[view,setView]=useState('map');
  const panel=useRef(null);const lang=language;const t=(ru,en,uz)=>lang==='en'?en:lang==='uz'?uz:ru;
  useEffect(()=>{const c=new AbortController();fetch('/api/heatmap',{signal:c.signal}).then(r=>r.json()).then(d=>{if(d.ok)setMapData(d);}).catch(()=>{});return()=>c.abort();},[]);
  useEffect(()=>{if(!expanded)return;const close=e=>{if(e.key==='Escape')setExpanded(false);};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[expanded]);
@@ -18,7 +20,8 @@ export function HomeMarketDashboard({rows,stats,companies,securitiesMap,language
  <div className="hd-toolbar"><input type="search" aria-label={t('Поиск на карте','Search map','Xaritada qidirish')} placeholder={t('Тикер или эмитент','Ticker or issuer','Tiker yoki emitent')} value={query} onChange={e=>setQuery(e.target.value)}/>
  <select aria-label={t('Отрасль на карте','Map sector','Xarita tarmog‘i')} value={sector} onChange={e=>setSector(e.target.value)}><option value="">{t('Все отрасли','All sectors','Barcha tarmoqlar')}</option>{sectors.map(s=><option key={s} value={s}>{sectorLabel(lang,s)}</option>)}</select>
  <select aria-label={t('Период карты','Map period','Xarita davri')} value={period} onChange={e=>onPeriod(e.target.value)}>{CHANGE_PERIODS.map(p=><option key={p.code} value={p.code}>{changePeriodLabel(p.code,lang)}</option>)}</select>
+ <div className="concept-segment">{[['map',t('Карта','Map view','Xarita')],['table',t('Таблица','Table view','Jadval')]].map(([v,label])=><button type="button" key={v} aria-pressed={view===v} onClick={()=>setView(v)}>{label}</button>)}</div>
  <button className="ghost-btn" type="button" onClick={()=>onNavigate('market')}>{t('Таблица и скринер','Table & screener','Jadval va skriner')} →</button></div>
- {rows.length&&!visible.length?<p>{t('Нет бумаг по выбранным фильтрам.','No securities match these filters.','Filtrlarga mos qog‘ozlar yo‘q.')}</p>:<MarketHeatmap rows={visible} companies={companies} securitiesMap={securitiesMap} language={lang} onOpenCompany={onOpenCompany} type="stock" mapData={mapData} stats={stats} period={period} initialArea="turnover"/>}
+ {view==='table'?<div className="concept-table-scroll"><table className="concept-table"><thead><tr><th>{t('Бумага','Security','Qog‘oz')}</th><th>{t('Цена, сум','Price, UZS','Narx, so‘m')}</th><th>{t('Изменение','Change','O‘zgarish')}</th></tr></thead><tbody>{visible.map(r=><tr key={r.ticker}><td><button className="concept-security" onClick={()=>onOpenCompany(r.ticker)}><strong>{r.ticker}</strong><span>{r.name||companyMap[r.ticker]?.company_name}</span></button></td><td>{price(marketDisplayPrice(r),lang)}</td><td>{Number.isFinite(r.changePercent)?pct(r.changePercent,lang,2):'—'}</td></tr>)}</tbody></table></div>:rows.length&&!visible.length?<p>{t('Нет бумаг по выбранным фильтрам.','No securities match these filters.','Filtrlarga mos qog‘ozlar yo‘q.')}</p>:<MarketHeatmap rows={visible} companies={companies} securitiesMap={securitiesMap} language={lang} onOpenCompany={onOpenCompany} type="stock" mapData={mapData} stats={stats} period={period} initialArea="turnover"/>}
  </section></section>;
 }

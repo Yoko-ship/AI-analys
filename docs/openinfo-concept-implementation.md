@@ -66,3 +66,40 @@ Deployment uses the existing `API` branch pipeline to the `uzstock.uz` server.
 The `uzstock-event-evidence.timer` worker uses the same paced OpenInfo adapter
 and stored source identifiers as manual document checking; it does not invoke
 an AI provider or fetch arbitrary user-provided URLs.
+
+## Completed reference follow-up
+
+The home page now follows the supplied composition: four market counters,
+interactive map/table view, market table beside watchlist and currency cards,
+then news and upcoming events. The profile overview places watchlist and
+portfolio beside quick actions, interests and actual account security status.
+The news page uses compact rows and an events sidebar. The currency workspace
+includes four actual-data counters, a bank table, ranked exchange offers,
+official CBU history, a converter and a bank/CBU comparison. Existing detailed
+market, screener, calendar and account tools remain accessible. The public
+issuer directory is `/issuers`; `/catalog` remains the existing financial
+research workspace. Manrope is self-hosted with its OFL licence.
+
+`corporate_event_fields.py` defines content-field contracts for all 46 forms.
+The fixtures preserve 86 real disclosures across 44 public codes. The public
+API returned no samples for codes 26 and 46 during this audit; their contracts
+have explicit synthetic tests, not fabricated historical examples. Extracted
+facts retain the exact source field path, label and unit. Nested decisions,
+positions, asset descriptions and before/after holdings are retained alongside
+amounts, dates and percentages. Unknown numeric enumerations remain source
+codes; undocumented monetary units remain source units.
+
+Priority rules distinguish voluntary licence return from enforced suspension,
+issue-size changes from administrative amendments, routine shareholder
+resolutions from dividend/capital decisions, and security-specific events from
+company shutdown. A malformed historical code-16 filing with a resolutions
+body remains under review. Empty body fields, empty table rows, nonfinite
+numbers and inconsistent payment totals cannot confirm an event. These are
+transparent editorial rules, not unrestricted understanding of every possible
+free-text filing. Unrecognized evidence is deliberately left for review, as
+required by the PDF.
+
+The enrichment worker records its extraction version. A new version checks
+recently processed documents once, including failed fetches, before returning
+to the normal seven-day cooldown. Requests remain bounded, paced and ordered
+with unseen/oldest evidence first. Existing source revisions are retained.

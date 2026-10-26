@@ -1,3 +1,4 @@
+import {CurrencyWorkspace} from './CurrencyWorkspace.jsx';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useEffect, useState } from "react";
@@ -392,13 +393,14 @@ function BankFxPage({ language }) {
     : "Аномально широкий спред — котировка проверяется и не участвует в верхушке рейтинга";
   const updWord = lang === "en" ? "updated" : lang === "uz" ? "yangilangan" : "обновлено";
   const rateWord = lang === "en" ? "rate" : lang === "uz" ? "kurs" : "курс";
-  const visible = showAll ? rows : rows.slice(0, 12);
+  const visible = showAll ? rows : rows.slice(0, 3);
 
   const sellWord = lang === "en" ? "Sell" : lang === "uz" ? "Sotish" : "Продать";
   const buyWord = lang === "en" ? "Buy" : lang === "uz" ? "Olish" : "Купить";
 
   return (
-    <section className="bankfx-page">
+    <section className="bankfx-page reference-currency">
+      <CurrencyWorkspace language={lang} data={data} cbu={cbu} ccy={activeCcy} channel={channel} onCcy={setCcy}>
       <article className="panel">
         <div className="panel-head">
           <div>
@@ -540,6 +542,7 @@ function BankFxPage({ language }) {
             the times are, what ⚠ means) was removed at the customer's request
             2026-08-19. The ⚠ badge keeps its own tooltip. */}
       </article>
+      </CurrencyWorkspace>
     </section>
   );
 }

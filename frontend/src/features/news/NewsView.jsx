@@ -1,12 +1,12 @@
 import { EDNEWS_TX, NEWS_TX, newsRelTime } from "./editorial.jsx";
 import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
-import { pickLeadIndex } from "../../lib/newsfeed.js";
+import {UpcomingEventsCard} from "./EventPreview.jsx";
 import { MarketEventsFeed } from "../events/index.js";
 import { CorporateEvents } from "./CorporateEvents.jsx";
 import { feedSentiment } from "./newsText.jsx";
 import { useTranslationTick } from "./newsTranslation.js";
-import { NewsDeskPriorityStory, NewsDeskRow, newsDeskFocus } from "./NewsCards.jsx";
+import { NewsDeskRow, newsDeskFocus } from "./NewsCards.jsx";
 import { NEWS_TABS, NEWS_INSTRUMENTS } from "./newsRouting.js";
 import { NewsCalendarView } from "./NewsCalendarView.jsx";
 import { useNewsFeed } from "./useNewsFeed.js";
@@ -47,20 +47,10 @@ export function NewsView({
     return query ? sourceItems.filter(item => [item.title, item.title_ru, item.title_en, item.title_uz,
       item.summary_ru, item.summary_en, item.summary_uz, ...(item.tickers || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query)) : sourceItems;
   }, [sourceItems, newsSearch]);
-  // Which story gets the masthead when the top-ranked one cannot be illustrated
-  // — see lib/newsfeed.js. Nothing is dropped: the story that would have led
-  // simply leads the stack instead.
-  const leadIndex = React.useMemo(() => pickLeadIndex(items), [items]);
-  const lead = items[leadIndex];
-  const stack = items.filter((_, i) => i !== leadIndex);
-  // The main column follows the API's impact ranking; the rail is literally "latest", so it
-  // needs its own chronological copy rather than the top of the ranked list.
-  const latest = React.useMemo(() => [...items].sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))), [items]);
+  const latest = React.useMemo(() => [...items].sort((a,b)=>String(b.published_at||'').localeCompare(String(a.published_at||''))),[items]);
   const mood = feedSentiment(items);
   const moodLabel = mood.cls === "pos" ? etx.moodPos : mood.cls === "neg" ? etx.moodNeg : etx.moodNeu;
-  const secondary = stack.slice(0, 2);
-  const priorityItems = lead ? [lead, ...secondary] : secondary;
-  const feedItems = latest.filter(item => !priorityItems.includes(item));
+  const feedItems=latest;
   const focus = React.useMemo(() => newsDeskFocus(items), [items]);
   const dtx = tx.desk || NEWS_TX.ru.desk;
   const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
@@ -198,21 +188,6 @@ export function NewsView({
         </div> : error ? <div className="led-empty">{tx.error}</div> : !items.length ? <div className="led-empty">
           {newsSearch.trim() ? language === "en" ? "No news matches your search." : language === "uz" ? "So‘rovingiz bo‘yicha yangiliklar yo‘q." : "По вашему запросу новостей нет." : tab === "all" ? tx.empty : tx.emptyTab || tx.empty}
         </div> : <div className="newsdesk-board">
-          <section className="newsdesk-priority" aria-label={dtx.main}>
-            {lead && <NewsDeskPriorityStory item={lead} language={language} variant="lead" onOpen={onOpenNews} />}
-            <div className="newsdesk-secondary">
-              {secondary.map((item, index) => <NewsDeskPriorityStory key={item.id || item.url || index} item={item} language={language} variant="secondary" onOpen={onOpenNews} />)}
-            </div>
-            <aside className="newsdesk-mood">
-              <h2>{dtx.marketNow}</h2>
-              <div className="newsdesk-mood-score"><strong className={mood.cls}>{(mood.avg >= 0 ? "+" : "") + mood.avg.toFixed(2)}</strong><span>{dtx.days30}</span></div>
-              <div className="newsdesk-mood-row"><span>{dtx.positive}</span><b>{mood.counts.positive}</b></div>
-              <div className="newsdesk-mood-row"><span>{dtx.neutral}</span><b>{mood.counts.neutral}</b></div>
-              <div className="newsdesk-mood-row"><span>{dtx.negative}</span><b>{mood.counts.negative}</b></div>
-              <small>{moodLabel}</small>
-            </aside>
-          </section>
-
           <section className="newsdesk-feed-layout">
             <main className="newsdesk-feed">
               <div className="newsdesk-feed-head">
@@ -226,12 +201,14 @@ export function NewsView({
               </div>
             </main>
             <aside className="newsdesk-side">
+              <UpcomingEventsCard language={language} onCalendar={()=>selectTab("calendar")}/>
               {focus.length > 0 && <section className="newsdesk-side-section">
                   <h2>{dtx.focus}</h2>
                   {focus.map(([ticker, count]) => <button key={ticker} type="button" className="newsdesk-focus-row" onClick={() => onOpenCompany && onOpenCompany(ticker)}>
                       <strong>{ticker}</strong><span>{count} {dtx.events}</span>
                     </button>)}
                 </section>}
+              <section className="concept-card newsdesk-mood"><h2>{dtx.marketNow}</h2><div className="newsdesk-mood-row"><span>{dtx.positive}</span><b>{mood.counts.positive}</b></div><div className="newsdesk-mood-row"><span>{dtx.neutral}</span><b>{mood.counts.neutral}</b></div><div className="newsdesk-mood-row"><span>{dtx.negative}</span><b>{mood.counts.negative}</b></div><small>{moodLabel}</small></section>
               <section className="newsdesk-side-section newsdesk-calendar-callout">
                 <h2>{dtx.calendar}</h2>
                 <p>{dtx.calendarCopy}</p>

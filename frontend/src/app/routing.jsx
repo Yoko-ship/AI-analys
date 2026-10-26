@@ -11,6 +11,7 @@ const VIEW_PATHS = {
   main: "/",
   market: "/market",
   heatmap: "/heatmap",
+  issuers: "/issuers",
   catalog: "/catalog",
   companyCompare: "/compare",
   news: "/news",

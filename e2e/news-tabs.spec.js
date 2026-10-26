@@ -59,8 +59,8 @@ test("every category is a tab that asks the feed for its own stories", async ({ 
     await expect(page).toHaveURL(new RegExp(`tab=${key}$`));
     await expect.poll(() => asked.at(-1)).toBe(category);
   }
-  // The active tab is filled, the others are not.
-  const fill = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
+  // The reference marks the active tab with a violet underline.
+  const fill = (loc) => loc.evaluate((el) => getComputedStyle(el).borderBottomColor);
   expect(await fill(page.locator(".newsdesk-tab.active"))).not.toBe(await fill(tabs.first()));
   // Back on a bar tab, the button goes back to «Ещё».
   await tabs.filter({ hasText: "Все" }).click();

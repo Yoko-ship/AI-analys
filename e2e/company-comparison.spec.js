@@ -56,12 +56,12 @@ for (const { role, language, label } of [
     await expect(page.locator('.lv-h1')).toBeVisible();
     if (role !== 'guest') await expect(page.locator('.account-button')).toBeVisible();
     await expect(page.locator('.landing-view').getByRole('button', { name: label, exact: true })).toHaveCount(0);
-    await expect(page.locator('.lv-stage .lv-go')).toBeVisible();
+    await expect(page.getByTestId('home-market-table').locator('footer button').last()).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('homepage-desktop.png'), animations: 'disabled' });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator('.landing-view').getByRole('button', { name: label, exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('homepage-mobile.png'), animations: 'disabled' });
-    await page.locator('.lv-stage .lv-go').click();
+    await page.getByTestId('home-market-table').locator('footer button').last().click();
     await expect(page).toHaveURL(/\/market$/);
   });
 }

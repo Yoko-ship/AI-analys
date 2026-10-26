@@ -2,7 +2,9 @@
 from datetime import datetime, timezone, timedelta
 import argparse
 import json
+import dbx
 import corporate_events as ce
+import corporate_event_fields as fields
 from catalogue.storage import get_catalog_conn
 
 
@@ -11,11 +13,15 @@ def run(*, limit=40, days=120, now=None):
     conn = get_catalog_conn()
     try:
         conn.execute('CREATE TABLE IF NOT EXISTS corporate_event_checks (source_url TEXT PRIMARY KEY, checked_at TEXT NOT NULL, ok INTEGER NOT NULL)')
+        columns=dbx.columns(conn,'corporate_event_checks')
+        if 'extraction_version' not in columns:
+            conn.execute('ALTER TABLE corporate_event_checks ADD COLUMN extraction_version INTEGER NOT NULL DEFAULT 0')
         conn.commit()
+        versions={r['source_url']:r['extraction_version'] for r in conn.execute('SELECT * FROM corporate_event_checks')}
         checked = {r['source_url']: r['checked_at'] for r in conn.execute('SELECT * FROM corporate_event_checks').fetchall()}
         cutoff = (now-timedelta(days=7)).isoformat()
         docs = {d['source_url']:d for story in ce.feed((now-timedelta(days=min(days,399))).date().isoformat(),now.date().isoformat())['items'] for d in story['documents']}
-        pending = [source for source in docs if checked.get(source,'') < cutoff]
+        pending = [source for source in docs if versions.get(source,0)<fields.VERSION or checked.get(source,'') < cutoff]
         # Unseen and oldest-checked documents go first, so a busy recent feed
         # cannot starve older evidence when the daily budget is smaller.
         pending.sort(key=lambda source:checked.get(source,''))
@@ -29,7 +35,7 @@ def run(*, limit=40, days=120, now=None):
             except Exception:
                 result['failed'] += 1
             result['attempted'] += 1
-            conn.execute('INSERT INTO corporate_event_checks VALUES (?,?,?) ON CONFLICT(source_url) DO UPDATE SET checked_at=excluded.checked_at,ok=excluded.ok',(source,now.isoformat(),ok))
+            conn.execute('INSERT INTO corporate_event_checks (source_url,checked_at,ok,extraction_version) VALUES (?,?,?,?) ON CONFLICT(source_url) DO UPDATE SET checked_at=excluded.checked_at,ok=excluded.ok,extraction_version=excluded.extraction_version',(source,now.isoformat(),ok,fields.VERSION))
             conn.commit()
         return result
     finally:
