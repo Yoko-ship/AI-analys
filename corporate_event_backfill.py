@@ -16,6 +16,9 @@ def run(*, limit=40, days=120, now=None):
         cutoff = (now-timedelta(days=7)).isoformat()
         docs = {d['source_url']:d for story in ce.feed((now-timedelta(days=min(days,399))).date().isoformat(),now.date().isoformat())['items'] for d in story['documents']}
         pending = [source for source in docs if checked.get(source,'') < cutoff]
+        # Unseen and oldest-checked documents go first, so a busy recent feed
+        # cannot starve older evidence when the daily budget is smaller.
+        pending.sort(key=lambda source:checked.get(source,''))
         result = {'attempted':0,'enriched':0,'failed':0,'remaining':max(0,len(pending)-limit)}
         for source in pending[:max(0,min(limit,2000))]:
             ok = 0

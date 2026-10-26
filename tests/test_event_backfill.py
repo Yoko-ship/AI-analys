@@ -23,3 +23,21 @@ def test_historical_enrichment_is_bounded_and_does_not_retry_every_page_load(mon
     assert len(calls)==5
     assert backfill.run(limit=2,now=now)['attempted']==0
     assert backfill.run(limit=2,now=now+timedelta(days=8))['attempted']==2
+
+
+def test_rechecks_visit_oldest_evidence_before_recently_checked_documents(monkeypatch,tmp_path):
+    import corporate_event_backfill as backfill
+    import corporate_events as ce
+    import catalogue.storage as cs
+    monkeypatch.setattr(cs,'_catalog_db_path',lambda:str(tmp_path/'events.db'))
+    sources=[f'https://openinfo.uz/ru/announce/{i}' for i in range(3)]
+    monkeypatch.setattr(ce,'feed',lambda *a:{'items':[{'documents':[{'source_url':s} for s in sources]}]})
+    calls=[]
+    monkeypatch.setattr(ce,'refresh_document',lambda source:calls.append(source))
+    now=datetime(2026,10,26,tzinfo=timezone.utc)
+    backfill.run(limit=1,now=now)
+    backfill.run(limit=2,now=now+timedelta(days=8))
+    # New evidence takes precedence over an already checked recent story.
+    assert calls==sources
+    backfill.run(limit=1,now=now+timedelta(days=16))
+    assert calls[-1]==sources[0]
