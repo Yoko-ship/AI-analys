@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 import re
 import math
 
-VERSION = 2
+VERSION = 3
 
 
 def words(ru, en, uz):

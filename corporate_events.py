@@ -189,6 +189,18 @@ def from_announcement(row, detail=None):
                  period=next(iter(periods)) if len(periods)==1 else None, pdf_url=detail.get("pdf_url"),
                  announcement_id=str(row["announcement_id"]),
                  title=tr("Вопрос дивидендов в повестке собрания", "Dividends on the meeting agenda", "Yig‘ilish kun tartibida dividendlar") if dividend else tr("Объявлено собрание акционеров", "Shareholders meeting announced", "Aksiyadorlar yig‘ilishi e’lon qilindi"))
+    confirmed=event['confidence']=='confirmed'
+    event['priority_provisional']=not confirmed
+    event['priority_reason']='agenda_evidence' if dividend and confirmed else 'announcement_content' if confirmed else 'missing_content'
+    event['priority_explanation']=tr(
+        'Внимание по опубликованной повестке; это не принятое решение.' if confirmed else 'Содержимое объявления или дата собрания требуют проверки.',
+        'Attention is based on the published agenda; it is not an adopted decision.' if confirmed else 'The announcement body or meeting date requires review.',
+        'E’tibor e’lon qilingan kun tartibiga asoslangan; bu qabul qilingan qaror emas.' if confirmed else 'E’lon mazmuni yoki yig‘ilish sanasini tekshirish kerak.')
+    event['summary']=tr(
+        (f'Собрание назначено на {event_date}.' if event_date else 'Дата собрания требует подтверждения.')+(' В повестке дивиденды; утверждение не подтверждено.' if dividend else ' Решения собрания раскрываются отдельно.'),
+        (f'Meeting scheduled for {event_date}.' if event_date else 'The meeting date requires confirmation.')+(' Dividends are on the agenda; approval is not confirmed.' if dividend else 'Meeting decisions are disclosed separately.'),
+        (f'Yig‘ilish {event_date} sanasiga belgilangan.' if event_date else 'Yig‘ilish sanasini tasdiqlash kerak.')+(' Kun tartibida dividendlar bor; tasdiqlangani aniqlanmagan.' if dividend else 'Yig‘ilish qarorlari alohida oshkor qilinadi.'))
+    event['evidence']=[re.sub(r'\s+',' ',p.get('text','')).strip()[:1800] for p in detail.get('content',[]) if p.get('text')][:3]
     return event
 
 

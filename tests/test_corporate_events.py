@@ -281,3 +281,20 @@ def test_checked_source_correction_can_lower_confidence_without_erasing_history(
     rows=ce.read_documents('2025-02-25','2025-02-26')
     assert rows[0]['confidence']=='review'
     assert len(rows[0]['revisions'])==2
+
+
+def test_real_hmkb_announcement_summary_and_priority_use_its_agenda_evidence():
+    notice=json.loads((FIXTURES/'hmkb_20828.json').read_text())
+    event=ce.from_announcement({'announcement_id':'20828','org_id':'8','ticker':'HMKB','pub_date':'2026-06-01','meeting_date':'2026-06-25'},notice)
+    assert event['confidence']=='confirmed' and not event['priority_provisional']
+    assert event['priority_reason']=='agenda_evidence'
+    assert '2026-06-25' in event['summary']['en']
+    assert 'approval is not confirmed' in event['summary']['en']
+    assert event['evidence']
+    assert 'Insufficient' not in event['priority_explanation']['en']
+
+
+def test_announcement_without_body_retains_review_without_an_unknown_fact_summary():
+    event=ce.from_announcement({'announcement_id':'20828','ticker':'HMKB','pub_date':'2026-06-01','meeting_date':'2026-06-25'})
+    assert event['confidence']=='review' and event['priority_provisional']
+    assert '2026-06-25' in event['summary']['en']
