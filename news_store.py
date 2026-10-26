@@ -252,6 +252,9 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
             if row is None:
                 continue
             news_id = row["id"]
+            if it.get("source_id") in disclosure_source_ids() and it.get("disclosure_documents"):
+                import corporate_events
+                corporate_events.save_documents(it["disclosure_documents"], conn=conn)
             conn.execute(
                 """
                 INSERT INTO news_nlp (news_id, relevant, relevance_score, type, tone,

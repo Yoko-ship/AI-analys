@@ -289,6 +289,33 @@ def _fact_figures(fact_number, fact_ids):
         return None
 
 
+def filing_evidence(records, tickers):
+    """Keep each original, reusing detail reads for editorial figures.
+
+    The editorial day-summary may combine deals. The event ledger must not.
+    Unfetched detail is explicitly reviewable and can be loaded on demand.
+    """
+    import corporate_events
+    documents, facts = [], []
+    for index, record in enumerate(records):
+        detail = _fact_detail(record["id"]) if index < _FIGURE_MAX_FETCH else None
+        raw = {**record, **(detail or {})}
+        if detail:
+            facts.append(detail)
+        # Metadata's object_id is the public id; detail's id is not the global
+        # disclosure id. Keep the latter separately for provenance/deduplication.
+        source = None if detail or record.get("object_id") else f"https://openinfo.uz/ru/organizations/{record['organization']}?fact={record['id']}"
+        document = corporate_events.from_fact(raw, source_url=source, tickers=tickers)
+        document["global_fact_id"] = str(record["id"])
+        documents.append(document)
+    formatter = _FIGURE_FORMATTERS.get(records[0].get("fact_number")) if records else None
+    try:
+        figures = formatter(facts) if formatter and facts else None
+    except (ValueError, TypeError, KeyError):
+        figures = None
+    return figures, documents
+
+
 def _filing_snippet(group, detail, figures):
     """The card text for one filing item: what was filed, then what it says.
 

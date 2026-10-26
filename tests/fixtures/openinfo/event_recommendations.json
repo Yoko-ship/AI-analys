@@ -1,0 +1,38 @@
+[
+  {
+    "id": 577,
+    "distrution_share_sums": "8.0100000000",
+    "dividend_share_sums": "71.500000",
+    "each_security_price": "0.000000",
+    "fact_title": "Рекомендация (предложение) Наблюдательного совета по распределению чистой прибыли (дивиденда)",
+    "fact_number": "41",
+    "fact_identifier": "f-41-577",
+    "decision_date": "2026-06-22",
+    "supervisory_board_proposal": "Распределить",
+    "status": "approved",
+    "supervisory_board_protocol": "2026-07-02",
+    "pub_date": "2026-07-06T15:01:18",
+    "type": 49,
+    "organization_short_name": "\"O'zbekgeofizika\" AJ",
+    "organization_ticket_name": "UZGF, UZGFP",
+    "organization": 399
+  },
+  {
+    "id": 521,
+    "distrution_share_sums": "0.0000000000",
+    "dividend_share_sums": "0.000000",
+    "each_security_price": "0.000000",
+    "fact_title": "Рекомендация (предложение) Наблюдательного совета по распределению чистой прибыли (дивиденда)",
+    "fact_number": "41",
+    "fact_identifier": "f-41-521",
+    "decision_date": "2026-06-02",
+    "supervisory_board_proposal": "Не распределить",
+    "status": "approved",
+    "supervisory_board_protocol": "2026-06-02",
+    "pub_date": "2026-06-04T19:47:43",
+    "type": 49,
+    "organization_short_name": "ChEII \"Toshkentvino kombinati\" AJ",
+    "organization_ticket_name": "TKVK",
+    "organization": 721
+  }
+]

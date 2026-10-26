@@ -1599,3 +1599,9 @@ textarea.acct-input {
 .acct-pattern-type { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; min-width: 190px; cursor: pointer; }
 .acct-pattern-type input { accent-color: var(--accent); }
 .acct-pattern-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--muted); max-width: 70ch; }
+
+.pf-watch-tools { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
+.pf-watch-tools input { flex: 1; min-width: 160px; min-height: 44px; max-width: 340px; border: 1px solid currentColor; border-radius: 8px; background: transparent; color: inherit; padding: 10px 12px; font-size: 14px; }
+.pf-watch-tools input::placeholder { color: inherit; opacity: .65; }
+.pf-watch-tools :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media(max-width:760px) { .pf-watch-tools input { font-size: 16px; } }

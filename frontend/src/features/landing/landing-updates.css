@@ -1,0 +1,15 @@
+.lu-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+.lu-card { padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); color: var(--text); min-width: 0; }
+.lu-card header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.lu-card h2 { font-size: 20px; letter-spacing: -.03em; margin: 0; }
+.lu-card button { cursor: pointer; }
+.lu-card header button,.lu-card p button { background: none; border: 0; color: var(--accent); font-size: 12px; min-height: 44px; }
+.lu-card p { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.lu-event,.lu-watch { display: flex; align-items: center; gap: 16px; width: 100%; padding: 16px 0; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); text-align: left; }
+.lu-event time { width: 60px; flex-shrink: 0; color: var(--accent); font-size: 13px; }
+.lu-card strong { display: block; font-size: 13px; font-weight: 600; }
+.lu-card small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.lu-watch { justify-content: space-between; font-variant-numeric: tabular-nums; }
+.lu-watch>span:last-child { text-align: right; }
+.lu-card :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media(max-width:760px) { .lu-grid { grid-template-columns: minmax(0,1fr); } .lu-card { padding: 20px; } }

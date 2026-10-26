@@ -1,4 +1,5 @@
 import { snapPixel } from "../../lib/geometry.js";
+import { LandingUpdates } from "./LandingUpdates.jsx";
 import { prepareMarketRows } from "../../lib/marketData.js";
 import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
@@ -310,7 +311,7 @@ function LandingSpark({ values, label }) {
   );
 }
 
-function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews }) {
+function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews, favorites, onCalendar }) {
   const lang = normalizeLanguage(language);
   const LT = LANDING_TX[lang] || LANDING_TX.ru;
   const etx = EDNEWS_TX[lang] || EDNEWS_TX.ru;
@@ -609,6 +610,8 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
           </div>
         </div>
       </section>
+
+      <LandingUpdates language={language} favorites={favorites} marketRows={marketRows} securitiesMap={securitiesMap} onOpenCompany={onOpenCompany} onNavigate={onNavigate} onCalendar={onCalendar} />
 
       {/* ── 03 · Компания ── */}
       <section className="lv-sec">

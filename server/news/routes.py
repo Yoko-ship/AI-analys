@@ -284,6 +284,29 @@ async def api_news_calendar_events(start: str | None = None, end: str | None = N
     return http._json_safe(payload)
 
 
+@router.get("/api/news/corporate-events")
+async def api_corporate_events(start: str | None = None, end: str | None = None):
+    import corporate_events
+    try:
+        payload = await asyncio.get_running_loop().run_in_executor(None, partial(corporate_events.feed, start, end))
+        return http._json_safe(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/news/corporate-events/detail")
+async def api_corporate_event_detail(source: str):
+    import corporate_events
+    try:
+        payload = await asyncio.get_running_loop().run_in_executor(None, partial(corporate_events.refresh_document, source))
+        return http._json_safe({"ok": True, "item": payload})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        http.logger.warning("corporate event source unavailable: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="Source document is temporarily unavailable") from exc
+
+
 @router.get("/api/news/calendar/announcements")
 async def api_news_calendar_announcements(limit: int = 1000) -> dict[str, Any]:
     """The meeting-notice feed, newest publication first — the list shape of the

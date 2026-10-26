@@ -16,6 +16,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
   const { handleLogout } = authModule;
   const { handleToggleFavorite } = favoritesModule;
   const [profileForm, setProfileForm] = useState({ full_name: "" });
+  const [watchSearch, setWatchSearch] = useState("");
 
   const [profileAvatarFile, setProfileAvatarFile] = useState(null);
 
@@ -94,6 +95,19 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
   const profileHistory = Array.isArray(profile?.recent_analyses) ? profile.recent_analyses : [];
 
   const profileFavorites = Array.isArray(profile?.favorites) ? profile.favorites : [];
+  const watchLabel = language === "en" ? "Search watchlist" : language === "uz" ? "Tanlanganlardan qidirish" : "Поиск в избранном";
+  const exportWatchLabel = language === "en" ? "Export watchlist CSV" : language === "uz" ? "Tanlanganlarni CSV eksport qilish" : "Экспорт избранного CSV";
+  const shownFavorites = profileFavorites.filter(item => `${item.ticker} ${item.company_name || ""}`.toLowerCase().includes(watchSearch.trim().toLowerCase()));
+  const exportWatchlist = () => {
+    const cell = value => `"${String(value ?? "").replace(/^[=+@-]/, "'$&").replace(/"/g, '""')}"`;
+    const rows = [["Ticker", "Company", "Price UZS", "Change %"], ...shownFavorites.map(item => {
+      const quote = profileMarketQuote(item.ticker, marketRows, securitiesMap);
+      return [item.ticker, item.company_name || "", quote.price, quote.change];
+    })];
+    const url = URL.createObjectURL(new Blob(["\ufeff" + rows.map(row => row.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "uzstock-watchlist.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const profileNotes = Array.isArray(profile?.notes) ? profile.notes : [];
 
@@ -213,9 +227,14 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
 
                       <section id="profile-favorites" className="pf-band pf-band-ink pf-watch" aria-labelledby="profile-favorites-title">
                         <h2 id="profile-favorites-title">{t(language, "profile.command.watchlist")}</h2>
+                        <div className="pf-watch-tools">
+                          <input type="search" aria-label={watchLabel} placeholder={watchLabel} value={watchSearch} onChange={e => setWatchSearch(e.target.value)} />
+                          <button className="pf-btn pf-btn-on-ink" type="button" disabled={!shownFavorites.length} onClick={exportWatchlist}>{exportWatchLabel}</button>
+                        </div>
                         {profileFavorites.length ? (
                           <ul className="pf-watch-list">
-                            {profileFavorites.map((item, index) => {
+                            {shownFavorites.map((item) => {
+                              const index = profileFavorites.indexOf(item);
                               const ticker = String(item.ticker || "").toUpperCase();
                               const company = companies.find((candidate) => String(candidate.ticker || "").toUpperCase() === ticker);
                               const quote = profileMarketQuote(ticker, marketRows, securitiesMap);

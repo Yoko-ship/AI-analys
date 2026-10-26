@@ -68,6 +68,8 @@ function App() {
               onNavigate={setActiveView}
               onOpenCompany={openCompanyPage}
               onOpenNews={openNewsArticle}
+              favorites={session.profile?.favorites || []}
+              onCalendar={() => navigation.openNewsTab("calendar")}
             />
           )}
 
@@ -126,6 +128,7 @@ function App() {
           {activeView === "news" && (
             <NewsView
               language={language}
+              favoriteTickers={favoriteTickers}
               onOpenCompany={openCompanyPage}
               onOpenNews={openNewsArticle}
               onOpenAnnouncement={openAnnouncementArticle}

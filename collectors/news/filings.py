@@ -97,6 +97,7 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
                 # Every filing in the group, newest first: the enrichment sums the day's
                 # deals, and one anchor id could only ever describe one of them.
                 "fact_ids": [rec.get("id")],
+                "records": [rec],
                 "fact_number": rec.get("fact_number"),
                 "short_title": (rec.get("fact_short_title") or rec.get("fact_title") or "").strip(),
                 "full_title": (rec.get("fact_title") or "").strip(),
@@ -107,6 +108,7 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
         else:
             group["count"] += 1
             group["fact_ids"].append(rec.get("id"))
+            group["records"].append(rec)
             # keep the newest filing of the group as its anchor
             if pub > str(group["pub_date"]):
                 group["pub_date"], group["fact_id"] = pub, rec.get("id")
@@ -117,7 +119,7 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             continue
         suffix = f" ({g['count']})" if g["count"] > 1 else ""
         detail = g["full_title"] if g["full_title"] and g["full_title"] != g["short_title"] else ""
-        figures = collectors_news_facts._fact_figures(g["fact_number"], g.get("fact_ids") or [g["fact_id"]])
+        figures, documents = collectors_news_facts.filing_evidence(g["records"], g["tickers"])
         items.append({
             "url": _OPENINFO_ORG_URL.format(org=g["org"], fact_id=g["fact_id"]),
             "title": f"{g['org_name']}: {g['short_title']}{suffix}",
@@ -131,6 +133,7 @@ def fetch_openinfo(source: dict[str, Any], limit: int) -> list[dict[str, Any]]:
             # Which openinfo fact type this came from — the backfill uses it to tell an item
             # that CAN carry figures from one that never will.
             "fact_number_hint": g["fact_number"],
+            "disclosure_documents": documents,
         })
     collectors_news_settings.logger.info("openinfo facts: %d filings fetched, %d relevant to our issuers "
                 "(grouped into %d item(s)); %d filings from %d non-covered filers skipped",

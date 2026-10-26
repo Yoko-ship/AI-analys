@@ -20,6 +20,8 @@ import { MarketHeader } from "./MarketHeader.jsx";
 import { MarketOverview } from "./MarketOverview.jsx";
 import { MarketFilters } from "./MarketFilters.jsx";
 import { MarketTable } from "./MarketTable.jsx";
+import { SavedScreeners } from "./SavedScreeners.jsx";
+import { matchesDirection } from "./savedScreeners.js";
 function MarketView({
   rows,
   meta,
@@ -53,6 +55,7 @@ function MarketView({
   const setViewMode = onViewModeChange || (() => {});
   const [marketSector, setMarketSector] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
+  const [direction, setDirection] = useState("all");
   const hasFav = t => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
   const [changePeriod, setChangePeriod] = useState(() => {
     try {
@@ -248,7 +251,7 @@ function MarketView({
     pbOf,
     multipleOf,
     ratioOf,
-    prepared,
+    prepared: prepared.filter(row => matchesDirection(row.changePercent, direction)),
     favOnly,
     hasFav,
     activeSector,
@@ -399,6 +402,17 @@ function MarketView({
             equity board — an issue has a value rather than a capitalisation, and
             no earnings for a multiple to divide by. The «Облигации» segment IS
             the bond section: screener + yield map, a row opens /bond/{T}. */}
+        {viewMode === "table" && type !== "bond" && <SavedScreeners
+          lang={lang}
+          filters={{ sector: marketSector, query, type, period: changePeriod, direction, favoriteOnly: favOnly, sortKeys }}
+          onDirection={setDirection}
+          onApply={saved => {
+            setMarketSector(saved.sector || null); onQueryChange(saved.query); onTypeChange(saved.type);
+            setChangePeriod(saved.period); setDirection(saved.direction); setFavOnly(saved.favoriteOnly);
+            setSortKeys(saved.sortKeys); setInactiveOnly(false);
+          }}
+          onReset={() => { setMarketSector(null); onQueryChange(""); setDirection("all"); setFavOnly(false); setSortKeys([]); setInactiveOnly(false); }}
+        />}
         <MarketTable
           stats={stats}
           windowed={windowed}

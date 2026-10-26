@@ -10,3 +10,5 @@ export const AnnouncementArticleView = lazy(() => import("./AnnouncementArticleV
   default: module.AnnouncementArticleView
 })));
 export { EDNEWS_TX, edHeadline, interceptNav, newsArticlePath, newsRelTime } from "./editorial.jsx";
+export { addDays, tashkentToday, formatDay, eventTitle } from "./calendarEvents.js";
+export { NEWSCAL_TX } from "./calendarCopy.js";

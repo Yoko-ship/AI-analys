@@ -4732,5 +4732,37 @@
     ],
     "name": "api_financial_columns_export__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/news/corporate-events",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_corporate_events",
+    "dependencies": []
+  },
+  {
+    "path": "/api/news/corporate-events/detail",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_corporate_event_detail",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/corporate-events",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_corporate_events__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/news/corporate-events/detail",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_corporate_event_detail__v2",
+    "dependencies": []
   }
 ]

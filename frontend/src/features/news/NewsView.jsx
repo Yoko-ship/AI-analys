@@ -3,6 +3,7 @@ import React from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { pickLeadIndex } from "../../lib/newsfeed.js";
 import { MarketEventsFeed } from "../events/index.js";
+import { CorporateEvents } from "./CorporateEvents.jsx";
 import { feedSentiment } from "./newsText.jsx";
 import { useTranslationTick } from "./newsTranslation.js";
 import { NewsDeskPriorityStory, NewsDeskRow, newsDeskFocus } from "./NewsCards.jsx";
@@ -13,7 +14,8 @@ export function NewsView({
   language,
   onOpenCompany,
   onOpenNews,
-  onOpenAnnouncement
+  onOpenAnnouncement,
+  favoriteTickers
 }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
@@ -106,7 +108,7 @@ export function NewsView({
           <h1>{tx.title}</h1>
           <p>{tab === "corporate" && instrument !== "all" && tx.instrumentHint && tx.instrumentHint[instrument] || tx.tabHint && tx.tabHint[tab] || tx.subtitle}</p>
         </div>
-        {!loading && tab !== "calendar" && <div className="newsdesk-updated">
+        {!loading && tab !== "calendar" && tab !== "corporate" && <div className="newsdesk-updated">
             {updated && <span>{dtx.updated} {updated}</span>}
             <span>{items.length} {dtx.stories}</span>
           </div>}
@@ -177,7 +179,7 @@ export function NewsView({
             </button>)}
         </div>}
 
-      {tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
+      {tab === "corporate" ? <CorporateEvents language={language} favoriteTickers={favoriteTickers} instrument={instrument} onCalendar={() => selectTab("calendar")} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
           <div className="newsdesk-loading-side" />
           <div className="newsdesk-loading-feed" />
