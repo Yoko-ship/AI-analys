@@ -10,15 +10,15 @@ import { financialsUrl } from '../../../lib/financialHistoryRequest.js';
 
 const READY_MARKET = new Set(MARKET_FUNCTIONS.map(f => f.code));
 
-// The issuer's functions as tabs: the same registry as the command line and
-// the number keys, so a reader who never types still finds every screen.
+// Issuer navigation uses the command registry; reconciliation is omitted
+// from the tab bar.
 function FunctionTabs({ terminal, lang }) {
   const copy = terminalCopy(lang);
   const keyOf = Object.fromEntries(TAB_KEYS.map((t) => [t.code, t.key]));
   return (
     <div className="terminal-tabs-row">
     <nav className="terminal-tabs" aria-label={copy.tabsLabel}>
-      {ISSUER_FUNCTIONS.map((fn) => {
+      {ISSUER_FUNCTIONS.filter((fn) => fn.code !== "REC").map((fn) => {
         const ready = READY_FUNCTIONS.has(fn.code);
         return (
           <button

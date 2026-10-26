@@ -42,6 +42,14 @@ test("EQS filters real API rows, exports Cyrillic CSV, and restores its URL", as
   await page.reload();
   await expect(page.getByRole("heading",{name:/EQS/})).toBeVisible();
 });
+test("issuer tabs omit the NSBU/IFRS reconciliation tab", async ({page}) => {
+  await fixture(page);
+  const tabs = page.locator('.terminal-tabs');
+  await expect(tabs.getByRole('button', {name: /SUM/})).toBeVisible();
+  await expect(tabs.getByRole('button', {name: /DQ/})).toBeVisible();
+  await expect(tabs.getByRole('button', {name: /REC/})).toHaveCount(0);
+});
+
 test("REC compares standards and explains different reporting scopes", async({page})=>{
   await fixture(page); await run(page,"AGBA REC");
   await expect(page.locator(".terminal-reconciliation")).toContainText("2025");
