@@ -1,4 +1,7 @@
 .ce-feed { --ce-radius: 16px; margin: 24px 0; color: var(--text); min-width: 0; }
+.newsdesk-search { display: grid; gap: 8px; margin: 16px 0 24px; max-width: 440px; color: var(--muted); font-size: 12px; }
+.newsdesk-search input { min-height: 44px; padding: 10px 12px; color: var(--text); background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 16px; }
+.newsdesk-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ce-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 20px; }
 .ce-heading h2 { font-size: 26px; letter-spacing: -.035em; margin: 8px 0; }
 .ce-heading p,.ce-note { color: var(--muted); font-size: 12px; line-height: 1.6; }

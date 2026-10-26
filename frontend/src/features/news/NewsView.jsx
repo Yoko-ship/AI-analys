@@ -38,8 +38,15 @@ export function NewsView({
   const {
     loading,
     error,
-    items
+    items: sourceItems
   } = state;
+  const [newsSearch, setNewsSearch] = React.useState("");
+  const searchLabel = language === "en" ? "Search news" : language === "uz" ? "Yangiliklarni qidirish" : "Поиск новостей";
+  const items = React.useMemo(() => {
+    const query = newsSearch.trim().toLocaleLowerCase();
+    return query ? sourceItems.filter(item => [item.title, item.title_ru, item.title_en, item.title_uz,
+      item.summary_ru, item.summary_en, item.summary_uz, ...(item.tickers || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query)) : sourceItems;
+  }, [sourceItems, newsSearch]);
   // Which story gets the masthead when the top-ranked one cannot be illustrated
   // — see lib/newsfeed.js. Nothing is dropped: the story that would have led
   // simply leads the stack instead.
@@ -165,6 +172,11 @@ export function NewsView({
         </div>}
       </div>
 
+      {tab !== "corporate" && tab !== "calendar" && <label className="newsdesk-search">
+        <span>{searchLabel}</span>
+        <input type="search" value={newsSearch} onChange={e => setNewsSearch(e.target.value)} />
+      </label>}
+
       {/* A second row, not three more tabs beside the first: this narrows
           «Корпоративные», it is not a fourth peer of it. */}
       {tab === "corporate" && <div className="newsdesk-subtabs" role="group" aria-label={tx.tabs && tx.tabs.corporate || "corporate"}>
@@ -184,7 +196,7 @@ export function NewsView({
           <div className="newsdesk-loading-side" />
           <div className="newsdesk-loading-feed" />
         </div> : error ? <div className="led-empty">{tx.error}</div> : !items.length ? <div className="led-empty">
-          {tab === "corporate" && instrument !== "all" ? tx.emptyInstrument || tx.emptyTab || tx.empty : tab === "all" ? tx.empty : tx.emptyTab || tx.empty}
+          {newsSearch.trim() ? language === "en" ? "No news matches your search." : language === "uz" ? "So‘rovingiz bo‘yicha yangiliklar yo‘q." : "По вашему запросу новостей нет." : tab === "all" ? tx.empty : tx.emptyTab || tx.empty}
         </div> : <div className="newsdesk-board">
           <section className="newsdesk-priority" aria-label={dtx.main}>
             {lead && <NewsDeskPriorityStory item={lead} language={language} variant="lead" onOpen={onOpenNews} />}

@@ -48,3 +48,17 @@ test('home shows upcoming published events and the signed-in watchlist',async({p
  await page.getByTestId('landing-updates').getByRole('button',{name:'Календарь событий',exact:true}).click();
  await expect(page).toHaveURL(/news\?tab=calendar/);
 });
+
+test('editorial news search narrows the current category and has an empty state',async({page})=>{
+ await setup(page);
+ await page.route('**/api/news/feed?**',route=>route.fulfill({json:{ok:true,items:[
+  {id:1,title:'Hamkorbank опубликовал отчёт',title_ru:'Hamkorbank опубликовал отчёт',source:'OpenInfo',published_at:'2026-10-26',tickers:['HMKB']},
+  {id:2,title:'Обзор экономики',title_ru:'Обзор экономики',source:'Spot',published_at:'2026-10-25',tickers:[]}
+ ]}}));
+ await page.goto('/news');
+ await page.getByLabel('Поиск новостей').fill('HMKB');
+ await expect(page.locator('.newsdesk-board')).toContainText('Hamkorbank');
+ await expect(page.locator('.newsdesk-board')).not.toContainText('Обзор экономики');
+ await page.getByLabel('Поиск новостей').fill('no-match');
+ await expect(page.getByText('По вашему запросу новостей нет.')).toBeVisible();
+});

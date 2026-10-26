@@ -16,6 +16,7 @@ References reviewed: `UZStock_Openinfo_Events_Before_After.pdf` (11 pages) and
 | Source documents and revision history | Added; editorial day summaries retain each underlying document. |
 | Saved screeners with gain/loss selection | Added to the market table. Browser-local storage is explicitly labeled. |
 | Watchlist search and CSV | Added to Profile; export respects search and preserves missing values. |
+| News search | Added to editorial news, matching headlines, summaries and tickers within the selected category. |
 | Home-page upcoming events and personal watchlist | Added using the existing calendar and account data. |
 
 ## Evidence boundary
