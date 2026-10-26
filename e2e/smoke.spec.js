@@ -404,7 +404,7 @@ test("workspace routes inherit one shared application palette", async ({ page })
     }
 
     const palettes = [];
-    for (const path of ["/", "/market", "/catalog", "/news", "/profile"]) {
+    for (const path of ["/market", "/catalog", "/news", "/profile"]) {
       await page.goto(path);
       palettes.push(await page.evaluate(() => {
         const style = getComputedStyle(document.body);

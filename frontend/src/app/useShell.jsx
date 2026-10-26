@@ -1,4 +1,3 @@
-import { GlobalSearch } from "./GlobalSearch.jsx";
 import { snapPixel } from "../lib/geometry.js";
 import { useEffect, useRef, useState } from "react";
 import { rootZoom, zoomedViewport } from "../shared/viewport.jsx";
@@ -9,7 +8,6 @@ import { createPortal } from "react-dom";
 import { ct } from "../features/research/index.js";
 import { patternName } from "../lib/patterns.js";
 import { accountInitials } from "../shared/accountIdentity.jsx";
-import { TopbarFxTicker } from "../features/currency/index.js";
 import { TEXT_SCALES } from "./preferences.jsx";
 import { DisclaimerNote } from "../shared/DisclaimerNote.jsx";
 import { ToastStack } from "./toasts.jsx";
@@ -140,12 +138,11 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
   const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
 
-  const render = (children, overlay = null) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2" data-ui={activeView === "market" ? undefined : "purple"}>
+  const render = (children, overlay = null) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2" data-ui={["main", "market"].includes(activeView) ? undefined : "purple"}>
       <div className="bg-glow bg-glow-a" />
       <div className="bg-glow bg-glow-b" />
 
       <div className="app-shell">
-        <div className="concept-top-strip" data-testid="market-source-strip"><span><b>UZStock</b><span className="concept-strip-description"> · {navDdLabel('Данные рынка Узбекистана','O‘zbekiston bozori ma’lumotlari','Uzbekistan market data')}</span></span><TopbarFxTicker language={language} onOpen={() => {setActiveView('bankfx');setMobileNavOpen(false);}}/></div>
         <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
           <button
             className="topbar-burger"
@@ -303,7 +300,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
             </div>
           </nav>
 
-          <GlobalSearch language={language} companies={marketModule.companies} securities={marketModule.securitiesMap} onCompany={navigationModule.openCompanyPage} onNews={navigationModule.openNewsArticle}/>
           {token && (
             <div className="notif-wrap">
               <button className="notif-bell" type="button" onClick={() => { setNotifOpen((o) => !o); setAccountMenuOpen(false); }} aria-label="Notifications">

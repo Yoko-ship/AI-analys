@@ -50,14 +50,6 @@ test('profile retains the purple palette and complete investor workspace',async(
  await expect(page.getByTestId('profile-workspace-stats').locator('article')).toHaveCount(4);
  await page.getByRole('button',{name:'My portfolio',exact:true}).click();await expect(page.getByTestId('portfolio-market-value')).toBeVisible();
 });
-test('global search opens from the keyboard and finds a security',async({page})=>{
- const state={preferences:{}};await account(page,state);
- await page.route('**/api/securities',r=>r.fulfill({json:{ok:true,securities:{HMKB:{ticker:'HMKB',name:'Hamkorbank',type:'stock'}}}}));
- await page.goto('/');await page.keyboard.press('ControlOrMeta+k');
- const dialog=page.getByRole('dialog');await expect(dialog).toBeVisible();
- await dialog.getByRole('searchbox').fill('Hamkor');await dialog.getByRole('button',{name:/HMKB/}).click();
- await expect(page).toHaveURL(/company\/HMKB/);
-});
 test('personal feed includes portfolio holdings and selected interests',async({page})=>{
  const state={preferences:{investment_interests:['banks']}};await account(page,state);
  await page.route('**/api/securities',r=>r.fulfill({json:{ok:true,securities:{HMKB:{sector:'banks'}}}}));

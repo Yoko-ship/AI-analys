@@ -1,5 +1,6 @@
-/* Supplied Purple Concept: shared surfaces, violet actions and compact dashboards. */
-:root,html[data-theme="light"],html[data-theme="light"] body {
+/* Workspace palette. The public landing keeps the original theme.css colors.
+   Scope both roots so body portals and route changes inherit the same palette. */
+html:not(:has(.view-main)),html:not(:has(.view-main)) body {
  --bg:#f7f7fb;--bg-2:#f0ebff;--panel:#fff;--panel-strong:#fff;--panel-elevated:#fff;--surface-2:#f8f6ff;
  --text:#251b38;--text-secondary:#514760;--muted:#746d84;--muted-light:#9a91aa;
  --accent:#7454df;--accent-hover:#5635c8;--accent-light:#f0ebff;--accent-glow:#7454df22;
@@ -7,7 +8,7 @@
  --success:#077d68;--success-light:#e4f7f0;--danger:#c13b64;--danger-light:#ffebf0;
  --chart-primary:#7454df;--chart-secondary:#077d68;--shadow-sm:0 8px 32px #291b5c0b;
 }
-html[data-theme="dark"],html[data-theme="dark"] body,body[data-theme="dark"] {
+html[data-theme="dark"]:not(:has(.view-main)),html[data-theme="dark"]:not(:has(.view-main)) body {
  --bg:#151222;--bg-2:#292437;--panel:#211c32;--panel-strong:#211c32;--panel-elevated:#2b2442;--surface-2:#292437;
  --text:#f5f2ff;--text-secondary:#d5cce7;--muted:#a69eb8;--muted-light:#958aa7;
  --accent:#b7a8ff;--accent-hover:#cec4ff;--accent-light:#33274c;--accent-glow:#b7a8ff22;

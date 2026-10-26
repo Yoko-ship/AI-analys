@@ -16,7 +16,7 @@ References: `UZStock_Openinfo_Events_Before_After.pdf` (11 pages) and
 | Account security | Actual email-verification and two-factor status, with links to the existing security controls. |
 | Saved screeners | Gain/loss filters and named configurations saved to signed-in accounts across devices; guest browser storage and explicit import. |
 | Watchlist tools | Search, CSV export, issuer alerts and company navigation. |
-| Global search | Header control and Ctrl/Cmd+K search for securities, ISINs and recent news. |
+| Shared header | Information/rates strip and global search removed on request; navigation, account controls, theme and text size retained. |
 | Calendar | Existing month/week/list views, event filters, selected date and details retained. |
 | Corporate classifications | All 46 public fact codes mapped to eight categories, with P0–P3 attention levels and source-dependent confidence. |
 | Corporate filters | Important, My companies (watchlist plus holdings), For you (interests plus owned/followed companies), dates, fact code, security class, company/ISIN and sorting. |

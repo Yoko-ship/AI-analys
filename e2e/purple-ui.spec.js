@@ -54,9 +54,9 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-test('Purple cards and navigation apply outside the screener', async ({page}) => {
+test('Purple cards and navigation apply outside the landing and screener', async ({page}) => {
   await setup(page);
-  for (const path of ['/', '/issuers', '/currency', '/news', '/profile', '/catalog?t=UZMK']) {
+  for (const path of ['/issuers', '/currency', '/news', '/profile', '/catalog?t=UZMK']) {
     await page.goto(path);
     await expect(page.locator('.app-shell-wrap')).toHaveAttribute('data-ui', 'purple');
     const header = page.locator('.topbar');

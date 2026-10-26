@@ -28,9 +28,8 @@ test('corporate detail shows extracted fields and the reason for its attention l
  await page.goto('/news?tab=corporate');await page.getByRole('button',{name:/Documents & history/}).click();
  await expect(page.getByRole('dialog')).toContainText('Payment system');await expect(page.getByRole('dialog')).toContainText('voluntary licence return');
 });
-test('reference header exposes live source rates and the issuer directory for an admin on a phone',async({page})=>{
+test('simplified header retains the issuer directory for an admin on a phone',async({page})=>{
  await setup(page,{admin:true});await page.setViewportSize({width:390,height:844});await page.goto('/');
- await expect(page.getByTestId('market-source-strip')).toContainText('12,500');
  await page.getByRole('button',{name:'Open menu',exact:true}).click();
  await page.locator('.nav-dd-mobile-item').getByText('Company directory',{exact:true}).click();await expect(page).toHaveURL(/issuers$/);
 });
