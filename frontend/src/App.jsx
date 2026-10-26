@@ -10,6 +10,7 @@ import { normalizeLanguage } from "./shared/i18n.jsx";
 import { CompanyPage } from "./features/company/index.js";
 import { AdvancedChart } from "./features/charts/index.js";
 import { BondCard } from "./features/bonds/index.js";
+import { PortfolioView } from "./features/portfolio/index.js";
 import { MarketView } from "./features/market/index.js";
 import { BankFxPage } from "./features/currency/index.js";
 import { FeedbackPage } from "./features/feedback/index.js";
@@ -127,6 +128,7 @@ function App() {
 
           {activeView === "news" && (
             <NewsView
+              key={user?.id || "guest"} apiFetch={apiFetch} signedIn={Boolean(user)} interests={session.profile?.preferences?.investment_interests || []} securitiesMap={securitiesMap}
               language={language}
               favoriteTickers={favoriteTickers}
               onOpenCompany={openCompanyPage}
@@ -242,9 +244,14 @@ function App() {
               onToggleFavorite={handleToggleFavorite}
               viewMode={activeView === "heatmap" ? "heatmap" : "table"}
               onViewModeChange={(m) => setActiveView(m === "heatmap" ? "heatmap" : "market")}
+              accountKey={token ? user?.id || "pending" : null}
+              onSavedScreener={sessionState.refreshProfile}
+              apiFetch={apiFetch}
               isAdmin={Boolean(user?.is_admin)}
             />
           )}
+
+          {activeView === "portfolio" && <Suspense fallback={<div role="status">…</div>}><PortfolioView key={user?.id || 'guest'} language={language} apiFetch={apiFetch} signedIn={Boolean(user)} onSignIn={() => setActiveView("auth")} onOpenCompany={openCompanyPage} /></Suspense>}
 
           {activeView === "bankfx" && <BankFxPage language={language} />}
 

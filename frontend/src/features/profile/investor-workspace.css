@@ -1,0 +1,17 @@
+.iw-grid {display:grid;grid-template-columns:minmax(0,1.5fr) minmax(250px,1fr);gap:20px;margin:20px 0;}
+.iw-card {padding:24px;background:var(--panel);border:1px solid var(--border);border-radius:16px;min-width:0;}
+.iw-card header,.iw-dialog header {display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;}
+.iw-card h2,.iw-dialog h2 {margin:0;font-size:18px;}
+.iw-card p,.iw-dialog p {color:var(--muted);font-size:13px;line-height:1.7;}
+.iw-chips {display:flex;flex-wrap:wrap;gap:8px;margin:16px 0;}
+.iw-chips span {background:var(--accent-light);color:var(--accent);border-radius:20px;padding:8px 12px;font-size:12px;}
+.iw-dialog {background:var(--panel-elevated);color:var(--text);border:1px solid var(--border);border-radius:18px;padding:24px;width:min(560px,calc(100% - 32px));max-height:85vh;overflow:auto;}
+.iw-dialog::backdrop {background:#15122288;}
+.iw-interest-options {display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:20px 0;}
+.iw-interest-options label {display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;}
+.iw-interest-options input {accent-color:var(--accent);width:18px;height:18px;}
+.iw-tabs {display:flex;gap:8px;overflow:auto;padding:8px 0 16px;margin:20px 0 4px;border-bottom:1px solid var(--border);}
+.iw-tabs button {flex-shrink:0;min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--muted);padding:10px 18px;cursor:pointer;}
+.iw-tabs button[aria-pressed=true] {background:var(--accent-light);color:var(--accent);font-weight:600;}
+.iw-tabs button:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}
+@media(max-width:760px){.iw-grid{grid-template-columns:1fr;gap:12px;}.iw-card{padding:16px;}.iw-interest-options{grid-template-columns:1fr;}}

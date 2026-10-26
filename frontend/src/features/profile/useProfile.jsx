@@ -3,6 +3,8 @@ import { t } from "../../shared/i18n.jsx";
 import { ProfileAvatar, readFileAsDataUrl } from "./avatar.jsx";
 import { formatDateLabel, formatMarketNumber, formatSignedPercent } from "../../shared/format.jsx";
 import { Icons } from "../../shared/Icons.jsx";
+import { InvestmentInterests, AccountSecuritySummary } from "./InvestmentInterests.jsx";
+import { PortfolioView } from "../portfolio/index.js";
 import { ProfileGlyph } from "./ProfileGlyph.jsx";
 import { profileMarketQuote } from "../../shared/marketModel.jsx";
 import { ProfileAccountCenter, ProfileFavoriteEditor, ProfileNoteEditor } from "./Editors.jsx";
@@ -10,6 +12,8 @@ import { ProfileAccountCenter, ProfileFavoriteEditor, ProfileNoteEditor } from "
 export function useProfile({ session: sessionModule, toasts: toastsModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, auth: authModule, favorites: favoritesModule }) {
   const { profile, token, user, saveProfile, loadProfile, profileUser, apiFetch, hasProAccess } = sessionModule;
   const { addToast } = toastsModule;
+  const [workspaceTab,setWorkspaceTab]=useState("overview");
+  const label=(ru,en,uz)=>language==="en"?en:language==="uz"?uz:ru;
   const { language, theme, textScale, setLanguage, setTheme, setTextScale } = preferencesModule;
   const { activeView, setActiveView, openCompanyPage } = navigationModule;
   const { companies, marketRows, securitiesMap } = marketModule;
@@ -225,7 +229,16 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                         </div>
                       </header>
 
-                      <section id="profile-favorites" className="pf-band pf-band-ink pf-watch" aria-labelledby="profile-favorites-title">
+                      <div className="hd-stats" data-testid="profile-workspace-stats">{[[label('Избранное','Watchlist','Tanlanganlar'),profileFavorites.length],[label('Подписки','Subscriptions','Obunalar'),profileFavorites.filter(f=>f.news_alert_enabled||f.report_alert_enabled||f.price_alert_enabled).length],[label('Заметки','Notes','Qaydlar'),profileNotes.length],[label('Сохранённые скринеры','Saved screeners','Saqlangan skrinerlar'),profile?.preferences?.saved_screeners?.length||0]].map(([title,value])=><article key={title}><span>{title}</span><strong>{value}</strong></article>)}</div>
+                      <nav className="iw-tabs" aria-label={label('Разделы кабинета','Workspace sections','Kabinet bo‘limlari')}>
+                        {[['overview',label('Обзор','Overview','Umumiy')],['watch',label('Избранное','Watchlist','Tanlanganlar')],['portfolio',label('Мой портфель','My portfolio','Mening portfelim')],['notes',label('Заметки','Notes','Qaydlar')],['settings',label('Настройки','Settings','Sozlamalar')]].map(([key,title])=><button key={key} type="button" aria-label={key==="settings"?label("Настройки кабинета","Workspace settings","Kabinet sozlamalari"):undefined} aria-pressed={workspaceTab===key} onClick={()=>setWorkspaceTab(key)}>{title}</button>)}
+                      </nav>
+                      {workspaceTab==='portfolio'&&<Suspense fallback={<p role="status">…</p>}><PortfolioView key={profileUser.id} language={language} apiFetch={apiFetch} signedIn onOpenCompany={openCompanyPage}/></Suspense>}
+                      {['overview','settings'].includes(workspaceTab)&&<div className="iw-grid">
+                       <InvestmentInterests key={profileUser.id} language={language} values={profile?.preferences?.investment_interests||[]} apiFetch={apiFetch} onRefresh={loadProfile} onExplore={()=>navigationModule.openNewsTab('corporate', {mode:'personal'})}/>
+                       <AccountSecuritySummary language={language} security={profileSecurity} onOpen={()=>openProfileSettings('security')}/>
+                      </div>}
+                      {['overview','watch'].includes(workspaceTab)&&<section id="profile-favorites" className="pf-band pf-band-ink pf-watch" aria-labelledby="profile-favorites-title">
                         <h2 id="profile-favorites-title">{t(language, "profile.command.watchlist")}</h2>
                         <div className="pf-watch-tools">
                           <input type="search" aria-label={watchLabel} placeholder={watchLabel} value={watchSearch} onChange={e => setWatchSearch(e.target.value)} />
@@ -269,17 +282,17 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                         <button className="pf-btn pf-btn-on-ink" type="button" onClick={() => setActiveView("market")}>
                           <span aria-hidden="true">＋</span>{t(language, "profile.command.addTicker")}
                         </button>
-                      </section>
+                      </section>}
 
-                      <div className="pf-band pf-lower">
-                        <section className="pf-lower-col" aria-labelledby="profile-notes-title">
+                      {workspaceTab!=="portfolio"&&<div className="pf-band pf-lower">
+                        {["overview","notes"].includes(workspaceTab)&&<section className="pf-lower-col" aria-labelledby="profile-notes-title">
                           <div className="pf-col-head">
                             <h2 id="profile-notes-title">{t(language, "profile.command.pinnedNotes")}</h2>
                             <button type="button" onClick={() => setProfileNoteEditor({ open: true, note: null })}>
                               <span aria-hidden="true">＋</span> {t(language, "profile.command.newNote")}
                             </button>
                           </div>
-                          {profileNotes.length ? profileNotes.slice(0, 3).map((item) => (
+                          {profileNotes.length ? profileNotes.slice(0, workspaceTab==="notes"?profileNotes.length:3).map((item) => (
                             <button type="button" className="pf-note" key={item.id} onClick={() => setProfileNoteEditor({ open: true, note: item })}>
                               <strong>{item.title || t(language, "profile.command.untitledNote")}</strong>
                               <small>{item.body}</small>
@@ -287,7 +300,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                           )) : (
                             <p className="pf-muted">{t(language, "profile.command.noNotes")}</p>
                           )}
-                        </section>
+                        </section>}
 
                         <nav className="pf-lower-col pf-account" aria-labelledby="profile-account-title">
                           <h2 id="profile-account-title">{t(language, "profile.command.account")}</h2>
@@ -308,7 +321,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                             <span>{t(language, "auth.logout")}</span><span aria-hidden="true">↪</span>
                           </button>
                         </nav>
-                      </div>
+                      </div>}
                     </>
                   )}
 

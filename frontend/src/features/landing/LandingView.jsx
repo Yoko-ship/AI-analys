@@ -1,4 +1,4 @@
-import { snapPixel } from "../../lib/geometry.js";
+import { HomeMarketDashboard } from "./HomeMarketDashboard.jsx";
 import { LandingUpdates } from "./LandingUpdates.jsx";
 import { prepareMarketRows } from "../../lib/marketData.js";
 import React from "react";
@@ -11,11 +11,8 @@ import { MarketMovers } from "../market/index.js";
 import { compact as fmtCompact, num as fmtNumber, pct as fmtPct, price as fmtPrice } from "../../lib/format.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Landing («Город на рассвете») — the "/" view. A cinematic single-theme page:
-// a canvas dawn over the Tashkent skyline whose horizon line is a market chart,
-// followed by live previews of the market board, a company page and the news
-// feed — every number on it comes from the same endpoints the real views read,
-// so the landing can never advertise data the site does not hold.
+// The market dashboard shares prices, performance periods and source data
+// with the full market board. No illustrative prices enter the public view.
 
 const LANDING_TX = {
   ru: {
@@ -116,172 +113,6 @@ const LANDING_TX = {
   },
 };
 
-// The dawn scene: sky gradient, twinkling stars, an occasional meteor, the
-// brand-colour "market chart" horizon line (faded on the left so it never fights the
-// headline), and the city silhouette with the Tashkent TV tower.
-function LandingSky({ theme }) {
-  const ref = React.useRef(null);
-  React.useEffect(() => {
-    const cv = ref.current;
-    if (!cv) return undefined;
-    const ctx = cv.getContext("2d");
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // Two palettes, one scene: night dawn for dark theme, morning for light.
-    // Stars, window lights and meteors belong to the night only.
-    const pal = theme === "light" ? {
-      sky: [[0, "#d9dcf3"], [0.5, "#e8eafb"], [0.78, "#f5f7fb"], [0.92, "#ddd9ff"], [1, "#b9b1f3"]],
-      glow: [[0, "rgba(225, 221, 255, 0.92)"], [0.35, "rgba(98, 87, 217, 0.2)"], [1, "rgba(98, 87, 217, 0)"]],
-      night: false,
-      line: [[0, "rgba(98, 87, 217, 0.08)"], [0.45, "rgba(98, 87, 217, 0.18)"], [0.62, "rgba(98, 87, 217, 0.52)"], [1, "rgba(98, 87, 217, 0.62)"]],
-      dot: "#6257d9", dotGlow: "rgba(98, 87, 217, 0.25)",
-      city: "#2c3045",
-    } : {
-      sky: [[0, "#0b0d12"], [0.52, "#11141b"], [0.78, "#181a2a"], [0.92, "#252348"], [1, "#3a337d"]],
-      glow: [[0, "rgba(192, 184, 255, 0.58)"], [0.35, "rgba(139, 124, 255, 0.22)"], [1, "rgba(139, 124, 255, 0)"]],
-      night: true,
-      line: [[0, "rgba(139, 124, 255, 0.08)"], [0.45, "rgba(139, 124, 255, 0.16)"], [0.62, "rgba(139, 124, 255, 0.5)"], [1, "rgba(139, 124, 255, 0.58)"]],
-      dot: "#8b7cff", dotGlow: "rgba(139, 124, 255, 0.26)",
-      city: "#080910",
-    };
-    let stars = [], meteors = [], t0 = 0, lastMeteor = 0, raf = 0, alive = true;
-    const pts = [0.0, 0.30, 0.06, 0.26, 0.12, 0.34, 0.18, 0.24, 0.25, 0.30, 0.32, 0.18, 0.40, 0.26,
-                 0.48, 0.14, 0.56, 0.22, 0.64, 0.10, 0.72, 0.18, 0.80, 0.06, 0.88, 0.14, 1.0, 0.02];
-
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = cv.clientWidth, h = cv.clientHeight;
-      cv.width = snapPixel(w * dpr);
-      cv.height = snapPixel(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      stars = [];
-      for (let i = 0; i < 90; i++) {
-        stars.push({ x: Math.random() * w, y: Math.random() * h * 0.55, r: Math.random() * 1.1 + 0.2, p: Math.random() * Math.PI * 2 });
-      }
-    };
-
-    const skyline = (w, h) => {
-      const base = h * 0.86;
-      ctx.fillStyle = pal.city;
-      ctx.beginPath();
-      ctx.moveTo(0, h); ctx.lineTo(0, base);
-      let x = 0, i = 0;
-      while (x < w) {
-        const bw = 26 + ((i * 37) % 44);
-        const bh = 18 + ((i * 61) % 72);
-        ctx.lineTo(x, base - bh); ctx.lineTo(x + bw, base - bh);
-        x += bw; i++;
-      }
-      ctx.lineTo(w, base); ctx.lineTo(w, h);
-      ctx.closePath(); ctx.fill();
-
-      const tx = w * 0.72, ty = base, TH = Math.min(h * 0.42, 330);
-      ctx.fillStyle = pal.city;
-      ctx.beginPath();
-      ctx.moveTo(tx - 26, ty); ctx.lineTo(tx - 4, ty - TH * 0.38); ctx.lineTo(tx + 4, ty - TH * 0.38); ctx.lineTo(tx + 26, ty);
-      ctx.closePath(); ctx.fill();
-      ctx.fillRect(tx - 4, ty - TH * 0.78, 8, TH * 0.44);
-      ctx.beginPath(); ctx.ellipse(tx, ty - TH * 0.66, 17, 8, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(tx, ty - TH * 0.74, 11, 5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillRect(tx - 1.5, ty - TH, 3, TH * 0.24);
-      ctx.fillStyle = "rgba(255, 120, 120, 0.9)";
-      ctx.beginPath(); ctx.arc(tx, ty - TH, 2.6, 0, Math.PI * 2); ctx.fill();
-
-      if (pal.night) {
-        ctx.fillStyle = "rgba(255, 196, 120, 0.28)";
-        for (let k = 0; k < 60; k++) {
-          const wx = ((k * 97) % w), wy = base - 8 - ((k * 53) % 58);
-          ctx.fillRect(wx, wy, 2.5, 2.5);
-        }
-      }
-    };
-
-    const draw = (ts) => {
-      if (!alive) return;
-      const w = cv.clientWidth, h = cv.clientHeight;
-      if (!t0) t0 = ts;
-      const t = (ts - t0) / 1000;
-
-      const g = ctx.createLinearGradient(0, 0, 0, h);
-      pal.sky.forEach(([stop, color]) => g.addColorStop(stop, color));
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, h);
-
-      const sx = w * 0.72, sy = h * 0.84;
-      const sg = ctx.createRadialGradient(sx, sy, 4, sx, sy, 180);
-      pal.glow.forEach(([stop, color]) => sg.addColorStop(stop, color));
-      ctx.fillStyle = sg;
-      ctx.fillRect(0, 0, w, h);
-
-      if (pal.night) for (let i = 0; i < stars.length; i++) {
-        const s = stars[i];
-        const a = 0.35 + 0.35 * Math.sin(t * 0.8 + s.p);
-        ctx.fillStyle = `rgba(238, 242, 249, ${reduced ? 0.45 : a.toFixed(3)})`;
-        ctx.fillRect(s.x, s.y, s.r, s.r);
-      }
-
-      if (pal.night && !reduced && t - lastMeteor > 7 && Math.random() < 0.02) {
-        lastMeteor = t;
-        meteors.push({ x: Math.random() * w * 0.7 + w * 0.15, y: Math.random() * h * 0.25 + 20, vx: -3.4, vy: 1.6, life: 1 });
-      }
-      for (let m = meteors.length - 1; m >= 0; m--) {
-        const mt = meteors[m];
-        mt.x += mt.vx * 3; mt.y += mt.vy * 3; mt.life -= 0.02;
-        if (mt.life <= 0) { meteors.splice(m, 1); continue; }
-        ctx.strokeStyle = `rgba(238, 242, 249, ${(mt.life * 0.7).toFixed(3)})`;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(mt.x, mt.y);
-        ctx.lineTo(mt.x - mt.vx * 12, mt.y - mt.vy * 12);
-        ctx.stroke();
-      }
-
-      const lg = ctx.createLinearGradient(0, 0, w, 0);
-      pal.line.forEach(([stop, color]) => lg.addColorStop(stop, color));
-      ctx.strokeStyle = lg;
-      ctx.lineWidth = 2;
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      const reveal = reduced ? 1 : Math.min(1, t / 3.5);
-      const n = Math.max(2, Math.floor((pts.length / 2) * reveal));
-      for (let p = 0; p < n; p++) {
-        const px = pts[p * 2] * w;
-        const py = h * 0.62 - pts[p * 2 + 1] * h * 0.28;
-        if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-      if (reveal >= 1) {
-        const lx = pts[pts.length - 2] * w, ly = h * 0.62 - pts[pts.length - 1] * h * 0.28;
-        const pulse = reduced ? 4 : 4 + Math.sin(t * 2.4) * 1.4;
-        ctx.fillStyle = pal.dotGlow;
-        ctx.beginPath(); ctx.arc(lx, ly, pulse * 2.4, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = pal.dot;
-        ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
-      }
-
-      skyline(w, h);
-      if (!reduced) raf = requestAnimationFrame(draw);
-    };
-
-    const onResize = () => { resize(); if (reduced) raf = requestAnimationFrame(draw); };
-    resize();
-    window.addEventListener("resize", onResize);
-    raf = requestAnimationFrame(draw);
-    return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [theme]);
-  return <canvas ref={ref} className="lv-sky" aria-hidden="true" />;
-}
-
-/* The board's 30-day line. The shared <MiniSparkline> is drawn for a metric
-   card — a 220×74 viewBox with a 4px non-scaling stroke — and squeezing that
-   into a 26px table cell kept the stroke at four literal pixels over a ~19px
-   plot, which read as a fat snake rather than a price. This one is authored at
-   the size it is shown (1 user unit = 1 CSS pixel, so the hairline stays a
-   hairline) and takes its color from the landing's own up/down tokens, so the
-   line agrees with the change column beside it. */
 function LandingSpark({ values, label }) {
   const w = 104;
   const h = 26;
@@ -311,7 +142,7 @@ function LandingSpark({ values, label }) {
   );
 }
 
-function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews, favorites, onCalendar }) {
+function LandingView({ language, marketRows, tradeStats, securitiesMap, companies, onNavigate, onOpenCompany, onOpenNews, favorites, onCalendar }) {
   const lang = normalizeLanguage(language);
   const LT = LANDING_TX[lang] || LANDING_TX.ru;
   const etx = EDNEWS_TX[lang] || EDNEWS_TX.ru;
@@ -510,13 +341,14 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
   ];
 
   return (
-    <div className="landing-view" ref={rootRef}>
+    <div className="landing-view concept-home" ref={rootRef}>
       {/* ── Сцена ── */}
       <section className="lv-stage">
-        <LandingSky theme={theme} />
+
         <div className="lv-mid">
           <div className="lv-lede">
-            <h1 className="lv-h1">{LT.h1[0]}<br />{LT.h1[1]}</h1>
+            <span className="hd-eyebrow">UZSTOCK · {lang==='en'?'Market intelligence':lang==='uz'?'Bozor tahlili':'Аналитическая платформа'}</span>
+            <h1 className="lv-h1">{lang==='en'?'Uzbekistan stock market overview':lang==='uz'?'O‘zbekiston fond bozori sharhi':'Обзор фондового рынка Узбекистана'}</h1>
             <p>{LT.lede}</p>
             <div className="lv-actions">
               <button type="button" className="lv-go" onClick={() => onNavigate("market")}>{LT.ctaMarket}</button>
@@ -525,6 +357,8 @@ function LandingView({ language, theme, marketRows, tradeStats, securitiesMap, c
         </div>
         <span className="lv-cue" aria-hidden="true" />
       </section>
+
+      <HomeMarketDashboard rows={prepared} stats={stats} companies={companies} securitiesMap={securitiesMap||{}} language={lang} onOpenCompany={onOpenCompany} onNavigate={onNavigate} period={changePeriod} onPeriod={setChangePeriod} changes={changes}/>
 
       {/* ── Бегущая строка (реальные итоги последней сессии) ── */}
       {tape.length >= 4 && (

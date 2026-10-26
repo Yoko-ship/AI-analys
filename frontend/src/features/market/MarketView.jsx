@@ -45,6 +45,7 @@ function MarketView({
   onToggleFavorite,
   viewMode: viewModeProp,
   onViewModeChange,
+  accountKey, apiFetch, onSavedScreener,
   isAdmin = false
 }) {
   const lang = normalizeLanguage(language);
@@ -402,7 +403,7 @@ function MarketView({
             equity board — an issue has a value rather than a capitalisation, and
             no earnings for a multiple to divide by. The «Облигации» segment IS
             the bond section: screener + yield map, a row opens /bond/{T}. */}
-        {viewMode === "table" && type !== "bond" && <SavedScreeners
+        {viewMode === "table" && type !== "bond" && <SavedScreeners key={accountKey || "guest"} accountKey={accountKey} apiFetch={apiFetch} onSaved={onSavedScreener}
           lang={lang}
           filters={{ sector: marketSector, query, type, period: changePeriod, direction, favoriteOnly: favOnly, sortKeys }}
           onDirection={setDirection}

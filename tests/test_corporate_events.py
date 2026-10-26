@@ -153,6 +153,22 @@ def test_refresh_reads_existing_announcement_and_keeps_agenda(monkeypatch, tmp_p
     assert len(event["revisions"]) == 2
 
 
+@pytest.mark.parametrize("detail", [{}, {"title": "OpenInfo", "content": []}])
+def test_empty_announcement_response_preserves_confirmed_evidence(monkeypatch, tmp_path, detail):
+    import catalogue.storage as cs
+    import meetings
+    monkeypatch.setattr(cs, "_catalog_db_path", lambda: str(tmp_path / "catalog.db"))
+    row = {"announcement_id": "20828", "org_id": "8", "ticker": "HMKB", "pub_date": "2026-06-01", "meeting_date": "2026-06-25"}
+    original = ce.from_announcement(row, json.loads((FIXTURES / "hmkb_20828.json").read_text()))
+    ce.save_documents([original])
+    monkeypatch.setattr(meetings, "announcement_detail", lambda *a: detail)
+    with pytest.raises(RuntimeError, match="Source unavailable"):
+        ce.refresh_document(original["source_url"])
+    saved = ce.read_documents("2026-06-01", "2026-06-02")[0]
+    assert saved["confidence"] == "confirmed" and saved["stage"] == "agenda"
+    assert len(saved["revisions"]) == 1
+
+
 @pytest.mark.parametrize("source", ["https://evil.test/x", "https://openinfo.uz.evil.test/ru/announce/1", "file:///etc/passwd", "https://openinfo.uz/ru/announce/99999999"])
 def test_refresh_does_not_fetch_arbitrary_or_unstored_sources(source, monkeypatch, tmp_path):
     import catalogue.storage as cs
@@ -170,3 +186,98 @@ def test_security_filters_use_registry_even_without_dividend_amounts():
     assert document["isins"] == ["UZ7011340005"]
     assert bond["security_types"] == ["bond"]
     assert unknown["security_types"] == []
+
+
+def stage_fixtures():
+    return json.loads((FIXTURES / 'event_stages.json').read_text())
+
+
+def test_hmkb_42_148_reports_completed_payment_from_consistent_amounts():
+    event = ce.from_fact(stage_fixtures()[0])
+    assert event['stage'] == 'paid'
+    assert event['payment_start'] == '2024-12-26'
+    assert event['payment_end'] == '2025-02-24'
+    assert event['payment']['paid'] == 6060825
+    assert event['payment']['unit'] == 'thousand_uzs'
+    assert event['amounts'] == []  # aggregate is never a per-share dividend
+
+
+@pytest.mark.parametrize('change', [{'overall_paid_sum':'0'}, {'overall_debt_sum':'10'}, {'overall_paid_percent':'101'}])
+def test_inconsistent_payment_totals_never_claim_paid(change):
+    event = ce.from_fact({**stage_fixtures()[0], **change})
+    assert event['stage'] == 'payment_disclosed'
+    assert event['confidence'] == 'review'
+
+
+def test_uzmk_actual_resolutions_approve_dividends_without_guessing_share_amounts_or_deadline():
+    event = ce.from_fact(stage_fixtures()[1])
+    assert event['stage'] == 'approved'
+    assert event['category'] == 'dividends'
+    assert event['period'] == '2025'
+    assert event['capitalization_disclosed'] is True
+    assert event['amounts'] == []  # totals for each class, not sums per share
+    assert event['payment_end'] is None  # "within sixty days" is not an explicit date
+    assert event['summary']['en'] and event['evidence']
+    assert event['priority_provisional'] is False
+
+
+def test_administrative_resolution_is_not_dividend_approval():
+    event = ce.from_fact(stage_fixtures()[2])
+    assert event['stage'] == 'decision_disclosed'
+    assert event['category'] == 'governance'
+    assert event['priority'] == 2
+
+
+def test_agat_bond_accrual_keeps_its_own_payment_window_and_no_zero_dividend_from_saxovat():
+    bond = ce.from_fact(stage_fixtures()[3])
+    assert bond['payment_start'] == '2026-10-21'
+    assert bond['payment_end'] == '2026-11-03'
+    assert bond['decision_date'] == '2026-03-06'
+    assert bond['amounts'] == [{'security':'bond','amount':2054.79}]
+    empty = ce.from_fact(stage_fixtures()[4])
+    assert empty['amounts'] == [] and empty['confidence'] == 'review'
+
+
+def test_proposal_in_a_voting_question_never_becomes_a_resolution():
+    raw = {**stage_fixtures()[2], 'facts_decisions_wording':[], 'facts_voting_results':[{'question_name':'Утвердить дивиденды за 2025 год'}]}
+    event = ce.from_fact(raw)
+    assert event['stage'] == 'decision_disclosed'
+    assert event['category'] == 'governance'
+
+
+def test_latest_agenda_does_not_downgrade_an_already_approved_story():
+    approved = ce.from_fact(stage_fixtures()[1])
+    agenda = {**approved, 'id':'agenda', 'stage':'agenda', 'published_at':'2026-10-26', 'confidence':'confirmed'}
+    story = ce.group_stories([approved,agenda])[0]
+    assert story['stage'] == 'approved'
+    assert story['document_count'] == 2
+    assert story['published_at'] == '2026-10-26'
+
+
+def test_security_class_is_known_for_nonpayment_disclosures_and_bonds():
+    share=ce.from_fact({'fact_number':23,'id':1},tickers=['HMKB'])
+    bond=ce.from_fact({'fact_number':21,'id':2},tickers=['BOND'])
+    ce.attach_securities([share,bond],{'HMKB':{'share_type':'ordinary'}},{'BOND':{'type':'bond'}})
+    assert share['security_classes']==['ordinary']
+    assert bond['security_classes']==['bond']
+
+
+def test_matching_decision_date_can_link_a_payment_to_an_unambiguous_annual_resolution():
+    approved=ce.from_fact(stage_fixtures()[1])
+    payment={**approved,'id':'payment','period':None,'stage':'paid','published_at':'2026-10-26'}
+    stories=ce.group_stories([approved,payment])
+    assert len(stories)==1 and stories[0]['document_count']==2
+    payment['decision_date']='2026-07-01'
+    assert len(ce.group_stories([approved,payment]))==2
+
+
+def test_checked_source_correction_can_lower_confidence_without_erasing_history(monkeypatch,tmp_path):
+    import catalogue.storage as cs
+    monkeypatch.setattr(cs,'_catalog_db_path',lambda:str(tmp_path/'events.db'))
+    old=ce.from_fact(stage_fixtures()[0])
+    ce.save_documents([old])
+    revised={**old,'confidence':'review','stage':'payment_disclosed','evidence_checked':True}
+    ce.save_documents([revised])
+    rows=ce.read_documents('2025-02-25','2025-02-26')
+    assert rows[0]['confidence']=='review'
+    assert len(rows[0]['revisions'])==2

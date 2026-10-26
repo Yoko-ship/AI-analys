@@ -51,7 +51,9 @@ export function useNotifications({ session: sessionModule, toasts: toastsModule,
     setNotifOpen(false);
     const path = notificationPath(notification);
     if (!path) return;
-    const { view, ticker, adminSection } = pathToView(path);
+    const target = new URL(path, window.location.origin);
+    if (target.pathname === '/news') return navigationModule.openNewsTab(target.searchParams.get('tab') || 'all', {mode:target.searchParams.get('mode')});
+    const { view, ticker, adminSection } = pathToView(target.pathname);
     if (view === "company" && ticker) return openCompanyPage(ticker);
     if (view === "admin") setAdminSection(adminSection);
     setActiveView(view);

@@ -52,7 +52,10 @@ class SubscriptionUpdateRequest(BaseModel):
 from identity.terminal import TerminalPanel
 
 
-class ProfilePreferencesRequest(BaseModel):
+from identity.investor_preferences import InvestorPreferences
+
+
+class ProfilePreferencesRequest(InvestorPreferences):
     terminal_layout: list[TerminalPanel] | None = Field(default=None, max_length=4)
     language: Literal["ru", "en", "uz"] | None = None
     theme: Literal["light", "dark"] | None = None

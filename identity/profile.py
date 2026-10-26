@@ -73,6 +73,9 @@ class Profile:
     def update_preferences(self, user_id: int, updates: dict[str, Any]) -> dict[str, Any]:
         allowed = set(identity_settings.DEFAULT_PROFILE_PREFERENCES)
         clean = {key: value for key, value in (updates or {}).items() if key in allowed and value is not None}
+        from identity.investor_preferences import InvestorPreferences
+        personal = {k: clean[k] for k in ("investment_interests", "saved_screeners") if k in clean}
+        clean.update(InvestorPreferences(**personal).model_dump(exclude_none=True))
         if "terminal_layout" in clean:
             from identity.terminal import validate_layout
             clean["terminal_layout"] = validate_layout(clean["terminal_layout"])

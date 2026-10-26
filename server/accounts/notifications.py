@@ -61,6 +61,9 @@ async def api_notifications(current_user: identity_users.WebUser = Depends(auth_
                               "kind": "price_threshold", "price": price, "threshold": threshold})
         if favorites and preferences.get("notify_patterns", True):
             items.extend(await market_patterns._pattern_alerts(favorites, list(preferences.get("pattern_alert_types") or [])))
+        if has_pro_access:
+            from server.accounts.event_alerts import event_alerts
+            items.extend(await loop.run_in_executor(None, partial(event_alerts, current_user.id, favorites, preferences)))
         if is_human_admin:
             from financial_ingestion.maintenance import incidents
             ingestion_alerts = await loop.run_in_executor(None, incidents)

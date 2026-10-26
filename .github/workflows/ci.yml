@@ -762,7 +762,7 @@ jobs:
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
-            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer uzstock-event-evidence.timer; do
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
@@ -1167,6 +1167,11 @@ jobs:
                   "python collector_financials.py --bank-fx-only"),
               "/etc/systemd/system/uzstock-bank-fx.timer": timer(
                   "Run UZStock bank FX collector", "*-*-* 06:10:00"),
+              "/etc/systemd/system/uzstock-event-evidence.service": worker(
+                  "uzstock-event-evidence", "UZStock corporate disclosure evidence enrichment",
+                  "python corporate_event_backfill.py --limit 40 --days 120", timeout="45min", data_volume=True),
+              "/etc/systemd/system/uzstock-event-evidence.timer": timer(
+                  "Enrich corporate disclosure evidence", "*-*-* 14:20:00"),
               "/etc/systemd/system/uzstock-news-collector.service": worker(
                   "uzstock-news-collector", "UZStock Claude news collector",
                   "python news_collector.py", timeout="60min", data_volume=True,
@@ -1205,7 +1210,7 @@ jobs:
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
             uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
-            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer; do
+            uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer uzstock-event-evidence.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done

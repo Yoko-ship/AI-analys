@@ -1,9 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-// Retain transaction-flow coverage for re-enabling the feature. Public hiding
-// and bookmark behavior are exercised by portfolio-hidden.spec.js.
-test.skip(true, 'Portfolio is temporarily hidden from the public interface');
-
 const user = { id: 99, full_name: 'Portfolio Investor', email: 'portfolio@example.test', pro_access: true, tier: 'pro' };
 const empty = { ok: true, items: [], transactions: [], instruments: [{ ticker: 'AGBA', name: 'Agrobank' }],
   count: 0, priced_count: 0, valuation_complete: true, market_value: '0', cost_value: '0',

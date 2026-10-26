@@ -147,11 +147,11 @@ describe("one list of URL languages", () => {
   });
 });
 
-it('keeps portfolio bookmarks and navigation on the home page while hidden', () => {
+it('opens the portfolio workspace from bookmarks and navigation', () => {
   for (const pathname of ['/portfolio', '/portfolio/', '/uz/portfolio', '/uz/portfolio/']) {
-    assert.equal(pathToView(pathname).view, 'main');
+    assert.equal(pathToView(pathname).view, 'portfolio');
   }
-  assert.equal(viewToPath('portfolio'), '/');
-  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz');
-  assert.ok(HIDDEN_VIEWS.has('portfolio'));
+  assert.equal(viewToPath('portfolio'), '/portfolio');
+  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
+  assert.ok(!HIDDEN_VIEWS.has('portfolio'));
 });

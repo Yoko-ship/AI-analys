@@ -48,6 +48,10 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+test('home map draws its tiles when market data arrives after mounting', async ({page}) => {
+  await openMap(page, 'stock', '/');
+  await expect(page.getByTestId('home-market-dashboard').locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+});
 for (const width of [1280, 390, 320]) {
   test(`heatmap opens with the main movement and metrics above the map at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
@@ -224,4 +228,12 @@ test("turnover and change filters choose which tiles are drawn, not the market p
   await page.getByRole("button", { name: "Сбросить фильтры" }).first().click();
   await expect(tiles).toHaveCount(3);
   expect(errors).toEqual([]);
+});
+
+test('area selector and legend describe the same measure',async({page})=>{
+ await openMap(page);
+ await page.getByLabel('Площадь плитки').selectOption('turnover');
+ await expect(page.locator('.heatmap-area-note')).toContainText('Оборот');
+ await page.getByLabel('Площадь плитки').selectOption('equal');
+ await expect(page.locator('.heatmap-area-note')).toContainText('Равные плитки');
 });

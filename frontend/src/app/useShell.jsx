@@ -1,3 +1,4 @@
+import { GlobalSearch } from "./GlobalSearch.jsx";
 import { snapPixel } from "../lib/geometry.js";
 import { useEffect, useRef, useState } from "react";
 import { rootZoom, zoomedViewport } from "../shared/viewport.jsx";
@@ -64,7 +65,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   }, []);
 
   const navItems = (token
-    ? ["main", "market", "catalog", "news", "feedback", "profile"]
+    ? ["main", "market", "catalog", "news", "portfolio", "feedback", "profile"]
     : ["main", "market", "catalog", "news", "feedback", "auth"])
     .filter(key => key !== "catalog" || canAccessCatalog);
 
@@ -297,6 +298,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
             </div>
           </nav>
 
+          <GlobalSearch language={language} companies={marketModule.companies} securities={marketModule.securitiesMap} onCompany={navigationModule.openCompanyPage} onNews={navigationModule.openNewsArticle}/>
           {token && (
             <div className="notif-wrap">
               <button className="notif-bell" type="button" onClick={() => { setNotifOpen((o) => !o); setAccountMenuOpen(false); }} aria-label="Notifications">
@@ -368,6 +370,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}>
                     {t(language, "nav.profile")}
                   </button>
+                  <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setActiveView("portfolio"); }}>{navDdLabel("Портфель", "Portfel", "Portfolio")}</button>
                   <button type="button" role="menuitem" className="is-logout" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }}>
                     {t(language, "auth.logout")}
                   </button>

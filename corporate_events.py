@@ -153,7 +153,7 @@ def from_fact(raw, *, source_url=None, tickers=None):
     # A portal status of 'approved' means the disclosure passed moderation.
     # It never proves shareholder approval, nor completed dividend payment.
     verified = bool(spec and url and day(pub) and (distribution if code == 41 else decision or payment_start or amounts))
-    return {"id": url or identifier or f"unknown:{raw.get('id', '')}", "source_url": url,
+    document = {"id": url or identifier or f"unknown:{raw.get('id', '')}", "source_url": url,
             "issuer_id": str(org_id) if org_id else None,
             "organization": raw.get("organization_short_name") or raw.get("organization_short_name_text") or raw.get("organization_name") or "",
             "tickers": list(dict.fromkeys(str(t).strip().upper() for t in ticker_values if str(t).strip())),
@@ -165,6 +165,9 @@ def from_fact(raw, *, source_url=None, tickers=None):
             "decision_date": decision, "payment_start": payment_start, "payment_end": payment_end,
             "record_date": None, "ex_dividend_date": None, "period": None,
             "pdf_url": None, "description_changes": str(raw.get("description_changes") or "")[:2000]}
+
+    from corporate_event_semantics import enrich
+    return enrich(document, raw)
 
 
 def from_announcement(row, detail=None):
@@ -191,18 +194,32 @@ def from_announcement(row, detail=None):
 
 def group_stories(documents):
     groups = {}
+    decision_periods = {}
+    def decision_key(doc):
+        return (doc.get("issuer_id"), doc.get("decision_date"), tuple(sorted(doc.get("security_types", []))))
+    for doc in documents:
+        if doc.get("category") == "dividends" and doc.get("period") and doc.get("issuer_id") and doc.get("decision_date") and doc.get("confidence") == "confirmed":
+            decision_periods.setdefault(decision_key(doc), set()).add(doc["period"])
     for doc in documents:
         # Do not guess a relation from proximity, ticker suffix, amount or year
         # of publication. Only an explicitly extracted dividend period links stages.
-        key = (doc.get("issuer_id"), "dividends", doc.get("period")) if doc.get("issuer_id") and doc.get("category")=="dividends" and doc.get("period") else (doc["id"],)
+        period = doc.get("period")
+        candidates = decision_periods.get(decision_key(doc), set())
+        if not period and doc.get("confidence") == "confirmed" and len(candidates) == 1:
+            period = next(iter(candidates))
+        key = (doc.get("issuer_id"), "dividends", period) if doc.get("issuer_id") and doc.get("category")=="dividends" and period else (doc["id"],)
         group = groups.setdefault(key, {})
         group[doc["id"]] = doc
     stories = []
     for key, docs in groups.items():
         ordered = sorted(docs.values(), key=lambda d:(d.get("published_at") or "",d["id"]))
         lead = ordered[-1]
+        stages = {"announced":0,"agenda":1,"proposed":2,"approved":3,"scheduled":4,"accrued":5,"payment_disclosed":6,"paying":7,"paid":8}
+        confirmed = [d for d in ordered if d.get("confidence")=="confirmed" and d.get("stage") in stages]
+        if confirmed:
+            lead = max(confirmed,key=lambda d:(stages[d["stage"]],d.get("published_at") or ""))
         stories.append({**lead, "story_id": hashlib.sha256(str(key).encode()).hexdigest()[:20],
-                        "documents": ordered, "document_count": len(ordered),
+                        "documents": ordered, "document_count": len(ordered), "published_at": ordered[-1].get("published_at"),
                         "priority": min(d["priority"] for d in ordered),
                         "tickers": sorted({t for d in ordered for t in d.get("tickers",[])}),
                         "isins": sorted({s for d in ordered for s in d.get("isins",[])})})
@@ -227,7 +244,7 @@ def save_documents(documents, conn=None):
             clean = {k:v for k,v in document.items() if k != "revisions"}
             payload = json.dumps(clean, ensure_ascii=False, sort_keys=True)
             row = conn.execute("SELECT document_json, revisions_json FROM corporate_event_documents WHERE source_url = ?", (clean["source_url"],)).fetchone()
-            if row and clean.get("confidence") != "confirmed" and json.loads(row["document_json"]).get("confidence") == "confirmed":
+            if row and not clean.get("evidence_checked") and clean.get("confidence") != "confirmed" and json.loads(row["document_json"]).get("confidence") == "confirmed":
                 # A failed detail request is not a correction by the issuer.
                 continue
             if row and row["document_json"] == payload:
@@ -318,7 +335,7 @@ def attach_securities(documents, listings, securities):
     """Use the traded and listed registries, never payment amounts or suffixes."""
     listings, securities = listings or {}, securities or {}
     for document in documents:
-        kinds, isins = set(), set()
+        kinds, isins, classes = set(), set(), set()
         for ticker in document.get("tickers", []):
             listing, security = listings.get(ticker, {}), securities.get(ticker, {})
             share_class = listing.get("share_type")
@@ -327,9 +344,18 @@ def attach_securities(documents, listings, securities):
                 kind = "stock" if share_class in {"ordinary", "preferred"} else "bond" if share_class == "bond" else None
             if kind:
                 kinds.add(kind)
+                if kind == "bond":
+                    classes.add("bond")
+                elif share_class in {"ordinary", "preferred"}:
+                    classes.add(share_class)
+                elif security.get("share_type") in {"ordinary", "preferred"}:
+                    classes.add(security["share_type"])
+                else:
+                    classes.add("share")
             isin = security.get("isin") or listing.get("isin")
             if isin:
                 isins.add(isin)
+        document["security_classes"] = sorted(classes)
         document["security_types"] = sorted(kinds)
         document["isins"] = sorted(isins)
 
@@ -374,7 +400,10 @@ def refresh_document(source):
     finally:
         conn.close()
     if ann:
-        document=from_announcement(raw,meetings.announcement_detail(ann[1],"ru"))
+        detail=meetings.announcement_detail(ann[1],"ru")
+        if not detail or not any(p.get("text", "").strip() for p in detail.get("content", [])):
+            raise RuntimeError("Source unavailable")
+        document=from_announcement(raw,detail)
     else:
         from collectors.news.facts import _fact_detail
         fact_id=(existing or {}).get("global_fact_id") or (parse_qs(parts.query).get("fact") or [None])[0]
@@ -387,6 +416,7 @@ def refresh_document(source):
         document["global_fact_id"]=str(fact_id)
         if not day(document.get("published_at")):
             document["published_at"]=(existing or raw).get("published_at")
+    document["evidence_checked"] = True
     save_documents([document])
     lo=day(document["published_at"])
     hi=(datetime.strptime(lo,"%Y-%m-%d").date()+timedelta(days=1)).isoformat()

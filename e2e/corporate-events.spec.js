@@ -64,3 +64,13 @@ test('stock filter retains non-payment disclosures for registered shares', async
  await page.locator('.newsdesk-subtabs').getByRole('button', {name:'Облигации',exact:true}).click();
  await expect(page.locator('.ce-story')).toHaveCount(0);
 });
+test('payment totals and approved resolutions are explained separately from per-share amounts',async({page})=>{
+ await setup(page);
+ const paid={...a,stage:'paid',amounts:[],payment:{calculated:6060825,paid:6060825,debt:0,paid_percent:100,unit:'thousand_uzs'},summary:{ru:'Общие суммы в тысячах сум'},evidence:['Dividendlar to‘liq to‘langan'],record_date:null};
+ await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{...payload,items:[{...paid,story_id:paid.id,documents:[paid],document_count:1}]}}));
+ await page.reload();await expect(page.locator('.ce-story')).toContainText('Выплачено');
+ await page.locator('.ce-story').getByRole('button',{name:/Документы и история/}).click();
+ await expect(page.getByRole('dialog')).toContainText('тыс. сум');
+ await expect(page.getByRole('dialog')).toContainText('6 060 825');
+ await expect(page.getByRole('dialog')).toContainText('Dividendlar to‘liq to‘langan');
+});

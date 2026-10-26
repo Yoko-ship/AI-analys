@@ -1,3 +1,4 @@
+import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
@@ -116,7 +117,7 @@ function squarifyTreemap(items, x, y, width, height) {
   return output;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d" }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement" }) {
   // Which question the map is drawing. Over a window every cell's colour is the
   // change over it and its bottom meter is the turnover over it — the caller
   // has already restated the rows (see `mapRows`), so the board arithmetic
@@ -150,17 +151,18 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // of sessions is not low-confidence because this morning was thin.
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
+  const [areaMode,setAreaMode]=useState(initialArea);
   const [hover, setHover] = useState(null);
   const [selectedTicker, setSelectedTicker] = useState("");
   const [minTurnover, setMinTurnover] = useState(0);
   const [changeFilter, setChangeFilter] = useState("all");
   const metricSelection = useHeatmapMetrics(lang, type);
   const selectedMetrics = metricSelection.selected;
-  const treeRef = React.useRef(null);
+  const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
-    const element = treeRef.current;
+    const element = treeElement;
     if (!element) return undefined;
     const measure = () => setTreeSize({ w: element.clientWidth, h: element.clientHeight });
     measure();
@@ -173,7 +175,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
       if (observer) observer.disconnect();
       else window.removeEventListener("resize", measure);
     };
-  }, []);
+  }, [treeElement]);
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
@@ -231,9 +233,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // only a tiny floor so it remains discoverable without competing visually
   // with securities that actually moved.
   const movementValue = (row) => (
-    tileStatus(row) === "ok" && Number.isFinite(row.changePercent)
-      ? Math.abs(row.changePercent)
-      : 0
+    areaMode === "movement" && tileStatus(row) !== "ok" ? 0 : mapAreaValue(row,areaMode)
   );
   const maxMovementValue = Math.max(0, ...tradedRows.map(movementValue));
   const movementFloor = maxMovementValue > 0 ? maxMovementValue * 0.002 : 1;
@@ -335,8 +335,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     : key === "up" ? mapCopy.changeUp : key === "down" ? mapCopy.changeDown
       : `≥ ±${formatRatio(key === "full" ? fullScale : fullScale * 0.4, 0, lang)}%`;
 
+  const areaTitle=areaMode==='movement'?mapCopy.movement:areaMode==='turnover'?mapCopy.turnover:areaMode==='capitalization'?(lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'):(lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки');
   return (
     <div className="heatmap-wrap">
+
       {focusRow && (
         <button
           className="heatmap-focus-strip"
@@ -372,7 +374,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         </div>)}
       </div>}
 
-      <div className="heatmap-tree" ref={treeRef} role="group" aria-label={mapCopy.board}>
+      <label className="heatmap-area-control">{lang==='en'?'Tile area':lang==='uz'?'Katak maydoni':'Площадь плитки'} <select value={areaMode} onChange={e=>setAreaMode(e.target.value)}>{[['movement',mapCopy.movement],['turnover',mapCopy.turnover],['capitalization',lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'],['equal',lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки']].map(([key,title])=><option key={key} value={key}>{title}</option>)}</select></label>
+      <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}>
         {sectorLayout.map((sector) => {
           const sectorRows = sector.stocks.map((stock) => stock.row);
           const sectorAverage = avgOf(sectorRows);
@@ -537,10 +540,10 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         <div className="heatmap-legend">
           <div className="heatmap-legend-head">
             <span>{mapCopy.scale}</span>
-            <span className="heatmap-area-note" aria-label={`${mapCopy.area}: ${mapCopy.movement}`}>
+            <span className="heatmap-area-note" aria-label={`${mapCopy.area}: ${areaTitle}`}>
               <small>{mapCopy.area}</small>
-              <b>|%|</b>
-              <span>{mapCopy.movement}</span>
+              <b>{areaMode==="movement"?"|%|":areaMode==="equal"?"=":"UZS"}</b>
+              <span>{areaTitle}</span>
             </span>
           </div>
           <div className="heatmap-legend-gradient" aria-hidden="true" />

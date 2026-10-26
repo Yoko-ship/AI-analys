@@ -15,7 +15,7 @@ export function NewsView({
   onOpenCompany,
   onOpenNews,
   onOpenAnnouncement,
-  favoriteTickers
+  favoriteTickers, apiFetch, signedIn, interests, securitiesMap
 }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
@@ -191,7 +191,7 @@ export function NewsView({
             </button>)}
         </div>}
 
-      {tab === "corporate" ? <CorporateEvents language={language} favoriteTickers={favoriteTickers} instrument={instrument} onCalendar={() => selectTab("calendar")} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
+      {tab === "corporate" ? <CorporateEvents apiFetch={apiFetch} signedIn={signedIn} interests={interests} securitiesMap={securitiesMap} language={language} favoriteTickers={favoriteTickers} instrument={instrument} onCalendar={() => selectTab("calendar")} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
           <div className="newsdesk-loading-side" />
           <div className="newsdesk-loading-feed" />

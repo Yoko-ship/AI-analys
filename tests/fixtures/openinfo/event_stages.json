@@ -1,0 +1,99 @@
+[
+  {
+    "id": 148,
+    "organization": 8,
+    "fact_number": "42",
+    "fact_identifier": "f-42-148",
+    "decision_date": "2024-12-18",
+    "status": "approved",
+    "payment_start_date": "2024-12-26",
+    "payment_end_date": "2025-02-24",
+    "overall_calculated_sum": "6060825.00",
+    "overall_paid_sum": "6060825.00",
+    "overall_paid_percent": "100.00",
+    "overall_debt_sum": "0.00",
+    "overall_debt_percent": "0.00",
+    "non_payment_explanation": "Dividendlar to'liq to'langan",
+    "pub_date": "2025-02-25T10:18:14",
+    "fact_own_link": "https://hamkorbank.uz/for-investors/material-facts/",
+    "organization_short_name": "\"Hamkorbank\" ATB",
+    "organization_ticket_name": "HMKB, HMKBP"
+  },
+  {
+    "id": 14676,
+    "organization": 383,
+    "fact_number": "6",
+    "facts_decisions_wording": [
+      {
+        "decisions_wording": "1. “Ўзметкомбинат” АЖ Ижроия органининг фаолияти 2025 йил якунлари бўйича “ўрта даражада” деб тан олинсин.\r\n2. 2025 йил молия-хўжалик фаолияти текшируви натижалари бўйича аудиторлик ташкилоти хулосаси маъқуллансин.\r\n3. “Ўзметкомбинат” АЖнинг 2025 йил якуни бўйича бизнес-режа бажарилиши тўғрисидаги ҳисоботи, молиявий-хўжалик фаолияти натижалари бўйича йиллик ҳисоботи маълумот учун қабул қилинсин."
+      },
+      {
+        "decisions_wording": "1.  “Ўзметкомбинат” АЖнинг 2025 йил якуни бўйича олинган 284 061 318 233,49 сўмлик соф фойдаси қуйидагича тақсимлансин:\r\n- Захира фондини шакллантириш учун – 14 203 065 900 сўм (сой фойданинг 5% миқдори);\r\n- Дивиденд тўловлари учун – 20 227 294 032 сўм, шундан, оддий акциялар бўйича – 17 282 056 632 сўм, имтиёзли акциялар бўйича – 2 945 237 400 сўм.\r\n- Дивидендлар капитализацияси – 249 630 958 068 сўм (Ўзбекистон Республикаси Президентининг 2026 йил 10 февралдаги ПҚ-56-сон қарорига асосан). \r\n2. Дивидендлар қарор қабул қилинган кундан эътиборан олтмиш кундан кечиктирмай, қонунчиликда белгиланган тартибда амалга оширилсин."
+      }
+    ],
+    "fact_identifier": "f-06-14676",
+    "date_transaction": "2026-06-30",
+    "status": "approved",
+    "pub_date": "2026-09-04T18:38:02",
+    "fact_own_link": "https://uzbeksteel.uz/Muhim-faktlar-2026/c",
+    "organization_short_name": "“O‘zmetkombinat” AJ",
+    "organization_ticket_name": "UZMK, UZMKP"
+  },
+  {
+    "id": 14890,
+    "organization": 1104,
+    "fact_number": "6",
+    "facts_decisions_wording": [
+      {
+        "decisions_wording": "Утверждение Должностной инструкции внутреннего аудитора Общества"
+      }
+    ],
+    "fact_identifier": "f-06-14890",
+    "date_transaction": "2026-10-22",
+    "status": "approved",
+    "pub_date": "2026-10-26T09:35:52",
+    "fact_own_link": null,
+    "organization_short_name": "\"ASTERIUM\"  AJ",
+    "organization_ticket_name": null
+  },
+  {
+    "id": 4265,
+    "organization": 1058,
+    "fact_number": "32",
+    "fact_identifier": "f-32-4265",
+    "date_solution": "2026-03-06",
+    "sum_aksiya": "0.0000",
+    "sum_aksiya2": "0.0000",
+    "sum_per": "2054.7900",
+    "sum_per2": "0.0000",
+    "status": "approved",
+    "start_date_common_shares": null,
+    "end_date_common_shares": null,
+    "start_date_other_securities": "2026-10-21",
+    "end_date_other_securities": "2026-11-03",
+    "pub_date": "2026-10-22T17:48:54",
+    "fact_own_link": "https://agatcredit.uz/about/reports/",
+    "organization_short_name": "\"AGAT CREDIT\" AJ MMT",
+    "organization_ticket_name": null
+  },
+  {
+    "id": 4266,
+    "organization": 1072,
+    "fact_number": "32",
+    "fact_identifier": "f-32-4266",
+    "date_solution": "2026-06-30",
+    "sum_aksiya": "0.0000",
+    "sum_aksiya2": "0.0000",
+    "sum_per": "0.0000",
+    "sum_per2": "-0.0000",
+    "status": "approved",
+    "start_date_common_shares": null,
+    "end_date_common_shares": null,
+    "start_date_other_securities": null,
+    "end_date_other_securities": null,
+    "pub_date": "2026-10-25T19:34:09",
+    "fact_own_link": "saxovat-broyler.uz",
+    "organization_short_name": "\"SAXOVAT BROYLER\" AJ",
+    "organization_ticket_name": null
+  }
+]

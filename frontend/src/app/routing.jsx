@@ -19,6 +19,7 @@ const VIEW_PATHS = {
   // the CBU strip on the board, not from the top-level nav row.
   bankfx: "/currency",
   profile: "/profile",
+  portfolio: "/portfolio",
   auth: "/login",
   // Internal, reached by direct link, not from the nav: the admin panel lives at
   // /admin/{section}. The old secret-in-a-field audit screen used to own
@@ -30,7 +31,7 @@ const VIEW_PATHS = {
 // this rule beside the route table makes old bookmarks land safely on the home
 // page and prevents in-app callbacks from reopening a hidden workspace.
 // The new companyCompare screen owns /compare independently of legacy research.
-const HIDDEN_VIEWS = new Set(["analysis", "compare", "portfolio"]);
+const HIDDEN_VIEWS = new Set(["analysis", "compare"]);
 
 // The URL of a view in `language`; without one (or for a language that has no
 // URLs of its own) the bare path.

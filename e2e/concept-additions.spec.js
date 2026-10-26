@@ -12,8 +12,8 @@ async function setup(page){
    :{ok:true,items:[],stats:{},financials:{}}});
  });
 }
-test('save, reload, apply and delete a market screener',async({page})=>{
- await setup(page); await page.goto('/market');
+test('guest can save, reload, apply and delete a browser screener',async({page})=>{
+ await setup(page); await page.addInitScript(()=>localStorage.removeItem('uz_stock_analyzer_token')); await page.goto('/market');
  await expect(page.locator('.market-table tbody tr')).toHaveCount(2);
  const panel=page.getByTestId('saved-screeners');
  await panel.getByRole('button',{name:'Растущие',exact:true}).click();

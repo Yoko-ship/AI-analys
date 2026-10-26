@@ -290,7 +290,7 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.locator("header.topbar")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Обзор фондового рынка Узбекистана", level: 1 })).toBeVisible();
   await expect(page.locator(".topbar-nav-btn").first()).toBeVisible();
   expect(errors, errors.join("\n")).toHaveLength(0);
 });
@@ -351,7 +351,7 @@ test("module routing preserves hidden workspace redirects and the bonds alias", 
   for (const path of ["/analysis"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Открытый рынок", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Обзор фондового рынка Узбекистана", level: 1 })).toBeVisible();
   }
   await page.goto("/bonds");
   await expect(page).toHaveURL(/\/market$/);
@@ -397,7 +397,7 @@ test("theme toggle flips the data-theme attribute", async ({ page }) => {
 });
 
 test("workspace routes inherit one shared application palette", async ({ page }) => {
-  for (const expected of [{ theme: "light", accent: "#6257d9" }, { theme: "dark", accent: "#8b7cff" }]) {
+  for (const expected of [{ theme: "light", accent: "#7454df" }, { theme: "dark", accent: "#b7a8ff" }]) {
     await page.goto("/");
     if (await page.locator("html").getAttribute("data-theme") !== expected.theme) {
       await page.locator(".theme-toggle").click();
@@ -421,7 +421,7 @@ test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".lv-h1")).toContainText(/\S/);
   await page.locator("#languageSelect").selectOption("en");
-  await expect(page.locator(".lv-h1")).toHaveText(/The open\s*market/);
+  await expect(page.locator(".lv-h1")).toHaveText(/Uzbekistan stock market overview/);
 });
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
