@@ -27,7 +27,7 @@ import re
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -677,32 +677,110 @@ async def _news_page(news_id: str) -> PageMeta | None:
     title = _clean_name(item.get("title_ru") or item.get("title"))
     summary = str(item.get("summary_ru") or item.get("snippet") or "").strip()
     detail = str(item.get("detail_ru") or "").strip()
-    published = str(item.get("published_at") or "")
+    publication = _news_publication(item.get("published_at"))
+    source_url = _web_url(item.get("url"))
     path = f"/news/{news_id}"
     paragraphs = "".join(f"<p>{_esc(p)}</p>" for p in (detail or summary).split("\n") if p.strip())
-    tickers = "".join(f"<li><a href=\"/company/{_esc(t)}\">{_esc(t)}</a></li>" for t in item.get("tickers") or [])
+    tickers = [str(t) for t in item.get("tickers") or [] if re.fullmatch(r"[A-Z0-9]+", str(t))]
+    ticker_links = "".join(f"<li><a href=\"/company/{t}\">{t}</a></li>" for t in tickers)
+    description = _clip(summary or detail or title)
+    publisher = {"@type": "Organization", "name": SITE_NAME, "url": SITE_URL,
+                 "logo": f"{SITE_URL}{LOGO_PATH}"}
     article = {
-        "@context": "https://schema.org", "@type": "NewsArticle", "headline": _clip(title, 110),
-        "datePublished": published or None, "mainEntityOfPage": f"{SITE_URL}{path}",
-        "publisher": {"@type": "Organization", "name": SITE_NAME, "url": SITE_URL},
+        "@context": "https://schema.org", "@type": "NewsArticle", "headline": title,
+        "url": f"{SITE_URL}{path}", "mainEntityOfPage": f"{SITE_URL}{path}",
+        "description": description, "inLanguage": DEFAULT_LANGUAGE, "isAccessibleForFree": True,
+        "publisher": publisher,
     }
-    if item.get("image_url"):
-        article["image"] = item["image_url"]
-    if item.get("url"):
-        article["isBasedOn"] = item["url"]
+    if publication:
+        article["datePublished"] = publication[1]
+    # Credit the platform only for text it prepared. The original outlet is
+    # identified separately as the cited source, never as our summary's author.
+    prepared = bool(detail or str(item.get("summary_ru") or "").strip())
+    if prepared:
+        article["author"] = {"@type": "Organization", "name": SITE_NAME, "url": SITE_URL}
+    image = _web_url(item.get("image_url"))
+    if image:
+        article["image"] = image
+    if source_url:
+        article["isBasedOn"] = source_url
+        citation = {"@type": "CreativeWork", "url": source_url,
+                    "name": _clean_name(item.get("title") or item.get("source") or title)}
+        if item.get("source"):
+            citation["publisher"] = {"@type": "Organization", "name": item["source"]}
+        article["citation"] = citation
+    if tickers:
+        article["about"] = [{"@type": "Organization", "name": t, "tickerSymbol": t,
+                             "url": f"{SITE_URL}/company/{t}"} for t in tickers]
     return PageMeta(
-        title=f"{_clip(title, 90)} | {SITE_NAME}", description=_clip(summary or title),
-        canonical=path, og_type="article", image=item.get("image_url"),
-        jsonld=[{k: v for k, v in article.items() if v}],
+        title=f"{title} | {SITE_NAME}", description=description,
+        canonical=path, og_type="article", image=image,
+        jsonld=[article, _breadcrumbs((_TX[DEFAULT_LANGUAGE]["home"], "/"),
+                                      (_TX[DEFAULT_LANGUAGE]["news"], "/news"), (title, path))],
         body=(f"<article><h1>{_esc(title)}</h1>"
-              + (f"<p><time datetime=\"{_esc(published)}\">{_esc(_fmt_date(published) or '')}</time>"
-                 f" · {_esc(item.get('source') or '')}</p>")
+              + _news_time(item.get("published_at"))
               + paragraphs
-              + (f"<p>Эмитенты:</p><ul>{tickers}</ul>" if tickers else "")
-              + (f"<p><a href=\"{_esc(_web_url(item.get('url')))}\" rel=\"nofollow noopener\">Источник</a></p>"
-                 if _web_url(item.get("url")) else "")
+              + ("<p>Изложение подготовлено UZStock по публикации источника.</p>" if prepared else "")
+              + (f"<p>Эмитенты:</p><ul>{ticker_links}</ul>" if tickers else "")
+              + _news_source_link(item)
+              + '<p><a href="/news">Все новости</a></p>'
               + "</article>"),
     )
+
+
+def _news_time(value: Any) -> str:
+    publication = _news_publication(value)
+    if publication is None:
+        return ""
+    stamp = publication[1]
+    visible = (_fmt_date(stamp) or "") + (" " + stamp.split("T", 1)[1] if "T" in stamp else "")
+    return f'<p><time datetime="{_esc(stamp)}">{_esc(visible)}</time></p>'
+
+
+def _news_source_link(item: dict[str, Any]) -> str:
+    url = _web_url(item.get("url"))
+    if not url:
+        return ""
+    label = "Источник" + (f": {item['source']}" if item.get("source") else "")
+    return f'<p><a href="{_esc(url)}" rel="nofollow noopener">{_esc(label)}</a></p>'
+
+
+async def _news_index_page(lang: str) -> PageMeta:
+    meta = _static_page("/news", lang)
+    if lang != DEFAULT_LANGUAGE:
+        return meta
+    import news_store
+
+    async def load() -> list[dict[str, Any]]:
+        return await asyncio.get_running_loop().run_in_executor(
+            None, lambda: news_store.get_news_feed(limit=200, days=180, order="recent"))
+
+    items = await _cached("news-index", load)
+    rows, entries = [], []
+    seen: set[str] = set()
+    for item in items:
+        news_id = str(item.get("id") or "")
+        title = _clean_name(item.get("title_ru") or item.get("title"))
+        if not news_id.isdecimal() or news_id in seen or not title:
+            continue
+        seen.add(news_id)
+        path = f"/news/{news_id}"
+        summary = str(item.get("summary_ru") or item.get("snippet") or "").strip()
+        rows.append(
+            f'<li><article><h2><a href="{path}">{_esc(title)}</a></h2>'
+            + _news_time(item.get("published_at"))
+            + (f"<p>{_esc(_clip(summary, 240))}</p>" if summary else "")
+            + _news_source_link(item) + "</article></li>")
+        entries.append({"@type": "ListItem", "position": len(entries) + 1,
+                        "url": f"{SITE_URL}{path}", "name": title})
+    meta.body = (f"<h1>{_esc(meta.title.split(' | ')[0])}</h1><p>{_esc(meta.description)}</p>"
+                 + "<ol>" + "".join(rows) + "</ol>")
+    meta.jsonld = [{"@context": "https://schema.org", "@type": "CollectionPage",
+                    "url": f"{SITE_URL}/news", "name": meta.title.split(" | ")[0],
+                    "inLanguage": DEFAULT_LANGUAGE,
+                    "mainEntity": {"@type": "ItemList", "numberOfItems": len(entries),
+                                   "itemListElement": entries}}]
+    return meta
 
 
 async def _ai_report_page(ticker: str, meta: PageMeta) -> PageMeta:
@@ -886,6 +964,8 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
             meta = await _home_page(lang)
         elif path == "/market":
             meta = await _market_page(lang)
+        elif path == "/news":
+            meta = await _news_index_page(lang)
         elif path.startswith("/company/"):
             ticker = path[len("/company/"):].split("/")[0].upper()
             meta = await _company_page(ticker, lang)
@@ -915,6 +995,8 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
         return _not_found(lang)
     except Exception:
         http.logger.warning("seo: snapshot for %s failed", path, exc_info=True)
+        if path == "/news":
+            return _unavailable(path, lang)
         meta = None
     if meta is None and path in _STATIC_PAGES:
         meta = _static_page(path, lang)
@@ -1007,6 +1089,7 @@ def robots_txt() -> str:
         + rules
         + "\n"
         f"Sitemap: {SITE_URL}/sitemap.xml\n"
+        f"Sitemap: {SITE_URL}/news-sitemap.xml\n"
     )
 
 
@@ -1065,6 +1148,60 @@ async def sitemap_xml() -> str:
     return await _cached("sitemap", load)
 
 
+def _news_publication(value: Any) -> tuple[datetime, str] | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        published = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if published.tzinfo is None:
+        # Legacy feeds and date-only sources do not retain a timezone. Use
+        # their known calendar date; never invent a precise publication time.
+        published = published.replace(hour=0, minute=0, second=0, microsecond=0,
+                                      tzinfo=timezone.utc)
+        text = published.date().isoformat()
+    else:
+        text = published.isoformat().replace("+00:00", "Z")
+    return published, text
+
+
+async def news_sitemap_xml() -> str:
+    import news_store
+
+    async def load() -> list[dict[str, Any]]:
+        # Use the public feed so source visibility and relevance rules also
+        # apply here. Three days allows for timestamps with timezone offsets;
+        # the exact two-day window is checked below on every request.
+        return await asyncio.get_running_loop().run_in_executor(
+            None, lambda: news_store.get_news_feed(limit=200, days=3, order="recent"))
+
+    items = await _cached("news-sitemap-items", load)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=2)
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+             'xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">']
+    seen: set[str] = set()
+    for item in items:
+        news_id = str(item.get("id") or "")
+        title = _clean_name(item.get("title_ru") or item.get("title"))
+        publication = _news_publication(item.get("published_at"))
+        if (not news_id.isdecimal() or news_id in seen or not title
+                or publication is None or not cutoff <= publication[0] <= now):
+            continue
+        seen.add(news_id)
+        lines.append(
+            f"  <url><loc>{html.escape(f'{SITE_URL}/news/{news_id}')}</loc><news:news>"
+            f"<news:publication><news:name>{html.escape(SITE_NAME)}</news:name>"
+            f"<news:language>{DEFAULT_LANGUAGE}</news:language></news:publication>"
+            f"<news:publication_date>{publication[1]}</news:publication_date>"
+            f"<news:title>{html.escape(title)}</news:title></news:news></url>")
+    lines.append("</urlset>")
+    return "\n".join(lines) + "\n"
+
+
 @router.get("/robots.txt", include_in_schema=False)
 async def robots_route() -> PlainTextResponse:
     return PlainTextResponse(robots_txt(), headers={"Cache-Control": "public, max-age=3600"})
@@ -1074,6 +1211,18 @@ async def robots_route() -> PlainTextResponse:
 async def sitemap_route() -> Response:
     return Response(await sitemap_xml(), media_type="application/xml",
                     headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/news-sitemap.xml", include_in_schema=False)
+async def news_sitemap_route() -> Response:
+    try:
+        xml = await news_sitemap_xml()
+    except Exception:
+        http.logger.warning("seo: news sitemap unavailable", exc_info=True)
+        return PlainTextResponse("News sitemap temporarily unavailable", status_code=503,
+                                 headers={"Retry-After": "60", "Cache-Control": "no-store"})
+    return Response(xml, media_type="application/xml",
+                    headers={"Cache-Control": "public, max-age=300"})
 
 
 _template_cache: dict[str, tuple[float, str]] = {}

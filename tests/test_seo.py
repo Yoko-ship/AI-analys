@@ -4,6 +4,8 @@ import asyncio
 import json
 import re
 import struct
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,6 +24,8 @@ import news_store
 SHELL = ('<!doctype html><html lang="ru"><head><meta charset="UTF-8" />'
          '<title>UZStock</title><script type="module" src="/assets/index.js"></script></head>'
          '<body><div id="root"></div><script>theme()</script></body></html>')
+
+NEWS_SEARCH_ITEM = json.loads(Path(__file__).with_name("fixtures").joinpath("news-search.json").read_text())
 
 
 def _client(tmp_path, monkeypatch):
@@ -282,7 +286,7 @@ def test_news_page(tmp_path, monkeypatch):
     assert "<title>UZTL отчитался | UZStock</title>" in text
     assert '<a href="/company/UZTL">UZTL</a>' in text
     article = next(b for b in _ldjson(text) if b["@type"] == "NewsArticle")
-    assert article["datePublished"] == "2026-09-11T18:08:33"
+    assert article["datePublished"] == "2026-09-11"
     assert _is_not_found(client.get("/news/8"))
     assert _is_not_found(client.get("/news/abc"))
 
@@ -295,6 +299,96 @@ def test_news_page(tmp_path, monkeypatch):
     assert '<link rel="canonical" href="https://uzstock.uz/news/7" />' in failed.text
 
 
+def test_news_search_metadata_credits_the_original_source(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    item = NEWS_SEARCH_ITEM
+    monkeypatch.setattr(news_store, "get_news_item", lambda news_id: item)
+    text = client.get(f"/news/{item['id']}").text
+    blocks = _ldjson(text)
+    article = next(b for b in blocks if b["@type"] == "NewsArticle")
+    assert article["url"] == f"https://uzstock.uz/news/{item['id']}"
+    assert article["headline"] == item["title"]
+    assert article["description"] == item["summary_ru"]
+    assert article["inLanguage"] == "ru"
+    assert article["isAccessibleForFree"] is True
+    assert article["author"] == {"@type": "Organization", "name": "UZStock", "url": "https://uzstock.uz"}
+    assert article["publisher"]["logo"] == f"https://uzstock.uz{seo.LOGO_PATH}"
+    assert article["isBasedOn"] == item["url"]
+    assert article["citation"] == {"@type": "CreativeWork", "url": item["url"], "name": item["title"],
+                                   "publisher": {"@type": "Organization", "name": item["source"]}}
+    assert "dateModified" not in article
+    assert "Изложение подготовлено UZStock" in text
+    assert "Источник: Spot.uz</a>" in text
+    breadcrumb = next(b for b in blocks if b["@type"] == "BreadcrumbList")
+    assert [b["item"] for b in breadcrumb["itemListElement"]] == [
+        "https://uzstock.uz/", "https://uzstock.uz/news", "https://uzstock.uz/news/6581"]
+
+
+@pytest.mark.parametrize("source_url", [None, "javascript:alert(1)", "data:text/html,bad"])
+def test_news_metadata_never_cites_an_unsafe_source_url(tmp_path, monkeypatch, source_url):
+    client = _client(tmp_path, monkeypatch)
+    monkeypatch.setattr(news_store, "get_news_item", lambda news_id: dict(NEWS_SEARCH_ITEM, url=source_url))
+    text = client.get("/news/6581").text
+    article = next(b for b in _ldjson(text) if b["@type"] == "NewsArticle")
+    assert "isBasedOn" not in article
+    assert "citation" not in article
+    assert "Источник: Spot.uz</a>" not in text
+
+
+def test_news_page_omits_unknown_authorship_and_invalid_dates(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    monkeypatch.setattr(news_store, "get_news_item", lambda news_id: dict(
+        NEWS_SEARCH_ITEM, summary_ru=None, detail_ru=None, snippet="Короткий анонс источника.",
+        published_at="not-a-date"))
+    text = client.get("/news/6581").text
+    article = next(b for b in _ldjson(text) if b["@type"] == "NewsArticle")
+    assert "author" not in article
+    assert "datePublished" not in article
+    assert "<time" not in text
+    assert "Изложение подготовлено UZStock" not in text
+
+
+def test_news_index_has_static_links_excerpts_and_a_matching_item_list(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    requested = []
+
+    def feed(**kwargs):
+        requested.append(kwargs)
+        return [NEWS_SEARCH_ITEM, NEWS_SEARCH_ITEM,
+                {"id": 6582, "title_ru": "Рынок <акций> & облигаций", "summary_ru": "Рост <script>bad()</script>"}]
+
+    monkeypatch.setattr(news_store, "get_news_feed", feed)
+    response = client.get("/news")
+    assert response.status_code == 200
+    text = response.text
+    assert text.count('<a href="/news/6581">') == 1
+    assert NEWS_SEARCH_ITEM["title"] in text
+    assert NEWS_SEARCH_ITEM["summary_ru"] in text
+    assert "Источник: Spot.uz</a>" in text
+    assert '<a href="/news/6582">Рынок «акций» &amp; облигаций</a>' in text
+    assert "Рост &lt;script&gt;bad()&lt;/script&gt;" in text
+    collection = next(b for b in _ldjson(text) if b["@type"] == "CollectionPage")
+    listing = collection["mainEntity"]
+    assert listing["@type"] == "ItemList" and listing["numberOfItems"] == 2
+    assert [b["url"] for b in listing["itemListElement"]] == [
+        "https://uzstock.uz/news/6581", "https://uzstock.uz/news/6582"]
+    assert [b["position"] for b in listing["itemListElement"]] == [1, 2]
+    assert requested == [{"limit": 200, "days": 180, "order": "recent"}]
+
+
+def test_news_index_database_failure_is_retryable(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    def down(**kwargs):
+        raise RuntimeError("db locked")
+
+    monkeypatch.setattr(news_store, "get_news_feed", down)
+    response = client.get("/news")
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "60"
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_robots_txt_allows_search_and_ai_crawlers(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     robots = client.get("/robots.txt")
@@ -305,6 +399,7 @@ def test_robots_txt_allows_search_and_ai_crawlers(tmp_path, monkeypatch):
     assert "Disallow: /api/" in body and "Disallow: /admin" in body
     assert "Disallow: /\n" not in body
     assert "Sitemap: https://uzstock.uz/sitemap.xml" in body
+    assert "Sitemap: https://uzstock.uz/news-sitemap.xml" in body
 
 
 def test_sitemap_lists_pages_companies_bonds_and_news(tmp_path, monkeypatch):
@@ -326,6 +421,83 @@ def test_sitemap_lists_pages_companies_bonds_and_news(tmp_path, monkeypatch):
     assert "<loc>https://uzstock.uz/bond/ACMT1B2</loc>" in xml
     assert "<loc>https://uzstock.uz/news/393</loc><lastmod>2026-09-11</lastmod>" in xml
     assert "BAD" not in xml
+
+
+_NEWS_NS = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9",
+            "n": "http://www.google.com/schemas/sitemap-news/0.9"}
+
+
+def _news_sitemap_clock(monkeypatch):
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 27, 12, tzinfo=timezone.utc).astimezone(tz)
+
+    monkeypatch.setattr(seo, "datetime", FrozenDatetime, raising=False)
+
+
+def test_news_sitemap_publishes_our_article_and_headline(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _news_sitemap_clock(monkeypatch)
+    # A real story currently on the site; its original source is credited on
+    # the article, while the sitemap must point readers to our own account.
+    item = {"id": 6581, "title_ru": "Недостача средств & спор вокруг IMAN Invest",
+            "title": "Original headline", "published_at": "2026-10-26T14:44:00",
+            "source": "spot.uz", "url": "https://www.spot.uz/ru/2026/10/26/iman-invest",
+            "lang": "uz"}
+    monkeypatch.setattr(news_store, "get_news_feed", lambda **kw: [item, item])
+    response = client.get("/news-sitemap.xml")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/xml")
+    urls = ET.fromstring(response.text).findall("s:url", _NEWS_NS)
+    assert len(urls) == 1
+    assert urls[0].findtext("s:loc", namespaces=_NEWS_NS) == "https://uzstock.uz/news/6581"
+    news = urls[0].find("n:news", _NEWS_NS)
+    assert news.findtext("n:publication/n:name", namespaces=_NEWS_NS) == "UZStock"
+    assert news.findtext("n:publication/n:language", namespaces=_NEWS_NS) == "ru"
+    assert news.findtext("n:title", namespaces=_NEWS_NS) == item["title_ru"]
+    # Legacy dates have no timezone: publish the known calendar date rather
+    # than claiming a timezone the record does not establish.
+    assert news.findtext("n:publication_date", namespaces=_NEWS_NS) == "2026-10-26"
+
+
+@pytest.mark.parametrize("published, included", [
+    ("2026-10-25T12:00:00Z", True),
+    ("2026-10-25T11:59:59Z", False),
+    ("2026-10-25T17:00:00+05:00", True),
+    ("2026-10-25T16:59:59+05:00", False),
+    ("2026-10-27T12:00:01Z", False),
+    ("2026-10-26", True),
+    ("2026-10-24", False),
+    ("2026-10-28", False),
+    (None, False),
+    ("not-a-date", False),
+])
+def test_news_sitemap_only_includes_recent_dated_stories(tmp_path, monkeypatch, published, included):
+    client = _client(tmp_path, monkeypatch)
+    _news_sitemap_clock(monkeypatch)
+    monkeypatch.setattr(news_store, "get_news_feed", lambda **kw: [{
+        "id": 6581, "title_ru": "IMAN Invest", "published_at": published,
+        "collected_at": "2026-10-27T12:00:00Z"}])
+    response = client.get("/news-sitemap.xml")
+    assert response.status_code == 200
+    urls = ET.fromstring(response.text).findall("s:url", _NEWS_NS)
+    assert bool(urls) is included
+    if included and (published.endswith("Z") or "+" in published):
+        assert urls[0].findtext("n:news/n:publication_date", namespaces=_NEWS_NS) == published
+
+
+def test_news_sitemap_database_failure_is_retryable(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    def down(**kwargs):
+        raise RuntimeError("db locked")
+
+    monkeypatch.setattr(news_store, "get_news_feed", down)
+    response = client.get("/news-sitemap.xml")
+    assert response.status_code == 503
+    assert response.headers["retry-after"] == "60"
+    assert response.headers["cache-control"] == "no-store"
 
 
 def test_slow_snapshot_times_out_but_keeps_filling(monkeypatch):

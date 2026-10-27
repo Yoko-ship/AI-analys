@@ -4234,6 +4234,14 @@
     "dependencies": []
   },
   {
+    "path": "/news-sitemap.xml",
+    "methods": [
+      "GET"
+    ],
+    "name": "news_sitemap_route",
+    "dependencies": []
+  },
+  {
     "path": "/api/auth/admin/step-up",
     "methods": [
       "POST"
