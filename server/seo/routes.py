@@ -11,8 +11,9 @@ facts inside ``#root``. React's ``createRoot`` replaces that snapshot on its
 first render, so a visitor sees the app exactly as before. The numbers come
 from the same handlers the app's own API calls, never a second computation.
 
-Nothing here may break a page: any failure or slow read falls back to the
-route's static title and the bare shell.
+Recent valid data remains available during refresh. If a dynamic page cannot
+be rendered at all, its app shell is served as a retryable 503, never as an
+indexable copy of the homepage.
 """
 
 from __future__ import annotations
@@ -187,6 +188,8 @@ _TX: dict[str, dict[str, str]] = {
         "chart_description": "Интерактивный график цены {ticker} на UZSE с индикаторами.",
         "event_title": "Корпоративное событие",
         "not_found_title": "Страница не найдена",
+        "unavailable_title": "Временно недоступно",
+        "unavailable_description": "Данные страницы временно недоступны. Повторите попытку через минуту.",
         "not_found_description": "Такой страницы на UZStock нет. Акции, облигации и новости рынка Узбекистана — по ссылкам ниже.",
         "market_intro": ("Акции {count} компаний Узбекистана, которые торгуются на Ташкентской "
                          "фондовой бирже (UZSE): последняя цена, дата сделки, сектор и рыночная "
@@ -228,6 +231,8 @@ _TX: dict[str, dict[str, str]] = {
         "chart_description": "{ticker} aksiyasining UZSE dagi indikatorli interaktiv narx grafigi.",
         "event_title": "Korporativ voqea",
         "not_found_title": "Sahifa topilmadi",
+        "unavailable_title": "Vaqtincha mavjud emas",
+        "unavailable_description": "Sahifa ma’lumotlari vaqtincha mavjud emas. Bir daqiqadan so‘ng qayta urinib ko‘ring.",
         "not_found_description": "UZStock’da bunday sahifa yo‘q. O‘zbekiston bozori aksiyalari, obligatsiyalari va yangiliklari — quyidagi havolalarda.",
         "market_intro": ("Toshkent fond birjasida (UZSE) savdo qilinadigan {count} ta O‘zbekiston "
                          "kompaniyasining aksiyalari: so‘nggi narx, bitim sanasi, sektor va bozor "
@@ -257,6 +262,8 @@ def localized(path: str, lang: str) -> str:
     return f"/{lang}" + ("" if path == "/" else path)
 
 _CACHE_TTL = 600.0
+# A dated snapshot may bridge a slow refresh, but never an indefinite outage.
+_CACHE_STALE_TTL = 3600.0
 _DATA_TIMEOUT = 6.0
 # Ceilings on the page-data cache, whatever paths are asked for: about the site's
 # own page count (≈100 companies and bonds x 2 languages, the stories, the lists)
@@ -287,11 +294,12 @@ class _PageDataCache:
         self._entries: OrderedDict[str, tuple[float, Any]] = OrderedDict()
         self._misses: OrderedDict[str, None] = OrderedDict()
 
-    def get(self, key: str, now: float) -> tuple[float, Any] | None:
+    def get(self, key: str, now: float, stale_for: float = 0.0) -> tuple[float, Any] | None:
         entry = self._entries.get(key)
         if entry is None:
             return None
-        if entry[0] <= now:
+        grace = 0.0 if _is_miss(entry[1]) else stale_for
+        if entry[0] + grace <= now:
             self._drop(key)
             return None
         self._entries.move_to_end(key)
@@ -419,8 +427,9 @@ def _internal_request() -> Request:
 
 
 async def _cached(key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
-    hit = _cache.get(key, time.monotonic())
-    if hit:
+    now = time.monotonic()
+    hit = _cache.get(key, now, stale_for=_CACHE_STALE_TTL)
+    if hit and hit[0] > now:
         return hit[1]
     task = _pending.get(key)
     if task is None:
@@ -433,6 +442,10 @@ async def _cached(key: str, loader: Callable[[], Awaitable[Any]]) -> Any:
                 _pending.pop(key, None)
         task = _pending[key] = asyncio.ensure_future(fill())
         task.add_done_callback(lambda t: t.cancelled() or t.exception())
+    if hit:
+        # Keep the last real content and its original dates while one refresh
+        # runs. A successful refresh (including a confirmed miss) replaces it.
+        return hit[1]
     # A slow read times out this response only: the fill keeps running and the
     # crawler's next visit is served from the cache it leaves behind.
     return await asyncio.wait_for(asyncio.shield(task), timeout=_DATA_TIMEOUT)
@@ -487,7 +500,7 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
             info = await api_securities_info(ticker, lang)
         except HTTPException as exc:
             # A store hiccup raises out of here, is not cached, and serves the
-            # generic shell: only the handler's own 404 makes the page missing.
+            # retryable shell: only the handler's own 404 makes the page missing.
             if exc.status_code == 404:
                 return {"missing": True}
             raise
@@ -878,7 +891,12 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
             meta = await _company_page(ticker, lang)
             # The AI report is written in Russian; other languages keep the company card.
             if meta is not None and lang == DEFAULT_LANGUAGE and (query or {}).get("report") == "ai":
-                meta = await _ai_report_page(ticker, meta)
+                try:
+                    meta = await _ai_report_page(ticker, meta)
+                except Exception:
+                    # Optional preview text must not discard an already valid
+                    # company snapshot when the report store is slow or down.
+                    http.logger.warning("seo: AI preview for %s failed", ticker, exc_info=True)
         elif path.startswith("/bond/"):
             meta = await _bond_page(path[len("/bond/"):].split("/")[0].upper(), lang)
         elif path.startswith("/chart/"):
@@ -900,7 +918,22 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
         meta = None
     if meta is None and path in _STATIC_PAGES:
         meta = _static_page(path, lang)
-    return _with_body(meta or PageMeta(title=_PAGES[lang]["/"][0], description=_PAGES[lang]["/"][1], lang=lang))
+    return _with_body(meta) if meta is not None else _unavailable(path, lang)
+
+
+def _unavailable(path: str, lang: str) -> PageMeta:
+    """A failed data read is neither a missing page nor homepage content."""
+    tx = _TX[lang]
+    parts = path.strip("/").split("/")
+    identifier = parts[1] if len(parts) > 1 else ""
+    if parts[0] in {"company", "bond", "chart"}:
+        identifier = identifier.upper()
+        path = f"/{parts[0]}/{identifier}"
+    canonical = path if parts[0] == "news" else localized(path, lang)
+    return _with_body(PageMeta(
+        title=f"{identifier + ' — ' if identifier else ''}{tx['unavailable_title']} | {SITE_NAME}",
+        description=tx["unavailable_description"], canonical=canonical,
+        status=503, lang=lang))
 
 
 def _with_body(meta: PageMeta) -> PageMeta:

@@ -162,7 +162,8 @@ async def _spa_shell(full_path: str, query: dict[str, str] | None = None) -> Res
     """The SPA shell, filled with this URL's title, meta tags and a text snapshot.
 
     Crawlers read the snapshot; React replaces it on its first render (see
-    server/seo/routes.py). Any failure there serves the bare shell, as before.
+    server/seo/routes.py). Rendering failures retain the app shell, but tell
+    crawlers to retry rather than indexing an empty or generic document.
     """
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
@@ -172,11 +173,14 @@ async def _spa_shell(full_path: str, query: dict[str, str] | None = None) -> Res
         page = seo.render(seo.template(index_path), meta)
     except Exception:
         http.logger.warning("seo: serving the bare shell for /%s", full_path, exc_info=True)
-        return FileResponse(index_path, media_type="text/html; charset=utf-8",
-                            headers={"Cache-Control": "no-store"})
+        return FileResponse(index_path, media_type="text/html; charset=utf-8", status_code=503,
+                            headers={"Cache-Control": "no-store", "Retry-After": "60"})
     # A path the app has no page for still gets the shell (the app opens its home
     # page there), but with a 404 so search engines drop it instead of indexing it.
-    return HTMLResponse(page, status_code=meta.status, headers={"Cache-Control": "no-store"})
+    headers = {"Cache-Control": "no-store"}
+    if meta.status == 503:
+        headers["Retry-After"] = "60"
+    return HTMLResponse(page, status_code=meta.status, headers=headers)
 
 
 # ---------------------------------------------------------------------------

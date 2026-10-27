@@ -5,6 +5,9 @@ import json
 import re
 import struct
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -136,13 +139,17 @@ def test_unknown_ticker_is_404_but_a_failing_store_is_not(tmp_path, monkeypatch)
     assert _is_not_found(client.get("/company/NOPE"))
 
     # A store that fails says nothing about whether the company exists: the
-    # page keeps its 200, and the failure is not cached as a missing company.
+    # page asks crawlers to retry, and is not cached as a missing company.
     async def broken(*args, **kwargs):
         raise company_routes.HTTPException(status_code=500, detail="store down")
     monkeypatch.setattr(company_routes, "api_securities_info", broken)
     seo._cache.clear()
     page = client.get("/company/UZTL")
-    assert page.status_code == 200 and f"<title>{seo.DEFAULT_TITLE}</title>" in page.text
+    assert page.status_code == 503
+    assert page.headers["retry-after"] == "60"
+    assert '<link rel="canonical" href="https://uzstock.uz/company/UZTL" />' in page.text
+    assert "noindex" not in page.text
+    assert f"<title>{seo.DEFAULT_TITLE}</title>" not in page.text
     _fake_company(monkeypatch)
     assert "Uztelecom (UZTL)" in client.get("/company/UZTL").text
 
@@ -183,7 +190,9 @@ def test_render_failure_serves_the_bare_shell(tmp_path, monkeypatch):
         raise RuntimeError("template")
     monkeypatch.setattr(seo, "render", boom)
     page = client.get("/market")
-    assert page.status_code == 200 and page.text == SHELL
+    assert page.status_code == 503 and page.text == SHELL
+    assert page.headers["retry-after"] == "60"
+    assert page.headers["cache-control"] == "no-store"
 
 
 def test_static_and_private_pages(tmp_path, monkeypatch):
@@ -241,7 +250,26 @@ def test_bond_page(tmp_path, monkeypatch):
         return JSONResponse({"items": []})
     monkeypatch.setattr(bonds_routes, "api_bonds", empty)
     seo._cache.clear()
-    assert client.get("/bond/NOPE1B1").status_code == 200
+    assert client.get("/bond/NOPE1B1").status_code == 503
+
+
+@pytest.mark.parametrize("prefix", ["", "/uz"])
+def test_iqmk9b10_timeout_is_retryable_instead_of_a_homepage_duplicate(tmp_path, monkeypatch, prefix):
+    client = _client(tmp_path, monkeypatch)
+
+    async def timeout(request):
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(bonds_routes, "api_bonds", timeout)
+    page = client.get(f"{prefix}/bond/IQMK9B10")
+    assert page.status_code == 503
+    assert page.headers["retry-after"] == "60"
+    assert page.headers["cache-control"] == "no-store"
+    assert f'<link rel="canonical" href="https://uzstock.uz{prefix}/bond/IQMK9B10" />' in page.text
+    assert "IQMK9B10" in page.text
+    assert "noindex" not in page.text
+    assert '<script type="module" src="/assets/index.js"></script>' in page.text
+    assert f"<title>{seo.DEFAULT_TITLE}</title>" not in page.text
 
 
 def test_news_page(tmp_path, monkeypatch):
@@ -262,7 +290,9 @@ def test_news_page(tmp_path, monkeypatch):
         raise RuntimeError("db locked")
     monkeypatch.setattr(news_store, "get_news_item", down)
     seo._cache.clear()
-    assert client.get("/news/7").status_code == 200
+    failed = client.get("/news/7")
+    assert failed.status_code == 503 and failed.headers["retry-after"] == "60"
+    assert '<link rel="canonical" href="https://uzstock.uz/news/7" />' in failed.text
 
 
 def test_robots_txt_allows_search_and_ai_crawlers(tmp_path, monkeypatch):
@@ -299,23 +329,121 @@ def test_sitemap_lists_pages_companies_bonds_and_news(tmp_path, monkeypatch):
 
 
 def test_slow_snapshot_times_out_but_keeps_filling(monkeypatch):
-    monkeypatch.setattr(seo, "_DATA_TIMEOUT", 0.05)
+    monkeypatch.setattr(seo, "_DATA_TIMEOUT", 0)
     seo._cache.clear()
 
     async def scenario():
+        started, release = asyncio.Event(), asyncio.Event()
         async def slow():
-            await asyncio.sleep(0.2)
+            started.set()
+            await release.wait()
             return "value"
-        try:
+        with pytest.raises(asyncio.TimeoutError):
             await seo._cached("k", slow)
-        except asyncio.TimeoutError:
-            pass
-        else:
-            raise AssertionError("expected a timeout")
-        await asyncio.sleep(0.3)
+        await started.wait()
+        pending = seo._pending["k"]
+        release.set()
+        await pending
         return await seo._cached("k", slow)
 
     assert asyncio.run(scenario()) == "value"
+
+
+def test_expired_valid_snapshot_is_served_while_one_refresh_runs(monkeypatch):
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=3, miss_limit=1))
+    monkeypatch.setattr(seo, "_pending", {})
+    monkeypatch.setattr(seo, "time", SimpleNamespace(monotonic=lambda: 100.0))
+    monkeypatch.setattr(seo, "_DATA_TIMEOUT", 0)
+    seo._cache.put("company:ru:SQBN", {"name": "SQB", "as_of": "2026-10-26"}, 99.0)
+
+    async def scenario():
+        started, release = asyncio.Event(), asyncio.Event()
+        calls = []
+
+        async def refresh():
+            calls.append(1)
+            started.set()
+            await release.wait()
+            return {"name": "SQB", "as_of": "2026-10-27"}
+
+        old = await seo._cached("company:ru:SQBN", refresh)
+        assert old["as_of"] == "2026-10-26"
+        await started.wait()
+        assert await seo._cached("company:ru:SQBN", refresh) == old
+        pending = seo._pending["company:ru:SQBN"]
+        release.set()
+        await pending
+        assert (await seo._cached("company:ru:SQBN", refresh))["as_of"] == "2026-10-27"
+        assert calls == [1]
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("replacement", [{"missing": True}, None])
+def test_successful_refresh_can_replace_a_stale_page_with_a_confirmed_miss(monkeypatch, replacement):
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=3, miss_limit=1))
+    monkeypatch.setattr(seo, "_pending", {})
+    monkeypatch.setattr(seo, "time", SimpleNamespace(monotonic=lambda: 100.0))
+    seo._cache.put("news:7", {"title": "Old story"}, 99.0)
+
+    async def scenario():
+        async def removed():
+            return replacement
+        assert (await seo._cached("news:7", removed))["title"] == "Old story"
+        await seo._pending["news:7"]
+        assert await seo._cached("news:7", removed) == replacement
+
+    asyncio.run(scenario())
+
+
+def test_failed_refresh_keeps_the_last_snapshot_only_within_the_grace_period(monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=3, miss_limit=1))
+    monkeypatch.setattr(seo, "_pending", {})
+    monkeypatch.setattr(seo, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    seo._cache.put("bonds", [{"ticker": "IQMK9B10", "last_trade_date": "2026-10-26"}], 99.0)
+
+    async def scenario():
+        async def unavailable():
+            raise RuntimeError("store unavailable")
+        old = await seo._cached("bonds", unavailable)
+        assert old[0]["ticker"] == "IQMK9B10"
+        with pytest.raises(RuntimeError):
+            await seo._pending["bonds"]
+        assert seo._cache.get("bonds", clock[0], stale_for=3600)[1] == old
+        clock[0] = 3700.0
+        with pytest.raises(RuntimeError):
+            await seo._cached("bonds", unavailable)
+
+    asyncio.run(scenario())
+
+
+def test_optional_ai_report_timeout_keeps_the_valid_company_page(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    _fake_company(monkeypatch)
+
+    async def timeout(*args):
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(seo, "_ai_report_page", timeout)
+    page = client.get("/company/UZTL?report=ai")
+    assert page.status_code == 200
+    assert "Uztelecom (UZTL)" in page.text
+    assert '<link rel="canonical" href="https://uzstock.uz/company/UZTL" />' in page.text
+
+
+@pytest.mark.parametrize("cached_value,age", [(None, 1), ({"missing": True}, 1), ({"name": "SQB"}, 3601)])
+def test_misses_and_over_hour_old_snapshots_are_not_served_stale(monkeypatch, cached_value, age):
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=3, miss_limit=1))
+    monkeypatch.setattr(seo, "_pending", {})
+    monkeypatch.setattr(seo, "time", SimpleNamespace(monotonic=lambda: 10000.0))
+    seo._cache.put("company:ru:SQBN", cached_value, 10000.0 - age)
+
+    async def failed_refresh():
+        raise RuntimeError("unavailable")
+
+    with pytest.raises(RuntimeError, match="unavailable"):
+        asyncio.run(seo._cached("company:ru:SQBN", failed_refresh))
 
 
 def _fake_ai_report(monkeypatch, report, calls=None):
