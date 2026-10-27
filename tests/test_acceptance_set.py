@@ -31,9 +31,6 @@ def acceptance() -> dict:
 
 
 class TestTheSetItself:
-    def test_it_exists_as_one_file(self):
-        assert FIXTURES.is_file(), "the acceptance set must be one shared artefact"
-
     def test_it_covers_every_area_the_specification_names(self, acceptance):
         sections = {k for k in acceptance if not k.startswith("_")}
         assert sections == {

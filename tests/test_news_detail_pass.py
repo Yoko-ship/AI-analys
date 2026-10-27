@@ -23,10 +23,8 @@ import news_classifier
 import news_collector as nc
 import collectors.news.articles as collectors_news_articles
 import collectors.news.enrichment as collectors_news_enrichment
-import collectors.news.articles as collectors_news_articles
 import collectors.news.backfill as collectors_news_backfill
 import collectors.news.delivery as collectors_news_delivery
-import collectors.news.enrichment as collectors_news_enrichment
 import news_store
 
 
@@ -105,6 +103,27 @@ def served(monkeypatch):
         monkeypatch.setattr(nc.requests.Session, "request",
                             lambda self, method, url, **kw: _Resp(body, status))
     return _serve
+
+
+@pytest.fixture()
+def pacing_clock(monkeypatch):
+    """Record crawl delays and advance time without waiting on mocked downloads."""
+    class Clock:
+        def __init__(self):
+            self.now = 0.0
+            self.sleeps = []
+
+        def monotonic(self):
+            return self.now
+
+        def sleep(self, seconds):
+            self.sleeps.append(seconds)
+            self.now += seconds
+
+    clock = Clock()
+    # Replace this module's clock, leaving pytest and other modules' time alone.
+    monkeypatch.setattr(collectors_news_enrichment, "time", clock)
+    return clock
 
 
 class TestExtraction:
@@ -209,7 +228,7 @@ class TestWhatIsNeverAsked:
         assert collectors_news_enrichment.enrich_details([{"url": "https://uza.uz/c", "source_id": "uza"}],
                                  {"uza": {"id": "uza"}}) == {}
 
-    def test_the_per_run_cap_is_honoured(self, monkeypatch):
+    def test_the_per_run_cap_is_honoured(self, monkeypatch, pacing_clock):
         seen = []
         monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "x" * 400)
         monkeypatch.setattr(collectors_news_enrichment, "write_detail",
@@ -219,6 +238,7 @@ class TestWhatIsNeverAsked:
         out = collectors_news_enrichment.enrich_details(items, {"uza": {"id": "uza"}}, max_fetch=3)
 
         assert len(seen) == 3 and len(out) == 3
+        assert pacing_clock.sleeps == [2.0, 2.0]
 
 
 class TestTheModelContract:
@@ -487,7 +507,7 @@ class TestTheBacklogDrains:
         with pytest.raises(ValueError, match="source_id"):
             collectors_news_backfill.backfill_details(limit=1, push=False, replace=True)
 
-    def test_one_budget_covers_both_routes(self, monkeypatch):
+    def test_one_budget_covers_both_routes(self, monkeypatch, pacing_clock):
         """A cap of N must not mean N fetched articles PLUS N written filings."""
         calls = {"brief": 0, "article": 0}
         monkeypatch.setattr(collectors_news_articles, "_article_text", lambda *a, **k: "x" * 400)
@@ -506,6 +526,7 @@ class TestTheBacklogDrains:
 
         assert calls["brief"] + calls["article"] == 6
         assert calls["brief"] and calls["article"]      # neither route starves the other
+        assert pacing_clock.sleeps == [2.0, 2.0]
 
     def test_an_unused_half_is_left_to_the_other_route(self, monkeypatch):
         calls = {"brief": 0}

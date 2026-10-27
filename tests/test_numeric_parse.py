@@ -14,7 +14,8 @@ class TestCommaGrouping:
     """Rule 2: a repeated separator is a thousands mark, never a decimal point."""
 
     @pytest.mark.parametrize(("text", "expected"), [
-        ("1,234,567", 1_234_567.0),
+        # Was 1234.567: a 1000x understatement that made P/E read 1000x high.
+        pytest.param("1,234,567", 1_234_567.0, id="1000x-regression"),
         ("12,345,678", 12_345_678.0),
         ("123,456,789", 123_456_789.0),
         ("1,234,567,890", 1_234_567_890.0),
@@ -23,10 +24,6 @@ class TestCommaGrouping:
     ])
     def test_grouped_integers(self, text: str, expected: float) -> None:
         assert parse_decimal(text) == expected
-
-    def test_the_exact_regression(self) -> None:
-        # Was 1234.567 — a 1000x understatement that made P/E read 1000x high.
-        assert parse_decimal("1,234,567") == pytest.approx(1_234_567.0)
 
 
 class TestMixedSeparators:

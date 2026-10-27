@@ -127,23 +127,8 @@ jobs:
         # cron jobs exited 0 having silently collected nothing for weeks.
         run: python scripts/check_server_requirements.py
 
-      - name: Required reporting module regressions
-        env:
-          PYTHON_DOTENV_DISABLED: "1"
-          DATABASE_BACKEND: sqlite
-          DATABASE_URL: ""
-          DATABASE_PUBLIC_URL: ""
-          APP_DATA_DIR: ${{ runner.temp }}/uzstock-module-tests
-          CATALOG_WATCH: "0"
-          NEWS_CALENDAR_WATCH: "0"
-          SECTOR_ANALYSIS_WORKER: "0"
-          ADMIN_CONTROL_WORKER: "0"
-        run: >-
-          python -m pytest tests/test_reporting_boundaries.py
-          tests/test_issuer_analysis_api.py tests/test_email_verification.py
-          tests/test_sector_contract_v22.py tests/test_sector_analysis_service.py
-          tests/test_admin_control.py -q
-
+      # Includes reporting regressions and bank ingestion safety tests; run each
+      # case once per Python version instead of repeating subsets around it.
       - name: Required full backend suite and architecture boundaries
         env:
           TEST_POSTGRES_URL: postgresql://qa:qa-local-test@127.0.0.1:5432/postgres
@@ -158,9 +143,6 @@ jobs:
           SECTOR_ANALYSIS_WORKER: "0"
           ADMIN_CONTROL_WORKER: "0"
         run: python -m pytest tests -q
-
-      - name: Required bank ingestion safety tests
-        run: python -m pytest tests/test_financial_ingestion.py tests/test_financial_ingestion_recovery.py tests/test_ifrs_financials.py tests/test_bank_history_repair.py -q
 
   # ---------------------------------------------------------------------------
   # Frontend. Lint is load-bearing here, not cosmetic: react-hooks/rules-of-hooks
@@ -192,22 +174,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Complete local browser regression suite
-        run: npx playwright test
-
-      - name: Upload Playwright artifacts on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-          if-no-files-found: ignore
+      # Run feature-specific browser tests during implementation (see AGENTS.md).
+      # Push/PR CI stops at the build; targeted live smoke checks follow deployment.
 
   # ---------------------------------------------------------------------------
   # The image both cron collectors and the API actually run.

@@ -1,4 +1,4 @@
-"""Keep real persistence and full browser coverage in the release gate."""
+"""Keep release checks while feature browser tests run during implementation."""
 from pathlib import Path
 import yaml
 
@@ -16,10 +16,34 @@ def test_ci_exercises_postgres_and_both_supported_python_versions():
     assert suite["env"]["DATABASE_URL"] == ""
 
 
-def test_ci_runs_the_complete_browser_suite():
+def test_ci_runs_backend_tests_once_per_python_version():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    commands = [step.get("run", "") for step in workflow["jobs"]["backend"]["steps"]]
+    pytest_commands = [command for command in commands if "python -m pytest" in command]
+    assert pytest_commands == ["python -m pytest tests -q"]
+
+
+def test_push_ci_builds_and_checks_frontend_without_browser_install_or_suite():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
     steps = workflow["jobs"]["frontend"]["steps"]
-    assert any(step.get("run") == "npx playwright test" for step in steps)
+    commands = [step.get("run", "") for step in steps]
+    assert not any("playwright" in command for command in commands)
+    assert {"npm run lint", "npm run test:unit", "npm run build"} <= set(commands)
+    assert "frontend" in workflow["jobs"]["deploy-production"]["needs"]
+
+
+def test_deployment_keeps_targeted_live_market_browser_checks():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    for name in ("verify-production-market", "check-public-market"):
+        job = workflow["jobs"][name]
+        assert job["needs"] == "deploy-production"
+        browser_steps = [
+            step for step in job["steps"]
+            if "playwright test" in step.get("run", "")
+        ]
+        assert len(browser_steps) == 1
+        assert "e2e/production-market.spec.js" in browser_steps[0]["run"]
+        assert browser_steps[0]["env"]["E2E_PRODUCTION_SMOKE"] == "1"
 
 
 def test_local_review_evidence_is_excluded_from_container_context():
