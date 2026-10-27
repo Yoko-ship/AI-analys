@@ -25,6 +25,7 @@ export function useNewsFeed({}) {
     const q = p.toString();
     try {
       window.history.replaceState({}, "", localizedPath(q ? `/news?${q}` : "/news", locationLanguage()));
+      window.dispatchEvent(new PopStateEvent("popstate"));
     } catch {/* history is unavailable in some embedded views */}
   }, []);
   const selectTab = React.useCallback(key => {

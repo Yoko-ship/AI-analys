@@ -3,7 +3,7 @@ const doc = (id, code, ticker, category, stage, priority) => ({
   id, source_url: `https://openinfo.uz/ru/facts/${code}/${id}`, code, tickers: [ticker], isins: ['UZ7011340005'],
   security_types: ['stock'],
   organization: ticker === 'HMKB' ? 'Hamkorbank' : 'O‘zbekgeofizika', category, stage, priority,
-  title: { ru: stage === 'proposed' ? 'Набсовет рекомендовал дивиденды' : 'Компания утратила лицензию', en: 'Board recommended dividends' },
+  title: { ru: stage === 'proposed' ? 'Набсовет рекомендовал дивиденды' : 'Компания утратила лицензию', en: 'Board recommended dividends', uz: 'Kuzatuv kengashi dividendlarni tavsiya qildi' },
   published_at: '2026-07-06T15:01:18', decision_date: '2026-06-22', confidence: 'confirmed',
   amounts: [{ security: 'ordinary', amount: 8.01 }, { security: 'preferred', amount: 71.5 }],
 });
@@ -91,4 +91,61 @@ test('meeting documents distinguish publication from the date supported by sourc
   await expect(dialog).toContainText('11:00');
   await expect(dialog).toContainText('Дата собрания взята из текста объявления');
   await expect(dialog.locator('.ce-date-evidence')).toContainText(meeting.date_evidence);
+});
+
+for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable detail pages at ${prefix || '/'}`, async ({ page }, info) => {
+  await page.setViewportSize({ width: prefix ? 390 : 1440, height: 900 });
+  await setup(page);
+  await page.route('**/api/news/corporate-events?**', route => {
+    const query = new URL(route.request().url()).searchParams;
+    const matching = query.get('start') === '2026-07-01' && query.get('end') === '2026-07-31';
+    return route.fulfill({ json: { ...payload, items: matching ? payload.items : [] } });
+  });
+  await page.goto(`${prefix}/news?tab=corporate&instrument=stock&start=2026-07-01&end=2026-07-31`);
+  const card = page.locator('.ce-story').filter({ hasText: 'O‘zbekgeofizika' });
+  const headline = card.getByRole('link', { name: prefix ? 'Kuzatuv kengashi dividendlarni tavsiya qildi' : a.title.ru, exact: true });
+  await expect(headline).toHaveAttribute('href', /event=577/);
+  const detailURL = await headline.getAttribute('href');
+  await headline.click();
+  await expect(page).toHaveURL(detailURL);
+  const detail = page.getByTestId('corporate-event-detail');
+  await expect(detail.getByRole('heading', { level: 1 })).toHaveText('O‘zbekgeofizika');
+  await expect(detail).toContainText(prefix ? '8.01' : '8,01');
+  await expect(detail.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.ce-story')).toHaveCount(0);
+  await page.reload();
+  await expect(detail).toContainText(prefix ? '71.5' : '71,5');
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(t => { document.documentElement.dataset.theme = document.body.dataset.theme = t; }, theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`detail-${theme}.png`), fullPage: true });
+  }
+  await page.goBack();
+  await expect(page.locator('.ce-story')).toHaveCount(2);
+  await expect(page).toHaveURL(/tab=corporate&instrument=stock&start=2026-07-01&end=2026-07-31$/);
+  await page.goForward();
+  await expect(detail).toBeVisible();
+  await detail.locator('.led-back').click();
+  await expect(page.locator('.ce-story')).toHaveCount(2);
+  await expect(page).toHaveURL(/tab=corporate&instrument=stock$/);
+});
+
+test('a missing corporate detail has a clear state and a working return link', async ({ page }) => {
+  await setup(page);
+  await page.goto('/news?tab=corporate&event=missing&start=2026-07-01&end=2026-07-31');
+  const detail = page.getByTestId('corporate-event-detail');
+  await expect(detail).toContainText('Событие не найдено');
+  await detail.getByRole('link', { name: /К корпоративным новостям/ }).click();
+  await expect(page.locator('.ce-story')).toHaveCount(2);
+});
+
+
+test('changing the corporate instrument exits the detail view', async ({ page }) => {
+  await setup(page);
+  await page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'}).getByRole('link',{name:a.title.ru,exact:true}).click();
+  await expect(page.getByTestId('corporate-event-detail')).toBeVisible();
+  await page.locator('.newsdesk-subtabs').getByRole('button',{name:'Акции',exact:true}).click();
+  await expect(page.getByTestId('corporate-event-detail')).toHaveCount(0);
+  await expect(page.locator('.ce-story')).toHaveCount(2);
 });

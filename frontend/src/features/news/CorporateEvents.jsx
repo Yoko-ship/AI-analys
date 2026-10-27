@@ -1,6 +1,8 @@
 import { SourceDateEvidence } from './SourceDateEvidence.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { interceptNav } from './editorial.jsx';
+import { localizedPath } from '../../lib/languagePath.js';
 import { safeHref } from '../../lib/safeHref.js';
 import { addDays, tashkentToday, formatDay } from './calendarEvents.js';
 import './corporate-events.css';
@@ -10,6 +12,11 @@ const COPY = {
   ru: { title:'Корпоративные события', subtitle:'Решения, предложения и выплаты — с отдельными датами и первоисточниками.', all:'Все события', important:'Важное', mine:'Мои компании', calendar:'Календарь', categories:'Категории', allCategories:'Все категории', search:'Компания, тикер или ISIN', sort:'Порядок событий', recent:'По времени', priority:'По важности', subscriptions:'Сначала мои компании', from:'Опубликовано с', to:'По', filters:'Расширенные фильтры', code:'Тип по OpenInfo', any:'Все', security:'Вид бумаги', ordinary:'Простые акции', preferred:'Привилегированные акции', share:'Акции (класс не указан)', bond:'Облигации', published:'Опубликовано', decision:'Решение принято', event:'Дата события', payment_start:'Начало окна выплат', payment_end:'Конец окна выплат', source:'Первоисточник OpenInfo', documents:'Документы и история', docCount:'док.', close:'Закрыть', review:'Проверяется', confirmed:'Подтверждено источником', provisional:'Предварительный приоритет по типу раскрытия', note:'Краткое изложение UZStock. Официальный текст — в первоисточнике. Приоритет показывает внимание к раскрытию, а не направление цены.', proposal:'Предложение не означает утверждённую выплату.', agenda:'Вопрос в повестке не означает принятого решения.', loading:'Загрузка событий…', empty:'По выбранным фильтрам событий нет.', error:'Не удалось загрузить события.', retry:'Повторить', partial:'Часть источников временно недоступна.', noFavorites:'Добавьте компании в избранное, чтобы следить за их событиями.', reset:'Сбросить фильтры', refresh:'Проверить документ', checking:'Проверяем…', refreshError:'Документ временно недоступен. Первоначальная запись сохранена.', original:'Оригинальное название', changes:'История изменений', observed:'Обнаружено', record:'Дата права на дивиденды',unit:'сум на бумагу', stages:{approved:'Утверждено',paying:'Выплачивается',paid:'Выплачено',proposed:'Предложение',agenda:'Повестка',announced:'Объявлено',decision_disclosed:'Решение раскрыто',scheduled:'Сроки определены',accrued:'Начислено',payment_disclosed:'Данные о выплатах',disclosed:'Раскрыто'}, priorities:['Критично','Важно','Наблюдать','Справочно'] },
   en: { title:'Corporate events', subtitle:'Decisions, proposals and payments, with distinct dates and original documents.', all:'All events', important:'Important', mine:'My companies', calendar:'Calendar', categories:'Categories', allCategories:'All categories', search:'Company, ticker or ISIN', sort:'Event order', recent:'Latest first', priority:'By importance', subscriptions:'My companies first', from:'Published from', to:'To', filters:'Advanced filters', code:'OpenInfo type', any:'All', security:'Security class', ordinary:'Ordinary shares', preferred:'Preferred shares', share:'Shares (class unspecified)', bond:'Bonds', published:'Published', decision:'Decision made', event:'Event date', payment_start:'Payment window opens', payment_end:'Payment window ends', source:'Original on OpenInfo', documents:'Documents & history', docCount:'docs', close:'Close', review:'Under review', confirmed:'Source confirmed', provisional:'Provisional priority based on disclosure type', note:'UZStock summary. The source carries the official text. Priority indicates attention to a disclosure, not price direction.', proposal:'A proposal is not an approved payment.', agenda:'An agenda item is not a decision.', loading:'Loading events…', empty:'No events match these filters.', error:'Could not load events.', retry:'Retry', partial:'Some sources are temporarily unavailable.', noFavorites:'Add companies to your watchlist to follow their events.', reset:'Reset filters', refresh:'Check document', checking:'Checking…', refreshError:'Document temporarily unavailable. The original record is preserved.', original:'Original title', changes:'Revision history', observed:'Observed', record:'Dividend entitlement date',unit:'UZS per security', stages:{approved:'Approved',paying:'Partially paid',paid:'Paid',proposed:'Proposed',agenda:'Agenda',announced:'Announced',decision_disclosed:'Decision disclosed',scheduled:'Scheduled',accrued:'Accrued',payment_disclosed:'Payment data',disclosed:'Disclosed'}, priorities:['Critical','Important','Watch','Reference'] },
   uz: { title:'Korporativ voqealar', subtitle:'Qarorlar, takliflar va to‘lovlar — alohida sanalar va birlamchi manbalar bilan.', all:'Barcha voqealar', important:'Muhim', mine:'Mening kompaniyalarim', calendar:'Taqvim', categories:'Toifalar', allCategories:'Barcha toifalar', search:'Kompaniya, tiker yoki ISIN', sort:'Voqealar tartibi', recent:'Vaqt bo‘yicha', priority:'Muhimlik bo‘yicha', subscriptions:'Avval mening kompaniyalarim', from:'E’lon qilingan sana: dan', to:'Gacha', filters:'Qo‘shimcha filtrlar', code:'OpenInfo turi', any:'Barchasi', security:'Qimmatli qog‘oz turi', ordinary:'Oddiy aksiyalar', preferred:'Imtiyozli aksiyalar', share:'Aksiyalar (turi ko‘rsatilmagan)', bond:'Obligatsiyalar', published:'E’lon qilindi', decision:'Qaror qabul qilindi', event:'Voqea sanasi', payment_start:'To‘lov davri boshlanishi', payment_end:'To‘lov davri tugashi', source:'OpenInfo birlamchi manbasi', documents:'Hujjatlar va tarix', docCount:'hujjat', close:'Yopish', review:'Tekshirilmoqda', confirmed:'Manba tasdiqlagan', provisional:'Ma’lumot turi bo‘yicha dastlabki ustuvorlik', note:'UZStock qisqa bayoni. Rasmiy matn birlamchi manbada. Ustuvorlik narx yo‘nalishini emas, voqeaga e’tiborni bildiradi.', proposal:'Taklif tasdiqlangan to‘lov degani emas.', agenda:'Kun tartibidagi masala qabul qilingan qaror emas.', loading:'Voqealar yuklanmoqda…', empty:'Ushbu filtrlarga mos voqealar yo‘q.', error:'Voqealarni yuklab bo‘lmadi.', retry:'Qayta urinish', partial:'Ayrim manbalar vaqtincha mavjud emas.', noFavorites:'Voqealarni kuzatish uchun kompaniyalarni tanlanganlarga qo‘shing.', reset:'Filtrlarni tozalash', refresh:'Hujjatni tekshirish', checking:'Tekshirilmoqda…', refreshError:'Hujjat vaqtincha mavjud emas. Asl yozuv saqlangan.', original:'Asl sarlavha', changes:'O‘zgarishlar tarixi', observed:'Aniqlandi', record:'Dividend huquqi sanasi',unit:'so‘m / qimmatli qog‘oz', stages:{approved:'Tasdiqlandi',paying:'Qisman to‘landi',paid:'To‘landi',proposed:'Taklif',agenda:'Kun tartibi',announced:'E’lon qilindi',decision_disclosed:'Qaror e’lon qilindi',scheduled:'Muddatlar belgilandi',accrued:'Hisoblandi',payment_disclosed:'To‘lov ma’lumotlari',disclosed:'E’lon qilindi'}, priorities:['Jiddiy','Muhim','Kuzatish','Ma’lumot'] },
+};
+const DETAIL_COPY = {
+  ru: { back: 'К корпоративным новостям', missing: 'Событие не найдено.' },
+  en: { back: 'Back to corporate news', missing: 'Event not found.' },
+  uz: { back: 'Korporativ yangiliklarga qaytish', missing: 'Voqea topilmadi.' },
 };
 const pick = (value, lang) => typeof value === 'string' ? value : value?.[lang] || value?.ru || '';
 function Amounts({ document, tx, locale }) {
@@ -40,15 +47,22 @@ function Evidence({ document: d, tx, lang, locale }) {
 }
 function StoryDialog({ story, onClose, tx, lang, locale, onUpdated }) {
   const ref = useRef(null);
-  const [documents,setDocuments] = useState(story.documents?.length?story.documents:[story]);
-  const [busy,setBusy] = useState('');
-  const [error,setError] = useState(false);
   useEffect(() => {
     const dialog=ref.current;
     const previous=document.activeElement;
     dialog.showModal();
     return () => { dialog.close(); previous?.focus(); };
   }, []);
+  return createPortal(<dialog ref={ref} className="ce-dialog" aria-labelledby="ce-dialog-title" onCancel={onClose} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
+    <header><div><span className="ce-eyebrow">{tx.documents}</span><h2 id="ce-dialog-title">{story.organization}</h2></div><button type="button" className="ghost-btn" onClick={onClose}>{tx.close} ×</button></header>
+    <StoryDocuments story={story} tx={tx} lang={lang} locale={locale} onUpdated={onUpdated} />
+    <p className="ce-note">{tx.note}</p>
+  </dialog>, document.body);
+}
+function StoryDocuments({ story, tx, lang, locale, onUpdated }) {
+  const [documents,setDocuments] = useState(story.documents?.length?story.documents:[story]);
+  const [busy,setBusy] = useState('');
+  const [error,setError] = useState(false);
   const refresh = async d => {
     setBusy(d.id); setError(false);
     try {
@@ -60,28 +74,49 @@ function StoryDialog({ story, onClose, tx, lang, locale, onUpdated }) {
     } catch { setError(true); }
     finally { setBusy(''); }
   };
-  return createPortal(<dialog ref={ref} className="ce-dialog" aria-labelledby="ce-dialog-title" onCancel={onClose} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-    <header><div><span className="ce-eyebrow">{tx.documents}</span><h2 id="ce-dialog-title">{story.organization}</h2></div><button type="button" className="ghost-btn" onClick={onClose}>{tx.close} ×</button></header>
+  return <>
     <div className="ce-history">{documents.map(d=><section key={d.id} className="ce-document">
       <Evidence document={d} tx={tx} lang={lang} locale={locale} />
       {d.confidence !== 'confirmed' && <button type="button" className="ghost-btn" disabled={!!busy} onClick={()=>refresh(d)}>{busy===d.id?tx.checking:tx.refresh}</button>}
       {d.revisions?.length > 1 && <details><summary>{tx.changes} · {d.revisions.length}</summary>{d.revisions.map((r,i)=><div className="ce-revision" key={i}><p>{tx.observed}: {new Date(r.observed_at).toLocaleString(locale,{timeZone:'Asia/Tashkent'})} (UTC+5)</p><Evidence document={r.document} tx={tx} lang={lang} locale={locale} /></div>)}</details>}
     </section>)}</div>
     {error && <p role="alert">{tx.refreshError}</p>}
-    <p className="ce-note">{tx.note}</p>
-  </dialog>, document.body);
+  </>;
 }
+
 export function CorporateEvents({ language, favoriteTickers = new Set(), instrument = 'all', onCalendar, onOpenCompany, apiFetch, signedIn, interests=[], securitiesMap={} }) {
   const lang=COPY[language]?language:'ru', tx=COPY[lang], locale=lang==='en'?'en-US':lang==='uz'?'uz-UZ':'ru-RU';
   const [data,setData]=useState({items:[]}), [loading,setLoading]=useState(true), [error,setError]=useState(false);
   const [reload,setReload]=useState(0), [category,setCategory]=useState(''), [mode,setMode]=useState(()=>new URLSearchParams(location.search).get('mode')==='personal'?'personal':'all');
   const [search,setSearch]=useState(''), [code,setCode]=useState(''), [security,setSecurity]=useState(''), [sort,setSort]=useState('recent');
-  const [from,setFrom]=useState(()=>addDays(tashkentToday(),-90)), [to,setTo]=useState(tashkentToday);
+  const [from,setFrom]=useState(()=>new URLSearchParams(location.search).get('start') || addDays(tashkentToday(),-90)), [to,setTo]=useState(()=>new URLSearchParams(location.search).get('end') || tashkentToday());
   const [selected,setSelected]=useState(null);
+  const [eventId,setEventId]=useState(()=>new URLSearchParams(location.search).get('event'));
+  useEffect(()=>{
+    const onPop=()=>{
+      const query=new URLSearchParams(location.search);
+      setEventId(query.get('event'));
+      if(query.get('start')) setFrom(query.get('start'));
+      if(query.get('end')) setTo(query.get('end'));
+    };
+    window.addEventListener('popstate',onPop);
+    return ()=>window.removeEventListener('popstate',onPop);
+  },[]);
+  const eventPath = id => {
+    const query=new URLSearchParams(location.search);
+    if(id) { query.set('event',id); query.set('start',from); query.set('end',to); }
+    else { query.delete('event'); query.delete('start'); query.delete('end'); }
+    return localizedPath(`/news?${query}`,lang);
+  };
+  const navigateEvent = id => {
+    window.history.pushState({},'',eventPath(id));
+    setEventId(id);
+    window.scrollTo({top:0,behavior:'auto'});
+  };
   useEffect(()=>{
     const controller=new AbortController();
     setLoading(true); setError(false);
-    fetch(`/api/news/corporate-events?start=${from}&end=${to}`,{signal:controller.signal}).then(async r=>{
+    fetch(`/api/news/corporate-events?start=${encodeURIComponent(from)}&end=${encodeURIComponent(to)}`,{signal:controller.signal}).then(async r=>{
       const body=await r.json(); if(!r.ok || !body.ok) throw new Error(); return body;
     }).then(body=>{setData(body);setLoading(false);}).catch(e=>{if(e.name!=='AbortError'){setError(true);setLoading(false);}});
     return ()=>controller.abort();
@@ -105,6 +140,18 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
       && [s.organization,...(s.tickers||[]),...(s.isins||[]),...docs.map(d=>pick(d.title,lang))].join(' ').toLowerCase().includes(search.trim().toLowerCase());
   }).sort((a,b)=>(sort==='priority'?a.priority-b.priority:sort==='subscriptions'||mode==='personal'?rankEvent(b,personalTickers,tashkentToday())-rankEvent(a,personalTickers,tashkentToday()):0)||String(b.published_at).localeCompare(String(a.published_at)));
   const reset=()=>{setCategory('');setMode('all');setSearch('');setCode('');setSecurity('');setSort('recent');};
+  if(eventId) {
+    const story=(data.items||[]).find(s=>s.story_id===eventId);
+    const detailTx=DETAIL_COPY[lang];
+    return <section className="ce-feed ce-detail" data-testid="corporate-event-detail">
+      <a className="led-back" href={eventPath(null)} onClick={interceptNav(()=>navigateEvent(null))}>← {detailTx.back}</a>
+      {loading ? <p role="status" className="ce-empty">{tx.loading}</p> : error ? <div role="alert" className="ce-empty">{tx.error} <button type="button" className="ghost-btn" onClick={()=>setReload(n=>n+1)}>{tx.retry}</button></div> : !story ? <p className="ce-empty">{detailTx.missing}</p> : <>
+        <header className="ce-heading"><div><span className="ce-eyebrow">OPENINFO · UZSTOCK</span><h1>{story.organization}</h1><p>{pick(story.title,lang)}</p></div></header>
+        <StoryDocuments key={`${story.story_id}-${reload}`} story={story} tx={tx} lang={lang} locale={locale} onUpdated={()=>setReload(n=>n+1)} />
+        <p className="ce-note">{tx.note}</p>
+      </>}
+    </section>;
+  }
   return <section className="ce-feed" data-testid="corporate-events">
     <header className="ce-heading"><div><span className="ce-eyebrow">OPENINFO · UZSTOCK</span><h2>{tx.title}</h2><p>{tx.subtitle}</p></div><button className="ghost-btn" type="button" onClick={onCalendar}>{tx.calendar} →</button></header>
     <div className="ce-modes" role="group" aria-label={tx.title}>{['all','important','mine','personal'].map(m=><button key={m} type="button" aria-pressed={mode===m} onClick={()=>setMode(m)}>{m==='personal'?personalLabel:tx[m]}</button>)}</div>
@@ -127,7 +174,7 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
       {loading?<p role="status" className="ce-empty">{tx.loading}</p>:error?<div role="alert" className="ce-empty">{tx.error} <button type="button" className="ghost-btn" onClick={()=>setReload(n=>n+1)}>{tx.retry}</button></div>:items.length?items.map(s=><article className="ce-story" key={s.story_id}>
         <div className="ce-story-meta"><span className="ce-category">{pick(data.categories?.[s.category],lang)||tx.review}</span><span className={`ce-priority ce-p${s.priority}`} title={s.priority_provisional?tx.provisional:undefined}>P{s.priority} · {tx.priorities[s.priority]}{s.priority_provisional?' *':''}</span><span className="ce-stage">{tx.stages[s.stage]||tx.review}</span></div>
         <div className="ce-company">{s.organization}<span>{(s.tickers||[]).map(t=><button type="button" key={t} onClick={()=>onOpenCompany?.(t)}>{t}</button>)}</span></div>
-        <h3>{pick(s.title,lang)}</h3>{s.summary&&<p className="ce-summary">{pick(s.summary,lang)}</p>}<Amounts document={s} tx={tx} locale={locale} />
+        <h3><a className="ce-story-title" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))}>{pick(s.title,lang)}</a></h3>{s.summary&&<p className="ce-summary">{pick(s.summary,lang)}</p>}<Amounts document={s} tx={tx} locale={locale} />
         {s.stage==='proposed'&&<p className="ce-caution">{tx.proposal}</p>}{s.stage==='agenda'&&<p className="ce-caution">{tx.agenda}</p>}
         <footer><span>{tx.published}: <time dateTime={s.published_at}>{formatDay(s.published_at?.slice(0,10),locale)}</time></span>{s.confidence!=='confirmed'&&<span className="ce-review">{tx.review}</span>}<a href={safeHref(s.source_url)} target="_blank" rel="noreferrer">OpenInfo ↗</a><button type="button" onClick={()=>setSelected(s)}>{tx.documents} · {s.document_count} {tx.docCount} →</button></footer>
       </article>):<p className="ce-empty">{mode==='mine'&&!personalTickers.size?tx.noFavorites:tx.empty}</p>}
