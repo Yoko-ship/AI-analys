@@ -70,3 +70,54 @@ def test_balance_repair_is_opt_in_and_runs_only_after_verified_production_deploy
     assert run.index('python -m catalogue.balance_repair\n') < run.index('python -m catalogue.balance_repair --apply')
     assert 'trap restore_timer EXIT' in run
     assert run.index('python -m catalogue.balance_repair --rollback-unverified --apply') < run.index('python -m catalogue.balance_repair\n')
+
+
+def test_release_build_is_cached_and_published_once_then_pulled_by_digest():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    docker = workflow['jobs']['docker']
+    build = next(s for s in docker['steps'] if s.get('uses', '').startswith('docker/build-push-action@'))
+    assert build['with']['load'] is True
+    assert 'type=gha' in build['with']['cache-from']
+    assert 'mode=max' in build['with']['cache-to']
+    assert 'image' in docker['outputs']
+    deploy = workflow['jobs']['deploy-production']
+    assert 'release-plan' in deploy['needs']
+    assert "needs.release-plan.outputs.deploy == 'true'" in deploy['if']
+    commands = '\n'.join(s.get('run', '') for s in deploy['steps'])
+    assert 'docker build' not in commands
+    assert 'git merge --ff-only origin/API' not in commands
+    assert 'git checkout --detach "$expected_sha"' in commands
+    assert 'pull_release_image.sh' in commands
+    assert 'needs.docker.outputs.image' in str(deploy)
+    assert workflow['concurrency']['cancel-in-progress'] is False
+
+
+def test_release_decision_uses_running_image_revision_not_previous_push():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    plan = workflow['jobs']['release-plan']
+    assert plan['environment'] == 'uzstock-production'
+    assert 'refs/heads/API' in plan['if']
+    commands = '\n'.join(s.get('run', '') for s in plan['steps'])
+    assert 'org.opencontainers.image.revision' in commands
+    assert 'scripts/release_plan.py' in commands
+    assert 'github.event.before' not in commands
+
+
+def test_production_browser_jobs_use_preinstalled_matching_browsers():
+    import json
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    version = json.loads((ROOT / 'package-lock.json').read_text())['packages']['node_modules/@playwright/test']['version']
+    for name in ('verify-production-market', 'check-public-market'):
+        job = workflow['jobs'][name]
+        assert job['container']['image'] == f'mcr.microsoft.com/playwright:v{version}-noble'
+        assert '--ipc=host' in job['container']['options']
+        assert not any('playwright install' in s.get('run', '') for s in job['steps'])
+
+
+def test_base_images_are_pinned_and_frontend_edits_reuse_npm_install():
+    import re
+    dockerfile = (ROOT / 'Dockerfile').read_text()
+    bases = [line for line in dockerfile.splitlines() if line.startswith('FROM ')]
+    assert len(bases) == 2
+    assert all(re.search(r'@sha256:[a-f0-9]{64}(?: |$)', line) for line in bases)
+    assert dockerfile.index('RUN npm ci') < dockerfile.index('COPY frontend')

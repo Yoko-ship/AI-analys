@@ -1,17 +1,19 @@
-FROM node:20-slim AS frontend-builder
+# Refresh these digests deliberately; a moving base invalidates dependency layers.
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS frontend-builder
 
 WORKDIR /app
 
 # The lockfile is copied so the build uses `npm ci` — a reproducible install from
 # pinned versions. `npm install` re-resolves the tree on every build, which means
 # the image you test is not necessarily the image you ship.
-COPY package.json package-lock.json vite.config.js /app/
+COPY package.json package-lock.json /app/
+RUN npm ci
+
+COPY vite.config.js /app/
 COPY frontend /app/frontend
+RUN npm run build
 
-RUN npm ci \
-    && npm run build
-
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:12316debbfb86890f6b2d825820612741ba527ad5a44e3902759141d572bfe8f
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -14,6 +14,20 @@ Never write the host address, port, user, passwords or keys into tracked files.
 Before a production deployment, inspect the active application directory and
 service manager on this host. Do not use Railway deployment or recovery tools.
 
+Production releases build and smoke-test one image in CI, publish it to GHCR,
+and pull it by immutable digest on the server. Do not add a second server-side
+build. The image's revision label and the server checkout must match the tested
+commit. Registry credentials are short-lived and removed after the pull.
+
+Compare changes with the revision of the running image, not merely the previous
+push: an earlier failed application release may still need deployment. Tests,
+documentation, and CI testing-rule changes alone do not restart production.
+Manual workflow runs force a release, including operational backfill requests.
+
+Keep Docker base-image digests pinned; update them deliberately for maintenance.
+When updating Playwright, update both production smoke-job container versions
+to match package-lock.json. Keep browser installation out of those jobs.
+
 # Tests first
 
 Write the test before the code. For a bug, first add a test that reproduces it
