@@ -24,6 +24,7 @@ export function NewsView({
     state,
     tab,
     instrument,
+    corporateEventId,
     selectTab,
     selectInstrument
   } = useNewsFeed({});
@@ -54,8 +55,9 @@ export function NewsView({
   const focus = React.useMemo(() => newsDeskFocus(items), [items]);
   const dtx = tx.desk || NEWS_TX.ru.desk;
   const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
-  return <div className="news-view led newsdesk">
-      <header className="newsdesk-head">
+  const corporateDetail = tab === "corporate" && Boolean(corporateEventId);
+  return <div className={`news-view led newsdesk${corporateDetail ? " newsdesk--corporate-article" : ""}`}>
+      {!corporateDetail && <header className="newsdesk-head">
         <div>
           <h1>{tx.title}</h1>
           <p>{tab === "corporate" && instrument !== "all" && tx.instrumentHint && tx.instrumentHint[instrument] || tx.tabHint && tx.tabHint[tab] || tx.subtitle}</p>
@@ -64,7 +66,7 @@ export function NewsView({
             {updated && <span>{dtx.updated} {updated}</span>}
             <span>{items.length} {dtx.stories}</span>
           </div>}
-      </header>
+      </header>}
 
       <div className="newsdesk-tabbar">
       <nav className="newsdesk-tabs" aria-label={tx.title}>
@@ -141,7 +143,7 @@ export function NewsView({
           reading mode. It follows the edited board instead of interrupting its
           priority hierarchy; the Акции/Облигации control still narrows only the
           stories above, while this record keeps its own filing-kind controls. */}
-      {tab === "corporate" && <div className="newsdesk-disclosures">
+      {tab === "corporate" && !corporateDetail && <div className="newsdesk-disclosures">
           <MarketEventsFeed lang={normalizeLanguage(language)} onOpenCompany={onOpenCompany} />
         </div>}
     </div>;

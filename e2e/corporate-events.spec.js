@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 const doc = (id, code, ticker, category, stage, priority) => ({
   id, source_url: `https://openinfo.uz/ru/facts/${code}/${id}`, code, tickers: [ticker], isins: ['UZ7011340005'],
@@ -109,7 +110,7 @@ for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable deta
   await headline.click();
   await expect(page).toHaveURL(detailURL);
   const detail = page.getByTestId('corporate-event-detail');
-  await expect(detail.getByRole('heading', { level: 1 })).toHaveText('O‘zbekgeofizika');
+  await expect(detail.getByRole('heading', { level: 1 })).toHaveText(prefix ? a.title.uz : a.title.ru);
   await expect(detail).toContainText(prefix ? '8.01' : '8,01');
   await expect(detail.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -148,4 +149,72 @@ test('changing the corporate instrument exits the detail view', async ({ page })
   await page.locator('.newsdesk-subtabs').getByRole('button',{name:'Акции',exact:true}).click();
   await expect(page.getByTestId('corporate-event-detail')).toHaveCount(0);
   await expect(page.locator('.ce-story')).toHaveCount(2);
+});
+
+
+const photo = '/news-fixtures/disclosure-photo.png';
+async function setupEditorial(page, { brokenPhoto = false, brokenLogo = false } = {}) {
+  await setup(page);
+  await page.route('**/api/securities', r => r.fulfill({json:{ok:true,securities:{
+    UZGF:{name:'O‘zbekgeofizika',logo_url:'/logos/UZGFP.svg'},
+    HMKB:{name:'Hamkorbank',logo_url:'/logos/HMKB_MARK.png'},
+  }}}));
+  await page.route('**/logos/UZGFP.svg', r => brokenLogo ? r.abort() : r.fulfill({contentType:'image/svg+xml',body:readFileSync(new URL('../logos/UZGFP.svg',import.meta.url))}));
+  await page.route('**/logos/HMKB_MARK.png', r => r.fulfill({contentType:'image/png',body:readFileSync(new URL('../logos/HMKB_MARK.png',import.meta.url))}));
+  await page.route(`**${photo}`, r => brokenPhoto ? r.abort() : r.fulfill({contentType:'image/png',body:readFileSync(new URL('../logos/HMKB.png',import.meta.url))}));
+  const withPhoto = {...b, image_url:photo, summary:{ru:'Эмитент раскрыл сведения о прекращении действия лицензии.',uz:'Emitent litsenziya bekor qilinganini oshkor qildi.'}};
+  const unknown = {...b,id:'unknown',story_id:'unknown',organization:'Новый эмитент',tickers:[],image_url:null,title:{ru:'Изменились контакты компании'},documents:[]};
+  await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{...payload,items:[
+    {...a,story_id:a.id,documents:[a],document_count:1},
+    {...withPhoto,story_id:b.id,documents:[withPhoto],document_count:1},
+    {...unknown,documents:[unknown],document_count:1},
+  ]}}));
+  await page.reload();
+}
+
+for (const width of [390,1440]) test(`corporate news uses issuer imagery and editorial detail at ${width}px`, async ({page},info) => {
+  await page.setViewportSize({width,height:950});
+  await setupEditorial(page);
+  const logoCard=page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'});
+  const photoCard=page.locator('.ce-story').filter({hasText:'Hamkorbank'});
+  await expect(logoCard.locator('.ce-story-media img')).toHaveAttribute('src','/logos/UZGFP.svg');
+  await expect(photoCard.locator('.ce-story-media img')).toHaveAttribute('src',photo);
+  await expect(page.locator('.ce-story').filter({hasText:'Новый эмитент'}).locator('.chip-logo-fallback')).toBeVisible();
+  for(const theme of ['light','dark']) {
+    await page.evaluate(t=>{document.documentElement.dataset.theme=document.body.dataset.theme=t;},theme);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath(`editorial-feed-${theme}.png`),fullPage:true,animations:'disabled'});
+  }
+  await photoCard.getByRole('link',{name:b.title.ru,exact:true}).click();
+  const detail=page.getByTestId('corporate-event-detail');
+  await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
+  await expect(detail.locator('.ce-article-photo img')).toHaveAttribute('src',photo);
+  await expect.poll(()=>detail.locator('.ce-article-photo img').evaluate(img=>img.naturalWidth)).toBeGreaterThan(0);
+  expect(await detail.locator('.ce-article-photo img').evaluate(img=>img.getBoundingClientRect().width <= img.naturalWidth)).toBe(true);
+  await expect(detail.locator('.ce-article-issuer img')).toHaveAttribute('src','/logos/HMKB_MARK.png');
+  await expect(detail).toContainText('Эмитент раскрыл сведения');
+  await expect(page.locator('.newsdesk-disclosures')).toHaveCount(0);
+  await expect(detail.getByRole('link',{name:/Первоисточник OpenInfo/}).first()).toHaveAttribute('href',b.source_url);
+  for(const theme of ['light','dark']) {
+    await page.evaluate(t=>{document.documentElement.dataset.theme=document.body.dataset.theme=t;},theme);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath(`editorial-detail-${theme}.png`),fullPage:true,animations:'disabled'});
+  }
+  await detail.locator('.led-back').click();
+  await logoCard.getByRole('link',{name:a.title.ru,exact:true}).click();
+  await expect(detail.locator('.ce-article-issuer img')).toHaveAttribute('src','/logos/UZGFP.svg');
+  await expect(detail.locator('.ce-article-photo')).toHaveCount(0);
+  await expect(detail).toContainText('Предложение не означает утверждённую выплату');
+});
+
+test('failed corporate images fall back to issuer identity without hiding the story', async ({page})=>{
+  await setupEditorial(page,{brokenPhoto:true,brokenLogo:true});
+  const logoCard=page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'});
+  const photoCard=page.locator('.ce-story').filter({hasText:'Hamkorbank'});
+  await expect(logoCard.locator('.ce-story-media .chip-logo-fallback')).toBeVisible();
+  await expect(photoCard.locator('.ce-story-media img')).toHaveAttribute('src','/logos/HMKB_MARK.png');
+  await logoCard.getByRole('link',{name:a.title.ru,exact:true}).click();
+  const detail=page.getByTestId('corporate-event-detail');
+  await expect(detail.locator('.ce-article-issuer .chip-logo-fallback')).toBeVisible();
+  await expect(detail).toContainText('8,01');
 });

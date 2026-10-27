@@ -1,3 +1,5 @@
+import { CorporateStoryMedia } from './CorporateStoryMedia.jsx';
+import { CorporateEventArticle } from './CorporateEventArticle.jsx';
 import { SourceDateEvidence } from './SourceDateEvidence.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -14,21 +16,20 @@ const COPY = {
   uz: { title:'Korporativ voqealar', subtitle:'Qarorlar, takliflar va to‘lovlar — alohida sanalar va birlamchi manbalar bilan.', all:'Barcha voqealar', important:'Muhim', mine:'Mening kompaniyalarim', calendar:'Taqvim', categories:'Toifalar', allCategories:'Barcha toifalar', search:'Kompaniya, tiker yoki ISIN', sort:'Voqealar tartibi', recent:'Vaqt bo‘yicha', priority:'Muhimlik bo‘yicha', subscriptions:'Avval mening kompaniyalarim', from:'E’lon qilingan sana: dan', to:'Gacha', filters:'Qo‘shimcha filtrlar', code:'OpenInfo turi', any:'Barchasi', security:'Qimmatli qog‘oz turi', ordinary:'Oddiy aksiyalar', preferred:'Imtiyozli aksiyalar', share:'Aksiyalar (turi ko‘rsatilmagan)', bond:'Obligatsiyalar', published:'E’lon qilindi', decision:'Qaror qabul qilindi', event:'Voqea sanasi', payment_start:'To‘lov davri boshlanishi', payment_end:'To‘lov davri tugashi', source:'OpenInfo birlamchi manbasi', documents:'Hujjatlar va tarix', docCount:'hujjat', close:'Yopish', review:'Tekshirilmoqda', confirmed:'Manba tasdiqlagan', provisional:'Ma’lumot turi bo‘yicha dastlabki ustuvorlik', note:'UZStock qisqa bayoni. Rasmiy matn birlamchi manbada. Ustuvorlik narx yo‘nalishini emas, voqeaga e’tiborni bildiradi.', proposal:'Taklif tasdiqlangan to‘lov degani emas.', agenda:'Kun tartibidagi masala qabul qilingan qaror emas.', loading:'Voqealar yuklanmoqda…', empty:'Ushbu filtrlarga mos voqealar yo‘q.', error:'Voqealarni yuklab bo‘lmadi.', retry:'Qayta urinish', partial:'Ayrim manbalar vaqtincha mavjud emas.', noFavorites:'Voqealarni kuzatish uchun kompaniyalarni tanlanganlarga qo‘shing.', reset:'Filtrlarni tozalash', refresh:'Hujjatni tekshirish', checking:'Tekshirilmoqda…', refreshError:'Hujjat vaqtincha mavjud emas. Asl yozuv saqlangan.', original:'Asl sarlavha', changes:'O‘zgarishlar tarixi', observed:'Aniqlandi', record:'Dividend huquqi sanasi',unit:'so‘m / qimmatli qog‘oz', stages:{approved:'Tasdiqlandi',paying:'Qisman to‘landi',paid:'To‘landi',proposed:'Taklif',agenda:'Kun tartibi',announced:'E’lon qilindi',decision_disclosed:'Qaror e’lon qilindi',scheduled:'Muddatlar belgilandi',accrued:'Hisoblandi',payment_disclosed:'To‘lov ma’lumotlari',disclosed:'E’lon qilindi'}, priorities:['Jiddiy','Muhim','Kuzatish','Ma’lumot'] },
 };
 const DETAIL_COPY = {
-  ru: { back: 'К корпоративным новостям', missing: 'Событие не найдено.' },
-  en: { back: 'Back to corporate news', missing: 'Event not found.' },
-  uz: { back: 'Korporativ yangiliklarga qaytish', missing: 'Voqea topilmadi.' },
+  ru: { back: 'К корпоративным новостям', missing: 'Событие не найдено.', latest: 'Последние раскрытия', count: 'событий' },
+  en: { back: 'Back to corporate news', missing: 'Event not found.', latest: 'Latest disclosures', count: 'events' },
+  uz: { back: 'Korporativ yangiliklarga qaytish', missing: 'Voqea topilmadi.', latest: 'So‘nggi oshkor qilishlar', count: 'voqea' },
 };
 const pick = (value, lang) => typeof value === 'string' ? value : value?.[lang] || value?.ru || '';
 function Amounts({ document, tx, locale }) {
   return <div className="ce-amounts">{(document.amounts || []).map(a => <span key={a.security}>{tx[a.security] || a.security}: <strong>{new Intl.NumberFormat(locale, { maximumFractionDigits: 6 }).format(a.amount)}</strong> {tx.unit}</span>)}</div>;
 }
-function Evidence({ document: d, tx, lang, locale }) {
+function Evidence({ document: d, tx, lang, locale, hideIntro = false }) {
   return <>
-    <span className="ce-stage">{tx.stages[d.stage] || tx.review}</span>
-    <h3>{pick(d.title, lang)}</h3>
+    {!hideIntro && <><span className="ce-stage">{tx.stages[d.stage] || tx.review}</span><h3>{pick(d.title, lang)}</h3></>}
     {d.stage === 'proposed' && <p className="ce-caution">{tx.proposal}</p>}
     {d.stage === 'agenda' && <p className="ce-caution">{tx.agenda}</p>}
-    {d.summary&&<p>{pick(d.summary,lang)}</p>}
+    {!hideIntro&&d.summary&&<p>{pick(d.summary,lang)}</p>}
     {d.priority_explanation&&<p className="ce-priority-explanation"><b>P{d.priority} · </b>{pick(d.priority_explanation,lang)}</p>}
     {d.facts?.length>0&&<dl className="ce-extracted-fields">{d.facts.map(f=><div key={f.source_field}><dt>{pick(f.label,lang)}</dt><dd>{typeof f.value==='number'?new Intl.NumberFormat(locale,{maximumFractionDigits:6}).format(f.value):f.value}{f.unit==='percent'?'%':f.unit==='thousand_uzs'?` ${lang==='en'?'thousand UZS':lang==='uz'?'ming so‘m':'тыс. сум'}`:f.unit==='source_units'?` (${lang==='en'?'source units':lang==='uz'?'manba birliklari':'единицы источника'})`:f.unit==='uzs_per_security'?` ${tx.unit}`:''}</dd></div>)}</dl>}
     <Amounts document={d} tx={tx} locale={locale} />
@@ -59,7 +60,7 @@ function StoryDialog({ story, onClose, tx, lang, locale, onUpdated }) {
     <p className="ce-note">{tx.note}</p>
   </dialog>, document.body);
 }
-function StoryDocuments({ story, tx, lang, locale, onUpdated }) {
+function StoryDocuments({ story, tx, lang, locale, onUpdated, article = false }) {
   const [documents,setDocuments] = useState(story.documents?.length?story.documents:[story]);
   const [busy,setBusy] = useState('');
   const [error,setError] = useState(false);
@@ -75,8 +76,8 @@ function StoryDocuments({ story, tx, lang, locale, onUpdated }) {
     finally { setBusy(''); }
   };
   return <>
-    <div className="ce-history">{documents.map(d=><section key={d.id} className="ce-document">
-      <Evidence document={d} tx={tx} lang={lang} locale={locale} />
+    <div className="ce-history">{documents.map((d,i)=><section key={d.id} id={article ? `ce-document-${i}` : undefined} className="ce-document">
+      <Evidence document={d} tx={tx} lang={lang} locale={locale} hideIntro={article && documents.length===1} />
       {d.confidence !== 'confirmed' && <button type="button" className="ghost-btn" disabled={!!busy} onClick={()=>refresh(d)}>{busy===d.id?tx.checking:tx.refresh}</button>}
       {d.revisions?.length > 1 && <details><summary>{tx.changes} · {d.revisions.length}</summary>{d.revisions.map((r,i)=><div className="ce-revision" key={i}><p>{tx.observed}: {new Date(r.observed_at).toLocaleString(locale,{timeZone:'Asia/Tashkent'})} (UTC+5)</p><Evidence document={r.document} tx={tx} lang={lang} locale={locale} /></div>)}</details>}
     </section>)}</div>
@@ -111,6 +112,7 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
   const navigateEvent = id => {
     window.history.pushState({},'',eventPath(id));
     setEventId(id);
+    window.dispatchEvent(new PopStateEvent("popstate"));
     window.scrollTo({top:0,behavior:'auto'});
   };
   useEffect(()=>{
@@ -146,16 +148,16 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
     return <section className="ce-feed ce-detail" data-testid="corporate-event-detail">
       <a className="led-back" href={eventPath(null)} onClick={interceptNav(()=>navigateEvent(null))}>← {detailTx.back}</a>
       {loading ? <p role="status" className="ce-empty">{tx.loading}</p> : error ? <div role="alert" className="ce-empty">{tx.error} <button type="button" className="ghost-btn" onClick={()=>setReload(n=>n+1)}>{tx.retry}</button></div> : !story ? <p className="ce-empty">{detailTx.missing}</p> : <>
-        <header className="ce-heading"><div><span className="ce-eyebrow">OPENINFO · UZSTOCK</span><h1>{story.organization}</h1><p>{pick(story.title,lang)}</p></div></header>
-        <StoryDocuments key={`${story.story_id}-${reload}`} story={story} tx={tx} lang={lang} locale={locale} onUpdated={()=>setReload(n=>n+1)} />
-        <p className="ce-note">{tx.note}</p>
+        <CorporateEventArticle story={story} categories={data.categories} tx={tx} lang={lang} locale={locale} securitiesMap={securitiesMap} onOpenCompany={onOpenCompany}>
+          <StoryDocuments key={`${story.story_id}-${reload}`} article story={story} tx={tx} lang={lang} locale={locale} onUpdated={()=>setReload(n=>n+1)} />
+        </CorporateEventArticle>
       </>}
     </section>;
   }
   return <section className="ce-feed" data-testid="corporate-events">
     <header className="ce-heading"><div><span className="ce-eyebrow">OPENINFO · UZSTOCK</span><h2>{tx.title}</h2><p>{tx.subtitle}</p></div><button className="ghost-btn" type="button" onClick={onCalendar}>{tx.calendar} →</button></header>
     <div className="ce-modes" role="group" aria-label={tx.title}>{['all','important','mine','personal'].map(m=><button key={m} type="button" aria-pressed={mode===m} onClick={()=>setMode(m)}>{m==='personal'?personalLabel:tx[m]}</button>)}</div>
-    <div className="ce-layout"><aside className="ce-categories" aria-label={tx.categories}>
+    <div className="ce-layout"><aside className="ce-categories" aria-label={tx.categories}><h3>{tx.categories}</h3>
       <button type="button" aria-pressed={!category} onClick={()=>setCategory('')}>{tx.allCategories}</button>
       {Object.entries(data.categories||{}).map(([id,label])=><button key={id} type="button" aria-pressed={category===id} onClick={()=>setCategory(id)}>{pick(label,lang)}</button>)}
     </aside><div className="ce-main">
@@ -171,14 +173,17 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
       </div></details>
       {Object.values(data.sources||{}).some(s=>s.ok===false)&&<p className="ce-caution">{tx.partial}</p>}
       {holdingsError&&['mine','personal'].includes(mode)&&<p role="alert">{lang==='en'?'Portfolio unavailable; showing watchlist and interests only.':lang==='uz'?'Portfel mavjud emas; tanlanganlar va qiziqishlar ko‘rsatilmoqda.':'Портфель недоступен; показаны избранное и интересы.'}</p>}
+      <div className="ce-stream newsdesk-feed">
+      <div className="newsdesk-feed-head"><span className="newsdesk-live-dot" aria-hidden="true" /><h2>{DETAIL_COPY[lang].latest}</h2>{!loading&&!error&&<span>{items.length} {DETAIL_COPY[lang].count}</span>}</div>
       {loading?<p role="status" className="ce-empty">{tx.loading}</p>:error?<div role="alert" className="ce-empty">{tx.error} <button type="button" className="ghost-btn" onClick={()=>setReload(n=>n+1)}>{tx.retry}</button></div>:items.length?items.map(s=><article className="ce-story" key={s.story_id}>
-        <div className="ce-story-meta"><span className="ce-category">{pick(data.categories?.[s.category],lang)||tx.review}</span><span className={`ce-priority ce-p${s.priority}`} title={s.priority_provisional?tx.provisional:undefined}>P{s.priority} · {tx.priorities[s.priority]}{s.priority_provisional?' *':''}</span><span className="ce-stage">{tx.stages[s.stage]||tx.review}</span></div>
+        <a className="ce-story-media" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))} tabIndex={-1} aria-hidden="true"><CorporateStoryMedia story={s} securitiesMap={securitiesMap} /></a>
+        <div className="ce-story-content"><div className="ce-story-meta"><span className="ce-category">{pick(data.categories?.[s.category],lang)||tx.review}</span><span className={`ce-priority ce-p${s.priority}`} title={s.priority_provisional?tx.provisional:undefined}>P{s.priority} · {tx.priorities[s.priority]}{s.priority_provisional?' *':''}</span><span className="ce-stage">{tx.stages[s.stage]||tx.review}</span></div>
         <div className="ce-company">{s.organization}<span>{(s.tickers||[]).map(t=><button type="button" key={t} onClick={()=>onOpenCompany?.(t)}>{t}</button>)}</span></div>
         <h3><a className="ce-story-title" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))}>{pick(s.title,lang)}</a></h3>{s.summary&&<p className="ce-summary">{pick(s.summary,lang)}</p>}<Amounts document={s} tx={tx} locale={locale} />
         {s.stage==='proposed'&&<p className="ce-caution">{tx.proposal}</p>}{s.stage==='agenda'&&<p className="ce-caution">{tx.agenda}</p>}
-        <footer><span>{tx.published}: <time dateTime={s.published_at}>{formatDay(s.published_at?.slice(0,10),locale)}</time></span>{s.confidence!=='confirmed'&&<span className="ce-review">{tx.review}</span>}<a href={safeHref(s.source_url)} target="_blank" rel="noreferrer">OpenInfo ↗</a><button type="button" onClick={()=>setSelected(s)}>{tx.documents} · {s.document_count} {tx.docCount} →</button></footer>
+        <footer><span>{tx.published}: <time dateTime={s.published_at}>{formatDay(s.published_at?.slice(0,10),locale)}</time></span>{s.confidence!=='confirmed'&&<span className="ce-review">{tx.review}</span>}<a href={safeHref(s.source_url)} target="_blank" rel="noreferrer">OpenInfo ↗</a><button type="button" onClick={()=>setSelected(s)}>{tx.documents} · {s.document_count} {tx.docCount} →</button></footer></div>
       </article>):<p className="ce-empty">{mode==='mine'&&!personalTickers.size?tx.noFavorites:tx.empty}</p>}
-    </div></div><p className="ce-note">{tx.note}</p>
+    </div></div></div><p className="ce-note">{tx.note}</p>
     {selected&&<StoryDialog key={selected.story_id} story={selected} tx={tx} lang={lang} locale={locale} onClose={()=>setSelected(null)} onUpdated={()=>setReload(n=>n+1)} />}
   </section>;
 }

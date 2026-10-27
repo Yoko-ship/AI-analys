@@ -9,11 +9,13 @@ export function useNewsFeed({}) {
   });
   const [reloadKey, setReloadKey] = React.useState(0);
   const [tab, setTab] = React.useState(newsTabFromLocation);
+  const [corporateEventId, setCorporateEventId] = React.useState(() => new URLSearchParams(location.search).get("event"));
   const [instrument, setInstrument] = React.useState(newsInstrumentFromLocation);
   React.useEffect(() => {
     const onPop = () => {
       setTab(newsTabFromLocation());
       setInstrument(newsInstrumentFromLocation());
+      setCorporateEventId(new URLSearchParams(location.search).get("event"));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -77,6 +79,7 @@ export function useNewsFeed({}) {
     state,
     tab,
     instrument,
+    corporateEventId,
     selectTab,
     selectInstrument,
     setReloadKey

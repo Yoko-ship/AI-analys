@@ -318,7 +318,9 @@ def feed(start=None, end=None):
     first,last = calendar_events.parse_range(start or (today-timedelta(days=90)).isoformat(),end or today.isoformat())
     lo,hi = first.isoformat(),(last+timedelta(days=1)).isoformat()
     documents = read_documents(lo,hi)
-    known = {d["source_url"] for d in documents}
+    by_source = {d["source_url"]: d for d in documents}
+    by_fact = {str(d["global_fact_id"]): d for d in documents if d.get("global_fact_id")}
+    known = set(by_source)
     status = {}
     conn = get_catalog_conn()
     try:
@@ -326,22 +328,26 @@ def feed(start=None, end=None):
         rows = conn.execute("SELECT n.*, (SELECT GROUP_CONCAT(e.ticker) FROM news_entities e WHERE e.news_id=n.id) AS tickers_csv FROM news n WHERE n.published_at >= ? AND n.published_at < ? " + f"AND n.source_id IN ({','.join('?' for _ in sources)})", (lo,hi,*sources)).fetchall() if sources else []
         for row in rows:
             r=dict(row)
-            if r["url"] in known:
+            parts=urlsplit(r["url"])
+            fact_id=(parse_qs(parts.query).get("fact") or [None])[0]
+            # The news record owns its source image; the disclosure ledger owns
+            # the extracted facts. Join only by the exact document identifier.
+            existing=by_source.get(r["url"]) or by_fact.get(fact_id)
+            if existing is not None:
+                if r.get("image_url"):
+                    existing["image_url"]=r["image_url"]
                 continue
             # Older collector rows retain the public code in their source snippet.
             match=re.search(r"Существенный факт №\s*(\d+)",r.get("snippet") or "")
             title=r.get("title") or ""
             org,sep,original=title.partition(": ")
-            parts=urlsplit(r["url"])
             orgmatch=re.search(r"/organizations/(\d+)",parts.path)
             ev=from_fact({"fact_number":match[1] if match else None,"organization":orgmatch[1] if orgmatch else None,
                           "organization_short_name":org if sep else "","fact_title":original if sep else title,
                           "pub_date":r.get("published_at")},source_url=r["url"],tickers=(r.get("tickers_csv") or "").split(","))
             ev["news_id"]=r["id"]
-            # The same global fact ID can have both an organization and direct URL.
-            fact_id=(parse_qs(parts.query).get("fact") or [None])[0]
-            if any(d.get("global_fact_id") == fact_id and fact_id for d in documents):
-                continue
+            if r.get("image_url"):
+                ev["image_url"]=r["image_url"]
             documents.append(ev)
         status["facts"]={"ok":True}
     finally:

@@ -317,3 +317,36 @@ def test_agat_bond_income_summary_does_not_promote_empty_share_fields():
     assert 'на акцию' not in event['summary']['ru']
     # Keep the zero as original source evidence, but out of the lead summary.
     assert any(f['source_field']=='sum_aksiya' and f['value']==0 for f in event['facts'])
+
+
+@pytest.mark.parametrize('stored,alias', [(False, False), (True, False), (True, True)])
+def test_corporate_feed_preserves_the_disclosures_own_source_image(monkeypatch, tmp_path, stored, alias):
+    import catalogue.storage as cs
+    import meetings
+    import news_store
+    import catalogue.market_store
+    import securities_catalog
+
+    monkeypatch.setattr(cs, '_catalog_db_path', lambda: str(tmp_path / 'events.db'))
+    monkeypatch.setattr(meetings, 'ensure_snapshot', lambda: None)
+    monkeypatch.setattr(meetings, 'read_published', lambda *args: [])
+    monkeypatch.setattr(catalogue.market_store, 'get_all_listings', lambda: {})
+    monkeypatch.setattr(securities_catalog, 'get_securities_map', lambda: {})
+    event = {**ce.from_fact(recommendations()[0]), 'global_fact_id': '577'}
+    if stored:
+        ce.save_documents([event])
+    source = 'https://openinfo.uz/ru/organizations/399?fact=577' if alias else event['source_url']
+    image = 'https://openinfo.uz/media/disclosure-577.jpg'
+    news_store.upsert_news([{'url': source, 'title': 'UZGF: recommendation',
+        'source_id': 'openinfo_facts', 'published_at': event['published_at'], 'image_url': image}])
+    # An unrelated disclosure from the same issuer must not supply its picture.
+    unrelated = {**event, 'id': 'another', 'source_url': 'https://openinfo.uz/ru/facts/41/578',
+                 'global_fact_id': '578'}
+    ce.save_documents([unrelated])
+    items = ce.feed('2026-07-01', '2026-07-31')['items']
+    own = next(item for item in items if any(d['source_url'] == (event['source_url'] if stored else source)
+                                           for d in item['documents']))
+    assert own['image_url'] == image
+    assert own['documents'][0]['image_url'] == image
+    other = next(item for item in items if item['source_url'] == unrelated['source_url'])
+    assert not other.get('image_url')
