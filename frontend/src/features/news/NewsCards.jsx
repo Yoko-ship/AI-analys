@@ -160,7 +160,7 @@ export function NewsDeskRow({
         </span>}
       <span className="newsdesk-row-copy">
         <span className="newsdesk-row-kicker">
-          <span className="newsdesk-row-category">{etx.cat[item.type] || item.type}</span>
+          {item.source && <span className="newsdesk-row-source">{item.source}</span>}
           {tickers.length > 0 && <span className="newsdesk-row-tickers">{tickers.slice(0, 2).join(" · ")}</span>}
         </span>
         <strong>{head.text}</strong>

@@ -13,11 +13,14 @@ from __future__ import annotations
 import catalogue.storage as catalogue_storage
 
 import typing
+import asyncio
+import sqlite3
 
 import pytest
 
 import news_classifier as nc
 import news_store as ns
+import server.news.routes as news_routes
 
 
 class TestTheGroupsCoverEveryClass:
@@ -54,6 +57,68 @@ class TestWhatAFeedRequestMayAskFor:
     def test_an_unknown_name_is_passed_through_not_expanded(self) -> None:
         """A future class the tabs do not know must still be filterable."""
         assert ns.resolve_news_types("something_new") == ["something_new"]
+
+
+class TestNewsReadingSections:
+    @pytest.fixture
+    def stored(self, monkeypatch, tmp_path):
+        path = tmp_path / "news.db"
+
+        def connect():
+            conn = sqlite3.connect(path)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+        with connect() as conn:
+            conn.executescript("""
+                CREATE TABLE news (id INTEGER, source_id TEXT, title TEXT, published_at TEXT, collected_at TEXT);
+                CREATE TABLE news_nlp (news_id INTEGER, type TEXT, tone TEXT, tone_score REAL,
+                    impact TEXT, direction TEXT, sectors_json TEXT, topic TEXT, relevant INTEGER, relevance_score REAL);
+                CREATE TABLE news_entities (news_id INTEGER, ticker TEXT);
+            """)
+            # The real IMAN press story stays in general news even though its
+            # classifier type is corporate_event. Official financial reports
+            # belong with issuer disclosures, independently of the topic label.
+            rows = [
+                (6581, "spot", "IMAN Invest", "corporate_event", "companies"),
+                (6576, "openinfo_facts", '"Olmaliq KMK" AJ: Решения высшего органа управления', "corporate_event", "companies"),
+                (6575, "openinfo_facts", "Отчётность эмитента", "financial_report", None),
+                (6574, "fitch", "Рейтинг банка", "financial_report", None),
+            ]
+            for news_id, source, title, kind, topic in rows:
+                conn.execute("INSERT INTO news VALUES (?, ?, ?, '2026-10-26', '2026-10-26')", (news_id, source, title))
+                conn.execute("INSERT INTO news_nlp VALUES (?, ?, 'neutral', 0, 'low', 'unclear', '[]', ?, 1, 1)",
+                             (news_id, kind, topic))
+        monkeypatch.setattr(catalogue_storage, "get_catalog_conn", connect)
+        monkeypatch.setattr(ns, "_row_to_item", lambda row: dict(row))
+        monkeypatch.setattr(ns, "disclosure_source_ids", lambda: {"openinfo_facts"})
+        monkeypatch.setattr(ns, "hidden_source_ids", lambda: set())
+        return connect
+
+    @pytest.mark.parametrize("section, expected", [("general", {6581, 6574}), ("corporate", {6576, 6575})])
+    def test_sections_partition_press_and_disclosures(self, stored, section, expected):
+        items = ns.get_news_feed(section=section, order="recent", days=0)
+        assert {item["id"] for item in items} == expected
+
+    def test_general_filter_applies_before_the_candidate_limit(self, stored):
+        with stored() as conn:
+            for i in range(350):
+                conn.execute("INSERT INTO news VALUES (?, 'openinfo_facts', 'Раскрытие', '2026-10-27', '2026-10-27')", (7000 + i,))
+                conn.execute("INSERT INTO news_nlp VALUES (?, 'financial_report', 'neutral', 0, 'low', 'unclear', '[]', NULL, 1, 1)", (7000 + i,))
+        items = ns.get_news_feed(section="general", order="recent", days=0, limit=1)
+        assert len(items) == 1 and items[0]["source_id"] in {"spot", "fitch"}
+
+    def test_api_passes_the_reading_section_to_the_store(self, monkeypatch):
+        asked = []
+        monkeypatch.setattr(ns, "get_news_feed", lambda **kwargs: asked.append(kwargs) or [])
+        result = asyncio.run(news_routes.api_news_feed(section="general"))
+        assert result["ok"] is True
+        assert asked[0]["section"] == "general"
+
+    def test_api_rejects_an_unknown_reading_section(self):
+        with pytest.raises(news_routes.HTTPException) as exc:
+            asyncio.run(news_routes.api_news_feed(section="unknown"))
+        assert exc.value.status_code == 422
 
 
 class TestTheQueryItBuilds:

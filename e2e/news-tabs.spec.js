@@ -1,147 +1,124 @@
-// The news section's category tabs (customer, 2026-10-08): one compact row, the
-// active tab highlighted, each tab asking the feed for its own category.
-// Since 2026-10-10 the row holds five headings; the narrower sections fold into
-// an «Ещё» menu, and the menu button wears the open section's name.
+// Two news reading sections; the calendar remains a separate destination.
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 
-const item = (id, category, title) => ({
-  id, url: `https://example.test/${id}`, source: "Spot", source_id: "spot", lang: "ru", title,
-  title_ru: title, summary_ru: title, published_at: "2026-10-08", type: "market", tone: "neutral",
-  tone_score: 0, impact: "low", direction: "unclear", sectors: [], tickers: [], category, rank: 0.5,
-});
+const press = JSON.parse(readFileSync(new URL("../tests/fixtures/news-search.json", import.meta.url), "utf8"));
+const filing = { ...press, id: 6576, source_id: "openinfo_facts", source: "OpenInfo",
+  title: '"Olmaliq KMK" AJ: Решения высшего органа управления', title_ru: null, summary_ru: "Решения эмитента." };
 
 async function openNews(page, path = "/news", { admin = false } = {}) {
   const asked = [];
-  page.on("pageerror", (e) => { throw e; });
-  await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
+  page.on("pageerror", error => { throw error; });
+  await page.addInitScript(() => {
+    sessionStorage.setItem("uz_sponsor_seen", "1");
+    localStorage.setItem("uz_track_internal", "1");
+  });
   if (admin) await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "admin-token"));
-  await page.route("**/api/**", (route) => {
+  await page.route("**/api/**", route => {
     const url = new URL(route.request().url());
-    const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.pathname === "/api/news/feed") {
-      const category = url.searchParams.get("category");
-      asked.push(category);
-      const items = category ? [item(1, category, `Новость раздела ${category}`)] : [item(1, "economy", "Экономика"), item(2, "markets", "Рынки")];
-      return json({ ok: true, count: items.length, items });
+      asked.push({ section: url.searchParams.get("section"), category: url.searchParams.get("category") });
+      const items = url.searchParams.get("section") === "general" ? [press] : [press, filing];
+      return route.fulfill({ json: { ok: true, count: items.length, items } });
+    }
+    if (url.pathname === "/api/news/corporate-events") {
+      return route.fulfill({ json: { ok: true, sources: {}, categories: {}, facts: {}, items: [] } });
     }
     if (url.pathname === "/api/auth/me") {
-      return admin ? json({ user: { id: 1, email: "admin@example.com", full_name: "Admin", is_admin: true } }) : json({ user: null }, 401);
+      return route.fulfill({ status: admin ? 200 : 401, json: { user: admin
+        ? { id: 1, email: "admin@example.com", full_name: "Admin", is_admin: true } : null } });
     }
-    return json({ ok: true, items: [] });
+    return route.fulfill({ json: { ok: true, items: [] } });
   });
+  await page.route(press.image_url, route => route.abort());
   await page.goto(path);
   return asked;
 }
 
-test("every category is a tab that asks the feed for its own stories", async ({ page }) => {
+test("news has exactly two sections and general news excludes issuer disclosures", async ({ page }) => {
   const asked = await openNews(page);
   const tabs = page.locator(".newsdesk-tabs .newsdesk-tab");
-  const more = page.locator(".newsdesk-tab-more");
-  await expect(tabs).toHaveText(["Все", "Экономика", "Рынки", "Корпоративные", "Календарь", "Ещё"]);
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Все");
-  for (const [label, key, category] of [["Экономика", "economy", "economy"], ["Рынки", "markets", "markets"]]) {
-    await tabs.filter({ hasText: label }).click();
-    await expect(page.locator(".newsdesk-tab.active")).toHaveText(label);
-    await expect(page).toHaveURL(new RegExp(`tab=${key}$`));
-    await expect.poll(() => asked.at(-1)).toBe(category);
+  await expect(tabs).toHaveText(["Общие новости", "Корпоративные новости"]);
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Общие новости");
+  await expect(page.locator(".newsdesk-tab-more")).toHaveCount(0);
+  await expect(page.locator(".newsdesk-rows")).toContainText(press.title);
+  await expect(page.locator(".newsdesk-rows")).not.toContainText(filing.title);
+  await expect(page.locator(".newsdesk-row-kicker").first()).toContainText(press.source);
+  expect(asked).toEqual([{ section: "general", category: null }]);
+  await tabs.getByText("Корпоративные новости", { exact: true }).click();
+  await expect(page.getByTestId("corporate-events")).toBeVisible();
+  await expect(page).toHaveURL(/\/news\?tab=corporate$/);
+  expect(asked).toHaveLength(1);
+  await page.locator(".newsdesk-subtabs").getByRole("button", { name: "Акции", exact: true }).click();
+  await expect(page).toHaveURL(/tab=corporate&instrument=stock$/);
+  await tabs.getByText("Общие новости", { exact: true }).click();
+  await expect(page).toHaveURL(/\/news$/);
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Общие новости");
+  await expect(page.locator(".newsdesk-search input")).toBeVisible();
+  await expect.poll(() => asked.length).toBe(2);
+});
+
+test("an old financial-report category link opens corporate news", async ({ page }) => {
+  const asked = await openNews(page, "/news?tab=reporting");
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
+  await expect(page.getByTestId("corporate-events")).toBeVisible();
+  expect(asked).toEqual([]);
+});
+
+for (const [path, labels] of [
+  ["/news", ["Общие новости", "Корпоративные новости"]],
+  ["/uz/news", ["Umumiy yangiliklar", "Korporativ yangiliklar"]],
+]) test(`the two section labels fit a phone at ${path}`, async ({ page }, info) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openNews(page, path);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = document.body.dataset.theme = value; }, theme);
+    const tabs = page.locator(".newsdesk-tabs .newsdesk-tab");
+    await expect(tabs).toHaveText(labels);
+    const bounds = await page.locator(".newsdesk-tabs").boundingBox();
+    for (const button of await tabs.all()) {
+      const box = await button.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(bounds.x - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    }
+    expect(await page.locator(".newsdesk-tabs").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`news-sections-${theme}.png`), fullPage: true });
   }
-  // The folded sections: each one is a menu item, and once chosen the menu
-  // button carries its name as the active tab.
-  for (const [label, key, category] of [["Финотчётность", "reporting", "reports"], ["Компании", "companies", "companies"],
-    ["Политика", "politics", "politics"], ["Технологии", "technology", "technology"], ["Прочее", "other", "other"]]) {
-    await more.click();
-    const menu = page.locator(".newsdesk-more-menu");
-    await expect(menu.getByRole("menuitem")).toHaveText(["Финотчётность", "Компании", "Политика", "Технологии", "Прочее"]);
-    await menu.getByRole("menuitem", { name: label }).click();
-    await expect(menu).toHaveCount(0);
-    await expect(page.locator(".newsdesk-tab.active")).toHaveText(label);
-    await expect(more).toHaveText(label);
-    await expect(page).toHaveURL(new RegExp(`tab=${key}$`));
-    await expect.poll(() => asked.at(-1)).toBe(category);
-  }
-  // The reference marks the active tab with a violet underline.
-  const fill = (loc) => loc.evaluate((el) => getComputedStyle(el).borderBottomColor);
-  expect(await fill(page.locator(".newsdesk-tab.active"))).not.toBe(await fill(tabs.first()));
-  // Back on a bar tab, the button goes back to «Ещё».
-  await tabs.filter({ hasText: "Все" }).click();
-  await expect(more).toHaveText("Ещё");
 });
 
-test("the «Ещё» menu closes on Escape and on a click outside", async ({ page }) => {
-  await openNews(page);
-  const more = page.locator(".newsdesk-tab-more");
-  const menu = page.locator(".newsdesk-more-menu");
-  await more.click();
-  await expect(more).toHaveAttribute("aria-expanded", "true");
-  await page.screenshot({ path: "test-results/news-more-menu.png" });
-  await page.keyboard.press("Escape");
-  await expect(menu).toHaveCount(0);
-  await expect(more).toBeFocused();
-  await more.click();
-  await page.locator(".newsdesk-head h1").click();
-  await expect(menu).toHaveCount(0);
-});
-
-test("an old «Регулятор» link opens «Политика»", async ({ page }) => {
-  const asked = await openNews(page, "/news?tab=regulator");
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Политика");
-  await expect.poll(() => asked.at(-1)).toBe("politics");
-});
-
-test("on a phone the tabs stay one row that pans, without widening the page", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 800 });
-  await openNews(page, "/news?tab=technology");
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Технологии");
-  const bar = page.locator(".newsdesk-tabs");
-  const box = await bar.boundingBox();
-  expect(box.height).toBeLessThan(50);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  const active = await page.locator(".newsdesk-tab.active").boundingBox();
-  expect(active.x).toBeGreaterThanOrEqual(box.x - 1);
-  expect(active.x + active.width).toBeLessThanOrEqual(box.x + box.width + 1);
-  // The menu opens inside the screen, not clipped by the panning bar.
-  await page.locator(".newsdesk-tab-more").click();
-  const menu = await page.locator(".newsdesk-more-menu").boundingBox();
-  expect(menu.x).toBeGreaterThanOrEqual(0);
-  expect(menu.x + menu.width).toBeLessThanOrEqual(390);
-  await expect(page.locator(".newsdesk-more-menu").getByRole("menuitem", { name: "Прочее" })).toBeVisible();
-  await page.screenshot({ path: "test-results/news-more-menu-phone.png" });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-});
-
-test("an administrator's news page carries no Grok agent panel (customer, 2026-10-10)", async ({ page }) => {
+test("an administrator's news page carries no agent panel", async ({ page }) => {
   await openNews(page, "/news", { admin: true });
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Все");
-  await expect(page.getByText("Экономика").first()).toBeVisible();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Общие новости");
   await expect(page.getByText(/Новостной агент|Grok/)).toHaveCount(0);
-  await page.screenshot({ path: "test-results/news-admin-no-agent.png" });
 });
 
-test("hovering «Новости» in the topbar opens its sections, and each one opens its tab", async ({ page }) => {
-  const asked = await openNews(page, "/market");
+test("the news menu offers two sections and a separate calendar", async ({ page }, info) => {
+  await openNews(page, "/market");
   const trigger = page.locator(".topbar-nav .nav-dd-wrap").filter({ hasText: "Новости" });
   await trigger.locator(".topbar-nav-btn").first().hover();
   const panel = page.locator(".nav-dd-panel");
-  await expect(panel.locator(".nav-dd-head")).toHaveText(["Лента", "Эмитенты", "События"]);
-  await page.screenshot({ path: "test-results/news-nav-menu.png" });
-  await panel.getByRole("menuitem", { name: "Календарь" }).click();
-  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
-  await expect(panel).toHaveCount(0);
-
-  // Already on /news: the menu switches the tab in place.
+  await expect(panel.getByRole("menuitem")).toHaveText(["Общие новости", "Корпоративные новости", "Календарь"]);
+  await page.screenshot({ path: info.outputPath("news-menu.png") });
+  await panel.getByRole("menuitem", { name: "Корпоративные новости", exact: true }).click();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
   await trigger.locator(".topbar-nav-btn").first().hover();
-  await page.locator(".nav-dd-panel").getByRole("menuitem", { name: "Финотчётность" }).click();
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Финотчётность");
-  await expect(page).toHaveURL(/\/news\?tab=reporting$/);
-  await expect.poll(() => asked.at(-1)).toBe("reports");
-
-  // Back returns to the previous section.
+  await panel.getByRole("menuitem", { name: "Календарь", exact: true }).click();
+  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
+  await expect(page.locator(".newscal")).toBeVisible();
+  await expect(page.locator(".newsdesk-tabs .newsdesk-tab")).toHaveCount(2);
   await page.goBack();
-  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
 });
 
-test("the «Рынок» drop-down still opens its own sections", async ({ page }) => {
+test("the calendar is reachable from the general-news sidebar", async ({ page }) => {
+  await openNews(page);
+  await page.locator(".newsdesk-calendar-callout").getByRole("button", { name: /Открыть календарь/ }).click();
+  await expect(page.locator(".newscal")).toBeVisible();
+  await expect(page).toHaveURL(/tab=calendar$/);
+});
+
+test("the market menu still opens its own sections", async ({ page }) => {
   await openNews(page);
   await page.locator(".topbar-nav .nav-dd-wrap").filter({ hasText: "Рынок" }).locator(".topbar-nav-btn").first().hover();
   await expect(page.locator(".nav-dd-panel .nav-dd-head")).toHaveText(["Биржа", "Валюта"]);

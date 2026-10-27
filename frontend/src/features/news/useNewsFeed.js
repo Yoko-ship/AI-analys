@@ -20,7 +20,7 @@ export function useNewsFeed({}) {
   }, []);
   const pushQuery = React.useCallback((nextTab, nextInstrument) => {
     const p = new URLSearchParams();
-    if (nextTab !== "all") p.set("tab", nextTab);
+    if (nextTab !== "general") p.set("tab", nextTab);
     if (nextTab === "corporate" && nextInstrument !== "all") p.set("instrument", nextInstrument);
     const q = p.toString();
     try {
@@ -29,9 +29,7 @@ export function useNewsFeed({}) {
   }, []);
   const selectTab = React.useCallback(key => {
     setTab(key);
-    // Leaving Корпоративные drops the instrument: it is a filter on issuer
-    // filings, and carrying it onto Экономика would ask macro copy which bonds
-    // it names.
+    // The instrument filter applies only to issuer disclosures.
     const nextInstrument = key === "corporate" ? instrument : "all";
     setInstrument(nextInstrument);
     pushQuery(key, nextInstrument);
@@ -42,10 +40,8 @@ export function useNewsFeed({}) {
   }, [pushQuery]);
   React.useEffect(() => {
     let alive = true;
-    // «Календарь» is not a reading mode over the feed — it renders its own
-    // component below and fetches its own endpoints; asking the feed for it
-    // would flash a skeleton over a page that never uses the answer.
-    if (tab === "calendar") {
+    // Corporate news and the calendar fetch their own endpoints.
+    if (tab !== "general") {
       setState({
         loading: false,
         error: false,
@@ -58,9 +54,8 @@ export function useNewsFeed({}) {
       error: false,
       items: []
     });
-    const category = (NEWS_TABS.find(t => t.key === tab) || {}).category;
-    const inst = tab === "corporate" && instrument !== "all" ? `&instrument=${instrument}` : "";
-    fetch(`/api/news/feed?limit=60&days=30${category ? `&category=${category}` : ""}${inst}`).then(r => r.json()).then(d => {
+    const section = NEWS_TABS.find(t => t.key === tab).section;
+    fetch(`/api/news/feed?limit=60&days=30&section=${section}`).then(r => r.json()).then(d => {
       if (alive) setState({
         loading: false,
         error: !d || !d.ok,

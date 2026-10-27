@@ -9,7 +9,8 @@ export const NewsArticleView = lazy(() => import("./NewsArticleView.jsx").then(m
 export const AnnouncementArticleView = lazy(() => import("./AnnouncementArticleView.jsx").then(module => ({
   default: module.AnnouncementArticleView
 })));
-export { EDNEWS_TX, edHeadline, interceptNav, newsArticlePath, newsRelTime } from "./editorial.jsx";
+export { NEWS_TX, EDNEWS_TX, edHeadline, interceptNav, newsArticlePath, newsRelTime } from "./editorial.jsx";
+export { NEWS_TABS } from "./newsRouting.js";
 export { addDays, tashkentToday, formatDay, eventTitle } from "./calendarEvents.js";
 export { NEWSCAL_TX } from "./calendarCopy.js";
 

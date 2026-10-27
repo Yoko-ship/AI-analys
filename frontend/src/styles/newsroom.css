@@ -10,23 +10,12 @@
 .newsdesk-head p { max-width: 68ch; margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
 .newsdesk-updated { flex: none; display: grid; gap: 5px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-/* One compact row of tabs (customer, 2026-10-08): a segmented bar, the active
-   tab filled. Ten headings do not fit a phone, so the row pans sideways
-   instead of wrapping into a ragged second line. */
+/* Two reading sections share the existing selection treatment. Labels may
+   wrap within their buttons on a narrow phone, without hiding a section. */
 .newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; }
 .newsdesk-tabs::-webkit-scrollbar { display: none; }
-/* Five headings in the bar, the narrower sections under «Ещё». The wrapper, not
-   the bar, anchors the menu: the bar pans on a phone and would clip it. */
 .newsdesk-tabbar { position: relative; width: fit-content; max-width: 100%; margin-bottom: 14px; }
-.newsdesk-tab-more { display: inline-flex; align-items: center; gap: 6px; }
-.newsdesk-tab-more::after { content: ""; width: 6px; height: 6px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
-.newsdesk-tab-more.open::after { transform: translateY(1px) rotate(-135deg); }
-.newsdesk-more-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 180px; padding: 4px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2); box-shadow: 0 16px 44px rgba(0, 0, 0, .35); }
-.newsdesk-more-item { appearance: none; border: 0; border-radius: 7px; background: transparent; color: var(--text); padding: 9px 12px; font: inherit; font-size: 13px; font-weight: 600; text-align: left; white-space: nowrap; cursor: pointer; }
-.newsdesk-more-item:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-.newsdesk-more-item.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.newsdesk-more-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.newsdesk-tab { appearance: none; flex: 0 0 auto; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; cursor: pointer; transition: background-color .12s, color .12s; }
+.newsdesk-tab { appearance: none; flex: 0 1 auto; min-width: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: normal; cursor: pointer; transition: background-color .12s, color .12s; }
 .newsdesk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .newsdesk-tab.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
 .newsdesk-tab:focus-visible, .newsdesk-subtab:focus-visible, .newsdesk-focus-row:focus-visible, .newsdesk-calendar-callout button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -95,7 +84,7 @@
 .newsdesk-row:hover .newsdesk-row-picture img { transform: scale(1.025); }
 .newsdesk-row-copy { min-width: 0; }
 .newsdesk-row-kicker { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-bottom: 7px; font-size: 11px; font-weight: 750; letter-spacing: .055em; text-transform: uppercase; }
-.newsdesk-row-category { color: var(--muted); }
+.newsdesk-row-source { color: var(--muted); }
 .newsdesk-row-tickers { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-weight: 700; letter-spacing: .025em; }
 .newsdesk-row-copy strong { display: block; max-width: 76ch; color: var(--text); font-size: 16.5px; line-height: 1.34; font-weight: 720; letter-spacing: -.01em; transition: color .14s ease; }
 .newsdesk-row-copy small { display: -webkit-box; max-width: 90ch; margin-top: 7px; overflow: hidden; color: var(--muted); font-size: 13px; line-height: 1.48; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

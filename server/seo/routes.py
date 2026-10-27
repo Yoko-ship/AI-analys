@@ -753,7 +753,7 @@ async def _news_index_page(lang: str) -> PageMeta:
 
     async def load() -> list[dict[str, Any]]:
         return await asyncio.get_running_loop().run_in_executor(
-            None, lambda: news_store.get_news_feed(limit=200, days=180, order="recent"))
+            None, lambda: news_store.get_news_feed(limit=200, days=180, order="recent", section="general"))
 
     items = await _cached("news-index", load)
     rows, entries = [], []

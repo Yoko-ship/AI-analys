@@ -171,7 +171,7 @@ async def api_news(limit: int = 60, days: int = 180) -> dict[str, Any]:
 @router.get("/api/news/feed")
 async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None,
                         order: str = "rank", instrument: str | None = None,
-                        category: str | None = None) -> dict[str, Any]:
+                        category: str | None = None, section: str | None = None) -> dict[str, Any]:
     """Editorial news feed (§3.11): classified, market-relevant items, ranked by impact.
 
     Distinct from /api/news (the market-events timeline). Each item carries a
@@ -179,19 +179,21 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     ``rank`` it was ordered by. ``order=recent`` returns plain newest-first instead.
     Low-relevance items are skipped and the same story from several outlets is merged.
 
-    ``type`` takes one of the classifier's four classes, a comma-separated list, or
-    one of the two reading groups the news section offers — ``economy`` (market +
-    regulatory) and ``corporate`` (corporate_event + financial_report). The groups
-    partition all four, so nothing is unreachable from both tabs.
+    ``type`` takes one of the classifier's four classes, a comma-separated list,
+    or a legacy type group: ``economy`` (market + regulatory) or ``corporate``
+    (corporate_event + financial_report).
 
     A corporate request is served from the **disclosure sources alone** (openinfo, the
     issuers' own filings — customer, 2026-08-11): a paper's write-up of a filing is a
     retelling, and the tab is the record. Only the corporate classes are narrowed, so
-    ``type`` unset — the «Все» tab — is still the mixed feed it says it is.
+    requests with neither ``type`` nor ``section`` preserve the mixed feed.
 
-    ``category`` is one of the news section's tabs (news_store.NEWS_CATEGORIES:
-    economy, corporate, reports, markets, companies, politics, technology, other);
-    every item belongs to exactly one, see news_store.news_category.
+    ``section`` selects the reading section: ``general`` for press and other
+    non-disclosure sources, ``corporate`` for issuers' own disclosures. It is
+    independent of the classifier type, so press coverage of a company stays
+    general news. Unset preserves the mixed feed for existing API clients.
+
+    ``category`` remains a legacy topic filter (news_store.NEWS_CATEGORIES).
 
     ``instrument`` (``stock`` / ``bond``) narrows the feed to the filings that name a
     security of that kind. The classifier files a coupon payment and a dividend under
@@ -199,6 +201,9 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
     securities the item names, typed by the catalog here rather than guessed from the
     shape of a ticker.
     """
+    section = str(section or "").strip().lower() or None
+    if section not in (None, "general", "corporate"):
+        raise HTTPException(status_code=422, detail="section must be general or corporate")
     loop = asyncio.get_running_loop()
     ticker_types = None
     notes: dict[str, Any] = {}
@@ -230,7 +235,7 @@ async def api_news_feed(limit: int = 60, days: int = 30, type: str | None = None
         None, partial(news_store.get_news_feed, limit=limit, days=days, news_type=type,
                       order="recent" if order == "recent" else "rank",
                       instrument=instrument, ticker_types=ticker_types, notes=notes,
-                      category=category))
+                      category=category, section=section))
     body: dict[str, Any] = {"ok": True, "count": len(items), "items": items,
                             "disclaimer": NEWS_DISCLAIMER}
     # Diagnostic, not rendered: the news page showed this and the customer had

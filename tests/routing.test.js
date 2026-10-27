@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "node:module";
 import { describe, it } from "node:test";
+import { NEWS_TABS, newsTabFromLocation } from "../frontend/src/features/news/newsRouting.js";
 
 // routing.jsx holds no JSX; let Node load it as the plain module it is.
 register("data:text/javascript," + encodeURIComponent(`export async function load(url, context, next) {
@@ -154,4 +155,22 @@ it('opens the portfolio workspace from bookmarks and navigation', () => {
   assert.equal(viewToPath('portfolio'), '/portfolio');
   assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
   assert.ok(!HIDDEN_VIEWS.has('portfolio'));
+});
+it("news offers two reading sections and preserves old links", () => {
+  assert.deepEqual(NEWS_TABS.map(tab => tab.key), ["general", "corporate"]);
+  const previous = globalThis.window;
+  try {
+    for (const [query, expected] of [
+      ["", "general"], ["?tab=all", "general"], ["?tab=economy", "general"],
+      ["?tab=technology", "general"], ["?tab=regulator", "general"],
+      ["?tab=reporting", "corporate"], ["?tab=corporate", "corporate"],
+      ["?tab=calendar", "calendar"],
+    ]) {
+      globalThis.window = { location: { search: query } };
+      assert.equal(newsTabFromLocation(), expected, query);
+    }
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
 });

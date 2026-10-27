@@ -128,7 +128,7 @@ export function useNavigation({ language } = {}) {
   // string, which the page reads on mount and on popstate — so when the page is
   // already open, the same event switches it.
   const openNewsTab = (tab, options = {}) => {
-    const target = localizedPath(tab === "all" ? "/news" : `/news?tab=${tab}${options.mode ? `&mode=${encodeURIComponent(options.mode)}` : ""}`, languageRef.current);
+    const target = localizedPath(tab === "general" || tab === "all" ? "/news" : `/news?tab=${tab}${options.mode ? `&mode=${encodeURIComponent(options.mode)}` : ""}`, languageRef.current);
     try {
       if (window.location.pathname + window.location.search !== target) window.history.pushState({ view: "news" }, "", target);
     } catch { /* noop */ }

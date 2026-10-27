@@ -373,7 +373,7 @@ def test_news_index_has_static_links_excerpts_and_a_matching_item_list(tmp_path,
     assert [b["url"] for b in listing["itemListElement"]] == [
         "https://uzstock.uz/news/6581", "https://uzstock.uz/news/6582"]
     assert [b["position"] for b in listing["itemListElement"]] == [1, 2]
-    assert requested == [{"limit": 200, "days": 180, "order": "recent"}]
+    assert requested == [{"limit": 200, "days": 180, "order": "recent", "section": "general"}]
 
 
 def test_news_index_database_failure_is_retryable(tmp_path, monkeypatch):

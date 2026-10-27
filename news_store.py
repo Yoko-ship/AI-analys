@@ -1245,6 +1245,7 @@ def get_news_feed(
     min_relevance: float | None = None,
     instrument: str | None = None, ticker_types: dict[str, str] | None = None,
     notes: dict[str, Any] | None = None, category: str | None = None,
+    section: str | None = None,
 ) -> list[dict[str, Any]]:
     """Public editorial feed: relevant, classified items, **ranked by likely impact**.
 
@@ -1256,6 +1257,9 @@ def get_news_feed(
     Ranking happens over a window wider than ``limit`` so a strong item just outside the
     newest N can still surface; each returned item carries its ``rank`` for transparency.
     """
+    section = str(section or "").strip().lower() or None
+    if section not in (None, "general", "corporate"):
+        raise ValueError("section must be general or corporate")
     fetch = max(1, min(limit, 200))
     category = str(category or "").strip().lower() or None
     if category not in NEWS_CATEGORIES:
@@ -1309,6 +1313,16 @@ def get_news_feed(
     # and so «Все», which asks for no type at all, stays the mixed feed it says it is.
     corporate = [t for t in wanted if t in NEWS_GROUPS["corporate"]]
     disclosure = sorted(disclosure_source_ids())
+    # The two reading sections split by source, independently of the model's
+    # topic or event type. A press story about a company stays general news;
+    # the issuer's own financial reports belong with its other disclosures.
+    # Filter before LIMIT so a busy filing day cannot crowd out press stories.
+    if section and disclosure:
+        operator = "NOT IN" if section == "general" else "IN"
+        q.append(f"AND COALESCE(n.source_id, '') {operator} ({','.join('?' * len(disclosure))})")
+        params.extend(disclosure)
+    elif section == "corporate":
+        q.append("AND 0 = 1")
     if corporate and disclosure:
         q.append(f"AND (p.type NOT IN ({','.join('?' * len(corporate))})"
                  f" OR COALESCE(n.source_id, '') IN ({','.join('?' * len(disclosure))}))")

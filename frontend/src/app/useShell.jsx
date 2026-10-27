@@ -1,3 +1,4 @@
+import { NEWS_TX, NEWS_TABS } from "../features/news/index.js";
 import { snapPixel } from "../lib/geometry.js";
 import { useEffect, useRef, useState } from "react";
 import { rootZoom, zoomedViewport } from "../shared/viewport.jsx";
@@ -233,26 +234,17 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   type="button"
                   aria-haspopup="menu"
                   aria-expanded={navMenu === "news"}
-                  onClick={() => { openNewsTab("all"); setMobileNavOpen(false); closeNavMenu(); }}
+                  onClick={() => { openNewsTab("general"); setMobileNavOpen(false); closeNavMenu(); }}
                 >
                   {t(language, "nav.news")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
                 </button>
-                {/* The tab row of /news, grouped into sections. */}
+                {/* Match the page's two reading sections; events are separate. */}
                 {navMenuPanel("news", [
-                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: [
-                    { label: navDdLabel("Все новости", "Barcha yangiliklar", "All news"), onSelect: () => openNewsTab("all") },
-                    { label: navDdLabel("Экономика", "Iqtisodiyot", "Economy"), onSelect: () => openNewsTab("economy") },
-                    { label: navDdLabel("Рынки", "Bozorlar", "Markets"), onSelect: () => openNewsTab("markets") },
-                    { label: navDdLabel("Политика", "Siyosat", "Politics"), onSelect: () => openNewsTab("politics") },
-                    { label: navDdLabel("Технологии", "Texnologiyalar", "Technology"), onSelect: () => openNewsTab("technology") },
-                    { label: navDdLabel("Прочее", "Boshqa", "Other"), onSelect: () => openNewsTab("other") },
-                  ] },
-                  { head: navDdLabel("Эмитенты", "Emitentlar", "Issuers"), items: [
-                    { label: navDdLabel("Корпоративные", "Korporativ", "Corporate"), onSelect: () => openNewsTab("corporate") },
-                    { label: navDdLabel("Финотчётность", "Moliyaviy hisobot", "Financial reports"), onSelect: () => openNewsTab("reporting") },
-                    { label: navDdLabel("Компании", "Kompaniyalar", "Companies"), onSelect: () => openNewsTab("companies") },
-                  ] },
+                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: NEWS_TABS.map(tab => ({
+                    label: (NEWS_TX[language] || NEWS_TX.ru).tabs[tab.key],
+                    onSelect: () => openNewsTab(tab.key),
+                  })) },
                   { head: navDdLabel("События", "Voqealar", "Events"), items: [
                     { label: navDdLabel("Календарь", "Taqvim", "Calendar"), onSelect: () => openNewsTab("calendar") },
                   ] },
