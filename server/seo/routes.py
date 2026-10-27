@@ -60,10 +60,9 @@ _PRIVATE_PREFIXES = ("/admin", "/profile", "/login", "/portfolio")
 
 # Pages with one id after the prefix (frontend/src/app/routing.jsx, pathToView).
 _ENTITY_PREFIXES = ("/company/", "/chart/", "/bond/", "/news/")
-# Routes the app opens that need no snapshot of their own, and old paths the app
-# still opens as another page. Every other path is answered 404: the app would
-# show the home page there, and a 200 for it is a soft 404 to Google.
-_PLAIN_PAGES = frozenset({"/feedback"})
+# Old paths the app still opens as another page. Public static pages belong in
+# _STATIC_PAGES so each gets its own metadata, canonical and sitemap entry.
+# Every other path is answered 404 rather than indexing the home page again.
 _ALIASES = {"/bonds": "/market"}
 # Google shows an organisation logo only from 112×112 up (tests/test_seo.py
 # reads the file's real size).
@@ -94,6 +93,11 @@ _STATIC_PAGES: dict[str, tuple[str, str]] = {
         "Курсы валют в банках Узбекистана | UZStock",
         "Курсы покупки и продажи доллара, евро и рубля в коммерческих банках Узбекистана "
         "и официальный курс ЦБ.",
+    ),
+    "/feedback": (
+        "Обратная связь | UZStock",
+        "Сообщите об ошибке, предложите улучшение или задайте вопрос команде UZStock. "
+        "Для отправки сообщения войдите в аккаунт.",
     ),
 }
 
@@ -126,6 +130,11 @@ _STATIC_PAGES_UZ: dict[str, tuple[str, str]] = {
         "O‘zbekiston banklaridagi valyuta kurslari | UZStock",
         "Tijorat banklarida dollar, yevro va rublning sotib olish va sotish kurslari hamda "
         "Markaziy bankning rasmiy kursi.",
+    ),
+    "/feedback": (
+        "Fikr-mulohaza | UZStock",
+        "Xatolik haqida xabar bering, taklif yuboring yoki UZStock jamoasiga savol bering. "
+        "Xabar yuborish uchun hisobingizga kiring.",
     ),
 }
 _PAGES = {"ru": _STATIC_PAGES, "uz": _STATIC_PAGES_UZ}
@@ -856,7 +865,7 @@ async def page_meta(full_path: str, query: dict[str, str] | None = None) -> Page
         title = "Kompaniyalarni solishtirish" if lang == "uz" else "Сравнение компаний"
         return PageMeta(title=f"{title} | {SITE_NAME}", noindex=True, lang=lang)
     path = _ALIASES.get(path, path)
-    if not (path in _STATIC_PAGES or path in _PLAIN_PAGES or path.startswith(_ENTITY_PREFIXES)):
+    if not (path in _STATIC_PAGES or path.startswith(_ENTITY_PREFIXES)):
         return _not_found(lang)
     meta: PageMeta | None = None
     try:

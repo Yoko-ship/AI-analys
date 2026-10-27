@@ -70,6 +70,16 @@ class TestTheLimitAgainstRealTraffic:
 
 
 class TestRenderedConfig:
+    def test_www_redirect_preserves_the_path_and_query_without_using_the_request_host(self) -> None:
+        # The provider terminates public TLS and forwards to the origin over
+        # HTTP. Once its www mapping is enabled, the origin must consolidate
+        # every www URL instead of serving a second copy of the site.
+        for limited in (True, False):
+            conf = edge.http_conf(limited)
+            assert "server_name www.uzstock.uz;" in conf
+            assert "return 301 https://uzstock.uz$request_uri;" in conf
+            assert "https://$host" not in conf
+
     def test_the_limit_is_keyed_only_when_verified(self) -> None:
         assert "default $binary_remote_addr;" in edge.http_conf(limited=True)
         off = edge.http_conf(limited=False)

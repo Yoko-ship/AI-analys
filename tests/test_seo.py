@@ -200,6 +200,26 @@ def test_static_and_private_pages(tmp_path, monkeypatch):
         assert "canonical" not in text, path
 
 
+def test_feedback_has_its_own_localized_metadata_and_canonical(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for path, title, description in (
+        ("/feedback", "Обратная связь | UZStock", "Сообщите об ошибке"),
+        ("/uz/feedback", "Fikr-mulohaza | UZStock", "Xatolik haqida xabar bering"),
+    ):
+        for suffix in ("", "/", "?source=footer"):
+            page = client.get(path + suffix)
+            assert page.status_code == 200
+            assert f"<title>{title}</title>" in page.text
+            assert description in page.text
+            assert f'<link rel="canonical" href="https://uzstock.uz{path}" />' in page.text
+            assert '<link rel="alternate" hreflang="ru" href="https://uzstock.uz/feedback" />' in page.text
+            assert '<link rel="alternate" hreflang="uz" href="https://uzstock.uz/uz/feedback" />' in page.text
+            assert "noindex" not in page.text
+    sitemap = client.get("/sitemap.xml").text
+    assert "<loc>https://uzstock.uz/feedback</loc>" in sitemap
+    assert "<loc>https://uzstock.uz/uz/feedback</loc>" in sitemap
+
+
 def test_bond_page(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
 

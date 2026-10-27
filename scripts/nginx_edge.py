@@ -21,6 +21,10 @@ halves and refuses to switch the limit on until it has seen them work:
   a visitor address different from the proxy's does the limit get a key. If the
   proxy's address is outside ``TRUSTED_EDGE`` the limit stays keyless (off) and
   the deploy warns with the address to add.
+* canonical host: the provider must enable public TLS for ``www.uzstock.uz``
+  and forward it to this origin over HTTP, preserving the Host header. The
+  origin redirects that alias to the primary HTTPS domain, retaining the path
+  and query. A public TLS rejection must be fixed at the provider, not here.
 
 The rate and burst are held to real browser traffic in
 ``tests/test_nginx_edge.py`` (recorded page loads in
@@ -93,6 +97,10 @@ def http_conf(limited: bool, trusted: tuple[str, ...] = TRUSTED_EDGE) -> str:
         + "map $uzstock_limit_exempt $uzstock_limit_key {\n"
         + f'    1 "";\n    default {key};\n}}\n'
         + f"limit_req_zone $uzstock_limit_key zone={ZONE}:10m rate={RATE_PER_SECOND}r/s;\n"
+        + "\n# The provider owns public TLS; this is its HTTP origin.\n"
+        + "server {\n    listen 80;\n    listen [::]:80;\n"
+        + "    server_name www.uzstock.uz;\n"
+        + f"    return 301 {PUBLIC_ORIGIN}$request_uri;\n}}\n"
     )
 
 

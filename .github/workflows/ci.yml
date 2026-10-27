@@ -286,10 +286,14 @@ jobs:
           # The site location serves a file, as production proxies: a `return`
           # answers in the rewrite phase, before limit_req ever runs.
           printf 'server {\n    listen 8080;\n    include /etc/nginx/snippets/uzstock-monitor.conf;\n    location / { root /usr/share/nginx/html; try_files /index.html =404; }\n}\n' > "$edge/conf.d/site.conf"
-          docker run -d --name edge -p 127.0.0.1:8080:8080 \
+          docker run -d --name edge -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:80 \
             -v "$edge/conf.d:/etc/nginx/conf.d:ro" -v "$edge/snippets:/etc/nginx/snippets:ro" nginx:1.24.0
           for attempt in $(seq 1 20); do curl -fsS -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
           docker logs edge
+          # The public proxy forwards www to this HTTP origin. Preserve the
+          # full URL while consolidating it onto the primary HTTPS domain.
+          [ "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H 'Host: www.uzstock.uz' 'http://127.0.0.1:8081/company/UZTL?report=ai&source=search')" = '301 https://uzstock.uz/company/UZTL?report=ai&source=search' ] \
+            || { echo "www canonical redirect lost its status, path or query"; exit 1; }
           probe="$(curl -fsS -H 'X-UZStock-Edge-Probe: citoken' -H 'X-Forwarded-For: 203.0.113.9' http://127.0.0.1:8080/__uzstock/edge-probe)"
           echo "probe answered: $probe"
           [ "$(echo "$probe" | awk '{print $2}')" = "203.0.113.9" ] || { echo "realip did not resolve the visitor"; exit 1; }
