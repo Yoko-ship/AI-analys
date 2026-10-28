@@ -79,6 +79,18 @@ test('comparison displays backend figures without requesting analysis', async ({
   expect(dataRequests).toEqual([]);
 });
 
+test('audit: phone comparison puts figures before secondary controls',async({page},info)=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/compare');
+  const figure=page.locator('.cc-value').first();
+  await expect(figure).toBeVisible();
+  expect((await figure.boundingBox()).y).toBeLessThan(700);
+  await page.getByText('Reporting settings',{exact:true}).click();
+  await page.getByLabel('Reporting period',{exact:true}).selectOption('2024');
+  await expect(page.locator('.cc-preview-note')).toContainText('2024');
+  await page.screenshot({path:info.outputPath('comparison-phone-fixed.png'),fullPage:true});
+});
+
 for (const locale of [
   {language: 'ru', path: '/compare', market: 'Рынок', profit: 'Чистая прибыль', removed: ['Цена акции', 'Капитализация', 'Оборот за сессию']},
   {language: 'uz', path: '/uz/compare', market: 'Bozor', profit: 'Sof foyda', removed: ['Aksiya narxi', 'Kapitallashuv', 'Sessiya aylanmasi']},
@@ -248,6 +260,7 @@ test('new reporting periods have no misleading profit growth and update cards fi
   const account={user:reader,entries:[{id:'7',name:'New filing',has_baseline:true,selection:{tickers:['HMKB','IPKY'],period:'2025',standard:'NSBU',scope:'separate',unit:'billion'}}],
     failSeen:true,changes:[{ticker:'HMKB',kind:'new_period',before_period:'2025',after_period:'2026Q3',source:{url:'https://openinfo.uz/filing.pdf'}}]};
   await accountSaves(page,account);await page.goto('/compare');
+  await page.getByText('Actions',{exact:true}).click();
   await page.getByText('Saved comparisons',{exact:true}).click();
   await page.getByRole('button',{name:'New filing',exact:true}).click();
   const panel=page.getByRole('region',{name:'What changed since your last visit'});await panel.scrollIntoViewIfNeeded();
@@ -264,6 +277,7 @@ test('account import actions fit the saved menu on narrow Uzbek screens', async 
   ])));
   await accountSaves(page, {user: reader, entries: []});
   await page.goto('/uz/compare');
+  await page.locator('.cc-actions-disclosure > summary').click();
   await page.locator('.cc-saved summary').click();
   const action = page.getByRole('button', {name: /Brauzerdagi solishtirishlarni import qilish/});
   await expect(action).toBeVisible();
@@ -400,6 +414,8 @@ for (const theme of ['light', 'dark']) {
     await page.goto('/compare');
     await page.evaluate(value => { document.body.dataset.theme = document.documentElement.dataset.theme = value; }, theme);
     await expect(page.getByRole('heading', { name: 'Compare companies', level: 1 })).toBeVisible();
+    await page.getByText('Reporting settings',{exact:true}).click();
+    await page.getByText('Actions',{exact:true}).click();
     await expect(page.getByLabel('Reporting period', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     // Clipping the shell can hide an oversized child without changing scrollWidth.

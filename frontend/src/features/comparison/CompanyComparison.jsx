@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CompanyLogo } from '../../shared/CompanyLogo.jsx';
+import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
+import {issuerDisplayName} from '../../lib/issuerDisplayName.js';
 import { num } from '../../lib/format.js';
 import { comparisonText, translatedLabel } from './copy.js';
 import { safeHref } from '../../lib/safeHref.js';
@@ -126,7 +128,7 @@ function MetricTable({ state, companies, metrics, changes, language, onAdd, onRe
               onClick={() => onRemove(company.ticker)}><Icon name="close" size={16} /></button>
           </div>
           <button type="button" className="cc-company-name" onClick={() => onReplace(company.ticker)}
-            aria-label={tx('change') + ' ' + company.ticker}>{company.name}<span aria-hidden="true">⌄</span></button>
+            title={company.name} aria-label={tx('change') + ' ' + company.ticker}>{issuerDisplayName(company, company.ticker)}<span aria-hidden="true">⌄</span></button>
           <span className="cc-company-detail">{tx(company.family === 'bank' ? 'banks' : 'corporate')} · {tx(company.share_type === 'preferred' ? 'preferred' : 'ordinary')}</span>
         </th>)}
         {canAdd && <th scope="col" className="cc-add-column">
@@ -228,6 +230,7 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
     <header className="cc-page-head">
       <div><p className="cc-eyebrow"><Icon name="compare" size={14} />{tx('eyebrow')}</p>
         <h1 id="cc-title">{tx('title')}</h1><p className="cc-subtitle">{tx('subtitle')}</p></div>
+      <ResponsiveDisclosure className="cc-actions-disclosure" label={tx('actions')}>
       <div className="cc-page-actions">
         <details className="cc-saved" ref={savedMenu} onToggle={event => setSavedMenuOpen(event.currentTarget.open)}>
           <summary className="cc-button"><Icon name="save" /><span>{tx('saved')}</span><span className="cc-count">{saved.length}</span></summary>
@@ -255,11 +258,13 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
           onClick={() => { saves.clearError();setSaveOpen(true); }}>
           <Icon name="plus" />{tx('save')}</button>
       </div>
+      </ResponsiveDisclosure>
     </header>
 
     <div className="cc-preview-note"><span><span className="cc-preview-dot" />{tx('reported')}</span>
       <p>{tx('periodContext')}: {periodLabel(ready ? data.period : state.period, language)} · {state.standard} · {tx(state.scope)}</p><button type="button" onClick={() => setSourcesOpen(true)} aria-label={tx('source')}><Icon name="info" size={16} /></button></div>
 
+    <ResponsiveDisclosure className="cc-settings" label={tx('reportingSettings')}>
     <div className="cc-controls">
       <label><span>{tx('period')}</span><select aria-label={tx('period')} value={state.period} onChange={event => update({ period: event.target.value })}>
         <option value="latest">{tx('latest')}</option>
@@ -275,6 +280,7 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
         <option value="billion">{tx('billion')}</option><option value="million">{tx('million')}</option>
       </select></label>
     </div>
+    </ResponsiveDisclosure>
 
     {user && <p className="cc-message">{tx('account')}</p>}
     {saves.loadError && <div className="cc-notice" role="alert"><span>{tx('savedLoadError')}</span>

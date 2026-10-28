@@ -2,6 +2,7 @@ import { CHANGE_PERIODS, changePeriodLabel } from "../../shared/marketPeriods.js
 import { mt, sectorLabel } from "../../shared/marketCopy.jsx";
 import { TermInfo } from "../../shared/TermInfo.jsx";
 import { MarketColsPopover } from "./TableOverlays.jsx";
+import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 export function MarketFilters({
   lang,
   type,
@@ -42,7 +43,8 @@ export function MarketFilters({
   SORT_LABEL_OF,
   sortHintSeen,
   dismissSortHint,
-  clearSort
+  clearSort,
+  children
 }) {
   return <div className="market-filterbar">
         <div className="market-controls">
@@ -57,13 +59,15 @@ export function MarketFilters({
                   </button>;
           })}
             </div>
+          </div>
+          <ResponsiveDisclosure className="market-secondary" label={lang === 'en' ? 'Filters and tools' : lang === 'uz' ? 'Filtrlar va vositalar' : 'Фильтры и инструменты'}>
+          <div className="market-secondary-controls">
             {/* Level 2: share class — only meaningful inside stocks. */}
             {type !== "bond" && <div className="segmented-control market-subtype-control">
                 {[["stock", mt(lang, "all")], ["ordinary", mt(lang, "ordinaryStocks")], ["preferred", mt(lang, "preferredStocks")]].map(([value, label]) => <button key={value} type="button" className={type === value ? "active" : ""} onClick={() => onTypeChange(value)}>
                     {label}
                   </button>)}
               </div>}
-          </div>
           {/* Отрасль. A dropdown rather than the row of chips this used to be:
               eleven chips took a band of the pinned bar to themselves, wrapped
               onto two lines on a laptop, and — because the band was drawn for
@@ -228,6 +232,9 @@ export function MarketFilters({
                   </>
                 </MarketColsPopover>}
             </div>}
+          </div>
+          {children}
+          </ResponsiveDisclosure>
         </div>
 
           {/* The period every «изменение» on this screen is measured over. It

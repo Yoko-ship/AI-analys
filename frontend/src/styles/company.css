@@ -17,6 +17,9 @@
 .company-page-hero .chip-logo-fallback { font-size: 1.9rem; }
 .company-page-title { flex: 1; min-width: 180px; }
 .company-page-title h1 { margin: 0 0 6px; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.company-legal-name { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.company-legal-name summary { min-height: 32px; display: list-item; cursor: pointer; }
+.company-legal-name p { margin: 4px 0; overflow-wrap: anywhere; }
 .company-page-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .company-page-ticker { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--accent); }
 .company-type-badge { background: var(--surface-2); border-radius: 4px; padding: 2px 8px; font-size: 12px; color: var(--text-muted); }
@@ -301,7 +304,7 @@
 .rail-spark path { fill: none; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .rail-spark.tone-pos path { stroke: #6ef0c1; }
 .rail-spark.tone-neg path { stroke: #f87171; }
-.rail-fav { background: none; border: 0; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; color: var(--text-muted); }
+.rail-fav { display: inline-grid; place-items: center; background: none; border: 0; padding: 0; min-width: 32px; min-height: 40px; cursor: pointer; font-size: 15px; line-height: 1; color: var(--muted); }
 .rail-fav.on { color: #f5c451; }
 .rail-empty { font-size: 12.5px; margin: 2px 0 4px; line-height: 1.5; }
 .company-keystats { display: flex; flex-direction: column; gap: 14px; }
@@ -312,8 +315,9 @@
    the 14px sentence case the reference page uses. Scoped to this page — the
    label is right where it came from, on dense admin panels. */
 .company-page .panel-label { font-size: 13px; letter-spacing: 0.06em; }
-.company-keystats .panel-label { white-space: nowrap; }
-.company-keystats .company-metric-val { text-align: right; }
+.company-keystats .panel-label { min-width: 0; white-space: normal; overflow-wrap: normal; }
+.company-keystats .company-metric-val { flex-shrink: 0; text-align: right; white-space: nowrap; overflow-wrap: normal; font-variant-numeric: tabular-nums; }
+.company-keystats .company-metric-val .cell-status { display: inline-block; max-width: 140px; white-space: normal; }
 .company-keystats .cell-status { font-size: 11.5px; color: var(--text-muted); font-weight: 500; border-bottom: 1px dotted var(--border); cursor: help; }
 .company-keystats .company-metric-warning { color: var(--warn, #f59e0b); font-size: 11px; font-weight: 700; }
 .keystat-note { font-size: 12px; margin-top: 8px; line-height: 1.5; }

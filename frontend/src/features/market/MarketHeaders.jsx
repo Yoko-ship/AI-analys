@@ -86,7 +86,7 @@ export function createMarketHeaders({
     } : undefined}>
       <span className="market-th-inner">
         {movable && <span className="market-th-grip" aria-hidden="true">⋮⋮</span>}
-        <span>{label}</span>
+        <span className="market-th-label">{label}</span>
         {/* Renders nothing for a column that is not an economic term (компания,
             UZSE) — the marker promises an explanation and must not appear
             without one. */}

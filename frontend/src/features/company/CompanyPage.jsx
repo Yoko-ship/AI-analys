@@ -7,6 +7,7 @@ import { CompanyWatchRail, watchRailLists } from "../../shared/CompanyWatchRail.
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
 import { formatMarketChange } from "../../shared/format.jsx";
+import {issuerDisplayName} from '../../lib/issuerDisplayName.js';
 import { CompanyInsightCard, CompanyInsightDialog } from "./Insights.jsx";
 import { CompanyOverviewTab, CompanyReportsTab } from "./Overview.jsx";
 import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
@@ -431,9 +432,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // FRAZP, IPKYP, PLSTP and UPOSP arrive without the suffix while HMKBP and
   // IPTBP carry it. One rule for every header, not the feed's mood.
   const baseName = sec.company_name || sec.name || ticker;
-  const displayName = isPreferred && securityType !== "bond" && !/привилегирован/i.test(baseName)
-    ? `${baseName} (привилегированные)`
-    : baseName;
+  const shortName = issuerDisplayName(sec, ticker);
+  const displayName = isPreferred && securityType !== "bond" && !/привилегирован/i.test(shortName)
+    ? `${shortName} (привилегированные)`
+    : shortName;
   const TABS = [
     { key: "overview", label: lang === "ru" ? "Обзор" : lang === "uz" ? "Umumiy" : "Overview" },
     { key: "chart", label: lang === "ru" ? "История цен" : lang === "uz" ? "Narxlar tarixi" : "Price History" },
@@ -457,6 +459,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               <span className="company-type-badge">{typeLabel}</span>
               {industry && <span className="sector-chip active" style={{ fontSize: 11, padding: "2px 10px" }}>{sectorLabel(lang, industry)}</span>}
             </div>
+            {baseName !== shortName && <details className="company-legal-name">
+              <summary>{lang === 'en' ? 'Full legal name' : lang === 'uz' ? 'To‘liq nomi' : 'Полное наименование'}</summary>
+              <p>{baseName}</p>
+            </details>}
           </div>
           <div className="company-page-price">
             {lastPrice != null ? (
@@ -471,11 +477,6 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
             ) : (
               <div className="muted" style={{ fontSize: 13 }}>{lang === "ru" ? "Нет данных" : "No data"}</div>
             )}
-            <button className="primary-btn" type="button" style={{ marginTop: 8 }} onClick={openInsight} disabled={insightLoading || insightDetailLoading}>
-              {insightLoading || insightDetailLoading
-                ? (lang === "ru" ? "Загрузка анализа…" : lang === "uz" ? "Tahlil yuklanmoqda…" : "Loading analysis…")
-                : (lang === "ru" ? "Открыть анализ" : lang === "uz" ? "Tahlilni ochish" : "Open Analysis")}
-            </button>
           </div>
         </div>
         <div className="company-page-tabs">

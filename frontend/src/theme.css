@@ -40,12 +40,12 @@ html[data-theme="light"] body {
   --accent-glow: rgba(98, 87, 217, 0.18);
   --accent-2: #c98208;
 
-  --success: #0b9f72;
+  --success: #08734f;
   --success-light: rgba(11, 159, 114, 0.10);
   --success-glow: rgba(11, 159, 114, 0.16);
   --warning: #c98208;
   --warning-light: rgba(201, 130, 8, 0.12);
-  --danger: #ef6b67;
+  --danger: #b93835;
   --danger-light: rgba(239, 107, 103, 0.10);
 
   --chart-primary: #6257d9;

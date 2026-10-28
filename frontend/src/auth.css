@@ -407,6 +407,7 @@
 }
 
 .auth-link-button {
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: none;

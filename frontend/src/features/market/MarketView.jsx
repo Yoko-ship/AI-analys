@@ -315,6 +315,10 @@ function MarketView({
     NUM_COLS
   });
   const formatLeader = row => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
+  const resetFilters = () => {
+    setMarketSector(null); onQueryChange(''); onTypeChange('stock'); setDirection('all');
+    setFavOnly(false); setInactiveOnly(false); setSortKeys([]);
+  };
   return <section className={`market-layout${viewMode === "heatmap" ? " is-heatmap" : ""}`}>
       <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} compact={viewMode === "heatmap"} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
 
@@ -397,7 +401,7 @@ function MarketView({
           sortHintSeen={sortHintSeen}
           dismissSortHint={dismissSortHint}
           clearSort={clearSort}
-        />
+        >
 
         {/* ТЗ Дополнение 1 §А.2: bonds get their own table, not a row in the
             equity board — an issue has a value rather than a capitalisation, and
@@ -412,9 +416,12 @@ function MarketView({
             setChangePeriod(saved.period); setDirection(saved.direction); setFavOnly(saved.favoriteOnly);
             setSortKeys(saved.sortKeys); setInactiveOnly(false);
           }}
-          onReset={() => { setMarketSector(null); onQueryChange(""); setDirection("all"); setFavOnly(false); setSortKeys([]); setInactiveOnly(false); }}
+          onReset={resetFilters}
         />}
+        </MarketFilters>
         <MarketTable
+          onResetFilters={resetFilters}
+          filtered={Boolean(query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}
           stats={stats}
           windowed={windowed}
           viewMode={viewMode}

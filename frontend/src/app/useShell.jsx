@@ -1,6 +1,7 @@
 import { NEWS_TX, NEWS_TABS } from "../features/news/index.js";
 import { snapPixel } from "../lib/geometry.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useMediaQuery } from "../shared/useMediaQuery.js";
 import { rootZoom, zoomedViewport } from "../shared/viewport.jsx";
 import { BrandIcon } from "../shared/BrandIcon.jsx";
 import { clg, normalizeLanguage, t } from "../shared/i18n.jsx";
@@ -41,6 +42,42 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   }, [accountMenuOpen]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const drawerLayout = useMediaQuery('(max-width: 1180px)');
+  const mobileNavRef = useRef(null);
+  const burgerRef = useRef(null);
+
+  useEffect(() => { if (!drawerLayout) setMobileNavOpen(false); }, [drawerLayout]);
+  useLayoutEffect(() => {
+    if (!drawerLayout || !mobileNavOpen) return undefined;
+    const nav = mobileNavRef.current;
+    const burger = burgerRef.current;
+    const header = nav.closest('header');
+    const background = [...header.children, ...header.parentElement.children]
+      .filter(el => el !== header && el !== nav && el !== burger && !el.matches('.topbar-nav-scrim'));
+    const previous = background.map(el => [el, el.inert]);
+    previous.forEach(([el]) => { el.inert = true; });
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => [burger, ...nav.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled)')]
+      .filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+    focusable()[1]?.focus();
+    const onKey = event => {
+      if (event.key === 'Escape') { event.preventDefault(); setMobileNavOpen(false); }
+      if (event.key !== 'Tab') return;
+      const controls = focusable(), index = controls.indexOf(document.activeElement);
+      if (index < 0 || (event.shiftKey && index === 0) || (!event.shiftKey && index === controls.length - 1)) {
+        event.preventDefault();
+        controls[event.shiftKey ? controls.length - 1 : 0]?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previous.forEach(([el, inert]) => { el.inert = inert; });
+      document.body.style.overflow = overflow;
+      if (burger?.isConnected && burger.getClientRects().length) burger.focus();
+    };
+  }, [drawerLayout, mobileNavOpen]);
 
   useEffect(() => {
     const bar = document.querySelector(".topbar");
@@ -65,7 +102,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
   const navItems = (token
     ? ["main", "market", "catalog", "news", "portfolio", "feedback", "profile"]
-    : ["main", "market", "catalog", "news", "feedback", "auth"])
+    : ["main", "market", "catalog", "news", "feedback"])
     .filter(key => key !== "catalog" || canAccessCatalog);
 
   // One hover drop-down open at a time: «Рынок» or «Новости».
@@ -76,11 +113,25 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   const navMenuWrapRefs = useRef({});
 
   const navMenuTimer = useRef(null);
+  const navPanelRef = useRef(null);
+  const pendingMenuFocus = useRef(null);
 
   useEffect(() => () => clearTimeout(navMenuTimer.current), []);
 
-  const openNavMenu = (key) => {
+  const focusMenu = edge => {
+    const items = navPanelRef.current?.querySelectorAll('[role="menuitem"]');
+    (edge === 'last' ? items?.[items.length - 1] : items?.[0])?.focus();
+  };
+  useLayoutEffect(() => {
+    if (navMenu && pendingMenuFocus.current) focusMenu(pendingMenuFocus.current);
+    pendingMenuFocus.current = null;
+  }, [navMenu]);
+
+  const openNavMenu = (key, focus = null) => {
+    if (drawerLayout) return;
     clearTimeout(navMenuTimer.current);
+    pendingMenuFocus.current = focus;
+    if (navMenu === key && focus) focusMenu(focus);
     const r = navMenuWrapRefs.current[key]?.getBoundingClientRect();
     if (r) {
       const z = rootZoom();
@@ -90,6 +141,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   };
 
   const closeNavMenuSoon = () => {
+    if (navPanelRef.current?.contains(document.activeElement)) return;
     clearTimeout(navMenuTimer.current);
     navMenuTimer.current = setTimeout(() => setNavMenu(null), 140);
   };
@@ -98,13 +150,49 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     clearTimeout(navMenuTimer.current);
     setNavMenu(null);
   };
+  const menuTriggerKey = (event, key) => {
+    if (['ArrowDown', 'ArrowUp', ' '].includes(event.key) && !drawerLayout) {
+      event.preventDefault(); openNavMenu(key, event.key === 'ArrowUp' ? 'last' : 'first');
+    }
+  };
+  const menuKey = (event, key) => {
+    const items = [...navPanelRef.current.querySelectorAll('[role="menuitem"]')];
+    const current = items.indexOf(document.activeElement);
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+      : event.key === 'ArrowDown' ? (current + 1) % items.length
+        : event.key === 'ArrowUp' ? (current - 1 + items.length) % items.length : null;
+    if (index !== null) { event.preventDefault(); items[index]?.focus(); }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      const trigger = navMenuWrapRefs.current[key]?.querySelector('.topbar-nav-btn');
+      const controls = [...document.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled)')]
+        .filter(el => !navPanelRef.current.contains(el) && !el.closest('[inert]') && el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
+      const next = controls[controls.indexOf(trigger) + 1];
+      closeNavMenu(); (event.shiftKey ? trigger : next || trigger)?.focus();
+    }
+  };
 
   useEffect(() => {
     if (!navMenu) return undefined;
+    if (drawerLayout) { setNavMenu(null); return undefined; }
     const close = () => { clearTimeout(navMenuTimer.current); setNavMenu(null); };
+    const onKey = event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault(); close();
+      navMenuWrapRefs.current[navMenu]?.querySelector('.topbar-nav-btn')?.focus();
+    };
+    const outside = event => {
+      if (!navPanelRef.current?.contains(event.target) && !navMenuWrapRefs.current[navMenu]?.contains(event.target)) close();
+    };
     window.addEventListener("scroll", close, { passive: true, capture: true });
-    return () => window.removeEventListener("scroll", close, { capture: true });
-  }, [navMenu]);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', outside);
+    return () => {
+      window.removeEventListener("scroll", close, { capture: true });
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', outside);
+    };
+  }, [navMenu, drawerLayout]);
 
   // Portaled to <body>, and clamped into the viewport once the width is known —
   // the trigger can sit far enough right (compact band, long translations) that
@@ -113,8 +201,12 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     <div
       className="nav-dd-panel"
       role="menu"
+      id={`header-menu-${key}`}
+      aria-labelledby={`header-trigger-${key}`}
+      onKeyDown={event => menuKey(event, key)}
       style={{ top: navMenuPos.top, left: navMenuPos.left }}
       ref={(el) => {
+        navPanelRef.current = el;
         if (!el) return;
         const { vw } = zoomedViewport();
         el.style.left = `${Math.max(8, Math.min(navMenuPos.left, vw - el.offsetWidth - 8))}px`;
@@ -146,6 +238,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       <div className="app-shell">
         <header className={`topbar${mobileNavOpen ? " is-nav-open" : ""}`}>
           <button
+            ref={burgerRef}
             className="topbar-burger"
             type="button"
             aria-label={mobileNavOpen ? (language === "en" ? "Close menu" : language === "uz" ? "Menyuni yopish" : "Закрыть меню") : (language === "en" ? "Open menu" : language === "uz" ? "Menyuni ochish" : "Открыть меню")}
@@ -163,7 +256,8 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
           </div>
 
           <button className="topbar-nav-scrim" type="button" aria-hidden="true" tabIndex={-1} onClick={() => setMobileNavOpen(false)} />
-          <nav className="topbar-nav">
+          <nav ref={mobileNavRef} className="topbar-nav" aria-label={navDdLabel('Основная навигация', 'Asosiy navigatsiya', 'Main navigation')}
+            {...(drawerLayout && !mobileNavOpen ? {inert: '', 'aria-hidden': true} : {})}>
             {navItems.map((key) => key === "market" ? (
               <div
                 key={key}
@@ -175,9 +269,12 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 <button
                   className={`topbar-nav-btn ${activeView === key || activeView === "issuers" || activeView === "bankfx" || activeView === "heatmap" || activeView === "companyCompare" ? "active" : ""}`}
                   type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={navMenu === "market"}
-                  onClick={() => { setActiveView("market"); setMobileNavOpen(false); closeNavMenu(); }}
+                  id="header-trigger-market"
+                  aria-haspopup={drawerLayout ? undefined : 'menu'}
+                  aria-controls={drawerLayout ? undefined : 'header-menu-market'}
+                  aria-expanded={drawerLayout ? undefined : navMenu === "market"}
+                  onKeyDown={event => menuTriggerKey(event, 'market')}
+                  onClick={event => { setActiveView("market"); setMobileNavOpen(false); if (drawerLayout) closeNavMenu(); else openNavMenu('market', event.detail === 0 ? 'first' : null); }}
                 >
                   {mt(language, "nav")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
@@ -232,9 +329,12 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 <button
                   className={`topbar-nav-btn ${["news", "newsArticle", "announcementArticle"].includes(activeView) ? "active" : ""}`}
                   type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={navMenu === "news"}
-                  onClick={() => { openNewsTab("general"); setMobileNavOpen(false); closeNavMenu(); }}
+                  id="header-trigger-news"
+                  aria-haspopup={drawerLayout ? undefined : 'menu'}
+                  aria-controls={drawerLayout ? undefined : 'header-menu-news'}
+                  aria-expanded={drawerLayout ? undefined : navMenu === "news"}
+                  onKeyDown={event => menuTriggerKey(event, 'news')}
+                  onClick={event => { openNewsTab("general"); setMobileNavOpen(false); if (drawerLayout) closeNavMenu(); else openNavMenu('news', event.detail === 0 ? 'first' : null); }}
                 >
                   {t(language, "nav.news")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>

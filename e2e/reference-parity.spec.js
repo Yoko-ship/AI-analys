@@ -38,6 +38,19 @@ test('currency dashboard uses readable heading and KPI sizes',async({page})=>{
  expect(await page.locator('.currency-banner h1').evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(26);
  expect(await page.getByTestId('currency-stats').locator('strong').first().evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(24);
 });
+
+test('audit: phone exchange amount comes before the long bank list',async({page},info)=>{
+ await setup(page);await page.setViewportSize({width:390,height:844});
+ await page.route('**/api/bank-fx',r=>r.fulfill({json:{ok:true,banks:Array.from({length:30},(_,i)=>({bank_code:`bank-${i}`,bank_name:`Bank ${i}`,rates:{USD:{BANK:{buy:11920-i,sell:12010+i}}}}))}}));
+ await page.goto('/currency');
+ const amount=page.locator('.bankfx-amount input');await expect(amount).toBeVisible();
+ expect((await amount.boundingBox()).y).toBeLessThan(700);
+ const bankTable=page.getByTestId('currency-bank-table');
+ expect((await amount.boundingBox()).y).toBeLessThan((await bankTable.boundingBox()).y);
+ await page.getByRole('link',{name:'Currency converter',exact:true}).click();
+ await expect(page.getByTestId('currency-converter')).toBeInViewport();
+ await page.screenshot({path:info.outputPath('currency-phone-fixed.png'),fullPage:true});
+});
 test('profile allocation uses the account valuation and hides the chart when incomplete',async({page})=>{
  await setup(page);let complete=true;
  await page.route('**/api/portfolio',r=>r.fulfill({json:{ok:true,valuation_complete:complete,market_value:complete?'100':'60',items:[{ticker:'HMKB',quantity:'2',market_value:'60',allocation_pct:complete?'60':null},{ticker:'UZTL',quantity:'1',market_value:complete?'40':null,allocation_pct:complete?'40':null}]}}));

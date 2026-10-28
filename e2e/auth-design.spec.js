@@ -23,6 +23,7 @@ async function mockAuthPageApi(page) {
     if (path === "/api/securities") return send({ ok: true, securities: {} });
     if (path === "/api/market/stocks") return send(STOCKS);
     if (path === "/api/auth/me") return send({ detail: "Not authenticated" }, 401);
+    if (path === "/api/auth/options") return send({ok:true,email_codes:true});
     return send({ ok: true });
   });
 }
@@ -56,4 +57,10 @@ test("fits a phone viewport without horizontal overflow", async ({ page }, testI
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("auth-mobile.png"), fullPage: true });
+});
+
+test('audit: password recovery has a comfortable phone target',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ const box=await page.getByRole('button',{name:'Забыли пароль?',exact:true}).boundingBox();
+ expect(box.height).toBeGreaterThanOrEqual(44);
 });

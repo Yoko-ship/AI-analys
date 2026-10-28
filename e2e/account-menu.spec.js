@@ -72,6 +72,11 @@ test("signed-out visitor sees a sign-in button in the top bar", async ({ page })
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test('audit: guests have one sign-in action in the desktop header',async({page})=>{
+  await page.setViewportSize({width:1440,height:900});await mockApi(page,{signedIn:false});await page.goto('/market');
+  await expect(page.locator('.topbar').getByRole('button',{name:/^(Вход|Войти)$/})).toHaveCount(1);
+});
+
 test("the top bar still fits a phone without horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await mockApi(page, { signedIn: true });

@@ -47,3 +47,30 @@ test("a year with no session says so instead of vanishing", async ({ page }) => 
   await expect(block).toBeVisible();
   await expect(block).toContainText("Сделок за период не было");
 });
+
+test('audit: HMKB net margin stays on one line with its full reporting basis', async ({page},info) => {
+  await openCard(page,'HMKB',windowOf(1,105,102437743,985220,'2026-10-28'));
+  await page.route('**/api/market/multiples?**',route=>route.fulfill({json:{ok:true,items:[{ticker:'HMKB',
+    net_margin:{value:16.86,status:'ok',base_period:'2025A + 9M2026 − 9M2025'}}]}}));
+  await page.reload();
+  const row=page.locator('.company-metric-row').filter({hasText:'Чистая маржа'});
+  await expect(row).toContainText('16,86');
+  for(const width of [1440,1280,1024,390]){
+    await page.setViewportSize({width,height:900});
+    const lines=await row.locator('.company-metric-val').evaluate(el=>{const r=document.createRange();r.selectNodeContents(el);return new Set([...r.getClientRects()].map(r=>Math.round(r.y))).size;});
+    expect(lines).toBe(1);
+    await expect(row).toContainText('2025A + 9M2026 − 9M2025');
+    await row.screenshot({path:info.outputPath(`hmkb-margin-${width}.png`)});
+  }
+});
+
+test('audit: HMKB identity uses its short name and keeps the legal name available',async({page})=>{
+  await openCard(page,'HMKB',windowOf(1,105,102437743,985220,'2026-10-28'));
+  const legal='Chet el kapitali ishtirokidagi "Hamkorbank" aksiyadorlik tijorat banki';
+  await page.route('**/api/securities/HMKB/info?**',route=>route.fulfill({json:{ok:true,security:{company_name:legal,name:legal,security_type:'stock'}}}));
+  await page.reload();await page.setViewportSize({width:390,height:844});
+  await expect(page.locator('.company-page-title h1')).toHaveText('Hamkorbank');
+  await page.getByText('Полное наименование',{exact:true}).click();
+  await expect(page.locator('.company-legal-name')).toContainText(legal);
+  await expect(page.locator('.company-page-price .primary-btn')).toHaveCount(0);
+});

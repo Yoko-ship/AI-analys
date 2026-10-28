@@ -624,7 +624,7 @@ test("default market defers optional analytics until they are used", async ({ pa
   });
 
   await page.goto("/market", { waitUntil: "domcontentloaded" });
-  await expect(page.locator(".market-table-wrap .market-empty-cell")).toBeVisible();
+  await expect(page.locator(".market-board .market-empty-cell")).toBeVisible();
   await page.waitForTimeout(150);
   expect(requested).toEqual([]);
 
@@ -1371,6 +1371,7 @@ test("mobile: the column picker is a sheet and the page behind it holds still (�
   await page.mouse.wheel(0, 900);
   await page.waitForTimeout(300);
 
+  await page.getByText('Фильтры и инструменты',{exact:true}).click();
   await page.locator(".market-cols-btn").click();
   const sheet = page.locator(".market-cols-sheet");
   await expect(sheet).toBeVisible();
@@ -1461,8 +1462,8 @@ async function sortBoard(page) {
     tickers,
     // The label is the sort target. Term-help and column-menu controls inside
     // the same header deliberately consume clicks without sorting.
-    dateTh: page.locator('.market-table thead th[data-sort-key="date"] .market-th-inner > span:not([class])'),
-    volTh: page.locator('.market-table thead th[data-sort-key="volume"] .market-th-inner > span:not([class])'),
+    dateTh: page.locator('.market-table thead th[data-sort-key="date"] .market-th-label'),
+    volTh: page.locator('.market-table thead th[data-sort-key="volume"] .market-th-label'),
     chips: page.locator(".market-sort-chain-chip"),
   };
 }

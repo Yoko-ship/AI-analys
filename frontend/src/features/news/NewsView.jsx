@@ -59,7 +59,8 @@ export function NewsView({
   return <div className={`news-view led newsdesk${corporateDetail ? " newsdesk--corporate-article" : ""}`}>
       {!corporateDetail && <header className="newsdesk-head">
         <div>
-          <h1>{tx.title}</h1>
+          {tab === 'calendar' && <button type="button" className="newsdesk-back" onClick={() => selectTab('general')}>← {tx.title}</button>}
+          <h1>{tab === 'calendar' ? language === 'en' ? 'Events calendar' : language === 'uz' ? 'Voqealar taqvimi' : 'Календарь событий' : tx.title}</h1>
           <p>{tab === "corporate" && instrument !== "all" && tx.instrumentHint && tx.instrumentHint[instrument] || tx.tabHint && tx.tabHint[tab] || tx.subtitle}</p>
         </div>
         {!loading && tab !== "calendar" && tab !== "corporate" && <div className="newsdesk-updated">
@@ -68,7 +69,7 @@ export function NewsView({
           </div>}
       </header>}
 
-      <div className="newsdesk-tabbar">
+      {tab !== 'calendar' && <div className="newsdesk-tabbar">
       <nav className="newsdesk-tabs" aria-label={tx.title}>
         {NEWS_TABS.map(t => <button
           key={t.key}
@@ -81,7 +82,7 @@ export function NewsView({
             {tx.tabs && tx.tabs[t.key] || t.key}
           </button>)}
       </nav>
-      </div>
+      </div>}
 
       {tab !== "corporate" && tab !== "calendar" && <label className="newsdesk-search">
         <span>{searchLabel}</span>

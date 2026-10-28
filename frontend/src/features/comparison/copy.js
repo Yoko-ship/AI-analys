@@ -1,4 +1,6 @@
 const COPY = {
+  actions: ['Действия', 'Amallar', 'Actions'],
+  reportingSettings: ['Настройки отчётности', 'Hisobot sozlamalari', 'Reporting settings'],
   updatesTitle: ['Что изменилось с вашего последнего визита', 'So‘nggi tashrifingizdan beri nima o‘zgardi', 'What changed since your last visit'],
   updatedBadge: ['Обновлено', 'Yangilangan', 'Updated'],
   lastViewed: ['Последний просмотр', 'Oxirgi ko‘rish', 'Last viewed'],

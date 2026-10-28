@@ -106,7 +106,8 @@ test("the news menu offers two sections and a separate calendar", async ({ page 
   await panel.getByRole("menuitem", { name: "Календарь", exact: true }).click();
   await expect(page).toHaveURL(/\/news\?tab=calendar$/);
   await expect(page.locator(".newscal")).toBeVisible();
-  await expect(page.locator(".newsdesk-tabs .newsdesk-tab")).toHaveCount(2);
+  await expect(page.getByRole('heading',{name:'Календарь событий',level:1})).toBeVisible();
+  await expect(page.locator(".newsdesk-tabs .newsdesk-tab")).toHaveCount(0);
   await page.goBack();
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
 });
@@ -124,4 +125,35 @@ test("the market menu still opens its own sections", async ({ page }) => {
   await expect(page.locator(".nav-dd-panel .nav-dd-head")).toHaveText(["Биржа", "Валюта"]);
   await page.locator(".nav-dd-panel").getByRole("menuitem", { name: "Карта рынка" }).click();
   await expect(page).toHaveURL(/\/heatmap/);
+});
+
+for (const label of ['Рынок', 'Новости']) {
+  test(`audit: ${label} menu supports keyboard navigation and dismissal`, async ({page}) => {
+    await openNews(page, '/market');
+    await page.mouse.move(1400, 900);
+    const trigger = page.locator('.topbar-nav').getByRole('button', {name: label, exact: true});
+    await trigger.focus();
+    await trigger.press('ArrowDown');
+    const items = page.locator('.nav-dd-panel').getByRole('menuitem');
+    await expect(items.first()).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(items.last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(items.first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.nav-dd-panel')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await trigger.press('Enter');
+    await expect(items.first()).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('.nav-dd-panel')).toHaveCount(0);
+  });
+}
+
+test('audit: calendar identifies itself and offers a route back to news', async ({page}) => {
+  await openNews(page, '/news?tab=calendar');
+  await expect(page.getByRole('heading', {name:'Календарь событий', level:1})).toBeVisible();
+  await page.getByRole('button', {name:'← Новости', exact:true}).click();
+  await expect(page).toHaveURL(/\/news$/);
+  await expect(page.getByRole('heading', {name:'Новости', level:1})).toBeVisible();
 });

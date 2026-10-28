@@ -24,7 +24,6 @@ export function MarketTable({
   inactiveOnly,
   wrapRef,
   headCells,
-  colSpan,
   visibleRows,
   hasFav,
   pinCls,
@@ -45,7 +44,9 @@ export function MarketTable({
   togglePin,
   toggleCol,
   setColMenu,
-  closeColMenu
+  closeColMenu,
+  filtered,
+  onResetFilters
 }) {
   return <>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
     rows={sectorMapRows}
@@ -74,11 +75,13 @@ export function MarketTable({
                 <tr>{headCells}</tr>
               </thead>
               <tbody>
-                {blocksMarketContent(loading, rows.length) ? <tr><td colSpan={colSpan} className="market-empty-cell">{mt(lang, "loading")}</td></tr> : visibleRows.length ? visibleRows.map(row => {
+                {blocksMarketContent(loading, rows.length) ? null : visibleRows.map(row => {
               const sec = smap[row.ticker] || {};
               const logo = sec.logo_url;
               const isPreferred = sec.is_preferred || row.share_type === "preferred";
               const isFav = hasFav(row.ticker);
+              const shareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? mt(lang,'preferred') : row.share_type ? mt(lang,row.share_type) : row.type || '—';
+              const shortShareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? lang === 'en' ? 'Pref.' : lang === 'uz' ? 'Imt.' : 'прив.' : lang === 'en' ? 'Common' : lang === 'uz' ? 'Oddiy' : 'обыкн.';
               return <tr key={`${row.ticker}-${row.isin}`}>
                       <td className={`market-ticker-cell${pinCls(pinTicker)}`} style={pinTicker ? {
                   left: pinTicker.left
@@ -98,7 +101,10 @@ export function MarketTable({
                           <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
                           </button>
-                          <span>{row.type === "bond" || sec.type === "bond" ? mt(lang, "bondOne") : isPreferred ? mt(lang, "preferred") : row.share_type ? mt(lang, row.share_type) : row.type || "—"}</span>
+                          <span className="market-share-class" title={shareLabel} aria-label={shareLabel}>
+                            <span className="market-share-full">{shareLabel}</span>
+                            <span className="market-share-short" aria-hidden="true">{shortShareLabel}</span>
+                          </span>
                         </div>
                         <button type="button" className="market-info-btn" title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"} onClick={() => openPanel(row.ticker)}>ℹ</button>
                         </div>
@@ -127,10 +133,14 @@ export function MarketTable({
                   });
                 })}
                     </tr>;
-            }) : <tr><td colSpan={colSpan} className="market-empty-cell">{favOnly ? lang === "en" ? "No favorites yet — tap ☆ next to a company to track it." : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing." : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней." : inactiveOnly ? lang === "en" ? "No dormant listing matches the current filters." : lang === "uz" ? "Joriy filtrlarga mos keladigan faol bo'lmagan qog'oz yo'q." : "Под текущие фильтры не попала ни одна неактивная бумага." : mt(lang, "empty")}</td></tr>}
+            })}
               </tbody>
             </table>
           </div>
+          {(blocksMarketContent(loading, rows.length) || !visibleRows.length) && <div className="market-empty-cell" role="status">
+            <p>{blocksMarketContent(loading, rows.length) ? mt(lang,'loading') : favOnly ? lang === "en" ? "No favorites yet — tap ☆ next to a company to track it." : lang === "uz" ? "Hali tanlanganlar yo'q — kuzatish uchun kompaniya yonidagi ☆ ni bosing." : "Пока нет избранного — нажмите ☆ рядом с компанией, чтобы следить за ней." : inactiveOnly ? lang === "en" ? "No dormant listing matches the current filters." : lang === "uz" ? "Joriy filtrlarga mos keladigan faol bo'lmagan qog'oz yo'q." : "Под текущие фильтры не попала ни одна неактивная бумага." : mt(lang,'empty')}</p>
+            {!blocksMarketContent(loading,rows.length) && filtered && <button type="button" className="ghost-btn" onClick={onResetFilters}>{lang === 'en' ? 'Reset filters' : lang === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}</button>}
+          </div>}
           <MarketStickyHead wrapRef={wrapRef} cells={headCells} colSignature={visibleOrder.join("|")} rowCount={visibleRows.length} loading={loading} />
           <MarketFloatScroll wrapRef={wrapRef} colSignature={visibleOrder.join("|")} rowCount={visibleRows.length} loading={loading} />
           {colMenu && visibleOrder.includes(colMenu.key) && (() => {

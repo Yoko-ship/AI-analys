@@ -406,15 +406,7 @@ function BankFxPage({ language, onOpenNews, onNews }) {
           <div>
             <div className="panel-label">{lang === "en" ? "Currency" : lang === "uz" ? "Valyuta" : "Валюта"}</div>
             <h2>{title}</h2>
-            <p className="bankfx-page-sub">
-              {lang === "en"
-                ? "Cash rates published by Uzbekistan's commercial banks, ranked by what your amount actually comes to."
-                : lang === "uz"
-                  ? "O'zbekiston tijorat banklari e'lon qilgan naqd kurslar — summangiz amalda nechaga chiqishi bo'yicha saralangan."
-                  : "Наличные курсы коммерческих банков Узбекистана — по тому, во что реально превращается ваша сумма."}
-              {" "}
-              {lang === "en" ? "Source" : lang === "uz" ? "Manba" : "Источник"}: bankxizmatlari.uz
-            </p>
+
           </div>
           {rows.length > 0 && (
             <span className="status-badge muted">{rows.length} {bankCountLabel(rows.length, lang)}</span>
@@ -469,6 +461,16 @@ function BankFxPage({ language, onOpenNews, onNews }) {
             </p>
           )}
         </div>
+
+            <p className="bankfx-page-sub">
+              {lang === "en"
+                ? "Cash rates published by Uzbekistan's commercial banks, ranked by what your amount actually comes to."
+                : lang === "uz"
+                  ? "O'zbekiston tijorat banklari e'lon qilgan naqd kurslar — summangiz amalda nechaga chiqishi bo'yicha saralangan."
+                  : "Наличные курсы коммерческих банков Узбекистана — по тому, во что реально превращается ваша сумма."}
+              {" "}
+              {lang === "en" ? "Source" : lang === "uz" ? "Manba" : "Источник"}: bankxizmatlari.uz
+            </p>
 
         {failed ? (
           <p className="bankfx-empty">

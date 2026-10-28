@@ -198,3 +198,4 @@
 /* The calendar's own sub-tabs pulled themselves up under the old underline
    tabs; under the boxed tab bar they keep the bar's own spacing instead. */
 .led.newsdesk .news-subtabs { margin-top: 0; }
+.newsdesk-back { min-height: 44px; padding: 8px 0; border: 0; background: transparent; color: var(--accent); font-size: 13px; cursor: pointer; }
