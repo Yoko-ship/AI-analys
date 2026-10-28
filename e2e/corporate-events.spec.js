@@ -130,6 +130,7 @@ for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable deta
     return route.fulfill({ json: { ...payload, items: matching ? payload.items : [] } });
   });
   await page.goto(`${prefix}/news?tab=corporate&instrument=stock&start=2026-07-01&end=2026-07-31`);
+  await expect(page.locator('.newsdesk-subtabs')).toBeVisible();
   const card = page.locator('.ce-story').filter({ hasText: 'O‘zbekgeofizika' });
   const headline = card.getByRole('link', { name: prefix ? 'Kuzatuv kengashi dividendlarni tavsiya qildi' : a.title.ru, exact: true });
   await expect(headline).toHaveAttribute('href', /event=577/);
@@ -138,12 +139,14 @@ for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable deta
   await expect(page).toHaveURL(detailURL);
   const detail = page.getByTestId('corporate-event-detail');
   await expect(detail.getByRole('heading', { level: 1 })).toHaveText(prefix ? a.title.uz : a.title.ru);
+  await expect(page.locator('.newsdesk-subtabs')).toHaveCount(0);
   await expect(detail).toContainText(prefix ? '8.01' : '8,01');
   await expect(detail.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.ce-story')).toHaveCount(0);
   await page.reload();
   await expect(detail).toContainText(prefix ? '71.5' : '71,5');
+  await expect(page.locator('.newsdesk-subtabs')).toHaveCount(0);
   for (const theme of ['light', 'dark']) {
     await page.evaluate(t => { document.documentElement.dataset.theme = document.body.dataset.theme = t; }, theme);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -151,11 +154,14 @@ for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable deta
   }
   await page.goBack();
   await expect(page.locator('.ce-story')).toHaveCount(2);
+  await expect(page.locator('.newsdesk-subtabs')).toBeVisible();
   await expect(page).toHaveURL(/tab=corporate&instrument=stock&start=2026-07-01&end=2026-07-31$/);
   await page.goForward();
   await expect(detail).toBeVisible();
+  await expect(page.locator('.newsdesk-subtabs')).toHaveCount(0);
   await detail.locator('.led-back').click();
   await expect(page.locator('.ce-story')).toHaveCount(2);
+  await expect(page.locator('.newsdesk-subtabs')).toBeVisible();
   await expect(page).toHaveURL(/tab=corporate&instrument=stock$/);
 });
 
@@ -164,15 +170,17 @@ test('a missing corporate detail has a clear state and a working return link', a
   await page.goto('/news?tab=corporate&event=missing&start=2026-07-01&end=2026-07-31');
   const detail = page.getByTestId('corporate-event-detail');
   await expect(detail).toContainText('Событие не найдено');
+  await expect(page.locator('.newsdesk-subtabs')).toHaveCount(0);
   await detail.getByRole('link', { name: /К корпоративным новостям/ }).click();
   await expect(page.locator('.ce-story')).toHaveCount(2);
 });
 
 
-test('changing the corporate instrument exits the detail view', async ({ page }) => {
+test('corporate instrument filter works after returning from detail', async ({ page }) => {
   await setup(page);
   await page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'}).getByRole('link',{name:a.title.ru,exact:true}).click();
   await expect(page.getByTestId('corporate-event-detail')).toBeVisible();
+  await page.getByTestId('corporate-event-detail').locator('.led-back').click();
   await page.locator('.newsdesk-subtabs').getByRole('button',{name:'Акции',exact:true}).click();
   await expect(page.getByTestId('corporate-event-detail')).toHaveCount(0);
   await expect(page.locator('.ce-story')).toHaveCount(2);
@@ -215,6 +223,22 @@ for (const width of [390,1440]) test(`corporate news uses issuer imagery and edi
   await photoCard.getByRole('link',{name:b.title.ru,exact:true}).click();
   const detail=page.getByTestId('corporate-event-detail');
   await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
+  await expect(detail.getByRole('complementary')).toHaveCount(0);
+  await expect(detail.getByRole('navigation', {name:'Документы раскрытия'})).toHaveCount(0);
+  await expect(detail.getByText(/Краткое изложение UZStock/)).toHaveCount(0);
+  const detailBox = await detail.boundingBox();
+  const articleBox = await detail.locator('.ce-article').boundingBox();
+  const pageBox = await page.locator('.news-view').boundingBox();
+  const pagePadding = await page.locator('.news-view').evaluate(el => {
+    const style = getComputedStyle(el);
+    return {left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight)};
+  });
+  expect(Math.abs(detailBox.x - pageBox.x - pagePadding.left)).toBeLessThan(2);
+  expect(Math.abs(detailBox.width - (pageBox.width - pagePadding.left - pagePadding.right))).toBeLessThan(2);
+  expect(Math.abs(articleBox.width - detailBox.width)).toBeLessThan(2);
+  const articleHeader = await detail.locator('.ce-article-header').boundingBox();
+  const articleTitle = await detail.getByRole('heading', {level:1}).boundingBox();
+  expect(Math.abs(articleTitle.width - articleHeader.width)).toBeLessThan(2);
   await expect(detail.locator('.ce-article-photo img')).toHaveAttribute('src',photo);
   await expect.poll(()=>detail.locator('.ce-article-photo img').evaluate(img=>img.naturalWidth)).toBeGreaterThan(0);
   expect(await detail.locator('.ce-article-photo img').evaluate(img=>img.getBoundingClientRect().width <= img.naturalWidth)).toBe(true);

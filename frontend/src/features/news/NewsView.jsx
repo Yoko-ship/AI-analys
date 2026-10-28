@@ -83,7 +83,7 @@ export function NewsView({
 
       {/* A second row, not three more tabs beside the first: this narrows
           «Корпоративные», it is not a fourth peer of it. */}
-      {tab === "corporate" && <div className="newsdesk-subtabs" role="group" aria-label={tx.tabs && tx.tabs.corporate || "corporate"}>
+      {tab === "corporate" && !corporateDetail && <div className="newsdesk-subtabs" role="group" aria-label={tx.tabs && tx.tabs.corporate || "corporate"}>
           {NEWS_INSTRUMENTS.map(key => <button
             key={key}
             type="button"

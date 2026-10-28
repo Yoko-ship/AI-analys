@@ -80,10 +80,10 @@
 
 .ce-story-title { color: inherit; text-decoration: none; }
 .ce-story-title:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
-.ce-detail { width: 100%; max-width: 1120px; margin-inline: auto; overflow-wrap: anywhere; }
-.ce-article-layout { display: grid; grid-template-columns: minmax(0,1fr) 260px; gap: 32px; align-items: start; margin-top: 24px; }
+.ce-detail { width: 100%; overflow-wrap: anywhere; }
+.ce-article-layout { margin-top: 24px; }
 .ce-article { min-width: 0; padding: 32px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
-.ce-article-header .led-art-title { margin: 20px 0 24px; font-size: clamp(28px, 3vw, 40px); line-height: 1.12; letter-spacing: -.035em; text-wrap: balance; }
+.ce-article-header .led-art-title { max-width: none; margin: 20px 0 24px; font-size: clamp(28px, 3vw, 40px); line-height: 1.12; letter-spacing: -.035em; text-wrap: balance; }
 .ce-article-issuer { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
 .ce-article-issuer > .chip-logo,.ce-article-issuer > .chip-logo-fallback { flex: none; width: 44px; height: 44px; object-fit: contain; border-radius: 8px; }
 .ce-article-issuer > div { min-width: 0; }
@@ -94,36 +94,17 @@
 .ce-article-photo { margin: 0 0 24px; }
 .ce-article-photo img { display: block; width: 100%; max-height: 420px; object-fit: contain; border-radius: 10px; background: var(--bg-2); }
 .ce-article-photo figcaption { margin-top: 8px; color: var(--muted); font-size: 10px; }
-.ce-article .ce-article-lead { padding: 0; margin: 0 0 24px; color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
+.ce-article .ce-article-lead { max-width: none; padding: 0; margin: 0 0 24px; color: var(--text-secondary); font-size: 16px; line-height: 1.7; }
 .ce-article .ce-document { padding: 24px 0; font-size: 14px; line-height: 1.7; scroll-margin-top: 96px; }
 .ce-article .ce-document:first-child { border-top: 0; padding-top: 0; }
 .ce-article .ce-document:last-child { padding-bottom: 0; }
 .ce-article .ce-dates { padding: 16px; background: var(--bg-2); border-radius: 8px; gap: 16px; }
 .ce-article .ce-amounts:not(:empty) { padding: 16px; border: 1px solid var(--border); border-radius: 8px; margin: 16px 0; }
 .ce-article .ce-amounts strong { color: var(--text); font-size: 18px; font-weight: 600; }
-.ce-article-rail { min-width: 0; position: sticky; top: 88px; }
-.ce-article-rail .led-panel { margin: 0 0 16px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
-.ce-article-rail .led-panel-h { display: flex; align-items: center; justify-content: space-between; font-size: 10px; }
-.ce-article-rail .led-panel-h > span { font-variant-numeric: tabular-nums; color: var(--accent); }
-.ce-context { display: grid; gap: 16px; margin: 0; font-size: 12px; }
-.ce-context dt { margin-bottom: 8px; color: var(--muted); font-size: 11px; }
-.ce-context dd { margin: 0; color: var(--text-secondary); line-height: 1.5; }
-.ce-source-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 16px; color: var(--accent); font-size: 12px; text-decoration: none; }
-.ce-source-link:hover { text-decoration: underline; }
-.ce-document-link { display: block; padding: 12px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; line-height: 1.5; text-decoration: none; }
-.ce-document-link:last-child { border-bottom: 0; padding-bottom: 0; }
-.ce-document-link small { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; }
-.ce-document-link:hover > span { color: var(--accent); }
-@media(max-width:1000px) {
- .ce-article-layout { grid-template-columns: minmax(0,1fr); gap: 24px; }
- .ce-article-rail { position: static; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
- .ce-article-rail .ce-note { grid-column: 1 / -1; margin-top: 0; }
-}
 @media(max-width:760px) {
  .ce-article { padding: 24px 20px; }
  .ce-article-layout { margin-top: 16px; }
  .ce-article-header .led-art-title { font-size: 28px; }
- .ce-article-rail { display: block; }
  .ce-article .ce-article-lead { font-size: 15px; }
 }
 @media(prefers-reduced-motion:reduce) {
