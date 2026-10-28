@@ -396,24 +396,30 @@ test("theme toggle flips the data-theme attribute", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("data-theme", after);
 });
 
-test("workspace routes inherit one shared application palette", async ({ page }) => {
-  for (const expected of [{ theme: "light", accent: "#7454df" }, { theme: "dark", accent: "#b7a8ff" }]) {
+test("landing and workspace routes inherit one shared application palette", async ({ page }) => {
+  for (const expected of [{ theme: "light", accent: "#6257d9" }, { theme: "dark", accent: "#8b7cff" }]) {
     await page.goto("/");
     if (await page.locator("html").getAttribute("data-theme") !== expected.theme) {
       await page.locator(".theme-toggle").click();
     }
 
     const palettes = [];
-    for (const path of ["/market", "/catalog", "/news", "/profile"]) {
+    for (const path of ["/", "/market", "/catalog", "/news", "/profile", "/issuers", "/currency", "/company/AGBA", "/login"]) {
       await page.goto(path);
+      await expect(page.locator(".app-shell-wrap")).toBeVisible();
       palettes.push(await page.evaluate(() => {
-        const style = getComputedStyle(document.body);
-        return ["--bg", "--panel", "--accent", "--success", "--warning", "--danger"]
-          .map((token) => style.getPropertyValue(token).trim());
+        const tokens = ["--bg", "--panel", "--accent", "--success", "--warning", "--danger",
+          "--bg-2", "--surface-2", "--text", "--text-secondary", "--muted", "--border",
+          "--accent-hover", "--accent-light", "--warning-light", "--chart-primary", "--chart-tertiary"];
+        return [document.documentElement, document.body, document.querySelector(".app-shell-wrap")]
+          .map(el => tokens.map(token => getComputedStyle(el).getPropertyValue(token).trim()));
       }));
+      await expect(page.locator(".topbar")).toHaveCSS("background-color", expected.theme === "light"
+        ? "rgb(245, 247, 251)" : "rgb(14, 16, 22)");
     }
     expect(palettes.every((palette) => JSON.stringify(palette) === JSON.stringify(palettes[0]))).toBe(true);
-    expect(palettes[0][2]).toBe(expected.accent);
+    expect(palettes[0].every(palette => JSON.stringify(palette) === JSON.stringify(palettes[0][0]))).toBe(true);
+    expect(palettes[0][0][2]).toBe(expected.accent);
   }
 });
 
@@ -1032,7 +1038,7 @@ test("profile and analysis workspaces do not overflow a phone viewport", async (
 test("Новости renders the editorial feed (§3.11)", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Новости", exact: true }).click();
-  await expect(page.locator(".newsdesk-head")).toContainText("Новости рынка");
+  await expect(page.locator(".newsdesk-head").getByRole("heading", { level: 1 })).toHaveText("Новости");
   await expect(page.locator(".newsdesk-row").first()).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".newsdesk-row").nth(1)).toContainText("ЦБ уточнил требования");
   await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();

@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 const palette = {
-  dark: { background: 'rgb(11, 13, 18)', header: 'rgb(14, 16, 22)', accent: '#8b7cff', workspace: 'rgb(21, 18, 34)' },
-  light: { background: 'rgb(245, 247, 251)', header: 'rgb(245, 247, 251)', accent: '#6257d9', workspace: 'rgb(247, 247, 251)' },
+  dark: { background: 'rgb(11, 13, 18)', header: 'rgb(14, 16, 22)', accent: '#8b7cff' },
+  light: { background: 'rgb(245, 247, 251)', header: 'rgb(245, 247, 251)', accent: '#6257d9' },
 };
 
 async function setup(page, width, theme = 'dark') {
@@ -34,7 +34,8 @@ for (const width of [1440, 390]) {
       await page.screenshot({ path: testInfo.outputPath('landing.png') });
       await page.goto('/market');
       await expect(page.locator('.view-market')).toBeVisible();
-      await expect(page.locator('body')).toHaveCSS('background-color', original.workspace);
+      await expect(page.locator('body')).toHaveCSS('background-color', original.background);
+      await expect(page.locator('.topbar')).toHaveCSS('background-color', original.header);
       await page.goBack();
       await checkLanding(original);
       await page.reload();

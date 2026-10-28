@@ -1,9 +1,8 @@
-/* UZStock_Purple_Concept_Improved.html, including its final UX token override.
-   The /market screener deliberately opts out in useShell. The remaining
-   workspaces share the reference's violet chrome and paper/card hierarchy. */
+/* Reference workspace geometry and paper/card hierarchy. Color aliases inherit
+   theme.css so landing, screener, workspaces and body portals stay consistent. */
 .app-shell-wrap[data-ui="purple"] {
-  --action-primary: #7454df;
-  --action-primary-hover: #5635c8;
+  --action-primary: var(--accent);
+  --action-primary-hover: var(--accent-hover);
   --np-ink: var(--text);
   --np-ink-mid: var(--text-secondary);
   --np-ink-light: var(--muted);
@@ -16,9 +15,6 @@
   --np-green: var(--success);
   --np-red: var(--danger);
   --np-amber: var(--warning);
-  --warning: #a87724;
-  --warning-light: #fff5df;
-  --chart-tertiary: #a87724;
   --positive: var(--success);
   --negative: var(--danger);
   --control-bg: var(--panel);
@@ -26,16 +22,12 @@
   --control-radius: 10px;
   --card-radius: 16px;
   --card-shadow: 0 8px 32px rgb(41 27 92 / 4.5%);
-  --control-focus: #b8a6ff;
+  --control-focus: var(--accent);
 }
 html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] {
-  --warning: #dfb770;
-  --warning-light: #342c23;
-  --chart-tertiary: #dfb770;
   --card-shadow: 0 8px 32px #05020b24;
 }
 .app-shell-wrap[data-ui="purple"] .bg-glow { display: none; }
-.app-shell-wrap[data-ui="purple"] .topbar { background: var(--panel); border-color: var(--border); box-shadow: none; }
 .app-shell-wrap[data-ui="purple"] .concept-top-strip { background: var(--surface-2); }
 /* Header type belongs to the shared responsive navigation, including /market. */
 .app-shell-wrap[data-ui="purple"] .topbar-nav-btn { min-height: 40px; border-radius: 10px; }

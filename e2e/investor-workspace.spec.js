@@ -44,9 +44,9 @@ test('failed account save stays visible and is retryable',async({page})=>{
  state.fail=false;await panel.getByRole('button',{name:'Save filter',exact:true}).click();
  await expect.poll(()=>state.preferences.saved_screeners?.length).toBe(1);
 });
-test('profile retains the purple palette and complete investor workspace',async({page})=>{
+test('profile retains the shared palette and complete investor workspace',async({page})=>{
  const state={preferences:{}};await account(page,state);await page.goto('/profile');
- expect(await page.evaluate(()=>getComputedStyle(document.body).getPropertyValue('--accent').trim())).toBe('#7454df');
+ expect(await page.evaluate(()=>getComputedStyle(document.body).getPropertyValue('--accent').trim())).toBe('#6257d9');
  await expect(page.getByTestId('profile-workspace-stats').locator('article')).toHaveCount(4);
  await page.getByRole('button',{name:'My portfolio',exact:true}).click();await expect(page.getByTestId('portfolio-market-value')).toBeVisible();
 });

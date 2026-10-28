@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 async function setup(page, theme = 'light') {
+  await page.emulateMedia({reducedMotion: 'reduce'});
   await page.addInitScript(theme => {
     localStorage.setItem('uz_stock_analyzer_token', 'purple-ui-test');
     localStorage.setItem('uz_stock_analyzer_language', 'en');
@@ -41,32 +42,34 @@ for (const theme of ['light', 'dark']) {
     expect(tokens.chart).toBe(tokens.pageAccent);
     expect(tokens.positive).toBe(tokens.success);
     expect(tokens.font).toContain('Inter');
-    expect(await catalog.locator('.catalog-company-item.active').evaluate(el => getComputedStyle(el).backgroundColor))
-      .toBe(theme === 'light' ? 'rgb(240, 235, 255)' : 'rgb(51, 39, 76)');
+    await expect(catalog.locator('.catalog-company-item.active')).toHaveCSS('background-color',
+      theme === 'light' ? 'rgba(98, 87, 217, 0.1)' : 'rgba(139, 124, 255, 0.14)');
     const control = catalog.locator('.terminal-tab').first();
     await expect(control).toBeVisible();
-    expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(40);
+    // Root zoom can leave a fractional pixel below the 40px minimum.
+    expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(39.99);
     expect(await catalog.locator('.catalog-sidebar').evaluate(el => getComputedStyle(el).borderRadius)).toBe('16px');
     await page.screenshot({path: testInfo.outputPath(`catalog-${theme}.png`)});
     await page.setViewportSize({width:390, height:1000});
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(catalog.locator('.catalog-company-item.active')).toContainText('UZMK');
+    await page.screenshot({path: testInfo.outputPath(`catalog-${theme}-mobile.png`)});
   });
 }
 
-test('Purple cards and navigation apply outside the landing and screener', async ({page}) => {
+test('workspace cards retain their layout and share the landing header color', async ({page}) => {
   await setup(page);
   for (const path of ['/issuers', '/currency', '/news', '/profile', '/catalog?t=UZMK']) {
     await page.goto(path);
     await expect(page.locator('.app-shell-wrap')).toHaveAttribute('data-ui', 'purple');
     const header = page.locator('.topbar');
     await expect(header).toBeVisible();
-    expect(await header.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+    await expect(header).toHaveCSS('background-color', 'rgb(245, 247, 251)');
   }
   await page.goto('/market');
   await expect(page.locator('.app-shell-wrap')).not.toHaveAttribute('data-ui', 'purple');
   await expect(page.locator('.market-table-wrap')).toBeVisible();
-  expect(await page.locator('.topbar').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(247, 247, 251)');
+  await expect(page.locator('.topbar')).toHaveCSS('background-color', 'rgb(245, 247, 251)');
 });
 
 for (const theme of ['light','dark']) {
@@ -75,7 +78,9 @@ for (const theme of ['light','dark']) {
     await page.goto('/catalog?t=UZMK&f=SUM&std=NSBU');
     const run = page.locator('.terminal-run');
     await expect(run).toBeVisible();
-    expect(await run.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(116, 84, 223)');
+    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(98, 87, 217)' : 'rgb(139, 124, 255)');
+    await run.hover();
+    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(81, 71, 196)' : 'rgb(157, 145, 255)');
     const period = page.locator('.fc-segment button').first();
     await expect(period).toBeVisible();
     expect((await period.boundingBox()).height).toBeGreaterThanOrEqual(40);
