@@ -84,6 +84,34 @@
   color: var(--accent);
 }
 
+.nav-dd-panel--news {
+  width: 248px;
+  max-width: calc(100vw - 16px);
+  padding: 8px;
+  gap: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.nav-dd-panel--news .nav-dd-col { width: 100%; }
+.nav-dd-panel--news .nav-dd-item {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: normal;
+}
+.nav-dd-panel--news .nav-dd-item:hover,
+.nav-dd-panel--news .nav-dd-item:focus-visible {
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
 /* Desktop only: the drawer shows the extra destination as its own row. */
 .nav-dd-mobile-item {
   display: none;

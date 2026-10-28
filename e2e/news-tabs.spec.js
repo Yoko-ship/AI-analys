@@ -104,17 +104,30 @@ test("an administrator's news page carries no agent panel", async ({ page }) => 
   await expect(page.getByText(/Новостной агент|Grok/)).toHaveCount(0);
 });
 
-test("the news menu offers two sections and a separate calendar", async ({ page }, info) => {
+test("the news hover menu offers text links for the feed and calendar", async ({ page }, info) => {
   await openNews(page, "/market");
   const trigger = page.locator(".topbar-nav .nav-dd-wrap").filter({ hasText: "Новости" });
   await trigger.locator(".topbar-nav-btn").first().hover();
   const panel = page.locator(".nav-dd-panel");
-  await expect(panel.getByRole("menuitem")).toHaveText(["Общие новости", "Корпоративные новости", "Календарь"]);
-  await page.screenshot({ path: info.outputPath("news-menu.png") });
-  await panel.getByRole("menuitem", { name: "Корпоративные новости", exact: true }).click();
+  await expect(panel.getByRole("menuitem")).toHaveText(["Новостная лента", "Календарь событий"]);
+  await expect(panel.locator('.nav-dd-head')).toHaveCount(0);
+  const rows = await panel.getByRole('menuitem').all();
+  await expect(panel.locator('svg, .news-nav-icon')).toHaveCount(0);
+  const first = await rows[0].boundingBox(), second = await rows[1].boundingBox();
+  expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+  await rows[1].hover();
+  await expect(panel).toBeVisible();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = document.body.dataset.theme = value; }, theme);
+    await page.screenshot({ path: info.outputPath(`news-menu-${theme}.png`) });
+  }
+  await panel.getByRole("menuitem", { name: "Новостная лента", exact: true }).click();
+  await expect(page).toHaveURL(/\/news$/);
+  await expect(panel).toHaveCount(0);
+  await page.locator('.newsdesk-tabs').getByRole('button', {name:'Корпоративные новости',exact:true}).click();
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
   await trigger.locator(".topbar-nav-btn").first().hover();
-  await panel.getByRole("menuitem", { name: "Календарь", exact: true }).click();
+  await panel.getByRole("menuitem", { name: "Календарь событий", exact: true }).click();
   await expect(page).toHaveURL(/\/news\?tab=calendar$/);
   await expect(page.locator(".newscal")).toBeVisible();
   await expect(page.getByRole('heading',{name:'Календарь событий',level:1})).toBeVisible();
@@ -122,6 +135,30 @@ test("the news menu offers two sections and a separate calendar", async ({ page 
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
   await page.goBack();
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
+});
+
+test.describe('news navigation on touch screens', () => {
+  test.use({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  test('the drawer shows the same text destinations and closes after navigation', async ({page}, info) => {
+    await openNews(page, '/market');
+    await page.getByRole('button',{name:'Открыть меню',exact:true}).tap();
+    const nav = page.locator('.topbar-nav');
+    const feed = nav.getByRole('button',{name:'Новостная лента',exact:true});
+    const calendar = nav.getByRole('button',{name:'Календарь событий',exact:true});
+    for (const row of [feed,calendar]) {
+      await expect(row).toBeVisible();
+      await expect(row.locator('svg, .news-nav-icon')).toHaveCount(0);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath('news-menu-mobile.png')});
+    await calendar.tap();
+    await expect(page).toHaveURL(/\/news\?tab=calendar$/);
+    await expect(page.locator('.topbar')).not.toHaveClass(/is-nav-open/);
+    await page.getByRole('button',{name:'Открыть меню',exact:true}).tap();
+    await feed.tap();
+    await expect(page).toHaveURL(/\/news$/);
+    await expect(page.locator('.topbar')).not.toHaveClass(/is-nav-open/);
+  });
 });
 
 test("the calendar is in the news tabs without duplicate buttons or sidebar previews", async ({ page }) => {

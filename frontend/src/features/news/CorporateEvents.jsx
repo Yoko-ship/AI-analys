@@ -1,8 +1,6 @@
-import { CorporateStoryMedia } from './CorporateStoryMedia.jsx';
 import { CorporateEventArticle } from './CorporateEventArticle.jsx';
 import { SourceDateEvidence } from './SourceDateEvidence.jsx';
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useState } from 'react';
 import { interceptNav } from './editorial.jsx';
 import { localizedPath } from '../../lib/languagePath.js';
 import { safeHref } from '../../lib/safeHref.js';
@@ -46,20 +44,6 @@ function Evidence({ document: d, tx, lang, locale, hideIntro = false }) {
     {d.pdf_url && <a href={safeHref(d.pdf_url)} target="_blank" rel="noreferrer">PDF ↗</a>}
   </>;
 }
-function StoryDialog({ story, onClose, tx, lang, locale, onUpdated }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const dialog=ref.current;
-    const previous=document.activeElement;
-    dialog.showModal();
-    return () => { dialog.close(); previous?.focus(); };
-  }, []);
-  return createPortal(<dialog ref={ref} className="ce-dialog" aria-labelledby="ce-dialog-title" onCancel={onClose} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-    <header><div><span className="ce-eyebrow">{tx.documents}</span><h2 id="ce-dialog-title">{story.organization}</h2></div><button type="button" className="ghost-btn" onClick={onClose}>{tx.close} ×</button></header>
-    <StoryDocuments story={story} tx={tx} lang={lang} locale={locale} onUpdated={onUpdated} />
-    <p className="ce-note">{tx.note}</p>
-  </dialog>, document.body);
-}
 function StoryDocuments({ story, tx, lang, locale, onUpdated, article = false }) {
   const [documents,setDocuments] = useState(story.documents?.length?story.documents:[story]);
   const [busy,setBusy] = useState('');
@@ -91,7 +75,6 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
   const [reload,setReload]=useState(0);
   const [search,setSearch]=useState(''), [code,setCode]=useState(''), [security,setSecurity]=useState(''), [sort,setSort]=useState('recent');
   const [from,setFrom]=useState(()=>new URLSearchParams(location.search).get('start') || addDays(tashkentToday(),-90)), [to,setTo]=useState(()=>new URLSearchParams(location.search).get('end') || tashkentToday());
-  const [selected,setSelected]=useState(null);
   const [eventId,setEventId]=useState(()=>new URLSearchParams(location.search).get('event'));
   useEffect(()=>{
     const onPop=()=>{
@@ -170,14 +153,14 @@ export function CorporateEvents({ language, favoriteTickers = new Set(), instrum
       <div className="ce-stream newsdesk-feed">
       <div className="newsdesk-feed-head"><span className="newsdesk-live-dot" aria-hidden="true" /><h2>{DETAIL_COPY[lang].latest}</h2>{!loading&&!error&&<span>{items.length} {DETAIL_COPY[lang].count}</span>}</div>
       {loading?<p role="status" className="ce-empty">{tx.loading}</p>:error?<div role="alert" className="ce-empty">{tx.error} <button type="button" className="ghost-btn" onClick={()=>setReload(n=>n+1)}>{tx.retry}</button></div>:items.length?items.map(s=><article className="ce-story" key={s.story_id}>
-        <a className="ce-story-media" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))} tabIndex={-1} aria-hidden="true"><CorporateStoryMedia story={s} securitiesMap={securitiesMap} /></a>
-        <div className="ce-story-content"><div className="ce-story-meta"><span className="ce-category">{pick(data.categories?.[s.category],lang)||tx.review}</span></div>
-        <div className="ce-company">{s.organization}<span>{(s.tickers||[]).map(t=><button type="button" key={t} onClick={()=>onOpenCompany?.(t)}>{t}</button>)}</span></div>
-        <h3><a className="ce-story-title" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))}>{pick(s.title,lang)}</a></h3>{s.summary&&<p className="ce-summary">{pick(s.summary,lang)}</p>}<Amounts document={s} tx={tx} locale={locale} />
-        {s.stage==='proposed'&&<p className="ce-caution">{tx.proposal}</p>}{s.stage==='agenda'&&<p className="ce-caution">{tx.agenda}</p>}
-        <footer><span>{tx.published}: <time dateTime={s.published_at}>{formatDay(s.published_at?.slice(0,10),locale)}</time></span>{s.confidence!=='confirmed'&&<span className="ce-review">{tx.review}</span>}<button type="button" onClick={()=>setSelected(s)}>{tx.documents} · {s.document_count} {tx.docCount} →</button></footer></div>
+        <a className="ce-story-link" href={eventPath(s.story_id)} onClick={interceptNav(()=>navigateEvent(s.story_id))} aria-labelledby={`ce-headline-${s.story_id}`}>
+          <div className="ce-story-meta"><span className="ce-category">{pick(data.categories?.[s.category],lang)||tx.title}</span><span className="ce-company">{s.organization}{s.tickers?.length>0&&<span className="ce-row-tickers"> · {s.tickers.join(' · ')}</span>}</span></div>
+          <h3 id={`ce-headline-${s.story_id}`}>{pick(s.title,lang)}</h3>
+          {s.summary&&<p className="ce-summary">{pick(s.summary,lang)}</p>}
+          <time className="ce-published" dateTime={s.published_at}>{formatDay(s.published_at?.slice(0,10),locale)}</time>
+          <span className="ce-story-arrow" aria-hidden="true">→</span>
+        </a>
       </article>):<p className="ce-empty">{tx.empty}</p>}
-    </div></div><p className="ce-note">{tx.note}</p>
-    {selected&&<StoryDialog key={selected.story_id} story={selected} tx={tx} lang={lang} locale={locale} onClose={()=>setSelected(null)} onUpdated={()=>setReload(n=>n+1)} />}
+    </div></div>
   </section>;
 }

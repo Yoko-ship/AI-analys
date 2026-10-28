@@ -1,4 +1,3 @@
-import { NEWS_TX, NEWS_TABS } from "../features/news/index.js";
 import { snapPixel } from "../lib/geometry.js";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMediaQuery } from "../shared/useMediaQuery.js";
@@ -199,7 +198,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   // a left-anchored panel runs off-screen.
   const navMenuPanel = (key, columns) => navMenu === key && navMenuPos && createPortal(
     <div
-      className="nav-dd-panel"
+      className={`nav-dd-panel${key === 'news' ? ' nav-dd-panel--news' : ''}`}
       role="menu"
       id={`header-menu-${key}`}
       aria-labelledby={`header-trigger-${key}`}
@@ -215,8 +214,8 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       onMouseLeave={closeNavMenuSoon}
     >
       {columns.map(({ head, items }) => (
-        <div className="nav-dd-col" key={head}>
-          <div className="nav-dd-head">{head}</div>
+        <div className="nav-dd-col" key={head || key}>
+          {head && <div className="nav-dd-head">{head}</div>}
           {items.map(({ label, onSelect }) => (
             <button key={label} type="button" className="nav-dd-item" role="menuitem"
               onClick={() => { onSelect(); closeNavMenu(); }}>
@@ -230,6 +229,10 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   );
 
   const navDdLabel = (ru, uz, en) => (language === "en" ? en : language === "uz" ? uz : ru);
+  const newsDestinations = [
+    {key:'general',label:navDdLabel('Новостная лента','Yangiliklar lentasi','News feed')},
+    {key:'calendar',label:navDdLabel('Календарь событий','Voqealar taqvimi','Events calendar')},
+  ];
 
   const render = (children, overlay = null) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2" data-ui={["main", "market"].includes(activeView) ? undefined : "purple"}>
       <div className="bg-glow bg-glow-a" />
@@ -339,23 +342,17 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   {t(language, "nav.news")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
                 </button>
-                {/* The menu groups reading sections before the events calendar. */}
-                {navMenuPanel("news", [
-                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: NEWS_TABS.filter(tab => tab.section).map(tab => ({
-                    label: (NEWS_TX[language] || NEWS_TX.ru).tabs[tab.key],
-                    onSelect: () => openNewsTab(tab.key),
-                  })) },
-                  { head: navDdLabel("События", "Voqealar", "Events"), items: [
-                    { label: navDdLabel("Календарь", "Taqvim", "Calendar"), onSelect: () => openNewsTab("calendar") },
-                  ] },
-                ])}
-                <button
+                {navMenuPanel("news", [{items:newsDestinations.map(item => ({
+                  ...item, onSelect:() => openNewsTab(item.key),
+                }))}])}
+                {newsDestinations.map(item => <button
+                  key={item.key}
                   className="topbar-nav-btn nav-dd-mobile-item"
                   type="button"
-                  onClick={() => { openNewsTab("calendar"); setMobileNavOpen(false); }}
+                  onClick={() => { openNewsTab(item.key); setMobileNavOpen(false); }}
                 >
-                  {navDdLabel("Календарь", "Taqvim", "Calendar")}
-                </button>
+                  {item.label}
+                </button>)}
               </div>
             ) : (
               <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && ["newsArticle", "announcementArticle"].includes(activeView)) ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>

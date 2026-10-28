@@ -25,17 +25,6 @@ function useSourceImage(imageURL) {
   };
 }
 
-export function CorporateStoryMedia({ story, securitiesMap }) {
-  const image = useSourceImage(story.image_url);
-  const { ticker } = issuerIdentity(story, securitiesMap);
-  return <span className={`ce-visual ${image.src ? 'ce-visual--photo' : 'ce-visual--issuer'}`}>
-    {image.src ? <img src={image.src} alt="" loading="lazy" decoding="async" onError={image.onError} /> : <>
-      <IssuerMark story={story} securitiesMap={securitiesMap} />
-      {ticker && <span className="ce-visual-ticker">{ticker}</span>}
-    </>}
-  </span>;
-}
-
 export function CorporateIssuer({ story, securitiesMap, onOpenCompany }) {
   return <div className="ce-article-issuer">
     <IssuerMark story={story} securitiesMap={securitiesMap} />

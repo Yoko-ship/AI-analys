@@ -29,7 +29,7 @@ async function setup(page) {
   await page.goto('/news?tab=corporate');
   return requested;
 }
-test('corporate feed keeps search, stages, filters and source history in one feed', async ({ page }) => {
+test('corporate feed keeps search and filters with source evidence in the detail page', async ({ page }) => {
   const requested = await setup(page);
   const feed = page.getByTestId('corporate-events');
   await expect(feed.getByRole('heading', { name: 'Корпоративные события' })).toBeVisible();
@@ -45,14 +45,13 @@ test('corporate feed keeps search, stages, filters and source history in one fee
   await expect(feed.locator('.ce-story')).toHaveCount(2);
   await feed.getByLabel('Компания, тикер или ISIN').fill('UZGF');
   await expect(feed.locator('.ce-story')).toHaveCount(1);
-  await feed.getByRole('button', { name: /Документы и история/ }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Предложение');
-  await expect(dialog).toContainText('8,01');
-  await expect(dialog).toContainText('71,5');
-  await expect(dialog.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
+  await feed.getByRole('link', {name:a.title.ru,exact:true}).click();
+  const detail = page.getByTestId('corporate-event-detail');
+  await expect(detail).toContainText('Предложение');
+  await expect(detail).toContainText('8,01');
+  await expect(detail).toContainText('71,5');
+  await expect(detail.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
+  await detail.locator('.led-back').click();
   await feed.getByLabel('Компания, тикер или ISIN').fill('HMKB');
   await expect(feed.locator('.ce-story')).toHaveCount(1);
   await expect(feed.locator('.ce-story')).toContainText('Hamkorbank');
@@ -96,11 +95,12 @@ test('payment totals and approved resolutions are explained separately from per-
  const paid={...a,stage:'paid',amounts:[],payment:{calculated:6060825,paid:6060825,debt:0,paid_percent:100,unit:'thousand_uzs'},summary:{ru:'Общие суммы в тысячах сум'},evidence:['Dividendlar to‘liq to‘langan'],record_date:null};
  await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{...payload,items:[{...paid,story_id:paid.id,documents:[paid],document_count:1}]}}));
  await page.reload();await expect(page.locator('.ce-story')).toHaveCount(1);
- await page.locator('.ce-story').getByRole('button',{name:/Документы и история/}).click();
- await expect(page.getByRole('dialog')).toContainText('Выплачено');
- await expect(page.getByRole('dialog')).toContainText('тыс. сум');
- await expect(page.getByRole('dialog')).toContainText('6 060 825');
- await expect(page.getByRole('dialog')).toContainText('Dividendlar to‘liq to‘langan');
+ await page.locator('.ce-story').getByRole('link',{name:paid.title.ru,exact:true}).click();
+ const detail = page.getByTestId('corporate-event-detail');
+ await expect(detail).toContainText('Выплачено');
+ await expect(detail).toContainText('тыс. сум');
+ await expect(detail).toContainText('6 060 825');
+ await expect(detail).toContainText('Dividendlar to‘liq to‘langan');
 });
 
 test('meeting documents distinguish publication from the date supported by source text', async ({ page }) => {
@@ -114,11 +114,11 @@ test('meeting documents distinguish publication from the date supported by sourc
   await page.reload();
   const card = page.locator('.ce-story');
   await expect(card.locator('time').first()).toHaveAttribute('datetime','2026-10-02T17:33:06');
-  await card.getByRole('button',{name:/Документы/}).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('11:00');
-  await expect(dialog).toContainText('Дата собрания взята из текста объявления');
-  await expect(dialog.locator('.ce-date-evidence')).toContainText(meeting.date_evidence);
+  await card.getByRole('link',{name:meeting.title.ru,exact:true}).click();
+  const detail = page.getByTestId('corporate-event-detail');
+  await expect(detail).toContainText('11:00');
+  await expect(detail).toContainText('Дата собрания взята из текста объявления');
+  await expect(detail.locator('.ce-date-evidence')).toContainText(meeting.date_evidence);
 });
 
 for (const prefix of ['', '/uz']) test(`corporate headlines open reloadable detail pages at ${prefix || '/'}`, async ({ page }, info) => {
@@ -207,20 +207,27 @@ async function setupEditorial(page, { brokenPhoto = false, brokenLogo = false } 
   await page.reload();
 }
 
-for (const width of [390,1440]) test(`corporate news uses issuer imagery and editorial detail at ${width}px`, async ({page},info) => {
+for (const width of [390,1440]) test(`corporate news uses clean text rows and keeps imagery in detail at ${width}px`, async ({page},info) => {
   await page.setViewportSize({width,height:950});
   await setupEditorial(page);
   const logoCard=page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'});
   const photoCard=page.locator('.ce-story').filter({hasText:'Hamkorbank'});
-  await expect(logoCard.locator('.ce-story-media img')).toHaveAttribute('src','/logos/UZGFP.svg');
-  await expect(photoCard.locator('.ce-story-media img')).toHaveAttribute('src',photo);
-  await expect(page.locator('.ce-story').filter({hasText:'Новый эмитент'}).locator('.chip-logo-fallback')).toBeVisible();
+  await expect(page.locator('.ce-story img, .ce-story-media, .ce-story footer, .ce-story .ce-review')).toHaveCount(0);
+  for (const row of await page.locator('.ce-story').all()) {
+    await expect(row.getByRole('link')).toHaveCount(1);
+    await expect(row.locator('.ce-category')).toBeVisible();
+    await expect(row.locator('time')).toBeVisible();
+    await expect(row.locator('.ce-story-arrow')).toBeVisible();
+    await expect(row.getByRole('button')).toHaveCount(0);
+  }
+  await expect(photoCard).toContainText('Эмитент раскрыл сведения');
+  await expect(page.locator('.ce-story').filter({hasText:'Новый эмитент'})).toBeVisible();
   for(const theme of ['light','dark']) {
     await page.evaluate(t=>{document.documentElement.dataset.theme=document.body.dataset.theme=t;},theme);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:info.outputPath(`editorial-feed-${theme}.png`),fullPage:true,animations:'disabled'});
   }
-  await photoCard.getByRole('link',{name:b.title.ru,exact:true}).click();
+  await photoCard.locator('.ce-story-arrow').click();
   const detail=page.getByTestId('corporate-event-detail');
   await expect(page.getByRole('heading',{level:1})).toHaveCount(1);
   await expect(detail.getByRole('complementary')).toHaveCount(0);
@@ -262,8 +269,8 @@ test('failed corporate images fall back to issuer identity without hiding the st
   await setupEditorial(page,{brokenPhoto:true,brokenLogo:true});
   const logoCard=page.locator('.ce-story').filter({hasText:'O‘zbekgeofizika'});
   const photoCard=page.locator('.ce-story').filter({hasText:'Hamkorbank'});
-  await expect(logoCard.locator('.ce-story-media .chip-logo-fallback')).toBeVisible();
-  await expect(photoCard.locator('.ce-story-media img')).toHaveAttribute('src','/logos/HMKB_MARK.png');
+  await expect(logoCard.getByRole('link',{name:a.title.ru,exact:true})).toBeVisible();
+  await expect(photoCard.getByRole('link',{name:b.title.ru,exact:true})).toBeVisible();
   await logoCard.getByRole('link',{name:a.title.ru,exact:true}).click();
   const detail=page.getByTestId('corporate-event-detail');
   await expect(detail.locator('.ce-article-issuer .chip-logo-fallback')).toBeVisible();
