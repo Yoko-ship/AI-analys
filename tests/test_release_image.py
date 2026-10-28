@@ -23,19 +23,37 @@ with open(os.environ['DOCKER_TEST_LOG'], 'a') as log:
 if args[0] == 'login':
     assert '--password-stdin' in args
     assert sys.stdin.read().strip() == 'ephemeral-test-token'
-    sys.exit(int(os.environ.get('LOGIN_FAILURE', '0')))
+    if os.environ.get('LOGIN_FAILURE'):
+        print('unauthorized: invalid credentials', file=sys.stderr)
+        sys.exit(1)
+if args[0] == os.environ.get('TRANSIENT_COMMAND'):
+    with open(os.environ['DOCKER_TEST_LOG']) as log:
+        attempts = sum(json.loads(line)['args'][0] == args[0] for line in log)
+    if attempts <= int(os.environ.get('TRANSIENT_FAILURES', '1')):
+        print(os.environ['NETWORK_ERROR'], file=sys.stderr)
+        sys.exit(1)
 if args[:2] == ['image', 'inspect']:
     print(os.environ['IMAGE_REVISION'])
 ''')
     executable.chmod(0o755)
+    sleep = tmp_path / 'sleep'
+    sleep.write_text(f'#!{sys.executable}\n' + '''import json, os, sys
+with open(os.environ['DOCKER_TEST_LOG'], 'a') as log:
+    log.write(json.dumps({'args': ['sleep'] + sys.argv[1:], 'config': os.environ['DOCKER_CONFIG']}) + '\\n')
+''')
+    sleep.chmod(0o755)
     env = {'PATH': str(tmp_path) + os.pathsep + os.environ['PATH'],
-           'TMPDIR': str(tmp_path), 'DOCKER_TEST_LOG': str(log), 'IMAGE_REVISION': SHA}
+           'TMPDIR': str(tmp_path), 'DOCKER_TEST_LOG': str(log), 'IMAGE_REVISION': SHA,
+           'TEST_SLEEP': sleep.as_posix()}
     return env, log
 
 
 def run(docker, image=IMAGE, sha=SHA):
     env, log = docker
-    result = subprocess.run(['bash', str(ROOT / 'scripts/pull_release_image.sh'), image, sha, 'example'],
+    # Git Bash prepends its own bin directory on Windows, so intercept sleep
+    # with a function instead of relying on PATH to shadow the real clock.
+    result = subprocess.run(['bash', '-c', 'sleep() { "$TEST_SLEEP" "$@"; }; source "$1" "${@:2}"',
+                             '--', str(ROOT / 'scripts/pull_release_image.sh'), image, sha, 'example'],
                             input='ephemeral-test-token\n', text=True, capture_output=True, env=env)
     calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
     assert 'ephemeral-test-token' not in result.stdout + result.stderr
@@ -66,3 +84,33 @@ def test_unpinned_or_invalid_release_is_rejected_before_login(docker, image, sha
     result, calls = run(docker, image, sha)
     assert result.returncode != 0
     assert calls == []
+
+
+@pytest.mark.parametrize('command,error', [
+    ('login', 'Error response from daemon: Get "https://ghcr.io/v2/": dial tcp: lookup ghcr.io: i/o timeout'),
+    ('pull', 'net/http: TLS handshake timeout'),
+])
+def test_transient_registry_failure_retries_then_verifies_image(docker, command, error):
+    docker[0].update(TRANSIENT_COMMAND=command, TRANSIENT_FAILURES='2', NETWORK_ERROR=error)
+    result, calls = run(docker)
+    assert result.returncode == 0, result.stderr
+    assert sum(c[0] == command for c in calls) == 3
+    assert [c for c in calls if c[0] == 'sleep'] == [['sleep', '5'], ['sleep', '10']]
+    assert calls[-2][:2] == ['image', 'inspect']
+    assert calls[-1] == ['tag', IMAGE, 'uzstock-web:release-' + SHA]
+
+
+def test_persistent_network_failure_stops_without_tagging(docker):
+    docker[0].update(TRANSIENT_COMMAND='pull', TRANSIENT_FAILURES='9', NETWORK_ERROR='i/o timeout')
+    result, calls = run(docker)
+    assert result.returncode != 0
+    assert sum(c[0] == 'pull' for c in calls) == 3
+    assert [c for c in calls if c[0] == 'sleep'] == [['sleep', '5'], ['sleep', '10']]
+    assert not any(c[0] in ('tag', 'image') for c in calls)
+
+
+def test_authentication_failure_is_not_retried(docker):
+    docker[0]['LOGIN_FAILURE'] = '1'
+    result, calls = run(docker)
+    assert result.returncode != 0
+    assert len(calls) == 1
