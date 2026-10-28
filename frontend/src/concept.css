@@ -175,14 +175,14 @@
 .newsdesk .newsdesk-tabs {border:0;gap:16px;}
 .newsdesk .newsdesk-tab {border:0;border-bottom:2px solid transparent;border-radius:0;padding:12px 14px;background:none;font-size:13px;}
 .newsdesk .newsdesk-tab.active {border-bottom-color:var(--accent);color:var(--accent);}
-.newsdesk .newsdesk-feed-layout {display:grid;grid-template-columns:minmax(0,1.8fr) minmax(300px,1fr);gap:20px;}
+.newsdesk .newsdesk-feed-layout {display:grid;grid-template-columns:minmax(0,1fr);}
 .newsdesk .newsdesk-feed {background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:24px;box-shadow:var(--concept-shadow);min-width:0;}
-.newsdesk .newsdesk-side {display:grid;gap:20px;align-content:start;min-width:0;}
-.newsdesk .newsdesk-side-section {padding:24px;border:1px solid var(--border);border-radius:18px;background:var(--panel);box-shadow:var(--concept-shadow);}
+
+
 .newsdesk .newsdesk-row {padding:20px 0;background:none;border:0;border-bottom:1px solid var(--border);}
 .newsdesk .newsdesk-row-title {font-size:15px;font-family:var(--concept-title);font-weight:800;}
 .newsdesk .newsdesk-feed-head {border:0;padding:0 0 16px;}
-.newsdesk .newsdesk-feed-head h2,.newsdesk .newsdesk-side h2 {font-family:var(--concept-title);font-size:19px;font-weight:800;}
+.newsdesk .newsdesk-feed-head h2 {font-family:var(--concept-title);font-size:19px;font-weight:800;}
 .newsdesk .newsdesk-search {background:var(--panel);padding:12px 16px;border:1px solid var(--border);border-radius:12px;margin:16px 0;}
 .newsdesk .newsdesk-search input {border:1px solid var(--border-hover);border-radius:8px;min-height:40px;padding:8px 12px;}
 .newscal {border-radius:18px;background:var(--panel);border:1px solid var(--border);padding:24px;box-shadow:var(--concept-shadow);}
@@ -241,16 +241,16 @@
 .reference-currency .hd-stats strong {font-size:28px;}
 .reference-currency .concept-card h2 {font-family:var(--concept-title);font-size:19px;}
 .reference-currency .currency-converter-fields+output {font-size:28px;}
-.newsdesk .newsdesk-side {position:static;padding:0;border:0;background:none;grid-template-columns:1fr;}
-.newsdesk .newsdesk-side-section+.newsdesk-side-section {margin:0;padding:24px;}
-.newsdesk .newsdesk-side h2 {text-transform:none;letter-spacing:-.03em;color:var(--text);}
+
+
+
 .newsdesk .newsdesk-tabs {background:none;border-radius:0;border-bottom:1px solid var(--border);width:100%;padding:0;}
 .newsdesk .newsdesk-tab.active {box-shadow:none;background:none;}
 .newsdesk .newsdesk-search {max-width:none;display:flex;align-items:center;gap:16px;margin:16px 0;padding:10px 14px;}
 .newsdesk .newsdesk-search input {flex:1;background:var(--panel);}
 .newsdesk .newsdesk-feed-layout {margin-top:0;}
 .newsdesk .newsdesk-board {margin-top:0;}
-@media(max-width:760px){.newsdesk .newsdesk-search {align-items:stretch;flex-direction:column;gap:8px;}.newsdesk .newsdesk-head h1{font-size:26px;}.newsdesk .newsdesk-side-section+.newsdesk-side-section{padding:18px;}}
+@media(max-width:760px){.newsdesk .newsdesk-search {align-items:stretch;flex-direction:column;gap:8px;}.newsdesk .newsdesk-head h1{font-size:26px;}}
 .portfolio-preview-allocation {display:flex;align-items:center;gap:28px;margin-bottom:20px;}
 .portfolio-preview-donut {width:150px;height:150px;flex:0 0 150px;display:grid;place-items:center;border-radius:50%;}
 .portfolio-preview-donut>span {display:flex;flex-direction:column;align-items:center;justify-content:center;width:110px;height:110px;border-radius:50%;background:var(--panel);font-size:28px;font-weight:800;}

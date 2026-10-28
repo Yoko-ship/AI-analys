@@ -50,14 +50,18 @@ test('profile retains the shared palette and complete investor workspace',async(
  await expect(page.getByTestId('profile-workspace-stats').locator('article')).toHaveCount(4);
  await page.getByRole('button',{name:'My portfolio',exact:true}).click();await expect(page.getByTestId('portfolio-market-value')).toBeVisible();
 });
-test('personal feed includes portfolio holdings and selected interests',async({page})=>{
+test('legacy personal feed links show all corporate events and retain optional sorting',async({page})=>{
  const state={preferences:{investment_interests:['banks']}};await account(page,state);
  await page.route('**/api/securities',r=>r.fulfill({json:{ok:true,securities:{HMKB:{sector:'banks'}}}}));
  await page.route('**/api/portfolio',r=>r.fulfill({json:{ok:true,items:[{ticker:'UZMK'}]}}));
  const story=(id,ticker)=>({story_id:id,id,source_url:'https://openinfo.uz/ru/facts/6/1',category:'governance',priority:2,published_at:'2026-10-26',title:{en:'Board changed'},organization:ticker,tickers:[ticker],stage:'disclosed',documents:[],document_count:1});
  await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{ok:true,items:[story('1','HMKB'),story('2','UZMK'),story('3','OTHER')],categories:{governance:{en:'Governance'}},facts:{}}}));
  await page.goto('/news?tab=corporate&mode=personal');
- await expect(page.locator('.ce-story')).toHaveCount(2);
- await page.getByRole('button',{name:'My companies',exact:true}).click();await expect(page.locator('.ce-story')).toHaveCount(1);
- await expect(page.locator('.ce-story')).toContainText('UZMK');
+ await expect(page.locator('.ce-story')).toHaveCount(3);
+ await expect(page.getByRole('button',{name:/^(All events|Important|My companies|For you)$/})).toHaveCount(0);
+ await page.reload();
+ await expect(page.locator('.ce-story')).toHaveCount(3);
+ await page.getByLabel('Event order').selectOption('subscriptions');
+ await expect(page.locator('.ce-story')).toHaveCount(3);
+ await expect(page.locator('.ce-story').first()).toContainText('UZMK');
 });

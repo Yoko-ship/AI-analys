@@ -48,7 +48,7 @@ html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] {
 .app-shell-wrap[data-ui="purple"] :is(.primary-btn, .ghost-btn):focus-visible {
   outline: 3px solid var(--control-focus); outline-offset: 2px;
 }
-.app-shell-wrap[data-ui="purple"] :is(.concept-card, .hd-map-card, .hd-stats article, .newsdesk-side-section, .ce-story, .portfolio-card, .investor-panel) {
+.app-shell-wrap[data-ui="purple"] :is(.concept-card, .hd-map-card, .hd-stats article, .newsdesk-feed, .ce-story, .portfolio-card, .investor-panel) {
   background: var(--panel); border-color: var(--border); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
 }
 

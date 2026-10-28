@@ -1,4 +1,4 @@
-// Two news reading sections; the calendar remains a separate destination.
+// Both news feeds and the calendar share the page's navigation row.
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 
@@ -35,13 +35,14 @@ async function openNews(page, path = "/news", { admin = false } = {}) {
   return asked;
 }
 
-test("news has exactly two sections and general news excludes issuer disclosures", async ({ page }) => {
+test("news tabs open both feeds and the calendar and general news excludes issuer disclosures", async ({ page }) => {
   const asked = await openNews(page);
   const tabs = page.locator(".newsdesk-tabs .newsdesk-tab");
-  await expect(tabs).toHaveText(["Общие новости", "Корпоративные новости"]);
+  await expect(tabs).toHaveText(["Общие новости", "Корпоративные новости", "Календарь"]);
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Общие новости");
   await expect(page.locator(".newsdesk-tab-more")).toHaveCount(0);
   await expect(page.locator(".newsdesk-rows")).toContainText(press.title);
+  await expect(page.locator(".newsdesk-side, .newsdesk-mood")).toHaveCount(0);
   await expect(page.locator(".newsdesk-rows")).not.toContainText(filing.title);
   await expect(page.locator(".newsdesk-row-kicker").first()).toContainText(press.source);
   expect(asked).toEqual([{ section: "general", category: null }]);
@@ -51,6 +52,15 @@ test("news has exactly two sections and general news excludes issuer disclosures
   expect(asked).toHaveLength(1);
   await page.locator(".newsdesk-subtabs").getByRole("button", { name: "Акции", exact: true }).click();
   await expect(page).toHaveURL(/tab=corporate&instrument=stock$/);
+  await tabs.getByText("Календарь", { exact: true }).click();
+  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
+  await expect(page.locator(".newscal")).toBeVisible();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
+  await expect(page.locator(".newsdesk-subtabs")).toHaveCount(0);
+  expect(asked).toHaveLength(1);
+  await page.reload();
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
+  await expect(page.locator(".newscal")).toBeVisible();
   await tabs.getByText("Общие новости", { exact: true }).click();
   await expect(page).toHaveURL(/\/news$/);
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Общие новости");
@@ -66,9 +76,9 @@ test("an old financial-report category link opens corporate news", async ({ page
 });
 
 for (const [path, labels] of [
-  ["/news", ["Общие новости", "Корпоративные новости"]],
-  ["/uz/news", ["Umumiy yangiliklar", "Korporativ yangiliklar"]],
-]) test(`the two section labels fit a phone at ${path}`, async ({ page }, info) => {
+  ["/news", ["Общие новости", "Корпоративные новости", "Календарь"]],
+  ["/uz/news", ["Umumiy yangiliklar", "Korporativ yangiliklar", "Taqvim"]],
+]) test(`the three navigation labels fit a phone at ${path}`, async ({ page }, info) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await openNews(page, path);
   for (const theme of ["light", "dark"]) {
@@ -80,6 +90,7 @@ for (const [path, labels] of [
       const box = await button.boundingBox();
       expect(box.x).toBeGreaterThanOrEqual(bounds.x - 1);
       expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+      expect(await button.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     }
     expect(await page.locator(".newsdesk-tabs").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -107,16 +118,22 @@ test("the news menu offers two sections and a separate calendar", async ({ page 
   await expect(page).toHaveURL(/\/news\?tab=calendar$/);
   await expect(page.locator(".newscal")).toBeVisible();
   await expect(page.getByRole('heading',{name:'Календарь событий',level:1})).toBeVisible();
-  await expect(page.locator(".newsdesk-tabs .newsdesk-tab")).toHaveCount(0);
+  await expect(page.locator(".newsdesk-tabs .newsdesk-tab")).toHaveCount(3);
+  await expect(page.locator(".newsdesk-tab.active")).toHaveText("Календарь");
   await page.goBack();
   await expect(page.locator(".newsdesk-tab.active")).toHaveText("Корпоративные новости");
 });
 
-test("the calendar is reachable from the general-news sidebar", async ({ page }) => {
+test("the calendar is in the news tabs without duplicate buttons or sidebar previews", async ({ page }) => {
   await openNews(page);
-  await page.locator(".newsdesk-calendar-callout").getByRole("button", { name: /Открыть календарь/ }).click();
+  await expect(page.locator(".newsdesk-rows")).toContainText(press.title);
+  await expect(page.locator(".newsdesk .event-preview, .newsdesk-calendar-callout")).toHaveCount(0);
+  await page.locator(".newsdesk-tabs").getByRole("button", { name: "Календарь", exact: true }).click();
   await expect(page.locator(".newscal")).toBeVisible();
   await expect(page).toHaveURL(/tab=calendar$/);
+  await page.locator(".newsdesk-tabs").getByRole("button", { name: "Корпоративные новости", exact: true }).click();
+  await expect(page.getByTestId("corporate-events")).toBeVisible();
+  await expect(page.locator(".ce-heading").getByRole("button", { name: /Календарь/ })).toHaveCount(0);
 });
 
 test("the market menu still opens its own sections", async ({ page }) => {

@@ -10,7 +10,7 @@
 .newsdesk-head p { max-width: 68ch; margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
 .newsdesk-updated { flex: none; display: grid; gap: 5px; text-align: right; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-/* Two reading sections share the existing selection treatment. Labels may
+/* News sections and the calendar share the selection treatment. Labels may
    wrap within their buttons on a narrow phone, without hiding a section. */
 .newsdesk-tabs { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 2px; width: fit-content; max-width: 100%; padding: 3px; border: 1px solid var(--newsdesk-line-strong); border-radius: 10px; background: var(--bg-2, transparent); overflow-x: auto; scrollbar-width: none; }
 .newsdesk-tabs::-webkit-scrollbar { display: none; }
@@ -18,7 +18,7 @@
 .newsdesk-tab { appearance: none; flex: 0 1 auto; min-width: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: normal; cursor: pointer; transition: background-color .12s, color .12s; }
 .newsdesk-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .newsdesk-tab.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
-.newsdesk-tab:focus-visible, .newsdesk-subtab:focus-visible, .newsdesk-focus-row:focus-visible, .newsdesk-calendar-callout button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.newsdesk-tab:focus-visible, .newsdesk-subtab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .newsdesk-subtabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0 0; }
 .newsdesk-subtab { appearance: none; border: 1px solid var(--newsdesk-line); border-radius: 6px; background: transparent; color: var(--muted); padding: 7px 12px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
@@ -54,19 +54,8 @@
 .newsdesk-priority-story--secondary h3 { margin: 11px 0 0; font-size: 19px; line-height: 1.27; letter-spacing: -.018em; font-weight: 700; text-wrap: balance; }
 .newsdesk-priority-story--secondary .newsdesk-byline { margin-top: 10px; font-size: 11px; }
 
-.newsdesk-mood { min-width: 0; padding-left: 26px; border-left: 1px solid var(--newsdesk-line); }
-.newsdesk-mood h2, .newsdesk-side-section h2 { margin: 0 0 14px; color: var(--muted); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-.newsdesk-mood-score { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--newsdesk-line); }
-.newsdesk-mood-score strong { font-size: 28px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
-.newsdesk-mood-score strong.pos { color: var(--success, var(--accent-2)); }
-.newsdesk-mood-score strong.neg { color: var(--danger); }
-.newsdesk-mood-score strong.neu { color: var(--text); }
-.newsdesk-mood-score span { color: var(--muted); font-size: 11px; }
-.newsdesk-mood-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--newsdesk-line); color: var(--muted); font-size: 12px; }
-.newsdesk-mood-row b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
-.newsdesk-mood > small { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }
 
-.newsdesk-feed-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; margin-top: 26px; background: transparent; }
+.newsdesk-feed-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; margin-top: 26px; background: transparent; }
 .newsdesk-feed { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
 .newsdesk-feed-head { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 16px 20px; border-bottom: 1px solid var(--newsdesk-line); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
 .newsdesk-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--newsdesk-live); box-shadow: 0 0 0 4px var(--accent-light); flex: none; }
@@ -96,20 +85,10 @@
 .newsdesk-row-arrow { color: var(--accent); font-size: 17px; line-height: 1; opacity: .35; transition: opacity .14s ease, transform .14s ease; }
 .newsdesk-feed-empty { padding: 32px 20px; color: var(--muted); font-size: 13px; }
 
-.newsdesk-side { position: sticky; top: 84px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
-.newsdesk-side-section + .newsdesk-side-section { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--newsdesk-line); }
-.newsdesk-focus-row { appearance: none; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 -8px; padding: 11px 8px; border: 0; border-bottom: 1px solid var(--newsdesk-line); border-radius: 8px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.newsdesk-focus-row strong { color: var(--text); font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 800; }
-.newsdesk-focus-row span { padding: 3px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 10.5px; }
-.newsdesk-focus-row:hover { background: var(--accent-light); }
-.newsdesk-focus-row:hover strong { color: var(--accent); }
-.newsdesk-calendar-callout p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
-.newsdesk-calendar-callout button { appearance: none; border: 0; background: transparent; color: var(--accent); margin: 14px 0 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
-.newsdesk-disclosures { margin-top: 38px; padding-top: 30px; border-top: 1px solid var(--newsdesk-line-strong); }
 
-.newsdesk-loading { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .7fr); gap: 24px; margin-top: 24px; }
-.newsdesk-loading-lead, .newsdesk-loading-side, .newsdesk-loading-feed { background: linear-gradient(90deg, var(--panel), var(--surface-2), var(--panel)); background-size: 200% 100%; animation: led-shim 1.4s infinite; }
-.newsdesk-loading-lead, .newsdesk-loading-side { height: 300px; }
+.newsdesk-loading { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.newsdesk-loading-lead, .newsdesk-loading-feed { background: linear-gradient(90deg, var(--panel), var(--surface-2), var(--panel)); background-size: 200% 100%; animation: led-shim 1.4s infinite; }
+.newsdesk-loading-lead { height: 300px; }
 .newsdesk-loading-feed { grid-column: 1 / -1; height: 280px; }
 
 /* A wide newsroom reads like a spread, not like a billboard. Keep the source
@@ -146,14 +125,7 @@
 
 @media (max-width: 1080px) {
   .newsdesk-priority { grid-template-columns: minmax(0, 1.35fr) minmax(220px, .72fr); }
-  .newsdesk-mood { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(120px, 1fr) repeat(4, auto); align-items: center; gap: 24px; margin-top: 24px; padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--newsdesk-line); }
-  .newsdesk-mood h2 { margin: 0; }
-  .newsdesk-mood-score { gap: 12px; padding: 0; border: 0; }
-  .newsdesk-mood-row { display: grid; gap: 3px; padding: 0; border: 0; }
-  .newsdesk-mood > small { margin: 0; }
   .newsdesk-feed-layout { grid-template-columns: 1fr; }
-  .newsdesk-side { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
-  .newsdesk-side-section + .newsdesk-side-section { margin: 0; padding: 0; border-top: 0; }
 }
 @media (max-width: 860px) {
   .newsdesk-head { align-items: flex-start; }
@@ -161,20 +133,17 @@
   .newsdesk-priority-story--lead { padding: 0 0 24px; }
   .newsdesk-secondary { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--newsdesk-line); }
   .newsdesk-priority-story--secondary { margin: 0; padding: 0; border-bottom: 0; }
-  .newsdesk-mood { grid-template-columns: 1fr repeat(3, auto); }
-  .newsdesk-mood > small { display: none; }
 }
 @media (max-width: 620px) {
   .newsdesk-head { display: block; padding-top: 2px; }
   .newsdesk-head p { font-size: 13.5px; }
   .newsdesk-updated { margin-top: 12px; display: flex; justify-content: space-between; text-align: left; }
   .newsdesk-tabbar, .newsdesk-tabs { width: 100%; }
-  .newsdesk-tab { font-size: 13px; padding: 7px 11px; }
+  .newsdesk .newsdesk-tabbar .newsdesk-tabs { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 4px; align-items: stretch; }
+  .newsdesk .newsdesk-tabbar .newsdesk-tab { font-size: 13px; padding: 12px 8px; }
   .newsdesk-priority-story--lead h2 { max-width: none; font-size: clamp(22px, 6.6vw, 28px); line-height: 1.12; }
   .newsdesk-secondary { grid-template-columns: 1fr; }
   .newsdesk-priority-story--secondary + .newsdesk-priority-story--secondary { padding-top: 20px; border-top: 1px solid var(--newsdesk-line); }
-  .newsdesk-mood { grid-template-columns: 1fr 1fr; gap: 16px 22px; }
-  .newsdesk-mood h2 { grid-column: 1 / -1; }
   .newsdesk-feed-head { min-height: 54px; padding: 14px 16px; }
   .newsdesk-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; padding: 17px 16px; }
   .newsdesk-row.has-art { grid-template-columns: 104px minmax(0, 1fr) auto; }
@@ -187,13 +156,11 @@
   .newsdesk-row.has-art .newsdesk-row-copy { grid-column: 2 / 4; grid-row: 2; }
   .newsdesk-row-copy strong { font-size: 15.5px; }
   .newsdesk-row-arrow { display: none; }
-  .newsdesk-side { grid-template-columns: 1fr; }
-  .newsdesk-side-section + .newsdesk-side-section { padding-top: 22px; border-top: 1px solid var(--newsdesk-line); }
   .newsdesk-loading { grid-template-columns: 1fr; }
   .newsdesk-loading-feed { grid-column: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .newsdesk-loading-lead, .newsdesk-loading-side, .newsdesk-loading-feed { animation: none; }
+  .newsdesk-loading-lead, .newsdesk-loading-feed { animation: none; }
 }
 /* The calendar's own sub-tabs pulled themselves up under the old underline
    tabs; under the boxed tab bar they keep the bar's own spacing instead. */

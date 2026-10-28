@@ -1,8 +1,8 @@
-// Two reading sections. Topics remain classifier metadata, not navigation.
-// The calendar is a separate destination and is reached from its own links.
+// News feeds and the events calendar share one navigation row.
 export const NEWS_TABS = [
   { key: "general", section: "general" },
   { key: "corporate", section: "corporate" },
+  { key: "calendar", section: null },
 ];
 // Old report links open issuer news; other retired topics open general news.
 const LEGACY_TABS = { reporting: "corporate", reports: "corporate" };
@@ -16,5 +16,5 @@ export function newsTabFromLocation() {
   if (typeof window === "undefined") return "general";
   const raw = new URLSearchParams(window.location.search).get("tab");
   const wanted = LEGACY_TABS[raw] || raw;
-  return wanted === "calendar" || NEWS_TABS.some(t => t.key === wanted) ? wanted : "general";
+  return NEWS_TABS.some(t => t.key === wanted) ? wanted : "general";
 }

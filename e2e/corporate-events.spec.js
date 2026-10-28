@@ -15,21 +15,32 @@ const payload = { ok: true, sources: { facts: { ok: true } },
   facts: { 41: { title: { ru: 'Набсовет рекомендовал дивиденды' } }, 23: { title: { ru: 'Компания утратила лицензию' } } },
   items: [a, b].map(d => ({ ...d, story_id: d.id, documents: [d], document_count: 1 })) };
 async function setup(page) {
+  const requested = [];
   await page.addInitScript(() => { sessionStorage.setItem('uz_sponsor_seen', '1'); localStorage.setItem('uz_stock_analyzer_token', 'test'); });
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
+    requested.push(path);
     return route.fulfill({ json: path === '/api/news/corporate-events' ? payload
+      : path === '/api/news' ? { ok: true, items: [{ type: 'report', ticker: 'TRSB', company: '"Trastbank" CHAKB', date: '2026-10-16', report_form: 'NSBU', year: 2026, quarter: 3 }] }
       : path === '/api/auth/me' ? { user: { id: 1, email: 'reader@example.test' } }
       : path === '/api/profile' ? { user: { id: 1, email: 'reader@example.test' }, favorites: [{ ticker: 'HMKB' }] }
       : { ok: true, items: [] } });
   });
   await page.goto('/news?tab=corporate');
+  return requested;
 }
-test('corporate feed has categories, evidence, stages, filters and source history', async ({ page }) => {
-  await setup(page);
+test('corporate feed keeps search, stages, filters and source history in one feed', async ({ page }) => {
+  const requested = await setup(page);
   const feed = page.getByTestId('corporate-events');
   await expect(feed.getByRole('heading', { name: 'Корпоративные события' })).toBeVisible();
+  await expect(feed.getByText('OPENINFO · UZSTOCK', { exact: true })).toHaveCount(0);
+  await expect(feed.getByText('Решения, предложения и выплаты — с отдельными датами и первоисточниками.', { exact: true })).toHaveCount(0);
   await expect(feed.locator('.ce-story')).toHaveCount(2);
+  await expect(page.locator('.newsdesk-disclosures')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Лента событий по бумагам', exact: true })).toHaveCount(0);
+  expect(requested).not.toContain('/api/news');
+  await expect(feed.locator('.ce-story').getByRole('link', { name: /OpenInfo/ })).toHaveCount(0);
+  await expect(feed.locator('.ce-story .ce-priority, .ce-story .ce-stage')).toHaveCount(0);
   await feed.getByLabel('Компания, тикер или ISIN').fill('UZ7011340005');
   await expect(feed.locator('.ce-story')).toHaveCount(2);
   await feed.getByLabel('Компания, тикер или ISIN').fill('UZGF');
@@ -42,17 +53,32 @@ test('corporate feed has categories, evidence, stages, filters and source histor
   await expect(dialog.getByRole('link', { name: /OpenInfo/ }).first()).toHaveAttribute('href', a.source_url);
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
-  await feed.getByLabel('Компания, тикер или ISIN').fill('');
-  await feed.getByRole('button', { name: 'Мои компании', exact: true }).click();
+  await feed.getByLabel('Компания, тикер или ISIN').fill('HMKB');
   await expect(feed.locator('.ce-story')).toHaveCount(1);
   await expect(feed.locator('.ce-story')).toContainText('Hamkorbank');
+  await feed.getByLabel('Компания, тикер или ISIN').fill('UNKNOWN');
+  await expect(feed.locator('.ce-story')).toHaveCount(0);
+  await expect(feed).toContainText('По выбранным фильтрам событий нет.');
+  await feed.getByText('Расширенные фильтры', { exact: true }).click();
+  await feed.getByRole('button', { name: 'Сбросить фильтры' }).click();
+  await expect(feed.locator('.ce-story')).toHaveCount(2);
+  await expect(feed.getByLabel('Компания, тикер или ISIN')).toHaveValue('');
 });
-for (const width of [390, 1440]) test(`corporate feed fits ${width}px in both themes`, async ({ page }, info) => {
+for (const width of [390, 1440]) test(`corporate feed uses the full width without category navigation at ${width}px in both themes`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 900 });
   await setup(page);
+  const feed = page.getByTestId('corporate-events');
   for (const theme of ['light', 'dark']) {
     await page.evaluate(t => { document.documentElement.dataset.theme = document.body.dataset.theme = t; }, theme);
-    await expect(page.locator('.ce-story')).toHaveCount(2);
+    await expect(feed.locator('.ce-story')).toHaveCount(2);
+    await expect(feed.getByRole('group', { name: 'Корпоративные события', exact: true })).toHaveCount(0);
+    await expect(feed.getByRole('button', { name: /^(Все события|Важное|Мои компании|Для вас)$/ })).toHaveCount(0);
+    await expect(feed.getByRole('complementary', { name: 'Категории' })).toHaveCount(0);
+    await expect(feed.getByRole('button', { name: /Все категории|Дивиденды и выплаты|Риски и лицензии/ })).toHaveCount(0);
+    const feedBox = await feed.boundingBox();
+    const streamBox = await feed.locator('.ce-stream').boundingBox();
+    expect(Math.abs(streamBox.x - feedBox.x)).toBeLessThan(2);
+    expect(Math.abs(streamBox.width - feedBox.width)).toBeLessThan(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`events-${width}-${theme}.png`), fullPage: true });
   }
@@ -69,8 +95,9 @@ test('payment totals and approved resolutions are explained separately from per-
  await setup(page);
  const paid={...a,stage:'paid',amounts:[],payment:{calculated:6060825,paid:6060825,debt:0,paid_percent:100,unit:'thousand_uzs'},summary:{ru:'Общие суммы в тысячах сум'},evidence:['Dividendlar to‘liq to‘langan'],record_date:null};
  await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{...payload,items:[{...paid,story_id:paid.id,documents:[paid],document_count:1}]}}));
- await page.reload();await expect(page.locator('.ce-story')).toContainText('Выплачено');
+ await page.reload();await expect(page.locator('.ce-story')).toHaveCount(1);
  await page.locator('.ce-story').getByRole('button',{name:/Документы и история/}).click();
+ await expect(page.getByRole('dialog')).toContainText('Выплачено');
  await expect(page.getByRole('dialog')).toContainText('тыс. сум');
  await expect(page.getByRole('dialog')).toContainText('6 060 825');
  await expect(page.getByRole('dialog')).toContainText('Dividendlar to‘liq to‘langan');

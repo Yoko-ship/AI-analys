@@ -104,7 +104,7 @@
   font-family: var(--workspace-title); letter-spacing: -.025em;
 }
 :root body :is(.concept-card, .hd-map-card, .hd-stats article, .market-board,
-  .newsdesk-side-section, .newscal, .ce-story, .ce-categories, .ce-empty,
+  .newsdesk-feed, .newscal, .ce-story, .ce-empty,
   .pf-watch, .pf-lower-col, .iw-card, .investor-panel, .bondsec-panel,
   .catalog-company-overview, .issuer-card) {
   border-radius: var(--workspace-radius);
@@ -118,16 +118,9 @@
 :root body :is(.ce-feed, .newscal, .concept-card, .newsdesk, .pf) .ghost-btn {
   border-radius: var(--workspace-control-radius); min-height: 40px;
 }
-.ce-feed .ce-categories { padding: 12px; border: 1px solid var(--border); }
-.ce-feed .ce-modes { gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); width: fit-content; max-width: 100%; }
-.ce-feed .ce-modes button { border-radius: var(--workspace-control-radius); }
-.ce-feed .ce-modes button[aria-pressed=true], .ce-feed .ce-categories button[aria-pressed=true] { background: var(--accent-light); color: var(--accent); }
 .ce-story footer { border-top: 1px solid var(--border); padding-top: 12px; }
 .ce-dialog::backdrop { background: #15122280; backdrop-filter: blur(3px); }
 :root body :is(.ce-feed, .ce-dialog, .newscal, .concept-card, .newsdesk) :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-@media (max-width: 700px) {
-  .ce-feed .ce-categories { padding: 8px; }
-}
 .ce-date-evidence { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
 .ce-date-evidence p { font-size: 12px; line-height: 1.6; color: var(--text-secondary); margin: 0; }
 .ce-date-evidence blockquote { margin: 12px 0 0; border-left: 3px solid var(--accent); padding-left: 12px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; color: var(--muted); }

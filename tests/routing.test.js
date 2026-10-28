@@ -156,8 +156,8 @@ it('opens the portfolio workspace from bookmarks and navigation', () => {
   assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
   assert.ok(!HIDDEN_VIEWS.has('portfolio'));
 });
-it("news offers two reading sections and preserves old links", () => {
-  assert.deepEqual(NEWS_TABS.map(tab => tab.key), ["general", "corporate"]);
+it("news navigation offers both reading sections and the calendar and preserves old links", () => {
+  assert.deepEqual(NEWS_TABS.map(tab => tab.key), ["general", "corporate", "calendar"]);
   const previous = globalThis.window;
   try {
     for (const [query, expected] of [

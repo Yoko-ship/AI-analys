@@ -339,9 +339,9 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   {t(language, "nav.news")}
                   <span className="nav-dd-caret" aria-hidden="true">▾</span>
                 </button>
-                {/* Match the page's two reading sections; events are separate. */}
+                {/* The menu groups reading sections before the events calendar. */}
                 {navMenuPanel("news", [
-                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: NEWS_TABS.map(tab => ({
+                  { head: navDdLabel("Лента", "Lenta", "Feed"), items: NEWS_TABS.filter(tab => tab.section).map(tab => ({
                     label: (NEWS_TX[language] || NEWS_TX.ru).tabs[tab.key],
                     onSelect: () => openNewsTab(tab.key),
                   })) },

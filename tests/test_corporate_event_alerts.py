@@ -9,6 +9,6 @@ def test_event_alerts_follow_holdings_and_opted_in_watchlist_without_price_predi
     alerts=event_alerts(7,[{'ticker':'UZGF','news_alert_enabled':True}],{'notify_news':True})
     assert len(alerts)==1
     assert alerts[0]['stage']=='proposed'
-    assert alerts[0]['href']=='/news?tab=corporate&mode=personal'
+    assert alerts[0]['href']=='/news?tab=corporate'
     assert event_alerts(7,[{'ticker':'UZGF','news_alert_enabled':False}],{'notify_news':True})==[]
     assert event_alerts(7,[{'ticker':'UZGF'}],{'notify_news':False})==[]

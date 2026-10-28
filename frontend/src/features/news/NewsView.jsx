@@ -1,12 +1,8 @@
-import { EDNEWS_TX, NEWS_TX, newsRelTime } from "./editorial.jsx";
+import { NEWS_TX, newsRelTime } from "./editorial.jsx";
 import React from "react";
-import { normalizeLanguage } from "../../shared/i18n.jsx";
-import {UpcomingEventsCard} from "./EventPreview.jsx";
-import { MarketEventsFeed } from "../events/index.js";
 import { CorporateEvents } from "./CorporateEvents.jsx";
-import { feedSentiment } from "./newsText.jsx";
 import { useTranslationTick } from "./newsTranslation.js";
-import { NewsDeskRow, newsDeskFocus } from "./NewsCards.jsx";
+import { NewsDeskRow } from "./NewsCards.jsx";
 import { NEWS_TABS, NEWS_INSTRUMENTS } from "./newsRouting.js";
 import { NewsCalendarView } from "./NewsCalendarView.jsx";
 import { useNewsFeed } from "./useNewsFeed.js";
@@ -15,11 +11,10 @@ export function NewsView({
   onOpenCompany,
   onOpenNews,
   onOpenAnnouncement,
-  favoriteTickers, apiFetch, signedIn, interests, securitiesMap
+  favoriteTickers, apiFetch, signedIn, securitiesMap
 }) {
   const tx = NEWS_TX[language] || NEWS_TX.ru;
   useTranslationTick();
-  const etx = EDNEWS_TX[language] || EDNEWS_TX.ru;
   const {
     state,
     tab,
@@ -49,10 +44,7 @@ export function NewsView({
       item.summary_ru, item.summary_en, item.summary_uz, ...(item.tickers || [])].filter(Boolean).join(" ").toLocaleLowerCase().includes(query)) : sourceItems;
   }, [sourceItems, newsSearch]);
   const latest = React.useMemo(() => [...items].sort((a,b)=>String(b.published_at||'').localeCompare(String(a.published_at||''))),[items]);
-  const mood = feedSentiment(items);
-  const moodLabel = mood.cls === "pos" ? etx.moodPos : mood.cls === "neg" ? etx.moodNeg : etx.moodNeu;
   const feedItems=latest;
-  const focus = React.useMemo(() => newsDeskFocus(items), [items]);
   const dtx = tx.desk || NEWS_TX.ru.desk;
   const updated = latest[0] && latest[0].published_at ? newsRelTime(latest[0].published_at, language) : "";
   const corporateDetail = tab === "corporate" && Boolean(corporateEventId);
@@ -69,7 +61,7 @@ export function NewsView({
           </div>}
       </header>}
 
-      {tab !== 'calendar' && <div className="newsdesk-tabbar">
+      <div className="newsdesk-tabbar">
       <nav className="newsdesk-tabs" aria-label={tx.title}>
         {NEWS_TABS.map(t => <button
           key={t.key}
@@ -82,7 +74,7 @@ export function NewsView({
             {tx.tabs && tx.tabs[t.key] || t.key}
           </button>)}
       </nav>
-      </div>}
+      </div>
 
       {tab !== "corporate" && tab !== "calendar" && <label className="newsdesk-search">
         <span>{searchLabel}</span>
@@ -103,9 +95,8 @@ export function NewsView({
             </button>)}
         </div>}
 
-      {tab === "corporate" ? <CorporateEvents apiFetch={apiFetch} signedIn={signedIn} interests={interests} securitiesMap={securitiesMap} language={language} favoriteTickers={favoriteTickers} instrument={instrument} onCalendar={() => selectTab("calendar")} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
+      {tab === "corporate" ? <CorporateEvents apiFetch={apiFetch} signedIn={signedIn} securitiesMap={securitiesMap} language={language} favoriteTickers={favoriteTickers} instrument={instrument} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
-          <div className="newsdesk-loading-side" />
           <div className="newsdesk-loading-feed" />
         </div> : error ? <div className="led-empty">{tx.error}</div> : !items.length ? <div className="led-empty">
           {newsSearch.trim() ? language === "en" ? "No news matches your search." : language === "uz" ? "So‘rovingiz bo‘yicha yangiliklar yo‘q." : "По вашему запросу новостей нет." : tab === "general" ? tx.empty : tx.emptyTab || tx.empty}
@@ -122,30 +113,8 @@ export function NewsView({
                 {!feedItems.length && <div className="newsdesk-feed-empty">{tx.emptyTab || tx.empty}</div>}
               </div>
             </main>
-            <aside className="newsdesk-side">
-              <UpcomingEventsCard language={language} onCalendar={()=>selectTab("calendar")}/>
-              {focus.length > 0 && <section className="newsdesk-side-section">
-                  <h2>{dtx.focus}</h2>
-                  {focus.map(([ticker, count]) => <button key={ticker} type="button" className="newsdesk-focus-row" onClick={() => onOpenCompany && onOpenCompany(ticker)}>
-                      <strong>{ticker}</strong><span>{count} {dtx.events}</span>
-                    </button>)}
-                </section>}
-              <section className="concept-card newsdesk-mood"><h2>{dtx.marketNow}</h2><div className="newsdesk-mood-row"><span>{dtx.positive}</span><b>{mood.counts.positive}</b></div><div className="newsdesk-mood-row"><span>{dtx.neutral}</span><b>{mood.counts.neutral}</b></div><div className="newsdesk-mood-row"><span>{dtx.negative}</span><b>{mood.counts.negative}</b></div><small>{moodLabel}</small></section>
-              <section className="newsdesk-side-section newsdesk-calendar-callout">
-                <h2>{dtx.calendar}</h2>
-                <p>{dtx.calendarCopy}</p>
-                <button type="button" onClick={() => selectTab("calendar")}>{dtx.openCalendar} →</button>
-              </section>
-            </aside>
           </section>
         </div>}
 
-      {/* The filings timeline is the raw disclosure record for the corporate
-          reading mode. It follows the edited board instead of interrupting its
-          priority hierarchy; the Акции/Облигации control still narrows only the
-          stories above, while this record keeps its own filing-kind controls. */}
-      {tab === "corporate" && !corporateDetail && <div className="newsdesk-disclosures">
-          <MarketEventsFeed lang={normalizeLanguage(language)} onOpenCompany={onOpenCompany} />
-        </div>}
     </div>;
 }

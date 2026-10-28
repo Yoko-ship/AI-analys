@@ -24,5 +24,5 @@ def event_alerts(user_id, favorites, preferences):
     return [{'ticker':next(t for t in s.get('tickers',[]) if t in tickers), 'kind':'corporate_event',
              'report_form':'EVENT', 'title':s['title'].get(language) or s['title'].get('ru'),
              'detected_at':s['published_at'], 'stage':s['stage'], 'priority':s['priority'],
-             'story_id':s['story_id'], 'href':'/news?tab=corporate&mode=personal'}
+             'story_id':s['story_id'], 'href':'/news?tab=corporate'}
             for s in stories if tickers.intersection(s.get('tickers',[])) and s['priority']<=1][:40]

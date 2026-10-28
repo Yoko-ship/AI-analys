@@ -1042,6 +1042,11 @@ test("Новости renders the editorial feed (§3.11)", async ({ page }, test
   await expect(page.locator(".newsdesk-row").first()).toContainText("Биржа расширяет листинг банков");
   await expect(page.locator(".newsdesk-row").nth(1)).toContainText("ЦБ уточнил требования");
   await expect(page.locator(".newsdesk-feed-layout")).toBeVisible();
+  await expect(page.locator(".newsdesk-side, .newsdesk-mood")).toHaveCount(0);
+  const layoutBox = await page.locator(".newsdesk-feed-layout").boundingBox();
+  const feedBox = await page.locator(".newsdesk-feed-layout > .newsdesk-feed").boundingBox();
+  expect(Math.abs(feedBox.x - layoutBox.x)).toBeLessThan(2);
+  expect(Math.abs(feedBox.width - layoutBox.width)).toBeLessThan(2);
   await page.screenshot({ path: testInfo.outputPath("news-desktop.png"), fullPage: true });
 });
 
@@ -1882,9 +1887,9 @@ test('calendar dialog confines keyboard focus and restores the opened event', as
 test('workspace headings and panels share the same visual system', async ({ page }) => {
   const routes = [
     ['/market', '.market-board-head h2', '.market-board'],
-    ['/news', '.newsdesk-head h1', '.newsdesk-side-section'],
+    ['/news', '.newsdesk-head h1', '.newsdesk-feed'],
     ['/news?tab=calendar', '.newscal-month', '.newscal'],
-    ['/news?tab=corporate', '.ce-heading h2', '.ce-categories'],
+    ['/news?tab=corporate', '.ce-heading h2', '.ce-empty'],
   ];
   for (const [route, heading, panel] of routes) {
     await page.goto(route);
