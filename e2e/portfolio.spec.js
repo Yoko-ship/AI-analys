@@ -45,12 +45,16 @@ async function setup(page, initial = empty, { pro = false, signedIn = true } = {
   return state;
 }
 
+async function openPortfolio(page) {
+  await page.goto('/profile');
+  await page.getByRole('button',{name:'My portfolio',exact:true}).click();
+}
+
 test('record a purchase with fees, inspect holdings, edit and remove the record', async ({ page }) => {
   const state = await setup(page);
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await expect(page.getByRole('heading', { name: 'Portfolio', exact: true })).toBeVisible();
   await expect(page.getByText('No investments recorded yet')).toBeVisible();
-  expect(state.marketReads).toBe(0);
   await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
   await page.getByLabel('Ticker', { exact: true }).fill('AGBA');
   await page.getByLabel('Quantity', { exact: true }).fill('100');
@@ -72,7 +76,7 @@ test('record a purchase with fees, inspect holdings, edit and remove the record'
 test('prices update automatically and a failed refresh retains the last snapshot', async ({ page }) => {
   const state = await setup(page, held());
   await page.clock.install();
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await expect(page.getByTestId('portfolio-market-value')).toContainText('58,900');
   state.data = held('600');
   await page.clock.runFor(31_000);
@@ -94,7 +98,7 @@ test('unknown valuations remain missing and do not look like a zero-valued portf
   Object.assign(data.items[0], { last_price: null, market_value: null, unrealized_pnl: null, unrealized_pnl_pct: null,
     valuation_status: 'NO_DATA', price_date: null, allocation_pct: null });
   await setup(page, data);
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await expect(page.getByTestId('portfolio-market-value')).toHaveText('—');
   await expect(page.getByText('No confirmed price', { exact: true })).toBeVisible();
   await expect(page.getByText('Some holdings have no confirmed price. Portfolio totals are incomplete.')).toBeVisible();
@@ -103,7 +107,7 @@ test('unknown valuations remain missing and do not look like a zero-valued portf
 test('failed writes keep the form and show a helpful validation error', async ({ page }) => {
   const state = await setup(page, held());
   state.failWrite = true;
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await page.getByRole('button', { name: 'Record transaction', exact: true }).click();
   await page.getByLabel('Transaction type').selectOption('sell');
   await page.getByLabel('Ticker', { exact: true }).fill('AGBA');
@@ -115,32 +119,20 @@ test('failed writes keep the form and show a helpful validation error', async ({
 });
 
 for (const [name, viewport] of [['desktop', { width: 1440, height: 1000 }], ['phone', { width: 390, height: 844 }]]) {
-  test(`portfolio is accessible from the account menu and fits ${name}`, async ({ page }) => {
+  test(`profile portfolio fits ${name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await setup(page, held());
-    await page.goto('/market');
-    await page.getByRole('button', { name: /Account:/ }).click();
-    await page.getByRole('menuitem', { name: 'Portfolio', exact: true }).click();
-    await expect(page).toHaveURL(/\/portfolio$/);
+    await openPortfolio(page);
+    await expect(page).toHaveURL(/\/profile$/);
     await expect(page.getByTestId('portfolio-market-value')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `test-results/portfolio-${name}.png`, fullPage: true });
   });
 }
 
-test('signed-out visitors must sign in without a paid upgrade and do not fetch holdings', async ({ page }) => {
-  const state = await setup(page, empty, { signedIn: false });
-  await page.goto('/portfolio');
-  await expect(page.getByRole('heading', { name: 'Portfolio', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true }).last()).toBeVisible();
-  await expect(page.getByText('PRO feature', { exact: true })).toHaveCount(0);
-  expect(state.reads).toBe(0);
-});
-
 test('Pro subscribers retain portfolio access', async ({ page }) => {
   await setup(page, empty, { pro: true });
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
 });
 
@@ -151,9 +143,10 @@ test('an enabled localhost demo opens the portfolio without registration', async
     ok: true, token: 'local-demo', user: demoUser,
   } }));
   await page.route('**/api/auth/me', route => route.fulfill({ json: { ok: true, user: demoUser } }));
-  await page.goto('/portfolio');
+  await openPortfolio(page);
   await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
   expect(await page.evaluate(() => localStorage.getItem('uz_stock_analyzer_token'))).toBeNull();
   await page.reload();
+  await page.getByRole('button',{name:'My portfolio',exact:true}).click();
   await expect(page.getByRole('button', { name: 'Record transaction', exact: true })).toBeEnabled();
 });

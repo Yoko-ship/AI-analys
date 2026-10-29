@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 for (const [device, width] of [['desktop', 1440], ['phone', 390]]) {
   for (const signedIn of [false, true]) {
-    test(`portfolio bookmarks are accessible on ${device} for ${signedIn ? 'members' : 'visitors'}`, async ({ page }) => {
+    test(`portfolio bookmarks redirect home on ${device} for ${signedIn ? 'members' : 'visitors'}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.addInitScript(({ signedIn }) => {
         localStorage.setItem('uz_stock_analyzer_language', 'en');
@@ -18,21 +18,22 @@ for (const [device, width] of [['desktop', 1440], ['phone', 390]]) {
           : { ok: true, items: [], transactions: [], stocks: [], companies: [] };
         await route.fulfill({ json: body });
       });
-      for (const path of ['/portfolio', '/uz/portfolio']) {
+      for (const path of ['/portfolio', '/portfolio/', '/uz/portfolio', '/uz/portfolio/']) {
         await page.goto(path);
-        await expect(page).toHaveURL(/\/portfolio$/);
-        await expect(page.getByTestId('portfolio-market-value')).toHaveCount(signedIn?1:0);
+        await expect(page).toHaveURL(/\/(uz)?$/);
+        await expect(page.locator('.lv-h1')).toBeVisible();
+        await expect(page.getByTestId('portfolio-market-value')).toHaveCount(0);
         await expect(page.locator('a[href$="/portfolio"]')).toHaveCount(0);
+        await expect(page.locator('.topbar-nav').getByRole('button',{name:/^(Portfolio|Портфель|Portfel)$/ ,includeHidden:true})).toHaveCount(0);
 
       }
       if (signedIn) {
         await page.goto('/market');
         await page.getByRole('button', { name: /Account:|Аккаунт:|Akkaunt:/ }).click();
         await expect(page.getByRole('menu')).toBeVisible();
-        await expect(page.getByRole('menuitem', { name: /Portfolio|Портфель|Portfel/ })).toHaveCount(1);
+        await expect(page.getByRole('menuitem', { name: /Portfolio|Портфель|Portfel/ })).toHaveCount(0);
       }
-      if (!signedIn) expect(portfolioRequests).toEqual([]);
-      else expect(portfolioRequests.length).toBeGreaterThan(0);
+      expect(portfolioRequests).toEqual([]);
     });
   }
 }

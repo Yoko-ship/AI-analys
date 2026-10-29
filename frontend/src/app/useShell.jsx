@@ -100,7 +100,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   }, []);
 
   const navItems = (token
-    ? ["main", "market", "catalog", "news", "portfolio", "feedback", "profile"]
+    ? ["main", "market", "catalog", "news", "feedback", "profile"]
     : ["main", "market", "catalog", "news", "feedback"])
     .filter(key => key !== "catalog" || canAccessCatalog);
 
@@ -354,7 +354,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                     })()}
                   </span>
                 ) : key === "compare" ? ct(language, "nav")
-                  : key === "portfolio" ? (language === "en" ? "Portfolio" : language === "uz" ? "Portfel" : "Портфель")
                     : key === "feedback" ? (language === "en" ? "Feedback" : language === "uz" ? "Fikr-mulohaza" : "Обратная связь")
                     : t(language, `nav.${key}`)}
               </button>
@@ -448,7 +447,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                   <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}>
                     {t(language, "nav.profile")}
                   </button>
-                  <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setActiveView("portfolio"); }}>{navDdLabel("Портфель", "Portfel", "Portfolio")}</button>
                   <button type="button" role="menuitem" className="is-logout" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }}>
                     {t(language, "auth.logout")}
                   </button>

@@ -148,13 +148,13 @@ describe("one list of URL languages", () => {
   });
 });
 
-it('opens the portfolio workspace from bookmarks and navigation', () => {
+it('redirects disabled portfolio bookmarks and navigation to the homepage', () => {
   for (const pathname of ['/portfolio', '/portfolio/', '/uz/portfolio', '/uz/portfolio/']) {
-    assert.equal(pathToView(pathname).view, 'portfolio');
+    assert.equal(pathToView(pathname).view, 'main');
   }
-  assert.equal(viewToPath('portfolio'), '/portfolio');
-  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz/portfolio');
-  assert.ok(!HIDDEN_VIEWS.has('portfolio'));
+  assert.equal(viewToPath('portfolio'), '/');
+  assert.equal(viewToPath('portfolio', null, null, null, 'uz'), '/uz');
+  assert.ok(HIDDEN_VIEWS.has('portfolio'));
 });
 it("news navigation offers both reading sections and the calendar and preserves old links", () => {
   assert.deepEqual(NEWS_TABS.map(tab => tab.key), ["general", "corporate", "calendar"]);
