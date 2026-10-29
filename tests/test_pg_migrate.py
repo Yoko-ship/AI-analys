@@ -59,7 +59,7 @@ class TestPlanning:
         """PostgreSQL owns them already; copying over them would destroy logins."""
         for table in ("web_users", "web_sessions", "web_oauth_accounts",
                       "web_favorite_companies", "web_analysis_history",
-                      "web_saved_notes", "web_notification_state", "web_support_requests"):
+                      "web_saved_notes", "web_notification_state", "web_support_requests", "web_site_ratings"):
             assert table in pg_migrate.PROTECTED
 
     def test_the_migration_ledger_is_protected_too(self):

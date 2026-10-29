@@ -85,3 +85,29 @@ class Support:
         if not row:
             raise ValueError("Feedback request not found")
         return {"id": int(row["id"]), "status": row["status"]}
+
+
+    def create_site_rating(self, *, response_id: str, rating: int, page_path: str, language: str) -> None:
+        """A retry after a lost response must never count as a second vote."""
+        with self.database.connect() as conn:
+            conn.execute("""
+                INSERT INTO web_site_ratings (response_id, rating, page_path, language)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (response_id) DO NOTHING
+            """, (response_id, rating, page_path, language))
+
+    def list_site_ratings(self) -> dict[str, Any]:
+        with self.database.connect() as conn:
+            distribution = conn.execute("""
+                SELECT rating, COUNT(*) AS count FROM web_site_ratings GROUP BY rating
+            """).fetchall()
+            rows = conn.execute("""
+                SELECT rating, page_path, language, created_at FROM web_site_ratings
+                ORDER BY created_at DESC, response_id DESC LIMIT 50
+            """).fetchall()
+        counts = {str(rating): 0 for rating in (1, 2, 3)}
+        counts.update({str(row['rating']): int(row['count']) for row in distribution})
+        return {
+            'total': sum(counts.values()), 'counts': counts,
+            'items': [{**row, 'created_at': row['created_at'].isoformat()} for row in rows],
+        }

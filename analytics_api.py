@@ -5,7 +5,9 @@ Two routers, mounted separately in api.py:
 * ``public_router`` carries ``POST /api/track`` — the beacon endpoint. It is
   unauthenticated by design (the audience is anonymous), answers 204 to
   everything, and never raises: a tracking failure must not surface in the
-  browser console of a visitor who never asked to be counted.
+  browser console of a visitor who never asked to be counted. The same router
+  accepts explicit anonymous ratings at ``POST /api/feedback/ratings``; those
+  confirm a durable write or return an error so the visitor can retry.
 * ``admin_router`` carries the panel's read endpoints and the user actions.
   It is mounted behind the human-admin gate in api.py. Collector secrets are
   intentionally insufficient for user data and account mutations.
@@ -17,7 +19,9 @@ import json
 import logging
 import uuid
 from functools import partial
-from typing import Any
+from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict, Field
+from psycopg import Error as DatabaseError
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
@@ -85,6 +89,37 @@ async def api_track(request: Request) -> Response:
 def _run(fn, *args, **kwargs):
     loop = asyncio.get_running_loop()
     return loop.run_in_executor(None, partial(fn, *args, **kwargs))
+
+
+class SiteRatingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    response_id: uuid.UUID
+    rating: int = Field(strict=True, ge=1, le=3)
+    page_path: str = Field(max_length=240, pattern=r"^/(?:[A-Za-z0-9_.%-][A-Za-z0-9_/%.\-]*)?$")
+    language: Literal["ru", "uz", "en"]
+
+
+@public_router.post("/api/feedback/ratings")
+async def api_site_rating(payload: SiteRatingRequest, request: Request) -> dict[str, bool]:
+    key = f"site-rating:{auth_limits._client_ip(request)}"
+    if not auth_limits._rate_limiter.allow(key, 10, 3600):
+        raise HTTPException(status_code=429, detail="Please try again later.", headers={
+            "Retry-After": str(auth_limits._rate_limiter.retry_after(key, 3600)),
+        })
+    try:
+        await _run(web_auth_store.support.create_site_rating, **payload.model_dump(mode="json"))
+    except (RuntimeError, DatabaseError) as exc:
+        logger.warning("Site rating could not be saved", exc_info=True)
+        raise HTTPException(status_code=503, detail="Could not save your rating. Please retry.") from exc
+    return {"ok": True}
+
+
+@admin_router.get("/api/admin/feedback/ratings")
+async def api_admin_site_ratings() -> dict[str, Any]:
+    try:
+        return await _run(web_auth_store.support.list_site_ratings)
+    except (RuntimeError, DatabaseError) as exc:
+        raise HTTPException(status_code=503, detail="Ratings are temporarily unavailable.") from exc
 
 
 @admin_router.get("/api/admin/metrics/overview")

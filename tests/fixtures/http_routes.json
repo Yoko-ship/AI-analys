@@ -4772,5 +4772,41 @@
     ],
     "name": "api_corporate_event_detail__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/admin/feedback/ratings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_site_ratings",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/feedback/ratings",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_site_rating",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/feedback/ratings",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_admin_site_ratings__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/feedback/ratings",
+    "methods": [
+      "POST"
+    ],
+    "name": "api_site_rating__v2",
+    "dependencies": []
   }
 ]

@@ -795,19 +795,6 @@ test("company overview opens the sourced AI financial report", async ({ page }, 
   const details = card.getByRole("button", { name: "Открыть полный анализ" });
   await expect(card).toContainText(COMPANY_AI_REPORT.headline);
   await expect(details).toBeVisible();
-  const sponsor = page.getByRole("complementary", { name: "Реклама" });
-  await expect(sponsor).toBeVisible();
-  // Measure after fonts and the entry transition have settled. A brief frame
-  // during reflow must not make the layout regression depend on test load.
-  await page.evaluate(() => document.fonts.ready);
-  await expect.poll(async () => {
-    const actionBox = await details.boundingBox();
-    const sponsorBox = await sponsor.boundingBox();
-    if (!actionBox || !sponsorBox) return false;
-    return actionBox.x + actionBox.width <= sponsorBox.x
-      || actionBox.y + actionBox.height <= sponsorBox.y
-      || sponsorBox.y + sponsorBox.height <= actionBox.y;
-  }).toBe(true);
   await details.click();
 
   const dialog = page.getByRole("dialog", { name: "AI-финансовый отчёт AGBA" });
@@ -1418,30 +1405,32 @@ test.describe("the market timestamp", () => {
   });
 });
 
-// Floating sponsor unit. The rules an ad has to keep are the ones worth pinning:
-// nothing before the delay, sound never starts on its own, the close control
-// always arrives, and a dismissed ad stays dismissed for the session.
-test("the sponsor overlay starts muted, becomes closable, and stays closed (§ads)", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator(".sponsor-overlay")).toHaveCount(0); // not before the delay
-  await expect(page.locator(".sponsor-overlay")).toBeVisible({ timeout: 15000 });
-
-  await expect(page.locator(".sponsor-overlay-label")).toHaveText("Реклама");
-  expect(await page.locator(".sponsor-overlay video").evaluate((v) => v.muted)).toBe(true);
-  // The countdown holds the close control back for a full 15s, then hands it
-  // over. Ten seconds in it is still a counter, not an ×.
-  await expect(page.locator(".sponsor-overlay-count")).toBeVisible();
-  await page.waitForTimeout(10000);
-  await expect(page.locator(".sponsor-overlay-close")).toHaveCount(0);
-  await expect(page.locator(".sponsor-overlay-close")).toBeVisible({ timeout: 12000 });
-
-  await page.locator(".sponsor-overlay-close").click();
-  await expect(page.locator(".sponsor-overlay")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Рынок", exact: true }).click();
-  await page.waitForTimeout(4000);
-  await expect(page.locator(".sponsor-overlay")).toHaveCount(0);
-});
+for (const mobile of [false, true]) {
+  test(`public pages do not display or download advertisements (mobile=${mobile})`, async ({ page }) => {
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+    const promoRequests = [];
+    page.on("request", request => {
+      if (/\/promo(?:-poster)?[.-]/.test(request.url())) promoRequests.push(request.url());
+    });
+    await page.clock.install();
+    const assertNoAdvertisement = async () => {
+      // Advance beyond the former 2.5-second display delay in a fresh session.
+      await page.clock.runFor(3000);
+      await expect(page.locator(".sponsor-overlay")).toHaveCount(0);
+      await expect(page.getByRole("complementary", { name: /Реклама|Reklama|Advertisement/ })).toHaveCount(0);
+      expect(promoRequests).toEqual([]);
+    };
+    await page.goto("/");
+    await assertNoAdvertisement();
+    if (mobile) await page.getByRole("button", { name: "Открыть меню", exact: true }).click();
+    await page.getByRole("button", { name: "Рынок", exact: true }).click();
+    await assertNoAdvertisement();
+    await page.goto("/company/AGBA");
+    await assertNoAdvertisement();
+    await page.reload();
+    await assertNoAdvertisement();
+  });
+}
 
 // Two sessions, and volumes that deliberately disagree with the dates: the heaviest
 // row of all sits on the OLDER day, so a volume-only sort heads the table with it and

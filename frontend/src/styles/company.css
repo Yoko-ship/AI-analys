@@ -47,13 +47,7 @@
   border-radius: 14px;
   background: color-mix(in srgb, var(--panel) 88%, var(--bg-2));
   box-shadow: var(--shadow-xs);
-  transition: margin-right .2s ease, border-color .15s;
-}
-/* The sponsor is portaled and appears after the page settles.  Reserve its
-   actual 220px footprint only while it exists so the report action is never
-   hidden underneath it, then reclaim the space when the unit closes. */
-@media (min-width: 761px) {
-  body:has(.sponsor-overlay) .company-insight-card { margin-right: 236px; }
+  transition: border-color .15s;
 }
 .company-insight-card.tone-positive { border-color: color-mix(in srgb, var(--success) 24%, var(--border)); }
 .company-insight-card.tone-warning { border-color: color-mix(in srgb, var(--warning) 26%, var(--border)); }

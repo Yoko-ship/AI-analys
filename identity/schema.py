@@ -237,6 +237,18 @@ def initialize(connection_factory) -> None:
             )
             """
         )
+        # Explicit anonymous ratings: no account, IP, or analytics identifier.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS web_site_ratings (
+                response_id UUID PRIMARY KEY,
+                rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 3),
+                page_path VARCHAR(240) NOT NULL,
+                language VARCHAR(2) NOT NULL CHECK (language IN ('ru', 'uz', 'en')),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        conn.execute("""CREATE INDEX IF NOT EXISTS idx_web_site_ratings_created
+                     ON web_site_ratings(created_at DESC)""")
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_web_sessions_user_id

@@ -9,8 +9,11 @@ export function useAdminFeedback({
   const [feedbackBusy, setFeedbackBusy] = useState(0);
   const loadFeedback = useCallback(async (status = feedbackFilter) => {
     const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
-    const data = await readJson(`/api/admin/feedback${suffix}`);
-    if (alive.current) setFeedbackData(data);
+    const [data, ratings] = await Promise.all([
+      readJson(`/api/admin/feedback${suffix}`),
+      readJson('/api/admin/feedback/ratings').catch(error => ({ error: String(error.message || error) })),
+    ]);
+    if (alive.current) setFeedbackData({ ...data, ratings });
   }, [feedbackFilter, readJson, alive]);
   const updateFeedbackStatus = useCallback(async (id, status) => {
     setFeedbackBusy(id);

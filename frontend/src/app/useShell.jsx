@@ -11,8 +11,8 @@ import { patternName } from "../lib/patterns.js";
 import { accountInitials } from "../shared/accountIdentity.jsx";
 import { TEXT_SCALES } from "./preferences.jsx";
 import { DisclaimerNote } from "../shared/DisclaimerNote.jsx";
+import { RatingPrompt } from "../features/feedback/index.js";
 import { ToastStack } from "./toasts.jsx";
-import { SponsorOverlay } from "./SponsorOverlay.jsx";
 
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
   const { token, user, canAccessCatalog } = sessionModule;
@@ -561,9 +561,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
-      {/* Keep staff tooling and authentication focused: a floating promotion
-          must not cover findings or compete with credentials and recovery. */}
-      {!["admin", "auth"].includes(activeView) && <SponsorOverlay language={language} />}
+      <RatingPrompt language={language} blocked={['admin', 'auth', 'profile', 'feedback'].includes(activeView) || mobileNavOpen || accountMenuOpen || notifOpen} />
       {overlay}
     </div>);
   return { render };
