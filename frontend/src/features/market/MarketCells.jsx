@@ -6,8 +6,6 @@ import { RangeHelpIcon, incompleteIssuerCapAvailability, lossLabel, lossTitle, m
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
 import { finFieldCoverage, finFieldPeriod, finPeriodCoverage } from "../../lib/valuation.js";
 import { marketVolumeShare } from "../../lib/marketVolume.js";
-import { TermInfo } from "../../shared/TermInfo.jsx";
-import { ratioCalculationDescription, ratioCalculationLabel } from "./ratioCalculation.js";
 import { MarketChangeBadge } from "../../shared/MarketChangeBadge.jsx";
 export function createMarketCells({
   lang,
@@ -160,13 +158,9 @@ export function createMarketCells({
     }
     const period = (r.periods || {})[field] || null;
     const calculation = r.calculations?.[field];
-    const calculated = lang === 'en' ? 'calc.' : lang === 'uz' ? 'hisob' : 'расчёт';
     const annualized = lang === 'en' ? 'ann.' : lang === 'uz' ? 'yillik' : 'год.';
     return <td className="num">
         {formatRatio(value, digits, lang)}{suffix}
-        {calculation && <TermInfo termId={field} lang={lang}
-          label={`${ratioCalculationLabel(field, lang)} · ${calculated}`}
-          description={ratioCalculationDescription(field, calculation, lang)} />}
         {period && <span className="fin-cell-period">{period}{calculation?.annualized ? ` · ${annualized}` : ''}</span>}
       </td>;
   };

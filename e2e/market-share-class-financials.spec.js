@@ -2,12 +2,13 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-async function openBoard(page, columns) {
+async function openBoard(page, columns, theme = 'light') {
   const fixture = JSON.parse(readFileSync('tests/fixtures/uztl_share_classes.json', 'utf8'));
   // Exercise the real cache reader and API scaling; the browser receives their
   // output, not a fixture that already assumes the share classes agree.
-  const financials = JSON.parse(execFileSync('.venv/bin/python', ['-c', `
-import asyncio, json, os, tempfile
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const financials = JSON.parse(execFileSync(python, ['-c', `
+import asyncio, dbx, json, os, tempfile
 from pathlib import Path
 from unittest.mock import patch
 from catalogue import financial_store, read_batch
@@ -22,17 +23,20 @@ with tempfile.TemporaryDirectory() as directory:
          patch('catalogue.refresh.refresh_financials_cache'):
         print(json.dumps({'financials': asyncio.run(api_market_financials()),
                           'ratios': asyncio.run(api_market_ratios())}))
+    # Release pooled SQLite handles before Windows removes the temporary DB.
+    dbx.reset_pools()
 `], { encoding: 'utf8' }));
   const stocks = Object.entries(fixture.securities).map(([ticker, security]) => ({
     ...security, ticker, name: 'Uzbektelecom', last_price: ticker === 'UZTL' ? 20980 : 12680,
     close_price: 12000, volume: 1000000, quantity: 1000, trade_count: 4,
     last_trade_date: '2026-10-28', industry: 'telecom',
   }));
-  await page.addInitScript(columns => {
+  await page.addInitScript(({ columns, theme }) => {
     sessionStorage.setItem('uz_sponsor_seen', '1');
     localStorage.setItem('uz_track_internal', '1');
     localStorage.setItem('uz_market_cols_v3', JSON.stringify(columns));
-  }, columns);
+    localStorage.setItem('uz_stock_analyzer_theme', theme);
+  }, { columns, theme });
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const json = body => route.fulfill({ json: body });
@@ -64,25 +68,26 @@ test('ordinary and preferred shares show the latest issuer filing with their own
   }
 });
 
-test('current issuer coefficients include reproducible calculations and annualization', async ({ page }, testInfo) => {
-  const rows = await openBoard(page, ['debtAssets', 'assetTurnover', 'roce']);
+for (const theme of ['light', 'dark']) test(`issuer coefficients have no help markers beside values (${theme})`, async ({ page }, testInfo) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const columns = ['currentRatio', 'quickRatio', 'debtAssets', 'assetTurnover', 'roce'];
+  const rows = await openBoard(page, columns, theme);
   for (const ticker of ['UZTL', 'UZTLP']) {
     const row = rows.filter({ has: page.getByText(ticker, { exact: true }) });
+    await expect(row).toContainText(/0[,.]78/);
+    await expect(row).toContainText(/0[,.]55/);
     await expect(row).toContainText(/75[,.]7%/);
     await expect(row).toContainText(/0[,.]65/);
     await expect(row).toContainText(/0[,.]18/);
-    await expect(row.locator('.fin-cell-period')).toHaveCount(3);
+    await expect(row.locator('.fin-cell-period')).toHaveCount(5);
     for (const cell of await row.locator('.fin-cell-period').all()) await expect(cell).toContainText('2026Q3');
     await expect(row).toContainText('год.');
-    const info = row.locator('.term-info-btn').last();
-    await info.click();
-    const tip = page.getByRole('tooltip');
-    await expect(tip).toContainText('Расчёт UZStock');
-    await expect(tip).toContainText('Операционная прибыль / (Активы - Текущие обязательства)');
-    await expect(tip).toContainText(/1\s*809\s*880\s*688/);
-    await expect(tip).toContainText('× 12 / 9');
-    await expect(tip).toContainText('тыс. сум');
-    await page.keyboard.press('Escape');
+    await expect(row.locator('.term-info-btn')).toHaveCount(0);
+    await expect(row).not.toContainText('!');
+  }
+  for (const column of columns) {
+    await expect(page.locator(`.market-table th[data-sort-key="${column}"] .term-info-btn`)).toHaveCount(1);
   }
   const [download] = await Promise.all([
     page.waitForEvent('download'), page.getByRole('button', { name: /Экспорт CSV/ }).click(),
@@ -90,9 +95,13 @@ test('current issuer coefficients include reproducible calculations and annualiz
   const csv = readFileSync(await download.path(), 'utf8');
   expect(csv).toContain('2026Q3');
   expect(csv).toContain('× 12 / 9');
+  expect(csv).toContain('Операционная прибыль / (Активы - Текущие обязательства)');
+  expect(csv).toContain('тыс. сум');
+  await rows.first().locator('td').last().scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath('coefficients-desktop.png') });
   await page.setViewportSize({ width: 390, height: 844 });
-  const marker = rows.first().locator('.term-info-btn').last();
+  await expect(rows.locator('.term-info-btn')).toHaveCount(0);
+  const marker = page.locator('.market-table th[data-sort-key="roce"] .term-info-btn');
   await marker.scrollIntoViewIfNeeded();
   await marker.click();
   const tip = page.getByRole('tooltip');
@@ -101,5 +110,8 @@ test('current issuer coefficients include reproducible calculations and annualiz
   const box = await tip.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await page.keyboard.press('Escape');
+  await expect(tip).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('coefficients-mobile.png'), animations: 'disabled' });
+  expect(errors).toEqual([]);
 });
