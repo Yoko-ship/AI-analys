@@ -52,3 +52,6 @@
 @media (max-width: 760px) {
   .reference-currency .cbu-history .cbu-navigation button { min-height: 44px; }
 }
+
+.reference-currency .cbu-history .cbu-plot-frame { position: relative; min-width: 0; }
+.reference-currency .cbu-history .cbu-edge-loading { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 90px); margin: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text-secondary); font-size: 11px; line-height: 1.4; pointer-events: none; }

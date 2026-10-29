@@ -46,3 +46,9 @@ export function mergeHistoryPoints(existing, incoming) {
   }
   return [...days.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
+
+// Extend the navigation edge only through dates already fetched successfully.
+// An isolated old observation before a pending gap must not unlock that gap.
+export function historyContiguousTail(points) {
+  return points.slice(points.findLastIndex(point=>!Number.isFinite(point.value))+1);
+}

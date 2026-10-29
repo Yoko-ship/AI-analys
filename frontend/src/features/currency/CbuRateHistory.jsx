@@ -33,7 +33,7 @@ function HistoryPlot({data, language, t}) {
   const selectedIndex=selected?points.findIndex(p=>p.date===selected):-1;
   const index = selectedIndex<0?to:selectedIndex, point = points[index];
   const number = value=>formatRatio(value,2,language);
-  const spec = useMemo(()=>({main:'history', timeScale:{fixRightEdge:true, fixLeftEdge:!earlier.hasEarlier,
+  const spec = useMemo(()=>({main:'history', timeScale:{fixRightEdge:true, fixLeftEdge:true,
     tickMarkFormatter:time=>dateLabel(new Date(time*1000).toISOString().slice(0,10),language)}, series:historySeries(points, {
     priceFormat:{type:'custom', minMove:0.01, formatter:value=>formatRatio(value,2,language)},
     autoscaleInfoProvider:original=>{
@@ -42,13 +42,17 @@ function HistoryPlot({data, language, t}) {
       const scale=historyScale([info.priceRange.minValue,info.priceRange.maxValue]);
       return {...info,priceRange:{minValue:scale.min,maxValue:scale.max}};
     },
-  })}),[points,language,earlier.hasEarlier]);
+  })}),[points,language]);
   const valueText = `${dateLabel(point.date,language,true)}: ${Number.isFinite(point.value)?number(point.value)+' UZS':t.unavailable}`;
   const initialView=useMemo(()=>({from:Date.parse(data.start+'T00:00:00Z')/1000,to:Date.parse(data.end+'T00:00:00Z')/1000}),[data.start,data.end]);
   const loadEarlier=earlier.load;
   useEffect(()=>{
-    if(interacted.current&&visible?.anchor===points[0].date&&visible.logicalFrom < -1.5)loadEarlier();
+    if(interacted.current&&visible?.anchor===points[0].date&&visible.logicalFrom <= 7)loadEarlier();
   },[visible?.logicalFrom,visible?.anchor,points,loadEarlier]);
+  const approachEdge=()=>{
+    interacted.current=true;
+    if(visible?.anchor===points[0].date&&visible.logicalFrom<=7)loadEarlier();
+  };
   const selectKey = e=>{
     interacted.current=true;
     const next={ArrowLeft:index-1,ArrowDown:index-1,ArrowRight:index+1,ArrowUp:index+1,Home:0,End:points.length-1};
@@ -70,14 +74,17 @@ function HistoryPlot({data, language, t}) {
       <strong>{Number.isFinite(point.value)?`${number(point.value)} UZS`:t.unavailable}</strong>
       <small>{point.effective_date && point.effective_date!==point.date?`${t.effective} ${dateLabel(point.effective_date,language,true)}`:'\u00a0'}</small>
     </div>
+    <div className="cbu-plot-frame">
     <div className="cbu-plot" role="slider" tabIndex={0} aria-orientation="horizontal"
       aria-label={`${t.inspect}, ${data.ccy}/UZS. ${t.keys}`} aria-valuemin={0} aria-valuemax={points.length-1}
       aria-valuenow={index} aria-valuetext={valueText} onKeyDown={selectKey}
-      onPointerDown={()=>{interacted.current=true;}} onWheelCapture={e=>{if(e.ctrlKey)interacted.current=true;}} data-segments={spec.series.length-1}>
+      onPointerEnter={e=>{if(e.pointerType==='mouse')approachEdge();}} onPointerDown={approachEdge} onWheelCapture={e=>{if(e.ctrlKey)approachEdge();}} data-segments={spec.series.length-1} data-logical-from={visible?.logicalFrom}>
       <LwCanvas spec={spec} height={220} lang={language} viewKey={`${data.ccy}:${data.days}:${data.start}:${data.end}`}
         resetToken={resetToken} focus={focus} initialView={initialView} preserveTimeOnPrepend aria-hidden="true"
         onHover={reading=>setSelected(reading?points[reading.index]?.date:null)} onClick={reading=>setSelected(points[reading.index]?.date)}
         onRange={range=>setVisible(current=>current?.from===range.from&&current?.to===range.to&&current?.changed===range.changed&&current?.logicalFrom===range.logicalFrom&&current?.anchor===points[0].date?current:{...range,anchor:points[0].date,fromDate:points[range.from].date,toDate:points[range.to].date})}/>
+    </div>
+    {earlier.status==='loading'&&<p className="cbu-edge-loading" role="status">{t.earlierLoading}</p>}
     </div>
     <div className="cbu-navigation">
       <span data-testid="history-visible-range" data-from={points[from].date} data-to={points[to].date}>
@@ -85,8 +92,8 @@ function HistoryPlot({data, language, t}) {
       </span>
       <button type="button" disabled={!visible?.changed} onClick={()=>{interacted.current=false;setSelected(null);setFocus(null);setResetToken(n=>n+1);}}>{t.reset}</button>
     </div>
-    {earlier.status!=='idle'&&<div className="cbu-gaps" role="status">
-      <span>{earlier.status==='loading'?t.earlierLoading:t.earlierError}</span>
+    {earlier.status==='error'&&<div className="cbu-gaps" role="status">
+      <span>{t.earlierError}</span>
       {earlier.status==='error'&&<button aria-label={t.earlierRetry} onClick={earlier.retry}>{t.retry}</button>}
     </div>}
     <p className="cbu-hint">{touch?t.touchHint:t.desktopHint}</p>

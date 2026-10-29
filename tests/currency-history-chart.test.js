@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historyScale, historySegments, historySeries, mergeHistoryPoints } from '../frontend/src/features/currency/historyChart.js';
+import { historyScale, historySegments, historySeries, mergeHistoryPoints, historyContiguousTail } from '../frontend/src/features/currency/historyChart.js';
 
 test('a tiny daily USD or RUB move does not stretch across the whole plot', () => {
   for (const values of [[12000,12004.02], [148.8,148.81], [12004.02,12004.02]]) {
@@ -37,4 +37,12 @@ test('earlier pages merge in calendar order without duplicates or replacing know
  const earlier=[{date:'2026-09-28',value:11810},{date:'2026-09-29',value:null},{date:'2026-09-30',value:11820}];
  const merged=mergeHistoryPoints(current,earlier);
  assert.deepEqual(merged.map(p=>[p.date,p.value]), [['2026-09-28',11810],['2026-09-29',11806.97],['2026-09-30',11820]]);
+});
+
+
+test('a partly fetched July page does not expose its unfilled dates as pannable history', () => {
+ const page=[{date:'2026-06-28',value:12055},{date:'2026-07-10',value:null},{date:'2026-07-11',value:12025.37},{date:'2026-07-12',value:12004.02}];
+ assert.deepEqual(historyContiguousTail(page),page.slice(2));
+ assert.deepEqual(historyContiguousTail([{date:'2026-07-28',value:null}]),[]);
+ assert.deepEqual(historyContiguousTail(page.slice(2)),page.slice(2));
 });

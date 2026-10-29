@@ -7,11 +7,25 @@ async function setup(page, {language='en',theme='light',mode='normal'}={}) {
  await page.route('**/api/**',async route=>{
   const url=new URL(route.request().url()),path=url.pathname;
   if(path==='/api/currency/history') {
-   calls.push(url.searchParams.get('ccy')+':'+url.searchParams.get('days'));
+   calls.push(url.searchParams.get('ccy')+':'+url.searchParams.get('days')+(url.searchParams.has('end')?'@'+url.searchParams.get('end'):''));
    if(mode==='error' && calls.length===1) return route.fulfill({status:503,json:{detail:'Unavailable'}});
    const data=history(url.searchParams.get('ccy'),Number(url.searchParams.get('days')));
+   if(url.searchParams.has('end')) {
+    const end=url.searchParams.get('end');
+    data.points=Array.from({length:31},(_,i)=>{
+     const date=new Date(Date.parse(end+'T00:00:00Z')-(30-i)*86400000).toISOString().slice(0,10);
+     return {date,value:11800+i,effective_date:date};
+    });
+    data.start=data.points[0].date;data.end=end;
+   }
    if(mode==='gap'||(mode==='pending'&&calls.length===1)) { data.points=data.points.map((p,i)=>i===10?{...p,value:null,effective_date:null}:p);data.missing_days=1; }
    if(mode==='pending'&&calls.length===1)data.pending_days=1;
+   if(mode==='august') {
+    const shift=day=>new Date(Date.parse(day+'T00:00:00Z')-62*86400000).toISOString().slice(0,10);
+    data.points=data.points.map(p=>({...p,date:shift(p.date),effective_date:shift(p.effective_date)}));
+    data.start=shift(data.start);data.end=shift(data.end);
+    data.summary={...data.summary,latest_date:data.end,latest_effective_date:data.end};
+   }
    if(mode==='empty') { data.points=[];data.summary={}; }
    return route.fulfill({json:data});
   }
@@ -32,17 +46,17 @@ test('daily chart has a readable scale, period change, dates and keyboard/hover 
  expect(await card(page).getByTestId('history-latest').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(22);
  await expect(card(page).getByTestId('history-change')).toContainText('+197.05');
  await expect(card(page).getByTestId('history-change')).toContainText('+1.67%');
- expect(calls).toEqual(['USD:30']);
+ expect(calls.filter(call=>!call.includes('@'))).toEqual(['USD:30']);
  await expect(card(page).locator('canvas').first()).toBeVisible();
  const plot=card(page).getByRole('slider');
  await plot.focus();await page.keyboard.press('Home');
  await expect(plot).toHaveAttribute('aria-valuetext',/11,806.97/);
  await page.keyboard.press('ArrowRight');
- await expect(plot).toHaveAttribute('aria-valuenow','1');
+ await expect(plot).toHaveAttribute('aria-valuetext',/30 Sept 2026/);
  await plot.hover({position:{x:120,y:80}});
  await expect(card(page).getByTestId('history-readout')).not.toContainText('29 Oct');
  await card(page).getByRole('button',{name:'1W',exact:true}).click();
- await expect.poll(()=>calls).toEqual(['USD:30','USD:7']);
+ await expect.poll(()=>calls.filter(call=>!call.includes('@'))).toEqual(['USD:30','USD:7']);
  await expect(card(page).getByRole('button',{name:'1D',exact:true})).toHaveCount(0);
  await page.screenshot({path:info.outputPath('cbu-history-desktop.png'),fullPage:true});
 });
@@ -225,4 +239,33 @@ test('an unavailable earlier month preserves the current chart and offers retry'
  await expect(plot).toBeVisible();
  await card(page).getByRole('button',{name:'Retry earlier rates'}).click();
  await expect.poll(()=>calls).toBe(2);
+});
+
+
+test('the July edge never becomes blank while the previous month is delayed or fails',async({page})=>{
+ await setup(page,{mode:'august'});
+ let release;
+ const requests=[];
+ await page.route('**/api/currency/history*',async route=>{
+  const url=new URL(route.request().url());
+  if(!url.searchParams.has('end'))return route.fallback();
+  requests.push(url.searchParams.get('end'));
+  await new Promise(resolve=>{release=resolve;});
+  await route.fulfill({status:503,json:{detail:'Slow archive unavailable'}});
+ });
+ const plot=card(page).getByRole('slider'),range=card(page).getByTestId('history-visible-range');
+ await expect(range).toHaveAttribute('data-from','2026-07-29');
+ await plot.scrollIntoViewIfNeeded();const box=await plot.boundingBox();
+ for(let drag=0;drag<3;drag++){
+  await page.mouse.move(box.x+box.width*.2,box.y+80);await page.mouse.down();
+  await page.mouse.move(box.x+box.width*.75,box.y+80,{steps:12});await page.mouse.up();
+ }
+ await expect.poll(()=>requests).toEqual(['2026-07-28']);
+ expect(Number(await plot.getAttribute('data-logical-from'))).toBeGreaterThanOrEqual(-1);
+ await expect(card(page)).toContainText('Loading earlier rates');
+ await expect(range).toHaveAttribute('data-from','2026-07-29');
+ release();
+ await expect(card(page)).toContainText('Earlier rates unavailable');
+ expect(Number(await plot.getAttribute('data-logical-from'))).toBeGreaterThanOrEqual(-1);
+ await expect(plot.locator('canvas').first()).toBeVisible();
 });
