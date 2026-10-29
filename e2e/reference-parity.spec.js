@@ -29,10 +29,10 @@ test('corporate detail shows extracted fields and the reason for its attention l
  const detail=page.getByTestId('corporate-event-detail');
  await expect(detail).toContainText('Payment system');await expect(detail).toContainText('voluntary licence return');
 });
-test('simplified header retains the issuer directory for an admin on a phone',async({page})=>{
+test('simplified header keeps bank rates accessible for an admin on a phone',async({page})=>{
  await setup(page,{admin:true});await page.setViewportSize({width:390,height:844});await page.goto('/');
  await page.getByRole('button',{name:'Open menu',exact:true}).click();
- await page.locator('.nav-dd-mobile-item').getByText('Company directory',{exact:true}).click();await expect(page).toHaveURL(/issuers$/);
+ await page.locator('.nav-dd-mobile-item').getByText('Bank exchange rates',{exact:true}).click();await expect(page).toHaveURL(/currency$/);
 });
 test('currency dashboard uses readable heading and KPI sizes',async({page})=>{
  await setup(page);await page.goto('/currency');

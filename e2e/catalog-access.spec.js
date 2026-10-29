@@ -42,7 +42,7 @@ for (const role of ['guest', 'member', 'pro']) {
   });
 }
 
-test('company menu entries require verified admin access and disappear on logout',async({page})=>{
+test('company menu entries stay removed before and after admin verification and logout',async({page})=>{
   let verify;
   const ready=new Promise(resolve=>{verify=resolve;});
   await accessFixture(page,{signedIn:true,admin:true,ready});
@@ -56,12 +56,13 @@ test('company menu entries require verified admin access and disappear on logout
   } finally {verify();}
   await expect(page.locator('.account-button')).toBeVisible();
   await market.hover();
-  await expect(page.getByRole('menuitem',{name:'Company directory',exact:true})).toBeVisible();
-  await expect(page.getByRole('menuitem',{name:'Compare companies',exact:true})).toBeVisible();
+  await expect(page.locator('#header-menu-market').getByRole('menuitem')).toHaveText(['Exchange instruments','Market map','Bank exchange rates']);
+  await expect(page.getByRole('menuitem',{name:'Company directory',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('menuitem',{name:'Compare companies',exact:true})).toHaveCount(0);
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'Open menu',exact:true}).click();
   for(const name of ['Company directory','Compare companies'])
-    await expect(page.locator('.topbar-nav').getByRole('button',{name,exact:true})).toBeVisible();
+    await expect(page.locator('.topbar-nav').getByRole('button',{name,exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Close menu',exact:true}).click();
   await page.locator('.account-button').click();
   await page.getByRole('menuitem',{name:'Log out',exact:true}).click();
