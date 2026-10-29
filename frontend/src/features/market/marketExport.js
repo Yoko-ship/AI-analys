@@ -4,6 +4,7 @@ import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/m
 import { mt } from "../../shared/marketCopy.jsx";
 import { marketRowDay } from "../../lib/valuation.js";
 import { marketVolumeShare } from "../../lib/marketVolume.js";
+import { ratioCalculationDescription, ratioCalculationLabel } from "./ratioCalculation.js";
 export function createMarketExport({
   lang,
   type,
@@ -129,6 +130,18 @@ export function createMarketExport({
     // so the unit moves to the heading.
     const PCT_COLS = new Set(["change", "change1w", "change1m", "volShare", "roe", "roa", "netMargin", "eqAssets", "debtAssets"]);
     const cols = visibleOrder.filter(k => EXPORT_OF[k]);
+    const ratioFields = { currentRatio: 'current_ratio', quickRatio: 'quick_ratio', debtAssets: 'debt_ratio',
+      assetTurnover: 'total_asset_turnover', roce: 'return_to_capital_employed' };
+    // Preserve the period and calculation basis without changing numeric table columns.
+    for (const row of visibleRows) {
+      for (const col of cols) {
+        const field = ratioFields[col], calculation = ratioOf(row.ticker)?.calculations?.[field];
+        if (calculation) lines.push([
+          `${row.ticker} · ${ratioCalculationLabel(field, lang)}`,
+          ratioCalculationDescription(field, calculation, lang),
+        ].map(cell).join(sep));
+      }
+    }
     const label = k => LABEL_OF[k] || k;
     const header = [mt(lang, "ticker"), mt(lang, "company"), ...cols.map(k => PCT_COLS.has(k) && !label(k).includes("%") ? `${label(k)}, %` : label(k))];
     lines.push(header.map(cell).join(sep));

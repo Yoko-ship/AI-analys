@@ -5,14 +5,16 @@ of the 95 issuers on the board and ROCE for 64, so three of the four coefficient
 columns were blank for two issuers in five — while every one of them files the
 balance lines the ratios are made of.
 
-The three identities below were MEASURED against the feed's own numbers (see the
-comment in get_all_ratios): current and quick reproduce it 35 times in 38, the
-turnover 34 in 37, to the two decimals it publishes. ROCE reproduces 7 in 42 and
-is therefore never derived — that is the case these tests pin.
+Calculated coefficients retain their formula and inputs separately from the
+published indicator feed. Interim flows are explicitly annualized, while balance
+ratios remain point-in-time. The reported UZTL Q3 regression exercises both
+share classes and the stale annual values that previously remained on screen.
 """
 from __future__ import annotations
 
 import sqlite3
+import json
+from pathlib import Path
 
 import pytest
 
@@ -64,12 +66,7 @@ class TestLiquidityFromTheFilings:
         assert got["total_asset_turnover"] == 0.5      # 500 / 1000
         assert got["periods"]["current_ratio"] == "2025"
 
-    def test_roce_is_never_derived(self, catalog) -> None:
-        """The feed computes it on a base it does not name — 7 of 42 reproduce.
-
-        Publishing our own different number under the source's label would be
-        the worse of the two answers; a blank column is honest.
-        """
+    def test_roce_is_explicitly_calculated_with_its_own_formula(self, catalog) -> None:
         _fact(catalog, "roe", "2025", 12.0)
         catalogue_financial_store.bulk_upsert_financials([_filing(
             2025, revenue=500.0, operating_income=90.0, total_assets=1000.0,
@@ -77,7 +74,9 @@ class TestLiquidityFromTheFilings:
 
         got = catalogue_ratios.get_all_ratios()["AAA"]
 
-        assert got.get("return_to_capital_employed") is None
+        assert got['return_to_capital_employed'] == pytest.approx(90 / 850)
+        assert got['calculations']['return_to_capital_employed']['origin'] == 'UZStock_calculated'
+        assert got['calculations']['return_to_capital_employed']['formula'] == 'operating_income / (total_assets - current_liabilities)'
 
     def test_a_more_recent_filing_wins_over_the_feed(self, catalog) -> None:
         _fact(catalog, "roe", "2025", 12.0)
@@ -101,10 +100,7 @@ class TestLiquidityFromTheFilings:
         assert got["current_ratio"] == 9.99
         assert got["periods"]["current_ratio"] == "2025"
 
-    def test_the_turnover_refuses_a_cumulative_quarter(self, catalog) -> None:
-        """A Q2 revenue is six months. Over a full balance it reads as a business
-        half its size — so the turnover comes off annual rows only, while the two
-        balance ratios are point-in-time and any period states them."""
+    def test_quarterly_turnover_is_explicitly_annualized(self, catalog) -> None:
         _fact(catalog, "roe", "2025", 12.0)
         catalogue_financial_store.bulk_upsert_financials([_filing(
             2025, quarter=2, revenue=500.0, total_assets=1000.0,
@@ -112,21 +108,75 @@ class TestLiquidityFromTheFilings:
 
         got = catalogue_ratios.get_all_ratios()["AAA"]
 
-        assert got.get("total_asset_turnover") is None
+        assert got['total_asset_turnover'] == 1.0
+        calculation = got['calculations']['total_asset_turnover']
+        assert calculation['annualized'] is True
+        assert calculation['period_months'] == 6
+        assert calculation['formula'] == 'revenue / total_assets * 12 / 6'
         assert got["current_ratio"] == 2.0, "a balance ratio holds in any period"
 
-    def test_a_form_with_no_current_section_derives_nothing(self, catalog) -> None:
-        """The bank balance is not split into current and non-current, and no
-        current ratio is defined for one."""
+    def test_a_form_with_no_current_section_derives_no_liquidity(self, catalog) -> None:
         _fact(catalog, "roe", "2025", 12.0)
         catalogue_financial_store.bulk_upsert_financials([_filing(2025, revenue=500.0, total_assets=1000.0)])
-
         got = catalogue_ratios.get_all_ratios()["AAA"]
-
         assert got.get("current_ratio") is None
         assert got.get("quick_ratio") is None
-        assert got["total_asset_turnover"] == 0.5, "the turnover needs no split"
+        assert got["total_asset_turnover"] == 0.5
 
+
+def test_uztl_q3_calculations_replace_stale_annual_coefficients_for_both_classes(catalog, monkeypatch):
+    from catalogue import read_batch
+    fixture = json.loads(Path('tests/fixtures/uztl_share_classes.json').read_text())
+    monkeypatch.setattr(read_batch, 'securities', lambda: fixture['securities'])
+    with catalog:
+        catalog.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('UZTL','Uzbektelecom','777')")
+    for field, value in [('debt_ratio', 77.6), ('total_asset_turnover', .78), ('return_to_capital_employed', .07)]:
+        _fact(catalog, field, '2025', value)
+    catalogue_financial_store.bulk_upsert_financials(fixture['rows'])
+    with catalog:
+        catalog.execute("UPDATE catalog_financials SET report_id=3398 WHERE ticker='UZTL'")
+    result = catalogue_ratios.get_all_ratios()
+    for ticker in ('UZTL', 'UZTLP'):
+        row = result[ticker]
+        assert row['debt_ratio'] == pytest.approx(13530092389 / 17865340081 * 100)
+        assert row['total_asset_turnover'] == pytest.approx(8771988231 / 17865340081 * 12 / 9)
+        assert row['return_to_capital_employed'] == pytest.approx(1809880688 / (17865340081 - 4660538528) * 12 / 9)
+        for field in ('debt_ratio', 'total_asset_turnover', 'return_to_capital_employed'):
+            calc = row['calculations'][field]
+            assert calc['period'] == row['periods'][field] == '2026Q3'
+            assert calc['report_id'] == 3398
+            assert calc['ticker'] == 'UZTL'
+            assert calc['operand_unit'] == 'thousand_UZS'
+            assert calc['annualized'] == (field != 'debt_ratio')
+    result['UZTLP']['calculations']['debt_ratio']['operands']['total_assets'] = -1
+    assert result['UZTL']['calculations']['debt_ratio']['operands']['total_assets'] > 0
+
+
+@pytest.mark.parametrize('problem', ['missing_assets', 'zero_assets', 'negative_capital', 'mixed_period', 'future', 'invalid_quarter', 'bank'])
+def test_unusable_inputs_never_produce_current_roce(catalog, problem):
+    _fact(catalog, 'return_to_capital_employed', '2024', .07)
+    row = _filing(2025, 2, operating_income=90, revenue=500, total_assets=1000, current_liabilities=150)
+    row.update({
+        'missing_assets': {'total_assets': None}, 'zero_assets': {'total_assets': 0},
+        'negative_capital': {'current_liabilities': 1200},
+        'mixed_period': {'field_periods': {'operating_income': '2024'}},
+        'future': {'year': 2099}, 'invalid_quarter': {'quarter': 7},
+        'bank': {'org_type': 'bank'},
+    }[problem])
+    catalogue_financial_store.bulk_upsert_financials([row])
+    got = catalogue_ratios.get_all_ratios()['AAA']
+    assert got['return_to_capital_employed'] == .07
+    assert got['periods']['return_to_capital_employed'] == '2024'
+    assert 'return_to_capital_employed' not in got.get('calculations', {})
+
+
+def test_financial_rows_need_no_indicator_feed_and_keep_zero_and_negative_results(catalog):
+    catalogue_financial_store.bulk_upsert_financials([_filing(
+        2025, 2, revenue=0, operating_income=-90, total_assets=1000,
+        total_liabilities=0, current_liabilities=150)])
+    got = catalogue_ratios.get_all_ratios()['AAA']
+    assert got['debt_ratio'] == got['total_asset_turnover'] == 0
+    assert got['return_to_capital_employed'] == pytest.approx(-90 / 850 * 2)
 
 class TestTheCurrentSectionIsParsed:
     """«Итого по разделу II» names four different lines across the two commercial

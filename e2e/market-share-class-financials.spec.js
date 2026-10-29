@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-test('ordinary and preferred shares show the latest issuer filing with their own prices', async ({ page }) => {
+async function openBoard(page, columns) {
   const fixture = JSON.parse(readFileSync('tests/fixtures/uztl_share_classes.json', 'utf8'));
   // Exercise the real cache reader and API scaling; the browser receives their
   // output, not a fixture that already assumes the share classes agree.
@@ -11,7 +11,7 @@ import asyncio, json, os, tempfile
 from pathlib import Path
 from unittest.mock import patch
 from catalogue import financial_store, read_batch
-from server.market.routes import api_market_financials
+from server.market.routes import api_market_financials, api_market_ratios
 fixture = json.loads(Path('tests/fixtures/uztl_share_classes.json').read_text())
 with tempfile.TemporaryDirectory() as directory:
     os.environ['CATALOG_DB_PATH'] = directory + '/catalog.db'
@@ -20,25 +20,27 @@ with tempfile.TemporaryDirectory() as directory:
     with patch.object(read_batch, 'securities', return_value=fixture['securities']), \\
          patch.object(financial_store, '_maybe_seed_financials'), \\
          patch('catalogue.refresh.refresh_financials_cache'):
-        print(json.dumps(asyncio.run(api_market_financials())))
+        print(json.dumps({'financials': asyncio.run(api_market_financials()),
+                          'ratios': asyncio.run(api_market_ratios())}))
 `], { encoding: 'utf8' }));
   const stocks = Object.entries(fixture.securities).map(([ticker, security]) => ({
     ...security, ticker, name: 'Uzbektelecom', last_price: ticker === 'UZTL' ? 20980 : 12680,
     close_price: 12000, volume: 1000000, quantity: 1000, trade_count: 4,
     last_trade_date: '2026-10-28', industry: 'telecom',
   }));
-  await page.addInitScript(() => {
+  await page.addInitScript(columns => {
     sessionStorage.setItem('uz_sponsor_seen', '1');
     localStorage.setItem('uz_track_internal', '1');
-    localStorage.setItem('uz_market_cols_v3', JSON.stringify(['finRevenue', 'finCash']));
-  });
+    localStorage.setItem('uz_market_cols_v3', JSON.stringify(columns));
+  }, columns);
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     const json = body => route.fulfill({ json: body });
     if (path === '/api/companies') return json({ companies: stocks.map(r => ({ ...r, company_name: r.name })) });
     if (path === '/api/securities') return json({ ok: true, securities: fixture.securities });
     if (path === '/api/market/stocks') return json({ stocks });
-    if (path === '/api/market/financials') return json(financials);
+    if (path === '/api/market/financials') return json(financials.financials);
+    if (path === '/api/market/ratios') return json(financials.ratios);
     if (path === '/api/market/trade-stats') return json({ ok: true, stats: {} });
     if (path === '/api/market/multiples') return json({ ok: true, items: [] });
     if (path === '/api/auth/me') return route.fulfill({ status: 401, json: { user: null } });
@@ -47,6 +49,11 @@ with tempfile.TemporaryDirectory() as directory:
   await page.goto('/market');
   const rows = page.locator('.market-table tbody tr');
   await expect(rows).toHaveCount(2);
+  return rows;
+}
+
+test('ordinary and preferred shares show the latest issuer filing with their own prices', async ({ page }) => {
+  const rows = await openBoard(page, ['finRevenue', 'finCash']);
   for (const ticker of ['UZTL', 'UZTLP']) {
     const row = rows.filter({ has: page.getByText(ticker, { exact: true }) });
     await expect(row).toContainText('2026 Q3');
@@ -55,4 +62,44 @@ with tempfile.TemporaryDirectory() as directory:
     await expect(row).toContainText(/4[,.]5\s*млрд/);
     await expect(row).toContainText(ticker === 'UZTL' ? /20\s*980/ : /12\s*680/);
   }
+});
+
+test('current issuer coefficients include reproducible calculations and annualization', async ({ page }, testInfo) => {
+  const rows = await openBoard(page, ['debtAssets', 'assetTurnover', 'roce']);
+  for (const ticker of ['UZTL', 'UZTLP']) {
+    const row = rows.filter({ has: page.getByText(ticker, { exact: true }) });
+    await expect(row).toContainText(/75[,.]7%/);
+    await expect(row).toContainText(/0[,.]65/);
+    await expect(row).toContainText(/0[,.]18/);
+    await expect(row.locator('.fin-cell-period')).toHaveCount(3);
+    for (const cell of await row.locator('.fin-cell-period').all()) await expect(cell).toContainText('2026Q3');
+    await expect(row).toContainText('год.');
+    const info = row.locator('.term-info-btn').last();
+    await info.click();
+    const tip = page.getByRole('tooltip');
+    await expect(tip).toContainText('Расчёт UZStock');
+    await expect(tip).toContainText('Операционная прибыль / (Активы - Текущие обязательства)');
+    await expect(tip).toContainText(/1\s*809\s*880\s*688/);
+    await expect(tip).toContainText('× 12 / 9');
+    await expect(tip).toContainText('тыс. сум');
+    await page.keyboard.press('Escape');
+  }
+  const [download] = await Promise.all([
+    page.waitForEvent('download'), page.getByRole('button', { name: /Экспорт CSV/ }).click(),
+  ]);
+  const csv = readFileSync(await download.path(), 'utf8');
+  expect(csv).toContain('2026Q3');
+  expect(csv).toContain('× 12 / 9');
+  await page.screenshot({ path: testInfo.outputPath('coefficients-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const marker = rows.first().locator('.term-info-btn').last();
+  await marker.scrollIntoViewIfNeeded();
+  await marker.click();
+  const tip = page.getByRole('tooltip');
+  await expect(tip).toBeVisible();
+  await expect(tip).toHaveCSS('opacity', '1');
+  const box = await tip.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath('coefficients-mobile.png'), animations: 'disabled' });
 });

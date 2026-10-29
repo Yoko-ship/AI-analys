@@ -49,7 +49,11 @@
       },
       "report_id": 3398,
       "updated_at": "2026-10-29 09:13:33",
-      "ticker": "UZTL"
+      "ticker": "UZTL",
+      "total_assets": 17865340081.0,
+      "current_assets": 3627838741.0,
+      "current_liabilities": 4660538528.0,
+      "inventories": 1041296291.0
     },
     {
       "year": 2026,
@@ -84,7 +88,11 @@
       },
       "report_id": 1708,
       "updated_at": "2026-10-29 03:16:17",
-      "ticker": "UZTLP"
+      "ticker": "UZTLP",
+      "total_assets": 17281869775.0,
+      "current_assets": 2764455128.0,
+      "current_liabilities": 5872570450.0,
+      "inventories": 764042107.0
     }
   ]
 }

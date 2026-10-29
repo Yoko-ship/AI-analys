@@ -236,10 +236,10 @@ async def api_market_ratios() -> dict[str, Any]:
     tickers are not served (V17 — ten bond issues were inheriting their
     issuer's ROE/ROA as if a coupon security had a return on equity).
 
-    Beside ROE/ROA/current ratio this also serves the published coefficients the
-    company page's «Коэффициенты» card already shows — quick ratio, debt/assets,
-    asset turnover and ROCE — in the units the issuer published them in
-    (debt/assets a percent, the rest bare). ``periods`` names the reporting year
+    Published coefficients are supplemented by newer filing calculations with
+    formulas, operands and annualization in ``calculations``. Debt/assets is a
+    percent; liquidity, turnover and ROCE remain bare ratios.
+    ``periods`` names the reporting period
     of each field on its own: one issuer can file liquidity for 2023 and ROE for
     2025, and the single ``period`` above is only the newest of them.
     """

@@ -80,7 +80,8 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
     (openinfo ``financial_indicators``), keyed by ticker.
 
     Feeds the market-wide multiplier columns (P/E, P/B) and ratio coefficients
-    (ТЗ §3.8). Ratios are served exactly as openinfo reports them; equity/assets
+    (ТЗ §3.8). Published ratios are supplemented by reproducible same-period
+    filing calculations with explicit provenance and annualization; equity/assets
     are absolute sums used to derive P/B (= market_cap / equity), with equity
     derived from the same-period balance/ROE identities for the majority of
     issuers that never publish it directly. Unreliable ticker→org matches are
@@ -118,65 +119,8 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
                 filed_debt[t] = (period, float(r["debt_ratio"]))
     except Exception:
         catalogue_settings.logger.exception("filed debt_ratio read failed")
-    # LIQUIDITY AND TURNOVER OFF THE FILINGS. The indicator feed publishes a
-    # current ratio and an asset turnover for 56 of the 95 issuers on the board
-    # and nothing for the other 39, so three of the four «Коэффициенты» columns
-    # were empty for two issuers in five while every one of them files the lines
-    # the ratios are made of.
-    #
-    # These three identities are the source's own, MEASURED against it: over the
-    # issuer-years where the feed publishes a value and this platform has parsed
-    # the same year's filing (2026-08-17),
-    #
-    #   current_ratio        = current assets / current liabilities   35 of 38 exact
-    #   quick_ratio          = (current assets − stocks) / same       35 of 38 exact
-    #   total_asset_turnover = revenue / total assets                 34 of 37 exact
-    #
-    # to the two decimals the feed publishes. All three misses are BIOK, QZSM and
-    # UQEQ, the issuers whose filing years the platform already flags as
-    # disagreeing with the feed — not a disagreement about the formula.
-    #
-    # ROCE is NOT derived. «EBIT / (assets − current liabilities)», the textbook
-    # base, reproduces the feed's figure 7 times in 42 — the feed computes it on
-    # something it does not name, so it stays exactly as published, blank where
-    # the source is silent, rather than being replaced by our own different number
-    # under the source's label.
-    filed_ratios: dict[str, dict[str, tuple[str, float]]] = {}
-    try:
-        for r in conn.execute(
-            "SELECT ticker, year, quarter, revenue, total_assets, current_assets, "
-            "       current_liabilities, inventories "
-            "FROM catalog_financials WHERE form='NSBU' "
-            "  AND (current_assets IS NOT NULL OR total_assets IS NOT NULL)"
-        ).fetchall():
-            t = str(r["ticker"] or "").upper()
-            if not t:
-                continue
-            period = _row_period({"year": r["year"], "quarter": r["quarter"]})
-            if not period:
-                continue
-            ca, cl = r["current_assets"], r["current_liabilities"]
-            inv, assets, revenue = r["inventories"], r["total_assets"], r["revenue"]
-            derived: dict[str, float] = {}
-            if ca is not None and cl:
-                derived["current_ratio"] = round(ca / cl, 2)
-                # Stocks withheld as contradicting their own formula are not
-                # nought: the quick ratio is left to the period that states them.
-                if inv is not None:
-                    derived["quick_ratio"] = round((ca - inv) / cl, 2)
-            # A cumulative quarter is three, six or nine months of revenue; over
-            # a full-year balance it would read as a business a third the size it
-            # is. The turnover comes off ANNUAL rows only — the balance ratios
-            # above are point-in-time and any period states them.
-            if not r["quarter"] and revenue is not None and assets:
-                derived["total_asset_turnover"] = round(revenue / assets, 2)
-            for field, value in derived.items():
-                slot = filed_ratios.setdefault(t, {})
-                if (field not in slot
-                        or catalogue_periods._fact_period_rank(period) > catalogue_periods._fact_period_rank(slot[field][0])):
-                    slot[field] = (period, value)
-    except Exception:
-        catalogue_settings.logger.exception("filed liquidity/turnover read failed")
+    from catalogue.ratio_calculations import latest as latest_calculations
+    filed_ratios = latest_calculations(conn)
     best: dict[tuple[str, str], tuple[str, float]] = {}
     by_period: dict[tuple[str, str], dict[str, float]] = {}
     for r in rows:
@@ -215,7 +159,8 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             if cur is None or catalogue_periods._fact_period_rank(period) > catalogue_periods._fact_period_rank(cur[0]):
                 derived_de[org] = (period, round(liab / eq_pub, 2))
     out: dict[str, dict[str, Any]] = {}
-    for ticker, org in ticker_org.items():
+    for ticker in sorted(set(ticker_org) | set(filed_ratios)):
+        org = ticker_org.get(ticker)
         if ticker in UNRELIABLE_FINANCIALS:
             continue
         entry: dict[str, Any] = {}
@@ -243,7 +188,7 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             if hit is not None:
                 entry["debt_to_equity"] = hit[1]
                 field_periods["debt_to_equity"] = hit[0]
-        if entry:
+        if entry or ticker in filed_ratios:
             # A filing lands under whichever share class it was catalogued
             # under, so a preferred line reads its ordinary sibling's — the
             # same fallback the annual series and the company page apply.
@@ -255,18 +200,18 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
             if filed_wins:
                 entry["debt_ratio"] = hit[1]
                 field_periods["debt_ratio"] = hit[0]
-            # Liquidity and turnover, same precedence and same sibling fallback:
-            # the filing wins when it covers a period at least as recent as the
-            # feed's, and fills the field outright where the feed has nothing.
-            for field, hit in (filed_ratios.get(ticker)
-                               or filed_ratios.get(sibling) or {}).items():
+            # Calculated coefficients keep their own formula and exact inputs.
+            # A missing input leaves the older source visibly dated as before.
+            for field, calculation in filed_ratios.get(ticker, {}).items():
+                period = calculation['period']
                 if (field not in field_periods
-                        or catalogue_periods._fact_period_rank(hit[0]) >= catalogue_periods._fact_period_rank(field_periods[field])):
-                    entry[field] = hit[1]
-                    field_periods[field] = hit[0]
+                        or catalogue_periods._fact_period_rank(period) >= catalogue_periods._fact_period_rank(field_periods[field])):
+                    entry[field] = calculation['value']
+                    entry.setdefault('calculations', {})[field] = calculation
+                    field_periods[field] = period
                     if (latest_period is None
-                            or catalogue_periods._fact_period_rank(hit[0]) > catalogue_periods._fact_period_rank(latest_period)):
-                        latest_period = hit[0]
+                            or catalogue_periods._fact_period_rank(period) > catalogue_periods._fact_period_rank(latest_period)):
+                        latest_period = period
         if entry:
             entry["period"] = latest_period
             entry["periods"] = field_periods

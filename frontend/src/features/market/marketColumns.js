@@ -34,11 +34,9 @@ export function marketColumns({
     title: mt(lang, "grpMultiples"),
     cols: [["mktCap", mt(lang, "mktCap")], ["pe", "P/E"], ["pb", "P/B"], ["ps", "P/S"], ["roe", "ROE"], ["roa", "ROA"], ["netMargin", mt(lang, "netMargin")], ["eqAssets", mt(lang, "equityAssets")]]
   },
-  // The ratio rows of the company page's «Коэффициенты» card, on the board —
-  // the same numbers from the same indicator filings, so a reader who
-  // compares two issuers does not have to open two pages to do it. Published
-  // as the issuer published them (Долг/Активы in percent, the rest bare
-  // coefficients), with the year each one belongs to under the figure.
+  // Published indicators and newer filing-based calculations. Each cell keeps
+  // its own reporting period, formula and explicit annualization where used.
+  // Debt/assets is a percent; the other coefficients remain bare ratios.
   {
     key: "coefficients",
     title: mt(lang, "grpRatios"),
