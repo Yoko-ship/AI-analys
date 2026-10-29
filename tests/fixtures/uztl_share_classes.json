@@ -1,0 +1,90 @@
+{
+  "source": "https://uzstock.uz/api/market/financials?ticker=UZTL",
+  "captured_at": "2026-10-29",
+  "securities": {
+    "UZTL": {
+      "isin": "UZ7047110000",
+      "share_type": "ordinary",
+      "type": "stock"
+    },
+    "UZTLP": {
+      "isin": "UZ704711K019",
+      "share_type": "preferred",
+      "type": "stock"
+    }
+  },
+  "rows": [
+    {
+      "year": 2026,
+      "quarter": 3,
+      "is_ytd": true,
+      "period_months": 9,
+      "revenue": 8771988231.0,
+      "gross_profit": 3543961536.0,
+      "cash": 4515530.0,
+      "total_liabilities": 13530092389.0,
+      "net_income": 1379742486.0,
+      "operating_income": 1809880688.0,
+      "operating_expenses": -1910461352.0,
+      "noninterest_income": null,
+      "org_type": null,
+      "balance": {
+        "equity_start": 3030753112.0,
+        "equity_end": 4335247692.0,
+        "assets_start": 13530348888.0,
+        "assets_end": 17865340081.0
+      },
+      "field_periods": {},
+      "prior": {
+        "year": 2025,
+        "quarter": 3,
+        "is_ytd": true,
+        "period_months": 9,
+        "source": "catalog",
+        "revenue": 7784766381.0,
+        "gross_profit": 2744813281.0,
+        "net_income": 321086974.0,
+        "operating_income": 1219765675.0,
+        "noninterest_income": null
+      },
+      "report_id": 3398,
+      "updated_at": "2026-10-29 09:13:33",
+      "ticker": "UZTL"
+    },
+    {
+      "year": 2026,
+      "quarter": 2,
+      "is_ytd": true,
+      "period_months": 6,
+      "revenue": 5766852049.0,
+      "gross_profit": 2355338160.0,
+      "cash": 7637322.0,
+      "total_liabilities": 13999211578.0,
+      "net_income": 896004259.0,
+      "operating_income": 1236657832.0,
+      "operating_expenses": -1209882806.0,
+      "noninterest_income": null,
+      "org_type": "jsc",
+      "balance": {
+        "equity_start": 3030753112.0,
+        "equity_end": 3282658197.0,
+        "assets_start": 13530348888.0,
+        "assets_end": 17281869775.0
+      },
+      "field_periods": {},
+      "prior": {
+        "year": 2025,
+        "quarter": 2,
+        "is_ytd": true,
+        "period_months": 6,
+        "revenue": 5123511838.0,
+        "gross_profit": 1832293869.0,
+        "net_income": 10010649.0,
+        "operating_income": 848398644.0
+      },
+      "report_id": 1708,
+      "updated_at": "2026-10-29 03:16:17",
+      "ticker": "UZTLP"
+    }
+  ]
+}

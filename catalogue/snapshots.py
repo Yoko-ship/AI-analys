@@ -1,5 +1,6 @@
 """Prepare current, annual, and prior-period financial snapshots for readers."""
 from __future__ import annotations
+from copy import deepcopy
 import catalogue.sources as catalogue_sources
 import dbx
 import re
@@ -176,7 +177,8 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
 
 
 
-    Picks the latest period (year, then quarter) available for each ticker. Org/
+    Picks the latest period (year, then quarter) available for each issuer's
+    verified share classes. Org/
 
     fact enrichment runs only when ``_financials_enrich_enabled()`` (collector),
 
@@ -444,7 +446,48 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
 
                 out[ticker] = published
 
+    if form == "NSBU":
+        _share_latest_financials_by_isin(out)
+
     return out
+
+
+def _share_latest_financials_by_isin(out: dict[str, dict[str, Any]]) -> None:
+    """Serve one complete, corrected statement across an issuer's share classes.
+
+    The production org map can be stale, so this read-time selection uses the
+    exchange ISIN issuer code, just like the filing resolver. It neither fetches
+    facts nor re-enables collector enrichment. Copy the whole statement so the
+    source, balances and comparatives follow its reporting period together.
+    """
+    from catalogue.read_batch import securities
+
+    try:
+        listed = securities()
+    except Exception:
+        catalogue_settings.logger.exception("Could not resolve financial share classes")
+        return
+    groups: dict[str, list[str]] = {}
+    for ticker, security in listed.items():
+        match = catalogue_filings._ISIN_ISSUER.fullmatch(
+            str(security.get("isin") or "").upper())
+        if match:
+            groups.setdefault(match.group(1), []).append(ticker)
+
+    def rank(ticker: str) -> tuple:
+        row = out[ticker]
+        return (*catalogue_periods._period_key(catalogue_ratios._row_period(row)),
+                str(row.get("updated_at") or ""))
+
+    for tickers in groups.values():
+        candidates = [ticker for ticker in tickers if ticker in out]
+        if len(tickers) < 2 or not candidates:
+            continue
+        # Stable ties prefer the ordinary class; a newer period always wins.
+        candidates.sort(key=lambda t: (t.endswith("P") and t[:-1] in tickers, t))
+        source = out[max(candidates, key=rank)]
+        for ticker in tickers:
+            out[ticker] = deepcopy(source)
 
 
 def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, Any]],

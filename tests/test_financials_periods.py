@@ -8,6 +8,8 @@ that also destroyed the fresher quarterly figure underneath it.
 from __future__ import annotations
 
 import sqlite3
+import json
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +18,63 @@ import catalogue.snapshots as catalogue_snapshots
 import catalogue.codecs as catalogue_codecs
 import catalogue.ratios as catalogue_ratios
 import catalogue.snapshots as catalogue_snapshots
+import catalogue.financial_store as financial_store
+import catalogue.read_batch as read_batch
+
+
+@pytest.fixture
+def share_class_store(tmp_path, monkeypatch):
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setenv('FINANCIALS_ENRICH_ON_READ', '0')
+    monkeypatch.setattr(financial_store, '_maybe_seed_financials', lambda *a: None)
+    fixture = json.loads(Path('tests/fixtures/uztl_share_classes.json').read_text())
+    monkeypatch.setattr(read_batch, 'securities', lambda: fixture['securities'])
+    return fixture
+
+
+def test_uztl_latest_filing_reaches_both_share_classes(share_class_store):
+    """Live 2026-10-29: UZTL had report 3398/Q3, UZTLP still 1708/Q2."""
+    financial_store.bulk_upsert_financials(share_class_store['rows'])
+    with catalogue_snapshots.catalogue_storage.get_catalog_conn() as c:
+        for row in share_class_store['rows']:
+            c.execute('UPDATE catalog_financials SET report_id=? WHERE ticker=?',
+                      (row['report_id'], row['ticker']))
+    out = catalogue_snapshots.get_all_financials()
+    ordinary, preferred = out['UZTL'], out['UZTLP']
+    assert (preferred['year'], preferred['quarter'], preferred['report_id']) == (2026, 3, 3398)
+    assert preferred['revenue'] == 8_771_988_231
+    assert preferred['cash'] == 4_515_530
+    assert preferred['prior']['quarter'] == 3
+    assert preferred['balance'] == ordinary['balance']
+    preferred['balance']['equity_end'] = -1
+    assert ordinary['balance']['equity_end'] != -1
+
+
+@pytest.mark.parametrize('latest_ticker', ['UZTL', 'UZTLP'])
+@pytest.mark.parametrize('older_quarter,newer_quarter', [(2, 3), (4, 0)])
+def test_share_classes_pick_latest_in_either_direction_and_rank_annual_last(
+        share_class_store, latest_ticker, older_quarter, newer_quarter):
+    financial_store.bulk_upsert_financials([
+        {'ticker': t, 'year': 2025, 'quarter': newer_quarter if t == latest_ticker else older_quarter,
+         'revenue': 200 if t == latest_ticker else 100}
+        for t in ('UZTL', 'UZTLP')])
+    out = catalogue_snapshots.get_all_financials()
+    assert [(out[t]['quarter'], out[t]['revenue']) for t in ('UZTL', 'UZTLP')] == [
+        (newer_quarter, 200), (newer_quarter, 200)]
+
+
+@pytest.mark.parametrize('isin', ['UZ7048610008', '', 'invalid'])
+def test_similar_ticker_without_verified_same_issuer_keeps_own_report(share_class_store, isin):
+    share_class_store['securities']['UZTLP']['isin'] = isin
+    financial_store.bulk_upsert_financials(share_class_store['rows'])
+    out = catalogue_snapshots.get_all_financials()
+    assert out['UZTLP']['quarter'] == 2
+
+
+def test_missing_share_class_inherits_verified_issuers_report(share_class_store):
+    financial_store.bulk_upsert_financials(share_class_store['rows'][:1])
+    out = catalogue_snapshots.get_all_financials()
+    assert out['UZTLP']['report_id'] == out['UZTL']['report_id']
 
 
 @pytest.fixture()
