@@ -352,11 +352,7 @@ jobs:
         if: github.ref == 'refs/heads/API' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
-        run: |
-          docker push "$IMAGE_TAG"
-          image="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG")"
-          [[ "$image" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]
-          echo "image=$image" >> "$GITHUB_OUTPUT"
+        run: bash scripts/publish_release_image.sh
 
   deploy-production:
     # Production secrets live in this environment, which only the API
