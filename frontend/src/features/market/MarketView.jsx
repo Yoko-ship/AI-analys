@@ -20,7 +20,7 @@ import { MarketHeader } from "./MarketHeader.jsx";
 import { MarketOverview } from "./MarketOverview.jsx";
 import { MarketFilters } from "./MarketFilters.jsx";
 import { MarketTable } from "./MarketTable.jsx";
-import { SavedScreeners } from "./SavedScreeners.jsx";
+import { SavedScreenerLink } from "./SavedScreenerLink.jsx";
 import { matchesDirection } from "./savedScreeners.js";
 function MarketView({
   rows,
@@ -407,16 +407,12 @@ function MarketView({
             equity board — an issue has a value rather than a capitalisation, and
             no earnings for a multiple to divide by. The «Облигации» segment IS
             the bond section: screener + yield map, a row opens /bond/{T}. */}
-        {viewMode === "table" && type !== "bond" && <SavedScreeners key={accountKey || "guest"} accountKey={accountKey} apiFetch={apiFetch} onSaved={onSavedScreener}
-          lang={lang}
-          filters={{ sector: marketSector, query, type, period: changePeriod, direction, favoriteOnly: favOnly, sortKeys }}
-          onDirection={setDirection}
+        {viewMode === "table" && type !== "bond" && <SavedScreenerLink key={accountKey || "guest"} accountKey={accountKey} apiFetch={apiFetch} onSaved={onSavedScreener}
           onApply={saved => {
             setMarketSector(saved.sector || null); onQueryChange(saved.query); onTypeChange(saved.type);
             setChangePeriod(saved.period); setDirection(saved.direction); setFavOnly(saved.favoriteOnly);
             setSortKeys(saved.sortKeys); setInactiveOnly(false);
           }}
-          onReset={resetFilters}
         />}
         </MarketFilters>
         <MarketTable

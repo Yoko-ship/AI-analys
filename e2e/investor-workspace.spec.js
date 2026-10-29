@@ -11,18 +11,15 @@ async function account(page,state){
   return route.fulfill({json:path==='/api/auth/me'?{user}:path==='/api/profile'?{user,preferences:state.preferences,favorites:[],notes:[],security:{email_verified:false,two_factor_enabled:false}}:path==='/api/portfolio'?{ok:true,items:[],transactions:[],count:0,priced_count:0,instruments:[],valuation_complete:true}:path==='/api/market/stocks'?{stocks:[]}:{ok:true,items:[],companies:[],securities:{}}});
  });
 }
-test('account screeners are available in a second browser without local storage',async({page,browser})=>{
- const state={preferences:{}};await account(page,state);await page.goto('/market');
- const panel=page.getByTestId('saved-screeners');await panel.locator('summary').click();
- await panel.getByLabel('Filter name').fill('My banks');await panel.getByRole('button',{name:'Save filter',exact:true}).click();
- await expect.poll(()=>state.preferences.saved_screeners?.length).toBe(1);
- expect(await page.evaluate(()=>localStorage.getItem('uzstock:screeners:v1'))).toBeNull();
- await page.locator('.account-button').click();
- await page.getByRole('menuitem',{name:'Profile',exact:true}).click();
+test('existing account screeners open in a second browser without local storage',async({page,browser})=>{
+ const state={preferences:{saved_screeners:[{id:'banks',name:'My banks',filters:{sector:'',query:'HMKB',direction:'gain',period:'1d',type:'stock',favoriteOnly:false,sortKeys:[]}}]}};
+ await account(page,state);await page.goto('/profile');
  await expect(page.getByTestId('profile-workspace-stats').locator('article').filter({hasText:'Saved screeners'}).locator('strong')).toHaveText('1');
- const other=await browser.newPage();await account(other,state);await other.goto('/market');
- await other.getByTestId('saved-screeners').locator('summary').click();
- await expect(other.getByLabel('Saved screeners', {exact:true}).locator('option')).toContainText(['Select…','My banks']);
+ const other=await browser.newPage();await account(other,state);await other.goto('/market?screener=banks');
+ await expect(other.getByRole('searchbox')).toHaveValue('HMKB');
+ await expect(other.getByTestId('saved-screeners')).toHaveCount(0);
+ expect(await other.evaluate(()=>localStorage.getItem('uzstock:screeners:v1'))).toBeNull();
+ expect(state.preferences.saved_screeners).toHaveLength(1);
  await other.close();
 });
 test('interests persist and security badges report the account state',async({page})=>{
@@ -34,15 +31,6 @@ test('interests persist and security badges report the account state',async({pag
  await page.reload();await expect(page.getByTestId('investment-interests')).toContainText('Banks');
  await expect(page.getByTestId('account-security-summary')).toContainText('Email not verified');
  await expect(page.getByTestId('account-security-summary')).toContainText('Two-factor off');
-});
-test('failed account save stays visible and is retryable',async({page})=>{
- const state={preferences:{},fail:true};await account(page,state);await page.goto('/market');
- const panel=page.getByTestId('saved-screeners');await panel.locator('summary').click();
- await panel.getByLabel('Filter name').fill('Retry');await panel.getByRole('button',{name:'Save filter',exact:true}).click();
- await expect(panel.getByRole('alert')).toBeVisible();await expect(panel.getByLabel('Filter name')).toHaveValue('Retry');
- expect(state.preferences.saved_screeners).toBeUndefined();
- state.fail=false;await panel.getByRole('button',{name:'Save filter',exact:true}).click();
- await expect.poll(()=>state.preferences.saved_screeners?.length).toBe(1);
 });
 test('profile retains the shared palette and complete investor workspace',async({page})=>{
  const state={preferences:{}};await account(page,state);await page.goto('/profile');

@@ -25,8 +25,9 @@ test('public issuer directory is searchable and opens real company routes',async
 });
 test('corporate detail shows extracted fields and the reason for its attention level',async({page})=>{
  await setup(page);await page.route('**/api/news/corporate-events?**',r=>r.fulfill({json:{ok:true,items:[{id:'license',story_id:'license',organization:'Issuer',title:{en:'Licence returned'},summary:{en:'Voluntary licence return'},stage:'disclosed',category:'risks',priority:1,confidence:'confirmed',priority_provisional:false,priority_explanation:{en:'The issuer reports voluntary licence return.'},facts:[{source_field:'type_activity',label:{en:'Licensed activity'},value:'Payment system',unit:'text'}],source_url:'https://openinfo.uz/ru/facts/23/1',published_at:'2026-10-26',documents:[],document_count:1}],categories:{risks:{en:'Risks'}},facts:{}}}));
- await page.goto('/news?tab=corporate');await page.getByRole('button',{name:/Documents & history/}).click();
- await expect(page.getByRole('dialog')).toContainText('Payment system');await expect(page.getByRole('dialog')).toContainText('voluntary licence return');
+ await page.goto('/news?tab=corporate');await page.getByRole('link',{name:'Licence returned',exact:true}).click();
+ const detail=page.getByTestId('corporate-event-detail');
+ await expect(detail).toContainText('Payment system');await expect(detail).toContainText('voluntary licence return');
 });
 test('simplified header retains the issuer directory for an admin on a phone',async({page})=>{
  await setup(page,{admin:true});await page.setViewportSize({width:390,height:844});await page.goto('/');
@@ -67,5 +68,5 @@ test('currency bank table sorts offers and links related news',async({page})=>{
 });
 test('profile applies an account saved screener from its overview',async({page})=>{
  await setup(page);await page.route('**/api/profile',r=>r.fulfill({json:{user:{id:19,email:'investor@example.test',full_name:'Investor'},preferences:{saved_screeners:[{id:'gainers',name:'My gainers',filters:{sector:'',query:'HMKB',direction:'gain',period:'1d',type:'stock',favoriteOnly:false,sortKeys:[]}}]},favorites:[],notes:[],security:{}}}));
- await page.goto('/profile');await page.getByTestId('profile-saved-screeners').getByRole('button',{name:'My gainers'}).click();await expect(page).toHaveURL(/market\?screener=gainers$/);await expect(page.getByTestId('saved-screeners').getByRole('button',{name:'Gainers',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.locator('.market-table-wrap tbody tr')).toContainText('HMKB');
+ await page.goto('/profile');await page.getByTestId('profile-saved-screeners').getByRole('button',{name:'My gainers'}).click();await expect(page).toHaveURL(/market\?screener=gainers$/);await expect(page.getByRole('searchbox')).toHaveValue('HMKB');await expect(page.locator('.market-table-wrap tbody tr')).toContainText('HMKB');
 });

@@ -77,3 +77,22 @@ test("partial market refresh names the delayed security without hiding verified 
   await expect(page.getByText(/Обновление задерживается.*BECMP/)).toBeVisible();
   await expect(page.locator(".market-table tbody tr")).toHaveCount(2);
 });
+
+for (const width of [1024, 1440, 2512]) {
+  test(`market filters use available width without a blank column at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), width === 1440 ? 'light' : 'dark');
+    await openBoard(page, ["volume", "date"]);
+    // Measure both groups in one frame, including during the board's entrance.
+    const [types, filters] = await page.evaluate(() => ['.market-type-control', '.market-secondary-controls']
+      .map(selector => document.querySelector(selector).getBoundingClientRect().toJSON()));
+    expect(filters.x - (types.x + types.width)).toBeGreaterThanOrEqual(0);
+    expect(filters.x - (types.x + types.width)).toBeLessThanOrEqual(16);
+    expect(Math.abs(filters.y - types.y)).toBeLessThanOrEqual(2);
+    for (const selector of ['.market-export-btn', '.market-cols-btn']) {
+      const box = await page.locator(selector).boundingBox();
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    await page.locator('.market-filterbar').screenshot({ path: testInfo.outputPath(`market-toolbar-${width}.png`) });
+  });
+}

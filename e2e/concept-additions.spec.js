@@ -12,22 +12,16 @@ async function setup(page){
    :{ok:true,items:[],stats:{},financials:{}}});
  });
 }
-test('guest can save, reload, apply and delete a browser screener',async({page})=>{
+for(const width of [390,1440]) test(`market omits screener and price-direction controls at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:900});
  await setup(page); await page.addInitScript(()=>localStorage.removeItem('uz_stock_analyzer_token')); await page.goto('/market');
  await expect(page.locator('.market-table tbody tr')).toHaveCount(2);
- const panel=page.getByTestId('saved-screeners');
- await panel.getByRole('button',{name:'Растущие',exact:true}).click();
- await expect(page.locator('.market-table tbody tr')).toHaveCount(1);
- await panel.locator('summary').click();
- await panel.getByLabel('Название фильтра').fill('Рост');
- await panel.getByRole('button',{name:'Сохранить фильтр',exact:true}).click();
- await page.reload();
- await page.getByTestId('saved-screeners').locator('summary').click();
- await page.getByTestId('saved-screeners').getByLabel('Сохранённые скринеры').selectOption({label:'Рост'});
- await page.getByTestId('saved-screeners').getByRole('button',{name:'Применить',exact:true}).click();
- await expect(page.locator('.market-table tbody tr')).toHaveCount(1);
- await page.getByTestId('saved-screeners').getByRole('button',{name:'Удалить',exact:true}).click();
- await expect(page.getByTestId('saved-screeners').getByRole('option',{name:'Рост',exact:true})).toHaveCount(0);
+ if(width===390) await page.getByText('Фильтры и инструменты',{exact:true}).click();
+ await expect(page.getByTestId('saved-screeners')).toHaveCount(0);
+ await expect(page.getByText('Сохранённые скринеры',{exact:false})).toHaveCount(0);
+ await expect(page.getByRole('group',{name:'Динамика цены'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:/^(Растущие|Снижающиеся)$/})).toHaveCount(0);
+ await expect(page.locator('.market-table tbody tr')).toHaveCount(2);
 });
 test('profile watchlist supports search and CSV export',async({page})=>{
  await setup(page);await page.goto('/profile');
