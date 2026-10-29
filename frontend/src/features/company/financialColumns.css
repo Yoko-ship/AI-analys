@@ -61,10 +61,32 @@
 .fc-documents pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 520px; overflow: auto; }
 .fc-documents td { padding: 6px; min-width: 70px; white-space: pre-wrap; border-bottom: 1px solid var(--fc-line); }
 .fc-chart { padding: 12px 0; }
-.fc-chart label { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.fc-chart select { max-width: 100%; }
-.fc-chart svg { width: 100%; max-height: 390px; display: block; color: var(--fc-muted); }
-.fc-chart svg text { fill: currentColor; font-size: 10px; }
+.fc-chart-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.fc-chart-count { color: var(--fc-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.fc-chart-actions { display: flex; gap: 8px; margin-left: auto; }
+.fc-chart button { min-height: 40px; }
+.fc-chart button:disabled { cursor: default; opacity: .45; }
+.fc-chart button:not(:disabled):hover { border-color: var(--accent); }
+.fc-chart-groups { display: grid; gap: 16px; margin-bottom: 24px; }
+.fc-chart-group { min-width: 0; }
+.fc-chart .fc-chart-group-toggle { display: flex; align-items: center; gap: 12px; padding: 8px 0; background: transparent; border-color: transparent; font-weight: 600; text-align: left; }
+.fc-chart-group-toggle small { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--fc-muted); white-space: nowrap; }
+.fc-chart-group-state { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid var(--border-hover, var(--border)); border-radius: 3px; color: var(--accent); font-size: 11px; }
+.fc-chart-group-toggle[aria-pressed=true] .fc-chart-group-state { background: var(--accent-light); border-color: var(--accent); }
+.fc-chart-group-toggle[aria-pressed=false] { color: var(--fc-muted); }
+.fc-chart-metrics { display: flex; flex-wrap: wrap; gap: 8px; }
+.fc-chart .fc-chart-metric { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 8px 12px; text-align: left; line-height: 1.4; font-size: 12px; color: var(--fc-muted); background: transparent; }
+.fc-chart .fc-chart-metric[aria-pressed=true] { color: var(--fc-ink); background: var(--panel); border-color: var(--border-hover, var(--border)); }
+.fc-chart-metric i { width: 8px; height: 8px; flex: 0 0 8px; border: 1px solid var(--series-color); border-radius: 50%; }
+.fc-chart-metric[aria-pressed=true] i { background: var(--series-color); }
+.fc-chart-plot { min-width: 0; margin-top: 16px; }
+.fc-chart-unit { font-size: 11px; color: var(--fc-muted); margin: 0 0 8px; }
+.fc-chart-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.fc-chart-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fc-chart svg { width: 100%; height: 280px; display: block; color: var(--fc-muted); }
+.fc-chart svg text { fill: currentColor; font-size: 11px; }
+.fc-chart svg rect:hover, .fc-chart svg rect:focus-visible { opacity: .7; stroke: var(--text); stroke-width: 1px; outline: none; }
+.fc-chart-reading { min-height: 36px; margin: 12px 0 0; color: var(--fc-muted); font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
 .fc-muted { color: var(--fc-muted); }
 .fc-value-parts { display: grid; gap: 4px; justify-items: end; }
 .fc-value-parts small { color: var(--fc-muted); }
@@ -80,6 +102,9 @@
 .fc-passport table { font-size: 12px; border-collapse: collapse; }
 .fc-passport td, .fc-passport th { padding: 6px; text-align: left; border-bottom: 1px solid var(--border); }
 @media(max-width:700px) {
+  .fc-chart-controls { gap: 8px; }
+  .fc-chart-actions { margin-left: 0; }
+  .fc-chart .fc-chart-metric { width: 100%; }
   .fc-toolbar { gap: 12px; }
   .fc-toolbar>div, .fc-toolbar>label { max-width: 100%; }
   .fc-toolbar .fc-exports { margin-left: 0; }
@@ -90,4 +115,38 @@
   .fc-table th:first-child { width: 185px; min-width: 185px; max-width: 210px; }
   .fc-passport dl { grid-template-columns: 1fr; }
   .fc-passport dd { margin-bottom: 6px; }
+}
+
+/* A bounded period window keeps bars legible and the scale tied to what is
+   actually visible. The same controls work with a mouse, touch or keyboard. */
+.fc-chart { display: flex; flex-direction: column; gap: 16px; }
+.fc-chart-plot { order: 0; margin: 0; padding: 16px; border: 1px solid var(--fc-line); border-radius: 10px; background: var(--panel); }
+.fc-chart-controls { order: 1; margin: 0; }
+.fc-chart-groups { order: 2; margin: 0; }
+.fc-chart-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.fc-chart-range { display: block; font-size: 15px; font-weight: 600; color: var(--fc-ink); font-variant-numeric: tabular-nums; }
+.fc-chart-unit { display: block; margin: 4px 0 0; font-size: 12px; }
+.fc-chart-paging { display: flex; gap: 4px; }
+.fc-chart .fc-chart-paging button { min-width: 44px; min-height: 44px; font-size: 12px; }
+.fc-chart-scroll { overflow: hidden; }
+.fc-chart svg { height: 300px; touch-action: pan-y; }
+.fc-chart svg text { font-size: 12px; font-variant-numeric: tabular-nums; }
+.fc-chart-zero line { stroke: var(--text-secondary); opacity: .5; }
+.fc-chart-zero text, .fc-chart svg .fc-chart-active-label { fill: var(--fc-ink); font-weight: 600; }
+.fc-chart svg [data-period-hit]:hover { stroke: none; }
+.fc-chart-reading { margin: 4px 0 0; min-height: 0; color: var(--fc-ink); font-size: 12px; }
+.fc-chart-reading > strong { display: block; margin-bottom: 8px; color: var(--text-secondary); }
+.fc-chart-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.fc-chart-values > div { min-width: 0; padding-left: 12px; border-left: 2px solid var(--series-color); }
+.fc-chart-values span { display: block; color: var(--text-secondary); line-height: 1.4; font-size: 12px; }
+.fc-chart-values strong { display: block; margin-top: 6px; font-size: 16px; font-weight: 600; }
+.fc-chart-values small { color: var(--fc-muted); font-size: 11px; font-weight: 400; }
+.fc-chart-hint { margin: 16px 0 0; color: var(--fc-muted); font-size: 11px; line-height: 1.5; }
+@media (max-width: 600px) {
+  .fc-chart-plot { padding: 12px; }
+  .fc-chart-navigation { flex-wrap: wrap; }
+  .fc-chart-values { grid-template-columns: 1fr; }
+  .fc-chart-values > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+  .fc-chart-values strong { margin: 0; font-size: 14px; text-align: right; }
+  .fc-chart-values small { display: block; }
 }

@@ -61,8 +61,8 @@ test('balance rows belong to BS while SUM and PL retain income rows',async({page
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
   await expect(terminal.getByRole('link',{name:'CSV',exact:true})).toHaveAttribute('href',/statement=balance/);
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  await expect(terminal.locator('.fc-chart option').filter({hasText:'Итого процентных доходов'})).toHaveCount(0);
-  await expect(terminal.locator('.fc-chart option').filter({hasText:'Кассовая наличность'})).toHaveCount(1);
+  await expect(terminal.locator('.fc-chart-metric').filter({hasText:'Итого процентных доходов'})).toHaveCount(0);
+  await expect(terminal.locator('.fc-chart-metric').filter({hasText:'Кассовая наличность'})).toHaveCount(1);
   await terminal.getByRole('button',{name:'Table',exact:true}).click();
   await terminal.getByRole('tab',{name:'Original forms',exact:true}).click();
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
@@ -74,24 +74,89 @@ test('balance rows belong to BS while SUM and PL retain income rows',async({page
   await expect(terminal.getByRole('link',{name:'XLSX',exact:true})).toHaveAttribute('href',/statement=income/);
 });
 
-test('HMKB chart includes the separate loan and lease values already shown in the table', async ({page}, testInfo) => {
-  await setup(page, {ticker:'HMKB', func:'BS', reports:recentReports});
+for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with individual and group toggles (${theme})`, async ({page}, testInfo) => {
+  await setup(page, {ticker:'HMKB', func:'BS', reports:recentReports, theme});
   const terminal=page.getByTestId('financial-columns');
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  const select=terminal.locator('.fc-chart select');
-  await expect(select.locator('option').filter({hasText:'Кредиты и лизинговые операции, брутто · 7а'})).toHaveCount(1);
-  await select.selectOption({label:'Кредиты и лизинговые операции, брутто · 7а'});
-  await expect(terminal.locator('.fc-chart svg rect')).toHaveCount(3);
-  await expect(terminal.locator('.fc-chart')).toContainText('30,361,825,389');
-  await select.selectOption({label:'Кредиты и лизинговые операции, брутто · 7б'});
-  await expect(terminal.locator('.fc-chart')).toContainText('1,056,352,067');
-  await expect(terminal.locator('.fc-chart')).not.toContainText('31,418,177,456');
-  await terminal.locator('.fc-chart').scrollIntoViewIfNeeded();
-  await page.screenshot({path:testInfo.outputPath('hmkb-component-chart.png')});
+  const chart=terminal.locator('.fc-chart');
+  await expect(chart.locator('select')).toHaveCount(0);
+  const metrics=chart.locator('.fc-chart-metric');
+  await expect(metrics).toHaveCount(16);
+  await chart.getByRole('button',{name:'Show all',exact:true}).click();
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(16);
+  const loans=chart.getByRole('button',{name:'Кредиты и лизинговые операции, брутто · 7а',exact:true});
+  const leases=chart.getByRole('button',{name:'Кредиты и лизинговые операции, брутто · 7б',exact:true});
+  const loanSeries=chart.locator('[data-chart-series]').filter({hasText:'Кредиты и лизинговые операции, брутто · 7а'});
+  const leaseSeries=chart.locator('[data-chart-series]').filter({hasText:'Кредиты и лизинговые операции, брутто · 7б'});
+  await expect(loanSeries.locator('rect')).toHaveCount(3);
+  await expect(loanSeries).toContainText('30,361,825,389');
+  await expect(leaseSeries).toContainText('1,056,352,067');
+  await expect(chart).not.toContainText('31,418,177,456');
+  await leaseSeries.locator('rect').last().click();
+  await expect(chart.locator('.fc-chart-reading')).toContainText('1,056,352,067');
+  const color=await leaseSeries.getAttribute('fill');
+  await loans.click();
+  await expect(loans).toHaveAttribute('aria-pressed','false');
+  await expect(loanSeries).toHaveCount(0);
+  await expect(leaseSeries).toHaveAttribute('fill',color);
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(15);
+  const assets=chart.getByRole('button',{name:'Баланс банка · активы',exact:true});
+  await expect(assets).toHaveAttribute('aria-pressed','mixed');
+  await assets.click();
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(16);
+  await assets.click();
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(7);
+  await expect(loans).toHaveAttribute('aria-pressed','false');
+  await expect(leases).toHaveAttribute('aria-pressed','false');
+  await chart.getByRole('button',{name:'Hide all',exact:true}).click();
+  await expect(chart.getByRole('status')).toContainText('Select metrics above');
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(0);
+  await loans.focus();
+  await page.keyboard.press('Space');
+  await expect(loanSeries.locator('rect')).toHaveCount(3);
+  await expect(chart.getByRole('status')).toHaveCount(0);
+  await chart.getByRole('button',{name:'Show all',exact:true}).click();
+  await chart.getByRole('button',{name:'Ungrouped',exact:true}).click();
+  await expect(chart.locator('.fc-chart-group-toggle')).toHaveCount(0);
+  await expect(metrics).toHaveCount(16);
+  await chart.getByRole('button',{name:'By section',exact:true}).click();
+  await expect(chart.locator('.fc-chart-group-toggle')).toHaveCount(2);
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:testInfo.outputPath(`hmkb-grouped-chart-${theme}.png`), fullPage:true, animations:'disabled'});
   await page.setViewportSize({width:390,height:844});
-  await terminal.locator('.fc-chart').scrollIntoViewIfNeeded();
+  await expect(metrics).toHaveCount(16);
+  const bounds=await metrics.evaluateAll(nodes=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right})));
+  expect(bounds.every(b=>b.left>=0&&b.right<=390)).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
-  await page.screenshot({path:testInfo.outputPath('hmkb-component-chart-mobile.png')});
+  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.screenshot({path:testInfo.outputPath(`hmkb-grouped-chart-${theme}-mobile.png`), fullPage:true, animations:'disabled'});
+});
+
+test('chart keeps units separate and never draws missing or blocked values as zero', async ({page}) => {
+  const reports=structuredClone(recentReports);
+  const cells=(values,quality='valid')=>Object.fromEntries(reports.columns.map((c,i)=>[c.key,{value:values[i],quality}]));
+  reports.ratios=[
+    {id:'roe',metric_id:'roe',label:'ROE',unit:'percent',source_form:'RAT',cells:cells([0,-5,null])},
+    {id:'leverage',metric_id:'debt_to_equity',label:'Leverage',unit:'ratio',source_form:'RAT',cells:cells([1.7,null,2])},
+    {id:'blocked',metric_id:'roa',label:'Blocked',unit:'percent',source_form:'RAT',cells:cells([99,99,99],'blocked')},
+  ];
+  await setup(page,{ticker:'HMKB',func:'BS',reports});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
+  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
+  const chart=terminal.locator('.fc-chart');
+  await expect(chart.locator('.fc-chart-metric')).toHaveCount(2);
+  await expect(chart.getByRole('img')).toHaveCount(2);
+  const roe=chart.locator('[data-chart-series="roe"]');
+  await expect(roe.locator('rect')).toHaveCount(2);
+  await expect(roe).toContainText('0');
+  await expect(roe).toContainText('-5');
+  await expect(chart.locator('[data-chart-series="leverage"] rect')).toHaveCount(2);
+  await expect(chart).not.toContainText('99');
+  const retained=await roe.getAttribute('fill');
+  await terminal.getByRole('searchbox').fill('ROE');
+  await expect(chart.locator('.fc-chart-metric')).toHaveCount(1);
+  await expect(roe).toHaveAttribute('fill',retained);
 });
 
 test('annual income gaps explain why a comparative balance can still be populated', async ({page},testInfo) => {
@@ -396,4 +461,40 @@ test('a failed financial source request can be retried without showing stale amo
   await expect(terminal.getByRole('alert')).toContainText('Could not load financial statements');
   await expect(terminal.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
   await expect(terminal.locator('tr[data-metric]')).toHaveCount(0);
+});
+
+for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly chart has readable recent periods and inspectable values at ${width}px`,async({page},info)=>{
+  await page.setViewportSize({width,height:1000});
+  const reports=JSON.parse(readFileSync('e2e/fixtures/hmkb-quarterly-chart.json','utf8'));
+  await setup(page,{ticker:'HMKB',func:'PL',reports,theme});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('button',{name:'Quarters',exact:true}).click();
+  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
+  const chart=terminal.locator('.fc-chart'),plot=chart.locator('.fc-chart-plot');
+  await expect(chart.locator('[data-chart-series]')).toHaveCount(3);
+  await expect(plot.locator('.fc-chart-range')).toContainText('2026 Q3');
+  await expect(plot.locator('svg')).toHaveAttribute('data-period-count',width===390?'3':'8');
+  const svg=await plot.locator('svg').boundingBox();
+  expect(svg.width).toBeLessThan(width);expect(svg.height).toBeGreaterThanOrEqual(280);
+  await expect(plot.getByRole('button',{name:'Next periods',exact:true})).toBeDisabled();
+  await plot.getByRole('button',{name:'Previous periods',exact:true}).click();
+  await expect(plot.locator('.fc-chart-range')).not.toContainText('2026 Q3');
+  await plot.getByRole('button',{name:'Latest periods',exact:true}).click();
+  await expect(plot.locator('.fc-chart-range')).toContainText('2026 Q3');
+  await plot.locator('[data-period-hit]').first().click({position:{x:10,y:20}});
+  await expect(plot.locator('.fc-chart-reading')).toContainText(width===390?'2026 Q1':'2024 Q4');
+  const period=plot.locator('[data-period-hit]').first();
+  await period.focus();await page.keyboard.press('ArrowRight');
+  await expect(plot.locator('.fc-chart-reading')).toContainText(width===390?'2026 Q2':'2025 Q1');
+  if(width===390) {
+    const client=await page.context().newCDPSession(page);
+    const bounds=await plot.locator('svg').boundingBox(),y=bounds.y+100;
+    await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:bounds.x+80,y}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:bounds.x+160,y}]});
+    await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+    await expect(plot.locator('.fc-chart-range')).toContainText('2025 Q4');
+    await client.detach();
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await chart.screenshot({path:info.outputPath('quarterly-chart.png')});
 });
