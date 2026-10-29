@@ -86,7 +86,7 @@ async def api_currency_rates(request: Request, as_of: date | None = None) -> Res
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=503, detail="CBU archive unavailable") from exc
-        return http._etag_json(request, payload, max_age=86400)
+        return http._etag_json(request, payload, max_age=1800)
     now = time.time()
     if _cbu_rates_cache["payload"] is None or now - _cbu_rates_cache["at"] > CBU_RATES_TTL_SEC:
         loop = asyncio.get_running_loop()
@@ -153,3 +153,16 @@ async def api_bank_fx(request: Request) -> Response:
         http.logger.exception("bank-fx read failed")
         return http._etag_json(request, {"ok": False, "banks": [], "best": {}}, max_age=60)
     return http._etag_json(request, payload, max_age=300)
+
+
+@router.get("/api/currency/history")
+async def api_currency_history(request: Request, ccy: str = "USD", days: int = 30,
+                               end: date | None = None) -> Response:
+    from server.currency.history import series
+    try:
+        payload = await asyncio.to_thread(series, ccy, days, end.isoformat() if end else None)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="CBU history unavailable") from exc
+    return http._etag_json(request, payload, max_age=60 if payload["missing_days"] else 1800)

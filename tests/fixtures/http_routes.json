@@ -4808,5 +4808,21 @@
     ],
     "name": "api_site_rating__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/currency/history",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_currency_history",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/currency/history",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_currency_history__v2",
+    "dependencies": []
   }
 ]

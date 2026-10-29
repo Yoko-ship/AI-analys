@@ -46,7 +46,7 @@ const MIN_VISIBLE_BARS = 12;
  */
 export default function LwCanvas({
   spec, height, lang, grid = true, crosshair = true, pan = true, viewKey, initialView = null,
-  resetToken = 0, focus = null, paneTitles = null, onHover, onClick, onRange, className = "", style, ...rest
+  resetToken = 0, focus = null, paneTitles = null, preserveTimeOnPrepend = false, onHover, onClick, onRange, className = "", style, ...rest
 }) {
   const boxRef = React.useRef(null);
   const chartRef = React.useRef(null);
@@ -57,6 +57,8 @@ export default function LwCanvas({
   const viewKeyRef = React.useRef(undefined);
   // The view as it stood when the previous series were taken down.
   const lastRangeRef = React.useRef(null);
+  const lastFirstTimeRef = React.useRef(null);
+  const rebuildingRef = React.useRef(false);
   const [themeTick, setThemeTick] = React.useState(0);
   const locale = lang === "en" ? "en-US" : "ru-RU";
 
@@ -72,7 +74,7 @@ export default function LwCanvas({
     const s = specRef.current;
     const main = s?.series.find((x) => x.key === s.main);
     const lr = chart?.timeScale().getVisibleLogicalRange();
-    if (!chart || !main || !lr || !main.data.length) return;
+    if (rebuildingRef.current || !chart || !main || !lr || !main.data.length) return;
     const last = main.data.length - 1;
     // A bar is in view when its centre is: logical i spans i − ½ … i + ½.
     const from = Math.max(0, Math.min(last, Math.ceil(lr.from - 0.5)));
@@ -86,7 +88,7 @@ export default function LwCanvas({
       expFrom = i < 0 ? 0 : i;
     }
     const changed = Math.abs(from - expFrom) > 1 || Math.abs(to - last) > 1;
-    cbRef.current.onRange?.({ from, to, changed });
+    cbRef.current.onRange?.({ from, to, changed, logicalFrom: lr.from });
   }, []);
 
   const applyInitialView = React.useCallback(() => {
@@ -248,10 +250,11 @@ export default function LwCanvas({
           if (type === TickMarkType.DayOfMonth) return d.toLocaleDateString(locale, { ...o, day: "numeric", month: "short" });
           return d.toLocaleTimeString(locale, { ...o, hour: "2-digit", minute: "2-digit" });
         },
+        ...spec?.timeScale,
       },
       handleScroll: { pressedMouseMove: pan, horzTouchDrag: pan },
     });
-  }, [grid, crosshair, pan, locale, spec?.hourly, spec?.labels, themeTick]);
+  }, [grid, crosshair, pan, locale, spec?.hourly, spec?.labels, spec?.timeScale, themeTick]);
 
   // The series themselves.
   React.useEffect(() => {
@@ -259,7 +262,12 @@ export default function LwCanvas({
     if (!chart || !spec) return undefined;
     const ts = chart.timeScale();
     const sameView = viewKeyRef.current === viewKey;
-    const keep = sameView ? lastRangeRef.current : null;
+    let keep = sameView ? lastRangeRef.current : null;
+    if (keep && preserveTimeOnPrepend && lastFirstTimeRef.current != null) {
+      const offset = spec.series.find(item => item.key === spec.main)?.data.findIndex(point => point.time === lastFirstTimeRef.current) ?? -1;
+      if (offset > 0) keep = {from: keep.from + offset, to: keep.to + offset};
+    }
+    rebuildingRef.current = true;
     const th = readChartTheme();
 
     const live = { series: new Map(), detach: [], titles: [] };
@@ -319,6 +327,7 @@ export default function LwCanvas({
       if (h) pane.setStretchFactor(h);
     });
 
+    rebuildingRef.current = false;
     if (keep) {
       ts.setVisibleLogicalRange(keep);
     } else {
@@ -333,10 +342,12 @@ export default function LwCanvas({
       // next pass would fall back to the opening view — zoom lost on every
       // indicator toggle or window resize.
       lastRangeRef.current = ts.getVisibleLogicalRange();
+      lastFirstTimeRef.current = spec.series.find(item => item.key === spec.main)?.data[0]?.time;
+      rebuildingRef.current = true;
       live.detach.forEach((fn) => { try { fn(); } catch { /* already gone with its series */ } });
       live.series.forEach((api) => chart.removeSeries(api));
     };
-  }, [spec, viewKey, height, applyInitialView, reportRange]);
+  }, [spec, viewKey, height, preserveTimeOnPrepend, applyInitialView, reportRange]);
 
   // A title that follows the view is rewritten on the watermark it already has.
   const paneTitlesKey = (paneTitles || []).join("\u0000");
