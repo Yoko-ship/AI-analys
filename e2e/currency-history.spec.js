@@ -154,7 +154,7 @@ test.describe('touch chart navigation',()=>{
  });
 });
 
-test('panning before September 29 loads September without shifting dates or losing the period reset',async({page})=>{
+for(const pointer of ['hover','outside']) test(`panning before September 29 loads September without shifting dates or losing the period reset (${pointer})`,async({page})=>{
  await setup(page);
  let release;
  const requested=[];
@@ -174,10 +174,29 @@ test('panning before September 29 loads September without shifting dates or losi
  await expect.poll(()=>requested).toEqual(['2026-09-28']);
  await expect(card(page)).toContainText('Loading earlier rates');
  const right=await range.getAttribute('data-to');
+ if(pointer==='outside')await page.mouse.move(box.x-10,box.y);
+ const stableReading=await card(page).getByTestId('history-readout').locator('span').first().innerText();
+ await card(page).evaluate(el=>{
+  window.currencyFrames=[];
+  window.currencyObserver=new MutationObserver(records=>{
+   const current={to:el.querySelector('[data-testid="history-visible-range"]').dataset.to,
+    reading:el.querySelector('[data-testid="history-readout"]').textContent};
+   window.currencyFrames.push(current);
+   for(const record of records){
+    if(record.attributeName==='data-to'&&record.oldValue)window.currencyFrames.push({...current,to:record.oldValue});
+    if(record.type==='characterData'&&record.target.parentElement?.matches('[data-testid="history-readout"] > span')&&record.oldValue)
+     window.currencyFrames.push({...current,reading:record.oldValue});
+   }
+  });
+  window.currencyObserver.observe(el,{subtree:true,childList:true,characterData:true,attributes:true,attributeOldValue:true,characterDataOldValue:true});
+ });
  release();
  await expect.poll(()=>range.getAttribute('data-from')).toMatch(/^2026-09-(0|1|2)/);
  await expect(range).toHaveAttribute('data-to',right);
  await expect(card(page)).not.toContainText('Loading earlier rates');
+ const frames=await page.evaluate(()=>{window.currencyObserver.disconnect();return window.currencyFrames;});
+ expect(frames.length).toBeGreaterThan(0);
+ expect(frames.filter(frame=>frame.to!==right||!frame.reading.includes(stableReading))).toEqual([]);
  await page.mouse.move(box.x-10,box.y);
  const lastVisible=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(right+'T12:00:00Z'));
  await expect(card(page).getByTestId('history-readout')).toContainText(lastVisible);

@@ -25,9 +25,13 @@ function HistoryPlot({data, language, t}) {
   const touch = useMediaQuery('(pointer: coarse)');
   const earlier=useEarlierHistory(data.ccy,data.points);
   const points = earlier.points;
-  const latestIndex = points.findLastIndex(p=>Number.isFinite(p.value));
+  // A prepend changes every array index. Keep the visible calendar dates
+  // stable until the canvas reports its adjusted range, including between commits.
+  const from=Math.max(0,points.findIndex(p=>p.date===visible?.fromDate));
+  const endIndex=points.findIndex(p=>p.date===visible?.toDate);
+  const to=endIndex<0?points.length-1:endIndex;
   const selectedIndex=selected?points.findIndex(p=>p.date===selected):-1;
-  const index = selectedIndex<0?Math.min(visible?.to??latestIndex,points.length-1):selectedIndex, point = points[index];
+  const index = selectedIndex<0?to:selectedIndex, point = points[index];
   const number = value=>formatRatio(value,2,language);
   const spec = useMemo(()=>({main:'history', timeScale:{fixRightEdge:true, fixLeftEdge:!earlier.hasEarlier,
     tickMarkFormatter:time=>dateLabel(new Date(time*1000).toISOString().slice(0,10),language)}, series:historySeries(points, {
@@ -40,7 +44,6 @@ function HistoryPlot({data, language, t}) {
     },
   })}),[points,language,earlier.hasEarlier]);
   const valueText = `${dateLabel(point.date,language,true)}: ${Number.isFinite(point.value)?number(point.value)+' UZS':t.unavailable}`;
-  const from=Math.min(visible?.from??0,points.length-1), to=Math.min(visible?.to??points.length-1,points.length-1);
   const initialView=useMemo(()=>({from:Date.parse(data.start+'T00:00:00Z')/1000,to:Date.parse(data.end+'T00:00:00Z')/1000}),[data.start,data.end]);
   const loadEarlier=earlier.load;
   useEffect(()=>{
@@ -74,7 +77,7 @@ function HistoryPlot({data, language, t}) {
       <LwCanvas spec={spec} height={220} lang={language} viewKey={`${data.ccy}:${data.days}:${data.start}:${data.end}`}
         resetToken={resetToken} focus={focus} initialView={initialView} preserveTimeOnPrepend aria-hidden="true"
         onHover={reading=>setSelected(reading?points[reading.index]?.date:null)} onClick={reading=>setSelected(points[reading.index]?.date)}
-        onRange={range=>setVisible(current=>current?.from===range.from&&current?.to===range.to&&current?.changed===range.changed&&current?.logicalFrom===range.logicalFrom&&current?.anchor===points[0].date?current:{...range,anchor:points[0].date})}/>
+        onRange={range=>setVisible(current=>current?.from===range.from&&current?.to===range.to&&current?.changed===range.changed&&current?.logicalFrom===range.logicalFrom&&current?.anchor===points[0].date?current:{...range,anchor:points[0].date,fromDate:points[range.from].date,toDate:points[range.to].date})}/>
     </div>
     <div className="cbu-navigation">
       <span data-testid="history-visible-range" data-from={points[from].date} data-to={points[to].date}>
