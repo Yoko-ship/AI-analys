@@ -62,14 +62,9 @@ for(const theme of ['light','dark'])test(`shared IFRS investor has all sections,
   await expect(ui.locator('.investor-kpis')).toHaveCount(0);
 });
 
-for (const signedIn of [false, true]) test(`catalog temporarily hides MSFO for ${signedIn ? 'members' : 'guests'} including old links and panels`,async({page})=>{
+test('admin catalog still hides MSFO including old links and panels',async({page})=>{
   await setup(page);
   const layout=[{ticker:'HMKB',func:'BS',form:'MSFO',scope:'consolidated'}];
-  await page.addInitScript(({signedIn,layout})=>{
-    if(!signedIn)localStorage.removeItem('uz_stock_analyzer_token');
-    localStorage.setItem('uz_terminal_layout',JSON.stringify(layout));
-  },{signedIn,layout});
-  await page.route('**/api/auth/me',route=>route.fulfill({json:{user:{id:1,is_admin:false}}}));
   await page.route('**/api/profile',route=>route.fulfill({json:{preferences:{terminal_layout:layout}}}));
   const ifrsRequests=[];
   page.on('request',request=>{

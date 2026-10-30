@@ -4,19 +4,16 @@ Source: «ТЗ: терминал каталога UZStock с логирован�
 15.10.2026, 21 pages). Visual reference: `UZStock_terminal_TZ_maket.html`
 (15.10), sent with the ТЗ.
 
-## Public catalog access
+## Catalog access
 
-The catalog at `/catalog` is available to guests and signed-in users, with a
-navigation entry on desktop and mobile. Browsing reports does not require an
-administrator account or a paid plan. Bookmarks also work while session
-verification is pending and after logout.
-
-Administration (`ADM`), full catalog synchronization, and unvalidated valuation
-models remain restricted to administrators. Source refresh and analysis retain
-their existing authentication and API permission checks.
+The catalog at `/catalog` is restricted to signed-in, verified administrators.
+Guests, regular members and Pro members do not see its desktop or mobile
+navigation entry. Direct catalog links show an administrator-only notice and do
+not mount the catalog or request its data. Pending sessions wait for verification,
+and logout immediately removes access.
 
 For local viewing, run the API on port 8000 and `npm run dev`, then open
-`http://localhost:5173/catalog`. Production builds provide the same public access.
+`http://localhost:5173/catalog` with an administrator account.
 
 ## Temporary MSFO catalog pause
 

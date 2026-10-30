@@ -2,7 +2,7 @@ import { Suspense, useEffect } from "react";
 import { loadConfig } from "./lib/flags.js";
 import { setTrackedUser } from "./lib/track.js";
 import { LandingView } from "./features/landing/index.js";
-import { CatalogView } from "./features/catalog/index.js";
+import { CatalogView, CatalogAccessNotice } from "./features/catalog/index.js";
 import { CompanyComparison } from "./features/comparison/index.js";
 import { AdminPanel } from "./app/LazyViews.jsx";
 import { AnnouncementArticleView, NewsArticleView, NewsView } from "./features/news/index.js";
@@ -34,6 +34,7 @@ function App() {
   const sessionState = useSession(preferences.language);
   const session = {
    ...sessionState,
+   canAccessCatalog: Boolean(sessionState.token && sessionState.user?.is_admin),
    favoriteTickers: new Set((sessionState.profile?.favorites || []).map(item => String(item?.ticker || "").trim().toUpperCase()).filter(Boolean)),
    profileUser: sessionState.profile?.user || sessionState.user,
    hasProAccess: Boolean(sessionState.profile?.user?.pro_access ?? sessionState.user?.pro_access),
@@ -52,7 +53,7 @@ function App() {
   const { activeView, setActiveView, openCompanyPage, openNewsArticle, adminSection, setAdminSection, openAnnouncementArticle, newsId, backToNewsCalendar, companyTicker, openChartPage, prevView, chartState, openBondPage } = navigation;
   const { language, theme } = preferences;
   const { marketRows, marketTradeStats, securitiesMap, companies, catalogStatus, setMarketType, marketMeta, marketLoading, marketMessage, marketQuery, setMarketQuery, marketType, loadMarketStocks, marketFinancials } = market;
-  const { token, user, apiFetch, favoriteTickers, hasProAccess } = session;
+  const { token, user, apiFetch, favoriteTickers, hasProAccess, canAccessCatalog } = session;
   const { addToast } = toasts;
   const { setAnalysisCompany } = research;
   const { handleToggleFavorite } = favorites;
@@ -77,14 +78,14 @@ function App() {
             user={user} onSignIn={() => setActiveView('auth')} />}
 
           {activeView === "catalog" && (
-            <CatalogView
+            canAccessCatalog ? <CatalogView
               language={language}
               companies={companies}
               token={token}
               addToast={addToast}
               initialStatus={catalogStatus}
               user={user}
-            />
+            /> : <CatalogAccessNotice language={language} pending={Boolean(token && !user)} onBack={() => setActiveView("main")} />
           )}
 
           {/* Reached by direct link only — it is deliberately absent from
