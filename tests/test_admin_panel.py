@@ -255,3 +255,23 @@ def test_product_analytics_is_human_admin_only_and_validates_period(client, monk
     monkeypatch.setattr(product_analytics, 'product_report', lambda days: {'ok': True, 'days': days})
     assert client.get('/api/admin/metrics/product?days=7', headers={'Authorization': 'Bearer tok'}).json() == {'ok': True, 'days': 7}
     assert client.get('/api/admin/metrics/product?days=999', headers={'Authorization': 'Bearer tok'}).status_code == 422
+
+
+@pytest.mark.parametrize('prefix', ['/api', '/api/v2'])
+def test_journeys_are_admin_only_and_bound_pagination(client, monkeypatch, prefix):
+    import journey_analytics
+    root = prefix + '/admin/metrics/journeys'
+    monkeypatch.setenv('ADMIN_EMAILS', 'admin@example.com')
+    _as_user(monkeypatch, None)
+    assert client.get(root).status_code == 401
+    _as_user(monkeypatch, 'reader@example.com')
+    assert client.get(root + '/42', headers={'Authorization':'Bearer tok'}).status_code == 403
+    _as_user(monkeypatch, 'admin@example.com')
+    headers={'Authorization':'Bearer tok'}
+    monkeypatch.setattr(journey_analytics, 'journeys_report', lambda days, **kw: {'ok':True,'days':days,**kw})
+    result = client.get(root+'?days=7&through=99&before=50&limit=2',headers=headers)
+    assert result.json() == {'ok':True,'days':7,'through':99,'before':50,'limit':2}
+    assert client.get(root+'?limit=9999',headers=headers).status_code == 422
+    assert client.get(root+'/42?after=-1',headers=headers).status_code == 422
+    monkeypatch.setattr(journey_analytics, 'session_journey', lambda *a, **kw: None)
+    assert client.get(root+'/42',headers=headers).status_code == 404

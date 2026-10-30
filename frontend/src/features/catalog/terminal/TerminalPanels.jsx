@@ -23,6 +23,7 @@ function FunctionTabs({ terminal, lang }) {
         return (
           <button
             key={fn.code}
+            data-track-control="catalog_function" data-track-value={fn.code} data-track-ticker={terminal.ticker}
             type="button"
             className={`terminal-tab ${terminal.func === fn.code ? "active" : ""} ${ready ? "" : "is-pending"}`}
             aria-current={terminal.func === fn.code ? "page" : undefined}

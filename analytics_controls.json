@@ -1,0 +1,462 @@
+{
+  "company_tab": {
+    "label": [
+      "Вкладка компании",
+      "Kompaniya bo‘limi",
+      "Company tab"
+    ],
+    "values": {
+      "overview": [
+        "Обзор",
+        "Umumiy",
+        "Overview"
+      ],
+      "chart": [
+        "График",
+        "Grafik",
+        "Chart"
+      ],
+      "financials": [
+        "Финансы",
+        "Moliya",
+        "Financials"
+      ],
+      "dividends": [
+        "Дивиденды",
+        "Dividendlar",
+        "Dividends"
+      ],
+      "reports": [
+        "Документы",
+        "Hujjatlar",
+        "Reports"
+      ]
+    }
+  },
+  "chart_range": {
+    "label": [
+      "Период графика",
+      "Grafik davri",
+      "Chart range"
+    ],
+    "values": {
+      "1d": [
+        "1d",
+        "1d",
+        "1d"
+      ],
+      "1w": [
+        "1w",
+        "1w",
+        "1w"
+      ],
+      "1m": [
+        "1m",
+        "1m",
+        "1m"
+      ],
+      "3m": [
+        "3m",
+        "3m",
+        "3m"
+      ],
+      "6m": [
+        "6m",
+        "6m",
+        "6m"
+      ],
+      "1y": [
+        "1y",
+        "1y",
+        "1y"
+      ],
+      "3y": [
+        "3y",
+        "3y",
+        "3y"
+      ],
+      "5y": [
+        "5y",
+        "5y",
+        "5y"
+      ],
+      "all": [
+        "all",
+        "all",
+        "all"
+      ],
+      "ytd": [
+        "ytd",
+        "ytd",
+        "ytd"
+      ],
+      "max": [
+        "max",
+        "max",
+        "max"
+      ]
+    }
+  },
+  "finance_view": {
+    "label": [
+      "Финансовые данные",
+      "Moliyaviy ma’lumotlar",
+      "Financial view"
+    ],
+    "values": {
+      "summary": [
+        "Сводка",
+        "Xulosa",
+        "Summary"
+      ],
+      "original": [
+        "Отчётность",
+        "Hisobot",
+        "Original"
+      ],
+      "ratios": [
+        "Коэффициенты",
+        "Koeffitsiyentlar",
+        "Ratios"
+      ],
+      "owners": [
+        "Владельцы",
+        "Egalari",
+        "Owners"
+      ],
+      "quality": [
+        "Качество данных",
+        "Ma’lumot sifati",
+        "Quality"
+      ]
+    }
+  },
+  "finance_display": {
+    "label": [
+      "Представление отчётности",
+      "Hisobot ko‘rinishi",
+      "Financial display"
+    ],
+    "values": {
+      "table": [
+        "Таблица",
+        "Jadval",
+        "Table"
+      ],
+      "chart": [
+        "График",
+        "Grafik",
+        "Chart"
+      ]
+    }
+  },
+  "market_view": {
+    "label": [
+      "Представление рынка",
+      "Bozor ko‘rinishi",
+      "Market view"
+    ],
+    "values": {
+      "table": [
+        "Таблица",
+        "Jadval",
+        "Table"
+      ],
+      "heatmap": [
+        "Карта рынка",
+        "Bozor xaritasi",
+        "Heatmap"
+      ]
+    }
+  },
+  "company_open": {
+    "label": [
+      "Открытие компании",
+      "Kompaniyani ochish",
+      "Open company"
+    ],
+    "values": {}
+  },
+  "company_info": {
+    "label": [
+      "Сведения о компании",
+      "Kompaniya ma’lumoti",
+      "Company information"
+    ],
+    "values": {}
+  },
+  "market_favorite": {
+    "label": [
+      "Избранное",
+      "Tanlanganlar",
+      "Favorite"
+    ],
+    "values": {}
+  },
+  "news_tab": {
+    "label": [
+      "Раздел новостей",
+      "Yangiliklar bo‘limi",
+      "News tab"
+    ],
+    "values": {
+      "general": [
+        "Новости",
+        "Yangiliklar",
+        "News"
+      ],
+      "corporate": [
+        "Корпоративные",
+        "Korporativ",
+        "Corporate"
+      ],
+      "calendar": [
+        "Календарь",
+        "Taqvim",
+        "Calendar"
+      ]
+    }
+  },
+  "navigation": {
+    "label": [
+      "Переход по ссылке",
+      "Havola orqali o‘tish",
+      "Follow link"
+    ],
+    "values": {}
+  },
+  "finance_scope": {
+    "label": [
+      "Периметр отчётности",
+      "Hisobot qamrovi",
+      "Reporting scope"
+    ],
+    "values": {
+      "separate": [
+        "Отдельная",
+        "Alohida",
+        "Separate"
+      ],
+      "consolidated": [
+        "Консолидированная",
+        "Konsolidatsiyalangan",
+        "Consolidated"
+      ],
+      "unknown": [
+        "Не подтверждён",
+        "Tasdiqlanmagan",
+        "Unconfirmed"
+      ]
+    }
+  },
+  "finance_standard": {
+    "label": [
+      "Стандарт отчётности",
+      "Hisobot standarti",
+      "Reporting standard"
+    ],
+    "values": {
+      "NSBU": [
+        "NSBU",
+        "NSBU",
+        "NSBU"
+      ],
+      "MSFO": [
+        "IFRS",
+        "IFRS",
+        "IFRS"
+      ]
+    }
+  },
+  "finance_period": {
+    "label": [
+      "Период отчётности",
+      "Hisobot davri",
+      "Reporting period"
+    ],
+    "values": {
+      "annual": [
+        "Годовые",
+        "Yillik",
+        "Annual"
+      ],
+      "quarter": [
+        "Кварталы",
+        "Choraklar",
+        "Quarters"
+      ],
+      "interim": [
+        "Промежуточные",
+        "Oraliq",
+        "Interim"
+      ]
+    }
+  },
+  "site_navigation": {
+    "label": [
+      "Раздел сайта",
+      "Sayt bo‘limi",
+      "Site section"
+    ],
+    "values": {
+      "main": [
+        "Главная",
+        "Bosh sahifa",
+        "Home"
+      ],
+      "market": [
+        "Рынок",
+        "Bozor",
+        "Market"
+      ],
+      "catalog": [
+        "Каталог",
+        "Katalog",
+        "Catalog"
+      ],
+      "news": [
+        "Новости",
+        "Yangiliklar",
+        "News"
+      ],
+      "heatmap": [
+        "Карта рынка",
+        "Bozor xaritasi",
+        "Market map"
+      ],
+      "bankfx": [
+        "Валюты",
+        "Valyutalar",
+        "Currencies"
+      ],
+      "feedback": [
+        "Обратная связь",
+        "Fikr-mulohaza",
+        "Feedback"
+      ],
+      "profile": [
+        "Профиль",
+        "Profil",
+        "Profile"
+      ]
+    }
+  },
+  "news_instrument": {
+    "label": [
+      "Фильтр новостей",
+      "Yangiliklar filtri",
+      "News filter"
+    ],
+    "values": {
+      "all": [
+        "Все",
+        "Barchasi",
+        "All"
+      ],
+      "stock": [
+        "Акции",
+        "Aksiyalar",
+        "Stocks"
+      ],
+      "bond": [
+        "Облигации",
+        "Obligatsiyalar",
+        "Bonds"
+      ]
+    }
+  },
+  "catalog_function": {
+    "label": [
+      "Функция каталога",
+      "Katalog funksiyasi",
+      "Catalog function"
+    ],
+    "values": {
+      "SUM": [
+        "Обзор",
+        "Umumiy",
+        "Summary"
+      ],
+      "PL": [
+        "Прибыль и убыток",
+        "Foyda va zarar",
+        "Profit and loss"
+      ],
+      "BS": [
+        "Баланс",
+        "Balans",
+        "Balance sheet"
+      ],
+      "RAT": [
+        "Коэффициенты",
+        "Koeffitsientlar",
+        "Ratios"
+      ],
+      "FV": [
+        "Оценка",
+        "Baholash",
+        "Fair value"
+      ],
+      "RV": [
+        "Аналоги",
+        "Analoglar",
+        "Peers"
+      ],
+      "DVD": [
+        "Дивиденды",
+        "Dividendlar",
+        "Dividends"
+      ],
+      "CF": [
+        "Отчёты",
+        "Hisobotlar",
+        "Filings"
+      ],
+      "CN": [
+        "Новости",
+        "Yangiliklar",
+        "News"
+      ],
+      "DQ": [
+        "Качество данных",
+        "Ma'lumotlar sifati",
+        "Data quality"
+      ],
+      "REC": [
+        "Сверка НСБУ ↔ МСФО",
+        "BHMS ↔ MHXS solishtirish",
+        "NSBU ↔ IFRS reconciliation"
+      ],
+      "CAT": [
+        "Каталог",
+        "Katalog",
+        "Catalog"
+      ],
+      "EQS": [
+        "Скринер",
+        "Skriner",
+        "Screener"
+      ],
+      "MON": [
+        "Монитор",
+        "Monitor",
+        "Monitor"
+      ],
+      "PNL": [
+        "Панели",
+        "Panellar",
+        "Panels"
+      ],
+      "LAST": [
+        "Последние экраны",
+        "Oxirgi ekranlar",
+        "Recent screens"
+      ],
+      "HELP": [
+        "Справка",
+        "Yordam",
+        "Help"
+      ]
+    }
+  }
+}

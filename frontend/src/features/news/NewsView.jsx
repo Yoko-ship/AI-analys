@@ -66,7 +66,7 @@ export function NewsView({
         {NEWS_TABS.map(t => <button
           key={t.key}
           type="button"
-          data-tab={t.key}
+          data-track-control="news_tab" data-track-value={t.key} data-tab={t.key}
           className={`newsdesk-tab ${tab === t.key ? "active" : ""}`}
           aria-current={tab === t.key ? "page" : undefined}
           onClick={() => selectTab(t.key)}
@@ -88,7 +88,7 @@ export function NewsView({
             key={key}
             type="button"
             className={`newsdesk-subtab ${instrument === key ? "active" : ""}`}
-            aria-pressed={instrument === key}
+            data-track-control="news_instrument" data-track-value={key} aria-pressed={instrument === key}
             onClick={() => selectInstrument(key)}
           >
               {tx.instruments && tx.instruments[key] || key}

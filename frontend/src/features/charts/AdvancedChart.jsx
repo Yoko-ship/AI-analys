@@ -519,6 +519,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       {CHART_RANGES.map((r) => (
         <button key={r.key} type="button"
           className={`ac-range-btn ${!custom && range === r.key ? "active" : ""}`}
+          data-track-control="chart_range" data-track-value={r.key} data-track-ticker={ticker}
           onClick={() => { if (range !== r.key || span.from || span.to) trackFeature("chart", ticker); setSpan({ from: "", to: "" }); setRange(r.key); }}>
           {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
         </button>

@@ -462,6 +462,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       {CHART_RANGES.map((r) => (
         <button key={r.key} type="button"
           className={`range-btn ${range === r.key ? "active" : ""}`}
+          data-track-control="chart_range" data-track-value={r.key} data-track-ticker={ticker}
           onClick={() => { if (range !== r.key) trackFeature("chart", ticker); onRangeChange(r.key); }}>
           {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
         </button>

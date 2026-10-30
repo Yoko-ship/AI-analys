@@ -730,3 +730,16 @@
 .product-history { margin: 12px 0 24px; }
 .product-report tbody th { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .product-report tbody tr:last-child th { border-bottom: 0; }
+
+/* Visit journeys share the product tables; only the ordered timeline differs. */
+.journey-events { list-style: none; margin: 0; padding: 0 16px; }
+.journey-events li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.journey-events li:last-child { border-bottom: 0; }
+.journey-events time { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.journey-events strong { font-size: .85rem; }
+.journey-events small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere; }
+.journey-ticker { margin-left: 10px; color: var(--accent); font: .75rem 'IBM Plex Mono', monospace; }
+.journey-timeline > .admin-btn { margin: 12px 16px; }
+@media (max-width: 600px) { .journey-events li { grid-template-columns: 1fr; gap: 6px; } }
+
+.product-report-switch { align-self: flex-start; max-width: 100%; flex-wrap: wrap; }

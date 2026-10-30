@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package.json package-lock.json /app/
 RUN npm ci
 
-COPY vite.config.js /app/
+COPY vite.config.js analytics_controls.json /app/
 COPY frontend /app/frontend
 RUN npm run build
 

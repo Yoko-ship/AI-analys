@@ -334,7 +334,7 @@ function MarketView({
                 {windowed ? changePeriodLabel(changePeriod, lang, "label") : `${stats.boardDay.slice(6, 8)}.${stats.boardDay.slice(4, 6)}.${stats.boardDay.slice(0, 4)}`}
               </span>}
             <div className="market-view-toggle">
-              <button type="button" className={viewMode === "table" ? "active" : ""} onClick={() => setViewMode("table")} title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}>
+              <button type="button" className={viewMode === "table" ? "active" : ""} data-track-control="market_view" data-track-value="table" onClick={() => setViewMode("table")} title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
                   <rect x="1" y="2" width="13" height="1.8" rx="0.9" />
                   <rect x="1" y="6.6" width="13" height="1.8" rx="0.9" />
@@ -342,7 +342,7 @@ function MarketView({
                 </svg>
                 <span>{lang === "en" ? "Table" : lang === "uz" ? "Jadval" : "Таблица"}</span>
               </button>
-              <button type="button" className={viewMode === "heatmap" ? "active" : ""} onClick={() => setViewMode("heatmap")} title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}>
+              <button type="button" className={viewMode === "heatmap" ? "active" : ""} data-track-control="market_view" data-track-value="heatmap" onClick={() => setViewMode("heatmap")} title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
                   <rect x="1" y="1" width="5.8" height="5.8" rx="1.2" />
                   <rect x="8.2" y="1" width="5.8" height="5.8" rx="1.2" />

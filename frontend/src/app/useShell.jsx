@@ -272,7 +272,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 <button
                   className={`topbar-nav-btn ${activeView === key || activeView === "issuers" || activeView === "bankfx" || activeView === "heatmap" || activeView === "companyCompare" ? "active" : ""}`}
                   type="button"
-                  id="header-trigger-market"
+                  data-track-control="site_navigation" data-track-value="market" id="header-trigger-market"
                   aria-haspopup={drawerLayout ? undefined : 'menu'}
                   aria-controls={drawerLayout ? undefined : 'header-menu-market'}
                   aria-expanded={drawerLayout ? undefined : navMenu === "market"}
@@ -320,7 +320,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 <button
                   className={`topbar-nav-btn ${["news", "newsArticle", "announcementArticle"].includes(activeView) ? "active" : ""}`}
                   type="button"
-                  id="header-trigger-news"
+                  data-track-control="site_navigation" data-track-value="news" id="header-trigger-news"
                   aria-haspopup={drawerLayout ? undefined : 'menu'}
                   aria-controls={drawerLayout ? undefined : 'header-menu-news'}
                   aria-expanded={drawerLayout ? undefined : navMenu === "news"}
@@ -343,7 +343,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 </button>)}
               </div>
             ) : (
-              <button key={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && ["newsArticle", "announcementArticle"].includes(activeView)) ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
+              <button key={key} data-track-control="site_navigation" data-track-value={key} className={`topbar-nav-btn ${activeView === key || (key === "news" && ["newsArticle", "announcementArticle"].includes(activeView)) ? "active" : ""}`} type="button" onClick={() => { setActiveView(key); setMobileNavOpen(false); }}>
                 {key === "catalog" ? (
                   <span className="nav-catalog-wrap">
                     {t(language, "nav.catalog")}

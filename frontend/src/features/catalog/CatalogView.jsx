@@ -798,7 +798,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       )}
       {terminal.overlay === "LAST" && <LastPanel terminal={terminal} lang={lang} />}
       <nav className="terminal-market-nav" aria-label="Terminal">
-        {MARKET_FUNCTIONS.filter(f => f.code !== "ADM" || user?.is_admin).map(f => <button type="button" key={f.code} className={`ghost-btn ${terminal.market === f.code ? "active" : ""}`} onClick={() => terminal.run(f.code)}>{f.code} · {functionLabel(f.code,lang)}</button>)}
+        {MARKET_FUNCTIONS.filter(f => f.code !== "ADM" || user?.is_admin).map(f => <button type="button" key={f.code} data-track-control="catalog_function" data-track-value={f.code} className={`ghost-btn ${terminal.market === f.code ? "active" : ""}`} onClick={() => terminal.run(f.code)}>{f.code} · {functionLabel(f.code,lang)}</button>)}
       </nav>
       {["EQS", "MON"].includes(terminal.market) && <MarketScreen mode={terminal.market} terminal={terminal} lang={lang} user={user} apiFetch={apiFetch} />}
       {terminal.market === "PNL" && <PanelWorkspace companies={catalogComps} terminal={{...terminal,ticker}} lang={lang} user={user} apiFetch={apiFetch} />}

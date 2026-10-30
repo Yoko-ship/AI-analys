@@ -1,3 +1,4 @@
+import CONTROLS from "../../../analytics_controls.json" with { type: "json" };
 /**
  * track.js — the visit beacon.
  *
@@ -120,7 +121,7 @@ function sessionId(store) {
 }
 
 function send(payload) {
-  const body = JSON.stringify({ ...payload, tv: 1 });
+  const body = JSON.stringify({ ...payload, tv: 2 });
   // sendBeacon cannot attach an Authorization header. Signed-in page views use
   // fetch so the server can derive (and verify) the user from the session token.
   if (currentAuthToken) {
@@ -271,6 +272,8 @@ function reportLeave() {
 function listen() {
   if (listening) return;
   listening = true;
+  document.addEventListener("click", captureControl, true);
+  document.addEventListener("change", captureControl, true);
   let pending = false;
   window.addEventListener("scroll", () => {
     if (pending) return;
@@ -295,4 +298,52 @@ function listen() {
       page = null;
     } catch { /* tracking must never break the page */ }
   });
+}
+
+
+function publicPath(value) {
+  if (typeof value !== "string" || value.length > 2000) return undefined;
+  const path = value.split(/[?#]/)[0].replace(/^\/(ru|uz|en)(?=\/)/, "");
+  if (["/", "/market", "/catalog", "/news", "/heatmap", "/login"].includes(path)) return path;
+  if (/^\/(company|chart|bond)\/[A-Za-z0-9._-]{1,32}$/.test(path)) return path;
+  if (path.startsWith("/news/") && path.length <= 200) return "/news/article";
+  return undefined;
+}
+
+export function trackControl(control, { value, ticker, target } = {}) {
+  try {
+    if (!Object.hasOwn(CONTROLS, control) || !page || !publicPath(page.path)) return;
+    const store = storage();
+    if (!store) return;
+    const seen = Number(store.getItem(SEEN_KEY) || 0);
+    if (!seen || Date.now() - seen > IDLE_MS) trackPageview({ path: page.path, view: page.view, ticker: page.ticker });
+    const { sid } = sessionId(store);
+    const cleanTicker = String(ticker || page.ticker || "").trim().toUpperCase();
+    send({ vid: page.vid, sid, path: publicPath(page.path), event: "ui_click", ctl: control,
+      val: typeof value === "string" && Object.hasOwn(CONTROLS[control].values, value) ? value : undefined,
+      dest: publicPath(target), ticker: /^[A-Z0-9]{2,16}$/.test(cleanTicker) ? cleanTicker : "",
+      ...(isBrowserExcluded() ? { int: 1 } : {}),
+    });
+  } catch { /* tracking must never interrupt a control */ }
+}
+
+function captureControl(event) {
+  try {
+    const target = event.target;
+    if (!target?.closest || target.closest('input, textarea, [contenteditable], [data-track-ignore], .admin-view')) return;
+    const el = target.closest('button, a[href], select, [role="button"], [role="tab"]');
+    if (!el || el.disabled || el.getAttribute("aria-disabled") === "true") return;
+    if ((el.tagName === "SELECT") !== (event.type === "change")) return;
+    let control = el.dataset.trackControl;
+    let dest = el.getAttribute("href");
+    if (!control && el.tagName === "A") {
+      const url = new URL(dest, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      dest = url.pathname;
+      if (!publicPath(dest)) return;
+      control = "navigation";
+    }
+    trackControl(control, { value: el.tagName === "SELECT" ? el.value : el.dataset.trackValue,
+      ticker: el.dataset.trackTicker, target: dest });
+  } catch { /* detached nodes and malformed URLs are harmless */ }
 }

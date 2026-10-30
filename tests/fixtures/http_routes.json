@@ -4844,5 +4844,45 @@
     ],
     "name": "api_currency_history__v2",
     "dependencies": []
+  },
+  {
+    "path": "/api/admin/metrics/journeys",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_journeys",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/metrics/journeys/{visit_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_journey",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/journeys",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_journeys__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/journeys/{visit_id}",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_journey__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
   }
 ]

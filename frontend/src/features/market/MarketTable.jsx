@@ -90,7 +90,7 @@ export function MarketTable({
                             `display: flex` drops out of table layout and stops
                             stretching to its row, which misaligned every row. */}
                         <div className="market-ticker-cell-inner">
-                        <button type="button" className={`market-fav-btn ${isFav ? "is-fav" : ""}`} aria-pressed={isFav} title={isFav ? lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного" : lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное"} onClick={e => {
+                        <button type="button" data-track-control="market_favorite" data-track-ticker={row.ticker} className={`market-fav-btn ${isFav ? "is-fav" : ""}`} aria-pressed={isFav} title={isFav ? lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного" : lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное"} onClick={e => {
                     e.stopPropagation();
                     onToggleFavorite && onToggleFavorite(row.ticker, row.name);
                   }}>
@@ -98,7 +98,7 @@ export function MarketTable({
                         </button>
                         <CompanyLogo logo={logo} name={row.name || row.ticker} ticker={row.ticker} />
                         <div className="market-ticker-info">
-                          <button type="button" className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
+                          <button type="button" data-track-control="company_open" data-track-ticker={row.ticker} className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
                             {row.ticker || "—"}
                           </button>
                           <span className="market-share-class" title={shareLabel} aria-label={shareLabel}>
@@ -106,13 +106,13 @@ export function MarketTable({
                             <span className="market-share-short" aria-hidden="true">{shortShareLabel}</span>
                           </span>
                         </div>
-                        <button type="button" className="market-info-btn" title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"} onClick={() => openPanel(row.ticker)}>ℹ</button>
+                        <button type="button" data-track-control="company_info" data-track-ticker={row.ticker} className="market-info-btn" title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"} onClick={() => openPanel(row.ticker)}>ℹ</button>
                         </div>
                       </td>
                       <td className={pinCls(pinCompany).trim() || undefined} style={pinCompany ? {
                   left: pinCompany.left
                 } : undefined}>
-                        <button type="button" className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
+                        <button type="button" data-track-control="company_open" data-track-ticker={row.ticker} className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
                           {row.name || sec.name || "—"}
                         </button>
                         <span>{row.isin || "—"}</span>

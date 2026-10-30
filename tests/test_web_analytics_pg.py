@@ -191,8 +191,8 @@ def product_traffic(traffic):
     hit("visitorAAA1", "sessionAAA1", start, us="telegram", uc="uztl-post", tv=1)
     hit("visitorAAA1", "sessionAAA1", start + timedelta(seconds=20), event="feature_financials", tv=1)
     hit("visitorAAA1", "sessionAAA1", start + timedelta(seconds=21), event="feature_financials", tv=1)
-    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1), tv=1)
-    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1, seconds=10), event="feature_financials", tv=1)
+    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1), tv=2)
+    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1, seconds=10), event="feature_financials", tv=2)
     # Anonymous arrival, then a trusted signed-in event. Only the new account counts.
     hit("visitorBBB1", "sessionBBB1", start + timedelta(hours=1), ref="https://www.google.com/search?q=uztl")
     wa._buffer[-1] = tuple(None if i == 3 else value for i, value in enumerate(wa._buffer[-1]))
@@ -276,3 +276,54 @@ def test_product_empty_database_has_no_invented_history(traffic):
     assert report["sources"] == [] and report["companies"] == []
     assert report["totals"]["sessions"] == 0
     assert all(r["adoption_rate"] is None for r in report["features"])
+
+
+def test_journeys_show_ordered_controls_and_pageviews_without_identity_fields(traffic):
+    import journey_analytics as ja
+    # Real research flow: market -> UZTL -> Financials, including a repeated control.
+    for control, value in [('company_tab', 'financials'), ('company_tab', 'financials'), ('chart_range', '1y')]:
+        traffic('visitorAAA1', '/company/UZTL', 'company', '198.51.100.1', ticker='UZTL',
+                event='ui_click', ctl=control, val=value, tv=2)
+    # The feature rollup and click describe the same interaction; timeline shows one action.
+    traffic('visitorAAA1', '/company/UZTL', 'company', '198.51.100.1', ticker='UZTL', event='feature_chart', tv=2)
+    assert wa.flush() == 4
+    report = ja.journeys_report(7, limit=2)
+    assert report['totals']['sessions'] == 5
+    assert report['totals']['clicks'] == 3
+    assert report['coverage']['click_sessions'] == 1
+    control = next(r for r in report['controls'] if r['control_id'] == 'company_tab')
+    assert (control['clicks'], control['sessions'], control['repeated_sessions']) == (2, 1, 1)
+    assert len(report['sessions']) == 2 and report['next_before'] is not None
+    session = report['sessions'][0]
+    detail = ja.session_journey(session['id'], through=report['through'])
+    assert [e['kind'] for e in detail['events']] == ['pageview', 'pageview', 'click', 'click', 'click']
+    assert detail['events'][-1]['control_id'] == 'chart_range'
+    assert detail['events'][-1]['ticker'] == 'UZTL'
+    assert detail['session']['clicks'] == 3
+    assert detail['session']['pageviews'] == 2
+    assert not any(key in str(detail) for key in ('visitor_id', 'session_id', 'user_id', 'ip_hash', 'email'))
+    older = ja.journeys_report(7, limit=2, before=report['next_before'], through=report['through'])
+    assert not ({s['id'] for s in report['sessions']} & {s['id'] for s in older['sessions']})
+    with wa._conn() as conn:
+        excluded = conn.execute("SELECT min(id) id FROM web_events WHERE visitor_id='visitorADM1'").fetchone()['id']
+    assert ja.session_journey(excluded, through=report['through']) is None
+
+
+def test_journey_snapshot_and_event_pagination_do_not_merge_browsers(traffic):
+    import journey_analytics as ja
+    # Different browsers can submit the same session token; they are different visits.
+    for vid in ('visitorAAA1', 'visitorNET0'):
+        traffic(vid, '/market', 'market', '198.51.100.1', sid='sharedsession', event='ui_click', ctl='market_view', val='table', tv=2)
+    wa.flush()
+    first = ja.journeys_report(7)
+    assert first['totals']['sessions'] == 7
+    session = next(s for s in first['sessions'] if s['clicks'] == 1 and s['pageviews'] == 0)
+    traffic('visitorNET0', '/market', 'market', '198.51.100.1', sid='sharedsession', event='ui_click', ctl='market_view', val='heatmap', tv=2)
+    wa.flush()
+    frozen = ja.session_journey(session['id'], through=first['through'], limit=1)
+    assert len(frozen['events']) == 1 and frozen['next_after'] is None
+    current = ja.session_journey(session['id'], limit=1)
+    assert current['next_after'] is not None
+    next_page = ja.session_journey(session['id'], through=current['through'], after=current['next_after'], limit=1)
+    assert next_page['events'][0]['control_value'] == 'heatmap'
+    assert current['events'][0]['id'] != next_page['events'][0]['id']

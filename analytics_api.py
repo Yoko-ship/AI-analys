@@ -223,3 +223,24 @@ async def api_admin_user_action(user_id: int, payload: dict[str, Any],
     if not result.get("ok") and result.get("reason") == "protected admin":
         raise HTTPException(status_code=409, detail="Allowlisted admin accounts are protected")
     return result
+
+
+@admin_router.get("/api/admin/metrics/journeys")
+async def api_metrics_journeys(days: int = Query(default=7, ge=1, le=90),
+                               limit: int = Query(default=50, ge=1, le=100),
+                               before: int | None = Query(default=None, ge=1),
+                               through: int | None = Query(default=None, ge=0)) -> dict[str, Any]:
+    from journey_analytics import journeys_report
+    return await _run(journeys_report, days, limit=limit, before=before, through=through)
+
+
+@admin_router.get("/api/admin/metrics/journeys/{visit_id}")
+async def api_metrics_journey(visit_id: int,
+                              through: int | None = Query(default=None, ge=0),
+                              after: int = Query(default=0, ge=0),
+                              limit: int = Query(default=100, ge=1, le=200)) -> dict[str, Any]:
+    from journey_analytics import session_journey
+    result = await _run(session_journey, visit_id, through=through, after=after, limit=limit)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Visit not found")
+    return result

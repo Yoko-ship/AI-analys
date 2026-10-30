@@ -1,17 +1,11 @@
+import { ReportTable } from "./ProductReportTable.jsx";
 import { useEffect, useState } from "react";
+import { JourneyAnalyticsSection } from "./JourneyAnalyticsSection.jsx";
 import { fmtInt, fmtShare } from "./adminModel.js";
 import { Skeleton, Stat } from "./AdminWidgets.jsx";
 
-function ReportTable({ title, description, columns, rows, empty, children }) {
-  return <section className="panel product-report">
-    <div className="admin-chart-head"><div><h2>{title}</h2><p>{description}</p></div></div>
-    {rows.length ? <div className="admin-scroll" tabIndex={0} role="region" aria-label={title}>
-      <table><thead><tr>{columns.map((label, i) => <th key={i} scope="col">{label}</th>)}</tr></thead><tbody>{children}</tbody></table>
-    </div> : <p className="admin-muted">{empty}</p>}
-  </section>;
-}
 
-export function ProductAnalyticsSection({ apiFetch, t }) {
+function PerformanceReport({ apiFetch, t }) {
   const [days, setDays] = useState(7);
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState({ loading: true });
@@ -93,5 +87,18 @@ export function ProductAnalyticsSection({ apiFetch, t }) {
         {features.map(r => <tr key={r.feature}><th scope="row">{featureNames[r.feature] || r.feature}<small>{r.measurement === "pageview" ? t("Открытия страниц · все визиты", "Sahifa ochilishi · barcha tashriflar", "Page opens · all sessions") : t("Действия · измеренные визиты", "Amallar · o‘lchangan tashriflar", "Interactions · measured sessions")}</small></th><td>{fmtInt(r.users)}</td><td>{fmtInt(r.sessions)}</td><td>{fmtInt(r.actions)}</td><td>{fmtInt(r.repeat_users)}</td><td>{fmtShare(r.adoption_rate)}</td></tr>)}
       </ReportTable>
     </>}
+  </div>;
+}
+
+
+export function ProductAnalyticsSection(props) {
+  const [view, setView] = useState("performance");
+  const { t } = props;
+  return <div className="admin-section product-analytics">
+    <div className="admin-seg product-report-switch" aria-label={t("Отчёт продукта", "Mahsulot hisoboti", "Product report")}>
+      <button type="button" aria-pressed={view === "performance"} onClick={() => setView("performance")}>{t("Эффективность", "Samaradorlik", "Performance")}</button>
+      <button type="button" aria-pressed={view === "journeys"} onClick={() => setView("journeys")}>{t("Клики и пути", "Bosishlar va yo‘llar", "Clicks and journeys")}</button>
+    </div>
+    {view === "performance" ? <PerformanceReport {...props} /> : <JourneyAnalyticsSection {...props} />}
   </div>;
 }

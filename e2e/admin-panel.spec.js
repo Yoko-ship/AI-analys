@@ -225,3 +225,63 @@ test('product analytics distinguishes unavailable tracking and handles failed re
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByText('uztl-october')).toBeVisible();
 });
+
+const JOURNEYS = {
+  ok: true, days: 7, through: 300, next_before: null,
+  totals: { sessions: 2, clicks: 5, pageviews: 3 }, coverage: { click_sessions: 1 },
+  controls: [{ control_id: 'company_tab', control_value: 'financials', clicks: 3, sessions: 1, visitors: 1, repeated_sessions: 1 }],
+  last_actions: [{ kind: 'click', control_id: 'company_tab', control_value: 'financials', path: '/company/UZTL', sessions: 1 }],
+  sessions: [
+    { id: 101, started: '2026-10-30T06:00:00Z', last_seen: '2026-10-30T06:02:00Z', source: 'telegram', pageviews: 2, clicks: 5, measured: true, last_path: '/company/UZTL' },
+    { id: 90, started: '2026-10-29T06:00:00Z', last_seen: '2026-10-29T06:01:00Z', source: 'direct', pageviews: 1, clicks: 0, measured: false, last_path: '/market' },
+  ],
+};
+const JOURNEY = { ok: true, through: 300, session: JOURNEYS.sessions[0], next_after: null, events: [
+  { id: 101, at: '2026-10-30T06:00:00Z', kind: 'pageview', path: '/market', ticker: null },
+  { id: 102, at: '2026-10-30T06:00:30Z', kind: 'pageview', path: '/company/UZTL', ticker: 'UZTL' },
+  { id: 103, at: '2026-10-30T06:01:00Z', kind: 'click', path: '/company/UZTL', ticker: 'UZTL', control_id: 'company_tab', control_value: 'financials' },
+] };
+for (const width of [1440, 390]) {
+  test(`click reports and anonymous session timelines work at ${width}px`, async ({ page }, testInfo) => {
+    await mockAdmin(page);
+    if (width === 390) await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_theme", "light"));
+    await page.route('**/api/admin/metrics/product*', r => r.fulfill({ json: PRODUCT }));
+    await page.route('**/api/admin/metrics/journeys*', r => r.fulfill({ json: JOURNEYS }));
+    await page.route('**/api/admin/metrics/journeys/*', r => r.fulfill({ json: JOURNEY }));
+    await page.setViewportSize({ width, height: 960 });
+    await page.goto('/admin/product');
+    await page.getByRole('button', { name: 'Clicks and journeys', exact: true }).click();
+    const selectedColor = await page.getByRole('button', { name: 'Clicks and journeys', exact: true }).evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(selectedColor).not.toBe(await page.getByRole('button', { name: 'Performance', exact: true }).evaluate(el => getComputedStyle(el).backgroundColor));
+    await expect(page.getByRole('heading', { name: 'Control usage' })).toBeVisible();
+    await expect(page.getByText('Including today · Tashkent')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Visit 101', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Visit 101', exact: true }).click();
+    const timeline = page.getByRole('region', { name: 'Visit timeline' });
+    await expect(timeline).toContainText('/market');
+    await expect(timeline).toContainText('UZTL');
+    await expect(timeline).toContainText('Financials');
+    await expect(page.getByText('Click tracking unavailable', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`journeys-${width}.png`), fullPage: true });
+  });
+}
+
+test('session details clear on failure and retry without showing the previous visitor', async ({ page }) => {
+  await mockAdmin(page);
+  await page.route('**/api/admin/metrics/product*', r => r.fulfill({ json: PRODUCT }));
+  await page.route('**/api/admin/metrics/journeys*', r => r.fulfill({ json: JOURNEYS }));
+  let fail = false;
+  await page.route('**/api/admin/metrics/journeys/*', r => fail ? r.fulfill({ status: 503, json: {} }) : r.fulfill({ json: JOURNEY }));
+  await page.goto('/admin/product');
+  await page.getByRole('button', { name: 'Clicks and journeys', exact: true }).click();
+  await page.getByRole('button', { name: 'Visit 101', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Visit timeline' })).toContainText('Financials');
+  fail = true;
+  await page.getByRole('button', { name: 'Visit 90', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Visit timeline' })).not.toContainText('Financials');
+  await expect(page.getByRole('alert')).toContainText('Could not load this visit');
+  fail = false;
+  await page.getByRole('button', { name: 'Retry visit' }).click();
+  await expect(page.getByRole('region', { name: 'Visit timeline' })).toContainText('Financials');
+});

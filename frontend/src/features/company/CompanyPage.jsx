@@ -482,7 +482,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
         </div>
         <div className="company-page-tabs">
           {TABS.map((t) => (
-            <button key={t.key} type="button"
+            <button key={t.key} type="button" data-track-control="company_tab" data-track-value={t.key} data-track-ticker={ticker}
               className={`company-tab-btn ${tab === t.key ? "active" : ""}`}
               onClick={() => { if (tab !== t.key) trackFeature(t.key, ticker); setTab(t.key); }}>
               {t.label}

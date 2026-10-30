@@ -312,3 +312,19 @@ def test_tracking_version_distinguishes_unmeasured_legacy_visits():
     assert wa.sanitize_payload(VALID)["tracking_version"] == 0
     assert wa.sanitize_payload({**VALID, "tv": 1})["tracking_version"] == 1
     assert wa.sanitize_payload({**VALID, "tv": 999})["tracking_version"] == 0
+
+
+def test_control_beacons_accept_only_named_controls_and_safe_context():
+    payload = {**VALID, 'event': 'ui_click', 'ctl': 'company_tab', 'val': 'financials', 'tv': 2,
+               'dest': '/company/HMKB?token=private#account', 'text': 'private@example.test', 'value': 'secret'}
+    clean = wa.sanitize_payload(payload)
+    assert clean['control_id'] == 'company_tab'
+    assert clean['control_value'] == 'financials'
+    assert clean['target_path'] == '/company/HMKB'
+    assert clean['tracking_version'] == 2
+    assert 'private' not in str(clean) and 'secret' not in str(clean)
+    assert wa.sanitize_payload({**payload, 'ctl': 'email_input'}) is None
+    assert wa.sanitize_payload({**payload, 'val': 'private@example.test'})['control_value'] is None
+    assert wa.sanitize_payload({**payload, 'path': '/admin/users'}) is None
+    for dest in ('https://other.test/private', '//other.test', '/profile/private@example.test'):
+        assert wa.sanitize_payload({**payload, 'dest': dest})['target_path'] is None

@@ -21,7 +21,7 @@ test('feature tracking is bounded, inherits identity, and never manufactures a p
   m.trackFeature('invented_private_search_text', 'UZTL');
   const rows = await m.payloads();
   assert.equal(rows.length, 2);
-  assert.equal(rows[0].tv, 1);
+  assert.equal(rows[0].tv, 2);
   assert.equal(rows[1].event, 'feature_financials');
   assert.equal(rows[1].sid, rows[0].sid);
   assert.equal(rows[1].vid, rows[0].vid);
@@ -49,4 +49,23 @@ test('an interaction after 30 idle minutes starts a visit with a landing page', 
     assert.equal(rows.filter(r => !r.event).length, 2);
     assert.equal(rows.find(r => !r.event && r.sid === action.sid).path, '/company/UZTL');
   } finally { Date.now = originalNow; }
+});
+
+test('control events preserve the visit and strip arbitrary values and URL secrets', async () => {
+  const m = await setup();
+  assert.equal(typeof m.trackControl, 'function');
+  m.trackPageview({ path: '/company/UZTL', view: 'company', ticker: 'UZTL' });
+  m.trackControl('company_tab', { value: 'financials', target: '/company/HMKB?token=secret' });
+  m.trackControl('company_tab', { value: 'private@example.test' });
+  m.trackControl('email_input', { value: 'private@example.test' });
+  const rows = await m.payloads();
+  assert.equal(rows.length, 3);
+  assert.equal(rows[1].event, 'ui_click');
+  assert.equal(rows[1].ctl, 'company_tab');
+  assert.equal(rows[1].val, 'financials');
+  assert.equal(rows[1].dest, '/company/HMKB');
+  assert.equal(rows[1].sid, rows[0].sid);
+  assert.equal(rows[2].val, undefined);
+  assert.equal(JSON.stringify(rows).includes('private'), false);
+  assert.equal(JSON.stringify(rows).includes('secret'), false);
 });

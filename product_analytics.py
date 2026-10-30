@@ -25,7 +25,7 @@ def product_report(days: int = 7) -> dict:
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
         wa._scope(conn, until)
         history = conn.execute("SELECT min(ts) FILTER (WHERE event='pageview') AS history, "
-                               "min(ts) FILTER (WHERE tracking_version=1) AS interactions FROM ev").fetchone()
+                               "min(ts) FILTER (WHERE tracking_version>=1) AS interactions FROM ev").fetchone()
         complete = bool(history["history"] and history["history"] <= previous)
         conn.execute("""
             CREATE TEMP TABLE product_sessions ON COMMIT DROP AS
@@ -44,7 +44,7 @@ def product_report(days: int = 7) -> dict:
                    count(*) FILTER (WHERE e.event='pageview') AS views,
                    coalesce(sum(e.engaged_ms) FILTER (WHERE e.event='leave'),0) AS engaged_ms,
                    bool_or(e.event=ANY(%s)) AS acted,
-                   bool_or(e.tracking_version=1 AND e.event='pageview') AS measured,
+                   bool_or(e.tracking_version>=1 AND e.event='pageview') AS measured,
                    array_agg(DISTINCT e.user_id) FILTER (WHERE e.user_id IS NOT NULL) AS users,
                    f.referrer,f.utm_source,f.utm_medium,f.utm_campaign
             FROM ev e JOIN candidates c USING(visitor_id,session_id)
@@ -81,7 +81,7 @@ def product_report(days: int = 7) -> dict:
         feature_rows = conn.execute("""
             SELECT e.event,e.visitor_id,e.session_id,count(*) AS actions
             FROM ev e JOIN product_sessions s USING(visitor_id,session_id)
-            WHERE s.started >= %s AND e.event=ANY(%s) AND e.tracking_version=1 AND s.measured
+            WHERE s.started >= %s AND e.event=ANY(%s) AND e.tracking_version>=1 AND s.measured
             GROUP BY e.event,e.visitor_id,e.session_id
             UNION ALL
             SELECT 'feature_news',e.visitor_id,e.session_id,count(*)
