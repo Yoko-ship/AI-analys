@@ -285,3 +285,67 @@ test('session details clear on failure and retry without showing the previous vi
   await page.getByRole('button', { name: 'Retry visit' }).click();
   await expect(page.getByRole('region', { name: 'Visit timeline' })).toContainText('Financials');
 });
+
+const RETENTION = {
+  cohort_period: { start: '2026-10-18', end: '2026-10-24' }, observed_through: '2026-10-31',
+  eligible_visitors: 4, returned_visitors: 2, return_rate: .5, pending_visitors: 3,
+  next_ready_date: '2026-11-02', history_since: '2026-10-01', history_complete: true,
+  cohorts: [
+    { day: '2026-10-24', visitors: 3, returned: 2, return_rate: .6667 },
+    { day: '2026-10-23', visitors: 0, returned: 0, return_rate: null },
+    { day: '2026-10-22', visitors: 1, returned: 0, return_rate: 0 },
+  ],
+};
+for (const width of [1440, 390]) {
+  test(`seven-day return shows mature cohorts and counts at ${width}px`, async ({ page }, testInfo) => {
+    await mockAdmin(page);
+    if (width === 390) await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
+    await page.setViewportSize({ width, height: 960 });
+    const asked = [];
+    await page.route('**/api/admin/metrics/product*', route => {
+      const days = new URL(route.request().url()).searchParams.get('days');
+      asked.push(days);
+      return route.fulfill({ json: { ...PRODUCT, retention: { ...RETENTION,
+        cohort_period: { ...RETENTION.cohort_period, start: days === '30' ? '2026-09-25' : '2026-10-18' },
+      } } });
+    });
+    await page.goto('/admin/product');
+    const report = page.getByRole('region', { name: '7-day return rate', exact: true });
+    await expect(report.getByText('50%', { exact: true })).toBeVisible();
+    await expect(report).toContainText('2 of 4 activated visitors returned');
+    await expect(report).toContainText('3 visitors still in their return window');
+    await expect(report).toContainText('2026-10-18 — 2026-10-24');
+    await expect(report).toContainText('Days 1–7');
+    const cohorts = page.getByRole('region', { name: 'Activation cohorts' });
+    await expect(cohorts.getByRole('row').filter({ hasText: '2026-10-24' })).toContainText('66,7%');
+    await expect(cohorts.getByRole('row').filter({ hasText: '2026-10-23' })).toContainText('—');
+    await expect(cohorts.getByRole('row').filter({ hasText: '2026-10-22' })).toContainText('0%');
+    await page.getByRole('button', { name: '30 days', exact: true }).click();
+    await expect.poll(() => asked.at(-1)).toBe('30');
+    await expect(report).toContainText('2026-09-25 — 2026-10-24');
+    await expect(report.getByText('50%', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await report.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath(`retention-${width}.png`), fullPage: true });
+  });
+}
+
+test('return rate shows waiting instead of zero and clears stale data on failure', async ({ page }) => {
+  await mockAdmin(page);
+  let fail = false;
+  await page.route('**/api/admin/metrics/product*', route => fail ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: {
+    ...PRODUCT, retention: { ...RETENTION, eligible_visitors: 0, returned_visitors: 0, return_rate: null, history_complete: false, cohorts: [] },
+  } }));
+  await page.goto('/admin/product');
+  const report = page.getByRole('region', { name: '7-day return rate', exact: true });
+  await expect(report).toContainText('Waiting for complete return windows');
+  await expect(report).toContainText('2026-11-02');
+  await expect(report.getByText('0%', { exact: true })).toHaveCount(0);
+  fail = true;
+  await page.getByRole('button', { name: '30 days', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not load product analytics');
+  await expect(report).toHaveCount(0);
+  fail = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(report).toContainText('Waiting for complete return windows');
+});

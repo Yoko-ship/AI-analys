@@ -327,3 +327,88 @@ def test_journey_snapshot_and_event_pagination_do_not_merge_browsers(traffic):
     next_page = ja.session_journey(session['id'], through=current['through'], after=current['next_after'], limit=1)
     assert next_page['events'][0]['control_value'] == 'heatmap'
     assert current['events'][0]['id'] != next_page['events'][0]['id']
+
+
+@pytest.fixture
+def retention_traffic(traffic, monkeypatch):
+    from datetime import datetime, timedelta
+    import product_analytics
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 1, 12, tzinfo=wa.TASHKENT).astimezone(tz)
+
+    monkeypatch.setattr(product_analytics, 'datetime', FrozenDateTime)
+    with wa._conn() as conn:
+        conn.execute('DELETE FROM web_events')
+
+    def hit(visitor, session, day, hour=12, minute=0, event='pageview', **extra):
+        at = datetime.fromisoformat(day).replace(tzinfo=wa.TASHKENT, hour=hour, minute=minute)
+        traffic(visitor, '/company/UZTL', 'company', '198.51.100.1', sid=session, ticker='UZTL', event=event, tv=extra.pop('tv', 2), **extra)
+        row = list(wa._buffer[-1]); row[0] = at; wa._buffer[-1] = tuple(row)
+
+    def activate(visitor, day, **extra):
+        hit(visitor, 'sessionACT1', day, **extra)
+        hit(visitor, 'sessionACT1', day, event='feature_financials', **extra)
+
+    return hit, activate
+
+
+def test_seven_day_return_uses_first_activation_and_complete_tashkent_days(retention_traffic):
+    import product_analytics
+    hit, activate = retention_traffic
+    hit('visitorHIST', 'sessionHIST', '2026-10-01', hour=0)
+    activate('visitorDAY1', '2026-10-24', hour=23, minute=59)
+    hit('visitorDAY1', 'sessionNEW1', '2026-10-25', hour=0)  # next local day, not 24 hours
+    hit('visitorDAY1', 'sessionNEW2', '2026-10-31')  # multiple returns count once
+    activate('visitorDAY7', '2026-10-24', tv=1)
+    hit('visitorDAY7', 'sessionNEW1', '2026-10-31', hour=23, minute=59)
+    activate('visitorLATE', '2026-10-22')
+    hit('visitorLATE', 'sessionNEW1', '2026-10-30')  # day eight: not retained
+    activate('visitorSAME', '2026-10-24')
+    hit('visitorSAME', 'sessionNEW1', '2026-10-24', hour=23)  # day zero
+    hit('visitorSAME', 'sessionACT1', '2026-10-25')  # continuing visit, not a return
+    activate('visitorWAIT', '2026-10-25')  # day seven is still in progress today
+    hit('visitorWAIT', 'sessionNEW1', '2026-10-26')  # even an early return stays pending
+    activate('visitorOLD1', '2026-10-02')
+    activate('visitorOLD1', '2026-10-24')  # never re-enrol an old activation
+    activate('visitorADM1', '2026-10-24')
+    activate('visitorTEAM', '2026-10-24', int=1)
+    hit('visitorORPH', 'sessionACT1', '2026-10-24', event='feature_financials')  # no page view
+    hit('visitorREAD', 'sessionACT1', '2026-10-24')  # reading alone is not activation
+    wa.flush()
+    result = product_analytics.product_report(7)['retention']
+    assert result['cohort_period'] == {'start': '2026-10-18', 'end': '2026-10-24'}
+    assert result['observed_through'] == '2026-10-31'
+    assert (result['eligible_visitors'], result['returned_visitors'], result['return_rate']) == (4, 2, .5)
+    assert result['pending_visitors'] == 1 and result['next_ready_date'] == '2026-11-02'
+    assert result['history_complete'] is True
+    assert len(result['cohorts']) == 7
+    day = next(r for r in result['cohorts'] if r['day'] == '2026-10-24')
+    assert (day['visitors'], day['returned'], day['return_rate']) == (3, 2, round(2 / 3, 4))
+    assert next(r for r in result['cohorts'] if r['day'] == '2026-10-22')['return_rate'] == 0
+    assert next(r for r in result['cohorts'] if r['day'] == '2026-10-23')['return_rate'] is None
+    # A longer selection includes the original activation, not its later repeat.
+    assert product_analytics.product_report(30)['retention']['eligible_visitors'] == 5
+
+
+def test_return_rate_distinguishes_unmeasured_pending_and_zero(retention_traffic):
+    import product_analytics
+    hit, activate = retention_traffic
+    activate('visitorOLD0', '2026-10-20', tv=0)
+    wa.flush()
+    result = product_analytics.product_report(7)['retention']
+    assert result['return_rate'] is None and result['history_since'] is None
+    assert result['eligible_visitors'] == 0 and not result['history_complete']
+    activate('visitorWAIT', '2026-10-25')
+    wa.flush()
+    result = product_analytics.product_report(7)['retention']
+    assert result['return_rate'] is None and result['pending_visitors'] == 1
+    assert result['next_ready_date'] == '2026-11-02'
+    activate('visitorZERO', '2026-10-24')
+    wa.flush()
+    result = product_analytics.product_report(7)['retention']
+    assert result['return_rate'] == 0 and result['eligible_visitors'] == 1
+    assert result['history_since'] == '2026-10-24' and not result['history_complete']
+    assert next(r for r in result['cohorts'] if r['day'] == '2026-10-23')['observed'] is False

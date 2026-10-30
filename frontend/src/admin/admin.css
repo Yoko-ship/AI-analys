@@ -743,3 +743,16 @@
 @media (max-width: 600px) { .journey-events li { grid-template-columns: 1fr; gap: 6px; } }
 
 .product-report-switch { align-self: flex-start; max-width: 100%; flex-wrap: wrap; }
+
+.retention-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 24px; padding: 16px 0; }
+.retention-rate { font-size: 2.5rem; line-height: 1.1; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--text); }
+.retention-summary p { margin: 8px 0 0; color: var(--text); }
+.retention-context { display: grid; gap: 12px; margin: 0; }
+.retention-context dt { font-size: .75rem; color: var(--muted); }
+.retention-context dd { margin: 4px 0 0; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.retention-definition, .retention-history, .retention-footnote { font-size: .8rem; line-height: 1.5; }
+.retention-pending { margin: 16px 0; }
+.retention-report > .product-report { padding: 16px 0 0; margin: 16px 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; }
+.retention-report .admin-scroll { max-height: 340px; overflow: auto; }
+.retention-report table { min-width: 480px; }
+.retention-footnote { margin-bottom: 0; }

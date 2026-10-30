@@ -90,6 +90,8 @@ def product_report(days: int = 7) -> dict:
             GROUP BY e.visitor_id,e.session_id
         """, (since, list(FEATURE_EVENTS), since)).fetchall()
 
+        retention = _seven_day_return(conn, days, until, history["interactions"])
+
     credited = defaultdict(int)
     for row in registrations:
         credited[(row["visitor_id"], row["session_id"])] += 1
@@ -146,4 +148,64 @@ def product_report(days: int = 7) -> dict:
             "totals": {"visitors": len({s["visitor_id"] for s in sessions}), "sessions": len(sessions),
                        "engaged_sessions": engaged_total, "registrations": len(registrations)},
             "sources": sorted(sources.values(), key=lambda r: (-r["sessions"], r["source"], r["campaign"] or "")),
-            "companies": companies, "features": features}
+            "companies": companies, "features": features, "retention": retention}
+
+
+
+def _seven_day_return(conn, days, until, history_since):
+    """First recorded activation cohorts, with a complete days 1–7 return window.
+
+    Activation uses the established, versioned feature signals and requires a
+    page view in that visit. Each browser enters once, over all recorded history.
+    A return is the start of a different visit on a later Tashkent calendar day.
+    Recent cohorts remain pending even when they have already returned.
+    """
+    cohort_until = until.astimezone(wa.TASHKENT).date() - timedelta(days=7)
+    cohort_since = cohort_until - timedelta(days=days)
+    rows = conn.execute("""
+        WITH visits AS MATERIALIZED (
+            SELECT visitor_id, session_id, min(ts) AS started
+            FROM ev WHERE event='pageview' GROUP BY visitor_id, session_id
+        ), first_actions AS (
+            SELECT DISTINCT ON (e.visitor_id) e.visitor_id, e.session_id,
+                   (e.ts AT TIME ZONE 'Asia/Tashkent')::date AS day
+            FROM ev e JOIN visits v USING (visitor_id, session_id)
+            WHERE e.event=ANY(%s) AND e.tracking_version>=1
+              AND e.ticker IS NOT NULL AND v.started<=e.ts
+            ORDER BY e.visitor_id, e.ts, e.id
+        ), observed AS (
+            SELECT f.day, EXISTS (
+                SELECT 1 FROM visits v WHERE v.visitor_id=f.visitor_id
+                  AND v.session_id<>f.session_id
+                  AND v.started>=((f.day+1)::timestamp AT TIME ZONE 'Asia/Tashkent')
+                  AND v.started<((f.day+8)::timestamp AT TIME ZONE 'Asia/Tashkent')
+            ) AS returned
+            FROM first_actions f WHERE f.day>=%s
+        )
+        SELECT day, count(*) AS visitors, count(*) FILTER (WHERE returned) AS returned
+        FROM observed GROUP BY day ORDER BY day DESC
+    """, (list(FEATURE_EVENTS), cohort_since)).fetchall()
+    mature = {r["day"]: r for r in rows if r["day"] < cohort_until}
+    pending = [r for r in rows if r["day"] >= cohort_until]
+    cohorts = []
+    for offset in range(days):
+        day = cohort_until - timedelta(days=offset + 1)
+        row = mature.get(day, {"visitors": 0, "returned": 0})
+        observed = bool(history_since and day >= history_since.astimezone(wa.TASHKENT).date())
+        cohorts.append({"day": day.isoformat(), "observed": observed, "visitors": row["visitors"],
+                        "returned": row["returned"],
+                        "return_rate": wa._rate(row["returned"], row["visitors"])})
+    eligible = sum(r["visitors"] for r in cohorts)
+    returned = sum(r["returned"] for r in cohorts)
+    return {
+        "cohort_period": {"start": cohort_since.isoformat(),
+                          "end": (cohort_until - timedelta(days=1)).isoformat()},
+        "observed_through": (until.astimezone(wa.TASHKENT).date() - timedelta(days=1)).isoformat(),
+        "eligible_visitors": eligible, "returned_visitors": returned,
+        "return_rate": wa._rate(returned, eligible),
+        "pending_visitors": sum(r["visitors"] for r in pending),
+        "next_ready_date": (min(r["day"] for r in pending) + timedelta(days=8)).isoformat() if pending else None,
+        "history_since": history_since.astimezone(wa.TASHKENT).date().isoformat() if history_since else None,
+        "history_complete": bool(history_since and history_since <= datetime.combine(cohort_since, datetime.min.time(), wa.TASHKENT)),
+        "cohorts": cohorts,
+    }

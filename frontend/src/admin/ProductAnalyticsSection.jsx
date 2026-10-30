@@ -1,3 +1,4 @@
+import { RetentionReport } from "./RetentionReport.jsx";
 import { ReportTable } from "./ProductReportTable.jsx";
 import { useEffect, useState } from "react";
 import { JourneyAnalyticsSection } from "./JourneyAnalyticsSection.jsx";
@@ -58,6 +59,7 @@ function PerformanceReport({ apiFetch, t }) {
         <Stat label={t("Вовлечённые визиты", "Faol tashriflar", "Engaged sessions")} value={fmtInt(data.totals.engaged_sessions)} line1={t("30 секунд, 2 страницы или действие", "30 soniya, 2 sahifa yoki amal", "30 seconds, 2 pages or an action")} />
         <Stat label={t("Регистрации из визитов", "Tashrifdan ro‘yxatdan o‘tish", "Attributed registrations")} value={fmtInt(data.totals.registrations)} line1={t("Новые аккаунты с известным визитом", "Tashrifi aniqlangan yangi hisoblar", "New accounts linked to a visit")} />
       </div>
+      <RetentionReport data={data.retention} t={t} />
       <p className="admin-muted product-history">
         {coverage.history_since ? t(`История с ${coverage.history_since}.`, `${coverage.history_since} dan beri tarix.`, `History available since ${coverage.history_since}.`) : empty}
         {" "}{t("Малые выборки сравнивайте по числу людей, а не только по процентам.", "Kichik tanlamada foiz bilan birga tashrifchilar sonini ham solishtiring.", "For small samples, compare visitor counts alongside percentages.")}
