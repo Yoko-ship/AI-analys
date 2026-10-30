@@ -34,6 +34,15 @@ test('HMKB current ratios show annualization and matching source periods',async(
   await expect(last('roa')).toContainText('4.92');
   await expect(last('cir')).toHaveText('42.83');
   await expect(last('nim')).toHaveText('—');
+  // Ratio and owner exports must not inherit the income/balance tab filter.
+  for (const name of ['CSV', 'XLSX']) {
+    const url = new URL(await terminal.getByRole('link', {name, exact:true}).getAttribute('href'), page.url());
+    expect(url.searchParams.get('statement')).toBe('all');
+    expect(url.searchParams.get('view')).toBe('template');
+  }
+  await terminal.getByRole('tab', {name:'Shareholders', exact:true}).click();
+  await expect(terminal.getByRole('link', {name:'CSV', exact:true})).toHaveAttribute('href', /statement=all/);
+  await terminal.getByRole('tab', {name:'Ratios', exact:true}).click();
   await last('roe').getByRole('button').click();
   const passport=page.getByRole('dialog',{name:'Source passport'});
   await expect(passport).toContainText('2026-01-01 — 2026-09-30');

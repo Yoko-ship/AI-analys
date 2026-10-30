@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from datetime import timezone
 from claude_client import ClaudeGatewayClient
+from codex_client import CodexGatewayClient
 from news_classifier import classifier_model_name
 from news_classifier import get_classifier_client
 from runtime_preflight import NEWS_REQUIREMENTS
@@ -27,17 +28,16 @@ def require_claude_login() -> None:
     logs per-item warnings looks green; a failed systemd unit is what gets noticed.
     """
     client = get_classifier_client()
-    if not isinstance(client, ClaudeGatewayClient):
+    if not isinstance(client, (ClaudeGatewayClient, CodexGatewayClient)):
         return
     try:
         status = client.health()
     except Exception as exc:  # noqa: BLE001 — the per-call retries handle a restarting gateway
-        collectors_news_settings.logger.warning("Claude gateway health check failed: %s", exc)
+        collectors_news_settings.logger.warning("News AI gateway health check failed: %s", exc)
         return
     if not status.get("logged_in"):
         collectors_news_settings.logger.error(
-            "Claude gateway is not logged in — run `docker exec -it -u appuser uzstock-claude-gateway "
-            "claude auth login` on the server")
+            "News AI gateway is not logged in — authenticate the configured gateway on the server")
         raise SystemExit(1)
 
 

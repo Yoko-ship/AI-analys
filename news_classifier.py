@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 import news_lang
 from claude_client import ClaudeCodeClient, ClaudeGatewayClient
+from codex_client import CodexClient, CodexGatewayClient
 from llm_client import Usage
 
 logger = logging.getLogger(__name__)
@@ -114,13 +115,17 @@ _CLAUDE_TIMEOUT = float(os.getenv("NEWS_CLAUDE_TIMEOUT", "180"))
 # On the server the collector calls the Claude gateway container, which holds the login;
 # without a URL (local runs) the CLI is called directly with your own `claude login`.
 _CLAUDE_GATEWAY_URL = os.getenv("NEWS_CLAUDE_GATEWAY_URL", "").strip()
-ClassifierClient = ClaudeCodeClient | ClaudeGatewayClient
+_CODEX_MODEL = os.getenv("NEWS_CODEX_MODEL", "gpt-6-luna").strip() or "gpt-6-luna"
+_CODEX_REASONING = os.getenv("NEWS_CODEX_REASONING", "low").strip() or "low"
+_CODEX_FALLBACK_MODEL = os.getenv("NEWS_CODEX_FALLBACK_MODEL", "gpt-6.1-terra").strip()
+_CODEX_TIMEOUT = float(os.getenv("NEWS_CODEX_TIMEOUT", "180"))
+ClassifierClient = ClaudeCodeClient | ClaudeGatewayClient | CodexClient | CodexGatewayClient
 _client: ClassifierClient | None = None
 
 
 def classifier_model_name() -> str:
     """Configured model label stored alongside each classification."""
-    return _CLAUDE_MODEL
+    return _CODEX_MODEL if os.getenv("NEWS_AI_PROVIDER", "claude").strip().lower() == "codex" else _CLAUDE_MODEL
 
 
 def get_classifier_client() -> ClassifierClient:
@@ -128,6 +133,20 @@ def get_classifier_client() -> ClassifierClient:
     global _client
     if _client is not None:
         return _client
+    provider = os.getenv("NEWS_AI_PROVIDER", "claude").strip().lower()
+    if provider == "codex":
+        url = os.getenv("NEWS_CODEX_GATEWAY_URL", "").strip()
+        options = dict(model=_CODEX_MODEL, fallback_model=_CODEX_FALLBACK_MODEL or None,
+                       timeout=_CODEX_TIMEOUT)
+        if url:
+            _client = CodexGatewayClient(url, os.getenv("CODEX_GATEWAY_SECRET", ""),
+                                        effort=_CODEX_REASONING, **options)
+        else:
+            _client = CodexClient(reasoning_effort=_CODEX_REASONING, **options)
+        logger.info("classifier provider: codex model=%s reasoning=%s", _CODEX_MODEL, _CODEX_REASONING)
+        return _client
+    if provider != "claude":
+        raise ValueError(f"Unsupported NEWS_AI_PROVIDER: {provider!r}")
     if _CLAUDE_GATEWAY_URL:
         _client = ClaudeGatewayClient(
             _CLAUDE_GATEWAY_URL,

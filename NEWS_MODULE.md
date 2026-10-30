@@ -1,7 +1,7 @@
-# §3.11 News module — Claude-powered collection and classification
+# §3.11 News module — subscription-backed collection and classification
 
 Editorial-news layer for the UZSE platform: it **collects** Uzbek market news,
-**classifies/sorts** each item with subscription-backed Claude Code (type, tone, impact,
+**classifies/sorts** each item with subscription-backed Codex or Claude Code (type, tone, impact,
 issuer links), and publishes it through the
 existing collector-push → prod-serve architecture (see `news_ai_module_scope.md`).
 
@@ -47,13 +47,14 @@ second request. A filing whose rating fails is stored **unrated** rather than lo
 
 ```bash
 pip install -r requirements.txt
-NEWS_CODEX_MODEL=gpt-5.6-luna
+NEWS_AI_PROVIDER=codex
+NEWS_CODEX_MODEL=gpt-6-luna
 NEWS_CODEX_REASONING=low
-NEWS_CODEX_FALLBACK_MODEL=gpt-5.6-terra
+NEWS_CODEX_FALLBACK_MODEL=gpt-6.1-terra
 NEWS_CODEX_TIMEOUT=180
 # CODEX_HOME points to private persistent storage containing auth.json.
 ADMIN_API_SECRET=...                    # required to push to prod (shared with financials)
-NEWS_PUSH_URL=https://<your-api>.up.railway.app
+NEWS_PUSH_URL=https://uzstock.uz
 ```
 
 ## Run
@@ -302,15 +303,34 @@ stored classification and drop the item out of the feed.
 
 ## Usage & control
 
-Classification runs through the Claude subscription. On the server the collector calls the
-`uzstock-claude-gateway` container over `uzstock-internal`; the gateway keeps its own login in
-the `uzstock_claude` volume (log in once: `docker exec -it -u appuser uzstock-claude-gateway
-claude auth login`; it survives deploys and refreshes itself). A `CLAUDE_CODE_OAUTH_TOKEN`
-GitHub secret (`claude setup-token`) optionally overrides that login. The shared gateway secret
-is generated on the host (`/root/uzstock/claude-gateway.env`, `news-collector.env`). Operational
-logs report input, cached-input, output, call count, the Claude model used, and the plan's
-five-hour window before/after the run (stored in the legacy `codex_*_pct` columns); estimated
-API spend is always zero because `ANTHROPIC_API_KEY` is never passed to the CLI.
+Production selects `NEWS_AI_PROVIDER=codex`. The scheduled collector calls
+`uzstock-codex-gateway` on the private `uzstock-internal` Docker network. It uses
+`gpt-6-luna` with low reasoning and `gpt-6.1-terra` as fallback. The gateway runs the
+pinned Codex CLI with structured JSON output, an isolated temporary working directory,
+user configuration disabled, shell/subagent tools disabled, and ChatGPT login enforced.
+API-key environment variables and application secrets are excluded from the CLI process.
+
+The gateway alone mounts `uzstock_codex` at `/app/codex-home`. Its `auth.json` is seeded
+securely over SSH from an existing ChatGPT login, or by running `codex login --device-auth`
+as `appuser` in the gateway. Codex refreshes the credentials in this persistent volume.
+Never put the login cache in Git, Docker build context, logs, or collector containers.
+The gateway is internal only and requires a separate shared secret for `/v1/json`.
+`scripts/configure_news_codex.py <deployment-directory>` generates that secret and
+preserves existing collector settings in private mode-0600 environment files.
+Preparation leaves the selected provider unchanged. After the gateway starts, CI
+passes its health JSON to the same command with `--health-stdin`: an unset provider
+switches to Codex only when `logged_in` is true. Explicit provider choices survive
+deployments; if Codex is selected but logged out, the release fails visibly.
+
+The collector pushes directly to `http://uzstock-web:8000`, avoiding the public proxy.
+Token counts and actual model names are recorded as subscription usage with zero API
+spend. Codex CLI does not currently provide a plan-window percentage through this adapter;
+those fields remain null, not zero. `/health` verifies login presence; a successful real
+classification is needed to prove that the account can use the selected model.
+
+Claude remains available through `NEWS_AI_PROVIDER=claude` and the existing
+`NEWS_CLAUDE_*` settings. On 2026-10-27 its saved login was valid but inference was
+rejected because the organization disabled subscription access for Claude Code.
 
 Where the tokens went in the old single-call design: of 6,248 input chars per item, the
 **news item was 205 (3.3%)** — the rest was the system prompt (27%) and the 93-line issuer

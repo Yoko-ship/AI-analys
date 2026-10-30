@@ -34,6 +34,10 @@ RUN npm install --global --omit=dev @anthropic-ai/claude-code@2.1.292 \
     && claude --version \
     && npm cache clean --force
 
+RUN npm install --global --omit=dev @openai/codex@0.164.0 \
+    && codex --version \
+    && npm cache clean --force
+
 COPY requirements-server.txt /app/
 RUN pip install --upgrade pip \
     && pip install -r requirements-server.txt

@@ -1044,7 +1044,12 @@ jobs:
               values["CLAUDE_CODE_OAUTH_TOKEN"] = token
           os.umask(0o077)
           gateway_env.write_text("".join(f"{k}={v}\n" for k, v in values.items()), encoding="utf-8")
-          news_env.write_text(f"CLAUDE_GATEWAY_SECRET={secret}\n", encoding="utf-8")
+          news_values = {}
+          if news_env.exists():
+              news_values = dict(line.split("=", 1) for line in news_env.read_text().splitlines()
+                                 if "=" in line and not line.lstrip().startswith("#"))
+          news_values["CLAUDE_GATEWAY_SECRET"] = secret
+          news_env.write_text("".join(f"{k}={v}\n" for k, v in news_values.items()), encoding="utf-8")
           gateway_env.chmod(0o600)
           news_env.chmod(0o600)
           PY
@@ -1078,6 +1083,34 @@ jobs:
             # The site still deploys; only news classification waits for the login.
             echo "::warning::Claude gateway is not logged in. Run once on the server: docker exec -it -u appuser uzstock-claude-gateway claude auth login"
           fi
+          # Codex subscription credentials live only in this private volume.
+          # Seed it once over SSH; never put auth.json in CI secrets or the image.
+          python3 /root/uzstock/app/scripts/configure_news_codex.py /root/uzstock
+          /snap/bin/docker rm -f uzstock-codex-gateway >/dev/null 2>&1 || true
+          /snap/bin/docker run -d \
+            --name uzstock-codex-gateway --restart unless-stopped --cpus 1.0 \
+            --log-driver journald --log-opt tag=uzstock-codex-gateway \
+            --network uzstock-internal \
+            --env-file /root/uzstock/codex-gateway.env \
+            -v uzstock_codex:/app/codex-home \
+            uzstock-web:latest \
+            uvicorn codex_gateway:app --host 0.0.0.0 --port 8080 --no-access-log
+          codex_health=""
+          for attempt in $(seq 1 20); do
+            if codex_health="$(/snap/bin/docker exec uzstock-codex-gateway python -c \
+              'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=40).read().decode())' 2>/dev/null)"; then
+              break
+            fi
+            codex_health=""
+            sleep 2
+          done
+          if [ -z "$codex_health" ]; then
+            echo "Codex gateway did not start." >&2
+            exit 1
+          fi
+          # Preserve explicit provider choices. A legacy collector switches only
+          # after login; an explicitly selected but logged-out Codex fails loudly.
+          printf '%s' "$codex_health" | python3 /root/uzstock/app/scripts/configure_news_codex.py /root/uzstock --health-stdin
           python3 - <<'PY'
           from pathlib import Path
 
@@ -1266,21 +1299,15 @@ jobs:
               "/etc/systemd/system/uzstock-event-evidence.timer": timer(
                   "Enrich corporate disclosure evidence", "*-*-* 14:20:00"),
               "/etc/systemd/system/uzstock-news-collector.service": worker(
-                  "uzstock-news-collector", "UZStock Claude news collector",
+                  "uzstock-news-collector", "UZStock subscription news collector",
                   "python news_collector.py", timeout="60min", data_volume=True,
                   env_file="/root/uzstock/news-collector.env",
                   extra_env=(
-                      "NEWS_CLAUDE_GATEWAY_URL=http://uzstock-claude-gateway:8080",
-                      "NEWS_CLAUDE_MODEL=claude-haiku-4-5",
-                      "NEWS_CLAUDE_FALLBACK_MODEL=claude-sonnet-5-5",
-                      "NEWS_CLAUDE_EFFORT=low",
-                      "NEWS_CLAUDE_TIMEOUT=180",
                       "NEWS_OG_MAX_FETCH=40",
-                      "NEWS_PUSH_URL=https://uzstock.uz",
                       "TZ=Asia/Tashkent",
                   )),
               "/etc/systemd/system/uzstock-news-collector.timer": timer(
-                  "Run UZStock Claude news collector", "*-*-* 11:10:00"),
+                  "Run UZStock subscription news collector", "*-*-* 11:10:00"),
           }
           for name, content in units.items():
               Path(name).write_text(content, encoding="utf-8")
@@ -1297,6 +1324,8 @@ jobs:
             docker rm -f "$retired" >/dev/null 2>&1 || true
             rm -f "/etc/systemd/system/$retired.timer" "/etc/systemd/system/$retired.service"
           done
+          # Retire the isolated news-only release override after this image includes Codex.
+          rm -f /etc/systemd/system/uzstock-news-collector.service.d/codex.conf
           systemctl daemon-reload
           for timer in \
             uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \

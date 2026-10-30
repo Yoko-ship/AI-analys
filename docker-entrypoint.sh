@@ -24,4 +24,19 @@ if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
     esac
 fi
 
+# Keep refreshed subscription credentials in the gateway's private volume.
+if [ -n "${CODEX_HOME:-}" ]; then
+    case "$CODEX_HOME" in
+        /app/codex-home)
+            mkdir -p "$CODEX_HOME"
+            chown -R appuser:appuser "$CODEX_HOME"
+            chmod 700 "$CODEX_HOME"
+            ;;
+        *)
+            echo "Unsupported CODEX_HOME path" >&2
+            exit 64
+            ;;
+    esac
+fi
+
 exec gosu appuser "$@"
