@@ -3,7 +3,7 @@ import {
   TAB_KEYS, commandText, isEmptyCommand, parseCommand, tickerIndex,
 } from "../../../lib/terminalCommands.js";
 import { logTerminalEvent } from "../../../lib/terminalJournal.js";
-import { screenFromUrl, screenUrl } from "../../../lib/terminalWorkspace.js";
+import { catalogContext, screenFromUrl, screenUrl } from "../../../lib/terminalWorkspace.js";
 import { terminalCopy } from "./terminalCopy.js";
 
 // Functions with a screen today. The rest are recognised (HELP lists them,
@@ -16,7 +16,7 @@ const LAST_SIZE = 8;
 // the reader can extend it back to 2015 (?h=all). The stored data is unchanged.
 export const DEFAULT_FROM_YEAR = 2020;
 
-// The screen lives in the address bar (/catalog?t=SQBN&f=PL&std=MSFO), so
+// The screen lives in the address bar (/catalog?t=SQBN&f=PL), so
 // every screen is linkable and the browser's Back and Forward walk the
 // terminal's history like Esc does.
 function readUrl() { return screenFromUrl(window.location.href); }
@@ -79,7 +79,8 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
   }, [ticker, func, form, scope, market, fullHistory]);
 
   const go = React.useCallback((next, { push = true } = {}) => {
-    const screen = { ...state.current, market: null, ...next };
+    const requested = { ...state.current, market: null, ...next };
+    const screen = { ...requested, ...catalogContext(requested.form, requested.scope) };
     if (!screen.ticker && !screen.market) return;
     setOverlay(null);
     setMessage(null);
@@ -131,17 +132,18 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
     return true;
   }, [index, go, copy, onCatalogSearch]);
 
-  // A standard chosen inside a screen (the НСБУ/МСФО switch) is part of the
-  // address, but not a new step back.
+  // Apply the same catalog availability rule to links, commands and controls.
   const setForm = React.useCallback((value) => {
-    setFormState(value);
-    if (value !== "MSFO") setScopeState("separate");
-    writeUrl({ ...state.current, form: value, scope: value === "MSFO" ? state.current.scope : "separate" }, false);
+    const context = catalogContext(value, state.current.scope);
+    setFormState(context.form);
+    setScopeState(context.scope);
+    writeUrl({ ...state.current, ...context }, false);
   }, []);
 
   const setScope = React.useCallback((value) => {
-    setScopeState(value);
-    writeUrl({ ...state.current, scope: value }, false);
+    const context = catalogContext(state.current.form, value);
+    setScopeState(context.scope);
+    writeUrl({ ...state.current, ...context }, false);
   }, []);
 
   const setFullHistory = React.useCallback((value) => {

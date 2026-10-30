@@ -18,6 +18,13 @@ their existing authentication and API permission checks.
 For local viewing, run the API on port 8000 and `npm run dev`, then open
 `http://localhost:5173/catalog`. Production builds provide the same public access.
 
+## Temporary MSFO catalog pause
+
+The catalog currently offers NSBU only. Its standard tabs, screener and panel
+selectors use `CATALOG_STANDARDS` in `terminalWorkspace.js`. Old MSFO bookmarks,
+commands and saved panels resolve to NSBU with separate scope before requesting
+data. MSFO documents and the company-page IFRS view remain available.
+
 ## Implementation review — 2026-10-23
 
 Compared the supplied `ТЗ_терминал_каталога_UZStock_с_логированием_1.pdf`

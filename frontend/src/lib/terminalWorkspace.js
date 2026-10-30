@@ -1,5 +1,14 @@
 import { ISSUER_FUNCTIONS, MARKET_FUNCTIONS } from "./terminalCommands.js";
 
+// Temporarily offer NSBU only in the catalog. Company pages and source
+// documents keep their own standard selection.
+export const CATALOG_STANDARDS = ["NSBU"];
+
+export function catalogContext(form, scope) {
+  const standard = CATALOG_STANDARDS.includes(form) ? form : CATALOG_STANDARDS[0];
+  return {form: standard, scope: standard === "MSFO" && scope === "consolidated" ? "consolidated" : "separate"};
+}
+
 export function tableCsv(rows) {
   const cell = value => {
     let text = value == null ? "" : String(value);
@@ -29,24 +38,23 @@ export function filterRows(rows, filters, depositRate = null) {
 export function normalizeLayout(layout) {
   if (!Array.isArray(layout)) return [];
   return layout.filter(p => p && /^[A-Z0-9]{2,16}$/.test(p.ticker) && ISSUER_FUNCTIONS.some(f => f.code === p.func))
-    .slice(0,4).map(p => ({ticker:p.ticker,func:p.func,form:p.form === "MSFO" ? "MSFO" : "NSBU",
-      scope:p.form === "MSFO" && p.scope === "consolidated" ? "consolidated" : "separate"}));
+    .slice(0,4).map(p => ({ticker:p.ticker,func:p.func,...catalogContext(p.form,p.scope)}));
 }
 
 export function screenFromUrl(url) {
   const q = new URL(url, "http://localhost").searchParams;
-  const form = q.get("std") === "MSFO" ? "MSFO" : "NSBU";
+  const context = catalogContext(q.get("std"),q.get("scope"));
   return {ticker:q.get("t")?.toUpperCase() || null,
-    func:ISSUER_FUNCTIONS.some(f=>f.code===q.get("f")) ? q.get("f") : "SUM", form,
-    scope:form === "MSFO" && q.get("scope") === "consolidated" ? "consolidated" : "separate",
+    func:ISSUER_FUNCTIONS.some(f=>f.code===q.get("f")) ? q.get("f") : "SUM", ...context,
     market:MARKET_FUNCTIONS.some(f=>f.code===q.get("view")) ? q.get("view") : null,fullHistory:q.get("h")==="all"};
 }
 
 export function screenUrl(screen, current = "/catalog") {
   const url = new URL(current, "http://localhost");
+  const {form, scope} = catalogContext(screen.form,screen.scope);
   for (const key of ["t","f","std","scope","view","h"]) url.searchParams.delete(key);
   for (const [key, value] of Object.entries({t:screen.ticker,f:screen.func !== "SUM" ? screen.func : null,
-    std:screen.form === "MSFO" ? "MSFO" : null,scope:screen.form === "MSFO" ? screen.scope : null,
+    std:form === "MSFO" ? "MSFO" : null,scope:form === "MSFO" ? scope : null,
     view:screen.market,h:screen.fullHistory ? "all" : null})) if(value) url.searchParams.set(key,value);
   return url.pathname + url.search + url.hash;
 }

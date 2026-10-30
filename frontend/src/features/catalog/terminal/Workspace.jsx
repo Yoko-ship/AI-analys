@@ -2,7 +2,7 @@ import { BankComparison } from './BankComparison.jsx';
 import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
 import React from "react";
-import { filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
+import { CATALOG_STANDARDS, filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
 import { ISSUER_FUNCTIONS, functionLabel } from "../../../lib/terminalCommands.js";
 import { reportScreenLoad } from "../../../lib/terminalJournal.js";
 import { safeHref } from "../../../lib/safeHref.js";
@@ -25,14 +25,14 @@ function State({data,error,lang,children}) {
 export function ContextControls({form,scope,onForm,onScope,lang,tabs=false}) {
   if(tabs)return <div className="terminal-context-tabs">
     <div role="group" aria-label={words(lang,'Стандарт отчётности','Hisobot standarti','Accounting standard')}>
-      {['NSBU','MSFO'].map(code=><button key={code} type="button" aria-pressed={form===code} className={form===code?'active':''} onClick={()=>onForm(code)}>{code}</button>)}
+      {CATALOG_STANDARDS.map(code=><button key={code} type="button" aria-pressed={form===code} className={form===code?'active':''} onClick={()=>onForm(code)}>{code}</button>)}
     </div>
     {form==='MSFO'&&<div role="group" aria-label={words(lang,'Периметр отчётности','Hisobot qamrovi','Accounting scope')}>
       {[['separate',words(lang,'Отдельная','Alohida','Separate')],['consolidated',words(lang,'Консолидированная','Konsolidatsiyalangan','Consolidated')]].map(([code,name])=><button type="button" key={code} aria-pressed={scope===code} className={scope===code?'active':''} onClick={()=>onScope(code)}>{name}</button>)}
     </div>}
   </div>;
   return <div className="terminal-controls">
-    <label>{words(lang,"Стандарт","Standart","Standard")}<select value={form} onChange={e=>onForm(e.target.value)}><option>NSBU</option><option>MSFO</option></select></label>
+    <label>{words(lang,"Стандарт","Standart","Standard")}<select value={form} onChange={e=>onForm(e.target.value)}>{CATALOG_STANDARDS.map(code=><option key={code}>{code}</option>)}</select></label>
     {form==="MSFO"&&<label>{words(lang,"Периметр","Qamrov","Scope")}<select value={scope} onChange={e=>onScope(e.target.value)}><option value="separate">{words(lang,"Отдельная","Alohida","Separate")}</option><option value="consolidated">{words(lang,"Консолидированная","Konsolidatsiyalangan","Consolidated")}</option></select></label>}
   </div>;
 }
@@ -176,7 +176,7 @@ export function PanelScreen({panel,onChange,lang,onOpen,user,apiFetch}) {
   const {ticker,func,form,scope}=panel;
   if(form==="MSFO"&&["SUM","PL","BS","RAT","DQ"].includes(func))return <InvestorView ticker={ticker} lang={lang} scope={scope} onScopeChange={scope=>onChange({...panel,scope})} initialTab={({SUM:"overview",PL:"pl",BS:"bs",RAT:"rat",DQ:"quality"})[func]} onLoad={load=>reportScreenLoad({ticker,func,form,...load})}/>;
   if(func==="FV"&&user?.is_admin)return <TerminalValuation {...panel} apiFetch={apiFetch} lang={lang}/>;
-  if(["SUM","PL","BS"].includes(func))return <><FinancialColumns statement={func === "BS" ? "balance" : "income"} showContextControls={false} ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})} fallback={func!=="SUM"&&<IssuerFinancials ticker={ticker} lang={lang} standard={form} scope={scope} section={func==="PL"?"income":"balance"} fromYear={2020}/>}/>{func==="SUM"&&<AnalyticsScreen {...panel} lang={lang} summary/>}</>;
+  if(["SUM","PL","BS"].includes(func))return <><FinancialColumns statement={func === "BS" ? "balance" : "income"} showContextControls={false} ticker={ticker} lang={lang} standard={form} scope={scope} onScopeChange={v=>onChange({...panel,scope:v})} onStandardChange={v=>onChange({...panel,form:v,scope:"separate"})} fromYear={2020} onLoad={load=>reportScreenLoad({ticker,func,form,...load})} fallback={func!=="SUM"&&<IssuerFinancials showContextControls={false} ticker={ticker} lang={lang} standard={form} scope={scope} section={func==="PL"?"income":"balance"} fromYear={2020}/>}/>{func==="SUM"&&<AnalyticsScreen {...panel} lang={lang} summary/>}</>;
   if(func==="RAT")return <AnalyticsScreen {...panel} lang={lang}/>;
   if(func==="REC")return <Reconciliation {...panel} lang={lang}/>;
   if(func==="RV")return <PeersScreen {...panel} lang={lang} onOpen={onOpen}/>;

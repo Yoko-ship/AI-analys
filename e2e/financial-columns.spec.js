@@ -331,9 +331,8 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await terminal.locator(".fc-stats").evaluate(el => el.scrollIntoView({ block: "start" }));
   await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}-mobile.png`), animations: "disabled" });
-  await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
-  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
-  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Accounting standard' }).getByRole('button')).toHaveText(['NSBU']);
+  await expect(page.getByTestId('ifrs-investor')).toHaveCount(0);
 });
 
 test('SUM workspace panels include the same year columns', async ({ page }) => {
@@ -450,18 +449,6 @@ test('source columns preserve units, periods and passports at desktop and mobile
   await expect(terminal.getByRole('button', { name: '6M / 9M', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
   await page.screenshot({ path: testInfo.outputPath('financial-columns-mobile.png'), fullPage: true, animations: 'disabled' });
-});
-
-test('changing standard clears source rows and gives an explicit missing-data state', async ({ page }) => {
-  await setup(page);
-  const terminal = page.getByTestId('financial-columns');
-  await expect(terminal.locator('tr[data-metric="interest_income"]')).toBeVisible();
-  await page.getByRole('group', { name: 'Accounting standard' }).getByRole('button', { name: 'MSFO', exact: true }).click();
-  await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
-  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
-  await expect(terminal.locator('.fc-legacy')).toHaveCount(0);
-  await page.getByTestId('ifrs-investor').getByRole('tab', { name: 'Quality', exact: true }).click();
-  await expect(page.getByTestId('ifrs-investor').getByText('No approved source rows for this scope.')).toBeVisible();
 });
 
 test('a failed financial source request can be retried without showing stale amounts', async ({ page }) => {

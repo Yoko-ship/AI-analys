@@ -24,10 +24,11 @@ for(const ticker of ['UZAS','HMKB','UZNF'])for(const func of ['SUM','PL'])test(`
     if(path.endsWith('/analytics'))return json({ok:true,snapshot:{kind,period:'2025'},growth:[],quarters:{rows:[]},cbu:kind==='bank'?{main,npl:{ticker,date:'2026-08-01',npl_pct:1.4,npl_rank:nplRank,rank_population:35,source_url:'https://cbu.uz/npl.xlsx'}}:{},cbu_history:kind==='bank'?[{...main,date:'2026-07-01'},main]:[]});
     return json({ok:true,rows:[],periods:[],series:{},companies_synced:1,total_reports:1});
   });
-  await page.goto(`/catalog?t=${ticker}&f=${func}&std=${form}`);
+  await page.goto(ticker==='UZNF' ? '/company/UZNF?tab=financials&standard=MSFO' : `/catalog?t=${ticker}&f=${func}&std=${form}`);
   if(ticker==='UZNF'){
     const ui=page.getByTestId('ifrs-investor');
     await expect(ui).toBeVisible();
+    if(func==='PL')await ui.getByRole('tab',{name:/^PL /}).click();
     if(func==='SUM'){
       await expect(ui.locator('.investor-kpis')).toContainText('29 861,54'.replaceAll(' ','\u00a0'));
     }else{

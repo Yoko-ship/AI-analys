@@ -17,11 +17,15 @@ test("only four valid independent panel screens are restored", () => {
   const good = {ticker:"AGBA", func:"PL", form:"MSFO", scope:"consolidated"};
   assert.equal(normalizeLayout(Array(6).fill(good)).length,4);
   assert.deepEqual(normalizeLayout([{ticker:"<script>",func:"SUM"},{ticker:"SQBN",func:"BAD"}]),[]);
-  assert.equal(normalizeLayout([good])[0].scope,"consolidated");
+  assert.deepEqual(normalizeLayout([good])[0],{...good,form:"NSBU",scope:"separate"});
 });
-test("market screens and accounting scope survive links and browser history", () => {
+test("market screens and history survive links while MSFO falls back to NSBU", () => {
   const screen = {ticker:"AGBA",func:"REC",form:"MSFO",scope:"consolidated",market:"EQS",fullHistory:true};
-  assert.deepEqual(screenFromUrl(screenUrl(screen)),screen);
+  const expected = {...screen,form:"NSBU",scope:"separate"};
+  assert.deepEqual(screenFromUrl('/catalog?t=AGBA&f=REC&std=MSFO&scope=consolidated&view=EQS&h=all'),expected);
+  assert.deepEqual(screenFromUrl(screenUrl(screen)),expected);
+  assert.equal(screenUrl(screen).includes('MSFO'),false);
+  assert.deepEqual(screenFromUrl(screenUrl(expected)),expected);
 });
 
 test("USD projection uses each report-end rate, leaves ratios intact and refuses missing rates", async () => {

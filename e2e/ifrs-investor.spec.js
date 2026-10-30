@@ -62,16 +62,42 @@ for(const theme of ['light','dark'])test(`shared IFRS investor has all sections,
   await expect(ui.locator('.investor-kpis')).toHaveCount(0);
 });
 
-test('catalog and workspace panels use the same IFRS investor',async({page})=>{
+for (const signedIn of [false, true]) test(`catalog temporarily hides MSFO for ${signedIn ? 'members' : 'guests'} including old links and panels`,async({page})=>{
   await setup(page);
-  await page.goto('/catalog?t=HMKB&f=BS&form=MSFO');
-  const standard=page.getByRole('group',{name:'Accounting standard'});
-  await standard.getByRole('button',{name:'MSFO',exact:true}).click();
-  const ui=page.getByTestId('ifrs-investor');
-  await expect(ui.getByRole('tab',{name:'BS Balance',exact:true})).toHaveAttribute('aria-selected','true');
+  const layout=[{ticker:'HMKB',func:'BS',form:'MSFO',scope:'consolidated'}];
+  await page.addInitScript(({signedIn,layout})=>{
+    if(!signedIn)localStorage.removeItem('uz_stock_analyzer_token');
+    localStorage.setItem('uz_terminal_layout',JSON.stringify(layout));
+  },{signedIn,layout});
+  await page.route('**/api/auth/me',route=>route.fulfill({json:{user:{id:1,is_admin:false}}}));
+  await page.route('**/api/profile',route=>route.fulfill({json:{preferences:{terminal_layout:layout}}}));
+  const ifrsRequests=[];
+  page.on('request',request=>{
+    const url=new URL(request.url());
+    if(url.pathname.startsWith('/api/') && (url.searchParams.get('form')==='MSFO'||url.searchParams.get('standard')==='ifrs'||url.searchParams.get('view')==='investor'))ifrsRequests.push(url.pathname+url.search);
+  });
+  await page.goto('/catalog?t=HMKB&f=BS&std=MSFO&scope=consolidated');
+  const standard=page.getByRole('group',{name:'Accounting standard',exact:true});
+  await expect(standard.getByRole('button',{name:'NSBU',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(standard.getByRole('button',{name:'MSFO',exact:true})).toHaveCount(0);
+  await expect(page).not.toHaveURL(/std=MSFO|scope=consolidated/);
+  await page.reload();
+  await expect(standard.getByRole('button')).toHaveText(['NSBU']);
+  const command=page.getByRole('combobox',{name:'Terminal command line'});
+  await command.fill('HMKB IFRS PL');await command.press('Enter');
+  await expect(page).toHaveURL(/f=PL/);
+  await expect(standard.getByRole('button',{name:'NSBU',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'EQS · Screener',exact:true}).click();
+  await expect(page.getByLabel(/^Standard/).locator('option')).toHaveText(['NSBU']);
   await page.getByRole('button',{name:'PNL · Panels',exact:true}).click();
-  await page.locator('.terminal-work-panel').getByLabel(/^Standard/).selectOption('MSFO');
-  await expect(page.locator('.terminal-work-panel').getByTestId('ifrs-investor')).toBeVisible();
+  const panel=page.locator('.terminal-work-panel');
+  await expect(panel).toHaveAttribute('data-terminal-standard','NSBU');
+  await expect(panel).toHaveAttribute('data-terminal-scope','separate');
+  await expect(panel.getByLabel(/^Standard/).locator('option')).toHaveText(['NSBU']);
+  await page.setViewportSize({width:390,height:844});
+  await expect(panel.getByLabel(/^Standard/)).toBeVisible();
+  await expect(page.getByTestId('ifrs-investor')).toHaveCount(0);
+  expect(ifrsRequests).toEqual([]);
 });
 
 test('IFRS deep link, retry, notes and print remain connected',async({page})=>{

@@ -77,8 +77,8 @@ test('FV opens the automatic per-share dashboard and exports its calculation tab
   await page.screenshot({path:testInfo.outputPath('fv-mobile-light.png'),fullPage:true,animations:'disabled'});
   await page.getByRole('combobox',{name:'Terminal command line'}).fill('AGBA MSFO FV');
   await page.getByRole('combobox',{name:'Terminal command line'}).press('Enter');
-  await expect(fv.locator('.terminal-context')).toContainText('AGBA · 2025 · MSFO');
-  expect(requests.at(-1).searchParams.get('form')).toBe('MSFO');
+  await expect(fv.locator('.terminal-context')).toContainText('AGBA · 2025 · NSBU');
+  expect(requests.at(-1).searchParams.get('form')).toBe('NSBU');
   expect(errors).toEqual([]);
   const standards=page.getByRole('group',{name:'Accounting standard',exact:true});
   await standards.getByRole('button',{name:'NSBU',exact:true}).click();

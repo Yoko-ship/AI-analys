@@ -87,7 +87,7 @@ function HelpPanel({ lang, onClose, onRun }) {
             <tbody>{copy.keyRows.map(([key, text]) => <tr key={key}><td><kbd>{key}</kbd></td><td>{text}</td></tr>)}</tbody>
           </table>
           <p className="muted terminal-examples">
-            {copy.examples}: <code>SQBN PL</code> · <code>AGBA MSFO BS</code> · <code>KVTS DQ</code> · {copy.aliases}
+            {copy.examples}: <code>SQBN PL</code> · <code>AGBA BS</code> · <code>KVTS DQ</code> · {copy.aliases}
           </p>
         </div>
       </div>
