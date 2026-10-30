@@ -57,9 +57,10 @@ test("catalog refresh surfaces HTTP failures and allows retry", async ({ page })
   await expect(page.getByRole("button", { name: "Обновить", exact: true })).toBeEnabled();
 });
 
-test("guests cannot open the catalog or start a source sync", async ({ page }) => {
+test("guests can read reports but cannot start a source sync", async ({ page }) => {
   const requests = await catalogFixture(page, { signedIn: false });
-  await expect(page.getByRole("heading", { name: "Только для администраторов", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Обновить", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Biokimyo", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Обновить", exact: true }).click();
+  await expect(page.getByText("Войдите для синхронизации", { exact: true })).toBeVisible();
   expect(requests).toHaveLength(0);
 });

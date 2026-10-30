@@ -4,6 +4,20 @@ Source: «ТЗ: терминал каталога UZStock с логирован�
 15.10.2026, 21 pages). Visual reference: `UZStock_terminal_TZ_maket.html`
 (15.10), sent with the ТЗ.
 
+## Public catalog access
+
+The catalog at `/catalog` is available to guests and signed-in users, with a
+navigation entry on desktop and mobile. Browsing reports does not require an
+administrator account or a paid plan. Bookmarks also work while session
+verification is pending and after logout.
+
+Administration (`ADM`), full catalog synchronization, and unvalidated valuation
+models remain restricted to administrators. Source refresh and analysis retain
+their existing authentication and API permission checks.
+
+For local viewing, run the API on port 8000 and `npm run dev`, then open
+`http://localhost:5173/catalog`. Production builds provide the same public access.
+
 ## Implementation review — 2026-10-23
 
 Compared the supplied `ТЗ_терминал_каталога_UZStock_с_логированием_1.pdf`

@@ -15,7 +15,7 @@ import { RatingPrompt } from "../features/feedback/index.js";
 import { ToastStack } from "./toasts.jsx";
 
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
-  const { token, user, canAccessCatalog } = sessionModule;
+  const { token, user } = sessionModule;
   const { language, setLanguage, stepTextScale, textScale, setTextScale, toggleTheme, theme } = preferencesModule;
   const { activeView, setActiveView, openNewsTab } = navigationModule;
   const { catalogStatus } = marketModule;
@@ -101,8 +101,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
   const navItems = (token
     ? ["main", "market", "catalog", "news", "feedback", "profile"]
-    : ["main", "market", "catalog", "news", "feedback"])
-    .filter(key => key !== "catalog" || canAccessCatalog);
+    : ["main", "market", "catalog", "news", "feedback"]);
 
   // One hover drop-down open at a time: «Рынок» or «Новости».
   const [navMenu, setNavMenu] = useState(null);

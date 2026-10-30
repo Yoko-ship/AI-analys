@@ -802,7 +802,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       </nav>
       {["EQS", "MON"].includes(terminal.market) && <MarketScreen mode={terminal.market} terminal={terminal} lang={lang} user={user} apiFetch={apiFetch} />}
       {terminal.market === "PNL" && <PanelWorkspace companies={catalogComps} terminal={{...terminal,ticker}} lang={lang} user={user} apiFetch={apiFetch} />}
-      {terminal.market === "ADM" && <TerminalAdmin language={lang} apiFetch={apiFetch} />}
+      {terminal.market === "ADM" && (user?.is_admin
+        ? <TerminalAdmin language={lang} apiFetch={apiFetch} />
+        : <section className="panel"><h2>{lang === "ru" ? "Только для администраторов" : lang === "uz" ? "Faqat administratorlar uchun" : "Administrators only"}</h2></section>)}
       {!terminal.market && <>
 
       <div className="catalog-body">
