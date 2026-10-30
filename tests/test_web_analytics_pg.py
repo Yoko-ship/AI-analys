@@ -165,3 +165,114 @@ def test_one_day_reads_only_that_day_and_the_daily_table_names_its_leaders(traff
     # a malformed or future day falls back to the range instead of an empty screen
     assert wa.audience(7, "2999-01-01")["day"] is None
     assert wa.audience(7, "not-a-date")["totals"]["visitors"] == 5
+
+
+@pytest.fixture
+def product_traffic(traffic):
+    """Two complete weeks, UZTL interest and a campaign registration after arrival."""
+    from datetime import datetime, timedelta, timezone
+    end = wa._day_start(datetime.now(timezone.utc))
+    start = end - timedelta(days=7)
+    with wa._conn() as conn:
+        conn.execute("DELETE FROM web_events")
+        conn.execute("UPDATE web_users SET created_at = %s WHERE id=2", (start + timedelta(hours=1, minutes=2),))
+        conn.execute("DELETE FROM web_analysis_history")
+
+    def hit(vid, sid, at, path="/company/UZTL", event="pageview", **extra):
+        traffic(vid, path, "company", "198.51.100.1", sid=sid, ticker=extra.pop("ticker", "UZTL"), event=event, **extra)
+        row = list(wa._buffer[-1])
+        row[0] = at
+        wa._buffer[-1] = tuple(row)
+
+    # Prior history makes both complete periods observable.
+    hit("visitorOLD1", "sessionOLD1", start - timedelta(days=8))
+    hit("visitorAAA1", "sessionPREV", start - timedelta(days=2))
+    # A returning browser, two visits, three clicks: repeat use counts visits, not clicks.
+    hit("visitorAAA1", "sessionAAA1", start, us="telegram", uc="uztl-post", tv=1)
+    hit("visitorAAA1", "sessionAAA1", start + timedelta(seconds=20), event="feature_financials", tv=1)
+    hit("visitorAAA1", "sessionAAA1", start + timedelta(seconds=21), event="feature_financials", tv=1)
+    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1), tv=1)
+    hit("visitorAAA1", "sessionAAA2", start + timedelta(days=1, seconds=10), event="feature_financials", tv=1)
+    # Anonymous arrival, then a trusted signed-in event. Only the new account counts.
+    hit("visitorBBB1", "sessionBBB1", start + timedelta(hours=1), ref="https://www.google.com/search?q=uztl")
+    wa._buffer[-1] = tuple(None if i == 3 else value for i, value in enumerate(wa._buffer[-1]))
+    hit("visitorBBB1", "sessionBBB1", start + timedelta(hours=1, minutes=3), event="leave", ms=45000)
+    hit("visitorBBB1", "sessionBBB2", start + timedelta(days=2))
+    # Unmeasured historical visitor: no feature events must remain unknown.
+    hit("visitorNET0", "sessionNET0", start + timedelta(hours=3), path="/company/HMKB", ticker="HMKB")
+    # Current partial day and internal browsers must not enter the report.
+    hit("visitorTODAY", "sessionTODAY", end)
+    hit("visitorTEAM", "sessionTEAM", start, int=1)
+    assert wa.flush() == 13
+    return start, end, hit
+
+
+def test_product_sources_tickers_and_repeat_feature_usage(product_traffic):
+    import product_analytics
+    report = product_analytics.product_report(7)
+    assert report["totals"] == {"visitors": 3, "sessions": 5, "engaged_sessions": 3, "registrations": 1}
+    assert report["coverage"]["measured_sessions"] == 2
+    assert report["coverage"]["previous_complete"] is True
+    google = next(r for r in report["sources"] if r["source"] == "google.com")
+    assert (google["sessions"], google["registrations"], google["engaged_sessions"]) == (1, 1, 1)
+    telegram = next(r for r in report["sources"] if r["source"] == "telegram")
+    assert telegram["campaign"] == "uztl-post" and telegram["engaged_sessions"] == 1
+    uztl = next(r for r in report["companies"] if r["ticker"] == "UZTL")
+    assert (uztl["visitors"], uztl["previous_visitors"], uztl["change_pct"], uztl["returning_visitors"]) == (2, 1, 100.0, 1)
+    financials = next(r for r in report["features"] if r["feature"] == "financials")
+    assert (financials["users"], financials["sessions"], financials["actions"], financials["repeat_users"]) == (1, 2, 3, 1)
+    assert financials["adoption_rate"] == 1.0
+    assert next(r for r in report["features"] if r["feature"] == "chart")["users"] == 0
+
+
+def test_product_unmeasured_features_and_incomplete_history_are_not_zero(traffic):
+    import product_analytics
+    from datetime import datetime, timedelta, timezone
+    yesterday = wa._day_start(datetime.now(timezone.utc)) - timedelta(hours=2)
+    with wa._conn() as conn:
+        conn.execute("UPDATE web_events SET ts=%s", (yesterday,))
+    report = product_analytics.product_report(7)
+    assert report["coverage"]["previous_complete"] is False
+    assert report["coverage"]["measured_sessions"] == 0
+    assert all(r["change_pct"] is None for r in report["companies"])
+    assert all(r["users"] is None for r in report["features"] if r["measurement"] == "interaction")
+    assert next(r for r in report["features"] if r["feature"] == "news")["users"] == 1
+
+
+def test_product_session_attribution_keeps_original_source_across_period_boundary(product_traffic):
+    import product_analytics
+    from datetime import timedelta
+    start, end, hit = product_traffic
+    hit("visitorCROSS", "sessionCROSS", start - timedelta(minutes=5), us="telegram", uc="before-week")
+    hit("visitorCROSS", "sessionCROSS", start + timedelta(minutes=5), event="leave", ms=60000)
+    assert wa.flush() == 2
+    report = product_analytics.product_report(7)
+    # Source report counts visits by their start, not a trailing leave beacon.
+    assert report["totals"]["sessions"] == 5
+    assert not any(r["campaign"] == "before-week" for r in report["sources"])
+
+
+def test_product_registration_conversion_counts_converted_visits_not_accounts(product_traffic):
+    import product_analytics
+    from datetime import timedelta
+    start, _, hit = product_traffic
+    with wa._conn() as conn:
+        conn.execute("INSERT INTO web_users(id,email,created_at) VALUES(3,'second@example.test',%s)",
+                     (start + timedelta(hours=1, minutes=2),))
+    hit("visitorBBB1", "sessionBBB1", start + timedelta(hours=1, minutes=4), event="leave", ms=1000)
+    row = list(wa._buffer[-1]); row[3] = 3; wa._buffer[-1] = tuple(row)
+    wa.flush()
+    google = next(r for r in product_analytics.product_report(7)["sources"] if r["source"] == "google.com")
+    assert google["registrations"] == 2
+    assert google["registration_rate"] == 1.0
+
+
+def test_product_empty_database_has_no_invented_history(traffic):
+    import product_analytics
+    with wa._conn() as conn:
+        conn.execute("DELETE FROM web_events")
+    report = product_analytics.product_report(7)
+    assert report["coverage"]["history_since"] is None
+    assert report["sources"] == [] and report["companies"] == []
+    assert report["totals"]["sessions"] == 0
+    assert all(r["adoption_rate"] is None for r in report["features"])

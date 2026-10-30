@@ -23,7 +23,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 from psycopg import Error as DatabaseError
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 import server.auth.limits as auth_limits
 import web_analytics
@@ -135,6 +135,13 @@ async def api_metrics_audience(days: int = 30, day: str | None = None) -> dict[s
 @admin_router.get("/api/admin/metrics/engagement")
 async def api_metrics_engagement(days: int = 30, day: str | None = None) -> dict[str, Any]:
     return await _run(web_analytics.engagement, days, day)
+
+
+@admin_router.get("/api/admin/metrics/product")
+async def api_metrics_product(days: int = Query(default=7, ge=1, le=90)) -> dict[str, Any]:
+    from product_analytics import product_report
+
+    return await _run(product_report, days)
 
 
 @admin_router.get("/api/admin/metrics/analysis")

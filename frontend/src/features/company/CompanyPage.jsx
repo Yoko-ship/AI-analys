@@ -1,3 +1,4 @@
+import { trackFeature } from "../../lib/track.js";
 import { prepareMarketRows } from "../../lib/marketData.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import React from "react";
@@ -483,7 +484,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
           {TABS.map((t) => (
             <button key={t.key} type="button"
               className={`company-tab-btn ${tab === t.key ? "active" : ""}`}
-              onClick={() => setTab(t.key)}>
+              onClick={() => { if (tab !== t.key) trackFeature(t.key, ticker); setTab(t.key); }}>
               {t.label}
             </button>
           ))}

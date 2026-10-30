@@ -1,3 +1,4 @@
+import { ProductAnalyticsSection } from "./ProductAnalyticsSection.jsx";
 import { Icon, IconSprite } from "./icons.jsx";
 import "./admin.css";
 import { useEffect } from "react";
@@ -110,6 +111,7 @@ export default function AdminPanel({
 
   const SECTION_LEDE = {
     overview: t("Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.", "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.", "How many people opened the site today, whether the audience is alive and the product is used — before the plumbing."),
+    product: t("Какие источники приводят читателей, какие бумаги интересуют их и какие функции они используют.", "O‘quvchilar qayerdan keladi, qaysi qog‘ozlar va funksiyalarga qiziqadi.", "Which sources bring readers, which securities attract them, and which features they use."),
     audience: t("Кто приходит: сколько, откуда, на чём и на каком языке. Ответ на буквальный вопрос «сколько человек открыло сайт».", "Kim kelmoqda: qancha, qayerdan va qaysi tilda.", "Who comes: how many, from where, on what device and in which language."),
     engagement: t("Что они на самом деле смотрят: страницы, бумаги, новости. Топ бумаг — самая коммерчески интересная таблица панели.", "Ular aslida nimani ko'rmoqda: sahifalar, qog'ozlar, yangiliklar.", "What they actually look at: pages, tickers, stories. The ticker ranking is the most commercially interesting table here."),
     analysis: t("Кто запускает AI-анализ, что анализируют и во сколько это обходится. Доля кэша — это напрямую счёт за LLM.", "Kim AI-tahlil ishga tushiradi va bu qancha turadi.", "Who runs the AI analysis, what they analyse and what it costs. The cache share is directly the LLM bill."),
@@ -245,6 +247,7 @@ export default function AdminPanel({
   const bodyBySection = {
     terminal: <TerminalAdmin apiFetch={apiFetch} language={language} />,
     overview: overviewBody,
+    product: <ProductAnalyticsSection apiFetch={apiFetch} t={t} />,
     audience: audienceBody,
     engagement: engagementBody,
     analysis: analysisBody,

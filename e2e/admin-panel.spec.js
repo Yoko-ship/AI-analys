@@ -170,3 +170,58 @@ test("terminal admin exposes versioned templates and private valuation scenarios
   await page.getByRole('button',{name:'FV',exact:true}).click();
   await expect(page.getByLabel('Policy rate, %')).toHaveValue('14');
 });
+
+const PRODUCT = {
+  ok: true, days: 7, period: { start: '2026-10-23', end: '2026-10-29', previous_start: '2026-10-16', previous_end: '2026-10-22' },
+  totals: { visitors: 51, sessions: 55, engaged_sessions: 38, registrations: 3 },
+  coverage: { history_since: '2026-10-01', previous_complete: true, measured_sessions: 20, total_sessions: 55, interaction_since: '2026-10-28' },
+  sources: [{ source: 'telegram', channel: 'telegram', campaign: 'uztl-october', medium: 'social', sessions: 25, visitors: 23, engaged_sessions: 18, registrations: 2, registration_rate: 0.08 }],
+  companies: [{ ticker: 'UZTL', visitors: 37, previous_visitors: 20, change_pct: 85, returning_visitors: 8, pageviews: 53 }],
+  features: [{ feature: 'financials', measurement: 'interaction', users: 12, sessions: 14, actions: 19, repeat_users: 2, adoption_rate: 0.7 }, { feature: 'chart', measurement: 'interaction', users: 0, sessions: 0, actions: 0, repeat_users: 0, adoption_rate: 0 }, { feature: 'news', measurement: 'pageview', users: 8, sessions: 9, actions: 14, repeat_users: 1, adoption_rate: 9 / 55 }],
+};
+
+for (const width of [1440, 390]) {
+  test(`product analytics connects sources, company trends and measured feature usage at ${width}px`, async ({ page }, testInfo) => {
+    await mockAdmin(page);
+    if (width === 390) await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
+    const asked = [];
+    await page.route('**/api/admin/metrics/product*', route => {
+      const days = new URL(route.request().url()).searchParams.get('days');
+      asked.push(days);
+      return route.fulfill({ json: { ...PRODUCT, days: Number(days) } });
+    });
+    await page.setViewportSize({ width, height: 960 });
+    await page.goto('/admin');
+    await page.locator('.admin-tabs').getByRole('button', { name: 'Product analytics', exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/product$/);
+    await expect(page.getByRole('heading', { name: 'Source performance' })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'uztl-october' })).toContainText('25');
+    await expect(page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'UZTL', exact: true }) })).toContainText('+85%');
+    await expect(page.getByText('20 of 55 sessions', { exact: false })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Financial statements' })).toContainText('70%');
+    await expect(page.getByText('Complete days · Tashkent', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: '30 days', exact: true }).click();
+    await expect.poll(() => asked.at(-1)).toBe('30');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`product-${width}.png`), fullPage: true });
+  });
+}
+
+test('product analytics distinguishes unavailable tracking and handles failed reloads', async ({ page }) => {
+  await mockAdmin(page);
+  let fail = false;
+  await page.route('**/api/admin/metrics/product*', route => fail
+    ? route.fulfill({ status: 503, json: { detail: 'Unavailable' } })
+    : route.fulfill({ json: { ...PRODUCT, coverage: { ...PRODUCT.coverage, measured_sessions: 0, previous_complete: false, interaction_since: null }, features: [{ feature: 'financials', measurement: 'interaction', users: null, sessions: null, actions: null, repeat_users: null, adoption_rate: null }] } }));
+  await page.goto('/admin/product');
+  await expect(page.getByText('No interaction measurements in this period.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Financial statements' })).toContainText('—');
+  await expect(page.getByText('Previous period has incomplete history.', { exact: true })).toBeVisible();
+  fail = true;
+  await page.getByRole('button', { name: '30 days', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not load product analytics');
+  await expect(page.getByText('uztl-october')).toHaveCount(0);
+  fail = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('uztl-october')).toBeVisible();
+});

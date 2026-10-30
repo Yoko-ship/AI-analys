@@ -120,7 +120,7 @@ function sessionId(store) {
 }
 
 function send(payload) {
-  const body = JSON.stringify(payload);
+  const body = JSON.stringify({ ...payload, tv: 1 });
   // sendBeacon cannot attach an Authorization header. Signed-in page views use
   // fetch so the server can derive (and verify) the user from the session token.
   if (currentAuthToken) {
@@ -189,6 +189,27 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
     measureScroll();
     listen();
   } catch { /* tracking must never break the page */ }
+}
+
+// A small, explicit vocabulary: never send search text or arbitrary UI labels.
+const FEATURES = new Set(["financials", "chart", "ratios", "reports", "dividends"]);
+export function trackFeature(feature, ticker = "") {
+  try {
+    if (!FEATURES.has(feature) || !page) return;
+    const store = storage();
+    if (!store) return;
+    const seen = Number(store.getItem(SEEN_KEY) || 0);
+    if (!seen || Date.now() - seen > IDLE_MS) {
+      trackPageview({ path: page.path, view: page.view, ticker: page.ticker });
+    }
+    const { sid } = sessionId(store);
+    const cleanTicker = String(ticker || page.ticker || "").trim().toUpperCase();
+    send({ vid: page.vid, sid, path: page.path, view: page.view,
+      ticker: /^[A-Z0-9._-]{1,20}$/.test(cleanTicker) ? cleanTicker : "",
+      event: `feature_${feature}`,
+      ...(isBrowserExcluded() ? { int: 1 } : {}),
+    });
+  } catch { /* analytics must not interfere with the action */ }
 }
 
 /** The reader moved to a view that is not counted (the admin panel): close the page. */

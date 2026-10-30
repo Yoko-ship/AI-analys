@@ -306,3 +306,9 @@ def test_record_stores_place_tags_reading_and_team(monkeypatch):
     # a proxy's country header still outranks the database
     assert wa.record_pageview(dict(VALID), user_agent=ua, ip="84.54.70.1", country="kz")
     assert wa._buffer.pop()[14] == "KZ"
+
+
+def test_tracking_version_distinguishes_unmeasured_legacy_visits():
+    assert wa.sanitize_payload(VALID)["tracking_version"] == 0
+    assert wa.sanitize_payload({**VALID, "tv": 1})["tracking_version"] == 1
+    assert wa.sanitize_payload({**VALID, "tv": 999})["tracking_version"] == 0

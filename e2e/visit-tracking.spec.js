@@ -47,3 +47,32 @@ test("a browser the team excluded marks every beacon", async ({ page }) => {
   await expect.poll(() => beacons.length).toBeGreaterThan(0);
   expect(beacons.every((b) => b.int === 1)).toBe(true);
 });
+
+test('company feature actions retain the visit and ticker without inflating page views', async ({ page }) => {
+  const beacons = [];
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_language', 'en'));
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/api/track') {
+      beacons.push(JSON.parse(route.request().postData() || '{}'));
+      return route.fulfill({ status: 204, body: '' });
+    }
+    if (path === '/api/auth/me') return route.fulfill({ status: 401, json: {} });
+    return route.fulfill({ json: { ok: true, items: [], points: [], securities: { UZTL: { name: 'Uzbektelecom' } } } });
+  });
+  await page.goto('/company/UZTL?utm_source=telegram');
+  const tabs = page.locator('.company-page-tabs');
+  await tabs.getByRole('button', { name: 'Financials', exact: true }).click();
+  await expect.poll(() => beacons.filter(b => b.event === 'feature_financials').length).toBe(1);
+  await tabs.getByRole('button', { name: 'Financials', exact: true }).click();
+  await tabs.getByRole('button', { name: 'Dividends', exact: true }).click();
+  await expect.poll(() => beacons.filter(b => b.event === 'feature_dividends').length).toBe(1);
+  const first = beacons.find(b => !b.event);
+  expect(first.tv).toBe(1);
+  expect(beacons.filter(b => !b.event)).toHaveLength(1);
+  expect(beacons.filter(b => b.event === 'feature_financials')).toHaveLength(1);
+  for (const action of beacons.filter(b => b.event?.startsWith('feature_'))) {
+    expect(action).toMatchObject({ vid: first.vid, sid: first.sid, path: '/company/UZTL', ticker: 'UZTL', tv: 1 });
+    expect(action.us).toBeUndefined();
+  }
+});

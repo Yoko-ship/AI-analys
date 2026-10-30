@@ -103,6 +103,10 @@ export const SECTIONS = [{
   icon: "up",
   title: ["Аудитория", "Auditoriya", "Audience"]
 }, {
+  key: "product",
+  icon: "chart",
+  title: ["Аналитика продукта", "Mahsulot tahlili", "Product analytics"]
+}, {
   key: "engagement",
   icon: "chart",
   title: ["Вовлечённость", "Faollik", "Engagement"]

@@ -152,6 +152,16 @@
     ]
   },
   {
+    "path": "/api/admin/metrics/product",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_product",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
     "path": "/api/admin/metrics/analysis",
     "methods": [
       "GET"
@@ -2329,6 +2339,16 @@
       "GET"
     ],
     "name": "api_metrics_engagement__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/metrics/product",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_metrics_product__v2",
     "dependencies": [
       "_admin_panel_gate"
     ]

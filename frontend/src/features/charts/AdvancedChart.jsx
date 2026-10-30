@@ -1,3 +1,4 @@
+import { trackFeature } from "../../lib/track.js";
 import { prepareMarketRows } from "../../lib/marketData.js";
 import React from "react";
 import { CHART_RANGES, QC_COLORS, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff, chartRangeMonths, quickComparePeers } from "../../shared/priceChartModel.jsx";
@@ -518,7 +519,7 @@ function AdvancedChart({ ticker, securitiesMap, marketRows, tradeStats, lang, fa
       {CHART_RANGES.map((r) => (
         <button key={r.key} type="button"
           className={`ac-range-btn ${!custom && range === r.key ? "active" : ""}`}
-          onClick={() => { setSpan({ from: "", to: "" }); setRange(r.key); }}>
+          onClick={() => { if (range !== r.key || span.from || span.to) trackFeature("chart", ticker); setSpan({ from: "", to: "" }); setRange(r.key); }}>
           {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
         </button>
       ))}

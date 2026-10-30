@@ -101,7 +101,8 @@ def init_db() -> bool:
         for column, kind in (("region", "TEXT"), ("city", "TEXT"),
                              ("utm_source", "TEXT"), ("utm_medium", "TEXT"), ("utm_campaign", "TEXT"),
                              ("engaged_ms", "INTEGER"), ("scroll_pct", "SMALLINT"),
-                             ("internal", "BOOLEAN NOT NULL DEFAULT FALSE")):
+                             ("internal", "BOOLEAN NOT NULL DEFAULT FALSE"),
+                             ("tracking_version", "SMALLINT NOT NULL DEFAULT 0")):
             conn.execute(f"ALTER TABLE web_events ADD COLUMN IF NOT EXISTS {column} {kind}")  # noqa: S608 - fixed names
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_ts ON web_events(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_visitor_ts ON web_events(visitor_id, ts)")
@@ -318,6 +319,7 @@ def sanitize_payload(data: dict[str, Any]) -> Optional[dict[str, Any]]:
         "utm_campaign": _utm(data.get("uc")),
         "engaged_ms": engaged_ms, "scroll_pct": scroll_pct,
         "internal": data.get("int") in (1, True, "1"),
+        "tracking_version": 1 if data.get("tv") in (1, "1") else 0,
     }
 
 
@@ -392,9 +394,9 @@ def flush() -> int:
                         (ts, visitor_id, session_id, user_id, event, path, view, ticker,
                          referrer, lang, device, screen_w, browser, os, country, ip_hash,
                          region, city, utm_source, utm_medium, utm_campaign,
-                         engaged_ms, scroll_pct, internal)
+                         engaged_ms, scroll_pct, internal, tracking_version)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                            %s, %s, %s, %s, %s, %s, %s, %s)
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     batch,
                 )
@@ -432,6 +434,7 @@ def record_pageview(data: dict[str, Any], *, user_agent: str = "", ip: str = "",
         (place or {}).get("region"), (place or {}).get("city"),
         clean["utm_source"], clean["utm_medium"], clean["utm_campaign"],
         clean["engaged_ms"], clean["scroll_pct"], bool(internal or clean["internal"]),
+        clean["tracking_version"],
     )
     with _buffer_lock:
         if len(_buffer) >= _MAX_BUFFER:

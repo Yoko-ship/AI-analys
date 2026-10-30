@@ -242,3 +242,16 @@ class TestOverview:
         a stream with no service leaves the reader nothing to go and check."""
         for stream in admin_overview.STREAMS:
             assert stream["service"] and stream["schedule"] and stream["title"]
+
+
+def test_product_analytics_is_human_admin_only_and_validates_period(client, monkeypatch):
+    _as_user(monkeypatch, None)
+    assert client.get('/api/admin/metrics/product', headers={'X-Admin-Secret': 's3cret'}).status_code == 401
+    _as_user(monkeypatch, 'reader@example.com')
+    monkeypatch.setenv('ADMIN_EMAILS', 'admin@example.com')
+    assert client.get('/api/admin/metrics/product', headers={'Authorization': 'Bearer tok'}).status_code == 403
+    _as_user(monkeypatch, 'admin@example.com')
+    import product_analytics
+    monkeypatch.setattr(product_analytics, 'product_report', lambda days: {'ok': True, 'days': days})
+    assert client.get('/api/admin/metrics/product?days=7', headers={'Authorization': 'Bearer tok'}).json() == {'ok': True, 'days': 7}
+    assert client.get('/api/admin/metrics/product?days=999', headers={'Authorization': 'Bearer tok'}).status_code == 422

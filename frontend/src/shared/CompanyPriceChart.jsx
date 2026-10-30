@@ -1,3 +1,4 @@
+import { trackFeature } from "../lib/track.js";
 import React from "react";
 import { CHART_RANGES, QC_MAX, buildCompareAligned, chartRange, chartRangeCutoff } from "./priceChartModel.jsx";
 import { inPeriod } from "../lib/periods.js";
@@ -461,7 +462,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
       {CHART_RANGES.map((r) => (
         <button key={r.key} type="button"
           className={`range-btn ${range === r.key ? "active" : ""}`}
-          onClick={() => onRangeChange(r.key)}>
+          onClick={() => { if (range !== r.key) trackFeature("chart", ticker); onRangeChange(r.key); }}>
           {r.label[lang === "uz" ? 1 : lang === "en" ? 2 : 0]}
         </button>
       ))}
