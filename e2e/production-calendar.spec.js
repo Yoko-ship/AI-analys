@@ -1,3 +1,4 @@
+import { selectLanguage } from './language-control.js';
 import { test, expect } from "@playwright/test";
 
 test.skip(!process.env.E2E_BASE_URL, "Set E2E_BASE_URL to run checks against a deployed environment.");
@@ -13,7 +14,7 @@ test.beforeEach(async ({ page }) => {
 test("live Russian calendar data fits the screenshot-width viewport", async ({ page }) => {
   await page.setViewportSize({ width: 705, height: 1001 });
   await page.goto("/news?tab=calendar");
-  await page.locator("#languageSelect").selectOption("ru");
+  await selectLanguage(page, 'ru');
 
   const grid = page.locator(".newscal-grid");
   const weekdays = page.locator(".newscal-dow");

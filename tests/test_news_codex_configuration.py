@@ -35,8 +35,9 @@ def test_switch_preserves_settings_and_persists_the_gateway_secret(tmp_path):
     secret = read_env(gateway)["CODEX_GATEWAY_SECRET"]
     assert len(secret) >= 32
     assert settings["CODEX_GATEWAY_SECRET"] == secret
-    assert gateway.stat().st_mode & 0o777 == 0o600
-    assert news.stat().st_mode & 0o777 == 0o600
+    if sys.platform != "win32":  # Windows stat does not report POSIX permissions.
+        assert gateway.stat().st_mode & 0o777 == 0o600
+        assert news.stat().st_mode & 0o777 == 0o600
     configure(tmp_path)
     assert read_env(gateway)["CODEX_GATEWAY_SECRET"] == secret
     assert configure_after_health(tmp_path, {"logged_in": True}).returncode == 0

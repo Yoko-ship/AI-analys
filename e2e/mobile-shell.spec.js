@@ -56,18 +56,16 @@ for (const [width, theme] of [[320, 'dark'], [360, 'dark'], [390, 'dark'], [390,
   });
 }
 
-test('phone drawer carries the text-size control', async ({ page }) => {
+test('phone drawer omits the removed text-size control', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockBoard(page);
   await page.goto('/market');
-  await expect(page.locator('.topbar-controls .topbar-textsize')).toBeHidden();
   await page.locator('.topbar-burger').click();
-  const drawerSize = page.locator('.topbar-nav-textsize');
-  await expect(drawerSize).toBeVisible();
-  await drawerSize.getByRole('button', { name: 'Увеличить шрифт' }).click();
-  await expect(drawerSize.locator('.topbar-textsize-now')).not.toHaveText('100%');
-  await drawerSize.locator('.topbar-textsize-now').click();
-  await expect(drawerSize.locator('.topbar-textsize-now')).toHaveText('100%');
+  await expect(page.locator('.topbar-nav')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Размер шрифта' })).toHaveCount(0);
+  await expect(page.locator('.topbar-textsize, .topbar-nav-textsize')).toHaveCount(0);
+  await page.locator('.topbar-nav').getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('audit: closed phone drawer cannot receive focus and open drawer contains it', async ({page}) => {

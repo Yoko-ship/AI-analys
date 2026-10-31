@@ -15,23 +15,23 @@
 :root,
 html[data-theme="light"],
 html[data-theme="light"] body {
-  /* Catalog palette: cool paper, violet interaction, semantic market tones. */
-  --bg: #f5f7fb;
-  --bg-2: #eef1f7;
-  --bg-glass: rgba(255, 255, 255, 0.72);
-  --surface-2: #f5f7fb;
+  /* Warm gray canvas with quieter paper surfaces for long reading sessions. */
+  --bg: #e8e6e1;
+  --bg-2: #dedbd4;
+  --bg-glass: rgba(241, 239, 234, 0.85);
+  --surface-2: #e2dfd8;
 
-  --panel: #ffffff;
-  --panel-strong: #ffffff;
-  --panel-elevated: #ffffff;
+  --panel: #f5f3ef;
+  --panel-strong: #f1efea;
+  --panel-elevated: #f5f3ef;
 
-  --border: rgba(15, 23, 42, 0.10);
-  --border-hover: rgba(15, 23, 42, 0.18);
+  --border: rgba(15, 23, 42, 0.14);
+  --border-hover: rgba(15, 23, 42, 0.22);
   --border-focus: rgba(98, 87, 217, 0.50);
 
-  --text: #111827;
-  --text-secondary: #344054;
-  --muted: #667085;
+  --text: #182137;
+  --text-secondary: #3f4c5c;
+  --muted: #596575;
   --muted-light: #98a2b3;
 
   --accent: #6257d9;
@@ -1047,6 +1047,7 @@ body[data-theme="dark"] .news-tag.cat-delisting, body[data-theme="dark"] .news-t
     var(--panel);
 }
 
+html[data-theme="light"] body .topbar,
 html[data-theme="dark"] body .topbar {
   border-color: var(--border);
   background: var(--panel-strong);

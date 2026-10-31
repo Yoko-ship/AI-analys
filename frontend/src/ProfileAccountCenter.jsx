@@ -126,14 +126,12 @@ export function ProfileAccountCenter({
   profile,
   language,
   theme,
-  textScale,
   apiFetch,
   onClose,
   onRefresh,
   onLogout,
   onLanguage,
   onTheme,
-  onTextScale,
   identityForm,
   avatar,
 }) {
@@ -201,7 +199,6 @@ export function ProfileAccountCenter({
       setPreferences(data.preferences || preferences);
       if (data.preferences?.language) onLanguage(data.preferences.language);
       if (data.preferences?.theme) onTheme(data.preferences.theme);
-      if (data.preferences?.text_scale) onTextScale(Number(data.preferences.text_scale));
       await onRefresh();
       notify(tx("Настройки сохранены", "Preferences saved", "Sozlamalar saqlandi"));
     } catch (error) {
@@ -418,9 +415,6 @@ export function ProfileAccountCenter({
                 </AccountRow>
                 <AccountRow label={tx("Тема", "Theme", "Mavzu")}>
                   <AccountChoice label={tx("Тема", "Theme", "Mavzu")} options={[["dark", tx("Тёмная", "Dark", "Qorong'i")], ["light", tx("Светлая", "Light", "Yorug'")]]} value={preferences.theme || theme} onChange={(value) => setPreferences({ ...preferences, theme: value })} />
-                </AccountRow>
-                <AccountRow label={tx("Размер текста", "Text size", "Matn o'lchami")} hint={tx("Масштаб всего текста на сайте.", "Scales all text on the site.", "Saytdagi barcha matn o'lchami.")}>
-                  <AccountChoice label={tx("Размер текста", "Text size", "Matn o'lchami")} options={[85, 100, 115, 130].map((value) => [value, `${value}%`])} value={Number(preferences.text_scale || textScale)} onChange={(value) => setPreferences({ ...preferences, text_scale: value })} />
                 </AccountRow>
                 <AccountRow label={tx("Часовой пояс", "Time zone", "Vaqt mintaqasi")} hint={tx("В нём показывается время новостей и торгов.", "News and trading times are shown in it.", "Yangiliklar va savdo vaqti shu mintaqada ko'rsatiladi.")} htmlFor="acct-timezone">
                   <input id="acct-timezone" className="acct-input" value={preferences.timezone || "Asia/Tashkent"} onChange={(event) => setPreferences({ ...preferences, timezone: event.target.value })} />

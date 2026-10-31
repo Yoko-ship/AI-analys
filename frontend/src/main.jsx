@@ -11,6 +11,8 @@ import "./auth.css";
 import "./concept.css";
 import "./styles/workspace-ui.css";
 import "./styles/purple-workspace.css";
+import "./features/landing/landing-hero.css";
+import "./app/header.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -1,3 +1,4 @@
+import { selectLanguage } from './language-control.js';
 import { test, expect } from "@playwright/test";
 
 const flow = (date, ticker, coupon, principal = 0) => ({ date, ticker, coupon, principal, source: "reconstructed" });
@@ -112,7 +113,7 @@ test("empty and invalid periods preserve an honest, usable calendar", async ({ p
 
 test("Uzbek and English controls keep the selected dates and support keyboard submit", async ({ page }, testInfo) => {
   const errors = await openCalendar(page);
-  await page.locator("#languageSelect").selectOption("uz");
+  await selectLanguage(page, 'uz');
   await expect(page.locator(".bondsec-period")).toContainText("To'lovlar davri");
   await page.getByLabel("Boshlanish", { exact: true }).fill("2026-12-31");
   await page.getByLabel("Tugash", { exact: true }).fill("2027-01-01");
@@ -121,7 +122,7 @@ test("Uzbek and English controls keep the selected dates and support keyboard su
   await expect(page.locator(".bondsec-dow")).toHaveText("DuSeChPaJuShYa");
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: testInfo.outputPath("uzbek-period.png"), fullPage: true });
-  await page.locator("#languageSelect").selectOption("en");
+  await selectLanguage(page, 'en');
   await expect(page.getByLabel("From", { exact: true })).toHaveValue("2026-12-31");
   await expect(page.getByLabel("To", { exact: true })).toHaveValue("2027-01-01");
   await expect(page.getByLabel("Calendar month")).toHaveValue("2026-12");

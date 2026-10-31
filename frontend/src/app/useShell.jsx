@@ -9,14 +9,15 @@ import { createPortal } from "react-dom";
 import { ct } from "../features/research/index.js";
 import { patternName } from "../lib/patterns.js";
 import { accountInitials } from "../shared/accountIdentity.jsx";
-import { TEXT_SCALES } from "./preferences.jsx";
 import { DisclaimerNote } from "../shared/DisclaimerNote.jsx";
 import { RatingPrompt } from "../features/feedback/index.js";
 import { ToastStack } from "./toasts.jsx";
+import { LanguageSelect } from "./LanguageSelect.jsx";
+import { localizedPath } from "./routing.jsx";
 
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
   const { token, user, canAccessCatalog } = sessionModule;
-  const { language, setLanguage, stepTextScale, textScale, setTextScale, toggleTheme, theme } = preferencesModule;
+  const { language, setLanguage, toggleTheme, theme } = preferencesModule;
   const { activeView, setActiveView, openNewsTab } = navigationModule;
   const { catalogStatus } = marketModule;
   const { setNotifOpen, notifCount, notifOpen, notifItems, updateNotificationState, openNotification } = notificationsModule;
@@ -250,13 +251,21 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
           >
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
-          <div className="topbar-brand">
-            <BrandIcon />
+          <a className="topbar-brand" href={localizedPath("/", language)}
+            aria-label={`UZStock — ${t(language, "nav.main")}`}
+            onClick={event => {
+              if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              setMobileNavOpen(false); setNavMenu(null); setAccountMenuOpen(false); setNotifOpen(false);
+              setActiveView("main");
+              window.scrollTo(0, 0);
+            }}>
+            <BrandIcon decorative />
             <div className="brand-copy">
               <div className="brand-title">{t(language, "brand")}</div>
               <div className="brand-subtitle">{t(language, "subtitle")}</div>
             </div>
-          </div>
+          </a>
 
           <button className="topbar-nav-scrim" type="button" aria-hidden="true" tabIndex={-1} onClick={() => setMobileNavOpen(false)} />
           <nav ref={mobileNavRef} className="topbar-nav" aria-label={navDdLabel('Основная навигация', 'Asosiy navigatsiya', 'Main navigation')}
@@ -359,23 +368,9 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
               </button>
             ))}
 
-            {/* Phone only (mobile.css §2): a 390px topbar with «Войти» in it has
-                no room left for A−/A+, so on a phone the text size lives here,
-                at the foot of the drawer, instead of being pushed off-screen. */}
-            <div className="topbar-nav-textsize">
-              <span>{language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}</span>
-              <div className="topbar-textsize" role="group"
-                aria-label={language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}>
-                <button type="button" onClick={() => stepTextScale(-1)} disabled={textScale === TEXT_SCALES[0]}
-                  aria-label={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}>A−</button>
-                <button type="button" className="topbar-textsize-now" onClick={() => setTextScale(100)} disabled={textScale === 100}
-                  title={language === "en" ? "Reset to 100%" : language === "uz" ? "100% ga qaytarish" : "Вернуть 100%"}>{textScale}%</button>
-                <button type="button" onClick={() => stepTextScale(1)} disabled={textScale === TEXT_SCALES[TEXT_SCALES.length - 1]}
-                  aria-label={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}>A+</button>
-              </div>
-            </div>
           </nav>
 
+          <div className="topbar-actions">
           {token && (
             <div className="notif-wrap">
               <button className="notif-bell" type="button" onClick={() => { setNotifOpen((o) => !o); setAccountMenuOpen(false); }} aria-label="Notifications">
@@ -483,58 +478,20 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 </button>
               )}
 
-              <label className="topbar-language">
-                <select
-                  id="languageSelect"
-                  className="select-field"
-                  value={language}
-                  onChange={(event) => setLanguage(normalizeLanguage(event.target.value))}
-                >
-                  <option value="ru">RU</option>
-                  <option value="en">EN</option>
-                  <option value="uz">UZ</option>
-                </select>
-              </label>
-
-              {/* Text size. Two buttons and the current percentage between them —
-                  the number is there so a reader who has drifted from 100 % can
-                  see it and click back, and so the control reads as a setting
-                  rather than as a pair of mystery arrows. */}
-              <div className="topbar-textsize" role="group"
-                aria-label={language === "en" ? "Text size" : language === "uz" ? "Matn o'lchami" : "Размер шрифта"}>
-                <button
-                  type="button"
-                  onClick={() => stepTextScale(-1)}
-                  disabled={textScale === TEXT_SCALES[0]}
-                  title={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}
-                  aria-label={language === "en" ? "Smaller text" : language === "uz" ? "Matnni kichraytirish" : "Уменьшить шрифт"}
-                >A−</button>
-                <button
-                  type="button"
-                  className="topbar-textsize-now"
-                  onClick={() => setTextScale(100)}
-                  disabled={textScale === 100}
-                  title={language === "en" ? "Reset to 100%" : language === "uz" ? "100% ga qaytarish" : "Вернуть 100%"}
-                >{textScale}%</button>
-                <button
-                  type="button"
-                  onClick={() => stepTextScale(1)}
-                  disabled={textScale === TEXT_SCALES[TEXT_SCALES.length - 1]}
-                  title={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}
-                  aria-label={language === "en" ? "Larger text" : language === "uz" ? "Matnni kattalashtirish" : "Увеличить шрифт"}
-                >A+</button>
-              </div>
+              <LanguageSelect language={language} onChange={setLanguage} landing={activeView === "main"}
+                onOpen={() => { setAccountMenuOpen(false); setNotifOpen(false); setNavMenu(null); }} />
 
               <button className="theme-toggle" type="button" onClick={toggleTheme} title={theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}>
                 <strong>{theme === "dark" ? "☀" : "☾"}</strong>
               </button>
             </div>
           </div>
+          </div>
         </header>
 
         <main className="content">{children}</main>
 
-        <footer className="app-footer">
+        {activeView !== "main" && <footer className="app-footer">
           <DisclaimerNote language={language} variant="footer" />
           {(activeView === "company" || activeView === "chart") && (
             <small className="app-chart-attribution">
@@ -543,7 +500,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
               </a>
             </small>
           )}
-        </footer>
+        </footer>}
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />

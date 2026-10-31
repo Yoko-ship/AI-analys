@@ -1,3 +1,4 @@
+import { selectLanguage } from './language-control.js';
 import { test, expect } from "@playwright/test";
 import path from "node:path";
 
@@ -200,9 +201,9 @@ test("metric choices persist on reload and apply to both instruments and languag
   await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
   await page.getByLabel("Бумага на карте").selectOption("BOND1");
   await expect(metric(page, "volQty")).toHaveText("80 шт");
-  await page.locator("#languageSelect").selectOption("uz");
+  await selectLanguage(page, 'uz');
   await expect(page.locator(".heatmap-metric-details")).toContainText("Hajm (dona)");
-  await page.locator("#languageSelect").selectOption("en");
+  await selectLanguage(page, 'en');
   await expect(page.locator(".heatmap-metric-details")).toContainText("Volume (units)");
   expect(errors).toEqual([]);
 });

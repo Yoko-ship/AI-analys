@@ -1,0 +1,60 @@
+/* One brand link and one action cluster across the home page and workspaces. */
+.topbar { border: 0; --header-accent: #063de9; }
+html[data-theme="dark"] .topbar { --header-accent: #8ab4ff; }
+/* Keep navigation identical across the home, market and workspace themes. */
+html[data-theme] .topbar .topbar-nav-btn:is(.active, :hover) {
+  color: var(--header-accent);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+html[data-theme] .topbar .topbar-nav-btn:focus-visible {
+  outline: 2px solid var(--header-accent);
+  outline-offset: 2px;
+}
+.topbar .topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--text);
+  text-decoration: none;
+  border-radius: 9px;
+}
+.topbar .brand-icon { display: block; width: 40px; height: 40px; flex: none; }
+.topbar .brand-copy { display: flex; }
+.topbar .brand-title { color: inherit; font-family: Inter, Arial, sans-serif; font-size: 22px; font-weight: 700; line-height: 1.2; }
+.topbar-brand:hover .brand-title { color: var(--accent); }
+.topbar-brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.topbar-actions { display: flex; align-items: center; justify-self: end; flex: 0 0 auto; gap: 12px; }
+.topbar .topbar-actions .account-signin {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.topbar-actions .theme-toggle { width: 44px; height: 44px; flex: none; border-radius: 9px; }
+
+@media (min-width: 1180px) {
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 24px; }
+  .topbar .topbar-brand { justify-self: start; }
+  .topbar .topbar-nav { justify-self: center; }
+}
+@media (max-width: 1180px) {
+  .topbar { display: flex; }
+  .topbar .topbar-brand { gap: 8px; margin-right: auto; }
+  .topbar .brand-icon { width: 34px; height: 34px; }
+  .topbar .brand-title { font-size: 19px; }
+  .topbar-actions { gap: 6px; }
+  .topbar .topbar-actions .account-signin { padding-inline: 10px; font-size: 12px; }
+}
+@media (max-width: 600px) {
+  .topbar:has(.account-wrap) .brand-copy { display: none; }
+}
+@media (max-width: 360px) {
+  .topbar .brand-copy { display: none; }
+}

@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { expectPlainActiveNavigation } from './header-navigation.js';
+
+const investorReport = JSON.parse(readFileSync('e2e/fixtures/ifrs-investor.json', 'utf8'));
 
 async function setup(page, theme = 'light') {
   await page.emulateMedia({reducedMotion: 'reduce'});
@@ -9,7 +13,7 @@ async function setup(page, theme = 'light') {
     sessionStorage.setItem('uz_sponsor_seen', '1');
   }, theme);
   await page.route('**/api/**', route => {
-    const path = new URL(route.request().url()).pathname;
+    const url = new URL(route.request().url()), path = url.pathname;
     const user = {id: 1, is_admin: true, email: 'reader@example.test'};
     const company = {ticker: 'UZMK', company_name: 'Uzmetkombinat', name: 'Uzmetkombinat', sector: 'manufacturing', total_count: 24, type: 'stock', last_price: 100, close_price: 90};
     const payload = path === '/api/auth/me' ? {user}
@@ -18,6 +22,7 @@ async function setup(page, theme = 'light') {
       : path === '/api/market/stocks' ? {ok: true, stocks: [company]}
       : path === '/api/securities' ? {ok: true, securities: {UZMK: company}}
       : path.startsWith('/api/catalog/index/') ? {ok: true, company_name: company.name, availability: {NSBU: {annual: [{year: 2025, quarter: 0}], quarter: []}}}
+      : path.endsWith('/financials/columns') && url.searchParams.get('view') === 'investor' ? investorReport
       : path.endsWith('/financials') ? {ok: true, standard: 'NSBU', scope: 'separate', periods: ['2025'], series: {net_profit: {money: true, values: {'2025': 1000000000}}}}
       : path.endsWith('/ai-report') ? {ok: true, ticker: 'UZMK', company_name: company.name, sections: {}, metrics: {}}
       : {ok: true, items: [], rows: [], stats: {}, companies_synced: 1, total_reports: 24};
@@ -31,6 +36,7 @@ for (const theme of ['light', 'dark']) {
     await page.goto('/catalog?t=UZMK&f=SUM&std=NSBU');
     const catalog = page.locator('.catalog-terminal-ui');
     await expect(catalog).toBeVisible();
+    await expectPlainActiveNavigation(page, theme);
     const tokens = await catalog.evaluate(el => {
       const s = getComputedStyle(el), root = getComputedStyle(document.body);
       return {accent: s.getPropertyValue('--accent').trim(), pageAccent: root.getPropertyValue('--accent').trim(),
@@ -64,12 +70,13 @@ test('workspace cards retain their layout and share the landing header color', a
     await expect(page.locator('.app-shell-wrap')).toHaveAttribute('data-ui', 'purple');
     const header = page.locator('.topbar');
     await expect(header).toBeVisible();
-    await expect(header).toHaveCSS('background-color', 'rgb(245, 247, 251)');
+    await expectPlainActiveNavigation(page, 'light');
+    await expect(header).toHaveCSS('background-color', 'rgb(241, 239, 234)');
   }
   await page.goto('/market');
   await expect(page.locator('.app-shell-wrap')).not.toHaveAttribute('data-ui', 'purple');
   await expect(page.locator('.market-table-wrap')).toBeVisible();
-  await expect(page.locator('.topbar')).toHaveCSS('background-color', 'rgb(245, 247, 251)');
+  await expect(page.locator('.topbar')).toHaveCSS('background-color', 'rgb(241, 239, 234)');
 });
 
 for (const theme of ['light','dark']) {
@@ -84,7 +91,9 @@ for (const theme of ['light','dark']) {
     const period = page.locator('.fc-segment button').first();
     await expect(period).toBeVisible();
     expect((await period.boundingBox()).height).toBeGreaterThanOrEqual(40);
-    await page.goto('/catalog?t=UZMK&f=SUM&std=MSFO');
+    // IFRS is exposed on company reports; the catalog deliberately hides it.
+    await page.goto('/company/HMKB?tab=financials');
+    await page.getByRole('button', {name: 'МСФО', exact: true}).click();
     const investor = page.getByTestId('ifrs-investor');
     await expect(investor).toBeVisible();
     const palette = await investor.evaluate(el => {

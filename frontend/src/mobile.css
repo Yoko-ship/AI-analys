@@ -226,23 +226,6 @@ iframe {
     flex-shrink: 0;
   }
 
-  /* The topbar on a 360px phone already carries the burger, the language and the
-     theme. The percentage readout is the part a reader does not need to TOUCH —
-     A− and A+ stay, at a real touch size, and stepping down from 115 % to 100 %
-     is the same gesture the readout offered. */
-  .topbar-textsize {
-    flex-shrink: 0;
-  }
-
-  .topbar-textsize-now {
-    display: none;
-  }
-
-  .topbar-textsize button {
-    min-width: 34px;
-    height: 40px;
-  }
-
   /* The rate stays on the phone — it is the reason a good part of the traffic
      opens the site at all, and the market strip no longer carries it. What
      goes is the wording around it: «Доллар США» is what the flag already
@@ -321,47 +304,11 @@ iframe {
     display: none;
   }
 
-  /* Measured on prod at 390px after «Войти» joined the row: burger + icon +
-     sign-in + rate + language + A−/A+ + theme came to 415px, so the theme
-     toggle sat half off the screen and the brand icon was squeezed to 0px.
-     A−/A+ is the control a phone reader touches least (the OS already scales
-     text), so it moves to the foot of the drawer — still one tap away. */
-  .topbar-controls .topbar-textsize {
-    display: none;
-  }
-
-  .topbar .topbar-nav .topbar-nav-textsize {
-    display: flex;
-  }
-
   /* The euro («13 336,36») is wider than the 88px slide at 13.5px and ran into
      the language select; the row has no pixel left to widen the slide. */
   .topbar-fx-rate {
     font-size: 12.5px;
   }
-}
-
-/* The drawer copy of the text-size control; hidden wherever the topbar keeps
-   its own. */
-.topbar-nav-textsize {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: auto;
-  padding: 14px 4px 0;
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.topbar-nav-textsize .topbar-textsize-now {
-  display: block;
-}
-
-.topbar-nav-textsize .topbar-textsize button {
-  min-width: 44px;
-  height: 40px;
 }
 
 @media (max-width: 380px) {

@@ -14,7 +14,7 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
   const { addToast } = toastsModule;
   const [workspaceTab,setWorkspaceTab]=useState("overview");
   const label=(ru,en,uz)=>language==="en"?en:language==="uz"?uz:ru;
-  const { language, theme, textScale, setLanguage, setTheme, setTextScale } = preferencesModule;
+  const { language, theme, setLanguage, setTheme } = preferencesModule;
   const { activeView, setActiveView, openCompanyPage } = navigationModule;
   const { companies, marketRows, securitiesMap } = marketModule;
   const { handleLogout } = authModule;
@@ -343,14 +343,12 @@ export function useProfile({ session: sessionModule, toasts: toastsModule, prefe
                     profile={profile}
                     language={language}
                     theme={theme}
-                    textScale={textScale}
                     apiFetch={apiFetch}
                     onClose={closeProfileSettings}
                     onRefresh={loadProfile}
                     onLogout={handleLogout}
                     onLanguage={setLanguage}
                     onTheme={setTheme}
-                    onTextScale={setTextScale}
                     avatar={<ProfileAvatar user={profileUser} src={displayedProfileAvatar} />}
                     identityForm={(
                       <form className="acct-form" onSubmit={handleProfileSave}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { normalizeLanguage } from "../shared/i18n.jsx";
-import { LANGUAGE_KEY, TEXT_SCALES, TEXT_SCALE_KEY, THEME_KEY } from "./preferences.jsx";
+import { LANGUAGE_KEY, THEME_KEY } from "./preferences.jsx";
 import { applyPageTitle } from "./pageTitle.js";
 import { localizedPath, splitLanguagePath } from "./routing.jsx";
 
@@ -25,27 +25,11 @@ export function usePreferences() {
     return "dark"; // Default to dark theme (Finam AI style)
   });
 
-  const [textScale, setTextScale] = useState(() => {
-    const saved = Number(localStorage.getItem(TEXT_SCALE_KEY));
-    return TEXT_SCALES.includes(saved) ? saved : 100;
-  });
-
   useEffect(() => {
-    // 100 % clears the property rather than writing "1": a stylesheet that never
-    // sees `zoom` is the one the design was drawn against, and an explicit 1 on
-    // the root element creates a containing block that a `position: fixed`
-    // overlay would resolve against instead of the viewport.
-    const root = document.documentElement;
-    if (textScale === 100) root.style.removeProperty("zoom");
-    else root.style.zoom = String(textScale / 100);
-    try { localStorage.setItem(TEXT_SCALE_KEY, String(textScale)); } catch (e) { /* ignore */ }
-  }, [textScale]);
-
-  const stepTextScale = (delta) => setTextScale((current) => {
-    const at = TEXT_SCALES.indexOf(current);
-    const next = TEXT_SCALES[Math.min(TEXT_SCALES.length - 1, Math.max(0, (at < 0 ? 1 : at) + delta))];
-    return next;
-  });
+    // Retire saved app scaling along with its controls; browser zoom is unaffected.
+    document.documentElement.style.removeProperty("zoom");
+    try { localStorage.removeItem("uz_text_scale"); } catch (e) { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     const lang = normalizeLanguage(language);
@@ -78,5 +62,5 @@ export function usePreferences() {
   const toggleTheme = () => {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   };
-  return { language, setLanguage, setTextScale, setTheme, stepTextScale, textScale, theme, toggleTheme };
+  return { language, setLanguage, setTheme, theme, toggleTheme };
 }

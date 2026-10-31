@@ -62,15 +62,8 @@ function App() {
             <LandingView
               language={language}
               theme={theme}
-              marketRows={marketRows}
-              tradeStats={marketTradeStats}
-              securitiesMap={securitiesMap}
-              companies={companies}
               onNavigate={setActiveView}
               onOpenCompany={openCompanyPage}
-              onOpenNews={openNewsArticle}
-              favorites={session.profile?.favorites || []}
-              onCalendar={() => navigation.openNewsTab("calendar")}
             />
           )}
 

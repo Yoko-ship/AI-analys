@@ -1,3 +1,4 @@
+import { selectLanguage } from './language-control.js';
 import { test, expect } from "@playwright/test";
 
 /* Smoke tests for the dashboard app (visual restyle — logic unchanged).
@@ -290,7 +291,7 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.locator("header.topbar")).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Открытый\s*рынок/, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /За каждой\s*акцией —\s*компания\./, level: 1 })).toBeVisible();
   await expect(page.locator(".topbar-nav-btn").first()).toBeVisible();
   expect(errors, errors.join("\n")).toHaveLength(0);
 });
@@ -351,14 +352,14 @@ test("module routing preserves hidden workspace redirects and the bonds alias", 
   for (const path of ["/analysis"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: /Открытый\s*рынок/, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /За каждой\s*акцией —\s*компания\./, level: 1 })).toBeVisible();
   }
   await page.goto("/bonds");
   await expect(page).toHaveURL(/\/market$/);
   await expect(page.locator(".bonds-head")).toBeVisible();
 });
 
-test("shared market data keeps all four market views aligned", async ({ page }, testInfo) => {
+test("shared market data keeps the board, company and chart aligned", async ({ page }, testInfo) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/api/market/stocks**", route => route.fulfill({ json: {
@@ -381,10 +382,6 @@ test("shared market data keeps all four market views aligned", async ({ page }, 
   await page.goto("/chart/AGBA");
   await expect(page.locator(".ac-price")).toHaveText("144");
   await expect(page.locator(".ac-change")).toContainText(/\+20(?:[,.]00)?%/);
-  await page.goto("/");
-  const company = page.locator(".lv-table tbody tr").filter({ hasText: "AGBA" });
-  await expect(company).toContainText("144");
-  await expect(company).toContainText(/\+20(?:[,.]00)?%/);
   expect(errors).toEqual([]);
 });
 
@@ -414,8 +411,8 @@ test("landing and workspace routes inherit one shared application palette", asyn
         return [document.documentElement, document.body, document.querySelector(".app-shell-wrap")]
           .map(el => tokens.map(token => getComputedStyle(el).getPropertyValue(token).trim()));
       }));
-      await expect(page.locator(".topbar")).toHaveCSS("background-color", expected.theme === "light"
-        ? "rgb(245, 247, 251)" : "rgb(14, 16, 22)");
+      await expect(page.locator(".topbar")).toHaveCSS("background-color", await page.locator('.view-main').count()
+        ? (expected.theme === "light" ? "rgb(241, 239, 234)" : "rgb(10, 17, 32)") : expected.theme === "light" ? "rgb(241, 239, 234)" : "rgb(14, 16, 22)");
     }
     expect(palettes.every((palette) => JSON.stringify(palette) === JSON.stringify(palettes[0]))).toBe(true);
     expect(palettes[0].every(palette => JSON.stringify(palette) === JSON.stringify(palettes[0][0]))).toBe(true);
@@ -426,8 +423,8 @@ test("landing and workspace routes inherit one shared application palette", asyn
 test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".lv-h1")).toContainText(/\S/);
-  await page.locator("#languageSelect").selectOption("en");
-  await expect(page.locator(".lv-h1")).toHaveText(/The open\s*market/);
+  await selectLanguage(page, 'en');
+  await expect(page.locator(".lv-h1")).toHaveText(/Behind every\s*share is\s*a company\./);
 });
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
@@ -438,11 +435,11 @@ test("calendar meeting headlines follow the selected interface language", async 
   await expect(titles.nth(0)).toHaveAttribute("title", CALENDAR_MEETINGS[0].title);
   await expect(titles.nth(1)).toHaveText(CALENDAR_MEETINGS[1].title);
 
-  await page.locator("#languageSelect").selectOption("en");
+  await selectLanguage(page, 'en');
   await expect(titles.nth(0)).toHaveText("Extraordinary general meeting of shareholders");
   await expect(titles.nth(1)).toHaveText("Annual general meeting of shareholders");
 
-  await page.locator("#languageSelect").selectOption("uz");
+  await selectLanguage(page, 'uz');
   await expect(titles.nth(0)).toHaveText(CALENDAR_MEETINGS[0].title);
   await expect(titles.nth(1)).toHaveText("Aksiyadorlarning yillik umumiy yig‘ilishi");
 });
@@ -932,6 +929,9 @@ test("profile workspace exposes account state, watchlist alerts, and notes witho
   const accountCenter = page.locator(".profile-account-center");
   await expect(accountCenter).toBeVisible();
   await expect(accountCenter).toHaveAttribute("aria-labelledby", "profile-center-title");
+  await accountCenter.getByRole("button", { name: "Интерфейс", exact: true }).click();
+  await expect(accountCenter.getByRole("radiogroup", { name: "Язык", exact: true })).toBeVisible();
+  await expect(accountCenter.getByText("Размер текста", { exact: true })).toHaveCount(0);
   await expect(accountCenter.getByRole("button", { name: "Профиль", exact: true })).toBeVisible();
   await accountCenter.getByRole("button", { name: "Профиль", exact: true }).click();
   await expect(page.getByLabel("Отображаемое имя")).toHaveValue("E2E Investor");
@@ -1677,57 +1677,6 @@ test("the sector row is drawn only where it can actually choose", async ({ page 
   await expect(tickers).toHaveText(["AGBA"]);
 });
 
-// The strip above the board reads one session three ways. The two percent lists say
-// who moved; «Топ ликвидности» says who was actually tradeable — the question they
-// cannot answer, since a +20 % struck on one thin trade leads them either way. Its
-// number is the same «Объём» (turnover in money) the column and the turnover card use.
-const MOVERS_STOCKS = { updated_at: "2026-08-11T14:00:00Z", stocks: [
-  // Heaviest turnover of the day AND the biggest move.
-  { ticker: "AAA", name: "Alpha", isin: "UZ00A", last_price: 120, close_price: 100,
-    volume: 1.2e9, quantity: 1000, trade_count: 40, last_trade_date: "11.08.2026" },
-  // Traded heavily and closed flat: in NEITHER percent list, second by turnover.
-  // This row is the reason the third panel exists.
-  { ticker: "QQQ", name: "Quiet", isin: "UZ00Q", last_price: 100, close_price: 100,
-    volume: 9e8, quantity: 9000, trade_count: 60, last_trade_date: "11.08.2026" },
-  { ticker: "BBB", name: "Beta", isin: "UZ00B", last_price: 86, close_price: 100,
-    volume: 8e8, quantity: 800, trade_count: 30, last_trade_date: "11.08.2026" },
-  { ticker: "CCC", name: "Gamma", isin: "UZ00C", last_price: 105, close_price: 100,
-    volume: 3e8, quantity: 300, trade_count: 12, last_trade_date: "11.08.2026" },
-  { ticker: "DDD", name: "Delta", isin: "UZ00D", last_price: 97, close_price: 100,
-    volume: 5e7, quantity: 50, trade_count: 4, last_trade_date: "11.08.2026" },
-  // A move with no turnover figure behind it: the day statistics never matched this
-  // row's session. It is a mover, and it is NOT a liquidity entry — an absent
-  // turnover must not sort as a zero that says the security traded for nothing.
-  { ticker: "EEE", name: "Epsilon", isin: "UZ00E", last_price: 102, close_price: 100,
-    volume: null, quantity: null, trade_count: null, last_trade_date: "11.08.2026" },
-] };
-
-test("the movers strip says who moved AND what was tradeable", async ({ page }) => {
-  await page.route("**/api/market/stocks**", (route) => route.fulfill({
-    status: 200, contentType: "application/json", body: JSON.stringify(MOVERS_STOCKS),
-  }));
-  // The strip lives on the main page; /market no longer carries it.
-  await page.goto("/");
-  await expect(page.locator(".lv-movers .market-movers-col")).toHaveCount(3);
-
-  const names = (col) => page.locator(`.lv-movers .market-movers-col.${col} .market-movers-name`);
-  // EEE is a mover like any other — a missing turnover figure hides it from the
-  // liquidity list below, never from the move it actually made.
-  await expect(names("up")).toHaveText(["AAA", "CCC", "EEE"]);
-  await expect(names("down")).toHaveText(["BBB", "DDD"]);
-
-  // Ordered by turnover, and it is turnover that is printed — not a percent.
-  await expect(names("vol")).toHaveText(["AAA", "QQQ", "BBB", "CCC", "DDD"]);
-  await expect(page.locator(".lv-movers .market-movers-col.vol .market-movers-chg").first())
-    .toHaveText("1,2B");
-
-  // The flat security is here and nowhere else; the one with no figure is nowhere.
-  await expect(names("vol")).toContainText(["QQQ"]);
-  await expect(names("up")).not.toContainText(["QQQ"]);
-  await expect(names("vol")).not.toContainText(["EEE"]);
-  await expect(names("up")).toContainText(["CCC"]);
-});
-
 // A phone has no Shift key and the board stays a table there, so the gesture has to
 // change and the hint has to name the one that device actually has. Touch emulation
 // is what makes `(pointer: coarse)` true — the wording is chosen off that query.
@@ -1825,7 +1774,7 @@ test("only economic columns carry a term marker", async ({ page }) => {
 // Russian only, so an English reader met Russian text on an English page.
 test("term definitions follow the interface language", async ({ page }) => {
   await page.goto("/");
-  await page.locator("#languageSelect").selectOption("en");
+  await selectLanguage(page, 'en');
   await page.getByRole("button", { name: "Market", exact: true }).click();
   await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
   await page.locator('th[data-sort-key="volume"] .term-info-btn').hover();
