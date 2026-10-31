@@ -18,6 +18,20 @@ async function expectHistoryFirst(sum) {
   expect(history.y+history.height,'Financial history should appear above the written analysis').toBeLessThanOrEqual(narrative.y);
 }
 
+async function expectReadableAnalysis(sum) {
+  const narrative=sum.locator('.terminal-summary-narrative');
+  const textStyles=await narrative.locator('p:not(.terminal-report-context),.terminal-risk>div>strong,h3,h4,a,.terminal-report-context,.terminal-risk-level').evaluateAll(nodes=>nodes.map(node=>{
+    const style=getComputedStyle(node);
+    const minimum=node.matches('h3')?18:node.matches('.terminal-risk-level')?12:node.matches('a,.terminal-report-context')?14:16;
+    return {text:node.textContent,fontSize:parseFloat(style.fontSize),lineHeight:parseFloat(style.lineHeight),minimum};
+  }));
+  expect(textStyles.length).toBeGreaterThan(8);
+  for(const {text,fontSize,lineHeight,minimum} of textStyles){
+    expect(fontSize,`Readable analysis text: ${text}`).toBeGreaterThanOrEqual(minimum);
+    expect(lineHeight,`Comfortable line spacing: ${text}`).toBeGreaterThanOrEqual(fontSize*1.5);
+  }
+}
+
 test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest gaps',async({page},testInfo)=>{
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
@@ -51,6 +65,8 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(sum.getByRole('heading',{name:'Вывод',exact:true})).toBeVisible();
   await expect(sum.getByRole('heading',{name:'Риски и что смотреть',exact:true})).toBeVisible();
   await expect(sum.getByText('Качество прибыли',{exact:true})).toBeVisible();
+  await expectReadableAnalysis(sum);
+  await sum.locator('.terminal-summary-narrative').screenshot({path:testInfo.outputPath('analysis-readable-desktop.png'),animations:'disabled'});
   await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toBeVisible();
   await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toBeVisible();
   await expectHistoryFirst(sum);
@@ -113,6 +129,8 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await hoverBar(page,balanceChart,-1);
   await expect(balanceTooltip).toContainText('19 млн долларов');
   await balanceCard.screenshot({path:testInfo.outputPath('history-tooltip-dark.png'),animations:'disabled'});
+  await expectReadableAnalysis(sum);
+  await sum.locator('.terminal-summary-narrative').screenshot({path:testInfo.outputPath('analysis-readable-dark.png'),animations:'disabled'});
   await page.locator('.theme-toggle').click();
   await sum.getByText('Таблица истории',{exact:true}).click();
   await expect(sum.locator('.terminal-history-table')).toContainText('12');
@@ -121,6 +139,8 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(current).toContainText('0,5');
   await page.setViewportSize({width:390,height:844});
   await expectHistoryFirst(sum);
+  await expectReadableAnalysis(sum);
+  await sum.locator('.terminal-summary-narrative').screenshot({path:testInfo.outputPath('analysis-readable-mobile.png'),animations:'disabled'});
   await balanceCard.getByRole('button',{name:'6 мес. 2026',exact:true}).tap();
   await expect(balanceTooltip).toBeVisible();
   await expect(balanceTooltip).toContainText('8 млн долларов');

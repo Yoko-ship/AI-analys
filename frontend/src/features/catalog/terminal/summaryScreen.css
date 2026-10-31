@@ -7,15 +7,21 @@
 .terminal-summary-kpis dt{font-size:10px;color:var(--muted);text-transform:uppercase;min-height:28px}
 .terminal-summary-kpis dd{font-size:18px;font-weight:650;margin:8px 0;overflow-wrap:anywhere}
 .terminal-summary-kpis small{font-size:10px;color:var(--muted)}
-.terminal-summary-narrative{display:grid;grid-template-columns:1.8fr 1fr;gap:12px;margin-bottom:12px}
+.terminal-summary-narrative{display:grid;grid-template-columns:1.8fr 1fr;gap:12px;margin-bottom:12px;font-size:16px;line-height:1.65}
 .terminal-summary-card h3{font-size:12px;text-transform:uppercase;margin:0 0 10px;line-height:1.5}
 .terminal-summary-card p{font-size:12px;line-height:1.7}
 .terminal-summary-card a{font-size:11px}
+.catalog-terminal-ui .terminal-summary .terminal-summary-narrative .terminal-summary-card h3{font-size:18px;line-height:1.5;text-transform:none;text-wrap:balance}
+.terminal-summary-narrative .terminal-summary-card p{font-size:inherit;line-height:inherit;text-wrap:pretty}
+.terminal-summary-narrative .terminal-summary-card>.terminal-report-context{font-size:14px}
+.terminal-summary-narrative .terminal-summary-card a{font-size:14px;line-height:1.65}
+.terminal-summary-narrative h4{font-size:16px;line-height:1.5;text-wrap:balance}
 .terminal-summary-headline{font-weight:600}
-.terminal-verdict{padding:8px;border-left:3px solid var(--warning,var(--accent));background:var(--bg-2)}
-.terminal-risk{display:flex;align-items:flex-start;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.6}
-.terminal-risk p{margin:4px 0 0;font-size:11px;color:var(--muted)}
-.terminal-risk-level{font-size:10px;padding:2px 5px;background:var(--bg-2);border:1px solid var(--border);white-space:nowrap}
+.terminal-verdict{padding:12px;border-left:3px solid var(--warning,var(--accent));background:var(--bg-2)}
+.terminal-risk{display:flex;align-items:flex-start;gap:8px;padding:12px 0;border-bottom:1px solid var(--border);font-size:inherit;line-height:1.65}
+.terminal-risk>div{min-width:0}
+.terminal-risk p{margin:4px 0 0;color:var(--muted)}
+.terminal-risk-level{font-size:12px;padding:2px 5px;background:var(--bg-2);border:1px solid var(--border);white-space:nowrap}
 .terminal-risk-level.high{color:var(--negative,#e05252);border-color:currentColor}
 .terminal-risk-level.medium{color:var(--warning,#c5881b)}
 .terminal-summary-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
