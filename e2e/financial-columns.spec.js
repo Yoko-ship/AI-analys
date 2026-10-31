@@ -28,6 +28,8 @@ test('HMKB current ratios show annualization and matching source periods',async(
   await setup(page,{ticker:'HMKB',func:'SUM',reports});
   const terminal=page.getByTestId('financial-columns');
   await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
+  await expect(terminal.locator('tr[data-metric="roe"] th')).toContainText('· %');
+  await expect(terminal.locator('tr[data-metric="roe"] th')).not.toContainText('thous.');
   const last=metric=>terminal.locator(`tr[data-metric="${metric}"] td`).last();
   await expect(last('roe')).toContainText('26.51');
   await expect(last('roe')).toContainText('annualized');
@@ -194,13 +196,13 @@ test('annual income gaps explain why a comparative balance can still be populate
   await expect(terminal.locator('.fc-period-notice')).toHaveCount(0);
 });
 
-async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker = 'IPTB', reports } = {}) {
+async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 'PL', ticker = 'IPTB', reports } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
-  await page.addInitScript(() => {
+  await page.addInitScript(lang => {
     sessionStorage.setItem('uz_sponsor_seen', '1');
-    localStorage.setItem('uz_stock_analyzer_language', 'en');
+    localStorage.setItem('uz_stock_analyzer_language', lang);
     localStorage.setItem('uz_stock_analyzer_token', 'columns-admin');
-  });
+  }, lang);
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname;
     const json = value => route.fulfill({ json: value });
@@ -435,8 +437,9 @@ test('source columns preserve units, periods and passports at desktop and mobile
   await expect(terminal.locator('.fc-stats > div').filter({ hasText: 'Assets' })).toContainText('2026-09-30');
   const income = terminal.locator('tr[data-metric="interest_income"]').filter({ hasText: 'Итого' });
   await expect(income).toContainText('9,447,836,814');
-  await expect(terminal.getByText('Amounts: thousands UZS', { exact: false })).toBeVisible();
-  await expect(income.locator('th')).toHaveText('Итого процентных доходовОтчёт о финансовых результатах: 1.л');
+  await expect(income.locator('th')).toHaveText('Итого процентных доходовОтчёт о финансовых результатах: 1.л · thous.');
+  await expect(terminal.locator('.fc-source-line')).toHaveCount(0);
+  await expect(terminal.locator(':scope > footer')).toHaveText('Select an amount to inspect its source.');
   await income.getByRole('button').last().click();
   const passport = page.getByRole('dialog', { name: 'Source passport' });
   await expect(passport.locator('h4').first()).toHaveText('Итого процентных доходов');
@@ -458,6 +461,19 @@ test('source columns preserve units, periods and passports at desktop and mobile
   await expect(terminal.getByRole('button', { name: '6M / 9M', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
   await page.screenshot({ path: testInfo.outputPath('financial-columns-mobile.png'), fullPage: true, animations: 'disabled' });
+});
+
+for (const [lang,unit] of [['ru','тыс.'],['uz','ming']]) test(`table shows compact localized amount units (${lang})`, async ({page},testInfo) => {
+  await setup(page,{lang,ticker:'HMKB',func:'SUM',reports:recentReports});
+  const terminal=page.getByTestId('financial-columns');
+  await expect(terminal.locator('tr[data-metric="interest_income"] th')).toContainText(`· ${unit}`);
+  await expect(terminal.locator('.fc-source-line')).toHaveCount(0);
+  await expect(terminal.locator(':scope > footer')).not.toContainText(/TTM|UZS/);
+  await terminal.locator('.fc-table').screenshot({path:testInfo.outputPath(`table-units-${lang}.png`),animations:'disabled'});
+  await page.setViewportSize({width:390,height:844});
+  await expect(terminal.locator('tr[data-metric="interest_income"] th')).toContainText(`· ${unit}`);
+  await terminal.locator('tr[data-metric="interest_income"] th').screenshot({path:testInfo.outputPath(`table-units-${lang}-mobile.png`),animations:'disabled'});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
 
 test('a failed financial source request can be retried without showing stale amounts', async ({ page }) => {

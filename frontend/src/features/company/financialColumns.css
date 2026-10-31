@@ -34,7 +34,6 @@
 .fc-subnav [role=tab] { background: transparent; border-color: transparent; border-bottom: 2px solid transparent; border-radius: 0; }
 .fc-subnav [role=tab][aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
 .fc-subnav input { width: 180px; min-width: 0; max-width: 100%; }
-.fc-source-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; color: var(--fc-muted); font-size: 11px; }
 .fc-status { font-size: 10px; white-space: nowrap; display: inline-block; border: 1px solid var(--fc-line); border-radius: 3px; padding: 3px 6px; color: var(--fc-ink); }
 .fc-status-valid { border-left: 3px solid var(--positive, #23966c); }
 .fc-status-warn { border-left: 3px solid var(--warning, #c5881b); }
