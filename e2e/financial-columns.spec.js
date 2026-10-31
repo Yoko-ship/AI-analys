@@ -221,6 +221,10 @@ async function setup(page, { fail = false, theme = 'light', func = 'PL', ticker 
 for (const theme of ['light', 'dark']) test(`two annual reports and the current report appear together (${theme})`, async ({ page }, testInfo) => {
   await setup(page, { ticker: 'HMKB', func: 'SUM', theme, reports: recentReports });
   const terminal = page.getByTestId('financial-columns');
+  const tabs=terminal.getByRole('tablist').getByRole('tab');
+  const expectedTabs=['Overview','Original forms','Ratios','Shareholders'];
+  await expect(tabs).toHaveText(expectedTabs);
+  await terminal.locator('.fc-subnav').screenshot({path:testInfo.outputPath(`financial-tabs-${theme}.png`),animations:'disabled'});
   await expect(terminal.locator('.fc-table thead th')).toHaveText(['Metric', '2024', '2025', '2026 · 9MYTD']);
   await expect(terminal.locator('.fc-table tbody tr[data-metric]')).toHaveCount(8);
   await expect(terminal.locator('.fc-stats > div').filter({ hasText: 'Net profit' })).toContainText('1,480,422,343');
@@ -234,6 +238,8 @@ for (const theme of ['light', 'dark']) test(`two annual reports and the current 
   await page.evaluate(() => window.scrollBy(0, -130));
   await page.screenshot({ path: testInfo.outputPath(`recent-reports-${theme}.png`), animations: 'disabled' });
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(tabs).toHaveText(expectedTabs);
+  await terminal.locator('.fc-subnav').screenshot({path:testInfo.outputPath(`financial-tabs-${theme}-mobile.png`),animations:'disabled'});
   await terminal.locator('.fc-scroll').evaluate(el => { el.scrollLeft = el.scrollWidth; });
   await expect(terminal.getByRole('columnheader', { name: /2026 · 9M/ })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

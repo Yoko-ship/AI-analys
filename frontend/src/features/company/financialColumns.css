@@ -51,7 +51,7 @@
 .fc-value:hover { color: var(--accent); border-bottom-color: currentColor; }
 .fc-value-missing, .fc-value-not_applicable { color: var(--fc-muted); border-color: transparent; }
 .fc-value-blocked, .fc-value-warn { text-decoration: underline dotted; text-underline-offset: 4px; }
-.fc-empty, .fc-quality, .fc-notice, .fc-published, .fc-documents { padding: 12px 0; margin: 0; }
+.fc-empty, .fc-notice, .fc-published, .fc-documents { padding: 12px 0; margin: 0; }
 .fc-empty { color: var(--fc-muted); line-height: 1.7; }
 .fc-notice { border-left: 3px solid var(--warning, #c5881b); padding-left: 12px; }
 .fc-legacy { padding: 14px 0 0; margin: 12px 0; border-top: 1px solid var(--fc-line); }
