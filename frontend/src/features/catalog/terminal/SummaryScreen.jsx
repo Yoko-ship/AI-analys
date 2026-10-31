@@ -22,6 +22,7 @@ export function SummaryScreen({ticker,form,scope,lang,snapshot={},fromYear=2020,
   const kpis=summaryKpis(report,snapshot);
   const available=['available','stale'].includes(report?.status);
   return <section className="terminal-summary">
+    <SummaryHistory ticker={ticker} form={form} scope={scope} lang={lang} kind={kpis.kind} fromYear={fromYear}/>
     <dl className="terminal-summary-kpis">{kpis.cards.map(card=><div key={card.key}>
       <dt>{words(lang,...LABELS[card.key])}</dt><dd>{fmt(card.unit==='UZS'&&card.value!=null?card.value/1e9:card.value)}{card.value!=null&&card.unit==='%'?'%':''}</dd>
       <small>{card.period||'—'} · {card.unit==='UZS'?t('млрд UZS','mlrd UZS','UZS billion'):card.unit==='ratio'?'×':card.unit==='UZS/share'?t('UZS/акция','UZS/aksiya','UZS/share'):card.unit}</small>
@@ -41,7 +42,6 @@ export function SummaryScreen({ticker,form,scope,lang,snapshot={},fromYear=2020,
         {available&&report.monitoring_points?.length>0&&<><h4>{t('Контрольные точки','Kuzatuv nuqtalari','Monitoring points')}</h4>{report.monitoring_points.map((point,i)=><p key={point.id||i}><strong>{point.label||point.metric_code}</strong><br/>{point.risk_signal||point.required_disclosure}</p>)}</>}
       </section>
     </div>
-    <SummaryHistory ticker={ticker} form={form} scope={scope} lang={lang} kind={kpis.kind} fromYear={fromYear}/>
     {kpis.kind==='bank'&&<BankOverview data={bankData} history={bankHistory} lang={lang}/>}
   </section>;
 }

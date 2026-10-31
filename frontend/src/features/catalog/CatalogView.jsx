@@ -934,6 +934,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
 
               {terminal.form === "MSFO" && ["SUM","PL","BS","RAT","DQ"].includes(terminal.func) && <React.Suspense fallback={<div className="catalog-loading">{clg(lang,"loading")}</div>}><InvestorView ticker={ticker} lang={lang} scope={terminal.scope} onScopeChange={terminal.setScope} initialTab={({SUM:"overview",PL:"pl",BS:"bs",RAT:"rat",DQ:"quality"})[terminal.func]} onLoad={load=>reportScreenLoad({ticker,func:terminal.func,form:terminal.form,...load})}/></React.Suspense>}
+              {terminal.form !== "MSFO" && terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
               {terminal.form !== "MSFO" && (terminal.func === "SUM" || FINANCIAL_SECTIONS[terminal.func]) && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
@@ -950,7 +951,6 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   </section>
                 </React.Suspense>
               )}
-              {terminal.form !== "MSFO" && terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
               {terminal.func === "DVD" && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
                   <section className="terminal-screen" aria-label={functionLabel("DVD", lang)}>

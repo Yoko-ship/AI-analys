@@ -315,10 +315,13 @@ for (const theme of ['light', 'dark']) test(`SUM shows financial year columns di
   await expect(page.getByRole('button', { name: 'NSBU', exact: true })).toHaveCount(1);
   const summary = page.locator('.terminal-summary');
   await expect(summary).toBeVisible();
-  expect((await terminal.boundingBox()).y).toBeLessThan((await summary.boundingBox()).y);
+  const summaryBox = await summary.boundingBox();
+  expect(summaryBox.y + summaryBox.height).toBeLessThanOrEqual((await terminal.boundingBox()).y);
   await terminal.locator(".fc-stats").evaluate(el => el.scrollIntoView({ block: "start" }));
   await page.screenshot({ path: testInfo.outputPath(`sum-columns-${theme}.png`), animations: "disabled" });
   await page.setViewportSize({ width: 390, height: 844 });
+  const mobileSummaryBox = await summary.boundingBox();
+  expect(mobileSummaryBox.y + mobileSummaryBox.height).toBeLessThanOrEqual((await terminal.boundingBox()).y);
   await terminal.getByRole('button', { name: '6M / 9M', exact: true }).click();
   const income = terminal.locator('tr[data-metric="interest_income"]').filter({ hasText: 'Итого' });
   await expect(income).toContainText('9,447,836,814');

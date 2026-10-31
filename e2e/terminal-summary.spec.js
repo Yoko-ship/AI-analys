@@ -2,8 +2,17 @@ import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const report=JSON.parse(readFileSync(new URL('../tests/fixtures/sector_ui_report.json',import.meta.url),'utf8'));
 
+async function expectHistoryFirst(sum) {
+  const history=await sum.locator('.terminal-summary-history').boundingBox();
+  const kpis=await sum.locator('.terminal-summary-kpis').boundingBox();
+  const narrative=await sum.locator('.terminal-summary-narrative').boundingBox();
+  expect(history.y+history.height,'Financial history should appear above the KPI cards').toBeLessThanOrEqual(kpis.y);
+  expect(history.y+history.height,'Financial history should appear above the written analysis').toBeLessThanOrEqual(narrative.y);
+}
+
 test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest gaps',async({page},testInfo)=>{
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
   await page.setViewportSize({width:1440,height:1000});
   await page.route('**/api/**',route=>{
     const url=new URL(route.request().url()),path=url.pathname;
@@ -31,6 +40,7 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(sum.getByText('Качество прибыли',{exact:true})).toBeVisible();
   await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toBeVisible();
   await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toBeVisible();
+  await expectHistoryFirst(sum);
   await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toContainText('2026 · 6M');
   await expect(sum.getByRole('img',{name:'Выручка и прибыль по годам'})).toContainText('Выручка: 110');
   await expect(sum.getByRole('img',{name:'Структура баланса по годам'})).toContainText('Капитал: 80');
@@ -51,8 +61,10 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(current).toContainText('11');
   await expect(current).toContainText('0,5');
   await page.setViewportSize({width:390,height:844});
+  await expectHistoryFirst(sum);
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   await page.screenshot({path:testInfo.outputPath('sum-mobile.png'),fullPage:true,animations:'disabled'});
+  await sum.locator('.terminal-summary-history').screenshot({path:testInfo.outputPath('sum-history-mobile.png'),animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.route('**/api/company/UZMK/financials?**',route=>new URL(route.request().url()).searchParams.get('freq')==='quarterly'
     ? route.fulfill({status:503,json:{detail:'Current filing temporarily unavailable'}}) : route.fallback());
