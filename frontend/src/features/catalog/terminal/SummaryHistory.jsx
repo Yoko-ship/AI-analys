@@ -4,6 +4,7 @@ import {historyRows,HISTORY_FIELDS} from '../../../lib/terminalSummary.js';
 import {periodEnd} from '../../../lib/terminalCurrency.js';
 import {useScreenData} from './TerminalPanels.jsx';
 import {financialsUrl} from '../../../lib/financialHistoryRequest.js';
+import {reportPeriodLabel,reportDateLabel,reportScopeLabel} from '../../../lib/reportingLabels.js';
 
 function AnnualChart({rows,fields,stacked=false,title,fmt,divisor}) {
   const values=rows.flatMap(row=>stacked?(row.balance_complete?[Math.max(0,row.total_liabilities)+Math.max(0,row.total_equity),Math.min(0,row.total_liabilities)+Math.min(0,row.total_equity)]:[]):fields.map(f=>row[f.key]).filter(v=>v!=null));
@@ -41,7 +42,7 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
   const {data:quarterly,error:currentError}=useScreenData(financialsUrl(ticker,form,scope,true),{ticker,form,func:'SUM'});
   const [currency,setCurrency]=React.useState('UZS');
   const [rates,setRates]=React.useState({key:'',values:{},loading:false});
-  const rawRows=historyRows(data,fromYear,quarterly);
+  const rawRows=historyRows(data,fromYear,quarterly).map(row=>({...row,label:reportPeriodLabel(row.period,lang,true)}));
   const periods=rawRows.filter(row=>row.published).map(row=>row.period);
   const rateKey=periods.join(',');
   React.useEffect(()=>{
@@ -72,7 +73,7 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
   const t=(ru,uz,en)=>words(lang,ru,uz,en);
   const fmt=value=>value==null?'—':Number(value).toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2});
   const divisor=currency==='UZS'?1e9:1e6;
-  const unit=currency==='UZS'?t('млрд UZS','mlrd UZS','UZS billion'):t('млн USD','mln USD','USD million');
+  const unit=currency==='UZS'?t('млрд сумов','mlrd so‘m','billion som'):t('млн долларов','mln dollar','million US dollars');
   const incomeKey=kind==='bank'&&form==='MSFO'?'interest_income':'net_revenue';
   const incomeLabel=kind==='bank'?t(form==='MSFO'?'Процентные доходы':'Совокупные доходы',form==='MSFO'?'Foiz daromadi':'Jami daromad',form==='MSFO'?'Interest income':'Total income'):kind==='insurance'?t('Заработанные премии','Ishlab topilgan mukofotlar','Earned premiums'):t('Выручка','Tushum','Revenue');
   const incomeFields=[...(kind==='fund'?[]:[{key:incomeKey,label:incomeLabel,color:'var(--terminal-chart,#4bb8e8)'}]),{key:'net_profit',label:t('Чистая прибыль','Sof foyda','Net profit'),color:'var(--positive,#3fbf6a)'}];
@@ -81,12 +82,12 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
   const balanceTitle=t('Структура баланса по годам','Yillar bo‘yicha balans tarkibi','Annual balance structure');
   const gaps=rows.filter(row=>!row.published).map(row=>row.period);
   return <section className="terminal-summary-history" data-currency={currency}>
-    <div className="terminal-controls"><label>{t('Валюта истории','Tarix valyutasi','History currency')}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option>UZS</option><option>USD</option></select></label><span className="terminal-context">{form} · {scope} · {t('Годовые отчёты','Yillik hisobotlar','Annual filings')} · {unit}</span></div>
-    {current&&<p className="terminal-context">{t('Текущий отчёт','Joriy hisobot','Current report')}: {current.label} · {t('Доходы и прибыль — с начала года; баланс на','Daromad va foyda — yil boshidan; balans sanasi','Income and profit are year-to-date; balance as of')} {periodEnd(current.period)}.</p>}
+    <div className="terminal-controls"><label>{t('Валюта графиков','Grafiklar valyutasi','Chart currency')}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option value="UZS">{t('Сумы','So‘m','Uzbek som')}</option><option value="USD">{t('Доллары США','AQSH dollari','US dollars')}</option></select></label><span className="terminal-report-context">{reportScopeLabel(scope,lang)}</span></div>
+    {current&&<p className="terminal-report-context">{t('Последние данные','So‘nggi ma’lumotlar','Latest figures')}: {reportPeriodLabel(current.period,lang)}. {t('Баланс на','Balans sanasi','Balance as of')} {reportDateLabel(periodEnd(current.period),lang).replace(/\.$/,'')}.</p>}
     {currentError&&<p role="alert">{t('Не удалось загрузить текущий отчёт.','Joriy hisobot yuklanmadi.','Could not load the current report.')}</p>}
     {currency==='USD'&&<details className="terminal-fx-rates"><summary>{t('Курсы ЦБ на конец каждого периода','Har davr oxiridagi MB kursi','CBU rates at each period end')}</summary>{rates.loading?<p role="status">{t('Загрузка курсов…','Kurslar yuklanmoqda…','Loading rates…')}</p>:<ul>{periods.map(period=><li key={period}>{periodEnd(period)} · {fx[period]?`1 USD = ${fmt(fx[period].per_unit)} UZS (${fx[period].effective_date})`:t('Курс отсутствует — суммы скрыты','Kurs yo‘q — summalar yashirildi','Rate missing — amounts unavailable')}</li>)}</ul>}</details>}
     {error?<p role="alert">{t('Не удалось загрузить историю.','Tarix yuklanmadi.','Could not load financial history.')}</p>:!data?<p role="status">{t('Загрузка истории…','Tarix yuklanmoqda…','Loading history…')}</p>:!rows.length?<p className="muted">{t('Нет опубликованной годовой истории.','E’lon qilingan yillik tarix yo‘q.','No published annual history.')}</p>:<>
-      {gaps.length>0&&<p className="terminal-warning terminal-history-gap">{t('Нет годового отчёта за','Yillik hisobot yo‘q','Annual filing missing for')}: {gaps.join(', ')}. {t('Пропуски не заменяются нулём.','Bo‘sh qiymatlar nol bilan almashtirilmaydi.','Gaps are not replaced with zero.')}</p>}
+      {gaps.length>0&&<p className="terminal-warning terminal-history-gap">{t('Нет годового отчёта за','Yillik hisobot yo‘q','Annual report unavailable for')}: {gaps.join(', ')}.</p>}
       <div className="terminal-summary-charts">{[[title,incomeFields,false],[balanceTitle,balanceFields,true]].map(([name,fields,stacked])=><section key={name} className="terminal-summary-card"><h3>{name}</h3><p className="muted">{unit}</p><AnnualChart rows={rows} fields={fields} stacked={stacked} title={name} fmt={fmt} divisor={divisor}/><div className="terminal-chart-legend">{fields.map(field=><span key={field.key}><i style={{background:field.color}}/>{field.label}</span>)}</div></section>)}</div>
       <details className="terminal-history-data"><summary>{t('Таблица истории','Tarix jadvali','History table')}</summary><div className="terminal-table-wrap"><table className="terminal-table terminal-history-table"><thead><tr><th>{t('Период','Davr','Period')}</th>{[...incomeFields,...balanceFields].map(field=><th key={field.key}>{field.label}, {unit}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.period}><th>{row.label||row.period}</th>{[...incomeFields,...balanceFields].map(field=><td key={field.key}>{row[field.key]==null?'—':fmt(row[field.key]/divisor)}</td>)}</tr>)}</tbody></table></div></details>
     </>}

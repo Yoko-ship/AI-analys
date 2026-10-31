@@ -2,6 +2,7 @@ import React from 'react';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {safeHref} from '../../../lib/safeHref.js';
 import {summaryKpis} from '../../../lib/terminalSummary.js';
+import {reportPeriodLabel} from '../../../lib/reportingLabels.js';
 import {useScreenData} from './TerminalPanels.jsx';
 import {SummaryHistory} from './SummaryHistory.jsx';
 import {BankOverview} from './BankOverview.jsx';
@@ -25,12 +26,12 @@ export function SummaryScreen({ticker,form,scope,lang,snapshot={},fromYear=2020,
     <SummaryHistory ticker={ticker} form={form} scope={scope} lang={lang} kind={kpis.kind} fromYear={fromYear}/>
     <dl className="terminal-summary-kpis">{kpis.cards.map(card=><div key={card.key}>
       <dt>{words(lang,...LABELS[card.key])}</dt><dd>{fmt(card.unit==='UZS'&&card.value!=null?card.value/1e9:card.value)}{card.value!=null&&card.unit==='%'?'%':''}</dd>
-      <small>{card.period||'—'} · {card.unit==='UZS'?t('млрд UZS','mlrd UZS','UZS billion'):card.unit==='ratio'?'×':card.unit==='UZS/share'?t('UZS/акция','UZS/aksiya','UZS/share'):card.unit}</small>
+      <small>{reportPeriodLabel(card.period,lang)} · {card.unit==='UZS'?t('млрд сумов','mlrd so‘m','billion som'):card.unit==='ratio'?'×':card.unit==='UZS/share'?t('сумов на акцию','so‘m/aksiya','som per share'):card.unit}</small>
     </div>)}</dl>
     {kpis.kind==='fund'&&report?.valuation?.blocked_reason&&<p className="terminal-warning">{report.valuation.blocked_reason==='SHARE_BASIS_NOT_RECONCILED'?t('Нужна сверка количества и номинала акций. NAV на акцию и цена/NAV недоступны.','Aksiyalar soni va nominalini tekshirish kerak. Bir aksiya NAVi va narx/NAV mavjud emas.','Share count and nominal value must be reconciled. NAV per share and price/NAV are unavailable.'):t('Цена/NAV недоступна: нет подходящей проверенной котировки на дату оценки.','Narx/NAV mavjud emas: baholash sanasiga mos tekshirilgan narx yo‘q.','Price/NAV is unavailable: no suitable verified quote for the valuation date.')}</p>}
     <div className="terminal-summary-narrative">
       <section className="terminal-summary-card"><h3>{t('Вывод','Xulosa','Conclusion')}</h3>
-        <p className="terminal-context">{t('Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {report?.period||'—'} · {form} · {scope}</p>
+        {report?.period&&<p className="terminal-report-context">{t('Анализ отчёта','Hisobot tahlili','Report analysis')}: {reportPeriodLabel(report.period,lang)}</p>}
         {error?<p role="alert">{t('Не удалось загрузить анализ.','Tahlil yuklanmadi.','Could not load the analysis.')}</p>:!report?<p role="status">{t('Загрузка анализа…','Tahlil yuklanmoqda…','Loading analysis…')}</p>:
           available?<><p className="terminal-summary-headline">{report.headline}</p><p className={`terminal-verdict ${report.verdict?.code||''}`}>{report.verdict_line}</p>
             {(report.sections||[]).filter(s=>['key_points','results','strength'].includes(s.id)).map(s=><p key={s.id}><strong>{s.title}. </strong>{s.text}</p>)}</>:

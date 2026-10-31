@@ -1,4 +1,5 @@
 .terminal-summary{min-width:0}
+.terminal-report-context{font-size:12px;line-height:1.6;color:var(--muted)}
 .terminal-bank-overview{margin-top:20px;min-width:0}
 .terminal-bank-overview .terminal-bank-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
 .terminal-summary-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 12px}

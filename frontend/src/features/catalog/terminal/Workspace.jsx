@@ -121,7 +121,6 @@ export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2
   const quarterUnit=words(lang,"млрд UZS","mlrd UZS","UZS billion");
   return <State data={data} error={error} lang={lang}><div className="terminal-analytics">
     {!summary&&<p className="terminal-context">{snap.period||"—"} · {form} · {scope} · UZS</p>}
-    {data?.template?.selected_template&&<p className="muted">{words(lang,"Шаблон","Andoza","Template")}: <strong>{data.template.selected_template}</strong> · {data.template.reason_code} · {data.template.rule_version}</p>}
     {summary?<SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>:<>
       <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
       <div className="terminal-table-wrap"><table className="terminal-table terminal-annual-ratios"><caption>{words(lang,'Годовые показатели','Yillik ko‘rsatkichlar','Annual ratios')} · {snap.period||'—'} · {form} · {scope}</caption><tbody>{METRICS.filter(([k])=>!["pe","pb","dy","npl"].includes(k)&&(k!=='de'||['industry','non_financial'].includes(snap.kind))).map(([k,l])=><tr key={k}><th>{l}<RatioInfo metric={k} label={l} lang={lang}/></th><td>{fmt(snap[k],lang)}</td></tr>)}</tbody></table></div>
