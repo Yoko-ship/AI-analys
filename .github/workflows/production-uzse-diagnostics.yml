@@ -30,61 +30,60 @@ jobs:
           set -euo pipefail
           cd /root/uzstock/app
           python3 - <<'PY'
-          import concurrent.futures, importlib.util, json, re, subprocess
+          import concurrent.futures, importlib.util, json, re, shutil, socket, struct, subprocess, threading, time, urllib.request
+          from collections import Counter
           from pathlib import Path
           spec = importlib.util.spec_from_file_location("ci_log", "scripts/ci_log.py")
           log = importlib.util.module_from_spec(spec); spec.loader.exec_module(log)
-          def run(name, args, timeout=25):
+          def show(name, text):
+              print("\nCHECK " + name + "\n" + log.redact(text), flush=True)
+          def cmd(name, args):
+              p = subprocess.run(args, text=True, capture_output=True, timeout=15)
+              show(name, p.stdout+p.stderr)
+          addresses=json.loads(subprocess.check_output(["ip","-j","addr","show","dev","eth0"],text=True))
+          local=next(a["local"] for item in addresses for a in item["addr_info"] if a["family"]=="inet")
+          cmd("neighbors",["ip","neigh"])
+          cmd("routing back to the observed edge",["ip","route","get","192.168.77.201"])
+          cmd("gateway reachability",["ping","-c","2","-W","2","192.168.77.201"])
+          cmd("reverse path filtering",["sysctl","net.ipv4.conf.all.rp_filter","net.ipv4.conf.eth0.rp_filter"])
+          cmd("packet counters",["ip","-s","link","show","eth0"])
+          print("CAPTURE_READY: 35 seconds, TCP headers only, excluding SSH; no payload is stored",flush=True)
+          counts=Counter()
+          def capture():
+              s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(0x0800)); s.bind(("eth0",0)); s.settimeout(1)
+              end=time.monotonic()+35
               try:
-                  p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-                  text = p.stdout + p.stderr
-              except Exception as e:
-                  text = type(e).__name__
-              print("\nCHECK " + name, flush=True)
-              print(log.redact(text[-20000:]), flush=True)
-              return text
-          run("time", ["date", "-Is"])
-          run("load", ["uptime"])
-          run("memory", ["free", "-m"])
-          run("disk", ["df", "-h", "/"])
-          run("checkout", ["git", "rev-parse", "HEAD"])
-          run("containers", ["docker", "ps", "--format", "{{.Names}} {{.Status}} {{.Ports}}"])
-          run("image revision", ["docker", "inspect", "--format", '{{index .Config.Labels "org.opencontainers.image.revision"}}', "uzstock-web"])
-          run("services", ["systemctl", "is-active", "nginx", "openresty", "docker", "snap.docker.dockerd", "ufw", "fail2ban"])
-          run("interfaces", ["ip", "-br", "address"])
-          run("routes", ["ip", "route"])
-          run("listeners", ["ss", "-ltnp", "( sport = :80 or sport = :443 or sport = :8001 )"])
-          run("nginx syntax", ["nginx", "-t"])
-          p = subprocess.run(["nginx", "-T"], capture_output=True, text=True, timeout=15)
-          print("\nCHECK selected nginx routing directives", flush=True)
-          for line in p.stdout.splitlines():
-              if re.match(r"\s*(# configuration file|listen |server_name |proxy_pass |upstream |location |return |allow |deny |proxy_set_header (Host|X-Forwarded-Proto)|access_log |error_log )", line):
-                  print(log.redact(line), flush=True)
-          run("firewall", ["ufw", "status", "verbose"])
-          run("input counters", ["iptables", "-nvL", "INPUT", "--line-numbers"])
-          run("nft rules", ["nft", "list", "ruleset"])
-          run("fail2ban", ["fail2ban-client", "status"])
-          run("nginx errors", ["journalctl", "-u", "nginx", "--since", "today", "-n", "40", "--no-pager"])
-          for p in Path("/var/log/nginx").glob("*error.log"):
-              run("error log " + p.name, ["tail", "-n", "30", str(p)])
-          commands = [
-          ("api health", ["curl", "-sS", "--max-time", "12", "-o", "/dev/null", "-w", "HTTP=%{http_code} time=%{time_total}\n", "http://127.0.0.1:8001/health"]),
-          ("origin http", ["curl", "-sS", "--max-time", "12", "-H", "Host: uzstock.uz", "-o", "/dev/null", "-w", "HTTP=%{http_code} time=%{time_total}\n", "http://127.0.0.1/health"]),
-          ("origin https", ["curl", "-ksS", "--max-time", "12", "--resolve", "uzstock.uz:443:127.0.0.1", "-o", "/dev/null", "-w", "HTTP=%{http_code} time=%{time_total}\n", "https://uzstock.uz/health"]),
-          ("public https", ["curl", "-sS", "--max-time", "15", "-o", "/dev/null", "-w", "HTTP=%{http_code} time=%{time_total}\n", "https://uzstock.uz/health"]),
-          ]
-          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-              list(pool.map(lambda pair: run(*pair), commands))
-          print("\nCHECK nginx recent status summary", flush=True)
-          from collections import Counter
+                  while time.monotonic()<end:
+                      try: p=s.recv(96)
+                      except socket.timeout: continue
+                      if len(p)<54 or p[12:14]!=b'\x08\x00' or p[23]!=6: continue
+                      ihl=(p[14]&15)*4; off=14+ihl
+                      if len(p)<off+14: continue
+                      src=socket.inet_ntoa(p[26:30]); dst=socket.inet_ntoa(p[30:34]); sport,dport=struct.unpack("!HH",p[off:off+4]); flags=p[off+13]
+                      if dst==local and dport!=22 and flags&2:
+                          counts[("incoming SYN",src,dport)] += 1
+                      if src==local and sport in (80,443,8001):
+                          counts[("origin reply",dst,sport,flags)] += 1
+              finally: s.close()
+              show("TCP observations",json.dumps([(str(k),v) for k,v in counts.items()]))
+          def probes():
+              time.sleep(2)
+              for label,url in [("private interface HTTP","http://"+local+"/health"),("public health","https://uzstock.uz/health")]:
+                  t=time.monotonic()
+                  try:
+                      req=urllib.request.Request(url,headers={"Host":"uzstock.uz"})
+                      with urllib.request.urlopen(req,timeout=12) as r: result=f"status={r.status}"
+                  except Exception as e: result=type(e).__name__
+                  show(label,result+" seconds="+str(round(time.monotonic()-t,3)))
+          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+              list(pool.map(lambda f:f(),[capture,probes]))
           for p in Path("/var/log/nginx").glob("*access.log"):
-              result = subprocess.run(["tail", "-n", "1000", str(p)], capture_output=True, text=True, timeout=10)
-              counts = Counter()
+              result=subprocess.run(["tail","-n","10000",str(p)],text=True,capture_output=True,timeout=10)
+              hourly=Counter(); last=[]
               for line in result.stdout.splitlines():
-                  m = re.match(r'(\S+).*?\[([^]]+)\] "(\S+) ([^ ?]+)[^"]*" (\d+)', line)
+                  m=re.match(r'(\S+).*?\[([^]]+)\] "[^"]*" (\d+)',line)
                   if m:
-                      peer, stamp, method, path, status = m.groups()
-                      counts[(peer, status)] += 1
-              print(log.redact(json.dumps({"file": str(p), "peer_status_counts": [(peer,status,count) for (peer,status),count in counts.most_common(20)]})), flush=True)
+                      peer,stamp,status=m.groups(); hourly[(stamp[:14],status)]+=1; last.append((peer,stamp,status))
+              show("access activity "+p.name,json.dumps({"hours":list(hourly.items())[-30:],"last_15":last[-15:]}))
           PY
           REMOTE
