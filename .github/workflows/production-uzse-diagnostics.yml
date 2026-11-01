@@ -1,67 +1,61 @@
-name: Temporary website process restart
+name: Production UZSE connection diagnostics
+
 on:
   workflow_dispatch:
+  push:
+    branches: [API]
+
 permissions:
   contents: read
-concurrency:
-  group: production-deploy
-  cancel-in-progress: false
+
 jobs:
-  restart:
-    if: github.ref == 'refs/heads/API'
+  diagnose:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
     environment: uzstock-production
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[diagnose-uzse]')
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
-      - name: Restart the existing website processes and verify both routes
+      - uses: actions/checkout@v4
+      - name: Configure deployment SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect the active services
+        env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          set -euo pipefail
-          install -d -m 700 ~/.ssh
-          key="$(mktemp)"
-          trap 'rm -f "$key"' EXIT
-          chmod 600 "$key"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
-          set -euo pipefail
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -eu
           cd /root/uzstock/app
-          printf 'Application directory: '; pwd -P
-          printf 'Checkout revision: '; git rev-parse HEAD
-          printf 'Service manager: '; systemctl is-active nginx
-          before_image="$(docker inspect --format '{{.Image}}' uzstock-web)"
-          before_revision="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)"
-          test "$(git rev-parse HEAD)" = "$before_revision"
-          docker inspect --format 'Before: {{.State.Status}} started={{.State.StartedAt}}' uzstock-web
-          nginx -t
-          docker restart --time 30 uzstock-web
-          ready=0
-          for attempt in $(seq 1 30); do
-            if curl --max-time 3 -fsS http://127.0.0.1:8001/health >/dev/null 2>&1; then
-              ready=1
-              break
-            fi
-            sleep 2
-          done
-          if [ "$ready" != 1 ]; then
-            docker logs --tail 80 uzstock-web 2>&1 | python3 scripts/ci_log.py incident-restart 80
-            exit 1
-          fi
-          systemctl restart nginx
-          systemctl is-active nginx
-          test "$(docker inspect --format '{{.Image}}' uzstock-web)" = "$before_image"
-          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$before_revision"
-          docker inspect --format 'After: {{.State.Status}} started={{.State.StartedAt}}' uzstock-web
-          printf 'Internal HTTP: '
-          curl -fsS --max-time 10 -H 'Host: uzstock.uz' -o /dev/null -w 'HTTP=%{http_code} time=%{time_total}\n' http://127.0.0.1/health
-          printf 'Internal HTTPS: '
-          curl -fksS --max-time 10 --resolve uzstock.uz:443:127.0.0.1 -o /dev/null -w 'HTTP=%{http_code} time=%{time_total}\n' https://uzstock.uz/health
-          printf 'Public HTTPS: '
-          curl -fsS --max-time 15 -o /dev/null -w 'HTTP=%{http_code} time=%{time_total}\n' https://uzstock.uz/health
+          git rev-parse HEAD
+          docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
+          systemctl show uzstock-quotes-2130.service -p ActiveState -p Result -p ExecMainStatus
+          systemctl list-timers 'uzstock-quotes-*' --no-pager
           REMOTE
+      - name: Compare production container and host source access
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          echo 'Production container: configured route, direct route, and canonical hostname'
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'docker exec -i uzstock-web python -' < scripts/diagnose_uzse.py
+          echo 'Production host: compare against container networking'
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'python3 -' < scripts/diagnose_uzse.py
+      - name: Compare a separate network
+        run: python3 scripts/diagnose_uzse.py
