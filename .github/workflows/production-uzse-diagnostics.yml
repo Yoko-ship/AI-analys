@@ -1,16 +1,16 @@
-name: Temporary synchronized public route evidence
+name: Temporary origin certificate and incident checks
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  investigate:
+  inspect:
     if: github.ref == 'refs/heads/API'
     environment: uzstock-production
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 5
     steps:
-      - name: Correlate public probes with origin network and access logs
+      - name: Check origin TLS, ingress filters, and morning memory event
         env:
           SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
@@ -21,231 +21,65 @@ jobs:
           set -euo pipefail
           install -d -m 700 ~/.ssh
           key="$(mktemp)"
-          report="$RUNNER_TEMP/origin-observations.log"
-          control="$RUNNER_TEMP/outage-ssh-control"
-          cleanup() {
-            ssh -S "$control" -O exit -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" >/dev/null 2>&1 || true
-            rm -f "$key"
-          }
-          trap cleanup EXIT
+          trap 'rm -f "$key"' EXIT
           chmod 600 "$key"
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "env INCIDENT_ID=$GITHUB_RUN_ID python3 -u -" > "$report" 2>&1 <<'REMOTE' &
-          import collections, concurrent.futures, datetime, hashlib, importlib.util, ipaddress, json, os, re, socket, struct, subprocess, threading, time
-          from pathlib import Path
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'python3 -u -' <<'REMOTE'
+          import datetime, importlib.util, json, os, re, shutil, socket, ssl, subprocess
           os.chdir("/root/uzstock/app")
           spec=importlib.util.spec_from_file_location("ci_log","scripts/ci_log.py")
-          log=importlib.util.module_from_spec(spec); spec.loader.exec_module(log)
-          marker=os.environ["INCIDENT_ID"]
-          print_lock=threading.Lock()
-          def emit(kind,**values):
-              with print_lock:
-                  print(log.redact(json.dumps({"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"kind":kind,**values})),flush=True)
-          def command(args,timeout=15):
+          log=importlib.util.module_from_spec(spec);spec.loader.exec_module(log)
+          def emit(kind,**v):print(log.redact(json.dumps({"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"kind":kind,**v})),flush=True)
+          def call(args,timeout=20,input=None):
               try:
-                  p=subprocess.run(args,text=True,capture_output=True,timeout=timeout)
-                  return p.returncode,p.stdout+p.stderr
+                  p=subprocess.run(args,input=input,capture_output=True,timeout=timeout)
+                  return p.returncode,p.stdout.decode(errors="replace")+p.stderr.decode(errors="replace")
               except Exception as e:return -1,type(e).__name__
-          addresses=json.loads(command(["ip","-j","address"])[1])
-          local_ips={a["local"] for interface in addresses for a in interface["addr_info"] if a["family"]=="inet"}
-          def netstats():
-              values={}
-              p=Path("/proc/net/netstat")
-              lines=p.read_text().splitlines()
-              keep={"ListenOverflows","ListenDrops","TCPBacklogDrop","TCPReqQFullDrop","IPReversePathFilter","TCPAbortOnMemory"}
-              for i in range(0,len(lines)-1,2):
-                  names=lines[i].split()[1:]; nums=lines[i+1].split()[1:]
-                  for k,v in zip(names,nums):
-                      if k in keep:values[k]=int(v)
-              return values
-          before_stats=netstats()
-          log_files={}
-          for p in Path("/var/log/nginx").glob("*access.log"):
-              try:log_files[str(p)]=p.stat().st_size
-              except OSError:pass
-          error_files={}
-          for p in Path("/var/log/nginx").glob("*error.log"):
-              try:error_files[str(p)]=p.stat().st_size
-              except OSError:pass
-          counts=collections.Counter(); observations=collections.Counter(); captured=0
-          peers={}
-          def peer_label(ip):
-              address=ipaddress.ip_address(ip)
-              if address.is_loopback:return "loopback"
-              if address.is_private:return str(address)
-              if ip not in peers:peers[ip]="public-peer-"+str(len(peers)+1)
-              return peers[ip]
-          def capture():
-              global captured
-              s=socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.htons(3)); s.settimeout(1)
-              end=time.monotonic()+95
-              emit("CAPTURE_READY",duration_seconds=95,scope="TCP headers only; no packet payload saved")
-              try:
-                  while time.monotonic()<end:
-                      try:packet,meta=s.recvfrom(128)
-                      except socket.timeout:continue
-                      captured+=1
-                      if len(packet)<34:continue
-                      ethertype=struct.unpack("!H",packet[12:14])[0]; offset=14
-                      if ethertype in (0x8100,0x88a8) and len(packet)>=38:
-                          ethertype=struct.unpack("!H",packet[16:18])[0]; offset=18
-                      if ethertype!=0x0800 or len(packet)<offset+20:continue
-                      ihl=(packet[offset]&15)*4
-                      if packet[offset+9]!=6 or len(packet)<offset+ihl+20:continue
-                      src=socket.inet_ntoa(packet[offset+12:offset+16]); dst=socket.inet_ntoa(packet[offset+16:offset+20])
-                      tcp=offset+ihl; sport,dport=struct.unpack("!HH",packet[tcp:tcp+4]); flags=packet[tcp+13]
-                      total=struct.unpack("!H",packet[offset+2:offset+4])[0]
-                      payload=max(0,total-ihl-((packet[tcp+12]>>4)*4))
-                      interface=meta[0]
-                      if dst in local_ips and dport==22 and flags&2:
-                          counts[(interface,"ssh-control","incoming-syn",22)]+=1
-                      for direction,port,peer in ([("incoming",dport,src)] if dst in local_ips and dport in (80,443,8001) else []) + ([("outgoing",sport,dst)] if src in local_ips and sport in (80,443,8001) else []):
-                          counts[(interface,direction,"packets",port)]+=1
-                          counts[(interface,direction,"payload_bytes",port)]+=payload
-                          if flags&2:counts[(interface,direction,"syn_flags",port)]+=1
-                          if flags&4:counts[(interface,direction,"rst_flags",port)]+=1
-                          observations[(interface,direction,port,peer_label(peer))]+=1
-              finally:s.close()
-              emit("packet_summary",total_frames_seen=captured,counters=[{"interface":k[0],"direction":k[1],"metric":k[2],"port":k[3],"value":v} for k,v in sorted(counts.items())],peers=[{"interface":k[0],"direction":k[1],"port":k[2],"peer":k[3],"packets":v} for k,v in observations.items()])
-          def inspect():
-              for name,args in [
-                  ("time",["date","-Is"]),("load",["uptime"]),("memory",["free","-m"]),("disk",["df","-h","/"]),
-                  ("checkout",["git","rev-parse","HEAD"]),
-                  ("container_state",["docker","inspect","--format",'status={{.State.Status}} running={{.State.Running}} oom={{.State.OOMKilled}} restarts={{.RestartCount}} revision={{index .Config.Labels "org.opencontainers.image.revision"}}',"uzstock-web"]),
-                  ("web_services",["systemctl","is-active","nginx","snap.docker.dockerd"]),
-                  ("firewall",["ufw","status","verbose"]),("firewall_rules",["nft","list","ruleset"]),
-                  ("routes",["ip","route"]),("listeners",["ss","-ltn","( sport = :80 or sport = :443 or sport = :8001 )"]),
-                  ("nginx_syntax",["nginx","-t"]),("reverse_path",["sysctl","net.ipv4.conf.all.rp_filter","net.ipv4.conf.eth0.rp_filter"])
-              ]:
-                  code,out=command(args)
-                  emit("server_check",name=name,exit_code=code,output=out[-16000:])
-              code,out=command(["nginx","-T"])
-              selected=[line for line in out.splitlines() if re.match(r"\s*(# configuration file|listen |server_name |proxy_pass |upstream |proxy_(connect|read|send)_timeout |allow |deny |limit_req |limit_req_status )",line)]
-              emit("nginx_routing",syntax_exit=code,configuration_sha256=hashlib.sha256(out.encode()).hexdigest(),directives=selected)
-              code,out=command(["journalctl","-k","--since","today","--no-pager"])
-              lines=[x for x in out.splitlines() if re.search(r"out of memory|oom-kill|table full|NETDEV WATCHDOG|link is down|I/O error",x,re.I)]
-              emit("kernel_failure_events",matches=lines[-25:])
-          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-              list(pool.map(lambda f:f(),[capture,inspect]))
-          for name,offset in log_files.items():
-              try:
-                  with open(name,encoding="utf-8",errors="replace") as f:
-                      f.seek(offset); new=f.read(2_000_000)
-                  rows=[]
-                  for line in new.splitlines():
-                      if "__incident="+marker in line:
-                          m=re.match(r'(\S+).*?\[([^]]+)\] "(\S+) ([^"]+)" (\d+) (\S+)',line)
-                          if m:
-                              peer,stamp,method,target,status,size=m.groups()
-                              rows.append({"peer":peer_label(peer),"time":stamp,"method":method,"target":target,"status":int(status),"bytes":size})
-                  emit("marked_access_requests",file=name,requests=rows)
-              except Exception as e:emit("access_log_read_error",error=type(e).__name__)
-          for name,offset in error_files.items():
-              try:
-                  with open(name,encoding="utf-8",errors="replace") as f:
-                      f.seek(offset); new=f.read(1_000_000)
-                  categories=collections.Counter()
-                  for line in new.splitlines():
-                      for phrase in ("upstream timed out","connect() failed","limiting requests","SSL_do_handshake() failed","no live upstreams","too many open files"):
-                          if phrase in line:categories[phrase]+=1
-                  emit("new_nginx_error_counts",file=name,categories=dict(categories),marked_errors=[l for l in new.splitlines() if "__incident="+marker in l][:15])
-              except Exception as e:emit("error_log_read_error",error=type(e).__name__)
-          after_stats=netstats()
-          emit("network_drop_counter_delta",counters={k:after_stats.get(k,0)-v for k,v in before_stats.items()})
-          for name,url,extra in [
-              ("origin_postcheck","http://127.0.0.1/health",["-H","Host: uzstock.uz"]),
-              ("api_postcheck","http://127.0.0.1:8001/health",[])
-          ]:
-              code,out=command(["curl","-sS","--max-time","5","-o","/dev/null","-w","status=%{http_code} seconds=%{time_total}",*extra,url])
-              emit("final_origin_probe",name=name,exit_code=code,output=out)
-          emit("CAPTURE_COMPLETE")
-          
-          REMOTE
-          capture_pid=$!
-          ready=0
-          for attempt in $(seq 1 35); do
-            if grep -q '"kind": "CAPTURE_READY"' "$report"; then ready=1; break; fi
-            if ! kill -0 "$capture_pid" 2>/dev/null; then cat "$report"; exit 1; fi
-            sleep 1
-          done
-          if [ "$ready" != 1 ]; then cat "$report"; exit 1; fi
-          printf 'Origin capture is ready at '; date -u -Is
-          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'printf "Positive SSH control reached the server at "; date -u -Is'
-          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -o ExitOnForwardFailure=yes -M -S "$control" -f -N -L 127.0.0.1:8443:127.0.0.1:443 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST"
-          python3 -u - <<'RUNNER'
-          import concurrent.futures, datetime, hashlib, json, os, re, socket, ssl, subprocess, tempfile, threading, time, urllib.parse, urllib.request
-          from pathlib import Path
-          host=os.environ["PROD_HOST"]; marker=os.environ["GITHUB_RUN_ID"]; lock=threading.Lock()
-          def emit(kind,**values):
-              with lock:
-                  text=json.dumps({"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"kind":kind,**values})
-                  text=text.replace(host,"[public gateway]")
-                  print(text,flush=True)
-          def dns(resolver,name,kind):
-              base={"Google":"https://dns.google/resolve","Cloudflare":"https://cloudflare-dns.com/dns-query"}[resolver]
-              try:
-                  req=urllib.request.Request(base+"?"+urllib.parse.urlencode({"name":name,"type":kind}),headers={"Accept":"application/dns-json"})
-                  with urllib.request.urlopen(req,timeout=8) as r:d=json.load(r)
-                  records=[a for a in d.get("Answer",[]) if a.get("type") in (1,28)]
-                  emit("dns",resolver=resolver,name=name,record_type=kind,status=d.get("Status"),answer_count=len(records),matches_expected_gateway=any(x.get("data")==host for x in records),unexpected_address_count=sum(x.get("data")!=host for x in records),authenticated_data=d.get("AD"))
-              except Exception as e:emit("dns_error",resolver=resolver,name=name,error=type(e).__name__)
-          def cert(name,target,port,verify):
-              start=time.monotonic()
+          for verify in (True,False):
               try:
                   ctx=ssl.create_default_context() if verify else ssl._create_unverified_context()
-                  with socket.create_connection((target,port),timeout=6) as raw:
-                      raw.settimeout(6)
-                      with ctx.wrap_socket(raw,server_hostname="uzstock.uz") as s:
-                          der=s.getpeercert(binary_form=True); parsed=s.getpeercert()
-                          emit("certificate",name=name,verified=verify,fingerprint_sha256=hashlib.sha256(der).hexdigest(),expires=parsed.get("notAfter"),names=parsed.get("subjectAltName"),tls_version=s.version(),seconds=round(time.monotonic()-start,3))
-              except Exception as e:emit("certificate_error",name=name,error=type(e).__name__,seconds=round(time.monotonic()-start,3))
-          def probe(name,domain,path,extra=(),timeout=12):
-              token=marker+"-"+name
-              scheme="http" if name=="public-http" else "https"
-              url=scheme+"://"+domain+path+("&" if "?" in path else "?")+"__incident="+token
-              fd,tmp=tempfile.mkstemp(); os.close(fd)
-              fmt='{"status":"%{http_code}","dns":%{time_namelookup},"tcp":%{time_connect},"tls":%{time_appconnect},"first_byte":%{time_starttransfer},"total":%{time_total},"http_version":"%{http_version}","remote_ip":"%{remote_ip}"}'
-              args=["curl","-sS","--connect-timeout","4","--max-time",str(timeout),"-A","Mozilla/5.0 UZStockAvailabilityCheck","-D",tmp,"-o","/dev/null","-w",fmt,*extra,url]
-              try:
-                  p=subprocess.run(args,text=True,capture_output=True,timeout=timeout+5)
-                  try:metrics=json.loads(p.stdout)
-                  except Exception:metrics={"unparsed_output":p.stdout[-200:]}
-                  ip=metrics.pop("remote_ip",None)
-                  metrics["connected_to_expected_gateway"]=ip==host
-                  headers={}
-                  for line in Path(tmp).read_text(errors="replace").splitlines():
-                      if ":" in line:
-                          k,v=line.split(":",1)
-                          if k.lower() in ("server","content-type","content-length","x-served-by"):headers[k.lower()]=v.strip()
-                  error=re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b","[address]",p.stderr.strip())[:350]
-                  emit("http_probe",name=name,request_marker=token,curl_exit=p.returncode,metrics=metrics,headers=headers,error=error)
-              except Exception as e:emit("http_probe_error",name=name,error=type(e).__name__)
-              finally:Path(tmp).unlink(missing_ok=True)
-          jobs=[]
-          with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
-              for resolver in ("Google","Cloudflare"):
-                  for kind in ("A","AAAA"):jobs.append(pool.submit(dns,resolver,"uzstock.uz",kind))
-              jobs.extend([pool.submit(cert,"public",host,443,True),pool.submit(cert,"origin_tunnel","127.0.0.1",8443,False)])
-              cases=[
-                  ("public-health","uzstock.uz","/health",("--http1.1",),12),
-                  ("public-pinned","uzstock.uz","/health",("--http1.1","--resolve","uzstock.uz:443:"+host),12),
-                  ("public-nginx-only","uzstock.uz","/__uzstock/edge-probe",("--http1.1",),12),
-                  ("public-market","uzstock.uz","/market",(),12),
-                  ("public-http2","uzstock.uz","/health",("--http2",),12),
-                  ("public-http","uzstock.uz","/health",(),8),
-                  ("public-www","www.uzstock.uz","/health",(),12),
-                  ("gateway-control","itintegro.uz","/",("--resolve","itintegro.uz:443:"+host),12),
-                  ("tunnel-health","uzstock.uz","/health",("-k","--connect-to","uzstock.uz:443:127.0.0.1:8443"),12),
-                  ("tunnel-nginx-only","uzstock.uz","/__uzstock/edge-probe",("-k","--connect-to","uzstock.uz:443:127.0.0.1:8443"),12),
-                  ("tunnel-market","uzstock.uz","/market",("-k","--connect-to","uzstock.uz:443:127.0.0.1:8443"),12),
-                  ("public-long","uzstock.uz","/health",("--http1.1","--resolve","uzstock.uz:443:"+host),65)
-              ]
-              for case in cases:jobs.append(pool.submit(probe,*case))
-              for job in concurrent.futures.as_completed(jobs):job.result()
-          emit("RUNNER_PROBES_COMPLETE")
-          
-          RUNNER
-          wait "$capture_pid"
-          cat "$report"
+                  with socket.create_connection(("127.0.0.1",443),timeout=5) as s:
+                      with ctx.wrap_socket(s,server_hostname="uzstock.uz") as tls:
+                          der=tls.getpeercert(binary_form=True)
+                          code,info=call(["openssl","x509","-inform","DER","-noout","-dates","-subject","-issuer","-fingerprint","-sha256"],input=der)
+                          emit("origin_certificate",verification_enabled=verify,verification_passed=verify,metadata=info)
+              except Exception as e:emit("origin_certificate_error",verification_enabled=verify,error=type(e).__name__,detail=str(e))
+          for name,args in [
+              ("network_driver",["ip","-details","link","show","dev","eth0"]),
+              ("ingress_filters",["tc","filter","show","dev","eth0","ingress"]),
+              ("egress_filters",["tc","filter","show","dev","eth0","egress"]),
+              ("network_queues",["tc","qdisc","show","dev","eth0"]),
+              ("financial_backup_state",["systemctl","show","uzstock-financial-backup.service","-p","ActiveState","-p","Result","-p","ExecMainStatus","-p","ExecMainStartTimestamp","-p","ExecMainExitTimestamp"]),
+              ("certificate_renewal_timer",["systemctl","list-timers","--all","--no-pager","certbot*"])
+          ]:
+              code,out=call(args);emit("additional_check",name=name,exit_code=code,output=out)
+          if shutil.which("bpftool"):
+              code,out=call(["bpftool","net"]);emit("attached_bpf",exit_code=code,output=out)
+          code,kernel=call(["journalctl","-k","--since","today","--no-pager","-o","json"])
+          events=[]
+          for line in kernel.splitlines():
+              try:r=json.loads(line)
+              except Exception:continue
+              msg=r.get("MESSAGE","")
+              if re.search(r"oom-kill:|Memory cgroup out of memory",msg):events.append(r)
+          for event in events[-4:]:
+              stamp=int(event["__REALTIME_TIMESTAMP"])/1e6
+              when=datetime.datetime.fromtimestamp(stamp,datetime.timezone.utc)
+              begin=(when-datetime.timedelta(seconds=45)).strftime("%Y-%m-%d %H:%M:%S")
+              end=(when+datetime.timedelta(seconds=45)).strftime("%Y-%m-%d %H:%M:%S")
+              code,nearby=call(["journalctl","--since",begin,"--until",end,"--no-pager","-o","json"])
+              rows=[]
+              for line in nearby.splitlines():
+                  try:r=json.loads(line)
+                  except Exception:continue
+                  unit=r.get("_SYSTEMD_UNIT","");msg=r.get("MESSAGE","")
+                  if re.search(r"backup|collector|ingestion|web|monitor",unit,re.I) or re.search(r"oom|out of memory|Killed process|status=137|Failed|docker-[a-f0-9]{64}",msg,re.I):
+                      rows.append({"unit":unit,"identifier":r.get("SYSLOG_IDENTIFIER"),"message":msg[:700]})
+              emit("oom_context",event_time=when.isoformat(),messages=rows[:65])
+              ids=re.findall(r"docker-([a-f0-9]{64})",event["MESSAGE"])
+              for cid in ids:
+                  code,out=call(["docker","inspect","--format",'name={{.Name}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} memory_limit={{.HostConfig.Memory}}',cid])
+                  emit("oom_container_lookup",container_id=cid,exit_code=code,output=out)
+          REMOTE
