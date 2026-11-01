@@ -11,7 +11,7 @@ const COPY = {
       'Отчётность, финансовая история и показатели компаний. Изучайте данные в контексте.',
       'История дивидендов и корпоративные события. Узнайте, что стоит за каждой выплатой.',
     ],
-    market: 'Исследовать рынок', company: 'Изучить компанию', open: 'Открыть компанию',
+    market: 'Исследовать рынок', company: 'Изучить компанию',
     explore: 'Исследуйте рынок', group: 'Откройте для себя UZStock',
   },
   uz: {
@@ -22,7 +22,7 @@ const COPY = {
       'Kompaniyalar hisobotlari, moliyaviy tarixi va ko‘rsatkichlari. Ma’lumotlarni mazmuni bilan o‘rganing.',
       'Dividendlar tarixi va korporativ voqealar. Har bir to‘lov ortidagi ma’lumotlarni o‘rganing.',
     ],
-    market: 'Bozorni o‘rganish', company: 'Kompaniyani o‘rganish', open: 'Kompaniyani ochish',
+    market: 'Bozorni o‘rganish', company: 'Kompaniyani o‘rganish',
     explore: 'Bozorni o‘rganing', group: 'UZStock imkoniyatlari',
   },
   en: {
@@ -33,7 +33,7 @@ const COPY = {
       'Financial reports, company history and key ratios. Explore the numbers in context.',
       'Dividend history and corporate events. Discover the context behind each payment.',
     ],
-    market: 'Explore the market', company: 'Explore the company', open: 'Open company',
+    market: 'Explore the market', company: 'Explore the company',
     explore: 'Explore the market', group: 'Discover UZStock',
   },
 };
@@ -63,10 +63,6 @@ export function LandingHero({ lang, theme, onNavigate, onOpenCompany }) {
         </div>
       </div>
     </div>
-    <button type="button" className="landing-hero-company" onClick={() => onOpenCompany('UZTL')}
-      data-track-control="landing_featured_company" data-track-value="UZTL">
-      <span><b>UZTL</b><span aria-hidden="true"> / </span>{copy.open}</span><Arrow diagonal />
-    </button>
     <div className="landing-hero-footer">
       <div className="landing-hero-rail">
         <div className="landing-hero-topics" role="group" aria-label={copy.group}>

@@ -64,7 +64,7 @@ for (const { width, theme, language, title } of cases) {
     });
     expect(iconContrast).toBeGreaterThanOrEqual(4.5);
     const artBox = await artwork.boundingBox();
-    const calloutBox = await landing.locator('.landing-hero-company').boundingBox();
+    await expect(landing.getByRole('button', { name: /^UZTL\b/ })).toHaveCount(0);
     const footerBox = await landing.locator('.landing-hero-footer').boundingBox();
     await expect(artwork).toHaveCSS('object-fit', 'contain');
     expect(artBox.y + artBox.height).toBeLessThanOrEqual(footerBox.y + 1);
@@ -72,7 +72,6 @@ for (const { width, theme, language, title } of cases) {
       expect(artBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
       const ratio = await artwork.evaluate(img => img.naturalWidth / img.naturalHeight);
       expect(Math.abs(artBox.width / artBox.height - ratio)).toBeLessThan(0.01);
-      expect(calloutBox.y).toBeGreaterThanOrEqual(artBox.y + artBox.height);
     }
     await expect(landing.locator('.landing-hero-shade')).toHaveCount(0);
     expect(await landing.locator('.landing-hero-art').evaluate(el => getComputedStyle(el, '::after').backgroundImage)).toBe('none');
@@ -89,8 +88,7 @@ for (const { width, theme, language, title } of cases) {
     await landing.locator('.lv-actions button').click();
     await expect(page.locator('.view-market')).toBeVisible();
     await page.goBack();
-    await landing.locator('.landing-hero-company').press('Enter');
-    await expect(page).toHaveURL(/company\/UZTL/);
+    await expect(landing.getByRole('heading', { level: 1 })).toHaveText(title);
 
     expect(errors).toEqual([]);
   });
@@ -113,7 +111,7 @@ test('hero topics work with the keyboard and open the featured company', async (
   await topics.nth(2).press('Space');
   await expect(page.locator('.lv-h1')).toHaveText(/У каждой\s*выплаты —\s*своя история\./);
   await expect(page.locator('.landing-hero-note')).toHaveCount(0);
-  await page.locator('.landing-hero-company').click();
+  await page.locator('.lv-actions button').press('Enter');
   await expect(page).toHaveURL(/\/company\/UZTL$/);
   await page.goBack();
   await page.locator('.lv-actions button').click();
