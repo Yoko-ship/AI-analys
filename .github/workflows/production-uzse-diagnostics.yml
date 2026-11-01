@@ -1,85 +1,61 @@
-name: Temporary origin certificate and incident checks
+name: Production UZSE connection diagnostics
+
 on:
   workflow_dispatch:
+  push:
+    branches: [API]
+
 permissions:
   contents: read
+
 jobs:
-  inspect:
-    if: github.ref == 'refs/heads/API'
+  diagnose:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
     environment: uzstock-production
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[diagnose-uzse]')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Check origin TLS, ingress filters, and morning memory event
+      - uses: actions/checkout@v4
+      - name: Configure deployment SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Inspect the active services
+        env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
-          set -euo pipefail
-          install -d -m 700 ~/.ssh
-          key="$(mktemp)"
-          trap 'rm -f "$key"' EXIT
-          chmod 600 "$key"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20 -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'python3 -u -' <<'REMOTE'
-          import datetime, importlib.util, json, os, re, shutil, socket, ssl, subprocess
-          os.chdir("/root/uzstock/app")
-          spec=importlib.util.spec_from_file_location("ci_log","scripts/ci_log.py")
-          log=importlib.util.module_from_spec(spec);spec.loader.exec_module(log)
-          def emit(kind,**v):print(log.redact(json.dumps({"utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"kind":kind,**v})),flush=True)
-          def call(args,timeout=20,input=None):
-              try:
-                  p=subprocess.run(args,input=input,capture_output=True,timeout=timeout)
-                  return p.returncode,p.stdout.decode(errors="replace")+p.stderr.decode(errors="replace")
-              except Exception as e:return -1,type(e).__name__
-          for verify in (True,False):
-              try:
-                  ctx=ssl.create_default_context() if verify else ssl._create_unverified_context()
-                  with socket.create_connection(("127.0.0.1",443),timeout=5) as s:
-                      with ctx.wrap_socket(s,server_hostname="uzstock.uz") as tls:
-                          der=tls.getpeercert(binary_form=True)
-                          code,info=call(["openssl","x509","-inform","DER","-noout","-dates","-subject","-issuer","-fingerprint","-sha256"],input=der)
-                          emit("origin_certificate",verification_enabled=verify,verification_passed=verify,metadata=info)
-              except Exception as e:emit("origin_certificate_error",verification_enabled=verify,error=type(e).__name__,detail=str(e))
-          for name,args in [
-              ("network_driver",["ip","-details","link","show","dev","eth0"]),
-              ("ingress_filters",["tc","filter","show","dev","eth0","ingress"]),
-              ("egress_filters",["tc","filter","show","dev","eth0","egress"]),
-              ("network_queues",["tc","qdisc","show","dev","eth0"]),
-              ("financial_backup_state",["systemctl","show","uzstock-financial-backup.service","-p","ActiveState","-p","Result","-p","ExecMainStatus","-p","ExecMainStartTimestamp","-p","ExecMainExitTimestamp"]),
-              ("certificate_renewal_timer",["systemctl","list-timers","--all","--no-pager","certbot*"])
-          ]:
-              code,out=call(args);emit("additional_check",name=name,exit_code=code,output=out)
-          if shutil.which("bpftool"):
-              code,out=call(["bpftool","net"]);emit("attached_bpf",exit_code=code,output=out)
-          code,kernel=call(["journalctl","-k","--since","today","--no-pager","-o","json"])
-          events=[]
-          for line in kernel.splitlines():
-              try:r=json.loads(line)
-              except Exception:continue
-              msg=r.get("MESSAGE","")
-              if re.search(r"oom-kill:|Memory cgroup out of memory",msg):events.append(r)
-          for event in events[-4:]:
-              stamp=int(event["__REALTIME_TIMESTAMP"])/1e6
-              when=datetime.datetime.fromtimestamp(stamp,datetime.timezone.utc)
-              begin=(when-datetime.timedelta(seconds=45)).strftime("%Y-%m-%d %H:%M:%S")
-              end=(when+datetime.timedelta(seconds=45)).strftime("%Y-%m-%d %H:%M:%S")
-              code,nearby=call(["journalctl","--since",begin,"--until",end,"--no-pager","-o","json"])
-              rows=[]
-              for line in nearby.splitlines():
-                  try:r=json.loads(line)
-                  except Exception:continue
-                  unit=r.get("_SYSTEMD_UNIT","");msg=r.get("MESSAGE","")
-                  if re.search(r"backup|collector|ingestion|web|monitor",unit,re.I) or re.search(r"oom|out of memory|Killed process|status=137|Failed|docker-[a-f0-9]{64}",msg,re.I):
-                      rows.append({"unit":unit,"identifier":r.get("SYSLOG_IDENTIFIER"),"message":msg[:700]})
-              emit("oom_context",event_time=when.isoformat(),messages=rows[:65])
-              ids=re.findall(r"docker-([a-f0-9]{64})",event["MESSAGE"])
-              for cid in ids:
-                  code,out=call(["docker","inspect","--format",'name={{.Name}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}} memory_limit={{.HostConfig.Memory}}',cid])
-                  emit("oom_container_lookup",container_id=cid,exit_code=code,output=out)
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -eu
+          cd /root/uzstock/app
+          git rev-parse HEAD
+          docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
+          systemctl show uzstock-quotes-2130.service -p ActiveState -p Result -p ExecMainStatus
+          systemctl list-timers 'uzstock-quotes-*' --no-pager
           REMOTE
+      - name: Compare production container and host source access
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          echo 'Production container: configured route, direct route, and canonical hostname'
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'docker exec -i uzstock-web python -' < scripts/diagnose_uzse.py
+          echo 'Production host: compare against container networking'
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" \
+            'python3 -' < scripts/diagnose_uzse.py
+      - name: Compare a separate network
+        run: python3 scripts/diagnose_uzse.py
