@@ -242,6 +242,24 @@ def _probe_org_type(session: Any, form2_records: list[dict], period_type: str) -
     return None
 
 
+def cached_report_excel_data(ticker: str, form: str, year: int, quarter: int) -> dict[str, Any]:
+    """Read the selected filing's stored workbooks without downloading on a table read."""
+    from collectors.openinfo import cache, settings
+    urls = catalogue_filings.get_report_urls(ticker, form, year, quarter) or {}
+    revision = _financial_revision(ticker, form, year, quarter, urls)
+    documents = {}
+    for url in {urls.get('excel_url'), urls.get('excel_url_form1')} - {None, ''}:
+        parsed = cache._get_excel_cache(url)
+        if (parsed and parsed.get('ok') and parsed.get('parser_version') == settings.EXCEL_PARSER_VERSION
+                and parsed.get('financial_revision') == revision
+                and not catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get('published_at'))):
+            documents[url] = {**parsed, 'source_url': url}
+    income = documents.get(urls.get('excel_url'))
+    balance = documents.get(urls.get('excel_url_form1') or urls.get('excel_url'))
+    return {'ok': bool(income or balance), 'income': income, 'balance': balance,
+            'error': None if income or balance else 'Selected filing workbook is not cached'}
+
+
 def fetch_report_excel_data(ticker: str, form: str, year: int, quarter: int, *,
 
                             use_snapshot_cache: bool = True, revalidate_cached: bool = False) -> dict[str, Any]:

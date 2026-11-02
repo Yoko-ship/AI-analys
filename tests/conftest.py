@@ -34,6 +34,12 @@ def no_geoip_download(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_sector_jobs(monkeypatch, tmp_path):
+    """A read may request missing annual bank detail; keep that queue test-local."""
+    monkeypatch.setenv('SECTOR_ANALYSIS_DB', str(tmp_path / 'sector-analysis.sqlite3'))
+
+
+@pytest.fixture(autouse=True)
 def isolated_terminal_journal(monkeypatch, tmp_path):
     """Requests made in a test write their journal events to a throwaway file,
     never into the real data directory's journal."""

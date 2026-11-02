@@ -78,7 +78,7 @@ test('admin catalog still hides MSFO including old links and panels',async({page
   await expect(page).not.toHaveURL(/std=MSFO|scope=consolidated/);
   await page.reload();
   await expect(standard.getByRole('button')).toHaveText(['NSBU']);
-  const command=page.getByRole('combobox',{name:'Terminal command line'});
+  const command=page.getByRole('combobox',{name:'Company search'});
   await command.fill('HMKB IFRS PL');await command.press('Enter');
   await expect(page).toHaveURL(/f=PL/);
   await expect(standard.getByRole('button',{name:'NSBU',exact:true})).toHaveAttribute('aria-pressed','true');

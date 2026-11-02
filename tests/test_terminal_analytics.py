@@ -23,6 +23,15 @@ def test_cagr_requires_exact_positive_endpoints_and_complete_deflators():
     assert analytics.growth(values, "2025", 5, inflation={"2025": 10})["real"] is None
 
 
+def test_missing_ratios_explain_uthk_loss_and_uzmt_absent_start_year():
+    uthk=analytics.snapshot(series({'net_profit':{'2020':-80188752000,'2025':97944183140},'total_equity':{'2025':155479835070}}))
+    assert uthk['metric_reasons']['cg5']=={'code':'NON_POSITIVE_ENDPOINT','start':'2020','end':'2025'}
+    assert uthk['metric_reasons']['pe']['code']=='MARKET_CAP_UNAVAILABLE'
+    assert uthk['metric_reasons']['nim']['code']=='NOT_APPLICABLE'
+    uzmt=analytics.snapshot(series({'net_profit':{'2015':119355276000,'2019':2656957411000}}))
+    assert uzmt['metric_reasons']['cg5']=={'code':'MISSING_ENDPOINT','start':'2014','end':'2019'}
+
+
 def test_ratios_use_the_selected_annual_and_never_bank_debt_equity():
     data = series({"net_profit": {"2025": 20}, "total_assets": {"2025": 200},
                    "total_equity": {"2025": 100}, "total_liabilities": {"2025": 100}})

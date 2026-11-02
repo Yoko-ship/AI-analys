@@ -4,12 +4,36 @@ from __future__ import annotations
 import issuer_financials as issuer_sources
 
 from copy import deepcopy
+import pytest
 
 import issuer_analysis_api as api
 import reports_catalog
 import catalogue.filings as catalogue_filings
 import catalogue.sources as catalogue_sources
 import sector_report_service as service
+
+
+@pytest.mark.parametrize('invalid',[None,'revision','period','parser'])
+def test_cached_workbook_reader_uses_only_the_selected_filing(monkeypatch,invalid):
+    from collectors.openinfo import cache, settings
+    url='https://example.org/HMKB-2025.xlsx'
+    monkeypatch.setattr(catalogue_filings,'get_report_urls',lambda *args:{'excel_url':url})
+    monkeypatch.setattr(catalogue_sources,'_financial_revision',lambda *args:'accepted-2025')
+    seen=[]
+    def cached(source):
+        seen.append(source)
+        return {'ok':True,'parser_version':-1 if invalid=='parser' else settings.EXCEL_PARSER_VERSION,
+                'financial_revision':'old' if invalid=='revision' else 'accepted-2025',
+                'reporting_date':'2024-12-31' if invalid=='period' else '2025-12-31','sheets':[]}
+    monkeypatch.setattr(cache,'_get_excel_cache',cached)
+    result=catalogue_sources.cached_report_excel_data('HMKB','NSBU',2025,0)
+    assert result['ok'] is (invalid is None)
+    if invalid is None:
+        assert result['income']==result['balance']
+        assert result['income']['source_url']==url
+    assert seen==[url]
+    monkeypatch.setattr(cache,'_get_excel_cache',lambda source:None)
+    assert catalogue_sources.cached_report_excel_data('HMKB','NSBU',2025,0)['ok'] is False
 
 
 def _snapshot(*, verified=True):

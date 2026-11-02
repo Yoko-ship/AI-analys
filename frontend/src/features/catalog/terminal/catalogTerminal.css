@@ -20,9 +20,12 @@
 .catalog-terminal-ui .catalog-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:0;border:0;border-radius:0;gap:6px}
 .catalog-terminal-ui .catalog-search-field{min-height:32px;padding:0 8px;border-radius:3px}
 .catalog-terminal-ui .catalog-toolbar .catalog-search-field{grid-column:1/-1}
-.catalog-terminal-ui .terminal-command-field{grid-column:auto}
-.catalog-terminal-ui .terminal-run{min-height:32px;border-radius:3px;font-size:11px;box-shadow:none}
+.catalog-terminal-ui .terminal-command-field{grid-column:auto;min-height:44px;padding:0 12px;border-radius:8px}
+.catalog-terminal-ui .terminal-search-icon{flex:none;color:var(--catalog-muted)}
+.catalog-terminal-ui .terminal-run{min-height:44px;border-radius:8px;font-family:Inter,Arial,sans-serif;font-size:14px;box-shadow:none}
+.catalog-terminal-ui .terminal-suggestions li{min-height:44px;align-items:center}
 .catalog-terminal-ui .catalog-search-field input{font-size:11px}
+.catalog-terminal-ui .terminal-command-field input{font-family:Inter,Arial,sans-serif;font-size:14px;letter-spacing:normal}
 .catalog-terminal-ui .catalog-filter-control{min-width:0}
 .catalog-terminal-ui .catalog-filter-trigger{font-size:11px;min-height:32px;border-radius:3px;padding:6px 8px}
 .catalog-terminal-ui .catalog-toolbar-count{font-size:10px;white-space:normal}
@@ -54,11 +57,60 @@
 .catalog-terminal-ui .terminal-controls{gap:8px;margin:4px 0 10px}
 .catalog-terminal-ui .terminal-controls input,.catalog-terminal-ui .terminal-controls select{min-height:32px;padding:4px 8px;border-radius:3px}
 .catalog-terminal-ui .terminal-controls label{font-size:10px}
+.catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) {
+  gap:16px; margin:20px 0 16px; padding:16px;
+  border:1px solid var(--border); border-radius:var(--control-radius, 8px); background:var(--surface-2);
+}
+/* ContextControls shares this row's layout instead of adding a second margin. */
+.catalog-terminal-ui .terminal-market-screen .terminal-market-filters > .terminal-controls { display:contents; }
+.catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) label {
+  flex:1 1 140px; gap:8px; font-size:12px; line-height:1.4; color:var(--text-secondary);
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-market-filters .terminal-market-search { flex:2 1 280px; }
+.catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) :is(input, select) {
+  width:100%; height:44px; min-height:44px; padding:10px 12px;
+  font-size:14px; border-radius:var(--control-radius, 8px); background:var(--panel);
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-filter-templates {
+  display:grid; grid-template-columns:minmax(0, 1fr) auto minmax(0, 1fr) auto;
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-filter-templates button {
+  height:44px; min-height:44px; padding:10px 16px; font-size:14px; line-height:1.4; font-weight:500;
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-filter-templates button:disabled {
+  opacity:0.55; cursor:not-allowed; color:var(--text-secondary); border-color:var(--border); background:var(--panel);
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-filter-templates [role="status"] {
+  grid-column:1 / -1; font-size:12px; line-height:1.5; color:var(--text-secondary);
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-valuation-basis {
+  margin:16px 0 20px; padding-left:12px; border-left:2px solid var(--border-hover);
+  color:var(--text-secondary); font-size:12px; line-height:1.6; min-width:0;
+}
+.terminal-valuation-meta { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; min-width:0; }
+.terminal-valuation-meta time { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+.terminal-valuation-meta code {
+  padding:2px 6px; border-radius:4px; background:var(--surface-2); color:var(--text-secondary);
+  font-size:11px; max-width:100%; overflow-wrap:anywhere;
+}
+.catalog-terminal-ui .terminal-market-screen .terminal-valuation-basis p { margin:6px 0 0; max-width:80ch; }
 .catalog-terminal-ui .terminal-table{width:100%;border-collapse:collapse;font-size:12px}
 .catalog-terminal-ui .terminal-table th,.catalog-terminal-ui .terminal-table td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;line-height:1.5}
 .catalog-terminal-ui .terminal-table th:first-child,.catalog-terminal-ui .terminal-table td:first-child{text-align:left}
 .catalog-terminal-ui .terminal-table thead th{font-weight:400;color:var(--muted);font-size:11px}
 .catalog-terminal-ui .terminal-table tbody th{font-weight:500}
+.catalog-terminal-ui .terminal-table .terminal-missing-value { width:28px; height:28px; margin:0; padding:0; border:0; border-radius:4px; background:transparent; color:var(--text-secondary); font:inherit; text-decoration:underline dotted; text-underline-offset:4px; }
+.catalog-terminal-ui .terminal-table .terminal-missing-value:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.catalog-terminal-ui .terminal-table .terminal-missing-value::before { content:none; }
+.catalog-terminal-ui .terminal-bank-sector { margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+.catalog-terminal-ui .terminal-bank-sector h4 { margin:0 0 12px; color:var(--text-secondary); font-size:12px; font-weight:600; }
+.catalog-terminal-ui .terminal-bank-sector dl { display:grid; grid-template-columns:minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap:16px; max-width:640px; margin:0; }
+.catalog-terminal-ui .terminal-bank-sector dl > div { display:grid; grid-template-rows:1fr auto; min-width:0; }
+.catalog-terminal-ui .terminal-bank-sector dt { color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.catalog-terminal-ui .terminal-bank-sector dt a { color:inherit; font-weight:400; text-decoration:underline; text-decoration-color:var(--border-hover); text-underline-offset:3px; }
+.catalog-terminal-ui .terminal-bank-sector dt a:hover { color:var(--accent); text-decoration-color:currentColor; }
+.catalog-terminal-ui .terminal-bank-sector dt a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
+.catalog-terminal-ui .terminal-bank-sector dd { margin:4px 0 0; color:var(--text); font-size:18px; font-weight:600; line-height:1.4; font-variant-numeric:tabular-nums; }
 .catalog-terminal-ui .terminal-fv-table td:nth-child(2){text-align:left}
 .catalog-terminal-ui .terminal-csv{min-height:26px;padding:4px 8px;border-radius:3px;font-size:10px;margin-top:4px;color:var(--text);background:var(--surface-2);border:1px solid var(--border)}
 .catalog-terminal-ui .terminal-csv:hover{color:var(--text);background:var(--bg-2)}
@@ -83,6 +135,10 @@
   .catalog-terminal-ui .terminal-market-nav button{width:auto;min-height:36px}
 }
 @media(max-width:600px){
+  .catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) { padding:12px; gap:12px; }
+  .catalog-terminal-ui .terminal-market-screen .terminal-filter-templates { grid-template-columns:minmax(0, 1fr); }
+  .catalog-terminal-ui .terminal-market-screen .terminal-market-filters label { flex-basis:calc(50% - 6px); }
+  .catalog-terminal-ui .terminal-market-screen .terminal-market-filters .terminal-market-search { flex-basis:100%; }
   .catalog-terminal-ui .catalog-terminal-head{flex-direction:row}
   .catalog-terminal-ui .catalog-terminal-head h1{font-size:14px}
   .catalog-terminal-ui .catalog-terminal-head p{max-width:240px}

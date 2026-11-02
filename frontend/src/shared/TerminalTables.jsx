@@ -6,7 +6,8 @@ function cellText(cell) {
   if (!cell.querySelector('.term-info-btn')) return cell.innerText.trim();
   const read = node => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent;
-    if (node.nodeType !== Node.ELEMENT_NODE || node.matches('.term-info-btn')) return '';
+    if (node.nodeType !== Node.ELEMENT_NODE) return '';
+    if (node.matches('.term-info-btn')) return node.dataset.exportValue || '';
     if (node.tagName === 'BR') return '\n';
     const style = getComputedStyle(node);
     if (style.display === 'none' || style.visibility === 'hidden') return '';

@@ -47,7 +47,7 @@ function isTyping(target) {
   return target && (/^(input|select|textarea)$/i.test(target.tagName) || target.isContentEditable);
 }
 
-export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearch }) {
+export function useTerminal({ companies, ticker, setTicker, lang }) {
   const copy = terminalCopy(lang);
   const initial = React.useRef(readUrl()).current;
   const [func, setFunc] = React.useState(initial.func);
@@ -110,7 +110,7 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
         setMessage(null);
       } else if (parsed.market === "CAT") {
         go({ market: null });
-        requestAnimationFrame(() => onCatalogSearch?.());
+        requestAnimationFrame(() => inputRef.current?.focus());
       } else {
         go({ market: parsed.market });
         return true;
@@ -130,7 +130,7 @@ export function useTerminal({ companies, ticker, setTicker, lang, onCatalogSearc
       form: parsed.form || state.current.form,
     });
     return true;
-  }, [index, go, copy, onCatalogSearch]);
+  }, [index, go, copy]);
 
   // Apply the same catalog availability rule to links, commands and controls.
   const setForm = React.useCallback((value) => {

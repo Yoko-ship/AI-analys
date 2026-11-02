@@ -15,12 +15,12 @@ function valuation(ticker='HMKB', standard='NSBU') {
     }};
 }
 
-async function setup(page, {admin=true, fail=false}={}) {
-  await page.addInitScript(() => {
+async function setup(page, {admin=true, fail=false, theme='dark'}={}) {
+  await page.addInitScript(theme => {
     localStorage.setItem('uz_stock_analyzer_token','admin-token');
     localStorage.setItem('uz_stock_analyzer_language','en');
-    localStorage.setItem('uz_stock_analyzer_theme','dark');
-  });
+    localStorage.setItem('uz_stock_analyzer_theme',theme);
+  }, theme);
   const requests=[];
   const companies=[{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance',nsbu_count:45,msfo_count:1,total_count:46},{ticker:'AGBA',company_name:'Agrobank',sector:'finance',total_count:42}];
   await page.route('**/api/**',route=>{
@@ -75,8 +75,8 @@ test('FV opens the automatic per-share dashboard and exports its calculation tab
   await page.locator('.theme-toggle').click();
   await expect(page.locator('body')).toHaveAttribute('data-theme','light');
   await page.screenshot({path:testInfo.outputPath('fv-mobile-light.png'),fullPage:true,animations:'disabled'});
-  await page.getByRole('combobox',{name:'Terminal command line'}).fill('AGBA MSFO FV');
-  await page.getByRole('combobox',{name:'Terminal command line'}).press('Enter');
+  await page.getByRole('combobox',{name:'Company search'}).fill('AGBA MSFO FV');
+  await page.getByRole('combobox',{name:'Company search'}).press('Enter');
   await expect(fv.locator('.terminal-context')).toContainText('AGBA · 2025 · NSBU');
   expect(requests.at(-1).searchParams.get('form')).toBe('NSBU');
   expect(errors).toEqual([]);
@@ -103,19 +103,50 @@ test('a non-admin cannot open a catalog valuation bookmark',async({page})=>{
   expect(requests).toHaveLength(0);
 });
 
-test('admin EQS filters price-to-valuation using the same protected model context',async({page})=>{
-  await setup(page);
+for (const [theme, width] of [['light',1440],['dark',390]]) test(`admin EQS has aligned readable filters and preserves valuation context (${theme}, ${width}px)`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:1000});
+  await setup(page,{theme});
   await page.route('**/api/terminal/screener?**',r=>r.fulfill({json:{ok:true,rows:[{ticker:'HMKB',name:'Hamkorbank',kind:'bank',period:'2025',standard:'NSBU',scope:'separate'},{ticker:'AGBA',name:'Agrobank',kind:'bank',period:'2025',standard:'NSBU',scope:'separate'}],years:['2025']}}));
   let authorised=false;
   await page.route('**/api/admin/terminal/valuations?**',r=>{
     authorised=r.request().headers().authorization==='Bearer admin-token';
-    return r.fulfill({json:{ok:true,configuration:{as_of:'2026-10-15',version:'reference-v1',reference_only:true},rows:[{ticker:'HMKB',period:'2025',standard:'NSBU',scope:'separate',price_to_value_pct:121.8},{ticker:'AGBA',period:'2025',standard:'NSBU',scope:'separate',price_to_value_pct:80}]}});
+    return r.fulfill({json:{ok:true,configuration:{as_of:'2026-10-15',version:'tz-reference-2026-10-15',reference_only:true},rows:[{ticker:'HMKB',period:'2025',standard:'NSBU',scope:'separate',price_to_value_pct:121.8},{ticker:'AGBA',period:'2025',standard:'NSBU',scope:'separate',price_to_value_pct:80}]}});
   });
-  await page.getByRole('combobox',{name:'Terminal command line'}).fill('EQS');
-  await page.getByRole('combobox',{name:'Terminal command line'}).press('Enter');
+  await page.getByRole('combobox',{name:'Company search'}).fill('EQS');
+  await page.getByRole('combobox',{name:'Company search'}).press('Enter');
   await expect(page.locator('.terminal-screener')).toContainText('121.8');
   await expect(page.locator('.terminal-valuation-basis')).toContainText('2026-10-15');
   await expect(page.locator('.terminal-valuation-basis')).toContainText('Dated reference assumptions');
+  const screen=page.locator('.terminal-market-screen');
+  const fields=['Standard','Year','Search','Type'].map(name=>screen.getByRole(name==='Search'?'searchbox':'combobox',{name,exact:true}));
+  const boxes=await Promise.all(fields.map(field=>field.boundingBox()));
+  if(width>600) {
+    expect(Math.max(...boxes.map(box=>box.y))-Math.min(...boxes.map(box=>box.y))).toBeLessThanOrEqual(1);
+    expect(boxes[2].width).toBeGreaterThanOrEqual(240);
+  }
+  for(const field of fields) {
+    expect((await field.boundingBox()).height).toBeGreaterThanOrEqual(43.99);
+    expect(await field.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
+    expect(await field.evaluate(el=>parseFloat(getComputedStyle(el.closest('label')).fontSize))).toBeGreaterThanOrEqual(12);
+  }
+  const basis=screen.locator('.terminal-valuation-basis');
+  await expect(basis.locator('time')).toHaveText('2026-10-15');
+  await expect(basis.locator('code')).toHaveText('tz-reference-2026-10-15');
+  expect(await basis.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await fields[2].fill('Agrobank');
+  await expect(screen.locator('.terminal-screener tbody tr')).toHaveCount(1);
+  await fields[2].fill('');
+  await expect(screen.locator('.terminal-screener tbody tr')).toHaveCount(2);
+  await fields[2].focus();
+  await expect(fields[2]).toBeFocused();
+  expect(await fields[2].evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+  await screen.screenshot({path:testInfo.outputPath('screener-filter-layout.png')});
+  const toolbar=await screen.getByRole('group',{name:'List filters',exact:true}).boundingBox();
+  const note=await basis.boundingBox();
+  await page.screenshot({path:testInfo.outputPath('screener-filter-detail.png'),animations:'disabled',clip:{
+    x:toolbar.x,y:toolbar.y,width:toolbar.width,height:note.y+note.height-toolbar.y,
+  }});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.getByLabel('Price / valuation ≤, %').fill('100');
   await expect(page.locator('.terminal-screener tbody tr')).toHaveCount(1);
   await expect(page.locator('.terminal-screener tbody tr')).toContainText('AGBA');
@@ -123,12 +154,18 @@ test('admin EQS filters price-to-valuation using the same protected model contex
   await page.getByRole('combobox',{name:'Year',exact:true}).selectOption('2025');
   await expect(page.locator('.terminal-screener tbody tr')).toHaveCount(2);
   await expect(page.getByLabel('Price / valuation ≤, %')).toBeDisabled();
+  await page.locator('.terminal-market-nav').getByRole('button',{name:/^MON/}).click();
+  const metric=screen.getByRole('combobox',{name:'Metric',exact:true});
+  await metric.selectOption('cg5');
+  await expect(metric).toHaveValue('cg5');
+  expect((await metric.boundingBox()).height).toBeGreaterThanOrEqual(43.99);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
 
 test('an administrator can use FV in an independent saved panel',async({page})=>{
   await setup(page);
-  await page.getByRole('combobox',{name:'Terminal command line'}).fill('PNL');
-  await page.getByRole('combobox',{name:'Terminal command line'}).press('Enter');
+  await page.getByRole('combobox',{name:'Company search'}).fill('PNL');
+  await page.getByRole('combobox',{name:'Company search'}).press('Enter');
   await page.locator('.terminal-work-panel').getByRole('combobox',{name:'Function',exact:true}).selectOption('FV');
   await expect(page.locator('.terminal-work-panel .terminal-fv-kpis > div')).toHaveCount(6);
 });

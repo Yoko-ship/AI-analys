@@ -1,0 +1,269 @@
+{
+  "financial_series": {
+    "standard": "NSBU",
+    "scope": "separate",
+    "periods": [
+      "2024",
+      "2025"
+    ],
+    "series": {
+      "total_equity": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 5161403031000.0,
+          "2025": 6704709904000.0
+        },
+        "filed": true
+      },
+      "roa": {
+        "unit": "%",
+        "money": false,
+        "values": {
+          "2024": 4.97,
+          "2025": 4.75
+        },
+        "filed": true
+      },
+      "roe": {
+        "unit": "%",
+        "money": false,
+        "values": {
+          "2024": 27.64,
+          "2025": 25.43
+        },
+        "filed": true
+      },
+      "cost_of_risk": {
+        "unit": null,
+        "money": false,
+        "values": {
+          "2024": 2.12,
+          "2025": 1.7
+        }
+      },
+      "debt_to_equity": {
+        "unit": null,
+        "money": false,
+        "values": {
+          "2024": 4.5621,
+          "2025": 4.3562
+        },
+        "filed": true
+      },
+      "net_profit": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 1426604717000.0,
+          "2025": 1704969118000.0
+        },
+        "filed": true
+      },
+      "net_revenue": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 4353666010000.0,
+          "2025": 5174244859000.0
+        },
+        "filed": true,
+        "label_ru": "Совокупные доходы",
+        "label_uz": "Jami daromad",
+        "label_en": "Total income"
+      },
+      "total_assets": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 28708226712000.0,
+          "2025": 35911649727000.0
+        },
+        "filed": true
+      },
+      "total_liabilities": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 23546823681000.0,
+          "2025": 29206939823000.0
+        },
+        "filed": true
+      },
+      "gross_profit": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 3168483582000.0,
+          "2025": 3956102734000.0
+        },
+        "filed": true
+      },
+      "operating_income": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 1754559429000.0,
+          "2025": 2065950449000.0
+        },
+        "filed": true
+      },
+      "cash": {
+        "unit": "UZS",
+        "money": true,
+        "values": {
+          "2024": 1380750813000.0,
+          "2025": 1564608727000.0
+        },
+        "filed": true
+      },
+      "debt_ratio": {
+        "unit": "%",
+        "money": false,
+        "values": {
+          "2024": 82.02,
+          "2025": 81.33
+        },
+        "filed": true
+      },
+      "operating_expenses": {
+        "unit": "UZS",
+        "money": true,
+        "derived": true,
+        "filed": false,
+        "values": {
+          "2024": 1413924153000.0,
+          "2025": 1890152285000.0
+        }
+      }
+    },
+    "data_gaps": []
+  },
+  "report": {
+    "issuer": {
+      "id": "8",
+      "ticker": "HMKB",
+      "name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+      "organization_type": "bank",
+      "sector": "bank"
+    },
+    "standard": "nsbu",
+    "scope": "separate",
+    "period": "2025",
+    "status": "stale",
+    "ratios": [
+      {
+        "metric": "nim",
+        "metric_code": "nim",
+        "name_ru": "Чистая процентная маржа / средние активы",
+        "name_uz": "Sof foiz marjasi / o‘rtacha aktivlar",
+        "name_en": "Net interest margin / average assets",
+        "method_id": "nsbu-bank-indicators-1.0:nim",
+        "accounting_standard": "NSBU",
+        "period": "2025",
+        "numerator_value": 2438661991.0,
+        "denominator_value": 32309938219.5,
+        "component_facts": [
+          "net_interest_income_before_provisions",
+          "total_assets"
+        ],
+        "formula": "net_interest_income_before_provisions * 12 / period_months / ((opening_balance + closing_balance) / 2) * 100",
+        "raw_result": "7.5477148066107895332059039377080849141",
+        "value": 7.54771480661079,
+        "display_result": "7.55",
+        "opening_value": null,
+        "change_value": null,
+        "unit": "percent",
+        "benchmark_type": null,
+        "benchmark_min": null,
+        "benchmark_max": null,
+        "calculation_status": "verified",
+        "verification_status": "verified"
+      },
+      {
+        "metric": "cost_of_risk",
+        "metric_code": "cost_of_risk",
+        "name_ru": "Стоимость риска",
+        "name_uz": "Xatar qiymati",
+        "name_en": "Cost of risk",
+        "method_id": "nsbu-bank-indicators-1.0:cost_of_risk",
+        "accounting_standard": "NSBU",
+        "period": "2025",
+        "numerator_value": 591907626.0,
+        "denominator_value": 21171667990.5,
+        "component_facts": [
+          "credit_loss_provisions",
+          "loan_portfolio"
+        ],
+        "formula": "credit_loss_provisions * 12 / period_months / ((opening_balance + closing_balance) / 2) * 100",
+        "raw_result": "2.7957533920595985741211408781845076327",
+        "value": 2.7957533920595985,
+        "display_result": "2.80",
+        "opening_value": null,
+        "change_value": null,
+        "unit": "percent",
+        "benchmark_type": null,
+        "benchmark_min": null,
+        "benchmark_max": null,
+        "calculation_status": "verified",
+        "verification_status": "verified"
+      }
+    ],
+    "verified_facts": [
+      {
+        "metric_code": "credit_loss_provisions",
+        "value": 591907626.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "loan_portfolio",
+        "value": 23564198034.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "net_income",
+        "value": 1704969118.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "net_interest_income_before_provisions",
+        "value": 2438661991.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_assets",
+        "value": 35911649727.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_equity",
+        "value": 6704709904.0,
+        "unit": "thousand UZS",
+        "period": "2025",
+        "verification_status": "verified"
+      }
+    ],
+    "sources": [
+      {
+        "document_id": "filing:48cd9be656326054be8f3774",
+        "url": "https://openinfo.uz/ru/reports/to_pdf30690/",
+        "publication_date": "2026-07-09T17:38:21",
+        "provider": "openinfo/catalog",
+        "content_hashes": {
+          "income": "d4b59865a1b65a7c5d71fa4716675d5c4a0ea1ca57084c0f65b7f2e7ec23d665",
+          "balance": "d4b59865a1b65a7c5d71fa4716675d5c4a0ea1ca57084c0f65b7f2e7ec23d665"
+        }
+      }
+    ]
+  }
+}

@@ -4,11 +4,10 @@ import { terminalCopy } from "./terminalCopy.js";
 
 // The terminal's one input. Suggestions follow the word being typed: tickers
 // (and company names) first, then function codes once a ticker is on the line.
-// ↑/↓ pick a suggestion, Tab or Enter on a picked one completes it, and Enter
-// on the line itself runs it.
-function CommandBar({ terminal, companies, lang, screenLabel }) {
+// ↑/↓ choose a result; Enter or a click opens it. Tab completes a suggestion
+// so experienced users can continue typing a command.
+function CommandBar({ terminal, companies, lang, screenLabel, text, onTextChange }) {
   const copy = terminalCopy(lang);
-  const [text, setText] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(-1);
   const listId = "terminal-command-suggestions";
@@ -17,22 +16,34 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
     [open, text, companies, lang]);
 
   const complete = (suggestion) => {
-    setText(suggestion.value);
+    onTextChange(suggestion.value);
     setActive(-1);
+    terminal.inputRef.current?.focus();
+  };
+
+  const run = (value) => {
+    if (terminal.run(value)) {
+      onTextChange("");
+      setActive(-1);
+      setOpen(false);
+    }
+  };
+
+  const select = (suggestion) => {
+    run(suggestion.value);
     terminal.inputRef.current?.focus();
   };
 
   const submit = (event) => {
     event.preventDefault();
     if (active >= 0 && suggestions[active]) {
-      complete(suggestions[active]);
+      select(suggestions[active]);
       return;
     }
     if (!text.trim()) return;
-    if (terminal.run(text)) {
-      setText("");
-      setOpen(false);
-    }
+    const normalized = value => value.trim().replace(/\s+/g, " ").toLowerCase();
+    const company = companies.find(company => normalized(company.company_name || "") === normalized(text));
+    run(company?.ticker || text);
   };
 
   const onKeyDown = (event) => {
@@ -46,6 +57,8 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
       event.preventDefault();
       complete(suggestions[active >= 0 ? active : 0]);
     } else if (event.key === "Escape") {
+      // Close suggestions without the native search input also clearing text.
+      event.preventDefault();
       if (open && suggestions.length) {
         event.stopPropagation();
         setOpen(false);
@@ -59,12 +72,14 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
     <form className="terminal-command" onSubmit={submit} role="search" aria-label={copy.commandLabel}>
       <div className="terminal-command-row">
         <label className="catalog-search-field terminal-command-field">
-          <span className="terminal-prompt" aria-hidden="true">&gt;</span>
+          <svg className="terminal-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+            <circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" />
+          </svg>
           <input
             ref={terminal.inputRef}
-            type="text"
+            type="search"
             value={text}
-            onChange={(event) => { setText(event.target.value); setOpen(true); setActive(-1); }}
+            onChange={(event) => { onTextChange(event.target.value); setOpen(true); setActive(-1); }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 120)}
             onKeyDown={onKeyDown}
@@ -74,9 +89,11 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
             aria-autocomplete="list"
             aria-expanded={suggestions.length > 0}
             aria-controls={listId}
-            aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+            aria-activedescendant={suggestions[active] ? `${listId}-${active}` : undefined}
+            aria-invalid={terminal.message?.tone === "error" || undefined}
+            aria-describedby={terminal.message ? "terminal-search-message" : undefined}
             autoComplete="off"
-            autoCapitalize="characters"
+            autoCapitalize="none"
             spellCheck={false}
           />
           {screenLabel && <span className="terminal-screen-label">{screenLabel}</span>}
@@ -92,7 +109,8 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
               role="option"
               aria-selected={i === active}
               className={i === active ? "active" : ""}
-              onMouseDown={(event) => { event.preventDefault(); complete(s); }}
+              onMouseDown={event => event.preventDefault()}
+              onClick={() => select(s)}
             >
               <strong>{s.code}</strong>
               <span>{s.label}</span>
@@ -101,7 +119,7 @@ function CommandBar({ terminal, companies, lang, screenLabel }) {
         </ul>
       )}
       {terminal.message && (
-        <p className={`terminal-message tone-${terminal.message.tone}`} role="status">{terminal.message.text}</p>
+        <p id="terminal-search-message" className={`terminal-message tone-${terminal.message.tone}`} role="status">{terminal.message.text}</p>
       )}
     </form>
   );

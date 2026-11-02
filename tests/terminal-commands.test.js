@@ -9,6 +9,7 @@ const companies = [
   { ticker: "AGBA", tickers: ["AGBA"], company_name: "Агробанк" },
   { ticker: "UZIN", tickers: ["UZIN", "UZINP"], company_name: "Узбекинвест" },
   { ticker: "KVTS", tickers: ["KVTS"], company_name: "Кварц" },
+  { ticker: "UZTL", company_name: "O‘zbektelekom aksiyadorlik kompaniyasi" },
 ];
 const index = tickerIndex(companies);
 
@@ -63,6 +64,20 @@ test("after a ticker, suggestions are functions and keep what was typed", () => 
   assert.deepEqual(list.map((s) => s.code), ["BS"]);
   assert.equal(list[0].value, "SQBN BS ");
   assert.ok(suggestCommands("SQBN ", companies).some((s) => s.code === "DQ"));
+});
+
+test("company names with spaces replace the whole search, including trailing whitespace", () => {
+  for (const query of ["O‘zbektelekom aksiyadorlik", "O‘zbektelekom aksiyadorlik ", "  O‘ZBEKTELEKOM   AKSIYADORLIK  "]) {
+    const list = suggestCommands(query, companies);
+    assert.deepEqual(list.map(s => s.code), ["UZTL"]);
+    assert.equal(list[0].value, "UZTL ");
+    assert.deepEqual(parseCommand(list[0].value, index).unknown, []);
+  }
+});
+
+test("company search never drops an unknown command prefix or a valid function", () => {
+  assert.deepEqual(suggestCommands("SQBX UZTL", companies), []);
+  assert.equal(suggestCommands("PL UZT", companies)[0].value, "PL UZTL ");
 });
 
 test("the canonical command text drops the default standard", () => {

@@ -12,7 +12,7 @@ import catalogue.organization as organization
 from company_catalog import COMPANY_SECTORS
 from securities_catalog import get_securities_map
 from server.company.financials import financial_series
-from server.terminal import analytics, cbu
+from server.terminal import analytics, bank_ratios, cbu
 import dividends
 import company_imports
 
@@ -83,11 +83,36 @@ def market_context():
         row["market_cap"] = checked["market_cap"] if checked["usable_for_issuer_cap"] else None
         row['market_input']=checked
         classes.append(row)
-    return {c["ticker"]: {"market_cap": fundamentals.market_cap_issuer(group).get("value") if fundamentals.share_count_consistency(group)['consistent'] else None,
-                           "excluded_classes":fundamentals.market_cap_issuer(group).get('excluded_classes',[]),
-                           "price": c.get("last_price") if c['market_input']['price_age_days'] is not None and 0<=c['market_input']['price_age_days']<=c['market_input']['max_price_age_days'] else None,
-                           "market_date": c.get("last_trade_date")}
-            for group in fundamentals.group_by_issuer(classes).values() for c in group}
+    result = {}
+    for group in fundamentals.group_by_issuer(classes).values():
+        cap = fundamentals.market_cap_issuer(group)
+        consistent = fundamentals.share_count_consistency(group)['consistent']
+        included = [c for c in group if c['market_input']['included_in_issuer_cap']]
+        reason = ('DATA_CONFLICT' if not consistent else 'STALE_PRICE' if any(
+            c['market_input']['calculation_status'] == public_contract.STALE_PRICE for c in included) else 'INCOMPLETE_MARKET_CAP')
+        for c in group:
+            age = c['market_input']['price_age_days']
+            value = cap.get('value') if consistent else None
+            result[c['ticker']] = {'market_cap': value, 'market_cap_reason': None if value is not None else reason,
+                'excluded_classes': cap.get('excluded_classes', []),
+                'price': c.get('last_price') if age is not None and 0 <= age <= c['market_input']['max_price_age_days'] else None,
+                'market_date': c.get('last_trade_date')}
+    return result
+
+
+def explain_missing(row, *, historical=False, historical_dividend=False):
+    """Add source-specific reasons after market, dividend and CBU joins."""
+    reasons = row.setdefault('metric_reasons', {})
+    for key in ('pe', 'ep', 'pb'):
+        if row.get(key) is None and reasons.get(key, {}).get('code') == 'MARKET_CAP_UNAVAILABLE':
+            reasons[key] = {'code': 'HISTORICAL_MARKET_UNAVAILABLE' if historical else row.get('market_cap_reason') or 'MARKET_CAP_UNAVAILABLE'}
+    if row.get('dy') is None:
+        reasons['dy'] = {'code': 'HISTORICAL_MARKET_UNAVAILABLE' if historical or historical_dividend else
+                        'PRICE_UNAVAILABLE' if row.get('price') is None else 'NO_RECENT_DIVIDEND'}
+    for key in list(reasons):
+        if row.get(key) is not None:
+            reasons.pop(key)
+    return row
 
 
 BANK_FIELDS = {
@@ -156,6 +181,9 @@ async def _screener(form="NSBU", scope="separate", year=None):
         latest = max((p for p in data.get("periods", []) if len(str(p)) == 4), default=None)
         cap = context.get("market_cap") if year is None or str(year) == latest else None
         row = analytics.snapshot(data, kind=company["kind"], year=year, market_cap=cap)
+        if company['kind'] == 'bank':
+            async with semaphore:
+                row = await asyncio.to_thread(bank_ratios.enrich, ticker, row, form, scope)
         if row.get("pb") is not None and row["pb"] > 10:
             from server.terminal import journal
             journal.emit("pb_high", ticker=ticker, standard=form, period=row["period"],
@@ -164,9 +192,10 @@ async def _screener(form="NSBU", scope="separate", year=None):
         bank = central["banks"].get(ticker, {}) if company["kind"] == "bank" else {}
         payments = await loop.run_in_executor(None, dividends.read_snapshot, ticker)
         dividend = analytics.dividend(payments, context.get("price")) if year is None else {"dy": None}
-        return {**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
+        return explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
                 "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct"), "years": data.get("periods", []),
-                "profit_history": analytics.values(data, "net_profit")}
+                "profit_history": analytics.values(data, "net_profit")}, historical=year is not None and str(year) != latest,
+                               historical_dividend=year is not None)
 
     rows = await asyncio.gather(*(load(c) for c in companies))
     return {"ok": True, "rows": rows, "years": sorted({p for r in rows for p in r["years"] if len(str(p)) == 4}, reverse=True),
@@ -188,8 +217,10 @@ async def issuer(ticker, form="NSBU", scope="separate"):
     central, fx, market, payments = await asyncio.gather(loop.run_in_executor(None, cbu.context), loop.run_in_executor(None, history.cached_usd), loop.run_in_executor(None, market_context), loop.run_in_executor(None, dividends.read_snapshot, ticker))
     context = market.get(ticker) or {}
     snap = {**analytics.snapshot(annual, kind=kind, market_cap=context.get("market_cap")), **context}
+    snap = await asyncio.to_thread(bank_ratios.enrich, ticker, snap, form, scope)
     payment = analytics.dividend(payments, context.get("price"))
     snap["dy"] = payment["dy"]
+    explain_missing(snap)
     bank_history=await loop.run_in_executor(None,cbu.monthly_bank_history,ticker) if kind=='bank' and central['banks'].get(ticker) else []
     growth = []
     if snap["period"]:

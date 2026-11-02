@@ -17,27 +17,38 @@ const groups = [
   ]],
 ];
 
+const sectorFields = [
+  ['capital', 'capital_adequacy', 'Достаточность капитала', 'Kapital yetarliligi', 'Capital adequacy'],
+  ['profitability', 'roe', 'ROE', 'ROE', 'ROE'],
+  ['profitability', 'nim', 'NIM', 'NIM', 'NIM'],
+];
+
 export function BankComparison({rows = [], lang, sectorSeries = {}}) {
   const banks = rows.filter(row => row.kind === 'bank');
   if (!banks.length) return null;
   const t = (...labels) => words(lang, ...labels);
   const format = value => value == null ? '—' : Number(value).toLocaleString(lang === 'en' ? 'en-US' : 'ru-RU', {maximumFractionDigits: 2});
+  const sectorMetrics = sectorFields.flatMap(([group, key, ...labels]) => {
+    const dataset = sectorSeries[group], metric = dataset?.metrics?.[key];
+    return metric ? [{key, labels, value: metric.value, sourceUrl: dataset.source_url}] : [];
+  });
   return <section className="terminal-bank-comparison">
     <h3>{t('Банки · данные ЦБ', 'Banklar · MB ma’lumotlari', 'Banks · CBU observations')}</h3>
-    <p className="muted">{t('Доли рынка — %. Кредиты и депозиты — млрд UZS. Даты ЦБ указаны отдельно от годовой отчётности.', 'Bozor ulushlari — %. Kreditlar va depozitlar — mlrd UZS. MB sanalari hisobot davridan alohida.', 'Market shares are percentages; loans and deposits are billion UZS. CBU dates are separate from financial reporting periods.')}</p>
+    <p className="muted">{t('Доли рынка — %. Кредиты и депозиты — млрд UZS.', 'Bozor ulushlari — %. Kreditlar va depozitlar — mlrd UZS.', 'Market shares are percentages; loans and deposits are billion UZS.')}</p>
     <div className="terminal-table-wrap"><table className="terminal-table">
       <thead><tr><th>{t('Банк', 'Bank', 'Bank')}</th>{groups.map(([kind, fields]) => <React.Fragment key={kind}>
-        <th>{kind === 'main' ? t('Доли рынка · дата / источник', 'Bozor ulushlari · sana / manba', 'Market shares · date / source') : t('Структура · дата / источник', 'Tarkib · sana / manba', 'Structure · date / source')}</th>
         {fields.map(([key, ...labels]) => <th key={key}>{t(...labels)}</th>)}
       </React.Fragment>)}</tr></thead>
       <tbody>{banks.map(row => <tr key={row.ticker}><th>{row.ticker}</th>{groups.map(([kind, fields]) => <React.Fragment key={kind}>
-        <td>{row.cbu?.[kind]?.source_url ? <a href={safeHref(row.cbu[kind].source_url)} target="_blank" rel="noreferrer">{row.cbu[kind].date} ↗</a> : '—'}</td>
         {fields.map(([key]) => <td key={key}>{format(row['cbu_' + key])}</td>)}
       </React.Fragment>)}</tr>)}</tbody>
     </table></div>
-    {Object.entries(sectorSeries).filter(([key]) => ['capital', 'profitability'].includes(key)).map(([kind, dataset]) => <p className="muted" key={kind}>
-      {t('Сектор ЦБ', 'MB sektori', 'CBU sector')} · <a href={safeHref(dataset.source_url)} target="_blank" rel="noreferrer">{dataset.date} ↗</a>
-      {['roe', 'nim', 'capital_adequacy'].filter(key => dataset.metrics?.[key]).map(key => <span key={key}> · {key === 'capital_adequacy' ? t('Достаточность капитала', 'Kapital yetarliligi', 'Capital adequacy') : key.toUpperCase()}: {format(dataset.metrics[key].value)}%</span>)}
-    </p>)}
+    {sectorMetrics.length > 0 && <div className="terminal-bank-sector">
+      <h4>{t('Банковский сектор · ЦБ', 'Bank sektori · MB', 'Banking sector · CBU')}</h4>
+      <dl>{sectorMetrics.map(({key, labels, value, sourceUrl}) => <div key={key}>
+        <dt>{sourceUrl ? <a href={safeHref(sourceUrl)} target="_blank" rel="noreferrer" title={t('Открыть данные ЦБ', 'MB ma’lumotlarini ochish', 'Open CBU data')}>{t(...labels)}</a> : t(...labels)}</dt>
+        <dd>{value == null ? '—' : `${format(value)}%`}</dd>
+      </div>)}</dl>
+    </div>}
   </section>;
 }

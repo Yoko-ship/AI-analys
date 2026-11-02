@@ -4,6 +4,86 @@ import pytest
 from server.terminal import service, analytics, cbu
 
 
+def test_hmkb_annual_bank_ratios_reach_screener_and_issuer(monkeypatch):
+    import json
+    from copy import deepcopy
+    from pathlib import Path
+    import issuer_financials
+    import sector_report_service
+    from server.currency import history
+    record=json.loads((Path(__file__).parent/'fixtures/terminal_hmkb_bank_2025.json').read_text(encoding='utf-8'))
+    monkeypatch.setattr(service,'universe',lambda:[{'ticker':'HMKB','kind':'bank'}])
+    monkeypatch.setattr(service,'market_context',lambda:{})
+    monkeypatch.setattr(cbu,'context',lambda:{'banks':{}})
+    monkeypatch.setattr(history,'cached_usd',lambda:{})
+    monkeypatch.setattr(service.organization,'organization_kind',lambda *a:'bank')
+    monkeypatch.setattr(service.filings,'get_company_index',lambda *a:{})
+    monkeypatch.setattr(service.dividends,'read_snapshot',lambda *a:[])
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda *a:{'id':'7','ticker':'HMKB'})
+    calls=[]
+    def report(issuer,standard,period,scope,lang,**options):
+        calls.append((standard,period,scope))
+        assert options['persist'] is False
+        assert options['source_reader'].__name__=='cached_report_excel_data'
+        return deepcopy(record['report'])
+    monkeypatch.setattr(sector_report_service,'sector_report',report)
+    async def financials(*args):return deepcopy(record['financial_series']) if args[1]=='annual' else {'series':{}}
+    monkeypatch.setattr(service,'financial_series',financials)
+    row=asyncio.run(service.screener())['rows'][0]
+    assert row['nim']==pytest.approx(7.54771480661079)
+    assert row['cost_of_risk']==pytest.approx(2.7957533920595985)
+    assert row['period']=='2025'
+    assert row['de'] is None and row['metric_reasons']['de']['code']=='NOT_APPLICABLE'
+    assert 'nim' not in row['metric_reasons']
+    snap=asyncio.run(service.issuer('HMKB'))['snapshot']
+    assert snap['nim']==row['nim'] and snap['cost_of_risk']==row['cost_of_risk']
+    assert calls==[('nsbu','2025','separate')]*2
+
+
+@pytest.mark.parametrize('case',['period','scope','standard','blocked','amount','quarantine'])
+def test_bank_ratios_never_cross_context_or_override_quality_checks(monkeypatch,case):
+    import json
+    from pathlib import Path
+    import issuer_financials,sector_report_service
+    from server.terminal import bank_ratios
+    record=json.loads((Path(__file__).parent/'fixtures/terminal_hmkb_bank_2025.json').read_text(encoding='utf-8'))
+    report=record['report']
+    row=analytics.snapshot(record['financial_series'],kind='bank')
+    if case in {'period','scope','standard'}:report[case]={'period':'2026Q3','scope':'consolidated','standard':'ifrs'}[case]
+    if case=='blocked':report['status']='quality_blocked'
+    if case=='amount':row['assets']*=1000
+    if case=='quarantine':row['issues']=[{'code':'VALUE_QUARANTINE'}]
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda *a:{'id':'7','ticker':'HMKB'})
+    monkeypatch.setattr(sector_report_service,'sector_report',lambda *a,**k:report)
+    result=bank_ratios.enrich('HMKB',row,'NSBU','separate')
+    assert result['nim'] is None and result['cost_of_risk'] is None
+    assert result['metric_reasons']['nim']['code']=='UNDER_REVIEW'
+
+
+def test_missing_cached_bank_detail_schedules_exact_annual_without_publishing_it(monkeypatch,tmp_path):
+    import json
+    from pathlib import Path
+    import issuer_financials,sector_report_service
+    from server.terminal import bank_ratios
+    from reporting import store,worker
+    monkeypatch.setenv('SECTOR_ANALYSIS_DB',str(tmp_path/'bank-jobs.sqlite3'))
+    record=json.loads((Path(__file__).parent/'fixtures/terminal_hmkb_bank_2025.json').read_text(encoding='utf-8'))
+    report={**record['report'],'source_refresh_failed':True,'ratios':[]}
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda *a:{'id':'7','ticker':'HMKB'})
+    calls=[]
+    def read(issuer,standard,period,scope,lang,**options):
+        calls.append((period,options))
+        return report if options.get('source_reader') else record['report']
+    monkeypatch.setattr(sector_report_service,'sector_report',read)
+    for _ in range(2):
+        row=bank_ratios.enrich('HMKB',analytics.snapshot(record['financial_series'],kind='bank'),'NSBU','separate')
+        assert row['metric_reasons']['nim']['code']=='SOURCE_PENDING'
+    assert len(store.due_jobs())==1
+    assert worker.run_pending()==1
+    assert calls[-1]==('2025',{'persist':False})
+    assert store.due_jobs()==[]
+
+
 def test_screener_passes_selected_year_to_all_cbu_comparisons(monkeypatch):
     seen=[]
     def context(year=None):
@@ -43,6 +123,20 @@ def test_dividend_comparison_uses_recent_decision_and_never_sums_overlapping_per
     assert result['dy']==20 and result['basis']=='latest_decision'
     assert analytics.dividend(items[:1],100,today=date(2026,10,23))['dy'] is None
     assert analytics.dividend(items,0)['dy'] is None
+
+
+def test_selected_latest_year_explains_missing_historical_dividend(monkeypatch):
+    monkeypatch.setattr(service,'universe',lambda:[{'ticker':'UNVB','kind':'bank'}])
+    monkeypatch.setattr(service,'market_context',lambda:{'UNVB':{'market_cap':100,'price':10}})
+    monkeypatch.setattr(cbu,'context',lambda **kwargs:{'banks':{}})
+    monkeypatch.setattr(service.dividends,'read_snapshot',lambda ticker:[{'ordinary_amount':2,'decision_date':date.today().isoformat()}])
+    async def financials(*args):return {'periods':['2025'],'series':{'net_profit':{'values':{'2025':20}}}}
+    monkeypatch.setattr(service,'financial_series',financials)
+    current=asyncio.run(service.screener())['rows'][0]
+    selected=asyncio.run(service.screener(year=2025))['rows'][0]
+    assert current['dy']==20 and 'dy' not in current['metric_reasons']
+    assert selected['ep']==20 and selected['dy'] is None
+    assert selected['metric_reasons']['dy']['code']=='HISTORICAL_MARKET_UNAVAILABLE'
 
 
 def test_screener_respects_catalog_visibility_and_newer_quotes(monkeypatch):

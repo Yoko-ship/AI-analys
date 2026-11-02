@@ -12,7 +12,7 @@ import { SectionCard, StructuredReportBlocks, getSectionTitle } from "../../shar
 import { formatMarketTimestamp } from "../../shared/marketModel.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { reportScreenLoad } from "../../lib/terminalJournal.js";
-import { functionLabel, MARKET_FUNCTIONS } from "../../lib/terminalCommands.js";
+import { functionLabel, MARKET_FUNCTIONS, parseCommand, isEmptyCommand } from "../../lib/terminalCommands.js";
 import { IssuerFinancials, FinancialColumns, InvestorView } from "../company/index.js";
 import { CommandBar } from "./terminal/CommandBar.jsx";
 import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, QualityScreen } from "./terminal/TerminalPanels.jsx";
@@ -493,10 +493,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const [yearFilter, setYearFilter] = useState("all");
   const [reportPage, setReportPage] = useState(0);
   const [peers, setPeers] = useState(null);
-  const searchRef = React.useRef(null);
-  const focusCatalogSearch = React.useCallback(() => searchRef.current?.focus(), []);
   const terminal = useTerminal({
-    companies: catalogComps, ticker, setTicker, lang, onCatalogSearch: focusCatalogSearch,
+    companies: catalogComps, ticker, setTicker, lang,
   });
   const exportRoot = React.useRef(null);
   useTableExports(exportRoot, {ticker:terminal.market?null:ticker, function:terminal.market || terminal.func, standard:terminal.form, scope:terminal.scope});
@@ -690,8 +688,14 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
   const catalogSectors = orderSectors(new Set(catalogComps.map((c) => c.sector || "other")))
     .sort((a, b) => sectorLabel(lang, a).localeCompare(sectorLabel(lang, b), lang));
+  const parsedSearch = parseCommand(search, terminal.index);
+  // The one search also filters the list. A command such as UZTL BS keeps
+  // that issuer visible; navigation commands alone do not filter companies.
+  const companyQuery = parsedSearch.ticker
+    || (!parsedSearch.unknown.length && !isEmptyCommand(parsedSearch) ? "" : search);
+  const normalizeSearch = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const q = normalizeSearch(companyQuery);
   const filteredComps = catalogComps.filter((c) => {
-    const q = search.toLowerCase();
     const matchesSector = sectorFilter === "all" || (c.sector || "other") === sectorFilter;
     const matchesReport = reportFilter === "all"
       || (reportFilter === "NSBU" && c.nsbu_count > 0)
@@ -699,7 +703,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       || (reportFilter === "Audition" && c.audit_count > 0);
     // An entry stands for every ticker of its issuer, so searching for a bond
     // series (ACMT2B4) has to reach the company it belongs to.
-    const matchesSearch = !q || (c.company_name || "").toLowerCase().includes(q)
+    const matchesSearch = !q || normalizeSearch(c.company_name).includes(q)
       || (c.tickers?.length ? c.tickers : [c.ticker]).some((t) => t.toLowerCase().includes(q));
     return matchesSearch && matchesSector && matchesReport;
   }).sort((a, b) => (b.total_count || 0) - (a.total_count || 0)
@@ -790,7 +794,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
         )}
       </header>
 
-      <CommandBar terminal={terminal} companies={catalogComps} lang={lang}
+      <CommandBar terminal={terminal} companies={catalogComps} lang={lang} text={search} onTextChange={setSearch}
         screenLabel={ticker ? `${ticker} · ${terminal.form === "MSFO" ? "МСФО" : "НСБУ"} · ${terminal.func}` : ""} />
       {terminal.overlay === "HELP" && (
         <HelpPanel lang={lang} onClose={() => terminal.setOverlay(null)}
@@ -810,17 +814,6 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       <div className="catalog-body">
         <aside className="catalog-sidebar">
       <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
-        <label className="catalog-search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input
-            ref={searchRef}
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={clg(lang, "searchPlaceholder")}
-            aria-label={clg(lang, "searchPlaceholder")}
-          />
-        </label>
         <CatalogFilterSelect
           value={sectorFilter}
           onChange={setSectorFilter}

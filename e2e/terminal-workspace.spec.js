@@ -30,6 +30,46 @@ async function run(page, text) {
   await page.locator('.terminal-command').getByRole("combobox").press("Enter");
 }
 
+for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual ratios and missing-value explanations work on EQS and RV (${theme}, ${width}px)`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  await fixture(page,[{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance'}]);
+  const rows=[
+    {ticker:'HMKB',name:'Hamkorbank',kind:'bank',period:'2025',standard:'NSBU',scope:'separate',roe:25.43,nim:7.54771480661079,cost_of_risk:2.7957533920595985,de:null,metric_reasons:{de:{code:'NOT_APPLICABLE'}}},
+    {ticker:'UTHK',name:'Uz Tong Hong',kind:'industry',period:'2025',standard:'NSBU',scope:'separate',roe:90.18,pe:null,cg5:null,metric_reasons:{pe:{code:'MARKET_CAP_UNAVAILABLE'},cg5:{code:'NON_POSITIVE_ENDPOINT',start:'2020',end:'2025'},nim:{code:'NOT_APPLICABLE'},cost_of_risk:{code:'NOT_APPLICABLE'}}},
+  ];
+  await page.route('**/api/terminal/screener?**',r=>r.fulfill({json:{ok:true,rows,years:['2025']}}));
+  await run(page,'EQS');
+  const table=page.locator('.terminal-screener');
+  const bank=table.getByRole('row').filter({has:page.getByRole('button',{name:'HMKB',exact:true})});
+  await expect(bank).toContainText('7,55');
+  await expect(bank).toContainText('2,8');
+  const missing=bank.getByRole('button',{name:/HMKB · D\/E/});
+  expect(await missing.evaluate(el=>getComputedStyle(el,'::before').content)).toBe('none');
+  await missing.focus();
+  await expect(page.getByRole('tooltip')).toContainText('не применяется');
+  await missing.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await table.getByRole('button',{name:/UTHK · CAGR/}).click();
+  await expect(page.getByRole('tooltip')).toContainText('2020');
+  await expect(page.getByRole('tooltip')).toContainText('прибыль');
+  await page.screenshot({path:testInfo.outputPath('missing-ratio-explanation.png'),animations:'disabled'});
+  await page.keyboard.press('Escape');
+  const download=page.waitForEvent('download');
+  await table.locator('..').getByRole('button',{name:'CSV',exact:true}).click();
+  const {readFile}=await import('node:fs/promises');
+  const csv=await readFile(await (await download).path(),'utf8');
+  expect(csv).toContain('7,55');
+  expect(csv).toContain('—');
+  expect(csv).not.toContain('что это значит');
+  await run(page,'HMKB RV');
+  const peers=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..').locator('table').first();
+  await expect(peers).toContainText('7,55');
+  await peers.getByRole('button',{name:/HMKB · D\/E/}).click();
+  await expect(page.getByRole('tooltip')).toContainText('не применяется');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
 test('RV calculates UZAL market ratios without letting inactive preferred shares block them', async ({page}, testInfo) => {
   await page.setViewportSize({width: 1440, height: 900});
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
@@ -75,17 +115,57 @@ print(json.dumps([{'ticker': ticker, **analytics.snapshot(annual, kind='financia
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
-test("EQS filters real API rows, exports Cyrillic CSV, and restores its URL", async ({page})=>{
+for (const [theme,width] of [['light',1440],['dark',390]]) test(`EQS template controls align, save filters, export CSV and restore (${theme}, ${width}px)`, async ({page},testInfo)=>{
+  await page.setViewportSize({width,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
   await fixture(page);
   await run(page,"EQS");
   await expect(page.getByRole("heading",{name:/EQS/})).toBeVisible();
+  const screen=page.locator('.terminal-market-screen');
+  const template=screen.getByRole('textbox',{name:'Шаблон',exact:true});
+  const save=screen.getByRole('button',{name:'Сохранить фильтры',exact:true});
+  const saved=screen.getByRole('combobox',{name:'Сохранённые фильтры',exact:true});
+  const reset=screen.getByRole('button',{name:'Сбросить',exact:true});
+  const controls=[template,save,saved,reset];
+  const boxes=await Promise.all(controls.map(control=>control.boundingBox()));
+  expect(Math.max(...boxes.map(box=>box.height))-Math.min(...boxes.map(box=>box.height))).toBeLessThanOrEqual(1);
+  if(width>600)expect(Math.max(...boxes.map(box=>box.y))-Math.min(...boxes.map(box=>box.y))).toBeLessThanOrEqual(1);
+  for(const control of controls) {
+    expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(43.99);
+    expect(await control.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
+    expect(await control.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeLessThanOrEqual(16);
+    expect(await control.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  }
+  for(const control of [template,saved]) {
+    expect(await control.evaluate(el=>el.closest('label')?.textContent)).toBeTruthy();
+    expect(await control.evaluate(el=>parseFloat(getComputedStyle(el.closest('label')).fontSize))).toBeGreaterThanOrEqual(12);
+  }
+  const templateRow=template.locator('..').locator('..');
+  await expect(save).toBeDisabled();
+  await templateRow.screenshot({path:testInfo.outputPath('template-controls-empty.png')});
   await page.getByLabel("ROE ≥").fill("10");
   await expect(page.locator(".terminal-screener tbody tr")).toHaveCount(1);
+  const templateName='Банки с рентабельностью капитала от 10%';
+  await template.fill(templateName);
+  await template.press('Tab');
+  await expect(save).toBeFocused();
+  expect(await save.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+  await save.press('Enter');
+  await expect(templateRow.getByRole('status')).toHaveText('Сохранено в этом браузере');
+  await reset.click();
+  await expect(page.locator('.terminal-screener tbody tr')).toHaveCount(2);
+  await saved.selectOption(templateName);
+  await expect(page.locator('.terminal-screener tbody tr')).toHaveCount(1);
+  await expect(page.getByLabel('ROE ≥')).toHaveValue('10');
+  await templateRow.screenshot({path:testInfo.outputPath('template-controls-saved.png')});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   const download = page.waitForEvent("download");
   await page.getByRole("button",{name:"CSV",exact:true}).first().click();
   expect((await download).suggestedFilename()).toContain("EQS");
   await page.reload();
   await expect(page.getByRole("heading",{name:/EQS/})).toBeVisible();
+  await saved.selectOption(templateName);
+  await expect(page.locator('.terminal-screener tbody tr')).toHaveCount(1);
 });
 test("issuer tabs omit the NSBU/IFRS reconciliation tab", async ({page}) => {
   await fixture(page);
@@ -130,9 +210,8 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await expect(peers.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('18');
   await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(2);
   await expect(screen).toContainText('2024 · bank');
-  await expect(screen.locator('.terminal-bank-comparison')).toContainText('2024-12-01');
-  await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2025-12-01');
-  await expect(screen.locator('.terminal-bank-comparison')).toContainText('4,2');
+  const bankCells=screen.locator('.terminal-bank-comparison tbody tr').first().getByRole('cell');
+  await expect(bankCells.first()).toHaveText('4,2');
   expect(requests).toContain('2024');
   await page.screenshot({path:testInfo.outputPath('rv-year-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -143,10 +222,11 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await expect(peers.locator('tbody tr')).toHaveCount(1);
   await expect(peers.locator('tbody tr').first()).toContainText('AGBA');
   await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(1);
-  await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2024-12-01');
+  await expect(bankCells.first()).toHaveText('—');
   await year.selectOption('');
   await expect(peers).toContainText('27');
-  await expect(screen.locator('.terminal-bank-comparison')).toContainText('2025-12-01');
+  await expect(bankCells.first()).toHaveText('5,1');
+  await expect(screen.locator('.terminal-bank-sector')).toHaveCount(0);
 });
 for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
   test(`RV includes UZAL before its financial peers and in CSV (${theme}, ${width}px)`, async ({page}, testInfo) => {
@@ -312,19 +392,63 @@ test("DVD compares recent dividend and annual earnings yield to dated deposits",
   await expect(page.locator('.terminal-dividend-comparison')).toContainText('E/P');
 });
 
-test('EQS and RV show bank market shares, loan/deposit structure and source dates', async ({page})=>{
+for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep bank figures without date/source columns (${theme}, ${width}px)`, async ({page},testInfo)=>{
+  await page.setViewportSize({width,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
   await fixture(page);
   const rows=['AGBA','HMKB'].map((ticker,i)=>({ticker,name:ticker,kind:'bank',standard:'NSBU',scope:'separate',period:'2025',roe:20,pb:1,years:['2025'],
-    cbu_assets_share_pct:i?4.2:12.5,cbu_household_loans_bn:i?100:200,cbu_company_loans_bn:300,cbu_household_deposits_bn:90,cbu_company_deposits_bn:150,
+    cbu_assets_share_pct:i?4.2:12.5,cbu_loans_share_pct:0,cbu_equity_share_pct:null,cbu_deposits_share_pct:8.91,
+    cbu_household_loans_bn:i?100:200,cbu_company_loans_bn:300,cbu_household_deposits_bn:90,cbu_company_deposits_bn:150,
     cbu:{main:{date:'2026-09-01',source_url:'https://cbu.uz/main.xlsx'},structure:{date:'2026-09-01',source_url:'https://cbu.uz/structure.xlsx'}}}));
-  await page.route('**/api/terminal/screener?**',r=>r.fulfill({json:{ok:true,rows,years:['2025'],sector_series:{},deposit:null}}));
+  const sectorSeries={
+    capital:{date:'2026-10-01',source_url:'https://cbu.uz/capital.xlsx',metrics:{capital_adequacy:{value:18.18}}},
+    profitability:{date:'2026-10-01',source_url:'https://cbu.uz/profitability.xlsx',metrics:{roe:{value:14.07},nim:{value:4.24}}},
+  };
+  await page.route('**/api/terminal/screener?**',r=>{
+    const historical=new URL(r.request().url()).searchParams.get('year')==='2024';
+    return r.fulfill({json:{ok:true,rows:historical?rows.map(row=>({...row,period:'2024'})):rows,years:['2025','2024'],sector_series:historical?{
+      capital:{metrics:{capital_adequacy:{value:0}}},profitability:{metrics:{roe:{value:null}}},
+    }:sectorSeries,deposit:null}});
+  });
+  const comparison=page.locator('.terminal-bank-comparison');
+  const sector=comparison.locator('.terminal-bank-sector');
+  const headers=['Банк','Доля активов, %','Доля кредитов, %','Доля капитала, %','Доля депозитов, %','Кредиты физлиц','Кредиты юрлиц','Депозиты физлиц','Депозиты юрлиц'];
+  async function checkFigures(mode) {
+    await expect(comparison.getByRole('columnheader')).toHaveText(headers);
+    await expect(comparison.locator('table a')).toHaveCount(0);
+    const agba=comparison.getByRole('row').filter({has:page.getByRole('rowheader',{name:'AGBA',exact:true})});
+    await expect(agba.getByRole('cell')).toHaveText(['12,5','0','—','8,91','200','300','90','150']);
+    await expect(comparison).not.toContainText('2026-10-01');
+    await expect(sector.getByRole('heading',{name:'Банковский сектор · ЦБ',exact:true})).toBeVisible();
+    await expect(sector.locator('dt')).toHaveText(['Достаточность капитала','ROE','NIM']);
+    await expect(sector.locator('dd')).toHaveText(['18,18%','14,07%','4,24%']);
+    await expect(sector.getByRole('link',{name:'Достаточность капитала',exact:true})).toHaveAttribute('href','https://cbu.uz/capital.xlsx');
+    await expect(sector.getByRole('link',{name:'ROE',exact:true})).toHaveAttribute('href','https://cbu.uz/profitability.xlsx');
+    await sector.getByRole('link',{name:'ROE',exact:true}).focus();
+    expect(await sector.getByRole('link',{name:'ROE',exact:true}).evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+    for(const text of await sector.locator('dt, dd').all()) {
+      expect(await text.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+      expect(await text.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
+    }
+    await sector.screenshot({path:testInfo.outputPath(`bank-sector-${mode}.png`)});
+    await comparison.screenshot({path:testInfo.outputPath(`bank-comparison-${mode}.png`)});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  }
   await run(page,'EQS');
-  await expect(page.locator('.terminal-bank-comparison')).toContainText('Доля активов');
-  await expect(page.locator('.terminal-bank-comparison')).toContainText('Депозиты юрлиц');
-  await expect(page.locator('.terminal-bank-comparison')).toContainText('2026-09-01');
+  await checkFigures('eqs');
+  const pendingDownload=page.waitForEvent('download');
+  await comparison.getByRole('button',{name:'CSV',exact:true}).click();
+  const {readFile}=await import('node:fs/promises');
+  const csv=await readFile(await (await pendingDownload).path(),'utf8');
+  expect(csv).not.toMatch(/дата \/ источник|2026-09-01/);
+  expect(csv).toContain('AGBA,"12,5",0,—,"8,91",200,300,90,150');
   await page.getByLabel('Доля активов ЦБ ≥').fill('10');
-  await expect(page.locator('.terminal-bank-comparison tbody tr')).toHaveCount(1);
+  await expect(comparison.locator('tbody tr')).toHaveCount(1);
   await run(page,'AGBA RV');
-  await expect(page.locator('.terminal-bank-comparison')).toContainText('HMKB');
-  await expect(page.locator('.terminal-bank-comparison')).toContainText('Кредиты физлиц');
+  await expect(comparison).toContainText('HMKB');
+  await checkFigures('rv');
+  await page.getByRole('combobox',{name:'Год отчётности',exact:true}).selectOption('2024');
+  await expect(sector.locator('dt')).toHaveText(['Достаточность капитала','ROE']);
+  await expect(sector.locator('dd')).toHaveText(['0%','—']);
+  await expect(sector.getByRole('link')).toHaveCount(0);
 });

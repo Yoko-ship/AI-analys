@@ -98,8 +98,8 @@ export function isEmptyCommand(parsed) {
 }
 
 /**
- * Suggestions for the word being typed. A completed suggestion replaces that
- * last word, so choosing one never discards what was typed before it.
+ * Company-name searches replace the full query. In a recognized command,
+ * suggestions complete the last word and retain its function or ticker.
  */
 export function suggestCommands(text, companies, lang = "ru", limit = 12) {
   const raw = String(text || "");
@@ -109,6 +109,8 @@ export function suggestCommands(text, companies, lang = "ru", limit = 12) {
   const head = endsWithSpace ? words : words.slice(0, -1);
   const index = tickerIndex(companies);
   const hasTicker = head.some((w) => index.has(w.toUpperCase()));
+  const companySearch = !head.length || parseCommand(head.join(" "), index).unknown.length > 0;
+  const companyQuery = (companySearch ? raw.trim() : prefix).replace(/\s+/g, " ");
   const up = prefix.toUpperCase();
   const low = prefix.toLowerCase();
   const join = (word) => [...head, word].join(" ") + " ";
@@ -120,15 +122,15 @@ export function suggestCommands(text, companies, lang = "ru", limit = 12) {
 
   if (hasTicker) {
     out.push(...fnMatches(ISSUER_FUNCTIONS));
-  } else if (up) {
+  } else if (companyQuery) {
     for (const company of companies || []) {
       const tickers = [company.ticker, ...(company.tickers || [])].map((t) => String(t || "").toUpperCase());
-      const hit = tickers.find((t) => t.startsWith(up))
-        || ((company.company_name || "").toLowerCase().includes(low) ? String(company.ticker).toUpperCase() : null);
-      if (hit) out.push({ value: join(hit), code: hit, label: company.company_name || hit, kind: "ticker" });
+      const hit = tickers.find((t) => t.startsWith(companyQuery.toUpperCase()))
+        || ((company.company_name || "").replace(/\s+/g, " ").toLowerCase().includes(companyQuery.toLowerCase()) ? String(company.ticker).toUpperCase() : null);
+      if (hit) out.push({ value: companySearch ? `${hit} ` : join(hit), code: hit, label: company.company_name || hit, kind: "ticker" });
     }
     out.sort((a, b) => Number(!a.code.startsWith(up)) - Number(!b.code.startsWith(up)) || a.code.localeCompare(b.code));
-    out.push(...fnMatches(MARKET_FUNCTIONS));
+    if (!companySearch || !head.length) out.push(...fnMatches(MARKET_FUNCTIONS));
   } else {
     out.push(...fnMatches(MARKET_FUNCTIONS));
   }

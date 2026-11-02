@@ -87,6 +87,8 @@ html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] {
 .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab, .terminal-run, .catalog-filter-trigger, .terminal-market-nav button, .terminal-csv) {
   min-height: 40px; border-radius: var(--control-radius); font-size: 12px; padding: 8px 12px;
 }
+.app-shell-wrap[data-ui="purple"] .terminal-command-field input { font-size: 14px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-command :is(.terminal-command-field, .terminal-run) { min-height: 44px; font-size: 14px; }
 .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab, .terminal-market-nav button) { border: 1px solid var(--border); background: var(--panel); color: var(--muted); }
 .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab.active, .terminal-market-nav button.active) { background: var(--accent-light); border-color: var(--border-focus); color: var(--accent); }
 .app-shell-wrap[data-ui="purple"] .terminal-context-tabs { gap: 12px; margin: 12px 0; }

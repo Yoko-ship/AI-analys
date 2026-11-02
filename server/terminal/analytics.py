@@ -83,9 +83,31 @@ def snapshot(data, *, kind="industry", year=None, market_cap=None):
                 current["net_interest_income_before_provisions"] = income - abs(expense)
         for item in financial_ratios(current, {}, opening, "bank", "ifrs" if data.get("standard") == "MSFO" else "nsbu", period):
             if item["metric"] in {"nim", "cost_of_risk"}:result[item["metric"]] = item["value"]
+    reasons = {}
+    for metric in ('roe', 'roa', 'pe', 'ep', 'pb', 'de', 'nim', 'cost_of_risk', 'npl'):
+        if result[metric] is not None:
+            continue
+        code = 'MISSING_FINANCIALS'
+        if (metric in {'nim', 'cost_of_risk', 'npl'} and kind != 'bank') or (metric == 'de' and kind in {'bank', 'fund', 'insurance', 'financial'}):
+            code = 'NOT_APPLICABLE'
+        elif metric in {'pe', 'ep', 'pb'} and (number(market_cap) is None or number(market_cap) <= 0):
+            code = 'MARKET_CAP_UNAVAILABLE'
+        elif metric == 'pe' and profit is not None and profit <= 0:
+            code = 'NON_POSITIVE_PROFIT'
+        elif metric in {'roe', 'pb', 'de'} and equity is not None and equity <= 0:
+            code = 'NON_POSITIVE_EQUITY'
+        elif metric in {'nim', 'cost_of_risk'}:
+            code = 'MISSING_BANK_FIELDS'
+        elif metric == 'npl':
+            code = 'MISSING_CBU_DATA'
+        reasons[metric] = {'code': code}
     if period:
         for years in (3, 5):
-            result[f"cg{years}"] = growth(values(data, "net_profit"), period, years)["nominal"]
+            item = growth(values(data, "net_profit"), period, years)
+            result[f"cg{years}"] = item["nominal"]
+            if item['reason']:
+                reasons[f'cg{years}'] = {'code': item['reason'], 'start': item['start'], 'end': item['end']}
+    result['metric_reasons'] = reasons
     return result
 
 

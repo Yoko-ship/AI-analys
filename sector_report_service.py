@@ -127,7 +127,7 @@ def special_type(issuer):
 
 
 def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None,
-                  _workbook=None, _refresh_checked=False):
+                  _workbook=None, _refresh_checked=False, source_reader=None):
     if persist:
         from reporting import store as report_store
         override = report_store.active_override(issuer["id"], financials.now().date().isoformat())
@@ -178,7 +178,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         if "Q" not in selected:
             quarter = 0
         try:
-            workbook = _workbook if _workbook is not None else financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter)
+            workbook = _workbook if _workbook is not None else (source_reader or financials.fetch_report_excel_data)(issuer["ticker"], "NSBU", year, quarter)
             if not workbook.get("ok"):
                 raise ValueError("source workbook unavailable")
             workbook = deepcopy(workbook)
@@ -214,9 +214,9 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                 catalog_opening = deepcopy(snapshot.get("opening_values") or {})
                 map_special_lines(snapshot, workbook, org)
                 if org in BANK_FORMS:
-                    date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, earlier)
+                    date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, earlier, source_reader=source_reader)
                     _record_missing_key_lines(snapshot, lang, org)
-            fill_from_earlier_filings(issuer, snapshot, reports, org, earlier)
+            fill_from_earlier_filings(issuer, snapshot, reports, org, earlier, source_reader=source_reader)
             if org in BANK_FORMS:
                 _drop_unbalanced_opening(snapshot)
         except Exception as exc:
@@ -279,7 +279,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                         for form in ('income', 'balance') if (workbook or {}).get(form))
     incomplete = report.get('content_status') == 'shortened' or any(
         q.get('code') == 'KEY_LINE_MISSING' for q in report.get('data_quality', []))
-    if standard == 'nsbu' and selected and cached_source and incomplete and not _refresh_checked:
+    if standard == 'nsbu' and selected and cached_source and incomplete and not _refresh_checked and source_reader is None:
         year, quarter = financials.period_key(selected)
         try:
             refreshed = financials.fetch_report_excel_data(
@@ -341,7 +341,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     return report
 
 
-def _earlier_workbook(issuer, reports, period, cache=None):
+def _earlier_workbook(issuer, reports, period, cache=None, *, source_reader=None):
     """The source workbook of another filing of the same issuer, or None."""
     if cache is not None and period in cache:
         return cache[period]
@@ -350,7 +350,7 @@ def _earlier_workbook(issuer, reports, period, cache=None):
         return None
     year, quarter = financials.period_key(period)
     try:
-        workbook = financials.fetch_report_excel_data(issuer["ticker"], "NSBU", year, quarter if "Q" in period else 0)
+        workbook = (source_reader or financials.fetch_report_excel_data)(issuer["ticker"], "NSBU", year, quarter if "Q" in period else 0)
     except Exception:
         logger.warning("Comparison workbook unavailable for %s %s", issuer.get("ticker"), period, exc_info=True)
         return None
@@ -377,7 +377,7 @@ def year_start_date(period):
     return f"{year - 1}-12-31" if year else None
 
 
-def date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, cache=None):
+def date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, cache=None, *, source_reader=None):
     """Date the comparison column of a bank's balance sheet, or replace it.
 
     The bank form gives no date for its comparison column and banks fill it
@@ -408,7 +408,7 @@ def date_balance_comparison(issuer, snapshot, reports, org, catalog_opening, cac
                         if entry.get("date") and entry["date"] < end), key=lambda item: item[0] != start)
         dated = next((date for date, assets in known if _same_amount(filed_assets, assets)), None)
         if dated is None:
-            annual = _earlier_workbook(issuer, reports, str(financials.period_key(period)[0] - 1), cache)
+            annual = _earlier_workbook(issuer, reports, str(financials.period_key(period)[0] - 1), cache, source_reader=source_reader)
             if annual and _same_amount(filed_assets, _filed_lines(annual, org).get("total_assets")):
                 dated = start
     if dated:
@@ -448,7 +448,7 @@ def _filed_lines(workbook, org):
     return values
 
 
-def fill_from_earlier_filings(issuer, snapshot, reports, org, cache=None):
+def fill_from_earlier_filings(issuer, snapshot, reports, org, cache=None, *, source_reader=None):
     """Take a missing comparison from the issuer's other filings.
 
     Results are compared with the same period a year earlier and the balance
@@ -477,7 +477,7 @@ def fill_from_earlier_filings(issuer, snapshot, reports, org, cache=None):
                    and financial_analysis_sector_numbers.decimal((snapshot.get(target) or {}).get(key)) is None]
         if not missing or not earlier:
             continue
-        workbook = _earlier_workbook(issuer, reports, earlier, cache)
+        workbook = _earlier_workbook(issuer, reports, earlier, cache, source_reader=source_reader)
         if not workbook:
             continue
         filed = _filed_lines(workbook, org)

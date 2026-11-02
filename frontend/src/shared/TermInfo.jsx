@@ -23,7 +23,7 @@ import { createPortal } from "react-dom";
  * at all. Every pointer event stops at the marker: the header underneath sorts on
  * click and drags to reorder, and asking what a column means must do neither.
  */
-function TermInfo({ termId, lang, label, description }) {
+function TermInfo({ termId, lang, label, description, marker='!', className='' }) {
   const entry = description ? {term:label || termId,def:description} : termFor(termId, lang);
   const tooltipId = React.useId();
   const btnRef = useRef(null);
@@ -144,7 +144,8 @@ function TermInfo({ termId, lang, label, description }) {
       <button
         type="button"
         ref={btnRef}
-        className={`term-info-btn${open ? " open" : ""}`}
+        className={`term-info-btn${open ? " open" : ""}${className ? ` ${className}` : ''}`}
+        data-export-value={marker==='!' ? undefined : marker}
         aria-label={`${label || entry.term} — ${lang === "en" ? "what this means" : lang === "uz" ? "bu nimani anglatadi" : "что это значит"}`}
         aria-expanded={open}
         aria-describedby={open ? tooltipId : undefined}
@@ -159,7 +160,7 @@ function TermInfo({ termId, lang, label, description }) {
         onBlur={() => { if (!pinned) setOpen(false); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); } }}
         onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      >!</button>
+      >{marker}</button>
       {open && pos && createPortal(
         <div
           ref={popRef}
