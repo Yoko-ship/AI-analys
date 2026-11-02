@@ -46,18 +46,32 @@ def universe():
 
 
 def market_context():
-    """Use the same checked share classes and capitalisation as the market."""
+    """Apply the market's share-class checks to the latest stored prices."""
     import catalogue.market_store as market
     import public_contract
     import fundamentals
     securities, listings = get_securities_map(), market.get_all_listings()
     quotes = market.get_all_quotes()
+    from server.market.board import _listing_to_stock
     from server.market.dates import _iso_trade_date
     classes = []
     for ticker, security in securities.items():
         if str(security.get("type") or "stock").lower() == "bond":
             continue
-        row = {**security, **(listings.get(ticker) or {}), "ticker": ticker}
+        listing = listings.get(ticker) or {}
+        row = {**security, **listing, "ticker": ticker}
+        if listing:
+            # The market board supplies the registry provenance and inactivity
+            # evidence. Raw stored rows alone have neither, so an untraded
+            # preferred class would incorrectly block the entire issuer's cap.
+            row.update(_listing_to_stock(row))
+        security_day = _iso_trade_date(security.get('last_trade_date'))
+        listing_day = _iso_trade_date(row.get('last_trade_date'))
+        if security_day and (not listing_day or security_day > listing_day) and analytics.number(security.get('last_price')) is not None:
+            # An undated/older registry row is not evidence that a known
+            # catalog trade never happened. Keep the newer price and date.
+            row.update(last_price=security['last_price'], last_trade_date=security_day,
+                       market_cap=security.get('market_cap'), market_cap_source=security.get('market_cap_source'))
         quote = quotes.get(str(row.get("isin") or "").upper()) or {}
         quote_day, row_day = _iso_trade_date(quote.get("trade_date")), _iso_trade_date(row.get("last_trade_date"))
         if quote_day and (not row_day or quote_day >= row_day) and analytics.number(quote.get("close_price")) is not None:

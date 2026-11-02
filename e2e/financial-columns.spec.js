@@ -8,6 +8,90 @@ const hmkbFixture = JSON.parse(readFileSync('e2e/fixtures/hmkb-overview.json', '
 const hmkbLabels = JSON.parse(readFileSync('tests/fixtures/financial_columns/hmkb_overview_labels.json', 'utf8'));
 const recentReports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 
+const publishedRatioCopy = {
+  ru: {tab:'Коэффициенты',title:'Коэффициенты из отчётов компании',metric:'Показатель',roe:'Рентабельность капитала (ROE)',roa:'Рентабельность активов (ROA)',liquidity:'Текущая ликвидность',clear:'Сбросить поиск',empty:'Показатели не найдены'},
+  uz: {tab:'Koeffitsiyentlar',title:'Kompaniya hisobotlaridagi koeffitsiyentlar',metric:'Ko‘rsatkich',roe:'Kapital rentabelligi (ROE)',roa:'Aktivlar rentabelligi (ROA)',liquidity:'Joriy likvidlik',clear:'Qidiruvni tozalash',empty:'Ko‘rsatkichlar topilmadi'},
+  en: {tab:'Ratios',title:'Ratios reported by the company',metric:'Metric',roe:'Return on equity (ROE)',roa:'Return on assets (ROA)',liquidity:'Current Ratio',clear:'Clear search',empty:'No indicators found'},
+};
+
+for (const lang of ['ru','uz','en']) test(`published ratios use readable names and comparable year columns (${lang})`, async ({page},testInfo) => {
+  const copy=publishedRatioCopy[lang], reports=structuredClone(recentReports);
+  // The historical values reproduce the user's screenshot; 2020 adds zero/missing boundaries.
+  reports.published_ratios=[
+    ['2015',21.06,1.82,1.04],['2016',23.92,1.55,1.02],['2017',23.12,1.38,1.01],['2018',42.19,1.93,1.02],['2020',0,null,2.1],
+  ].flatMap(([period,roe,roa,current])=>[
+    {field:'roe',period,value:roe,unit:'%',source_url:`https://openinfo.uz/reports/${period}`},
+    {field:'roa',period,value:roa,unit:'percent',source_url:`https://openinfo.uz/reports/${period}`},
+    {field:'current_ratio',period,value:current,unit:'ratio',source_url:period==='2020'?null:`https://openinfo.uz/reports/${period}`},
+  ]);
+  const errors=[];
+  page.on('pageerror', error=>errors.push(error.message));
+  await page.setViewportSize({width:1440,height:1000});
+  await setup(page,{ticker:'HMKB',func:'SUM',lang,reports,theme:lang==='en'?'dark':'light'});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('tab',{name:copy.tab,exact:true}).click();
+  const section=terminal.locator('.fc-published'), table=section.getByRole('table');
+  await expect(table).toBeVisible();
+  await expect(section.getByRole('heading',{name:copy.title,exact:true})).toBeVisible();
+  await expect(table.getByRole('columnheader')).toHaveText([copy.metric,'2020','2018','2017','2016','2015']);
+  await expect(table.getByRole('rowheader')).toHaveCount(3);
+  for (const label of [copy.roe,copy.roa,copy.liquidity]) await expect(table.getByRole('rowheader').filter({hasText:label})).toHaveCount(1);
+  await expect(section).not.toContainText('current_ratio');
+  await expect(section).not.toContainText('percent');
+  const roe=table.getByRole('row').filter({has:page.getByRole('rowheader').filter({hasText:copy.roe})});
+  const roa=table.getByRole('row').filter({has:page.getByRole('rowheader').filter({hasText:copy.roa})});
+  const liquidity=table.getByRole('row').filter({has:page.getByRole('rowheader').filter({hasText:copy.liquidity})});
+  // ICU versions in Node and Chromium can differ for Uzbek decimal separators.
+  const formatted=await page.evaluate(lang=>[0,42.19,23.12,23.92,21.06,2.1].map(value=>
+    new Intl.NumberFormat(lang==='en'?'en-US':lang==='uz'?'uz-UZ':'ru-RU',{maximumFractionDigits:2}).format(value)),lang);
+  await expect(roe.getByRole('cell')).toHaveText(formatted.slice(0,5).map(value=>`${value} %`));
+  await expect(roa.getByRole('cell').first()).toHaveText('—');
+  await expect(roa.getByRole('cell').first().getByRole('link')).toHaveCount(0);
+  await expect(liquidity.getByRole('cell').first()).toHaveText(`${formatted[5]} ×`);
+  await expect(liquidity.getByRole('cell').first().getByRole('link')).toHaveCount(0);
+  const source=roe.getByRole('cell').nth(1).getByRole('link');
+  await expect(source).toHaveAttribute('href','https://openinfo.uz/reports/2018');
+  await expect(source).toHaveAccessibleName(new RegExp(`${copy.roe.replace(/[()]/g,'\\$&')}.*2018`));
+  await source.focus();
+  await expect(source).toBeFocused();
+  await page.context().route('https://openinfo.uz/reports/**',route=>route.fulfill({contentType:'text/html',body:'Report fixture'}));
+  const popup=page.waitForEvent('popup');
+  await source.click();
+  const report=await popup;
+  await expect(report).toHaveURL('https://openinfo.uz/reports/2018');
+  await report.close();
+  const marker=roe.getByRole('button');
+  await marker.focus();
+  await expect(page.getByRole('tooltip')).toContainText(copy.roe);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await marker.blur();
+  await page.mouse.move(0,0);
+  await section.screenshot({path:testInfo.outputPath('published-ratios-desktop.png')});
+  await terminal.getByRole('searchbox').fill(copy.liquidity);
+  await expect(table.getByRole('rowheader')).toHaveCount(1);
+  await expect(table.getByRole('rowheader')).toContainText(copy.liquidity);
+  await terminal.getByRole('searchbox').fill('nothing-matches');
+  await expect(section).toContainText(copy.empty);
+  await section.getByRole('button',{name:copy.clear,exact:true}).click();
+  await expect(terminal.getByRole('searchbox')).toHaveValue('');
+  await expect(table.getByRole('rowheader')).toHaveCount(3);
+  await page.setViewportSize({width:390,height:844});
+  await expect(table.getByRole('rowheader')).toHaveCount(3);
+  await section.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await section.screenshot({path:testInfo.outputPath('published-ratios-mobile.png')});
+  const scroll=section.getByRole('region');
+  await scroll.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
+  await scroll.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await expect(roe.getByRole('cell').last().getByRole('link')).toBeInViewport();
+  await expect(roe.getByRole('rowheader')).toBeInViewport();
+  await section.screenshot({path:testInfo.outputPath('published-ratios-mobile-history.png')});
+  expect(errors).toEqual([]);
+});
+
 test('HMKB current ratios show annualization and matching source periods',async({page},testInfo)=>{
   const reports=structuredClone(recentReports),end='2026-09-30';
   const source=(metric,period=end)=>reports.rows.find(r=>r.metric_id===metric).cells[period];

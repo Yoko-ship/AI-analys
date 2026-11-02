@@ -53,6 +53,29 @@
 .fc-empty, .fc-notice, .fc-published, .fc-documents { padding: 12px 0; margin: 0; }
 .fc-empty { color: var(--fc-muted); line-height: 1.7; }
 .fc-notice { border-left: 3px solid var(--warning, #c5881b); padding-left: 12px; }
+.fc-published { margin-top: 24px; border-top: 1px solid var(--fc-line); }
+.fc-published h3 { margin: 8px 0; font-size: 16px; line-height: 1.4; text-wrap: balance; }
+.fc-published-note, .fc-published-hint { color: var(--text-secondary); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+.fc-published-note { margin: 0 0 16px; max-width: 72ch; }
+.fc-published-scroll { max-width: 100%; overflow: auto; overscroll-behavior-x: contain; border: 1px solid var(--fc-line); border-radius: 8px; }
+.fc-published-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fc-published-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.fc-published-table th, .fc-published-table td { padding: 12px 16px; line-height: 1.5; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--fc-line); }
+.fc-published-table thead th { background: var(--bg-2); color: var(--text-secondary); font-weight: 500; }
+.fc-published-table th:first-child { position: sticky; left: 0; z-index: 1; width: 300px; min-width: 300px; max-width: 300px; text-align: left; white-space: normal; background: var(--panel); border-right: 1px solid var(--fc-line); }
+.fc-published-table thead th:first-child { background: var(--bg-2); }
+.fc-published-table tbody th { font-weight: 500; }
+.fc-published-table tbody tr:last-child > * { border-bottom: 0; }
+.fc-published-table td { min-width: 104px; }
+.fc-published-table td a { display: inline-block; padding: 4px 0; text-decoration: underline; text-decoration-color: var(--border-hover, var(--border)); text-underline-offset: 4px; }
+.fc-published-table td a:hover { text-decoration-color: currentColor; }
+.fc-published-hint { display: none; margin: 8px 0 0; }
+@media (max-width: 600px) {
+  .fc-published-table th, .fc-published-table td { padding: 10px 12px; }
+  .fc-published-table th:first-child { width: 164px; min-width: 164px; max-width: 164px; }
+  .fc-published-table td { min-width: 96px; }
+  .fc-published-hint { display: block; }
+}
 .fc-legacy { padding: 14px 0 0; margin: 12px 0; border-top: 1px solid var(--fc-line); }
 .fc-documents summary, .fc-legacy summary { cursor: pointer; color: inherit; margin-bottom: 10px; }
 .fc-documents select { max-width: 100%; margin-bottom: 10px; }

@@ -156,3 +156,38 @@ def test_real_uzas_quote_supplies_missing_listing_shares_without_inventing_orfi_
     assert result['UVGT']['market_cap']==pytest.approx(2968227*89999)
     assert result['OCBK']['market_cap'] is None # June trade is stale
     assert result['ORFI']['price'] is None # 2021 quote cannot price a 2026 dividend
+
+
+@pytest.mark.parametrize('preferred_state', ['inactive', 'traded', 'catalog_trade', 'unknown'])
+def test_uzal_market_context_checks_preferred_activity_without_losing_latest_quote(monkeypatch, preferred_state):
+    import json
+    from pathlib import Path
+    import catalogue.market_store as market
+    import public_contract
+    records = json.loads((Path(__file__).parent / 'fixtures/terminal_uzal_uzml_20261102.json').read_text())
+    if preferred_state == 'traded':
+        records['quotes']['UZ701150K013'] = {'trade_date': '20261102', 'close_price': 2535}
+    elif preferred_state == 'catalog_trade':
+        # A registry row without a date cannot erase a known catalog trade.
+        records['securities']['UZALP'].update(last_trade_date='2026-11-02', last_price=2535)
+    elif preferred_state == 'unknown':
+        # A catalog card alone does not prove inactivity; keep cap incomplete.
+        del records['listings']['UZALP']
+    monkeypatch.setattr(service, 'get_securities_map', lambda: records['securities'])
+    monkeypatch.setattr(market, 'get_all_listings', lambda: records['listings'])
+    monkeypatch.setattr(market, 'get_all_quotes', lambda: records['quotes'])
+    checked = public_contract.market_class_input
+    monkeypatch.setattr(public_contract, 'market_class_input', lambda row: checked(row, reference_date=date(2026, 11, 2)))
+    result = service.market_context()
+    if preferred_state == 'unknown':
+        assert result['UZAL']['market_cap'] is None
+        assert result['UZAL']['excluded_classes'] == []
+    else:
+        # A newer price-only quote still values the verified issued shares.
+        expected = 401088086 * 4600
+        if preferred_state in {'traded', 'catalog_trade'}:
+            expected += 20000 * 2535
+        assert result['UZAL']['market_cap'] == expected
+        assert result['UZAL']['excluded_classes'] == (['UZALP'] if preferred_state == 'inactive' else [])
+    assert result['UZML']['market_cap'] == 45000000000
+    assert result['UZAL']['price'] == 4600

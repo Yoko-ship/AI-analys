@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { execFileSync } from 'node:child_process';
 
-async function fixture(page) {
+async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}]) {
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
   let preferences = {};
-  const companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}];
   const rows = companies.map((c,i)=>({...c,name:c.company_name,kind:i?"industry":"bank",standard:"NSBU",scope:"separate",period:"2025",roe:i?8:20,pb:1,pe:8,de:i?2:null,cg5:10,dy:12,issues:[]}));
   await page.route("**/api/**", route => {
     const u = new URL(route.request().url());
@@ -23,12 +23,57 @@ async function fixture(page) {
     return json({ok:true,items:[],rows:[],points:[],companies:[],total_reports:11,companies_synced:2});
   });
   await page.goto("/catalog");
-  await expect(page.getByRole("heading",{name:"Агробанк",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:companies[0].company_name,exact:true})).toBeVisible();
 }
 async function run(page, text) {
-  await page.getByRole("combobox",{name:"Строка команд терминала"}).fill(text);
-  await page.getByRole("combobox",{name:"Строка команд терминала"}).press("Enter");
+  await page.locator('.terminal-command').getByRole("combobox").fill(text);
+  await page.locator('.terminal-command').getByRole("combobox").press("Enter");
 }
+
+test('RV calculates UZAL market ratios without letting inactive preferred shares block them', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 1440, height: 900});
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
+  // Feed the browser the actual backend calculations, not precomputed ratios.
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const rows = JSON.parse(execFileSync(python, ['-c', `
+import json
+from datetime import date
+from pathlib import Path
+from unittest.mock import patch
+import public_contract
+from server.terminal import analytics, service
+data = json.loads(Path('tests/fixtures/terminal_uzal_uzml_20261102.json').read_text())
+checked = public_contract.market_class_input
+with patch.object(service, 'get_securities_map', return_value=data['securities']), \\
+     patch('catalogue.market_store.get_all_listings', return_value=data['listings']), \\
+     patch('catalogue.market_store.get_all_quotes', return_value=data['quotes']), \\
+     patch.object(public_contract, 'market_class_input', side_effect=lambda row: checked(row, reference_date=date(2026, 11, 2))):
+    market = service.market_context()
+print(json.dumps([{'ticker': ticker, **analytics.snapshot(annual, kind='financial', market_cap=market[ticker]['market_cap']), **market[ticker]}
+                  for ticker, annual in data['annuals'].items()]))
+`], {encoding: 'utf8'}));
+  await fixture(page, [{ticker: 'UZAL', company_name: 'O‘zagrolizing'}, {ticker: 'UZML', company_name: 'UzMED-lizing'}]);
+  await page.route('**/api/terminal/screener?**', route => route.fulfill({json: {ok: true, rows, years: ['2025']}}));
+  await run(page, 'UZAL RV');
+  const screen = page.getByRole('heading', {name: 'RV · Аналоги', exact: true}).locator('..');
+  const table = screen.locator('table').first();
+  const uzal = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZAL', exact: true})}).getByRole('cell');
+  const uzml = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZML', exact: true})}).getByRole('cell');
+  await expect(uzal.nth(3)).toHaveText('65,74');
+  await expect(uzal.nth(4)).toHaveText('1,52');
+  await expect(uzal.nth(5)).toHaveText('1,68');
+  await expect(uzal.nth(8)).toHaveText('12,91');
+  await expect(uzml.nth(3)).toHaveText('—');
+  await expect(uzml.nth(4)).toHaveText('-1,05');
+  await expect(uzml.nth(5)).toHaveText('28,53');
+  await expect(uzml.nth(8)).toHaveText('—');
+  await screen.screenshot({path: testInfo.outputPath('rv-uzal-market-ratios-desktop.png')});
+  await page.setViewportSize({width: 390, height: 844});
+  await page.reload();
+  await expect(uzal.nth(4)).toHaveText('1,52');
+  await screen.screenshot({path: testInfo.outputPath('rv-uzal-market-ratios-mobile.png')});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
 
 test("EQS filters real API rows, exports Cyrillic CSV, and restores its URL", async ({page})=>{
   await fixture(page);
@@ -66,7 +111,7 @@ test("RV compares the selected reporting year and handles missing peers", async(
       cbu:year==='2023'?{}:{main:{date:`${year}-12-01`,source_url:`https://cbu.uz/${year}`}},
       cbu_assets_share_pct:year==='2023'?null:year==='2024'?4.2:5.1};
     return route.fulfill({json:{ok:true,years:['2025','2024','2023'],rows:[
-      {...base,ticker:'AGBA'},
+      {...base,ticker:'AGBA',roe:year==='2024'?18:20},
       ...(year==='2023'?[]:[{...base,ticker:'ALKB',roe:year==='2024'?14:27}]),
       {...base,ticker:'WRONG',period:'2022',roe:99},
     ]}});
@@ -76,10 +121,14 @@ test("RV compares the selected reporting year and handles missing peers", async(
   const year=screen.getByRole('combobox',{name:'Год отчётности',exact:true});
   const peers=screen.locator('table').first();
   await expect(year).toHaveValue('');
-  await expect(peers.locator('tbody tr')).toHaveCount(1);
+  await expect(peers.locator('tbody tr')).toHaveCount(2);
+  await expect(peers.locator('tbody tr').first()).toContainText('AGBA');
+  await expect(peers.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('20');
   await expect(peers).toContainText('27');
   await year.selectOption('2024');
   await expect(peers).toContainText('14');
+  await expect(peers.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('18');
+  await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(2);
   await expect(screen).toContainText('2024 · bank');
   await expect(screen.locator('.terminal-bank-comparison')).toContainText('2024-12-01');
   await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2025-12-01');
@@ -91,12 +140,56 @@ test("RV compares the selected reporting year and handles missing peers", async(
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await year.selectOption('2023');
   await expect(screen.getByText('Сопоставимые эмитенты не найдены',{exact:true})).toBeVisible();
-  await expect(peers.locator('tbody tr')).toHaveCount(0);
+  await expect(peers.locator('tbody tr')).toHaveCount(1);
+  await expect(peers.locator('tbody tr').first()).toContainText('AGBA');
+  await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(1);
   await expect(screen.locator('.terminal-bank-comparison')).not.toContainText('2024-12-01');
   await year.selectOption('');
   await expect(peers).toContainText('27');
   await expect(screen.locator('.terminal-bank-comparison')).toContainText('2025-12-01');
 });
+for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
+  test(`RV includes UZAL before its financial peers and in CSV (${theme}, ${width}px)`, async ({page}, testInfo) => {
+    await page.setViewportSize({width, height:900});
+    await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
+    const errors=[];
+    page.on('pageerror', error=>errors.push(error.message));
+    await fixture(page, [
+      {ticker:'UZAL',company_name:'O‘zagrolizing',sector:'finance',total_count:50},
+      {ticker:'URTS',company_name:'Respublika tovar-xom ashyo birjasi',sector:'finance',total_count:10},
+      {ticker:'UZML',company_name:'O‘zbeklizing',sector:'finance',total_count:10},
+    ]);
+    const base={kind:'financial',standard:'NSBU',scope:'separate',period:'2025'};
+    await page.route('**/api/terminal/screener?**', route=>route.fulfill({json:{ok:true,years:['2025'],rows:[
+      {...base,ticker:'URTS',roe:65.12},
+      {...base,ticker:'UZML',roe:-26.05},
+      {...base,ticker:'UZAL',roe:0,pe:null},
+      {...base,ticker:'WRONG_KIND',kind:'bank'},
+      {...base,ticker:'WRONG_STANDARD',standard:'MSFO'},
+      {...base,ticker:'WRONG_SCOPE',scope:'consolidated'},
+      {...base,ticker:'WRONG_YEAR',period:'2024'},
+    ]}}));
+    await page.locator('.terminal-tabs').getByRole('button',{name:/RV/}).click();
+    const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
+    const table=screen.locator('table').first();
+    await expect(table.locator('tbody button')).toHaveText(['UZAL','URTS','UZML']);
+    await expect(table.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('0');
+    await expect(table.locator('tbody tr').first().getByRole('cell').nth(3)).toHaveText('—');
+    const download=page.waitForEvent('download');
+    await screen.getByRole('button',{name:'CSV',exact:true}).click();
+    const {readFile}=await import('node:fs/promises');
+    const csv=await readFile(await (await download).path(),'utf8');
+    expect(csv.split(/\r?\n/).filter(line=>/^(UZAL|URTS|UZML),/.test(line)).map(line=>line.split(',')[0])).toEqual(['UZAL','URTS','UZML']);
+    await screen.screenshot({path:testInfo.outputPath('rv-selected-issuer.png')});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    await table.getByRole('button',{name:'URTS',exact:true}).click();
+    await expect(page).toHaveURL(url=>url.searchParams.get('t')==='URTS'&&(url.searchParams.get('f')||'SUM')==='SUM');
+    await expect(page.locator('.terminal-tabs').getByRole('button',{name:/SUM/})).toHaveAttribute('aria-current','page');
+    await expect(page.getByRole('heading',{name:'Respublika tovar-xom ashyo birjasi',exact:true})).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
 test("PNL saves independent admin panels to the profile and survives reload", async({page})=>{
   await fixture(page); await run(page,"PNL");
   await page.getByRole("button",{name:"Добавить панель",exact:true}).click();

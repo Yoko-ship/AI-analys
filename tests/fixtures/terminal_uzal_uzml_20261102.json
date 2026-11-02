@@ -1,0 +1,51 @@
+{
+  "source": "Public market/multiples and securities responses from uzstock.uz, 2026-11-02, plus annual financial_series output from the local catalog (UZS). Listing fields reconstructed from market class inputs, without board provenance/inactivity annotations.",
+  "securities": {
+    "UZAL": {"isin": "UZ7011500004", "name": "O'zagrolizing", "share_type": "ordinary", "is_preferred": false},
+    "UZALP": {"isin": "UZ701150K013", "name": "O'zagrolizing", "share_type": "preferred", "is_preferred": true},
+    "UZML": {"isin": "UZ7055630006", "name": "UzMED-lizing", "share_type": "ordinary", "is_preferred": false}
+  },
+  "listings": {
+    "UZAL": {
+      "ticker": "UZAL", "isin": "UZ7011500004", "share_type": "ordinary",
+      "shares_outstanding": 401088086, "last_price": 4600,
+      "last_trade_date": "2026-11-02", "market_cap": 1913190170220,
+      "volume": 301768.9, "updated_at": "2026-11-02 03:28:34"
+    },
+    "UZALP": {
+      "ticker": "UZALP", "isin": "UZ701150K013", "share_type": "preferred",
+      "shares_outstanding": 20000, "last_price": 2535,
+      "last_trade_date": null, "market_cap": null, "volume": null
+    },
+    "UZML": {
+      "ticker": "UZML", "isin": "UZ7055630006", "share_type": "ordinary",
+      "shares_outstanding": 1500000, "last_price": 30000,
+      "last_trade_date": "2026-10-30", "market_cap": 45000000000,
+      "volume": 30000
+    }
+  },
+  "quotes": {
+    "UZ7011500004": {"trade_date": "20261102", "close_price": 4600, "market_cap": null, "shares_outstanding": null},
+    "UZ7055630006": {"trade_date": "20261030", "close_price": 30000, "market_cap": null, "shares_outstanding": null}
+  },
+  "annuals": {
+    "UZAL": {
+      "periods": ["2025", "2024", "2020"], "standard": "NSBU", "scope": "separate",
+      "series": {
+        "net_profit": {"values": {"2020": 15291245000, "2025": 28065468300}},
+        "total_equity": {"values": {"2024": 456077519700, "2025": 1099340322300}},
+        "total_assets": {"values": {"2024": 4424912460600, "2025": 7500582824000}},
+        "total_liabilities": {"values": {"2025": 6401242501700}}
+      }
+    },
+    "UZML": {
+      "periods": ["2025", "2024", "2020"], "standard": "NSBU", "scope": "separate",
+      "series": {
+        "net_profit": {"values": {"2020": 150534300, "2025": -472466600}},
+        "total_equity": {"values": {"2024": 2050014170, "2025": 1577547530}},
+        "total_assets": {"values": {"2024": 2167962550, "2025": 1678707980}},
+        "total_liabilities": {"values": {"2025": 101160450}}
+      }
+    }
+  }
+}
