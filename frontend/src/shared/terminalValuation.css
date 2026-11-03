@@ -9,7 +9,8 @@
   grid-template-columns:minmax(0, 1fr);
   align-items:start;
   gap:16px;
-  max-width:1240px;
+  width:100%;
+  min-width:0;
   margin:16px 0;
   font-family:Inter, Arial, sans-serif;
 }

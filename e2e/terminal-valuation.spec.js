@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import {expectFullWidth} from './helpers/full-width.js';
 
 const parameters = {key_rate:14,default_spread:3.06,equity_premium:8.89,growth:9.8};
 function valuation(ticker='HMKB', standard='NSBU') {
@@ -109,7 +110,7 @@ for(const theme of ['light','dark']) test(`FV details keep wide valuation ranges
   await setup(page,{theme,lang:'ru',valuationResult:result});
   const detail=page.locator('.terminal-fv-detail');
   await expect(detail).toBeVisible();
-  expect((await detail.boundingBox()).width).toBeLessThanOrEqual(1241);
+  await expectFullWidth(detail,'.terminal-valuation');
   const chart=detail.getByRole('region',{name:'Методы и диапазоны',exact:true});
   const calculation=detail.getByRole('region',{name:'Как посчитано',exact:true});
   const csv=calculation.getByRole('button',{name:'CSV',exact:true});
@@ -134,6 +135,7 @@ for(const theme of ['light','dark']) test(`FV details keep wide valuation ranges
   expect(content).toContain('Метод применяется только к банкам');
   for(const width of [2260,768,390]) {
     await page.setViewportSize({width,height:1000});
+    await expectFullWidth(detail,'.terminal-valuation');
     const [a,b]=await detail.locator('.terminal-fv-card').evaluateAll(cards=>cards.map(card=>card.getBoundingClientRect().toJSON()));
     if(width<1000)expect(b.y).toBeGreaterThanOrEqual(a.y+a.height);
     for(const text of await detail.locator('h3,.terminal-fv-method-name,.terminal-fv-estimate,tbody th,tbody td').all()) {

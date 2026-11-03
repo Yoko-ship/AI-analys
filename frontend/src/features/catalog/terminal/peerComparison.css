@@ -1,7 +1,7 @@
 .terminal-peers-screen { min-width:0; container:terminal-peers / inline-size; }
 .terminal-peer-card {
   position:relative;
-  max-width:1440px;
+  width:100%;
   min-width:0;
   box-sizing:border-box;
   margin:20px 0;

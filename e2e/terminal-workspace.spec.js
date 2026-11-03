@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import {expectFullWidth} from './helpers/full-width.js';
 
 async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}]) {
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
@@ -166,8 +167,8 @@ for(const theme of ['light','dark']) test(`RV comparison stays readable with sti
   const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
   const table=screen.locator('table').first();
   await expect(table.locator('tbody tr')).toHaveCount(21);
-  expect((await table.boundingBox()).width).toBeLessThanOrEqual(1440);
   const card=screen.locator('.terminal-peer-card');
+  await expectFullWidth(card,'.terminal-peers-screen');
   const scroll=card.getByRole('region',{name:'Сравнение показателей',exact:true});
   await expect(table.getByRole('columnheader')).toHaveText(['Эмитент','ROE, %','ROA, %','P/E','E/P, %','P/B','D/E','DVD¹, %','CAGR 5Y, %']);
   const selected=table.getByRole('row').filter({has:page.getByRole('rowheader',{name:'BIOK',exact:true})});
@@ -176,6 +177,7 @@ for(const theme of ['light','dark']) test(`RV comparison stays readable with sti
   expect(await selected.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(await table.locator('tbody tr').nth(1).evaluate(el=>getComputedStyle(el).backgroundColor));
   for(const width of [2260,390]) {
     await page.setViewportSize({width,height:1000});
+    await expectFullWidth(card,'.terminal-peers-screen');
     await scroll.evaluate(el=>{el.scrollTop=0;el.scrollLeft=0;});
     for(const cell of await table.locator('thead th,tbody tr:first-child th,tbody tr:first-child td').all()) {
       expect((await cell.boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -520,7 +522,7 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   await section.screenshot({path:testInfo.outputPath('rat-without-method-codes.png')});
   expect(await table.evaluate(el=>el.scrollWidth<=el.closest('.terminal-table-wrap').clientWidth+1)).toBe(true);
   const annual=page.locator('.terminal-annual-ratios');
-  expect((await annual.boundingBox()).width).toBeLessThanOrEqual(560);
+  await expectFullWidth(page.locator('.terminal-ratio-overview'),'.terminal-analytics');
   const heights=await annual.getByRole('row').evaluateAll(rows=>rows.map(row=>row.getBoundingClientRect().height));
   expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
   expect(Math.max(...heights)-Math.min(...heights)).toBeLessThanOrEqual(1);
@@ -540,8 +542,12 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   const annualBox=await annualCard.boundingBox(), growthBox=await growthCard.boundingBox();
   if(width>=1440){
     expect(Math.abs(annualBox.y-growthBox.y)).toBeLessThanOrEqual(1);
-    expect(growthBox.x).toBeGreaterThanOrEqual(annualBox.x+annualBox.width);
-  }else expect(growthBox.y).toBeGreaterThanOrEqual(annualBox.y+annualBox.height);
+    expect(growthBox.x-annualBox.x-annualBox.width).toBeCloseTo(16,0);
+  }else {
+    expect(growthBox.y).toBeGreaterThanOrEqual(annualBox.y+annualBox.height);
+    await expectFullWidth(annualCard,'.terminal-ratio-overview');
+    await expectFullWidth(growthCard,'.terminal-ratio-overview');
+  }
   await expect(growthCard).toContainText('2022–2025');
   await expect(growthCard).toContainText('10,43');
   const annualDownload=page.waitForEvent('download');
@@ -575,15 +581,17 @@ for(const theme of ['light','dark']) test(`quarterly profit and LTM stay readabl
   await expect(cells('2026Q1')).toHaveText(['-1,5', '-5,2', '0', '—', '-3,4']);
   await expect(cells('2026Q2')).toHaveText(['0', '0', '—', '0', '—']);
   await expect(cells('2026Q3')).toHaveText(['510,46', '10,73', /1\s917,59/, '—', '10,75']);
-  expect((await table.boundingBox()).width).toBeLessThanOrEqual(1240);
+  await expectFullWidth(page.locator('.terminal-quarterly-overview'),'.terminal-analytics');
   for(const row of await table.locator('tbody tr').all())expect((await row.boundingBox()).height).toBeGreaterThanOrEqual(44);
   expect(await cells('2026Q3').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
   const wrapper = table.locator('..');
   const card=wrapper.locator('..');
+  await expectFullWidth(card,'.terminal-quarterly-overview');
   const heading=card.getByRole('heading',{name:'Кварталы · чистая прибыль',exact:true});
   expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
   expect((await wrapper.getByRole('button',{name:'CSV',exact:true}).boundingBox()).height).toBeGreaterThanOrEqual(44);
   const heatmap=page.locator('.terminal-heatmap');
+  await expectFullWidth(page.locator('.terminal-heatmap-card'),'.terminal-quarterly-overview');
   await expect(heatmap.locator('tbody tr')).toHaveCount(5);
   await expect(heatmap.getByRole('row').filter({has:page.getByRole('rowheader',{name:'2023',exact:true})}).getByRole('cell').first()).toHaveText(/27\s233,24/);
   await expect(heatmap.getByRole('row').filter({has:page.getByRole('rowheader',{name:'2026',exact:true})}).getByRole('cell')).toHaveText(['-5,2','0','10,73','—']);
@@ -613,6 +621,9 @@ for(const theme of ['light','dark']) test(`quarterly profit and LTM stay readabl
   await card.screenshot({path:testInfo.outputPath('quarterly-table-desktop.png')});
   await overview.screenshot({path:testInfo.outputPath('quarterly-desktop.png'),style:'.topbar, .topbar * {visibility:hidden !important}'});
   await page.setViewportSize({width: 390, height: 844});
+  await expectFullWidth(overview,'.terminal-analytics');
+  await expectFullWidth(card,'.terminal-quarterly-overview');
+  await expectFullWidth(page.locator('.terminal-heatmap-card'),'.terminal-quarterly-overview');
   await wrapper.focus();
   await expect(wrapper).toBeFocused();
   const periodCell=table.locator('tbody th').first(), periodLeft=(await periodCell.boundingBox()).x;

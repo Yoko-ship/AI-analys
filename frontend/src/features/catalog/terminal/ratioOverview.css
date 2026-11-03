@@ -2,7 +2,8 @@
 .terminal-quarterly-overview {
   display:grid;
   gap:16px;
-  max-width:1240px;
+  width:100%;
+  min-width:0;
   margin:24px 0;
 }
 .terminal-ratio-overview {
@@ -10,7 +11,8 @@
   grid-template-columns:minmax(0, 1fr);
   align-items:start;
   gap:16px;
-  max-width:1240px;
+  width:100%;
+  min-width:0;
   margin:24px 0;
 }
 .terminal-ratio-card {
@@ -22,7 +24,7 @@
   border-radius:12px;
   font-family:Inter, Arial, sans-serif;
 }
-.terminal-annual-card { width:100%; max-width:560px; box-sizing:border-box; }
+.terminal-annual-card { width:100%; box-sizing:border-box; }
 .terminal-ratio-card-head { min-height:52px; margin-bottom:16px; padding-right:72px; }
 .catalog-terminal-ui .terminal-ratio-card h3 {
   margin:0 0 8px;
@@ -87,7 +89,7 @@
 .catalog-terminal-ui .terminal-ratio-card .terminal-table td.is-missing { color:var(--muted); font-weight:400; }
 .terminal-growth-ratios { min-width:460px; }
 .terminal-growth-ratios td { white-space:nowrap; }
-.terminal-heatmap-card { width:100%; max-width:900px; box-sizing:border-box; }
+.terminal-heatmap-card { width:100%; box-sizing:border-box; }
 .terminal-quarterly-overview .terminal-table-wrap:focus-visible {
   outline:2px solid var(--accent);
   outline-offset:3px;
