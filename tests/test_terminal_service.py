@@ -4,6 +4,42 @@ import pytest
 from server.terminal import service, analytics, cbu
 
 
+@pytest.mark.parametrize('ticker,name,kind,expected', [
+    ('HMKB', 'Hamkorbank', 'bank', True),
+    ('UZAL', 'O‘zagrolizing', 'financial', True),
+    ('UZML', 'UzMED-lizing', 'financial', True),
+    ('LEAS', 'Лизинг компанияси', 'financial', True),
+    ('LEASE', 'Leasing company', 'financial', True),
+    ('URTS', 'Respublika tovar-xom ashyo birjasi', 'financial', False),
+    ('UTHK', 'Uz Tong Hong', 'industry', False),
+    ('ALSK', 'Alskom sug‘urta kompaniyasi', 'insurance', False),
+    ('FUND', 'Daromad Plus investment fund', 'fund', False),
+    ('AGAT', 'AGAT CREDIT mikromoliya tashkiloti', 'financial', False),
+])
+def test_credit_metric_visibility_reaches_screener_and_issuer(monkeypatch, ticker, name, kind, expected):
+    from server.currency import history
+    company = {'ticker': ticker, 'company_name': name}
+    monkeypatch.setattr(service, 'get_securities_map', lambda: {ticker: {'type': 'stock'}})
+    monkeypatch.setattr(service.filings, 'list_companies_with_stats', lambda: [company])
+    monkeypatch.setattr(service.organization, 'filing_org_types', lambda stocks: {})
+    monkeypatch.setattr(service.company_imports, 'approved_metadata_map', lambda: {})
+    monkeypatch.setattr(service, 'COMPANY_SECTORS', {ticker: 'finance' if kind == 'financial' else 'other'})
+    monkeypatch.setattr(service.organization, 'organization_kind', lambda *a: kind)
+    monkeypatch.setattr(service.filings, 'get_company_index', lambda *a: company)
+    monkeypatch.setattr(service, 'market_context', lambda: {})
+    monkeypatch.setattr(cbu, 'context', lambda: {'banks': {}})
+    monkeypatch.setattr(history, 'cached_usd', lambda: {})
+    monkeypatch.setattr(service.dividends, 'read_snapshot', lambda *a: [])
+    monkeypatch.setattr(service.bank_ratios, 'enrich', lambda ticker, row, *a: row)
+    async def financials(*args):
+        return {'periods': [], 'series': {}}
+    monkeypatch.setattr(service, 'financial_series', financials)
+    row = asyncio.run(service.screener())['rows'][0]
+    assert row['kind'] == kind
+    assert row['credit_metrics_applicable'] is expected
+    assert asyncio.run(service.issuer(ticker))['snapshot']['credit_metrics_applicable'] is expected
+
+
 def test_hmkb_annual_bank_ratios_reach_screener_and_issuer(monkeypatch):
     import json
     from copy import deepcopy

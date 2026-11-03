@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}]) {
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
@@ -44,6 +45,8 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual rati
   const bank=table.getByRole('row').filter({has:page.getByRole('button',{name:'HMKB',exact:true})});
   await expect(bank).toContainText('7,55');
   await expect(bank).toContainText('2,8');
+  const industry=table.getByRole('row').filter({has:page.getByRole('button',{name:'UTHK',exact:true})});
+  for(const index of [10,11,12]) await expect(industry.getByRole('cell').nth(index)).toBeEmpty();
   const missing=bank.getByRole('button',{name:/HMKB · D\/E/});
   expect(await missing.evaluate(el=>getComputedStyle(el,'::before').content)).toBe('none');
   await missing.focus();
@@ -68,6 +71,152 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual rati
   await peers.getByRole('button',{name:/HMKB · D\/E/}).click();
   await expect(page.getByRole('tooltip')).toContainText('не применяется');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
+for(const [theme,width] of [['light',1440],['dark',390]]) test(`credit metrics appear only for banks and leasing across EQS, RV and RAT (${theme}, ${width}px)`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  const companies=[
+    {ticker:'UTHK',company_name:'Uz Tong Hong',kind:'industry',credit_metrics_applicable:false},
+    {ticker:'URTS',company_name:'Respublika tovar-xom ashyo birjasi',kind:'financial',credit_metrics_applicable:false},
+    {ticker:'UZAL',company_name:'O‘zagrolizing',kind:'financial',credit_metrics_applicable:true},
+    {ticker:'ALSK',company_name:'Alskom',kind:'insurance',credit_metrics_applicable:false},
+    {ticker:'HMKB',company_name:'Hamkorbank',kind:'bank',credit_metrics_applicable:true},
+  ];
+  const rows=companies.map(c=>({...c,name:c.company_name,period:'2025',standard:'NSBU',scope:'separate',roe:20,npl:null,nim:null,cost_of_risk:null}));
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await fixture(page,companies);
+  await page.route('**/api/terminal/screener?**',route=>route.fulfill({json:{ok:true,rows,years:['2025']}}));
+  await page.route('**/api/terminal/issuer/*/analytics?**',route=>{
+    const ticker=new URL(route.request().url()).pathname.split('/').at(-2);
+    return route.fulfill({json:{ok:true,snapshot:rows.find(r=>r.ticker===ticker),growth:[],quarters:{rows:[]}}});
+  });
+  const creditHeaders=/^(NPL|NIM|CoR), %/;
+  await run(page,'EQS');
+  const screen=page.locator('.terminal-market-screen');
+  const table=screen.locator('.terminal-screener');
+  await screen.getByRole('combobox',{name:'Тип',exact:true}).selectOption('industry');
+  await expect(table.getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(0);
+  await expect(screen.getByLabel('NIM ≥', {exact:true})).toHaveCount(0);
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await screen.screenshot({path:testInfo.outputPath('credit-metrics-industry.png')});
+  const download=page.waitForEvent('download');
+  await screen.getByRole('button',{name:'CSV',exact:true}).click();
+  const {readFile}=await import('node:fs/promises');
+  const csv=await readFile(await (await download).path(),'utf8');
+  expect(csv).not.toMatch(/NPL|NIM|CoR/);
+  await screen.getByRole('combobox',{name:'Тип',exact:true}).selectOption('financial');
+  await expect(table.getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(3);
+  for(const [ticker,expected] of [['UZAL','—'],['URTS','']]) {
+    const cells=table.getByRole('row').filter({has:page.getByRole('button',{name:ticker,exact:true})}).getByRole('cell');
+    for(const index of [10,11,12]) await expect(cells.nth(index)).toHaveText(expected);
+  }
+  // A hidden credit filter must not empty an unrelated sector after switching types.
+  await screen.getByLabel('NIM ≥',{exact:true}).fill('1');
+  await screen.getByRole('combobox',{name:'Тип',exact:true}).selectOption('insurance');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table.getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(0);
+  for(const [ticker,count] of [['UTHK',0],['URTS',0],['UZAL',3],['HMKB',3]]) {
+    await run(page,`${ticker} RV`);
+    const peers=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
+    await expect(peers.locator('table').first().getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(count);
+    if(ticker==='URTS'||ticker==='UZAL')await peers.screenshot({path:testInfo.outputPath(`credit-metrics-${ticker}.png`)});
+    await run(page,`${ticker} RAT`);
+    const annual=page.locator('.terminal-annual-ratios');
+    await expect(annual).toBeVisible();
+    await expect(annual.getByRole('row').filter({hasText:/^(NIM|CoR), %/})).toHaveCount(count?2:0);
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+for(const theme of ['light','dark']) test(`RV comparison stays readable with sticky labels and accessible exports (${theme})`,async({page},testInfo)=>{
+  await page.setViewportSize({width:2260,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  // Reproduce the industrial peer table, including losses, >100 P/E and missing dividends.
+  const examples=[
+    ['BIOK',13.24,11.31,6.21,16.09,.69,.08,null,10.43],
+    ['BTRL',10.99,5.84,39.04,2.56,4.16,.7,1.29,-8.24],
+    ['CBSK',25.1,23.18,7.98,12.53,1.8,.09,7.65,15.84],
+    ['DORI',-23.38,-8.32,null,-35.66,.66,1.8,null,null],
+    ['FRAZP',5.42,4.52,null,null,null,.14,null,-19.04],
+    ['JASM',9.52,2.5,15.48,6.46,1.37,2.11,null,7.02],
+    ['KVTS',.56,.21,244,.41,1.37,1.35,.21,-50.92],
+    ['METQ',48.41,13.54,4.08,24.53,1.6,3.68,null,144.15],
+    ['MIQE',7.17,6.36,16.91,5.92,1.18,.08,5.91,20.34],
+    ['NGQS',6.59,2.54,42.11,2.37,2.63,1.46,.59,51.05],
+    ['OHDN',6.85,1.88,11.64,8.59,.77,2.2,null,-24.99],
+    ['ORGS',null,null,6.09,16.42,null,null,null,10.77],
+    ['PLST',-145.47,-24.78,null,null,null,2.16,null,null],
+    ['QATT',3.64,3.07,23.3,4.29,.86,.19,1.93,4.56],
+    ['QZSM',.03,.03,625,.16,.21,.31,null,-72.08],
+    ['SANE',3.55,3.41,232,.43,8.2,.04,.8,69.57],
+    ['TGPG',9.52,7.33,74.4,1.34,6.82,.25,.55,-25.49],
+    ['TKDM',-31.26,-3.98,null,-56.1,.66,7.68,null,null],
+    ['UPOS',.54,.2,1000,.1,4.35,1.59,.05,26.66],
+    ['UQEQ',41.89,11.29,7.37,13.56,1.99,1.99,.81,28.41],
+    ['UTHK',90.18,17.6,null,null,null,2.56,null,null],
+  ];
+  const rows=examples.map(([ticker,roe,roa,pe,ep,pb,de,dy,cg5])=>({ticker,roe,roa,pe,ep,pb,de,dy,cg5,kind:'industry',standard:'NSBU',scope:'separate',period:'2025',credit_metrics_applicable:false,
+    metric_reasons:{...(dy==null?{dy:{code:'NO_RECENT_DIVIDEND'}}:{}),...(pe==null?{pe:{code:'NON_POSITIVE_PROFIT'}}:{})}}));
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await fixture(page,rows.map(row=>({ticker:row.ticker,company_name:row.ticker,sector:'industry'})));
+  await page.route('**/api/terminal/screener?**',route=>route.fulfill({json:{ok:true,rows,years:['2025']}}));
+  await run(page,'BIOK RV');
+  const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
+  const table=screen.locator('table').first();
+  await expect(table.locator('tbody tr')).toHaveCount(21);
+  expect((await table.boundingBox()).width).toBeLessThanOrEqual(1440);
+  const card=screen.locator('.terminal-peer-card');
+  const scroll=card.getByRole('region',{name:'Сравнение показателей',exact:true});
+  await expect(table.getByRole('columnheader')).toHaveText(['Эмитент','ROE, %','ROA, %','P/E','E/P, %','P/B','D/E','DVD¹, %','CAGR 5Y, %']);
+  const selected=table.getByRole('row').filter({has:page.getByRole('rowheader',{name:'BIOK',exact:true})});
+  await expect(selected.getByRole('cell')).toHaveText(['13,24','11,31','6,21','16,09','0,69','0,08','—','10,43']);
+  await expect(table.getByRole('row').filter({has:page.getByRole('rowheader',{name:'KVTS',exact:true})})).toContainText('>100');
+  expect(await selected.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(await table.locator('tbody tr').nth(1).evaluate(el=>getComputedStyle(el).backgroundColor));
+  for(const width of [2260,390]) {
+    await page.setViewportSize({width,height:1000});
+    await scroll.evaluate(el=>{el.scrollTop=0;el.scrollLeft=0;});
+    for(const cell of await table.locator('thead th,tbody tr:first-child th,tbody tr:first-child td').all()) {
+      expect((await cell.boundingBox()).height).toBeGreaterThanOrEqual(44);
+      expect(await cell.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
+    }
+    expect(await selected.getByRole('cell').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
+    const issuer=selected.getByRole('rowheader'),header=table.getByRole('columnheader',{name:'Эмитент',exact:true});
+    await scroll.focus();
+    await expect(scroll).toBeFocused();
+    expect(await scroll.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+    const before=await issuer.boundingBox();
+    if(width<600) {
+      await scroll.press('ArrowRight');
+      await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
+      await scroll.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+      expect(Math.abs((await issuer.boundingBox()).x-before.x)).toBeLessThanOrEqual(1);
+    }
+    const headerY=(await header.boundingBox()).y;
+    await scroll.evaluate(el=>{el.scrollTop=300;});
+    expect(Math.abs((await header.boundingBox()).y-headerY)).toBeLessThanOrEqual(1);
+    await scroll.evaluate(el=>{el.scrollTop=0;el.scrollLeft=0;});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    await card.screenshot({path:testInfo.outputPath(`peer-comparison-${width}.png`),animations:'disabled'});
+  }
+  const missing=selected.getByRole('button',{name:/BIOK · DVD/});
+  await missing.focus();
+  await expect(page.getByRole('tooltip')).toContainText('366');
+  await missing.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  const csv=card.getByRole('button',{name:'CSV',exact:true});
+  expect((await csv.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await csv.focus();
+  expect(await csv.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+  const download=page.waitForEvent('download');await csv.press('Enter');
+  const {readFile}=await import('node:fs/promises');
+  const content=await readFile(await (await download).path(),'utf8');
+  expect(content).toContain('BIOK,"13,24","11,31","6,21","16,09","0,69","0,08",—,"10,43"');
+  expect(content).not.toMatch(/NPL|NIM|CoR|что это значит/);
+  await table.getByRole('button',{name:'BTRL',exact:true}).click();
+  await expect(page).toHaveURL(url=>url.searchParams.get('t')==='BTRL'&&(url.searchParams.get('f')||'SUM')==='SUM');
+  expect(errors).toEqual([]);
 });
 
 test('RV calculates UZAL market ratios without letting inactive preferred shares block them', async ({page}, testInfo) => {
@@ -97,8 +246,8 @@ print(json.dumps([{'ticker': ticker, **analytics.snapshot(annual, kind='financia
   await run(page, 'UZAL RV');
   const screen = page.getByRole('heading', {name: 'RV · Аналоги', exact: true}).locator('..');
   const table = screen.locator('table').first();
-  const uzal = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZAL', exact: true})}).getByRole('cell');
-  const uzml = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZML', exact: true})}).getByRole('cell');
+  const uzal = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZAL', exact: true})}).locator('th,td');
+  const uzml = table.getByRole('row').filter({has: page.getByRole('button', {name: 'UZML', exact: true})}).locator('th,td');
   await expect(uzal.nth(3)).toHaveText('65,74');
   await expect(uzal.nth(4)).toHaveText('1,52');
   await expect(uzal.nth(5)).toHaveText('1,68');
@@ -203,11 +352,11 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await expect(year).toHaveValue('');
   await expect(peers.locator('tbody tr')).toHaveCount(2);
   await expect(peers.locator('tbody tr').first()).toContainText('AGBA');
-  await expect(peers.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('20');
+  await expect(peers.locator('tbody tr').first().getByRole('cell').first()).toHaveText('20');
   await expect(peers).toContainText('27');
   await year.selectOption('2024');
   await expect(peers).toContainText('14');
-  await expect(peers.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('18');
+  await expect(peers.locator('tbody tr').first().getByRole('cell').first()).toHaveText('18');
   await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(2);
   await expect(screen).toContainText('2024 · bank');
   const bankCells=screen.locator('.terminal-bank-comparison tbody tr').first().getByRole('cell');
@@ -253,8 +402,8 @@ for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
     const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
     const table=screen.locator('table').first();
     await expect(table.locator('tbody button')).toHaveText(['UZAL','URTS','UZML']);
-    await expect(table.locator('tbody tr').first().getByRole('cell').nth(1)).toHaveText('0');
-    await expect(table.locator('tbody tr').first().getByRole('cell').nth(3)).toHaveText('—');
+    await expect(table.locator('tbody tr').first().getByRole('cell').first()).toHaveText('0');
+    await expect(table.locator('tbody tr').first().getByRole('cell').nth(2)).toHaveText('—');
     const download=page.waitForEvent('download');
     await screen.getByRole('button',{name:'CSV',exact:true}).click();
     const {readFile}=await import('node:fs/promises');
@@ -335,11 +484,85 @@ test("RAT keeps bank figures and quarterly ratios without CBU sector accordions"
   await page.locator('.terminal-analytics').screenshot({path:testInfo.outputPath('catalog-rat-mobile.png')});
 });
 
-test('quarterly profit and LTM display and export billions without scaling percentages', async ({page}, testInfo) => {
+for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',390]]) test(`RAT keeps readable ratio sections without internal method codes (${theme}, ${width}px)`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:900});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  const report=JSON.parse(readFileSync(new URL('../tests/fixtures/profitability_display.json',import.meta.url),'utf8'));
+  await fixture(page,[{ticker:report.ticker,company_name:'Узметкомбинат',sector:'manufacturing'}]);
+  await page.route('**/api/v1/issuers/UZMK/ai-report?*',route=>route.fulfill({json:{...report,status:'available',scope:'separate'}}));
+  await page.route('**/api/terminal/issuer/UZMK/analytics?*',route=>route.fulfill({json:{ok:true,
+    snapshot:{period:'2025',kind:'industry',roe:13.24,roa:11.31,ep:16.09,de:0.08,cg5:10.43},
+    growth:['net_profit','total_equity','total_assets'].flatMap((field,i)=>[3,5].map(years=>({field,years,start:String(2025-years),end:'2025',nominal:10.43+i,real:0,usd:null}))),
+    quarters:{rows:[]},
+  }}));
+  await run(page,'UZMK RAT');
+  const section=page.locator('.terminal-sector-metrics');
+  const table=section.getByRole('table');
+  await expect(table.locator('thead th')).toHaveText(['Показатель',report.period]);
+  await expect(table.locator('tbody tr')).toHaveCount(report.ratios.length);
+  for(const row of await table.locator('tbody tr').all())await expect(row.locator('th,td')).toHaveCount(2);
+  await expect(table.locator('tbody tr').first().getByRole('cell')).toHaveText('2,14 %');
+  await expect(section).not.toContainText('nsbu-enterprise-profitability');
+  await expect(section).not.toContainText('period-returns-1.0');
+  await table.locator('tbody tr').first().getByRole('button').click();
+  await expect(page.getByRole('tooltip')).toContainText(report.ratios[0].meaning_ru);
+  await page.keyboard.press('Escape');
+  const download=page.waitForEvent('download');
+  await section.getByRole('button',{name:'CSV',exact:true}).click();
+  const {readFile}=await import('node:fs/promises');
+  const csv=await readFile(await (await download).path(),'utf8');
+  expect(csv).toContain('2,14 %');
+  expect(csv).not.toMatch(/Метод \/ причина пропуска|nsbu-enterprise-|period-returns-/);
+  expect(await table.locator('tbody td').evaluateAll(cells=>cells.every(cell=>{
+    const text=document.createRange();text.selectNodeContents(cell);
+    return text.getBoundingClientRect().height<=parseFloat(getComputedStyle(cell).lineHeight)+1;
+  }))).toBe(true);
+  await section.screenshot({path:testInfo.outputPath('rat-without-method-codes.png')});
+  expect(await table.evaluate(el=>el.scrollWidth<=el.closest('.terminal-table-wrap').clientWidth+1)).toBe(true);
+  const annual=page.locator('.terminal-annual-ratios');
+  expect((await annual.boundingBox()).width).toBeLessThanOrEqual(560);
+  const heights=await annual.getByRole('row').evaluateAll(rows=>rows.map(row=>row.getBoundingClientRect().height));
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+  expect(Math.max(...heights)-Math.min(...heights)).toBeLessThanOrEqual(1);
+  const topBorders=await annual.getByRole('row').first().locator('th,td').evaluateAll(cells=>cells.map(cell=>getComputedStyle(cell).borderTopWidth));
+  expect(new Set(topBorders).size).toBe(1);
+  const annualHeading=page.getByRole('heading',{name:'Годовые показатели',exact:true});
+  await expect(annualHeading).toBeVisible();
+  expect(await annualHeading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+  const roe=annual.getByRole('row').filter({hasText:'ROE, %'});
+  await expect(roe.getByRole('cell')).toHaveText('13,24');
+  expect(await roe.getByRole('cell').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16);
+  await roe.getByRole('button').focus();
+  await expect(page.getByRole('tooltip')).toBeVisible();
+  await page.keyboard.press('Escape');
+  const annualCard=annual.locator('..').locator('..');
+  const growthCard=page.getByRole('heading',{name:'CAGR',exact:true}).locator('..').locator('..');
+  const annualBox=await annualCard.boundingBox(), growthBox=await growthCard.boundingBox();
+  if(width>=1440){
+    expect(Math.abs(annualBox.y-growthBox.y)).toBeLessThanOrEqual(1);
+    expect(growthBox.x).toBeGreaterThanOrEqual(annualBox.x+annualBox.width);
+  }else expect(growthBox.y).toBeGreaterThanOrEqual(annualBox.y+annualBox.height);
+  await expect(growthCard).toContainText('2022–2025');
+  await expect(growthCard).toContainText('10,43');
+  const annualDownload=page.waitForEvent('download');
+  await annualCard.getByRole('button',{name:'CSV',exact:true}).click();
+  expect(await readFile(await (await annualDownload).path(),'utf8')).toContain('"ROE, %","13,24"');
+  await page.locator('.terminal-ratio-overview').screenshot({path:testInfo.outputPath('annual-ratios-layout.png'),style:'.topbar {visibility:hidden}'});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
+for(const theme of ['light','dark']) test(`quarterly profit and LTM stay readable and export billions (${theme})`, async ({page}, testInfo) => {
+  await page.setViewportSize({width:2260,height:1050});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
   await fixture(page);
   await page.route('**/api/terminal/issuer/AGBA/analytics?*', route => route.fulfill({json: {
     ok: true, snapshot: {period: '2025', kind: 'bank'}, growth: [], template: {selected_template: 'bank'},
     quarters: {rows: [
+      {period: '2022Q1', value: 0, yoy: -99.92, ltm: 4200000000, seasonality: 0.03, cg3: -86.54},
+      {period: '2022Q4', value: 2690000000, yoy: 843.86, ltm: 6940000000, seasonality: 38.78, cg3: 58.52},
+      {period: '2023Q1', value: 630000000, yoy: 27233.24, ltm: 7560000000, seasonality: 6.2, cg3: -25.67},
+      {period: '2024Q2', value: 3170000000, yoy: 249.91, ltm: 14850000000, seasonality: 21.01, cg3: 11.29},
+      {period: '2025Q4', value: 5440000000, yoy: 1.95, ltm: 13240000000, seasonality: 41.11, cg3: 26.48},
       {period: '2026Q1', value: -1500000000, yoy: -5.2, ltm: 0, seasonality: null, cg3: -3.4},
       {period: '2026Q2', value: 0, yoy: 0, ltm: null, seasonality: 0, cg3: null},
       {period: '2026Q3', value: 510460312000, yoy: 10.73, ltm: 1917587479000, seasonality: null, cg3: 10.75},
@@ -352,16 +575,54 @@ test('quarterly profit and LTM display and export billions without scaling perce
   await expect(cells('2026Q1')).toHaveText(['-1,5', '-5,2', '0', '—', '-3,4']);
   await expect(cells('2026Q2')).toHaveText(['0', '0', '—', '0', '—']);
   await expect(cells('2026Q3')).toHaveText(['510,46', '10,73', /1\s917,59/, '—', '10,75']);
+  expect((await table.boundingBox()).width).toBeLessThanOrEqual(1240);
+  for(const row of await table.locator('tbody tr').all())expect((await row.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  expect(await cells('2026Q3').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
   const wrapper = table.locator('..');
+  const card=wrapper.locator('..');
+  const heading=card.getByRole('heading',{name:'Кварталы · чистая прибыль',exact:true});
+  expect(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+  expect((await wrapper.getByRole('button',{name:'CSV',exact:true}).boundingBox()).height).toBeGreaterThanOrEqual(44);
+  const heatmap=page.locator('.terminal-heatmap');
+  await expect(heatmap.locator('tbody tr')).toHaveCount(5);
+  await expect(heatmap.getByRole('row').filter({has:page.getByRole('rowheader',{name:'2023',exact:true})}).getByRole('cell').first()).toHaveText(/27\s233,24/);
+  await expect(heatmap.getByRole('row').filter({has:page.getByRole('rowheader',{name:'2026',exact:true})}).getByRole('cell')).toHaveText(['-5,2','0','10,73','—']);
+  expect(await heatmap.getByRole('cell').evaluateAll(cells=>cells.every(cell=>getComputedStyle(cell).opacity==='1'&&cell.scrollWidth<=cell.clientWidth+1))).toBe(true);
+  const contrast=await page.locator('.terminal-quarterly-overview td.positive, .terminal-quarterly-overview td.negative').evaluateAll(cells=>{
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=1;
+    const ctx=canvas.getContext('2d');
+    const luminance=color=>{
+      ctx.clearRect(0,0,1,1);ctx.fillStyle=color;ctx.fillRect(0,0,1,1);
+      return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+    };
+    return cells.map(cell=>{
+      const style=getComputedStyle(cell);
+      const ink=luminance(style.color),paper=luminance(style.backgroundColor==='rgba(0, 0, 0, 0)'?getComputedStyle(cell.closest('.terminal-ratio-card')).backgroundColor:style.backgroundColor);
+      return (Math.max(ink,paper)+.05)/(Math.min(ink,paper)+.05);
+    });
+  });
+  expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
   const pendingDownload = page.waitForEvent('download');
   await wrapper.getByRole('button', {name: 'CSV', exact: true}).click();
   const {readFile} = await import('node:fs/promises');
   const csv = await readFile(await (await pendingDownload).path(), 'utf8');
   expect(csv).toContain('Квартал,млрд UZS,"YoY, %","LTM, млрд UZS"');
   expect(csv).toMatch(/2026Q3,"510,46","10,73","1\s917,59",—,"10,75"/);
-  await wrapper.screenshot({path: testInfo.outputPath('quarterly-billions-desktop.png')});
+  const overview=page.locator('.terminal-quarterly-overview');
+  await heatmap.locator('..').locator('..').screenshot({path:testInfo.outputPath('quarterly-heatmap-desktop.png')});
+  await card.screenshot({path:testInfo.outputPath('quarterly-table-desktop.png')});
+  await overview.screenshot({path:testInfo.outputPath('quarterly-desktop.png'),style:'.topbar, .topbar * {visibility:hidden !important}'});
   await page.setViewportSize({width: 390, height: 844});
-  await wrapper.screenshot({path: testInfo.outputPath('quarterly-billions-mobile.png')});
+  await wrapper.focus();
+  await expect(wrapper).toBeFocused();
+  const periodCell=table.locator('tbody th').first(), periodLeft=(await periodCell.boundingBox()).x;
+  await wrapper.press('ArrowRight');
+  expect(await wrapper.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
+  await expect.poll(()=>wrapper.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
+  expect(Math.abs((await periodCell.boundingBox()).x-periodLeft)).toBeLessThanOrEqual(1);
+  await wrapper.evaluate(el=>{el.scrollLeft=0;});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await overview.screenshot({path:testInfo.outputPath('quarterly-mobile.png'),style:'.topbar, .topbar * {visibility:hidden !important}'});
 });
 
 test("direct PNL visit waits for the issuer list before creating its first panel",async({page})=>{

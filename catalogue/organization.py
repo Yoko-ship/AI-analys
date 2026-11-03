@@ -61,6 +61,12 @@ _NAME_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 _SECTOR_KINDS = {"funds": FUND, "fund": FUND, "finance": FINANCIAL}
 
 
+def uses_credit_metrics(kind: str, name: Any = None) -> bool:
+    """NPL, NIM and CoR belong to banks and leasing, not the whole finance sector."""
+    return kind == BANK or (kind not in {INSURANCE, FUND}
+                            and bool(re.search(r"lizing|лизинг|leasing", str(name or ""), re.IGNORECASE)))
+
+
 def kind_from_form(org_type: Any) -> str | None:
     """The kind an openinfo statement form describes, or None for the jsc form."""
     return _FORM_KINDS.get(str(org_type or "").strip().lower())

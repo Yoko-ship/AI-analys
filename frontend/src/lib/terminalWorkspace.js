@@ -4,6 +4,11 @@ import { ISSUER_FUNCTIONS, MARKET_FUNCTIONS } from "./terminalCommands.js";
 // documents keep their own standard selection.
 export const CATALOG_STANDARDS = ["NSBU"];
 
+export function metricApplies(row, metric) {
+  return !["npl", "nim", "cost_of_risk"].includes(metric)
+    || (row.credit_metrics_applicable ?? row.kind === "bank");
+}
+
 export function catalogContext(form, scope) {
   const standard = CATALOG_STANDARDS.includes(form) ? form : CATALOG_STANDARDS[0];
   return {form: standard, scope: standard === "MSFO" && scope === "consolidated" ? "consolidated" : "separate"};

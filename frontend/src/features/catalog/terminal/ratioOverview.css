@@ -1,0 +1,138 @@
+.terminal-analytics { container:terminal-analytics / inline-size; }
+.terminal-quarterly-overview {
+  display:grid;
+  gap:16px;
+  max-width:1240px;
+  margin:24px 0;
+}
+.terminal-ratio-overview {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr);
+  align-items:start;
+  gap:16px;
+  max-width:1240px;
+  margin:24px 0;
+}
+.terminal-ratio-card {
+  position:relative;
+  min-width:0;
+  padding:20px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  font-family:Inter, Arial, sans-serif;
+}
+.terminal-annual-card { width:100%; max-width:560px; box-sizing:border-box; }
+.terminal-ratio-card-head { min-height:52px; margin-bottom:16px; padding-right:72px; }
+.catalog-terminal-ui .terminal-ratio-card h3 {
+  margin:0 0 8px;
+  font-size:18px;
+  font-weight:600;
+  line-height:1.4;
+  text-wrap:balance;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-ratio-meta {
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 12px;
+  margin:0;
+  color:var(--text-secondary);
+  font-size:12px;
+  line-height:1.5;
+}
+.terminal-ratio-meta strong { color:var(--text); font-weight:600; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-table-wrap > button.terminal-csv {
+  position:absolute;
+  top:20px;
+  right:20px;
+  min-height:44px;
+  margin:0;
+  padding:0 12px;
+  border-radius:8px;
+  font-size:12px;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-table { font-size:14px; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-table :is(th, td) {
+  height:48px;
+  box-sizing:border-box;
+  padding:10px 12px;
+  border-top:0;
+  vertical-align:middle;
+  line-height:1.5;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-table thead th {
+  height:40px;
+  background:var(--surface-2);
+  color:var(--text-secondary);
+  font-size:12px;
+  font-weight:500;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-table tbody tr:last-child :is(th, td) { border-bottom:0; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-table tbody tr:hover { background:var(--surface-2); }
+.terminal-ratio-label { display:flex; align-items:center; gap:8px; }
+.catalog-terminal-ui .terminal-ratio-card .term-info-btn {
+  flex:none;
+  width:24px;
+  height:24px;
+  min-height:24px;
+  margin:0;
+  padding:0;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-annual-ratios td {
+  font-size:18px;
+  font-weight:600;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-table td.is-missing { color:var(--muted); font-weight:400; }
+.terminal-growth-ratios { min-width:460px; }
+.terminal-growth-ratios td { white-space:nowrap; }
+.terminal-heatmap-card { width:100%; max-width:900px; box-sizing:border-box; }
+.terminal-quarterly-overview .terminal-table-wrap:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:3px;
+  border-radius:4px;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap {
+  min-width:520px;
+  border-collapse:separate;
+  border-spacing:4px;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap :is(th, td) {
+  min-width:96px;
+  text-align:center;
+  border:0;
+  border-radius:6px;
+  white-space:nowrap;
+}
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap th:first-child { min-width:64px; text-align:left; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap tbody tr:hover { background:transparent; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap td { background:var(--surface-2); color:var(--text); font-weight:500; }
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap td.positive { background:color-mix(in srgb,var(--positive) var(--heat-strength),var(--panel)); }
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap td.negative { background:color-mix(in srgb,var(--negative) var(--heat-strength),var(--panel)); }
+.catalog-terminal-ui .terminal-ratio-card .terminal-heatmap td.is-missing { background:transparent; color:var(--muted); }
+.catalog-terminal-ui .terminal-ratio-card .terminal-quarter-map { min-width:740px; }
+.terminal-quarterly-overview .terminal-quarter-map :is(th, td) { white-space:nowrap; }
+.terminal-quarterly-overview .terminal-quarter-map td:first-of-type { font-weight:600; }
+.catalog-terminal-ui .terminal-quarterly-overview .terminal-table th:first-child {
+  position:sticky;
+  left:0;
+  z-index:1;
+  background:var(--panel);
+}
+.catalog-terminal-ui .terminal-quarterly-overview .terminal-table thead th:first-child { background:var(--surface-2); }
+.catalog-terminal-ui .terminal-ratio-card .terminal-ratio-note {
+  margin:16px 0 0;
+  color:var(--text-secondary);
+  font-size:13px;
+  line-height:1.6;
+  text-wrap:pretty;
+}
+@container terminal-analytics (min-width:900px) {
+  .terminal-ratio-overview { grid-template-columns:minmax(280px, .8fr) minmax(0, 1.4fr); }
+}
+@container terminal-analytics (max-width:480px) {
+  .terminal-ratio-card { padding:16px; }
+  .catalog-terminal-ui .terminal-ratio-card .terminal-table-wrap > button.terminal-csv { top:16px; right:16px; }
+  .catalog-terminal-ui .terminal-ratio-card .terminal-table :is(th, td) { padding-right:8px; padding-left:8px; }
+}

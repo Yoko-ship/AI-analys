@@ -3,7 +3,7 @@ import { MetricValue } from './MetricValue.jsx';
 import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
 import React from "react";
-import { CATALOG_STANDARDS, filterRows, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
+import { CATALOG_STANDARDS, filterRows, metricApplies, normalizeLayout, profitSparkline } from "../../../lib/terminalWorkspace.js";
 import { ISSUER_FUNCTIONS, functionLabel } from "../../../lib/terminalCommands.js";
 import { reportScreenLoad } from "../../../lib/terminalJournal.js";
 import { safeHref } from "../../../lib/safeHref.js";
@@ -11,6 +11,9 @@ import { IssuerFinancials, IssuerDividends, FinancialColumns, InvestorView } fro
 import { NewsScreen, QualityScreen, useScreenData } from "./TerminalPanels.jsx";
 import { words } from "../../../shared/TerminalTables.jsx";
 import { SummaryScreen } from "./SummaryScreen.jsx";
+import { RatioOverview } from './RatioOverview.jsx';
+import { QuarterlyMetrics } from './QuarterlyMetrics.jsx';
+import { PeerComparisonTable } from './PeerComparisonTable.jsx';
 import { TerminalValuation } from "../../../shared/TerminalValuation.jsx";
 import "../../../shared/terminalWorkspace.css";
 
@@ -39,6 +42,7 @@ export function ContextControls({form,scope,onForm,onScope,lang,tabs=false}) {
 }
 
 const METRICS=[['roe','ROE, %'],['roa','ROA, %'],['pe','P/E'],['ep','E/P, %'],['pb','P/B'],['de','D/E'],['dy','DVD¹, %'],['cg5','CAGR 5Y, %'],['npl','NPL, %'],['nim','NIM, %'],['cost_of_risk','CoR, %']];
+const metricsForRows=rows=>METRICS.filter(([key])=>metricApplies({},key)||rows.some(row=>metricApplies(row,key)));
 export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
   const [year,setYear]=React.useState("");
   const [filters,setFilters]=React.useState({});
@@ -62,17 +66,22 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
     return()=>{alive=false;};
   },[valuationKey,apiFetch,form,scope]);
   const currentValuation=valuationKey&&valuation?.key===valuationKey?valuation:null;
-  const metrics=user?.is_admin&&mode==='EQS'?[...METRICS,['price_to_value_pct',words(lang,'Цена к оценке, %','Narx / baho, %','Price / valuation, %')]]:METRICS;
+  const contextRows=filterRows(data?.rows||[],{kind:filters.kind,query:filters.query});
+  const filterMetrics=metricsForRows(contextRows);
   const valuedRows=(data?.rows||[]).map(row=>{
     const model=currentValuation?.rows?.find(model=>['ticker','period','standard','scope'].every(key=>model[key]===row[key]));
     return {...row,price_to_value_pct:model?.price_to_value_pct??null,metric_reasons:{...row.metric_reasons,
       ...(model?.price_to_value_pct==null?{price_to_value_pct:{code:year?'HISTORICAL_MARKET_UNAVAILABLE':currentValuation?.error?'SOURCE_UNAVAILABLE':!currentValuation?'SOURCE_PENDING':'MISSING_VALUATION'}}:{})}};
   });
-  const activeFilters=valuationKey?filters:Object.fromEntries(Object.entries(filters).filter(([key])=>key!=='price_to_value_pct_max'));
+  const activeFilters=Object.fromEntries(Object.entries(filters).filter(([key])=>
+    (valuationKey||key!=='price_to_value_pct_max')&&
+    (!['npl_max','nim_min','cost_of_risk_max'].includes(key)||filterMetrics.some(([metric])=>key===`${metric}_min`||key===`${metric}_max`))));
   const rows=filterRows(valuedRows,activeFilters,data?.deposit_rate).sort((a,b)=>{
     if(a[sort.key]==null)return b[sort.key]==null?0:1;if(b[sort.key]==null)return -1;
     return (typeof a[sort.key]==="number" ? a[sort.key]-b[sort.key] : String(a[sort.key]).localeCompare(String(b[sort.key])))*(sort.desc?-1:1);
   });
+  const visibleMetrics=metricsForRows(rows);
+  const metrics=user?.is_admin&&mode==='EQS'?[...visibleMetrics,['price_to_value_pct',words(lang,'Цена к оценке, %','Narx / baho, %','Price / valuation, %')]]:visibleMetrics;
   const update=(k,v)=>setFilters(f=>({...f,[k]:v}));
   return <section className="panel terminal-market-screen">
     <header className="terminal-section-head"><h2>{mode} · {functionLabel(mode,lang)}</h2><span className="muted">{rows.length} / {data?.rows?.length||0}</span></header>
@@ -93,7 +102,7 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
       {user?.is_admin&&<div className="terminal-controls"><label>{words(lang,'Цена к оценке ≤, %','Narx / baho ≤, %','Price / valuation ≤, %')}<input type="number" step="any" value={filters.price_to_value_pct_max??''} onChange={e=>update('price_to_value_pct_max',e.target.value)} disabled={!!year}/></label>
         <span className="muted">{year?words(lang,'Оценка доступна только для последнего годового отчёта.','Baho faqat oxirgi yillik hisobot uchun.','Valuation is available only for the latest annual filing.'):currentValuation?.error?words(lang,'Оценка не загружена; сравнение недоступно.','Baho yuklanmadi; taqqoslash mavjud emas.','Valuation could not be loaded; comparison is unavailable.'):!currentValuation?words(lang,'Загрузка оценки…','Baho yuklanmoqda…','Loading valuations…'):words(lang,'100% — цена равна оценке. Расчёт по модели, не рекомендация.','100% — narx bahoga teng. Model hisobi, tavsiya emas.','100% means price equals valuation. Model calculation, not a recommendation.')}</span>
       </div>}
-      <div className="terminal-controls terminal-numeric-filters">{[["cbu_assets_share_pct_min",words(lang,"Доля активов ЦБ ≥","MB aktivlar ulushi ≥","CBU asset share ≥")],["roe_min","ROE ≥"],["pb_max","P/B ≤"],["pe_max","P/E ≤"],["dy_min","DVD ≥"],["de_max","D/E ≤"],["cg5_min","CAGR 5Y ≥"],["npl_max","NPL ≤"],["nim_min","NIM ≥"],["cost_of_risk_max","CoR ≤"]].map(([k,l])=><label key={k}>{l}<input type="number" step="any" value={filters[k]??""} onChange={e=>update(k,e.target.value)}/></label>)}</div>
+      <div className="terminal-controls terminal-numeric-filters">{[["cbu_assets_share_pct_min",words(lang,"Доля активов ЦБ ≥","MB aktivlar ulushi ≥","CBU asset share ≥")],["roe_min","ROE ≥"],["pb_max","P/B ≤"],["pe_max","P/E ≤"],["dy_min","DVD ≥"],["de_max","D/E ≤"],["cg5_min","CAGR 5Y ≥"],["npl_max","NPL ≤"],["nim_min","NIM ≥"],["cost_of_risk_max","CoR ≤"]].filter(([key])=>!["npl_max","nim_min","cost_of_risk_max"].includes(key)||filterMetrics.some(([metric])=>key===`${metric}_min`||key===`${metric}_max`)).map(([k,l])=><label key={k}>{l}<input type="number" step="any" value={filters[k]??""} onChange={e=>update(k,e.target.value)}/></label>)}</div>
       <div className="terminal-controls"><label className="terminal-check"><input type="checkbox" checked={!!filters.above_deposit} onChange={e=>update("above_deposit",e.target.checked)}/>{words(lang,"Дивиденд выше депозита","Dividend depozitdan yuqori","Dividend above deposit")}</label>
         <span className="muted">{data?.deposit_rate==null?words(lang,"Ставка ЦБ не загружена — сравнение недоступно.","Markaziy bank stavkasi yo‘q.","CBU deposit rate unavailable; no comparison can be made."):`${fmt(data.deposit_rate,lang)}% · ${data.deposit?.period||""}`}</span></div>
       <div className="terminal-controls terminal-filter-templates"><label>{words(lang,"Шаблон","Andoza","Template")}<input placeholder={words(lang,"Название шаблона","Andoza nomi","Template name")} maxLength={60} value={name} onChange={e=>setName(e.target.value)}/></label>
@@ -103,7 +112,7 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
       </div>
     </>}
     <State data={data} error={error} lang={lang}>{mode==="MON"?<div className="terminal-monitor">{rows.map(r=><button key={r.ticker} className={`terminal-monitor-tile ${r[metric]==null?"":r[metric]<0?"negative":r[metric]>=10?"positive":""}`} onClick={()=>terminal.go({ticker:r.ticker,func:"SUM"})}><strong>{r.ticker}</strong><span>{r.name}</span><b>{fmt(r[metric],lang)}{r[metric]!=null?"%":""}</b><small>{r.period||"—"} · {r.standard}</small><ProfitSparkline values={r.profit_history} lang={lang}/></button>)}</div>:
-      <div className="terminal-table-wrap"><table className="terminal-table terminal-screener"><thead><tr>{[["ticker",words(lang,"Эмитент","Emitent","Issuer")],["period",words(lang,"Период","Davr","Period")],...metrics].map(([k,l])=><th key={k} aria-sort={sort.key===k?(sort.desc?"descending":"ascending"):"none"}><button onClick={()=>setSort({key:k,desc:sort.key===k?!sort.desc:true})}>{l} {sort.key===k?(sort.desc?"↓":"↑"):""}</button></th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>terminal.go({ticker:r.ticker,func:"SUM"})}>{r.ticker}</button><small>{r.name}</small>{r.issues?.length>0&&<span title={r.issues.map(i=>i.code).join(", ")}> ⚑</span>}</td><td>{r.period||"—"}</td>{metrics.map(([k,l])=><td key={k} title={k==="npl"?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{<MetricValue row={r} metric={k} label={l} lang={lang} text={fmt(r[k],lang,k)}/>}{k==="npl"&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>}
+      <div className="terminal-table-wrap"><table className="terminal-table terminal-screener"><thead><tr>{[["ticker",words(lang,"Эмитент","Emitent","Issuer")],["period",words(lang,"Период","Davr","Period")],...metrics].map(([k,l])=><th key={k} aria-sort={sort.key===k?(sort.desc?"descending":"ascending"):"none"}><button onClick={()=>setSort({key:k,desc:sort.key===k?!sort.desc:true})}>{l} {sort.key===k?(sort.desc?"↓":"↑"):""}</button></th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>terminal.go({ticker:r.ticker,func:"SUM"})}>{r.ticker}</button><small>{r.name}</small>{r.issues?.length>0&&<span title={r.issues.map(i=>i.code).join(", ")}> ⚑</span>}</td><td>{r.period||"—"}</td>{metrics.map(([k,l])=><td key={k} title={k==="npl"&&metricApplies(r,k)?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{<MetricValue row={r} metric={k} label={l} lang={lang} text={fmt(r[k],lang,k)}/>}{k==="npl"&&metricApplies(r,k)&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>}
       {mode==="EQS"&&<BankComparison rows={rows} lang={lang} sectorSeries={data?.sector_series}/>}
       {!rows.length&&<p className="terminal-empty">{words(lang,"Нет эмитентов по этим фильтрам","Mos emitentlar yo‘q","No issuers match these filters")}</p>}
     </State>
@@ -123,31 +132,17 @@ export function Reconciliation({ticker,scope,lang}) {
 export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2020}) {
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/analytics?form=${form}&scope=${scope}`,{ticker,form,func:summary?"SUM":"RAT"});
   const snap=data?.snapshot||{};
-  const quarterUnit=words(lang,"млрд UZS","mlrd UZS","UZS billion");
   return <State data={data} error={error} lang={lang}><div className="terminal-analytics">
     {!summary&&<p className="terminal-context">{snap.period||"—"} · {form} · {scope} · UZS</p>}
     {summary?<SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>:<>
       <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
-      <div className="terminal-table-wrap"><table className="terminal-table terminal-annual-ratios"><caption>{words(lang,'Годовые показатели','Yillik ko‘rsatkichlar','Annual ratios')} · {snap.period||'—'} · {form} · {scope}</caption><tbody>{METRICS.filter(([k])=>!["pe","pb","dy","npl"].includes(k)&&(k!=='de'||['industry','non_financial'].includes(snap.kind))).map(([k,l])=><tr key={k}><th>{l}<RatioInfo metric={k} label={l} lang={lang}/></th><td>{fmt(snap[k],lang)}</td></tr>)}</tbody></table></div>
+      <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
+        metrics={metricsForRows([snap]).filter(([key])=>!["pe","pb","dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
+        growth={(data?.growth||[]).map(row=>({...row,label:label(row.field,lang)}))}/>
     </>}
     {!summary&&<>
       <BankContext data={data?.cbu} sector={data?.sector} lang={lang}/>
-      <h3>CAGR</h3><p className="muted">{words(lang,"Убыток или отсутствующая граница периода — без расчёта. Реальный рост и рост в USD требуют полного ряда инфляции и курсов ЦБ.","Zarar yoki yetishmagan davr bo‘lsa hisoblanmaydi.","Losses or missing endpoints are not calculated. Real and USD growth require complete inflation and CBU exchange rates.")}</p>
-      <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,"Показатель","Ko‘rsatkich","Metric")}</th><th>{words(lang,"Период","Davr","Period")}</th><th>{words(lang,"Номинальный, %","Nominal, %","Nominal, %")}</th><th>{words(lang,"Реальный, %","Real, %","Real, %")}</th><th>USD, %</th></tr></thead><tbody>{(data?.growth||[]).map(r=><tr key={`${r.field}:${r.years}`}><td>{label(r.field,lang)}</td><td>{r.start}–{r.end}</td>{[r.nominal,r.real,r.usd].map((v,i)=><td key={i} title={r.reason||""}>{fmt(v,lang)}</td>)}</tr>)}</tbody></table></div>
-      <QuarterHeatmap rows={data?.quarters?.rows||[]} lang={lang}/>
-      <h3>{words(lang,"Кварталы · чистая прибыль","Choraklar · sof foyda","Quarters · net profit")}</h3>
-      {data?.quarters?.reason&&<p className="terminal-warning">{words(lang,"Опубликован накопленный итог: его нельзя показывать как отдельный квартал.","Hisobot jamlangan; alohida chorak emas.","Published amounts are cumulative and cannot be shown as standalone quarters.")}</p>}
-      <div className="terminal-table-wrap"><table className="terminal-table terminal-quarter-map">
-        <thead><tr>
-          <th>{words(lang,"Квартал","Chorak","Quarter")}</th><th>{quarterUnit}</th><th>YoY, %</th>
-          <th>LTM, {quarterUnit}</th><th>{words(lang,"Доля в году, %","Yildagi ulush, %","Share of year, %")}</th><th>CAGR 3Y, %</th>
-        </tr></thead>
-        <tbody>{(data?.quarters?.rows||[]).map(r=><tr key={r.period}>
-          <th>{r.period}</th>
-          {[r.value==null?null:r.value/1e9,r.yoy,r.ltm==null?null:r.ltm/1e9,r.seasonality,r.cg3].map((n,i)=><td key={i}
-            className={i===1&&n!=null?(n<0?"negative":"positive"):""}>{fmt(n,lang)}</td>)}
-        </tr>)}</tbody>
-      </table></div>
+      <QuarterlyMetrics quarters={data?.quarters||{}} lang={lang}/>
     </>}
   </div></State>;
 }
@@ -159,13 +154,14 @@ export function PeersScreen({ticker,form,scope,lang,onOpen}) {
   const base=(data?.rows||[]).find(r=>r.ticker===ticker);
   const peers=base?(data?.rows||[]).filter(r=>r.ticker!==ticker&&["kind","standard","scope","period"].every(k=>r[k]===base[k])):[];
   const rows=base?[base,...peers]:[];
-  return <section><h3>RV · {functionLabel("RV",lang)}</h3>
+  const metrics=metricsForRows(base?[base]:[]);
+  return <section className="terminal-peers-screen"><h3>RV · {functionLabel("RV",lang)}</h3>
     <div className="terminal-controls"><label>{words(lang,"Год отчётности","Hisobot yili","Reporting year")}<select value={year} onChange={e=>setYear(e.target.value)}>
       <option value="">{words(lang,"Последний","Oxirgi","Latest")}</option>{years.map(y=><option key={y} value={y}>{y}</option>)}
     </select></label></div>
     <p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {base?.kind}</p>
     <p className="muted">{words(lang,"Год применяется к отчётности и данным ЦБ: берётся последнее доступное наблюдение внутри выбранного года. При отсутствии данных — прочерк. Исторические рыночные коэффициенты без котировок недоступны.","Yil hisobotlarga va MB ma’lumotlariga qo‘llanadi: tanlangan yil ichidagi oxirgi mavjud kuzatuv olinadi. Ma’lumot bo‘lmasa — chiziqcha. Tarixiy kotirovkalarsiz bozor koeffitsiyentlari mavjud emas.","The year applies to statements and CBU data: the latest available observation within that year is used. Missing data is shown as a dash. Historical market ratios require historical quotes.")}</p><State data={data} error={error} lang={lang}>
-    <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,"Эмитент","Emitent","Issuer")}</th>{METRICS.map(([k,l])=><th key={k}>{l}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.ticker}><td><button className="terminal-code" onClick={()=>onOpen?.(r.ticker)}>{r.ticker}</button></td>{METRICS.map(([k,l])=><td key={k} title={k==="npl"?r.cbu?.npl?.date:k==="dy"?r.dividend?.decision?.decision_date:undefined}>{<MetricValue row={r} metric={k} label={l} lang={lang} text={fmt(r[k],lang,k)}/>}{k==="npl"&&r.cbu?.npl?.npl_flag?" ⚑":""}</td>)}</tr>)}</tbody></table></div>
+    <PeerComparisonTable rows={rows} metrics={metrics} ticker={ticker} lang={lang} onOpen={onOpen} formatValue={(value,key)=>fmt(value,lang,key)}/>
     <BankComparison rows={rows} lang={lang} sectorSeries={data?.sector_series}/>
     {!peers.length&&<p className="terminal-empty">{words(lang,"Сопоставимые эмитенты не найдены","Mos emitentlar topilmadi","No comparable issuers found")}</p>}
   </State></section>;
@@ -239,7 +235,7 @@ function SectorMetrics({ticker,form,scope,lang,summary}) {
   const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:summary?'SUM':'RAT'});
   return <section className="terminal-sector-metrics"><State data={data} error={error} lang={lang}>
     <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {data?.scope||scope}</p>
-    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th><th>{words(lang,'Метод / причина пропуска','Usul / bo‘sh qiymat sababi','Method / missing-value reason')}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th>{r[`name_${lang}`]||r.name_ru||r.metric_code}<RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||r.metric_code} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td><td>{r.reason_code||r.reason||r.method_id||'—'}</td></tr>)}</tbody></table></div>}
+    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th>{r[`name_${lang}`]||r.name_ru||r.metric_code}<RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||r.metric_code} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td></tr>)}</tbody></table></div>}
     {data?.status&& !['available','stale'].includes(data.status)&&<p className="terminal-warning">{data.availability?.reason_text||words(lang,'Отчёт не прошёл проверку данных. Показатели недоступны.','Hisobot tekshiruvdan o‘tmadi.','The filing did not pass data checks. Metrics unavailable.')}</p>}
     {data?.sources?.map((source,i)=>source.url&&<a key={i} href={safeHref(source.url)} target="_blank" rel="noreferrer">{words(lang,'Источник отчёта','Hisobot manbasi','Filing source')} ↗ </a>)}
   </State></section>;
@@ -252,12 +248,6 @@ function BankContext({data={},sector={},lang}) {
     {Object.entries(data).map(([kind,row])=><div className="terminal-table-wrap" key={kind}><p><a href={safeHref(row.source_url)} target="_blank" rel="noreferrer">CBU · {row.date} ↗</a>{row.npl_flag&&' · ⚑ NPL > 5%'}</p><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{row.ticker}</th><th>{words(lang,'Сектор','Sektor','Sector')}</th></tr></thead><tbody>{Object.entries(row).filter(([key])=>CBU_LABELS[key]).map(([key,value])=><tr key={key}><th>{lang==='ru'?CBU_LABELS[key]:key.replaceAll('_',' ')}</th><td>{fmt(value,lang)}</td><td>{fmt(sector?.[kind]?.[key],lang)}</td></tr>)}</tbody></table></div>)}
   </section>;
 }
-function QuarterHeatmap({rows,lang}) {
-  const years=[...new Set(rows.map(r=>r.period.slice(0,4)))].sort();
-  if(!years.length)return null;
-  return <div className="terminal-table-wrap"><table className="terminal-table terminal-heatmap"><caption>{words(lang,'Чистая прибыль · рост г/г, %','Sof foyda · yillik o‘sish, %','Net profit · YoY growth, %')}</caption><thead><tr><th>{words(lang,'Год','Yil','Year')}</th>{[1,2,3,4].map(q=><th key={q}>Q{q}</th>)}</tr></thead><tbody>{years.map(y=><tr key={y}><th>{y}</th>{[1,2,3,4].map(q=>{const row=rows.find(r=>r.period===`${y}Q${q}`),v=row?.yoy;return <td key={q} className={v==null?'':v<0?'negative':'positive'} style={{opacity:v==null?1:Math.min(1,.55+Math.abs(v)/100)}} title={`${y}Q${q}: ${fmt(row?.value,lang)} UZS`}>{fmt(v,lang)}</td>;})}</tr>)}</tbody></table></div>;
-}
-
 export function DividendsScreen({ticker,form="NSBU",scope="separate",lang}) {
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/analytics?form=${form}&scope=${scope}`,{ticker,form,func:'DVD'});
   return <><section className="terminal-dividend-comparison"><State data={data} error={error} lang={lang}>

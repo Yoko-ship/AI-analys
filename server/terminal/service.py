@@ -41,7 +41,8 @@ def universe():
                                          name=company.get("company_name"), sector=sector)
         if kind == "financial" and any("micro" in str(kinds.get(t, "")) for t in tickers):
             continue
-        result.append({**company, "name": company.get("company_name") or ticker, "sector": sector, "kind": kind})
+        result.append({**company, "name": company.get("company_name") or ticker, "sector": sector, "kind": kind,
+                       "credit_metrics_applicable": organization.uses_credit_metrics(kind, company.get("company_name"))})
     return result
 
 
@@ -217,6 +218,7 @@ async def issuer(ticker, form="NSBU", scope="separate"):
     central, fx, market, payments = await asyncio.gather(loop.run_in_executor(None, cbu.context), loop.run_in_executor(None, history.cached_usd), loop.run_in_executor(None, market_context), loop.run_in_executor(None, dividends.read_snapshot, ticker))
     context = market.get(ticker) or {}
     snap = {**analytics.snapshot(annual, kind=kind, market_cap=context.get("market_cap")), **context}
+    snap["credit_metrics_applicable"] = organization.uses_credit_metrics(kind, (index or {}).get("company_name"))
     snap = await asyncio.to_thread(bank_ratios.enrich, ticker, snap, form, scope)
     payment = analytics.dividend(payments, context.get("price"))
     snap["dy"] = payment["dy"]

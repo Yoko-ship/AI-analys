@@ -50,6 +50,7 @@ body.terminal-panel-fullscreen .topbar,body.terminal-panel-fullscreen .sponsor-o
 .terminal-heatmap td.negative{background:color-mix(in srgb,var(--negative,#c44848) 22%,transparent);color:var(--negative,#c44848)}
 .terminal-fx-rates{font-size:12px;line-height:1.7;color:var(--text-secondary);margin:12px 0}
 .terminal-sector-metrics{margin:16px 0}
+.terminal-sector-metrics td{white-space:nowrap}
 .terminal-market-nav button{padding:8px 12px;font-size:12px}
 @media(max-width:600px){.terminal-market-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-market-nav button{width:100%;text-align:left}.terminal-fx-rates ul{padding-left:18px}}
 .terminal-rule-config{display:flex;flex-direction:column;gap:8px;font-size:13px}.terminal-rule-config textarea{width:100%;box-sizing:border-box;resize:vertical;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:12px;font:12px 'IBM Plex Mono',monospace}

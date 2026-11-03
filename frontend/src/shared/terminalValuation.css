@@ -1,26 +1,112 @@
-.terminal-valuation{min-width:0;width:100%;font-variant-numeric:tabular-nums}
-.terminal-fv-assumptions{line-height:1.65;margin:0 0 10px}
-.terminal-fv-assumptions small{display:block;font-size:11px;color:var(--muted)}
+.terminal-valuation{min-width:0;width:100%;font-variant-numeric:tabular-nums;container:terminal-valuation / inline-size}
 .terminal-fv-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 12px}
-.terminal-fv-kpis>div,.terminal-fv-card{min-width:0;border:1px solid var(--border);border-radius:4px;background:var(--panel);padding:12px}
+.terminal-fv-kpis>div{min-width:0;border:1px solid var(--border);border-radius:4px;background:var(--panel);padding:12px}
 .terminal-fv-kpis dt{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);min-height:27px}
 .terminal-fv-kpis dd{margin:6px 0;font-size:18px;font-weight:650;overflow-wrap:anywhere}
 .terminal-fv-kpis small{font-size:11px;color:var(--muted);line-height:1.5}
-.terminal-fv-detail{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.terminal-fv-card h3{margin:0;font-size:12px;text-transform:uppercase;line-height:1.5}
-.terminal-fv-card p{font-size:11px;line-height:1.6;margin:6px 0 12px}
-.terminal-fv-chart{display:block;width:100%;font:11px 'IBM Plex Mono',monospace;overflow:visible}
-.terminal-fv-chart text{fill:var(--text)}
-.terminal-fv-chart .terminal-fv-range-label{fill:var(--muted)}
-.terminal-fv-band{stroke:var(--terminal-chart,#4bb8e8);stroke-width:6;stroke-linecap:round}
-.terminal-fv-dot{fill:var(--text);stroke:var(--panel);stroke-width:1}
-.terminal-fv-price line{stroke:var(--accent);stroke-width:1;stroke-dasharray:3 3}
-.terminal-fv-price text{fill:var(--accent)}
-.terminal-fv-table{width:100%;border-collapse:collapse;font-size:11px}
-.terminal-fv-table th,.terminal-fv-table td{border-bottom:1px solid var(--border);padding:7px 5px;vertical-align:top}
-.terminal-fv-table th,.terminal-fv-table td:nth-child(2){text-align:left;white-space:normal;line-height:1.6}
-.terminal-fv-table td:last-child{text-align:right;white-space:nowrap}
-.terminal-fv-table thead th{font-weight:400;color:var(--muted)}
-.terminal-fv-empty{padding:24px 0;color:var(--muted)}
-@media(max-width:1200px){.terminal-fv-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.terminal-fv-detail{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:600px){.terminal-fv-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-fv-kpis dd{font-size:16px}.terminal-fv-card{padding:10px}.terminal-fv-chart{font-size:16px}}
+.terminal-fv-detail {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr);
+  align-items:start;
+  gap:16px;
+  max-width:1240px;
+  margin:16px 0;
+  font-family:Inter, Arial, sans-serif;
+}
+.terminal-fv-card {
+  position:relative;
+  min-width:0;
+  padding:20px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel);
+}
+.terminal-fv-card-head { min-height:52px; margin-bottom:16px; }
+.terminal-fv-calculation .terminal-fv-card-head { padding-right:72px; }
+.terminal-valuation .terminal-fv-card h3 {
+  margin:0;
+  font-size:18px;
+  font-weight:600;
+  text-transform:none;
+  line-height:1.4;
+  text-wrap:balance;
+}
+.terminal-valuation .terminal-fv-card-head p {
+  margin:6px 0 0;
+  color:var(--text-secondary);
+  font-size:12px;
+  line-height:1.5;
+}
+.terminal-fv-chart { width:100%; color:var(--text); font-size:14px; }
+.terminal-fv-legend { display:flex; flex-wrap:wrap; gap:12px 20px; margin-bottom:8px; color:var(--text-secondary); font-size:12px; }
+.terminal-fv-legend span,.terminal-fv-price-label>span { display:inline-flex; align-items:center; gap:8px; }
+.terminal-fv-key-dot { width:8px; height:8px; border-radius:50%; background:var(--text); }
+.terminal-fv-key-band { width:20px; height:6px; border-radius:4px; background:var(--terminal-chart,var(--accent)); }
+.terminal-fv-key-price { display:inline-block; height:14px; border-left:2px dashed var(--text-secondary); }
+.terminal-fv-chart-row { padding:20px 0; }
+.terminal-fv-chart-row + .terminal-fv-chart-row { border-top:1px solid var(--border); }
+.terminal-fv-row-head { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:4px 16px; line-height:1.5; }
+.terminal-fv-method-name { font-size:14px; font-weight:500; }
+.terminal-fv-estimate { font-size:16px; font-weight:600; white-space:nowrap; }
+.terminal-fv-track { position:relative; height:32px; margin:8px 8px 4px; }
+.terminal-fv-track-base { position:absolute; inset:15px 0 auto; height:2px; background:var(--border); }
+.terminal-fv-band { position:absolute; top:13px; height:6px; border-radius:4px; background:var(--terminal-chart,var(--accent)); }
+.terminal-fv-dot { position:absolute; top:10px; width:12px; height:12px; box-sizing:border-box; border:2px solid var(--panel); border-radius:50%; background:var(--text); transform:translateX(-50%); }
+.terminal-fv-price-line { position:absolute; top:2px; bottom:2px; border-left:2px dashed var(--text-secondary); }
+.terminal-fv-range-label { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.terminal-fv-range-label>span { white-space:nowrap; }
+.terminal-fv-price-label { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px 16px; padding-top:16px; border-top:1px solid var(--border); font-size:14px; line-height:1.5; }
+.terminal-fv-price-label strong { font-size:16px; font-weight:600; }
+.terminal-valuation .terminal-fv-card .terminal-table-wrap > button.terminal-csv {
+  position:absolute;
+  top:20px;
+  right:20px;
+  min-height:44px;
+  margin:0;
+  padding:0 12px;
+  border-radius:8px;
+  font-size:12px;
+}
+.terminal-fv-card .terminal-csv:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.terminal-valuation .terminal-fv-table { width:100%; margin:0; border-collapse:collapse; font-size:14px; }
+.terminal-valuation .terminal-fv-card .terminal-fv-table :is(th, td) {
+  height:64px;
+  box-sizing:border-box;
+  padding:12px;
+  border:0;
+  border-bottom:1px solid var(--border);
+  text-align:left;
+  vertical-align:middle;
+  white-space:normal;
+  font-size:14px;
+  line-height:1.5;
+}
+.terminal-valuation .terminal-fv-card .terminal-fv-table thead th { height:40px; color:var(--text-secondary); background:var(--surface-2); font-size:12px; font-weight:500; }
+.terminal-valuation .terminal-fv-card .terminal-fv-table th:first-child { width:27%; }
+.terminal-valuation .terminal-fv-card .terminal-fv-table :is(th, td):last-child { text-align:right; white-space:nowrap; }
+.terminal-fv-table tbody th,.terminal-fv-table td:last-child { font-weight:600; }
+.terminal-valuation .terminal-fv-table td:nth-child(2),.terminal-valuation .terminal-fv-table .is-unavailable td:last-child { color:var(--text-secondary); font-weight:400; }
+.terminal-valuation .terminal-fv-card .terminal-fv-table tbody tr:last-child :is(th, td) { border-bottom:0; }
+.terminal-fv-table tbody tr:hover { background:var(--surface-2); }
+.terminal-valuation .terminal-fv-card .terminal-fv-note { margin:16px 0 0; padding-top:16px; border-top:1px solid var(--border); color:var(--text-secondary); font-size:12px; line-height:1.6; text-wrap:pretty; }
+.terminal-valuation .terminal-fv-empty { margin:0; padding:24px 0; color:var(--text-secondary); font-size:14px; line-height:1.6; text-wrap:pretty; }
+@container terminal-valuation (min-width:1000px) {
+  .terminal-fv-detail { grid-template-columns:minmax(0, .85fr) minmax(0, 1.15fr); }
+}
+@container terminal-valuation (max-width:900px) {
+  .terminal-fv-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@container terminal-valuation (max-width:600px) {
+  .terminal-fv-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .terminal-fv-kpis dd { font-size:16px; }
+  .terminal-fv-card { padding:16px; }
+  .terminal-valuation .terminal-fv-card .terminal-table-wrap > button.terminal-csv { top:16px; right:16px; }
+  .terminal-fv-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .terminal-fv-table tbody { display:block; }
+  .terminal-fv-table tbody tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:16px 0; border-bottom:1px solid var(--border); }
+  .terminal-fv-table tbody tr:last-child { border:0; }
+  .terminal-valuation .terminal-fv-card .terminal-fv-table tbody :is(th, td) { height:auto; width:auto; padding:0; border:0; }
+  .terminal-valuation .terminal-fv-card .terminal-fv-table tbody th:first-child { width:auto; }
+  .terminal-fv-table td:nth-child(2) { grid-column:1 / -1; grid-row:2; }
+  .terminal-fv-table td:last-child { grid-column:2; grid-row:1; }
+}

@@ -16,34 +16,45 @@ const REASONS = {
 };
 
 function RangeChart({models,price,names,fmt,t}) {
-  const rows=Object.entries(models).filter(([,model])=>model.per_share?.value!=null);
-  const values=rows.flatMap(([,m])=>[m.per_share.low,m.per_share.high]);
-  if(price!=null)values.push(price);
-  const min=Math.min(...values)*.9;
-  const max=Math.max(...values)*1.1;
-  const x=value=>24+(value-min)/(max-min||1)*472;
-  const height=rows.length*60+45;
+  const descriptionId=React.useId();
+  const rows=Object.entries(models).filter(([,model])=>Number.isFinite(model.per_share?.value));
+  const values=rows.flatMap(([,m])=>[m.per_share.low,m.per_share.value,m.per_share.high]).filter(Number.isFinite);
+  const hasPrice=Number.isFinite(price);
+  if(hasPrice)values.push(price);
+  const low=Math.min(...values),high=Math.max(...values);
+  const padding=Math.max((high-low)*.08,Math.abs(high)*.01,1);
+  const min=low-padding,max=high+padding;
+  const x=value=>`${(value-min)/(max-min)*100}%`;
   const label=t('Методы и диапазоны оценки','Baholash usullari va oraliqlari','Valuation methods and ranges');
-  return <svg className="terminal-fv-chart" role="img" aria-label={label} viewBox={`0 0 520 ${height}`}>
-    <title>{label}</title>
-    <desc>{t('Полоса — диапазон, точка — оценка, пунктир — текущая цена. Все значения в UZS на акцию.','Chiziq — oraliq, nuqta — baho, punktir — joriy narx. UZS/aksiya.','Band: range. Dot: estimate. Dashed line: current price. All values in UZS per share.')}</desc>
-    {rows.map(([code,m],i)=>{
-      const b=m.per_share,y=i*60+36;
-      return <g key={code}><text x="24" y={y-20}>{names[code]}</text><text x="496" y={y-20} textAnchor="end" className="terminal-fv-range-label">{fmt(b.low)}–{fmt(b.high)}</text>
-        <line x1={x(b.low)} x2={x(b.high)} y1={y} y2={y} className="terminal-fv-band"/>
-        <circle cx={x(b.value)} cy={y} r="4" className="terminal-fv-dot"><title>{names[code]}: {fmt(b.value)} UZS/share</title></circle>
-      </g>;
-    })}
-    {price!=null&&<g className="terminal-fv-price"><line x1={x(price)} x2={x(price)} y1="4" y2={height-30}/>
-      <text x={x(price)} y={height-10} textAnchor={x(price)>440?'end':x(price)<80?'start':'middle'}>{t('Цена','Narx','Price')} {fmt(price)}</text></g>}
-  </svg>;
+  const rangeLabel=t('Диапазон','Oraliq','Range');
+  const priceLabel=t('Текущая цена','Joriy narx','Current price');
+  return <div className="terminal-fv-chart" role="img" aria-label={label} aria-describedby={descriptionId}>
+    <span className="sr-only" id={descriptionId}>{rows.map(([code,{per_share:b}])=>`${names[code]}: ${fmt(b.value)}; ${rangeLabel}: ${fmt(b.low)}–${fmt(b.high)}.`).join(' ')} {hasPrice?`${priceLabel}: ${fmt(price)}.`:''} UZS/share.</span>
+    <div className="terminal-fv-legend" aria-hidden="true">
+      <span><i className="terminal-fv-key-dot"/>{t('Оценка','Baho','Estimate')}</span>
+      <span><i className="terminal-fv-key-band"/>{rangeLabel}</span>
+      {hasPrice&&<span><i className="terminal-fv-key-price"/>{t('Цена','Narx','Price')}</span>}
+    </div>
+    {rows.map(([code,{per_share:b}])=><div className="terminal-fv-chart-row" key={code} aria-hidden="true">
+      <div className="terminal-fv-row-head"><span className="terminal-fv-method-name">{names[code]||code}</span><strong className="terminal-fv-estimate">{fmt(b.value)}</strong></div>
+      <div className="terminal-fv-track">
+        <span className="terminal-fv-track-base"/>
+        {hasPrice&&<span className="terminal-fv-price-line" style={{left:x(price)}}/>}
+        <span className="terminal-fv-band" style={{left:x(b.low??b.value),width:`${((b.high??b.value)-(b.low??b.value))/(max-min)*100}%`}}/>
+        <span className="terminal-fv-dot" style={{left:x(b.value)}}/>
+      </div>
+      <div className="terminal-fv-range-label">{rangeLabel}<span>{fmt(b.low)} – {fmt(b.high)}</span></div>
+    </div>)}
+    {hasPrice&&<div className="terminal-fv-price-label" aria-hidden="true"><span><i className="terminal-fv-key-price"/>{priceLabel}</span><strong>{fmt(price)}</strong></div>}
+  </div>;
 }
 
 export function ValuationDashboard({result,lang}) {
+  const headingId=React.useId();
   const t=(ru,uz,en)=>words(lang,ru,uz,en);
   const fmt=value=>value==null||!Number.isFinite(Number(value))?'—':Number(value).toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2});
   const names={peers_pb:t('По аналогам · P/B','Analoglar · P/B','Peers · P/B'),peers_pe:t('По аналогам · P/E','Analoglar · P/E','Peers · P/E'),justified_pb:t('Обоснованный P/B','Asoslangan P/B','Justified P/B'),gordon:t('Дивиденды · Гордон','Dividendlar · Gordon','Dividends · Gordon')};
-  const {models={},summary={},parameters:p={},inputs={},configuration={}}=result;
+  const {models={},summary={},parameters:p={},inputs={}}=result;
   const reason=code=>words(lang,...(REASONS[code]||['Метод недоступен','Usul mavjud emas','Method unavailable']));
   const unit=t('UZS на акцию','UZS/aksiya','UZS/share');
   const range=summary.value==null?'—':`${fmt(summary.low)} – ${fmt(summary.high)}`;
@@ -64,22 +75,19 @@ export function ValuationDashboard({result,lang}) {
   };
   return <>
     <p className="terminal-context">{result.ticker} · {result.period||'—'} · {result.standard} · {result.scope==='consolidated'?t('консолидированная','konsolidatsiyalangan','consolidated'):t('отдельная','alohida','separate')}</p>
-    <div className="terminal-warning terminal-fv-assumptions">
-      {t('Расчёт по модели, не рекомендация.','Model hisobi, tavsiya emas.','Model calculation, not a recommendation.')} {t('Допущения','Farazlar','Assumptions')}: r = {fmt(p.key_rate)}% − {fmt(p.default_spread)}% + {fmt(p.equity_premium)}% = <b>{fmt(result.required_return)}%</b>; g = <b>{fmt(p.growth)}%</b>.
-      <small>{configuration.as_of||result.reference_date} · {configuration.version} · {configuration.reference_only?t('Справочный сценарий из ТЗ; актуальные параметры ещё не утверждены.','TZ ma’lumotnoma ssenariysi; joriy parametrlar hali tasdiqlanmagan.','Reference scenario from the specification; current parameters are not yet approved.'):t('Параметры — ADM → Шаблоны.','Parametrlar — ADM → Andozalar.','Parameters — ADM → Templates.')}</small>
-    </div>
     <dl className="terminal-fv-kpis">{kpis.map(([label,value,note])=><div key={label}><dt>{label}</dt><dd>{value}</dd><small>{note}</small></div>)}</dl>
     {summary.wide_spread&&<p className="terminal-warning">{t('Методы расходятся более чем в 3 раза. Смотрите каждый метод отдельно.','Usullar uch martadan ko‘p farq qiladi. Har birini alohida ko‘ring.','Methods differ by more than three times. Review each method separately.')}</p>}
     <div className="terminal-fv-detail">
-      <section className="terminal-fv-card"><h3>{t('Методы и диапазоны','Usullar va oraliqlar','Methods and ranges')}</h3>
-        <p className="muted">{t('Точка — оценка, полоса — диапазон; пунктир — цена.','Nuqta — baho, chiziq — oraliq; punktir — narx.','Dot: estimate. Band: range. Dashed line: price.')} · {unit}</p>
+      <section className="terminal-fv-card" aria-labelledby={`${headingId}-ranges`}>
+        <header className="terminal-fv-card-head"><h3 id={`${headingId}-ranges`}>{t('Методы и диапазоны','Usullar va oraliqlar','Methods and ranges')}</h3><p>{unit}</p></header>
         {summary.method_count>0?<RangeChart models={models} price={result.current_price} names={names} fmt={fmt} t={t}/>:<p className="terminal-fv-empty">{t('Нет применимых методов. Причины указаны в расчётах.','Qo‘llanadigan usul yo‘q. Sabablar hisoblarda keltirilgan.','No applicable methods. See the calculation notes for reasons.')}</p>}
       </section>
-      <section className="terminal-fv-card"><h3>{t('Как посчитано','Qanday hisoblangan','How it is calculated')}</h3>
-        <div className="terminal-table-wrap"><table className="terminal-table terminal-fv-table"><thead><tr><th>{t('Метод','Usul','Method')}</th><th>{t('Основание','Asos','Basis')}</th><th>{unit}</th></tr></thead><tbody>
-          {Object.entries(models).map(([code,m])=><tr key={code}><th scope="row">{names[code]||code}</th><td>{m.per_share?.reason?<span>{reason(m.per_share.reason)}</span>:formula(code,m)}</td><td>{fmt(m.per_share?.value)}</td></tr>)}
+      <section className="terminal-fv-card terminal-fv-calculation" aria-labelledby={`${headingId}-calculation`}>
+        <header className="terminal-fv-card-head"><h3 id={`${headingId}-calculation`}>{t('Как посчитано','Qanday hisoblangan','How it is calculated')}</h3><p>{unit}</p></header>
+        <div className="terminal-table-wrap"><table className="terminal-table terminal-fv-table" aria-labelledby={`${headingId}-calculation`}><thead><tr><th scope="col">{t('Метод','Usul','Method')}</th><th scope="col">{t('Основание','Asos','Basis')}</th><th scope="col">{unit}</th></tr></thead><tbody>
+          {Object.entries(models).map(([code,m])=><tr key={code} className={m.per_share?.value==null?'is-unavailable':undefined}><th scope="row">{names[code]||code}</th><td>{m.per_share?.reason?<span>{reason(m.per_share.reason)}</span>:formula(code,m)}</td><td>{fmt(m.per_share?.value)}</td></tr>)}
         </tbody></table></div>
-        <p className="muted">{t('Аналоги: один тип, стандарт, периметр и год. Диапазон — межквартильный; для моделей — r ±1 п.п. с r > g.','Analoglar: bir tur, standart, perimetr va yil. Oraliq — kvartillar; modellar uchun r ±1 f.p., r > g.','Peers share the same type, standard, scope and year. Peer ranges use quartiles; model sensitivity uses r ±1 pp, bounded above g.')}</p>
+        <p className="terminal-fv-note">{t('Аналоги: один тип, стандарт, периметр и год. Диапазон — межквартильный; для моделей — r ±1 п.п. с r > g.','Analoglar: bir tur, standart, perimetr va yil. Oraliq — kvartillar; modellar uchun r ±1 f.p., r > g.','Peers share the same type, standard, scope and year. Peer ranges use quartiles; model sensitivity uses r ±1 pp, bounded above g.')}</p>
       </section>
     </div>
   </>;

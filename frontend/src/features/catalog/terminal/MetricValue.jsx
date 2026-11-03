@@ -1,6 +1,7 @@
 import React from 'react';
 import {TermInfo} from '../../../shared/TermInfo.jsx';
 import {words} from '../../../shared/TerminalTables.jsx';
+import {metricApplies} from '../../../lib/terminalWorkspace.js';
 
 const reasons={
   NOT_APPLICABLE:['Показатель не применяется к этому типу компании.','Bu ko‘rsatkich ushbu turdagi kompaniyaga qo‘llanmaydi.','This metric does not apply to this type of company.'],
@@ -24,6 +25,7 @@ const reasons={
 };
 
 export function MetricValue({row,metric,label,lang,text}) {
+  if(!metricApplies(row,metric))return null;
   if(row[metric]!=null)return text;
   const reason=row.metric_reasons?.[metric];
   if(!reason)return text;
