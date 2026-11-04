@@ -26,15 +26,25 @@ export function downloadCsv(rows, name, context={}) {
 
 // Give every terminal table an export, including shared financial components.
 // Buttons are siblings of tables, never part of the exported cells.
+const tableExports = new WeakMap();
 export function useTableExports(root, context) {
   const current=React.useRef(context);current.current=context;
   React.useEffect(()=>{
     const node=root.current;if(!node)return undefined;
+    node.setAttribute('data-table-export-scope','');
     const attached=new Map();
+    const detach=(table,button)=>{
+      if(tableExports.get(table)===button)tableExports.delete(table);
+      button.remove();attached.delete(table);
+    };
     const scan=()=>{
-      for(const [table,button] of attached) if(!node.contains(table)){button.remove();attached.delete(table);}
+      for(const [table,button] of attached) if(!node.contains(table)||table.closest('[data-table-export-scope]')!==node)detach(table,button);
       node.querySelectorAll("table:not([data-own-export])").forEach((table)=>{
+        // The nearest screen owns its table and export context. A parent
+        // catalog must not export an admin table with the issuer's standard.
+        if(table.closest('[data-table-export-scope]')!==node)return;
         if(attached.has(table))return;
+        tableExports.get(table)?.remove();
         const button=document.createElement("button");button.type="button";button.className="ghost-btn terminal-csv";button.textContent="CSV";
         button.setAttribute("aria-label","CSV");
         button.onclick=()=>{
@@ -45,10 +55,10 @@ export function useTableExports(root, context) {
           downloadCsv([...metadata,[],...Array.from(table.rows,row=>Array.from(row.cells,cellText))],
             `UZStock-${ctx.function || "table"}-${ctx.ticker || "market"}`,ctx);
         };
-        table.before(button);attached.set(table,button);
+        table.before(button);attached.set(table,button);tableExports.set(table,button);
       });
     };
     scan();const observer=new MutationObserver(scan);observer.observe(node,{childList:true,subtree:true});
-    return()=>{observer.disconnect();for(const button of attached.values())button.remove();};
+    return()=>{observer.disconnect();node.removeAttribute('data-table-export-scope');for(const [table,button]of attached)detach(table,button);};
   },[root]);
 }

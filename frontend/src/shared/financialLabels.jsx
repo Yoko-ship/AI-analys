@@ -1,6 +1,17 @@
 
 
 const FIN_FIELD_LABELS = {
+  // Statutory ratios are distinct from annualised ROA/ROE. Match the reporting
+  // vocabulary in financial_analysis/metric_names.py when a source omits names.
+  P1: ["Доходность активов на конец периода (P1)", "Davr oxiridagi aktivlar daromadliligi (P1)", "Return on closing assets (P1)"],
+  P2: ["Прибыль до налога / оборотные активы (P2)", "Soliqdan oldingi foyda / joriy aktivlar (P2)", "Pre-tax profit / current assets (P2)"],
+  P3: ["Прибыль до налога / задействованный капитал (P3)", "Soliqdan oldingi foyda / ishlatilgan kapital (P3)", "Pre-tax profit / capital employed (P3)"],
+  P4: ["Доходность капитала до налога (P4)", "Kapitalning soliqdan oldingi daromadliligi (P4)", "Pre-tax return on closing equity (P4)"],
+  P5: ["Валовая маржа (P5)", "Yalpi marja (P5)", "Gross margin (P5)"],
+  P6: ["Валовая прибыль / себестоимость (P6)", "Yalpi foyda / tannarx (P6)", "Gross profit / cost of sales (P6)"],
+  P7: ["Прибыль до налога / выручка (P7)", "Soliqdan oldingi foyda / tushum (P7)", "Pre-tax profit / revenue (P7)"],
+  P8: ["Прибыль до налога / долгосрочные активы (P8)", "Soliqdan oldingi foyda / uzoq muddatli aktivlar (P8)", "Pre-tax profit / non-current assets (P8)"],
+  absolute_liquidity: ["Абсолютная ликвидность", "Mutlaq likvidlik", "Cash ratio"],
   interest_income: ["Процентные доходы", "Foizli daromadlar", "Interest Income"],
   interest_expense: ["Процентные расходы", "Foizli xarajatlar", "Interest Expense"],
   net_revenue: ["Выручка", "Tushum", "Revenue"],

@@ -82,6 +82,9 @@ for(const referenceOnly of [false,true]) test(`FV opens without the assumptions 
   expect(await tabs.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+  await expect(page.locator('.terminal-tab.active span')).toBeVisible();
+  await expect.poll(async () => (await fv.locator('.terminal-fv-kpis').boundingBox()).y).toBeLessThan(760);
+  expect(await fv.locator('.terminal-fv-kpis dt').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
   await page.screenshot({path:testInfo.outputPath('fv-mobile.png'),fullPage:true,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.locator('.theme-toggle').click();

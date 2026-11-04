@@ -125,9 +125,11 @@ const CATALOG_TERMINAL_TEXT = {
     allSectors: "Все отрасли",
     allForms: "Все типы отчётов",
     allYears: "Все годы",
-    results: "результатов",
+    results: "Результаты",
+    totals: (companies, reports) => `Эмитенты: ${companies} · Отчёты: ${reports}`,
     issuers: "Эмитенты",
     reports: "Финансовые отчёты",
+    scrollReports: "Прокрутите вправо, чтобы увидеть даты, источники и файлы",
     newest: "Сначала новые",
     period: "Период",
     type: "Тип",
@@ -152,9 +154,11 @@ const CATALOG_TERMINAL_TEXT = {
     allSectors: "All sectors",
     allForms: "All report types",
     allYears: "All years",
-    results: "results",
+    results: "Results",
+    totals: (companies, reports) => `Issuers: ${companies} · Reports: ${reports}`,
     issuers: "Issuers",
     reports: "Financial reports",
+    scrollReports: "Scroll right to see dates, sources and files",
     newest: "Newest first",
     period: "Period",
     type: "Type",
@@ -179,9 +183,11 @@ const CATALOG_TERMINAL_TEXT = {
     allSectors: "Barcha tarmoqlar",
     allForms: "Barcha hisobot turlari",
     allYears: "Barcha yillar",
-    results: "natija",
+    results: "Natijalar",
+    totals: (companies, reports) => `Emitentlar: ${companies} · Hisobotlar: ${reports}`,
     issuers: "Emitentlar",
     reports: "Moliyaviy hisobotlar",
+    scrollReports: "Sanalar, manbalar va fayllarni ko‘rish uchun o‘ngga suring",
     newest: "Yangilari avval",
     period: "Davr",
     type: "Turi",
@@ -475,6 +481,16 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const [catalogComps, setCatalogComps] = useState([]);
   const [compsLoading, setCompsLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [compactCatalog, setCompactCatalog] = useState(() => window.matchMedia('(max-width: 860px)').matches);
+  const [issuersOpen, setIssuersOpen] = useState(false);
+  const issuerToggle = React.useRef(null);
+  const issuerPanelId = React.useId();
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 860px)');
+    const update = () => setCompactCatalog(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [ticker, setTicker] = useState("");
   const [index, setIndex] = useState(null);
   const [indexLoading, setIndexLoading] = useState(false);
@@ -783,7 +799,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
           <h1>{catalogTerminalText(lang, "heading")}</h1>
           <p>
             {status
-              ? `${status.companies_synced} ${clg(lang, "companies")} · ${status.total_reports} ${clg(lang, "reports")}${status.last_sync ? ` · ${clg(lang, "lastSync")}: ${formatMarketTimestamp(status.last_sync, lang)}` : ""}`
+              ? `${catalogTerminalText(lang, "totals", status.companies_synced, status.total_reports)}${status.last_sync ? ` · ${clg(lang, "lastSync")}: ${formatMarketTimestamp(status.last_sync, lang)}` : ""}`
               : clg(lang, "loading")}
           </p>
         </div>
@@ -813,6 +829,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
       <div className="catalog-body">
         <aside className="catalog-sidebar">
+          <button className="catalog-issuer-toggle" type="button" ref={issuerToggle}
+            aria-expanded={!compactCatalog || issuersOpen} aria-controls={issuerPanelId}
+            onClick={() => setIssuersOpen(open => !open)}>
+            <span>{catalogTerminalText(lang, "issuers")}: {filteredComps.length}</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+          </button>
+          <div id={issuerPanelId} hidden={compactCatalog && !issuersOpen}>
       <div className="catalog-toolbar" aria-label={catalogTerminalText(lang, "heading")}>
         <CatalogFilterSelect
           value={sectorFilter}
@@ -842,7 +865,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
             ...reportYears.map((reportYear) => ({ value: reportYear, label: reportYear })),
           ]}
         />
-        <span className="catalog-toolbar-count">{filteredComps.length} {catalogTerminalText(lang, "results")}</span>
+        <span className="catalog-toolbar-count">{catalogTerminalText(lang, "results")}: {filteredComps.length}</span>
       </div>
 
           <div className="catalog-sidebar-head">
@@ -862,7 +885,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                   key={c.ticker}
                   type="button"
                   className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
-                  onClick={() => terminal.go({ ticker: c.ticker })}
+                  onClick={() => {
+                    terminal.go({ ticker: c.ticker });
+                    if (compactCatalog) {
+                      setIssuersOpen(false);
+                      issuerToggle.current?.focus();
+                    }
+                  }}
                   aria-pressed={ticker === c.ticker}
                 >
                   <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
@@ -877,6 +906,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               ))}
             </div>
           )}
+          </div>
         </aside>
 
         <main className="catalog-main">
@@ -953,11 +983,13 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               )}
               {terminal.func === "CN" && (
                 <section className="terminal-screen panel" aria-label={functionLabel("CN", lang)}>
+                    <h2 className="terminal-screen-title">{functionLabel("CN", lang)}</h2>
                   <NewsScreen ticker={ticker} lang={lang} />
                 </section>
               )}
               {terminal.form !== "MSFO" && terminal.func === "DQ" && (
                 <section className="terminal-screen panel" aria-label={functionLabel("DQ", lang)}>
+                  <h2 className="terminal-screen-title">{functionLabel("DQ", lang)}</h2>
                   <QualityScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} fromYear={terminal.fromYear} />
                 </section>
               )}
@@ -1057,7 +1089,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
 
                 {visibleReportRows.length ? (
                   <>
-                    <div className="catalog-report-table-wrap">
+                    <div className="catalog-report-table-wrap" role="region" aria-label={catalogTerminalText(lang, "reports")} tabIndex={0}>
                       <table className="catalog-report-table">
                       <thead>
                         <tr>
@@ -1112,6 +1144,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
                       </tbody>
                       </table>
                     </div>
+                    <p className="catalog-report-scroll-hint">{catalogTerminalText(lang, "scrollReports")}</p>
                     {reportPageCount > 1 && (
                       <div className="catalog-report-pagination">
                         <span>{safeReportPage * reportsPerPage + 1}–{Math.min((safeReportPage + 1) * reportsPerPage, visibleReportRows.length)} / {visibleReportRows.length}</span>

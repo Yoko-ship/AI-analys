@@ -18,7 +18,7 @@
 }
 .financial-columns a, .fc-passport a { color: var(--accent); }
 .fc-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--fc-line); }
-.fc-label { display: block; font-size: 10px; color: var(--fc-muted); margin-bottom: 6px; }
+.fc-label { display: block; font-size: 12px; color: var(--fc-muted); margin-bottom: 6px; }
 .fc-segment { display: flex; gap: 4px; flex-wrap: wrap; }
 .fc-segment button { white-space: nowrap; background: transparent; }
 .fc-segment button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
@@ -27,23 +27,23 @@
 .fc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--fc-line); }
 .fc-stats-embedded { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .fc-stats>div { min-width: 0; }
-.fc-stats span, .fc-stats small { display: block; color: var(--fc-muted); font-size: 10px; overflow-wrap: anywhere; }
+.fc-stats span, .fc-stats small { display: block; color: var(--fc-muted); font-size: 12px; overflow-wrap: anywhere; }
 .fc-stats strong { display: block; font-size: clamp(15px, 1.3vw, 20px); margin: 7px 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .fc-subnav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; }
 .fc-subnav [role=tablist] { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
 .fc-subnav [role=tab] { background: transparent; border-color: transparent; border-bottom: 2px solid transparent; border-radius: 0; }
 .fc-subnav [role=tab][aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
 .fc-subnav input { width: 180px; min-width: 0; max-width: 100%; }
-.fc-status { font-size: 10px; white-space: nowrap; display: inline-block; border: 1px solid var(--fc-line); border-radius: 3px; padding: 3px 6px; color: var(--fc-ink); }
+.fc-status { font-size: 12px; white-space: nowrap; display: inline-block; border: 1px solid var(--fc-line); border-radius: 3px; padding: 3px 6px; color: var(--fc-ink); }
 .fc-status-valid { border-left: 3px solid var(--positive, #23966c); }
 .fc-status-warn { border-left: 3px solid var(--warning, #c5881b); }
 .fc-status-blocked { border-left: 3px solid var(--negative, #c44848); }
 .fc-scroll { max-width: 100%; overflow: auto; overscroll-behavior-x: contain; }
 .fc-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 580px; font-variant-numeric: tabular-nums; background: var(--panel); }
 .fc-table th, .fc-table td { padding: 7px 9px; border-bottom: 1px solid var(--fc-line); text-align: right; line-height: 1.5; }
-.fc-table thead th { color: var(--fc-muted); background: var(--panel); font-size: 11px; font-weight: 400; }
+.fc-table thead th { color: var(--fc-muted); background: var(--panel); font-size: 12px; font-weight: 400; }
 .fc-table th:first-child { text-align: left; min-width: 245px; max-width: 400px; font-weight: 400; position: sticky; left: 0; z-index: 1; background: var(--panel); }
-.fc-table small { display: block; color: var(--fc-muted); font-size: 10px; margin-top: 3px; }
+.fc-table small { display: block; color: var(--fc-muted); font-size: 12px; margin-top: 3px; }
 .fc-table .fc-group th { padding: 0; background: var(--bg-2); border-top: 1px solid var(--fc-line); }
 .fc-group button { font: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; text-align: left; width: 100%; font-weight: 600; padding: 9px; }
 .fc-value { font: inherit; color: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; padding: 2px 0; border: 0; border-bottom: 1px dotted var(--fc-line); min-height: 28px; border-radius: 0; background: transparent; cursor: pointer; }
@@ -84,7 +84,7 @@
 .fc-documents td { padding: 6px; min-width: 70px; white-space: pre-wrap; border-bottom: 1px solid var(--fc-line); }
 .fc-chart { padding: 12px 0; }
 .fc-chart-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.fc-chart-count { color: var(--fc-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.fc-chart-count { color: var(--fc-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .fc-chart-actions { display: flex; gap: 8px; margin-left: auto; }
 .fc-chart button { min-height: 40px; }
 .fc-chart button:disabled { cursor: default; opacity: .45; }
@@ -93,7 +93,7 @@
 .fc-chart-group { min-width: 0; }
 .fc-chart .fc-chart-group-toggle { display: flex; align-items: center; gap: 12px; padding: 8px 0; background: transparent; border-color: transparent; font-weight: 600; text-align: left; }
 .fc-chart-group-toggle small { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--fc-muted); white-space: nowrap; }
-.fc-chart-group-state { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid var(--border-hover, var(--border)); border-radius: 3px; color: var(--accent); font-size: 11px; }
+.fc-chart-group-state { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid var(--border-hover, var(--border)); border-radius: 3px; color: var(--accent); font-size: 12px; }
 .fc-chart-group-toggle[aria-pressed=true] .fc-chart-group-state { background: var(--accent-light); border-color: var(--accent); }
 .fc-chart-group-toggle[aria-pressed=false] { color: var(--fc-muted); }
 .fc-chart-metrics { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -102,17 +102,17 @@
 .fc-chart-metric i { width: 8px; height: 8px; flex: 0 0 8px; border: 1px solid var(--series-color); border-radius: 50%; }
 .fc-chart-metric[aria-pressed=true] i { background: var(--series-color); }
 .fc-chart-plot { min-width: 0; margin-top: 16px; }
-.fc-chart-unit { font-size: 11px; color: var(--fc-muted); margin: 0 0 8px; }
+.fc-chart-unit { font-size: 12px; color: var(--fc-muted); margin: 0 0 8px; }
 .fc-chart-scroll { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
 .fc-chart-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fc-chart svg { width: 100%; height: 280px; display: block; color: var(--fc-muted); }
-.fc-chart svg text { fill: currentColor; font-size: 11px; }
+.fc-chart svg text { fill: currentColor; font-size: 12px; }
 .fc-chart svg rect:hover, .fc-chart svg rect:focus-visible { opacity: .7; stroke: var(--text); stroke-width: 1px; outline: none; }
-.fc-chart-reading { min-height: 36px; margin: 12px 0 0; color: var(--fc-muted); font-size: 11px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.fc-chart-reading { min-height: 36px; margin: 12px 0 0; color: var(--fc-muted); font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; }
 .fc-muted { color: var(--fc-muted); }
 .fc-value-parts { display: grid; gap: 4px; justify-items: end; }
 .fc-value-parts small { color: var(--fc-muted); }
-.financial-columns>footer { padding: 12px 0; border-top: 1px solid var(--fc-line); font-size: 10px; line-height: 1.7; color: var(--fc-muted); display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
+.financial-columns>footer { padding: 12px 0; border-top: 1px solid var(--fc-line); font-size: 12px; line-height: 1.7; color: var(--fc-muted); display: flex; justify-content: space-between; gap: 15px; flex-wrap: wrap; }
 .fc-passport { color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 24px; width: min(720px, calc(100vw - 36px)); max-height: 85vh; overflow: auto; box-sizing: border-box; font: inherit; }
 .fc-passport::backdrop { background: #0008; }
 .fc-passport header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -162,8 +162,8 @@
 .fc-chart-values > div { min-width: 0; padding-left: 12px; border-left: 2px solid var(--series-color); }
 .fc-chart-values span { display: block; color: var(--text-secondary); line-height: 1.4; font-size: 12px; }
 .fc-chart-values strong { display: block; margin-top: 6px; font-size: 16px; font-weight: 600; }
-.fc-chart-values small { color: var(--fc-muted); font-size: 11px; font-weight: 400; }
-.fc-chart-hint { margin: 16px 0 0; color: var(--fc-muted); font-size: 11px; line-height: 1.5; }
+.fc-chart-values small { color: var(--fc-muted); font-size: 12px; font-weight: 400; }
+.fc-chart-hint { margin: 16px 0 0; color: var(--fc-muted); font-size: 12px; line-height: 1.5; }
 @media (max-width: 600px) {
   .fc-chart-plot { padding: 12px; }
   .fc-chart-navigation { flex-wrap: wrap; }

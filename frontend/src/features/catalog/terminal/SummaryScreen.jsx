@@ -22,12 +22,21 @@ export function SummaryScreen({ticker,form,scope,lang,snapshot={},fromYear=2020,
   const fmt=n=>n==null?'—':Number(n).toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2});
   const kpis=summaryKpis(report,snapshot);
   const available=['available','stale'].includes(report?.status);
+  const hasFigures=kpis.cards.some(card=>card.value!=null);
+  if(report&&!available&&!hasFigures&&!error)return <section className="terminal-summary">
+    <SummaryHistory ticker={ticker} form={form} scope={scope} lang={lang} kind={kpis.kind} fromYear={fromYear}/>
+    <div className="terminal-summary-empty" role="status">
+      <h3>{t('Нет показателей для выбранной отчётности','Tanlangan hisobot uchun ko‘rsatkichlar yo‘q','No figures for the selected financial statements')}</h3>
+      <p>{report.availability?.reason_text||t('Выберите другой стандарт или откройте отчёт эмитента.','Boshqa standartni tanlang yoki emitent hisobotini oching.','Choose another standard or open an issuer filing.')}</p>
+    </div>
+    {kpis.kind==='bank'&&<BankOverview data={bankData} history={bankHistory} lang={lang}/>}
+  </section>;
   return <section className="terminal-summary">
     <SummaryHistory ticker={ticker} form={form} scope={scope} lang={lang} kind={kpis.kind} fromYear={fromYear}/>
-    <dl className="terminal-summary-kpis">{kpis.cards.map(card=><div key={card.key}>
+    {hasFigures&&<dl className="terminal-summary-kpis">{kpis.cards.map(card=><div key={card.key}>
       <dt>{words(lang,...LABELS[card.key])}</dt><dd>{fmt(card.unit==='UZS'&&card.value!=null?card.value/1e9:card.value)}{card.value!=null&&card.unit==='%'?'%':''}</dd>
       <small>{reportPeriodLabel(card.period,lang)} · {card.unit==='UZS'?t('млрд сумов','mlrd so‘m','billion som'):card.unit==='ratio'?'×':card.unit==='UZS/share'?t('сумов на акцию','so‘m/aksiya','som per share'):card.unit}</small>
-    </div>)}</dl>
+    </div>)}</dl>}
     {kpis.kind==='fund'&&report?.valuation?.blocked_reason&&<p className="terminal-warning">{report.valuation.blocked_reason==='SHARE_BASIS_NOT_RECONCILED'?t('Нужна сверка количества и номинала акций. NAV на акцию и цена/NAV недоступны.','Aksiyalar soni va nominalini tekshirish kerak. Bir aksiya NAVi va narx/NAV mavjud emas.','Share count and nominal value must be reconciled. NAV per share and price/NAV are unavailable.'):t('Цена/NAV недоступна: нет подходящей проверенной котировки на дату оценки.','Narx/NAV mavjud emas: baholash sanasiga mos tekshirilgan narx yo‘q.','Price/NAV is unavailable: no suitable verified quote for the valuation date.')}</p>}
     <div className="terminal-summary-narrative">
       <section className="terminal-summary-card"><h3>{t('Вывод','Xulosa','Conclusion')}</h3>

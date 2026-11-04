@@ -120,6 +120,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`credit metrics a
   for(const [ticker,count] of [['UTHK',0],['URTS',0],['UZAL',3],['HMKB',3]]) {
     await run(page,`${ticker} RV`);
     const peers=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
+    await expect(peers.locator('table').first().locator('tbody button').first()).toHaveText(ticker);
     await expect(peers.locator('table').first().getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(count);
     if(ticker==='URTS'||ticker==='UZAL')await peers.screenshot({path:testInfo.outputPath(`credit-metrics-${ticker}.png`)});
     await run(page,`${ticker} RAT`);
@@ -360,7 +361,7 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await expect(peers).toContainText('14');
   await expect(peers.locator('tbody tr').first().getByRole('cell').first()).toHaveText('18');
   await expect(screen.locator('.terminal-bank-comparison tbody tr')).toHaveCount(2);
-  await expect(screen).toContainText('2024 · bank');
+  await expect(screen).toContainText('2024 · Банки');
   const bankCells=screen.locator('.terminal-bank-comparison tbody tr').first().getByRole('cell');
   await expect(bankCells.first()).toHaveText('4,2');
   expect(requests).toContain('2024');
@@ -404,6 +405,8 @@ for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
     const screen=page.getByRole('heading',{name:'RV · Аналоги',exact:true}).locator('..');
     const table=screen.locator('table').first();
     await expect(table.locator('tbody button')).toHaveText(['UZAL','URTS','UZML']);
+    await expect(screen).toContainText('Финансовые компании');
+    await expect(screen).not.toContainText('financial');
     await expect(table.locator('tbody tr').first().getByRole('cell').first()).toHaveText('0');
     await expect(table.locator('tbody tr').first().getByRole('cell').nth(2)).toHaveText('—');
     const download=page.waitForEvent('download');
@@ -502,6 +505,11 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   const table=section.getByRole('table');
   await expect(table.locator('thead th')).toHaveText(['Показатель',report.period]);
   await expect(table.locator('tbody tr')).toHaveCount(report.ratios.length);
+  await expect(table).toContainText('Текущая ликвидность');
+  await expect(table).toContainText('Абсолютная ликвидность');
+  await expect(section).not.toContainText('separate');
+  await expect(table).not.toContainText('current_ratio');
+  await expect(table).not.toContainText('quick_ratio');
   for(const row of await table.locator('tbody tr').all())await expect(row.locator('th,td')).toHaveCount(2);
   await expect(table.locator('tbody tr').first().getByRole('cell')).toHaveText('2,14 %');
   await expect(section).not.toContainText('nsbu-enterprise-profitability');

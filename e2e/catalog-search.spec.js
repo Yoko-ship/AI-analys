@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { textContrast } from './helpers/contrast.js';
 
 const companies = [
   { ticker: 'SQBN', company_name: 'Узпромстройбанк', sector: 'finance' },
@@ -87,13 +88,41 @@ test('company search supports Enter, keyboard suggestions, and existing commands
   await expect(page).toHaveURL(/t=UZTL&f=BS/);
   await search.fill('SQBX PL');
   await search.press('Enter');
-  await expect(page.getByRole('status')).toContainText('SQBX');
+  await expect(page.getByRole('search', {name:locales.ru.label}).getByRole('status')).toContainText('SQBX');
   await expect(page).toHaveURL(/t=UZTL&f=BS/);
   await search.fill('SQBN B');
   await search.press('Tab');
   await expect(search).toHaveValue('SQBN BS ');
   await search.press('Enter');
   await expect(page).toHaveURL(/t=SQBN&f=BS/);
+});
+
+for (const theme of ['light', 'dark']) test(`catalog controls stay readable and issuer browsing is optional on phones (${theme})`, async ({page}) => {
+  await setup(page, {theme, width:390});
+  const open = page.getByRole('button', {name:'Открыть', exact:true});
+  expect(await textContrast(open)).toBeGreaterThanOrEqual(4.5);
+  expect(await textContrast(page.locator('.account-button'))).toBeGreaterThanOrEqual(4.5);
+  await expect(page.locator('.terminal-market-nav').getByRole('button', {name:/^EQS/})).toBeInViewport();
+  const picker = page.getByRole('button', {name:/Эмитенты: 2/});
+  await expect(picker).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.catalog-company-list')).toBeHidden();
+  await picker.focus();
+  await page.keyboard.press('Enter');
+  await expect(picker).toHaveAttribute('aria-expanded', 'true');
+  await page.locator('.catalog-company-item').filter({hasText:'UZTL'}).click();
+  await expect(page).toHaveURL(/t=UZTL/);
+  await expect(picker).toHaveAttribute('aria-expanded', 'false');
+  await expect(picker).toBeFocused();
+  await expect(page.locator('.terminal-tab.active span')).toBeVisible();
+  await page.getByRole('combobox', {name:locales.ru.label}).fill('UZTL DQ');
+  await page.getByRole('combobox', {name:locales.ru.label}).press('Enter');
+  await expect(page.locator('.terminal-tab.active')).toBeInViewport();
+  expect(await textContrast(page.locator('.terminal-tab.active'))).toBeGreaterThanOrEqual(4.5);
+  await page.setViewportSize({width:1440,height:900});
+  await expect(page.locator('.catalog-company-list')).toBeVisible();
+  await expect(picker).toBeHidden();
+  await page.getByRole('combobox', {name:locales.ru.label}).fill('UZTL');
+  await expect(page.locator('.catalog-toolbar-count')).toHaveText('Результаты: 1');
 });
 
 test('the single search filters aliases, clears results, and receives catalog shortcuts', async ({page}) => {
@@ -122,4 +151,11 @@ test('the single search filters aliases, clears results, and receives catalog sh
   await expect(search).toBeFocused();
   await expect(page.locator('.catalog-sidebar')).toBeVisible();
   await expect(page.locator('.catalog-layout .catalog-search-field input')).toHaveCount(1);
+});
+
+test('an empty issuer summary explains missing data without six blank KPI cards', async ({page}) => {
+  await setup(page);
+  await expect(page.locator('.terminal-summary-empty')).toContainText('Нет показателей для выбранной отчётности');
+  await expect(page.locator('.terminal-summary-kpis')).toHaveCount(0);
+  await expect(page.locator('.terminal-summary-narrative')).toHaveCount(0);
 });

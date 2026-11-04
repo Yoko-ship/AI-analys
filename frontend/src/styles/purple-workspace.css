@@ -52,76 +52,8 @@ html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] {
   background: var(--panel); border-color: var(--border); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
 }
 
-/* Catalog: keep reporting screens and commands, apply the reference controls,
-   issuer rail, card surfaces and typography without changing financial data. */
-.app-shell-wrap[data-ui="purple"] .catalog-layout.catalog-terminal-ui {
-  padding: 0; gap: 20px; background: transparent; font: 13px/1.5 Inter, system-ui, sans-serif;
-}
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-head { align-items: end; padding: 0; gap: 16px; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-head h1 { font-size: 27px; line-height: 1.24; font-weight: 800; letter-spacing: -.035em; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-head p { font-size: 12px; margin-top: 8px; color: var(--muted); }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-head .catalog-eyebrow { display: block; font-size: 10px; color: var(--accent); letter-spacing: .12em; margin-bottom: 8px; }
-.app-shell-wrap[data-ui="purple"] .catalog-body { gap: 20px; }
-.app-shell-wrap[data-ui="purple"] .catalog-sidebar {
-  align-self: start; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--card-radius); box-shadow: var(--card-shadow);
-}
-.app-shell-wrap[data-ui="purple"] .catalog-toolbar { gap: 8px; }
-.app-shell-wrap[data-ui="purple"] .catalog-search-field {
-  background: var(--control-bg); border: 1px solid var(--control-border); border-radius: var(--control-radius); min-height: 40px; padding: 0 12px;
-}
-.app-shell-wrap[data-ui="purple"] .catalog-search-field input { font-size: 12px; color: var(--text); background: transparent; border: 0; box-shadow: none; }
-.app-shell-wrap[data-ui="purple"] .catalog-search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
-.app-shell-wrap[data-ui="purple"] .catalog-company-list { gap: 4px; margin-top: 8px; }
-.app-shell-wrap[data-ui="purple"] .catalog-company-item { border-radius: 10px; padding: 10px; min-height: 52px; border-bottom: 0; }
-.app-shell-wrap[data-ui="purple"] .catalog-company-item:hover { background: var(--surface-2); }
-.app-shell-wrap[data-ui="purple"] .catalog-company-title { font-size: 12px; font-weight: 600; }
-.app-shell-wrap[data-ui="purple"] .catalog-company-ticker { font: 600 11px/1.5 'IBM Plex Mono', monospace; color: var(--accent); }
-.app-shell-wrap[data-ui="purple"] .catalog-company-count { background: var(--accent-light); color: var(--accent); border-radius: 6px; padding: 4px 6px; }
-.app-shell-wrap[data-ui="purple"] .catalog-company-summary {
-  padding: 20px; border: 1px solid var(--border); border-radius: var(--card-radius); background: var(--panel); box-shadow: var(--card-shadow);
-}
-.app-shell-wrap[data-ui="purple"] .catalog-company-identity h2 { font-size: 20px; font-weight: 800; }
-.app-shell-wrap[data-ui="purple"] .catalog-report-stats { margin-top: 14px; gap: 16px; }
-.app-shell-wrap[data-ui="purple"] .catalog-report-stats small { font-size: 11px; }
-.app-shell-wrap[data-ui="purple"] .catalog-report-stats strong { font-size: 12px; font-variant-numeric: tabular-nums; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab, .terminal-run, .catalog-filter-trigger, .terminal-market-nav button, .terminal-csv) {
-  min-height: 40px; border-radius: var(--control-radius); font-size: 12px; padding: 8px 12px;
-}
-.app-shell-wrap[data-ui="purple"] .terminal-command-field input { font-size: 14px; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-command :is(.terminal-command-field, .terminal-run) { min-height: 44px; font-size: 14px; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab, .terminal-market-nav button) { border: 1px solid var(--border); background: var(--panel); color: var(--muted); }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-tab.active, .terminal-market-nav button.active) { background: var(--accent-light); border-color: var(--border-focus); color: var(--accent); }
-.app-shell-wrap[data-ui="purple"] .terminal-context-tabs { gap: 12px; margin: 12px 0; }
-.app-shell-wrap[data-ui="purple"] .terminal-context-tabs button { min-height: 40px; font-size: 12px; }
-.app-shell-wrap[data-ui="purple"] .terminal-context-tabs button.active { color: var(--accent); }
-.app-shell-wrap[data-ui="purple"] .terminal-controls { gap: 12px; margin: 12px 0; }
-.app-shell-wrap[data-ui="purple"] .terminal-controls :is(input, select) { min-height: 40px; border: 1px solid var(--control-border); border-radius: var(--control-radius); background: var(--panel); color: var(--text); padding: 8px 12px; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-summary-kpis>div, .terminal-summary-card, .fin-panel, .terminal-workspace-card, .terminal-statement-card) {
-  border: 1px solid var(--border); border-radius: var(--card-radius); background: var(--panel); padding: 16px; box-shadow: var(--card-shadow);
-}
-.app-shell-wrap[data-ui="purple"] .terminal-summary-card h3 { font-size: 15px; font-weight: 800; text-transform: none; }
-.app-shell-wrap[data-ui="purple"] .terminal-summary-kpis dd { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.app-shell-wrap[data-ui="purple"] .terminal-summary-kpis dt { font-size: 11px; text-transform: none; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-table, .catalog-report-table) { font-variant-numeric: tabular-nums; }
-.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-table thead { background: var(--surface-2); }
-.app-shell-wrap[data-ui="purple"] .catalog-sparkline-change.pos { color: var(--success); }
-.app-shell-wrap[data-ui="purple"] .catalog-sparkline-change.neg { color: var(--danger); }
 html[data-theme="dark"] .app-shell-wrap[data-ui="purple"] :is(input, select) { color-scheme: dark; }
 html[data-theme="light"] .app-shell-wrap[data-ui="purple"] :is(input, select) { color-scheme: light; }
-@media (max-width: 860px) {
-  .app-shell-wrap[data-ui="purple"] .catalog-sidebar { padding: 14px; }
-  .app-shell-wrap[data-ui="purple"] .catalog-company-list { max-height: 180px; }
-  .app-shell-wrap[data-ui="purple"] .catalog-terminal-head { align-items: start; flex-wrap: wrap; }
-}
-@media (max-width: 600px) {
-  .app-shell-wrap[data-ui="purple"] .catalog-terminal-head h1 { font-size: 24px; }
-  .app-shell-wrap[data-ui="purple"] .catalog-company-summary { padding: 16px; }
-  .app-shell-wrap[data-ui="purple"] .catalog-company-actions { flex-wrap: wrap; }
-  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.catalog-search-field input, .terminal-controls input, .terminal-controls select) { font-size: 16px; }
-  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-summary-kpis>div { padding: 12px; }
-  .app-shell-wrap[data-ui="purple"] .terminal-summary-kpis dd { font-size: 18px; }
-}
-
 .app-shell-wrap[data-ui="purple"] .primary-btn { background: var(--action-primary); border-color: var(--action-primary); color: #fff; }
 .app-shell-wrap[data-ui="purple"] .primary-btn:hover { background: var(--action-primary-hover); border-color: var(--action-primary-hover); }
 .app-shell-wrap[data-ui="purple"] .ifrs-investor {

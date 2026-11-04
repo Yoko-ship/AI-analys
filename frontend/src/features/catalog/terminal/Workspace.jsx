@@ -1,5 +1,7 @@
 import { BankComparison } from './BankComparison.jsx';
 import { MetricValue } from './MetricValue.jsx';
+import { finLabel } from '../../../shared/financialLabels.jsx';
+import { reportScopeLabel } from '../../../lib/reportingLabels.js';
 import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
 import React from "react";
@@ -20,6 +22,14 @@ import "../../../shared/terminalWorkspace.css";
 const fmt = (n, lang, key) => n == null ? "—" : key === "pe" && n > 100 ? ">100" : Number(n).toLocaleString(lang === "en" ? "en-US" : "ru-RU",{maximumFractionDigits:2});
 const labels = {net_profit:["Чистая прибыль","Sof foyda","Net profit"],net_revenue:["Выручка","Tushum","Revenue"],total_assets:["Активы","Aktivlar","Assets"],total_equity:["Капитал / NAV","Kapital / NAV","Equity / NAV"],total_liabilities:["Обязательства","Majburiyatlar","Liabilities"]};
 const label = (key,lang) => words(lang,...(labels[key] || [key,key,key]));
+const KIND_LABELS = {
+  bank:['Банки','Banklar','Banks'], industry:['Предприятия','Korxonalar','Enterprises'],
+  financial:['Финансовые компании','Moliya kompaniyalari','Financial companies'],
+  insurance:['Страховые компании','Sug‘urta kompaniyalari','Insurers'],
+  leasing:['Лизинговые компании','Lizing kompaniyalari','Leasing companies'],
+  fund:['Инвестиционные фонды','Investitsiya fondlari','Investment funds'],
+};
+const kindLabel = (kind,lang) => KIND_LABELS[kind] ? words(lang,...KIND_LABELS[kind]) : kind;
 function State({data,error,lang,children}) {
   if(error)return <p role="alert" className="terminal-empty">{words(lang,"Не удалось загрузить данные. Обновите экран.","Ma’lumotlar yuklanmadi. Yangilang.","Could not load data. Refresh this screen.")}</p>;
   if(!data)return <p role="status" className="terminal-empty">{words(lang,"Загрузка…","Yuklanmoqda…","Loading…")}</p>;
@@ -91,7 +101,7 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
       <ContextControls form={form} scope={scope} onForm={terminal.setForm} onScope={terminal.setScope} lang={lang}/>
       <label>{words(lang,"Год","Yil","Year")}<select value={year} onChange={e=>setYear(e.target.value)}><option value="">{words(lang,"Последний","Oxirgi","Latest")}</option>{(data?.years||[]).map(y=><option key={y}>{y}</option>)}</select></label>
       <label className="terminal-market-search">{words(lang,"Поиск","Qidiruv","Search")}<input type="search" placeholder={words(lang,'Компания или тикер','Kompaniya yoki tiker','Company or ticker')} value={filters.query||""} onChange={e=>update("query",e.target.value)}/></label>
-      <label>{words(lang,"Тип","Tur","Type")}<select value={filters.kind||""} onChange={e=>update("kind",e.target.value)}><option value="">{words(lang,"Все","Barchasi","All")}</option>{[...new Set((data?.rows||[]).map(r=>r.kind))].map(k=><option key={k}>{k}</option>)}</select></label>
+      <label>{words(lang,"Тип","Tur","Type")}<select value={filters.kind||""} onChange={e=>update("kind",e.target.value)}><option value="">{words(lang,"Все","Barchasi","All")}</option>{[...new Set((data?.rows||[]).map(r=>r.kind))].map(k=><option key={k} value={k}>{kindLabel(k,lang)}</option>)}</select></label>
       {mode==="MON"&&<label>{words(lang,"Показатель","Ko‘rsatkich","Metric")}<select value={metric} onChange={e=>setMetric(e.target.value)}>{METRICS.filter(([k])=>["roe","dy","cg5"].includes(k)).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>}
     </div>
     {mode==="EQS"&&<>
@@ -107,7 +117,7 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
         <span className="muted">{data?.deposit_rate==null?words(lang,"Ставка ЦБ не загружена — сравнение недоступно.","Markaziy bank stavkasi yo‘q.","CBU deposit rate unavailable; no comparison can be made."):`${fmt(data.deposit_rate,lang)}% · ${data.deposit?.period||""}`}</span></div>
       <div className="terminal-controls terminal-filter-templates"><label>{words(lang,"Шаблон","Andoza","Template")}<input placeholder={words(lang,"Название шаблона","Andoza nomi","Template name")} maxLength={60} value={name} onChange={e=>setName(e.target.value)}/></label>
         <button className="ghost-btn" disabled={!name.trim()} onClick={()=>{const next={...saved,[name.trim()]:filters};try{localStorage.setItem("uz_terminal_screens",JSON.stringify(next));setSaved(next);setNotice(words(lang,"Сохранено в этом браузере","Shu brauzerda saqlandi","Saved in this browser"));}catch{setNotice(words(lang,"Не удалось сохранить","Saqlanmadi","Save failed"));}}}>{words(lang,"Сохранить фильтры","Filtrlarni saqlash","Save filters")}</button>
-        <label>{words(lang,"Сохранённые фильтры","Saqlangan filtrlar","Saved filters")}<select aria-label={words(lang,"Сохранённые фильтры","Saqlangan filtrlar","Saved filters")} value="" onChange={e=>{setFilters(saved[e.target.value]||{});setName(e.target.value);}}><option value="">{words(lang,"Выбрать шаблон","Andozani tanlang","Load template")}</option>{Object.keys(saved).map(k=><option key={k}>{k}</option>)}</select></label>
+        <label>{words(lang,"Сохранённые фильтры","Saqlangan filtrlar","Saved filters")}<select aria-label={words(lang,"Сохранённые фильтры","Saqlangan filtrlar","Saved filters")} value="" onChange={e=>{setFilters(saved[e.target.value]||{});setName(e.target.value);}}><option value="">{words(lang,"Выбрать шаблон","Andozani tanlang","Load template")}</option>{Object.keys(saved).map(k=><option key={k} value={k}>{kindLabel(k,lang)}</option>)}</select></label>
         <button className="ghost-btn" onClick={()=>setFilters({})}>{words(lang,"Сбросить","Tozalash","Reset")}</button>{notice&&<span role="status">{notice}</span>}
       </div>
     </>}
@@ -123,7 +133,7 @@ export function Reconciliation({ticker,scope,lang}) {
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/reconciliation?scope=${scope}`,{ticker,func:"REC"});
   return <section className="terminal-reconciliation"><h3>REC · {functionLabel("REC",lang)}</h3><State data={data} error={error} lang={lang}>
     {data&&!data.same_scope&&<p className="terminal-warning">{words(lang,"Периметры различаются: разница не является ростом прибыли или ошибкой отчёта.","Qamrovlar turlicha: farq o‘sish yoki xato emas.","Reporting scopes differ: this difference is neither profit growth nor a filing error.")}</p>}
-    <p className="muted">NSBU · {data?.nsbu_scope||"—"} ↔ MSFO · {data?.ifrs_scope||"—"} · UZS</p>
+    <p className="muted">NSBU · {reportScopeLabel(data?.nsbu_scope,lang)} ↔ MSFO · {reportScopeLabel(data?.ifrs_scope,lang)} · UZS</p>
     <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr>{[words(lang,"Показатель","Ko‘rsatkich","Metric"),words(lang,"Год","Yil","Year"),"NSBU, UZS","MSFO, UZS","Δ, UZS"].map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{(data?.rows||[]).map(r=><tr key={`${r.field}:${r.period}`}><td>{label(r.field,lang)}</td><td>{r.period}</td>{[r.nsbu,r.ifrs,r.difference].map((n,i)=><td key={i}>{fmt(n,lang)}</td>)}</tr>)}</tbody></table></div>
     {!data?.rows?.length&&<p className="terminal-empty">{words(lang,"Нет сопоставимых опубликованных данных","Taqqoslanadigan ma’lumotlar yo‘q","No published figures to reconcile")}</p>}
   </State></section>;
@@ -133,7 +143,7 @@ export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/analytics?form=${form}&scope=${scope}`,{ticker,form,func:summary?"SUM":"RAT"});
   const snap=data?.snapshot||{};
   return <State data={data} error={error} lang={lang}><div className="terminal-analytics">
-    {!summary&&<p className="terminal-context">{snap.period||"—"} · {form} · {scope} · UZS</p>}
+    {!summary&&<p className="terminal-context">{snap.period||"—"} · {form} · {reportScopeLabel(scope,lang)} · UZS</p>}
     {summary?<SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>:<>
       <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
       <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
@@ -159,7 +169,7 @@ export function PeersScreen({ticker,form,scope,lang,onOpen}) {
     <div className="terminal-controls"><label>{words(lang,"Год отчётности","Hisobot yili","Reporting year")}<select value={year} onChange={e=>setYear(e.target.value)}>
       <option value="">{words(lang,"Последний","Oxirgi","Latest")}</option>{years.map(y=><option key={y} value={y}>{y}</option>)}
     </select></label></div>
-    <p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {base?.kind}</p>
+    <p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {kindLabel(base?.kind,lang)}</p>
     <p className="muted">{words(lang,"Год применяется к отчётности и данным ЦБ: берётся последнее доступное наблюдение внутри выбранного года. При отсутствии данных — прочерк. Исторические рыночные коэффициенты без котировок недоступны.","Yil hisobotlarga va MB ma’lumotlariga qo‘llanadi: tanlangan yil ichidagi oxirgi mavjud kuzatuv olinadi. Ma’lumot bo‘lmasa — chiziqcha. Tarixiy kotirovkalarsiz bozor koeffitsiyentlari mavjud emas.","The year applies to statements and CBU data: the latest available observation within that year is used. Missing data is shown as a dash. Historical market ratios require historical quotes.")}</p><State data={data} error={error} lang={lang}>
     <PeerComparisonTable rows={rows} metrics={metrics} ticker={ticker} lang={lang} onOpen={onOpen} formatValue={(value,key)=>fmt(value,lang,key)}/>
     <BankComparison rows={rows} lang={lang} sectorSeries={data?.sector_series}/>
@@ -234,8 +244,8 @@ export function PanelWorkspace({companies,terminal,lang,user,apiFetch}) {
 function SectorMetrics({ticker,form,scope,lang,summary}) {
   const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:summary?'SUM':'RAT'});
   return <section className="terminal-sector-metrics"><State data={data} error={error} lang={lang}>
-    <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {data?.scope||scope}</p>
-    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th>{r[`name_${lang}`]||r.name_ru||r.metric_code}<RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||r.metric_code} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td></tr>)}</tbody></table></div>}
+    <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||scope,lang)}</p>
+    {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th></tr></thead><tbody>{(data?.ratios||[]).map((r,i)=><tr key={r.metric_code||i}><th><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></span></th><td>{fmt(r.value??r.raw_result,lang)} {['percent','%'].includes(r.unit)?'%':''}</td></tr>)}</tbody></table></div>}
     {data?.status&& !['available','stale'].includes(data.status)&&<p className="terminal-warning">{data.availability?.reason_text||words(lang,'Отчёт не прошёл проверку данных. Показатели недоступны.','Hisobot tekshiruvdan o‘tmadi.','The filing did not pass data checks. Metrics unavailable.')}</p>}
     {data?.sources?.map((source,i)=>source.url&&<a key={i} href={safeHref(source.url)} target="_blank" rel="noreferrer">{words(lang,'Источник отчёта','Hisobot manbasi','Filing source')} ↗ </a>)}
   </State></section>;
@@ -250,7 +260,7 @@ function BankContext({data={},sector={},lang}) {
 }
 export function DividendsScreen({ticker,form="NSBU",scope="separate",lang}) {
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/analytics?form=${form}&scope=${scope}`,{ticker,form,func:'DVD'});
-  return <><section className="terminal-dividend-comparison"><State data={data} error={error} lang={lang}>
+  return <><section className="terminal-dividend-comparison"><h2 className="terminal-screen-title">{functionLabel("DVD",lang)}</h2><State data={data} error={error} lang={lang}>
     <p>{words(lang,'Депозиты в UZS · ЦБ','UZS depozitlari · MB','UZS deposits · CBU')}: {fmt(data?.deposit?.value,lang)}% · {data?.deposit?.period||'—'} {data?.deposit?.source_url&&<a href={safeHref(data.deposit.source_url)} target="_blank" rel="noreferrer">CBU ↗</a>}</p>
     <table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>%</th><th>{words(lang,'Разница с депозитом, п.п.','Depozitdan farq, f.p.','Spread to deposits, pp')}</th></tr></thead><tbody>{[['dy',words(lang,'Последний дивиденд / цена','Oxirgi dividend / narx','Latest dividend / price')],['ep','E/P']].map(([key,name])=>{const v=data?.snapshot?.[key],rate=data?.deposit?.value;return <tr key={key}><th>{name}</th><td>{fmt(v,lang)}</td><td>{fmt(v!=null&&rate!=null?v-rate:null,lang)}</td></tr>;})}</tbody></table>
     <p className="muted">{words(lang,'Дивидендное решение за последние 366 дней; годовая прибыль / текущая капитализация. Даты оснований различаются.','Oxirgi 366 kundagi dividend qarori; yillik foyda / joriy kapitalizatsiya.','Dividend decision within 366 days; annual profit / current capitalisation. Observation dates differ.')} {data?.dividend?.decision?.decision_date} · {data?.snapshot?.period} · {data?.snapshot?.market_date}</p>

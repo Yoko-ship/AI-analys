@@ -14,10 +14,24 @@ const READY_MARKET = new Set(MARKET_FUNCTIONS.map(f => f.code));
 // from the tab bar.
 function FunctionTabs({ terminal, lang }) {
   const copy = terminalCopy(lang);
+  const tabsRef = React.useRef(null);
+  React.useEffect(() => {
+    const nav = tabsRef.current;
+    const revealSelection = () => {
+      const active = nav?.querySelector('[aria-current="page"]');
+      if (!active || nav.scrollWidth <= nav.clientWidth) return;
+      const tabBox = active.getBoundingClientRect(), navBox = nav.getBoundingClientRect();
+      nav.scrollLeft += tabBox.left - navBox.left - (nav.clientWidth - tabBox.width) / 2;
+    };
+    revealSelection();
+    const observer = new ResizeObserver(revealSelection);
+    if (nav) observer.observe(nav);
+    return () => observer.disconnect();
+  }, [terminal.func, lang]);
   const keyOf = Object.fromEntries(TAB_KEYS.map((t) => [t.code, t.key]));
   return (
     <div className="terminal-tabs-row">
-    <nav className="terminal-tabs" aria-label={copy.tabsLabel}>
+    <nav className="terminal-tabs" aria-label={copy.tabsLabel} ref={tabsRef}>
       {ISSUER_FUNCTIONS.filter((fn) => fn.code !== "REC").map((fn) => {
         const ready = READY_FUNCTIONS.has(fn.code);
         return (

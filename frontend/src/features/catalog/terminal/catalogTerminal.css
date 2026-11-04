@@ -1,62 +1,131 @@
-/* The supplied terminal mockup: a compact issuer rail and readable data
-   cards. Scope the palette and density to the catalog, keeping light mode. */
-.catalog-layout.catalog-terminal-ui{gap:8px;padding:12px;font:12px 'IBM Plex Mono',monospace}
-.catalog-terminal-ui button,.catalog-terminal-ui input,.catalog-terminal-ui select{font-family:inherit}
-/* Financial roles inherit the Purple application theme in both modes. */
-.catalog-layout.catalog-terminal-ui{
-  --positive:var(--success);--negative:var(--danger);--terminal-chart:var(--accent);
-  --catalog-accent:var(--accent);--catalog-accent-hover:var(--accent-hover);--catalog-accent-soft:var(--accent-light);
-  --catalog-surface:var(--panel);--catalog-surface-2:var(--surface-2);--catalog-border:var(--border);
-  --catalog-ink:var(--text);--catalog-muted:var(--muted);color:var(--text)
+.app-shell-wrap.view-catalog {
+  --accent: #5145b7;
+  --accent-hover: #45399f;
+  --accent-light: rgb(81 69 183 / 8%);
+  --catalog-action-ink: #fff;
+  --card-shadow: none;
+  --card-radius: 12px;
+  --control-radius: 8px;
 }
-.catalog-terminal-ui .catalog-terminal-head{padding:0;align-items:center;gap:8px}
-.catalog-terminal-ui .catalog-terminal-head h1{font-size:16px;margin:0;line-height:1.4}
-.catalog-terminal-ui .catalog-terminal-head p{font-size:10px}
-.catalog-terminal-ui .catalog-terminal-head .catalog-eyebrow{display:none}
-.catalog-terminal-ui .terminal-market-nav{margin:0;gap:6px}
-.catalog-terminal-ui .terminal-market-nav button{padding:5px 9px;min-height:30px;font-size:11px;border-radius:3px}
-.catalog-terminal-ui .catalog-body{grid-template-columns:280px minmax(0,1fr);gap:16px}
-.catalog-terminal-ui .catalog-sidebar{padding:0 10px 0 0;border:0;border-right:1px solid var(--border);border-radius:0;background:transparent;min-width:0}
-.catalog-terminal-ui .catalog-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:0;border:0;border-radius:0;gap:6px}
-.catalog-terminal-ui .catalog-search-field{min-height:32px;padding:0 8px;border-radius:3px}
-.catalog-terminal-ui .catalog-toolbar .catalog-search-field{grid-column:1/-1}
-.catalog-terminal-ui .terminal-command-field{grid-column:auto;min-height:44px;padding:0 12px;border-radius:8px}
-.catalog-terminal-ui .terminal-search-icon{flex:none;color:var(--catalog-muted)}
-.catalog-terminal-ui .terminal-run{min-height:44px;border-radius:8px;font-family:Inter,Arial,sans-serif;font-size:14px;box-shadow:none}
-.catalog-terminal-ui .terminal-suggestions li{min-height:44px;align-items:center}
-.catalog-terminal-ui .catalog-search-field input{font-size:11px}
-.catalog-terminal-ui .terminal-command-field input{font-family:Inter,Arial,sans-serif;font-size:14px;letter-spacing:normal}
-.catalog-terminal-ui .catalog-filter-control{min-width:0}
-.catalog-terminal-ui .catalog-filter-trigger{font-size:11px;min-height:32px;border-radius:3px;padding:6px 8px}
-.catalog-terminal-ui .catalog-toolbar-count{font-size:10px;white-space:normal}
-.catalog-terminal-ui .catalog-sidebar-head{font-size:10px;padding:8px 0}
-.catalog-terminal-ui .catalog-company-list{gap:0;max-height:calc(100vh - 310px);min-height:200px}
-.catalog-terminal-ui .catalog-company-item{grid-template-columns:minmax(0,1fr) auto;gap:6px;min-height:42px;padding:6px;border-radius:0;border-bottom:1px solid var(--border)}
-.catalog-terminal-ui .catalog-company-item>.chip-logo,.catalog-terminal-ui .catalog-company-item>.chip-logo-fallback{display:none}
-.catalog-terminal-ui .catalog-company-title{font-size:11px;font-weight:500;line-height:1.3}
-.catalog-terminal-ui .catalog-company-ticker{font-size:10px;color:var(--accent)}
-.catalog-terminal-ui .catalog-company-count{font-size:10px;min-width:22px;border-radius:2px}
-.catalog-terminal-ui .catalog-company-summary{padding:6px 0 10px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent}
-.catalog-terminal-ui .catalog-company-identity>.chip-logo,.catalog-terminal-ui .catalog-company-identity>.chip-logo-fallback{display:none}
-.catalog-terminal-ui .catalog-company-identity h2{font-size:15px;line-height:1.5;margin:0}
-.catalog-terminal-ui .catalog-company-identity p{color:var(--accent);font-size:11px;margin-top:3px}
-.catalog-terminal-ui .catalog-company-identity .catalog-eyebrow{font-size:10px;letter-spacing:0;text-transform:none;color:var(--muted)}
-.catalog-terminal-ui .catalog-company-header{grid-template-columns:minmax(0,1fr) auto;gap:12px}
-.catalog-terminal-ui .catalog-company-actions{display:flex;margin:0;width:auto}
-.catalog-terminal-ui .catalog-company-actions .ghost-btn{min-height:30px;padding:5px 8px;font-size:11px;border-radius:3px;flex:none}
-.catalog-terminal-ui .catalog-report-stats{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 0;border:0}
-.catalog-terminal-ui .catalog-report-stats>span{display:flex;flex-direction:row;align-items:baseline;gap:5px;padding:0;border:0}
-.catalog-terminal-ui .catalog-report-stats>span:first-child{display:none}
-.catalog-terminal-ui .catalog-report-stats small{font-size:9px;letter-spacing:0}
-.catalog-terminal-ui .catalog-report-stats strong{font-size:10px;font-weight:500}
-.catalog-terminal-ui .terminal-tabs-row{flex-wrap:wrap;gap:8px}
-.catalog-terminal-ui .terminal-tabs{flex-wrap:wrap;overflow:visible;gap:5px}
-.catalog-terminal-ui .terminal-tab{min-height:30px;padding:5px 7px;border-radius:3px;font-size:11px}
-.catalog-terminal-ui .terminal-tab kbd{font-size:10px}
-.catalog-terminal-ui .terminal-history{margin-left:auto}
-.catalog-terminal-ui .terminal-controls{gap:8px;margin:4px 0 10px}
-.catalog-terminal-ui .terminal-controls input,.catalog-terminal-ui .terminal-controls select{min-height:32px;padding:4px 8px;border-radius:3px}
-.catalog-terminal-ui .terminal-controls label{font-size:10px}
+.app-shell-wrap.view-catalog .topbar { --header-accent:var(--accent); }
+.app-shell-wrap.view-catalog .account-button { color:var(--catalog-action-ink); font-weight:600; box-shadow:none; }
+html[data-theme="dark"] .app-shell-wrap.view-catalog {
+  --accent: #b6aaff;
+  --accent-hover: #c7beff;
+  --accent-light: rgb(182 170 255 / 10%);
+  --catalog-action-ink: #191722;
+  --card-shadow: none;
+}
+/* The catalog owns its density and surfaces. Keep financial colour semantic:
+   purple for actions, neutral metadata, distinct colours for real chart series. */
+.app-shell-wrap[data-ui="purple"] .catalog-layout.catalog-terminal-ui {
+  --positive:var(--success); --negative:var(--danger); --terminal-chart:var(--accent);
+  --catalog-accent:var(--accent); --catalog-accent-hover:var(--accent-hover); --catalog-accent-soft:var(--accent-light);
+  --catalog-surface:var(--panel); --catalog-surface-2:var(--surface-2); --catalog-border:var(--border);
+  --catalog-ink:var(--text); --catalog-muted:var(--text-secondary);
+  padding:0; gap:16px; background:transparent; color:var(--text); font:14px/1.5 Inter,system-ui,sans-serif;
+}
+.catalog-terminal-ui :is(button,input,select) { font-family:inherit; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-head { align-items:center; padding:0; gap:16px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-head h1 { font-size:28px; line-height:1.25; font-weight:600; letter-spacing:-.02em; margin:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-head p { font-size:12px; margin:8px 0 0; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-head .catalog-eyebrow { display:block; font-size:12px; font-weight:400; text-transform:none; letter-spacing:0; color:var(--text-secondary); margin-bottom:4px; }
+.app-shell-wrap[data-ui="purple"] .catalog-body { grid-template-columns:280px minmax(0,1fr); gap:24px; }
+.app-shell-wrap[data-ui="purple"] .catalog-sidebar { align-self:start; min-width:0; padding:16px; background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.catalog-issuer-toggle { display:none; }
+.app-shell-wrap[data-ui="purple"] .catalog-toolbar { grid-template-columns:repeat(2,minmax(0,1fr)); padding:0; border:0; gap:8px; }
+.catalog-terminal-ui .catalog-toolbar>.catalog-filter-control:not(.catalog-filter-control-year) { grid-column:1 / -1; }
+.app-shell-wrap[data-ui="purple"] .catalog-filter-trigger { min-height:44px; padding:8px; border-radius:8px; font-size:12px; }
+.catalog-terminal-ui .catalog-filter-control { min-width:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-toolbar-count { font-size:12px; white-space:normal; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-sidebar-head { padding:16px 0 8px; font-size:12px; font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-sidebar-head span:last-child { background:none; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-company-list { gap:4px; margin:0; max-height:calc(100vh - 340px); min-height:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-item { grid-template-columns:minmax(0,1fr) auto; gap:8px; min-height:56px; padding:8px; border-radius:8px; border:1px solid transparent; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-item:hover { background:var(--surface-2); }
+.app-shell-wrap[data-ui="purple"] .catalog-company-item.active { background:var(--accent-light); border-color:var(--border); box-shadow:inset 2px 0 var(--accent); }
+.catalog-terminal-ui :is(.catalog-company-item,.catalog-company-identity)>:is(.chip-logo,.chip-logo-fallback) { display:none; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-title { font-size:13px; line-height:1.4; font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-ticker { font:400 12px/1.5 'IBM Plex Mono',monospace; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-company-count { background:none; color:var(--text-secondary); font-size:12px; padding:0; font-variant-numeric:tabular-nums; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-summary { padding:16px 20px; background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:none; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-header { grid-template-columns:minmax(0,1fr) auto; gap:16px; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-identity h2 { margin:0; font-size:22px; line-height:1.4; font-weight:600; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-identity p { font:400 12px/1.5 'IBM Plex Mono',monospace; color:var(--text-secondary); margin:4px 0 0; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-identity .catalog-eyebrow { font-size:12px; font-weight:400; letter-spacing:0; text-transform:none; color:var(--text-secondary); margin-bottom:4px; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-actions { display:flex; width:auto; margin:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-company-actions .ghost-btn { min-height:40px; padding:8px 12px; font-size:12px; font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-report-stats { display:flex; flex-wrap:wrap; gap:8px 16px; margin:16px 0 0; border:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-report-stats>span { display:flex; flex-direction:row; align-items:baseline; gap:4px; padding:0; border:0; }
+.catalog-terminal-ui .catalog-report-stats>span:first-child { display:none; }
+.app-shell-wrap[data-ui="purple"] .catalog-report-stats small { font-size:12px; letter-spacing:0; text-transform:none; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-report-stats strong { font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+.app-shell-wrap[data-ui="purple"] .catalog-main { gap:8px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-command-field { min-height:44px; padding:0 12px; border:1px solid var(--border-hover); border-radius:8px; background:var(--panel); }
+.app-shell-wrap[data-ui="purple"] .terminal-command-field input { font:400 16px/1.5 Inter,system-ui,sans-serif; letter-spacing:0; border:0; background:transparent; box-shadow:none; }
+.catalog-terminal-ui .terminal-search-icon { flex:none; color:var(--text-secondary); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-run { min-height:44px; padding:8px 20px; font-size:14px; font-weight:500; color:var(--catalog-action-ink); box-shadow:none; transform:none; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-run::before { content:none; }
+.catalog-terminal-ui .terminal-suggestions li { min-height:44px; align-items:center; }
+.app-shell-wrap[data-ui="purple"] .terminal-screen-label { font-size:12px; font-weight:400; color:var(--text-secondary); background:none; padding:0 8px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-market-nav { margin:0; gap:4px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-market-nav button { min-height:36px; padding:8px 12px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--text-secondary); font-size:12px; font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-market-nav button:is(.active,:hover) { background:var(--surface-2); color:var(--text); border-color:var(--border); }
+.app-shell-wrap[data-ui="purple"] .terminal-context-tabs { gap:12px; margin:0; padding:0; }
+.app-shell-wrap[data-ui="purple"] .terminal-context-tabs button { min-height:40px; font-size:12px; }
+.app-shell-wrap[data-ui="purple"] .terminal-context-tabs button.active { color:var(--accent); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tabs-row { flex-wrap:wrap; gap:8px; margin:0 0 8px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tabs { flex-wrap:wrap; overflow:visible; gap:4px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tab { min-height:40px; padding:8px 12px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--text-secondary); font-size:13px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tab.active { color:var(--accent); border-color:var(--border); background:var(--accent-light); box-shadow:none; }
+.catalog-terminal-ui .terminal-tab :is(strong,kbd) { font-size:12px; font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-history { margin-left:auto; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .fin-freq-btn { min-height:36px; padding:8px 12px; border-radius:6px; color:var(--text-secondary); transition:color 150ms ease-out,background-color 150ms ease-out; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .fin-freq-btn.active { background:var(--accent); color:var(--catalog-action-ink); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(button,a,input,select) { transition:color 150ms ease-out,background-color 150ms ease-out,border-color 150ms ease-out; }
+.catalog-terminal-ui :is(button,a,input,select):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-summary-kpis>div,.terminal-summary-card,.fin-panel,.terminal-workspace-card,.terminal-statement-card) { padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:none; }
+.app-shell-wrap[data-ui="purple"] .terminal-summary-card h3 { font-size:18px; font-weight:600; text-transform:none; }
+.app-shell-wrap[data-ui="purple"] .terminal-summary-kpis dd { font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+.app-shell-wrap[data-ui="purple"] .terminal-summary-kpis dt { font-size:12px; text-transform:none; }
+.catalog-terminal-ui :is(.terminal-table,.catalog-report-table) { font-variant-numeric:tabular-nums; }
+.catalog-terminal-ui .terminal-table thead { background:var(--surface-2); }
+.app-shell-wrap.view-catalog .disclaimer-note { padding:20px 0; border:0; border-top:1px solid var(--border); border-radius:0; background:none; }
+.app-shell-wrap.view-catalog .disclaimer-note__label { color:var(--text-secondary); font-size:13px; font-weight:500; letter-spacing:0; text-transform:none; margin-bottom:8px; }
+.app-shell-wrap.view-catalog .disclaimer-note__label::before { content:none; }
+@media(max-width:1000px) {
+  .app-shell-wrap[data-ui="purple"] .catalog-body { grid-template-columns:240px minmax(0,1fr); gap:16px; }
+}
+@media(max-width:860px) {
+  .app-shell-wrap[data-ui="purple"] .catalog-body { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-sidebar { padding:0; }
+  .catalog-issuer-toggle { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:44px; padding:12px 16px; border:0; border-radius:12px; background:transparent; color:var(--text); font-size:14px; text-align:left; }
+  .catalog-issuer-toggle[aria-expanded="true"] svg { transform:rotate(180deg); }
+  .catalog-issuer-toggle+div:not([hidden]) { padding:0 16px 16px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-company-list { max-height:240px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tabs { flex-wrap:nowrap; overflow-x:auto; padding:4px 0; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-tabs-row { display:block; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-history { margin:8px 0 0; width:max-content; }
+  .catalog-terminal-ui .terminal-tab span { display:inline; }
+  .catalog-terminal-ui .terminal-tab kbd { display:none; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-market-nav { display:flex; flex-wrap:nowrap; overflow-x:auto; }
+  .catalog-terminal-ui .terminal-market-nav button { flex:none; width:auto; white-space:nowrap; }
+}
+@media(max-width:600px) {
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-head { flex-direction:row; align-items:flex-start; flex-wrap:wrap; gap:8px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-head h1 { font-size:24px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-head .catalog-eyebrow { font-size:12px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-sync-all { font-size:12px; font-weight:500; min-height:36px; padding:8px 12px; }
+  .catalog-terminal-ui .terminal-command-row { grid-template-columns:minmax(0,1fr) auto; }
+  .app-shell-wrap[data-ui="purple"] .catalog-company-summary { padding:16px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-company-identity h2 { font-size:20px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-report-stats { gap:8px 12px; margin-top:12px; }
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-run { padding:8px 12px; }
+  .catalog-terminal-ui .terminal-controls :is(input,select) { font-size:16px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(button,a,input,select) { transition:none; }
+}
 .catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) {
   gap:16px; margin:20px 0 16px; padding:16px;
   border:1px solid var(--border); border-radius:var(--control-radius, 8px); background:var(--surface-2);
@@ -91,14 +160,63 @@
 .terminal-valuation-meta time { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
 .terminal-valuation-meta code {
   padding:2px 6px; border-radius:4px; background:var(--surface-2); color:var(--text-secondary);
-  font-size:11px; max-width:100%; overflow-wrap:anywhere;
+  font-size:12px; max-width:100%; overflow-wrap:anywhere;
 }
 .catalog-terminal-ui .terminal-market-screen .terminal-valuation-basis p { margin:6px 0 0; max-width:80ch; }
-.catalog-terminal-ui .terminal-table{width:100%;border-collapse:collapse;font-size:12px}
-.catalog-terminal-ui .terminal-table th,.catalog-terminal-ui .terminal-table td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;line-height:1.5}
+.catalog-terminal-ui .terminal-table{width:100%;border-collapse:collapse;font-size:14px}
+.catalog-terminal-ui .terminal-table th,.catalog-terminal-ui .terminal-table td{padding:12px;border-bottom:1px solid var(--border);text-align:right;line-height:1.5}
 .catalog-terminal-ui .terminal-table th:first-child,.catalog-terminal-ui .terminal-table td:first-child{text-align:left}
-.catalog-terminal-ui .terminal-table thead th{font-weight:400;color:var(--muted);font-size:11px}
+.catalog-terminal-ui .terminal-table thead th{font-weight:400;color:var(--text-secondary);font-size:12px}
 .catalog-terminal-ui .terminal-table tbody th{font-weight:500}
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-market-screen,.terminal-work-panel,.terminal-screen.panel,.terminal-overlay,.terminal-dividend-comparison,.terminal-reconciliation) {
+  min-width:0; padding:20px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:none;
+}
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-market-screen { margin:0; }
+.catalog-terminal-ui :is(.terminal-screen-title,.terminal-overlay h3,.terminal-reconciliation h3,.terminal-peers-screen>h3,.terminal-valuation>h3) {
+  margin:0 0 16px; font-size:20px; line-height:1.4; font-weight:500;
+}
+.catalog-terminal-ui .terminal-market-screen h3 { margin:24px 0 16px; font-size:18px; line-height:1.4; font-weight:500; }
+.catalog-terminal-ui .terminal-overlay>header { margin-bottom:16px; align-items:flex-start; }
+.catalog-terminal-ui .terminal-overlay>header h3 { margin:8px 0; }
+.catalog-terminal-ui .terminal-help-grid { gap:24px; }
+.catalog-terminal-ui .terminal-help-grid td { vertical-align:middle; }
+.catalog-terminal-ui .terminal-help-grid caption { font-size:16px; font-weight:500; padding:16px 0; }
+.catalog-terminal-ui .terminal-help-grid kbd { font-size:12px; font-weight:400; }
+.catalog-terminal-ui .terminal-last button { align-items:center; }
+.catalog-terminal-ui .terminal-last strong { font-weight:500; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-admin-tabs button,.terminal-panel-actions button,.terminal-section-head button,.catalog-selected-files a,.catalog-analysis-controls button,.terminal-rule-config~.terminal-controls button) {
+  min-height:44px; padding:8px 16px; font-size:14px; font-weight:500; box-shadow:none; transform:none;
+}
+.catalog-terminal-ui .terminal-admin-tabs { gap:4px; padding:0 0 16px; border-bottom:1px solid var(--border); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-admin-tabs button {
+  border-color:transparent; background:transparent !important; color:var(--text-secondary) !important;
+}
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-admin-tabs button[aria-pressed="true"] {
+  background:var(--accent-light) !important; border-color:var(--border); color:var(--accent) !important;
+}
+.catalog-terminal-ui .terminal-rule-config textarea { border-radius:8px; }
+.catalog-terminal-ui .terminal-market-screen details>summary { min-height:44px; padding:12px 0; cursor:pointer; }
+.catalog-terminal-ui .terminal-rule-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.catalog-terminal-ui .terminal-rule-actions button { min-height:44px; padding:8px 12px; font-size:13px; }
+.catalog-terminal-ui .terminal-monitor-tile { min-height:148px; padding:20px; border-radius:12px; background:var(--panel); }
+.catalog-terminal-ui .terminal-monitor-tile strong { font-size:14px; font-weight:500; }
+.catalog-terminal-ui .terminal-monitor-tile b { font-size:28px; font-weight:500; }
+.catalog-terminal-ui .terminal-controls label { gap:8px; }
+.catalog-terminal-ui .terminal-controls :is(input,select) { background:var(--panel); }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-work-panel { padding:16px; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .terminal-work-panel.is-expanded { border-radius:0; }
+.app-shell-wrap[data-ui="purple"] .catalog-terminal-ui .catalog-sync-all { font-weight:500; font-size:13px; }
+@media(max-width:600px) {
+  .app-shell-wrap[data-ui="purple"] .catalog-terminal-ui :is(.terminal-market-screen,.terminal-screen.panel,.terminal-overlay,.terminal-dividend-comparison,.terminal-reconciliation) { padding:16px; }
+  .catalog-terminal-ui .terminal-admin-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .catalog-terminal-ui .terminal-admin-tabs button { text-align:left; }
+  .catalog-terminal-ui .terminal-last button { flex-wrap:wrap; }
+  .catalog-terminal-ui .terminal-monitor { gap:8px; }
+  .catalog-terminal-ui .terminal-monitor-tile { padding:16px; }
+  .catalog-terminal-ui .terminal-panel-actions { align-items:flex-start; flex-wrap:wrap; }
+  .catalog-terminal-ui .terminal-section-head .terminal-controls { width:100%; }
+  .catalog-terminal-ui .terminal-controls :is(input,select) { font-size:16px; }
+}
 .catalog-terminal-ui .terminal-table .terminal-missing-value { width:28px; height:28px; margin:0; padding:0; border:0; border-radius:4px; background:transparent; color:var(--text-secondary); font:inherit; text-decoration:underline dotted; text-underline-offset:4px; }
 .catalog-terminal-ui .terminal-table .terminal-missing-value:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .catalog-terminal-ui .terminal-table .terminal-missing-value::before { content:none; }
@@ -112,37 +230,21 @@
 .catalog-terminal-ui .terminal-bank-sector dt a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
 .catalog-terminal-ui .terminal-bank-sector dd { margin:4px 0 0; color:var(--text); font-size:18px; font-weight:600; line-height:1.4; font-variant-numeric:tabular-nums; }
 .catalog-terminal-ui .terminal-fv-table td:nth-child(2){text-align:left}
-.catalog-terminal-ui .terminal-csv{min-height:26px;padding:4px 8px;border-radius:3px;font-size:10px;margin-top:4px;color:var(--text);background:var(--surface-2);border:1px solid var(--border)}
+.catalog-terminal-ui .terminal-csv{min-height:40px;padding:8px 12px;border-radius:8px;font-size:12px;margin-top:4px;color:var(--text);background:var(--surface-2);border:1px solid var(--border)}
 .catalog-terminal-ui .terminal-csv:hover{color:var(--text);background:var(--bg-2)}
 .catalog-terminal-ui .ghost-btn::before{content:none}
-.catalog-terminal-ui .terminal-warning{padding:8px 10px;font-size:12px}
-.catalog-terminal-ui .terminal-context{font-size:11px;margin:0 0 8px}
-.catalog-terminal-ui .terminal-context-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:16px;border-bottom:1px solid var(--border);padding:0 0 4px;margin:0 0 8px}
+.catalog-terminal-ui .terminal-warning{padding:8px 12px;font-size:12px}
+.catalog-terminal-ui .terminal-context{font-size:12px;margin:0 0 8px}
+.catalog-terminal-ui .terminal-context-tabs{display:flex;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
 .catalog-terminal-ui .terminal-context-tabs>div{display:flex;gap:4px;flex-wrap:wrap}
-.catalog-terminal-ui .terminal-context-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;min-height:34px;font-size:11px}
+.catalog-terminal-ui .terminal-context-tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px}
 .catalog-terminal-ui .terminal-context-tabs button.active{border-bottom-color:var(--accent);color:var(--text)}
 .catalog-terminal-ui .terminal-context-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.catalog-terminal-ui .fin-panel{border-radius:4px;background:var(--panel);border-color:var(--border);padding:12px}
 .catalog-terminal-ui .fin-picker-chip{border-radius:3px}
-@media(max-width:1000px){.catalog-terminal-ui .catalog-body{grid-template-columns:230px minmax(0,1fr)}}
-@media(max-width:860px){
-  .catalog-layout.catalog-terminal-ui{padding:10px}
-  .catalog-terminal-ui .catalog-body{grid-template-columns:minmax(0,1fr)}
-  .catalog-terminal-ui .catalog-sidebar{border-right:0;border-bottom:1px solid var(--border);padding:0 0 8px}
-  .catalog-terminal-ui .catalog-company-list{max-height:160px;min-height:0}
-  .catalog-terminal-ui .catalog-company-item{min-height:44px}
-  .catalog-terminal-ui .terminal-market-nav{display:flex}
-  .catalog-terminal-ui .terminal-market-nav button{width:auto;min-height:36px}
-}
 @media(max-width:600px){
   .catalog-terminal-ui .terminal-market-screen :is(.terminal-market-filters, .terminal-filter-templates) { padding:12px; gap:12px; }
   .catalog-terminal-ui .terminal-market-screen .terminal-filter-templates { grid-template-columns:minmax(0, 1fr); }
   .catalog-terminal-ui .terminal-market-screen .terminal-market-filters label { flex-basis:calc(50% - 6px); }
   .catalog-terminal-ui .terminal-market-screen .terminal-market-filters .terminal-market-search { flex-basis:100%; }
-  .catalog-terminal-ui .catalog-terminal-head{flex-direction:row}
-  .catalog-terminal-ui .catalog-terminal-head h1{font-size:14px}
-  .catalog-terminal-ui .catalog-terminal-head p{max-width:240px}
-  .catalog-terminal-ui .catalog-search-field input,.catalog-terminal-ui .terminal-controls select,.catalog-terminal-ui .terminal-controls input{font-size:16px}
-  .catalog-terminal-ui .terminal-tab{min-height:40px}
-  .catalog-terminal-ui .terminal-history{margin-left:0}
+
 }
