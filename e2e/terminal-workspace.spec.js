@@ -24,7 +24,9 @@ async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агро�
     }
     return json({ok:true,items:[],rows:[],points:[],companies:[],total_reports:11,companies_synced:2});
   });
-  await page.goto("/catalog");
+  // Tests install their screen-specific responses after this shared setup.
+  // Start on filings so SUM cannot cache placeholder analytics/history first.
+  await page.goto("/catalog?f=CF");
   await expect(page.getByRole("heading",{name:companies[0].company_name,exact:true})).toBeVisible();
 }
 async function run(page, text) {
@@ -438,6 +440,8 @@ test("PNL saves independent admin panels to the profile and survives reload", as
 test("catalog is a fundamental workspace without price history requests", async({page})=>{
   const prices=[];page.on("request",r=>{if(r.url().includes("/api/price-history")) prices.push(r.url());});
   await fixture(page);
+  await run(page, 'AGBA SUM');
+  await expect(page.locator('.terminal-summary')).toBeVisible();
   await expect(page.locator(".catalog-price-card")).toHaveCount(0);
   expect(prices).toEqual([]);
 });

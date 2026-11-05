@@ -15,7 +15,7 @@ const params={key_rate:14,default_spread:3.06,equity_premium:8.89,growth:9.8};
 const configuration={values:params,as_of:'2026-10-15',version:'reviewed-v2',reference_only:false};
 const companies=[{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance',nsbu_count:45,total_count:46},{ticker:'AGBA',company_name:'Агробанк',sector:'finance',nsbu_count:42,total_count:42}];
 const rows=companies.map((company,i)=>({...company,name:company.company_name,kind:'bank',standard:'NSBU',scope:'separate',period:'2025',roe:i?20:25.43,roa:3.1,pb:1.36,pe:8.38,ep:11.93,dy:12,cg5:10,de:null,price:97.44,market_date:'2026-10-15',issues:[]}));
-export async function setupCatalogPages(page,{theme='light',width=1440,lang='ru'}={}){
+export async function setupCatalogPages(page,{theme='light',width=1440,lang='ru',func='PL',beforeNavigate}={}){
  await page.setViewportSize({width,height:900});
  await page.addInitScript(({theme,lang})=>{
   localStorage.setItem('uz_stock_analyzer_theme',theme);localStorage.setItem('uz_stock_analyzer_language',lang);localStorage.setItem('uz_stock_analyzer_token','catalog-fixture');
@@ -50,7 +50,8 @@ export async function setupCatalogPages(page,{theme='light',width=1440,lang='ru'
   if(p==='/api/admin/terminal/events')return json({ok:true,total:1,items:[{id:1,ts:'2026-11-03 17:00',level_label:'Внимание',event:'source_unavailable',ticker:'HMKB',standard:'NSBU',period:'2026Q3',duration_ms:1430,error_id:'source-2026-11-03',message:'Исходный отчёт временно недоступен',source_url:'https://openinfo.uz'}]});
   return json({ok:true,items:[],rows:[],points:[],companies:[],rates:[],total_reports:88,companies_synced:2});
  });
- await page.goto('/catalog?t=HMKB&f=PL');
+ await beforeNavigate?.();
+ await page.goto(`/catalog?t=HMKB&f=${func}`);
  await expect(page.locator('.financial-columns')).toBeVisible();
 }
 export async function openCatalogPage(page,code){

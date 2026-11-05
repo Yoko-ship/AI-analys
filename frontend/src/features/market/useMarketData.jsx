@@ -42,12 +42,12 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   }, [language, needsCatalog]);
 
   useEffect(() => {
-    if (!needsCatalog || !canAccessCatalog) return;
+    if (!needsCatalog || !canAccessCatalog || activeView === "catalog") return;
     apiFetch("/api/catalog/status")
       .then((r) => r.json())
       .then((d) => { if (d.ok) setCatalogStatus(d); })
       .catch(() => {});
-  }, [apiFetch, needsCatalog, canAccessCatalog]);
+  }, [apiFetch, needsCatalog, canAccessCatalog, activeView]);
 
   useEffect(() => {
     // "main": the landing's ticker tape, board preview and movers are the real

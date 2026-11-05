@@ -7,6 +7,7 @@ import { edHeadline, newsArticlePath, newsRelTime } from "../../news/index.js";
 import { READY_FUNCTIONS } from "./useTerminal.js";
 import { terminalCopy } from "./terminalCopy.js";
 import { financialsUrl } from '../../../lib/financialHistoryRequest.js';
+import { useCatalogRequests } from '../../../shared/CatalogData.jsx';
 
 const READY_MARKET = new Set(MARKET_FUNCTIONS.map(f => f.code));
 
@@ -140,31 +141,27 @@ function PendingPanel({ code, lang, onClose }) {
 
 // One request, its journal report, and the three states every screen has.
 function useScreenData(url, { ticker, func, form }) {
-  const [state, setState] = React.useState({ data: null, error: false });
+  const {read, peek, version} = useCatalogRequests();
+  const [state, setState] = React.useState(null);
   React.useEffect(() => {
     if (!url) return undefined;
     let alive = true;
     const startedAt = performance.now();
-    setState({ data: null, error: false });
-    fetch(url)
-      .then(async (r) => {
-        const d = await r.json().catch(() => null);
-        if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { errorId: d?.error_id });
-        return d;
-      })
+    setState({ url, version, data: peek(url), error: false });
+    read(url)
       .then((d) => {
         if (!alive) return;
-        setState({ data: d, error: false });
+        setState({ url, version, data: d, error: false });
         reportScreenLoad({ ticker, func, form, startedAt });
       })
       .catch((error) => {
         if (!alive) return;
-        setState({ data: null, error: true });
+        setState({ url, version, data: null, error: true });
         reportScreenLoad({ ticker, func, form, startedAt, error: error.message, errorId: error.errorId });
       });
     return () => { alive = false; };
-  }, [url, ticker, func, form]);
-  return state;
+  }, [url, ticker, func, form, read, peek, version]);
+  return state?.url === url && state.version === version ? state : {data:url ? peek(url) : null, error:false};
 }
 
 function NewsScreen({ ticker, lang }) {

@@ -139,12 +139,15 @@ export function Reconciliation({ticker,scope,lang}) {
   </State></section>;
 }
 
-export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2020}) {
+export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2020}) {
   const {data,error}=useScreenData(`/api/terminal/issuer/${encodeURIComponent(ticker)}/analytics?form=${form}&scope=${scope}`,{ticker,form,func:summary?"SUM":"RAT"});
   const snap=data?.snapshot||{};
-  return <State data={data} error={error} lang={lang}><div className="terminal-analytics">
+  const content = <div className="terminal-analytics">
     {!summary&&<p className="terminal-context">{snap.period||"—"} · {form} · {reportScopeLabel(scope,lang)} · UZS</p>}
-    {summary?<SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>:<>
+    {summary?<>
+      {error && <p role="alert" className="terminal-empty">{words(lang,'Не удалось загрузить показатели.','Ko‘rsatkichlar yuklanmadi.','Could not load metrics.')}</p>}
+      <SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>
+    </>:<>
       <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
       <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
         metrics={metricsForRows([snap]).filter(([key])=>!["pe","pb","dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
@@ -154,8 +157,9 @@ export function AnalyticsScreen({ticker,form,scope,lang,summary=false,fromYear=2
       <BankContext data={data?.cbu} sector={data?.sector} lang={lang}/>
       <QuarterlyMetrics quarters={data?.quarters||{}} lang={lang}/>
     </>}
-  </div></State>;
-}
+  </div>;
+  return summary ? content : <State data={data} error={error} lang={lang}>{content}</State>;
+});
 
 export function PeersScreen({ticker,form,scope,lang,onOpen}) {
   const [year,setYear]=React.useState("");

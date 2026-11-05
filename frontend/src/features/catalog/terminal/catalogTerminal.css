@@ -41,6 +41,8 @@ html[data-theme="dark"] .app-shell-wrap.view-catalog {
 .app-shell-wrap[data-ui="purple"] .catalog-sidebar-head { padding:16px 0 8px; font-size:12px; font-weight:500; }
 .app-shell-wrap[data-ui="purple"] .catalog-sidebar-head span:last-child { background:none; color:var(--text-secondary); }
 .app-shell-wrap[data-ui="purple"] .catalog-company-list { gap:4px; margin:0; max-height:calc(100vh - 340px); min-height:0; }
+.catalog-issuer-pages { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; font-size:13px; color:var(--text-secondary); }
+.catalog-issuer-pages .ghost-btn { min-width:44px; min-height:44px; }
 .app-shell-wrap[data-ui="purple"] .catalog-company-item { grid-template-columns:minmax(0,1fr) auto; gap:8px; min-height:56px; padding:8px; border-radius:8px; border:1px solid transparent; }
 .app-shell-wrap[data-ui="purple"] .catalog-company-item:hover { background:var(--surface-2); }
 .app-shell-wrap[data-ui="purple"] .catalog-company-item.active { background:var(--accent-light); border-color:var(--border); box-shadow:inset 2px 0 var(--accent); }

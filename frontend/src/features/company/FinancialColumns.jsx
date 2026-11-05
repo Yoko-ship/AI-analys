@@ -8,6 +8,8 @@ import { FinancialHistoryChart } from './FinancialHistoryChart.jsx';
 import { RatioInfo } from '../../shared/RatioInfo.jsx';
 import { PublishedRatios } from './PublishedRatios.jsx';
 import './financialColumns.css';
+import { useCatalogRequests } from '../../shared/CatalogData.jsx';
+const validFinancialColumns = data => data?.ok === true;
 
 const FORM_ORDER = ['F2', 'BANK_PL', 'INSURANCE_PL', 'PL', 'ASSETS', 'EQUITY', 'CF', 'DEBT', 'F1', 'BANK_BS', 'INSURANCE_BS', 'BS', 'Equity', 'Notes', 'DERIVED', 'RAT'];
 const QUALITY = {
@@ -89,6 +91,7 @@ function OriginalDocuments({ forms, t }) {
 }
 
 export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all' }) {
+  const {read, peek, version} = useCatalogRequests();
   const t = (...labels) => words(lang, ...labels);
   const [freq, setFreq] = React.useState('annual'), [view, setView] = React.useState('summary'), [representation, setRepresentation] = React.useState('table');
   const [query, setQuery] = React.useState(''), [loaded, setLoaded] = React.useState(null), [retry, setRetry] = React.useState(0), [passport, setPassport] = React.useState(null);
@@ -100,20 +103,22 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const url = `/api/company/${encodeURIComponent(ticker)}/financials/columns?${params}`;
   const loadRef = React.useRef(onLoad); loadRef.current = onLoad;
   React.useEffect(() => {
-    const controller = new AbortController(), startedAt = performance.now();
+    let alive = true;
+    const controller = new AbortController();
+    const startedAt = performance.now();
     setPassport(null);
-    fetch(url, { signal: controller.signal }).then(async response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      if (!data.ok) throw new Error('Invalid financial response');
-      if (!controller.signal.aborted) { setLoaded({ url, data }); loadRef.current?.({ startedAt }); }
+    read(url, {signal:controller.signal, validate:validFinancialColumns}).then(data => {
+      if (alive) { setLoaded({ url, version, data }); loadRef.current?.({ startedAt }); }
     }).catch(error => {
-      if (!controller.signal.aborted) { setLoaded({ url, error: error.message }); loadRef.current?.({ startedAt, error: error.message }); }
+      if (alive) { setLoaded({ url, version, error: error.message }); loadRef.current?.({ startedAt, error: error.message }); }
     });
-    return () => controller.abort();
-  }, [url, retry]);
-  const current = loaded?.url === url ? loaded : null, data = current?.data;
-  const format = value => value == null ? '—' : new Intl.NumberFormat(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU', { maximumFractionDigits: 2 }).format(Number(value));
+    // Uncached pages cancel their request; the catalog retains shared reads.
+    return () => {alive = false; controller.abort();};
+  }, [url, retry, read, version]);
+  const cached = peek(url);
+  const current = loaded?.url === url && loaded.version === version ? loaded : cached ? {data:cached} : null, data = current?.data;
+  const formatter = React.useMemo(() => new Intl.NumberFormat(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU', { maximumFractionDigits: 2 }), [lang]);
+  const format = value => value == null ? '—' : formatter.format(Number(value));
   const columns = (data?.columns || []).filter(c => Number(c.end.slice(0,4)) >= fromYear);
   const visibleRows = view === 'ratios' ? data?.ratios : view === 'summary' ? data?.overview_rows ?? data?.rows : data?.rows;
   const rows = (visibleRows || []).filter(r => (['ratios','owners'].includes(view) || statement === 'all' || (r.kind === 'stock') === (statement === 'balance')) && (view !== 'original' || r.source_form !== 'DERIVED') && `${r.label} ${r.display_ref || ''} ${r.source_code || ''} ${r.metric_id || ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));

@@ -23,10 +23,13 @@ import { TerminalValuation } from "../../shared/TerminalValuation.jsx";
 import "./terminal/catalogTerminal.css";
 import { StatementOverview } from "./terminal/StatementOverview.jsx";
 import { TerminalAdmin } from "../../admin/TerminalAdmin.jsx";
+import { CatalogDataProvider, useCatalogRequests } from '../../shared/CatalogData.jsx';
+import { CatalogIssuerList } from './CatalogIssuerList.jsx';
 
 // The terminal's PL, BS and RAT are sections of the one Финансы view.
 const FINANCIAL_SECTIONS = { PL: "income", BS: "balance" };
 const SECTION_FUNCTIONS = { income: "PL", balance: "BS", ratios: "RAT" };
+const normalizeSearch = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 // ---------------------------------------------------------------------------
 // CatalogView helpers
@@ -475,7 +478,30 @@ function CatalogCompareTable({ result, language }) {
   );
 }
 
-function CatalogView({ language, companies, token, addToast, initialStatus, user }) {
+const CatalogFinancials = React.memo(function CatalogFinancials({ticker, lang, form, scope, func, fromYear, onForm, onScope, go}) {
+  return <React.Suspense fallback={<div className="catalog-loading">{clg(lang, 'loading')}</div>}>
+    <section className="terminal-screen" aria-label={functionLabel(func, lang)}>
+      <FinancialColumns statement={func === 'BS' ? 'balance' : 'income'} showContextControls={false}
+        ticker={ticker} lang={lang} standard={form} scope={scope} fromYear={fromYear}
+        onStandardChange={onForm} onScopeChange={onScope}
+        onLoad={load => reportScreenLoad({ticker, func, form, ...load})}
+        fallback={FINANCIAL_SECTIONS[func] && <>
+          <StatementOverview ticker={ticker} form={form} scope={scope} lang={lang} section={FINANCIAL_SECTIONS[func]} fromYear={fromYear}/>
+          <IssuerFinancials ticker={ticker} lang={lang} showContextControls={false} standard={form} onStandardChange={onForm}
+            scope={scope} onScopeChange={onScope} section={FINANCIAL_SECTIONS[func]} fromYear={fromYear}
+            onSectionChange={key => SECTION_FUNCTIONS[key] && go({func:SECTION_FUNCTIONS[key]})}
+            onLoad={load => reportScreenLoad({ticker, func, form, ...load})}/>
+        </>}/>
+    </section>
+  </React.Suspense>;
+});
+
+function CatalogView(props) {
+  return <CatalogDataProvider key={props.token} token={props.token}><CatalogScreen {...props}/></CatalogDataProvider>;
+}
+
+function CatalogScreen({ language, token, addToast, initialStatus, user }) {
+  const {read, version, invalidate} = useCatalogRequests();
   const lang = normalizeLanguage(language);
   const [status, setStatus] = useState(initialStatus || null);
   const [catalogComps, setCatalogComps] = useState([]);
@@ -492,7 +518,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     return () => media.removeEventListener('change', update);
   }, []);
   const [ticker, setTicker] = useState("");
-  const [index, setIndex] = useState(null);
+  const [loadedIndex, setLoadedIndex] = useState(null);
+  const index = loadedIndex?.ticker === ticker ? loadedIndex.data : null;
+  const indexRequest = React.useRef(0);
   const [indexLoading, setIndexLoading] = useState(false);
   const [form, setForm] = useState("NSBU");
   const [year, setYear] = useState("");
@@ -541,8 +569,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   }, [apiFetch]);
 
   const loadIndex = React.useCallback(async (t) => {
+    const request = ++indexRequest.current;
     setIndexLoading(true);
-    setIndex(null);
+    setLoadedIndex(null);
     setYear("");
     setQuarter(0);
     setResult(null);
@@ -551,19 +580,15 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     const startedAt = performance.now();
     const func = ["SUM", "CF"].includes(terminalFunc.current) ? terminalFunc.current : "SUM";
     try {
-      const res = await apiFetch(`/api/catalog/index/${t}`);
-      const data = await res.json().catch(() => null);
-      if (res.ok) {
-        setIndex(data);
-        reportScreenLoad({ ticker: t, func, startedAt });
-      } else {
-        reportScreenLoad({ ticker: t, func, startedAt, error: `HTTP ${res.status}`, errorId: data?.error_id });
-      }
+      const data = await read(`/api/catalog/index/${encodeURIComponent(t)}`);
+      if (indexRequest.current !== request) return;
+      setLoadedIndex({ticker:t, data});
+      reportScreenLoad({ ticker: t, func, startedAt });
     } catch (err) {
-      reportScreenLoad({ ticker: t, func, startedAt, error: err.message });
+      if (indexRequest.current === request) reportScreenLoad({ ticker: t, func, startedAt, error: err.message, errorId:err.errorId });
     }
-    finally { setIndexLoading(false); }
-  }, [apiFetch]);
+    finally { if (indexRequest.current === request) setIndexLoading(false); }
+  }, [read]);
 
   useEffect(() => { loadStatus(); loadCatalogComps(); }, [loadStatus, loadCatalogComps]);
   useEffect(() => {
@@ -572,7 +597,12 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
     const first = catalogComps.slice().sort((a, b) => (b.total_count || 0) - (a.total_count || 0))[0];
     if (first?.ticker) setTicker(first.ticker);
   }, [catalogComps, ticker]);
-  useEffect(() => { if (ticker) loadIndex(ticker); else { setIndex(null); setYear(""); setQuarter(0); setResult(null); } }, [ticker, loadIndex]);
+  useEffect(() => {
+    if (ticker) loadIndex(ticker);
+    else { setLoadedIndex(null); setYear(''); setQuarter(0); setResult(null); }
+    const request = indexRequest.current;
+    return () => {indexRequest.current = request + 1;};
+  }, [ticker, loadIndex, version]);
 
   const handleSync = async (specificTicker = null) => {
     if (!token) { addToast(lang === "ru" ? "Войдите для синхронизации" : "Sign in to sync", "error"); return; }
@@ -582,7 +612,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       const res = await apiFetch("/api/catalog/sync", { method: "POST", body: JSON.stringify(body) });
       const { data } = await readApiResponse(res);
       if (!res.ok || !data) throw new Error(apiErrorMessage(res, data, lang));
-      await Promise.all([loadStatus(), loadCatalogComps(), ...(ticker ? [loadIndex(ticker)] : [])]);
+      invalidate();
+      await Promise.all([loadStatus(), loadCatalogComps()]);
       if (Array.isArray(data.errors) && data.errors.length) {
         addToast(clg(lang, "syncSourceError"), "error");
       } else {
@@ -653,7 +684,7 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   };
 
   // Derived availability helpers
-  const allReportRows = catalogReportRows(index);
+  const allReportRows = React.useMemo(() => catalogReportRows(index), [index]);
   const reportYears = [...new Set(allReportRows.map((r) => r.year))].sort((a, b) => b - a);
   const visibleReportRows = allReportRows.filter((report) => (
     (reportFilter === "all" || report.form === reportFilter)
@@ -702,16 +733,15 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
   const needsComparePeriod = ["quarter_compare", "annual_compare"].includes(analysisType);
   const needsCompareTicker = analysisType === "multi_company";
 
-  const catalogSectors = orderSectors(new Set(catalogComps.map((c) => c.sector || "other")))
-    .sort((a, b) => sectorLabel(lang, a).localeCompare(sectorLabel(lang, b), lang));
+  const catalogSectors = React.useMemo(() => orderSectors(new Set(catalogComps.map((c) => c.sector || "other")))
+    .sort((a, b) => sectorLabel(lang, a).localeCompare(sectorLabel(lang, b), lang)), [catalogComps, lang]);
   const parsedSearch = parseCommand(search, terminal.index);
   // The one search also filters the list. A command such as UZTL BS keeps
   // that issuer visible; navigation commands alone do not filter companies.
   const companyQuery = parsedSearch.ticker
     || (!parsedSearch.unknown.length && !isEmptyCommand(parsedSearch) ? "" : search);
-  const normalizeSearch = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
   const q = normalizeSearch(companyQuery);
-  const filteredComps = catalogComps.filter((c) => {
+  const filteredComps = React.useMemo(() => catalogComps.filter((c) => {
     const matchesSector = sectorFilter === "all" || (c.sector || "other") === sectorFilter;
     const matchesReport = reportFilter === "all"
       || (reportFilter === "NSBU" && c.nsbu_count > 0)
@@ -723,7 +753,15 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
       || (c.tickers?.length ? c.tickers : [c.ticker]).some((t) => t.toLowerCase().includes(q));
     return matchesSearch && matchesSector && matchesReport;
   }).sort((a, b) => (b.total_count || 0) - (a.total_count || 0)
-    || String(a.company_name || a.ticker).localeCompare(String(b.company_name || b.ticker), lang));
+    || String(a.company_name || a.ticker).localeCompare(String(b.company_name || b.ticker), lang)), [catalogComps, sectorFilter, reportFilter, q, lang]);
+  const goToIssuer = terminal.go;
+  const selectIssuer = React.useCallback(ticker => {
+    goToIssuer({ticker});
+    if (compactCatalog) {
+      setIssuersOpen(false);
+      issuerToggle.current?.focus();
+    }
+  }, [goToIssuer, compactCatalog]);
 
   const selectedCompany = catalogComps.find((c) => c.ticker === ticker);
   const latestReport = allReportRows[0] || null;
@@ -879,32 +917,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {catalogComps.length === 0 ? clg(lang, "empty") : clg(lang, "noReports")}
             </div>
           ) : (
-            <div className="catalog-company-list">
-              {filteredComps.map((c) => (
-                <button
-                  key={c.ticker}
-                  type="button"
-                  className={`catalog-company-item ${ticker === c.ticker ? "active" : ""}`}
-                  onClick={() => {
-                    terminal.go({ ticker: c.ticker });
-                    if (compactCatalog) {
-                      setIssuersOpen(false);
-                      issuerToggle.current?.focus();
-                    }
-                  }}
-                  aria-pressed={ticker === c.ticker}
-                >
-                  <CompanyLogo logo={c.logo} name={c.company_name} ticker={c.ticker} />
-                  <div className="catalog-company-item-body">
-                    <strong className="catalog-company-title">{c.company_name || c.ticker}</strong>
-                    <span className="catalog-company-ticker">
-                      {(c.tickers?.length ? c.tickers : [c.ticker]).join(" · ")} · {sectorLabel(lang, c.sector || "other")}
-                    </span>
-                  </div>
-                  <span className="catalog-company-count">{c.total_count || 0}</span>
-                </button>
-              ))}
-            </div>
+            <CatalogIssuerList key={`${q}:${sectorFilter}:${reportFilter}`} companies={filteredComps}
+              ticker={ticker} lang={lang} onSelect={selectIssuer}/>
           )}
           </div>
         </aside>
@@ -912,10 +926,9 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
         <main className="catalog-main">
           {!ticker ? (
             <div className="empty-state"><p className="empty-copy">{clg(lang, "selectCompany")}</p></div>
-          ) : indexLoading ? (
-            <div className="catalog-loading">{clg(lang, "loading")}</div>
           ) : (
             <>
+              {indexLoading && <p className="muted" role="status">{clg(lang, 'loading')}</p>}
               <section className="catalog-company-overview">
                 <div className="catalog-company-summary">
                   <div className="catalog-company-header">
@@ -959,20 +972,8 @@ function CatalogView({ language, companies, token, addToast, initialStatus, user
               {terminal.form === "MSFO" && ["SUM","PL","BS","RAT","DQ"].includes(terminal.func) && <React.Suspense fallback={<div className="catalog-loading">{clg(lang,"loading")}</div>}><InvestorView ticker={ticker} lang={lang} scope={terminal.scope} onScopeChange={terminal.setScope} initialTab={({SUM:"overview",PL:"pl",BS:"bs",RAT:"rat",DQ:"quality"})[terminal.func]} onLoad={load=>reportScreenLoad({ticker,func:terminal.func,form:terminal.form,...load})}/></React.Suspense>}
               {terminal.form !== "MSFO" && terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
               {terminal.form !== "MSFO" && (terminal.func === "SUM" || FINANCIAL_SECTIONS[terminal.func]) && (
-                <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
-                  <section className="terminal-screen" aria-label={functionLabel(terminal.func, lang)}>
-                    <FinancialColumns statement={terminal.func === "BS" ? "balance" : "income"} showContextControls={false} ticker={ticker} lang={lang} standard={terminal.form} scope={terminal.scope}
-                      onStandardChange={terminal.setForm} onScopeChange={terminal.setScope} fromYear={terminal.fromYear}
-                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })}
-                      fallback={FINANCIAL_SECTIONS[terminal.func] && <><StatementOverview ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}/>
-                    <IssuerFinancials ticker={ticker} lang={lang} showContextControls={false}
-                      standard={terminal.form} onStandardChange={terminal.setForm}
-                      scope={terminal.scope} onScopeChange={terminal.setScope}
-                      section={FINANCIAL_SECTIONS[terminal.func]} fromYear={terminal.fromYear}
-                      onSectionChange={(key) => SECTION_FUNCTIONS[key] && terminal.go({ func: SECTION_FUNCTIONS[key] })}
-                      onLoad={(load) => reportScreenLoad({ ticker, func: terminal.func, form: terminal.form, ...load })} /></>}/>
-                  </section>
-                </React.Suspense>
+                <CatalogFinancials ticker={ticker} lang={lang} form={terminal.form} scope={terminal.scope}
+                  func={terminal.func} fromYear={terminal.fromYear} onForm={terminal.setForm} onScope={terminal.setScope} go={terminal.go}/>
               )}
               {terminal.func === "DVD" && (
                 <React.Suspense fallback={<div className="catalog-loading">{clg(lang, "loading")}</div>}>
