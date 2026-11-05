@@ -1065,7 +1065,7 @@ iframe {
   }
 
   .market-hero-panel .panel-label,
-  .market-hero-copy p {
+  .market-hero-copy p:not([role="status"]) {
     display: none;
   }
 

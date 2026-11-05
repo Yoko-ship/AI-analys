@@ -13,6 +13,12 @@ import trade_stats as ts
 
 log = logging.getLogger(__name__)
 TASHKENT = timezone(timedelta(hours=5))
+# Bound records independently of pages: OpenInfo may cap a requested 1,000
+# rows at 100 (04.11.2026 needed 148 pages for 14,742 executions). Keep the
+# original 100,000-record capacity even at that smaller page size. A separate
+# request ceiling still stops a malformed response advertising tiny pages.
+MAX_SESSION_RECORDS = 100_000
+MAX_SESSION_PAGES = 1_000
 
 
 def _number(value: Any) -> float:
@@ -92,7 +98,7 @@ class SurplusRows(ValueError):
 
 
 def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
-                     max_pages: int = 100, isin: str | None = None) -> list[dict]:
+                     max_pages: int = MAX_SESSION_PAGES, isin: str | None = None) -> list[dict]:
     """Every board execution of one session, or ValueError — never a short read.
 
     Pin the session before pagination; require the advertised count on every
@@ -120,10 +126,17 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
                                           ("count", "total_pages", "page_size"))
             if expected == 0 and not still_newest:
                 raise NoSession(iso_day)
-            if expected <= 0 or page_size <= 0 or not 1 <= pages <= max_pages:
+            if expected <= 0 or page_size <= 0 or pages < 1:
                 raise ValueError("invalid archive session pagination")
             if pages != math.ceil(expected / page_size):
                 raise ValueError("archive page count disagrees with record count")
+            if expected > MAX_SESSION_RECORDS:
+                raise ValueError(f"archive session exceeds record budget: {expected} > {MAX_SESSION_RECORDS}")
+            if pages > max_pages:
+                raise ValueError(f"archive session exceeds page budget: {pages} > {max_pages} "
+                                 f"({expected} records, {page_size} per page)")
+            log.info("OpenInfo %s: reading %d executions across %d pages (%d per page)",
+                     iso_day, expected, pages, page_size)
         if (payload["count"] != expected or payload["total_pages"] != pages
                 or payload["page_size"] != page_size or payload["current_page"] != page
                 or payload["has_next"] is not (page < pages)
@@ -132,6 +145,8 @@ def _read_executions(client: Any, iso_day: str, *, still_newest: bool,
                 or len(batch) < min(page_size, expected - read)):
             raise ValueError("archive session changed or a page is incomplete")
         read += len(batch)
+        if read > MAX_SESSION_RECORDS:
+            raise ValueError(f"archive session exceeds record budget: {read} > {MAX_SESSION_RECORDS}")
         for record in batch:
             if isin and str(record.get("isin_code") or "").strip().upper() != isin:
                 raise ValueError("filtered archive returned another security")
@@ -191,6 +206,14 @@ def _verified_securities(client, trades, iso_day):
 MAX_RECONCILED = 5
 
 
+def _matches_conclusion(row: dict, quote: dict) -> bool:
+    return (all(quote.get(q) is not None and math.isclose(quote[q], row[k], rel_tol=1e-9, abs_tol=.02)
+                for q, k in (("quantity", "total_qty"), ("turnover", "total_value")))
+            and all(quote.get(f) is not None and row.get(f) is not None
+                    and math.isclose(quote[f], row[f], rel_tol=1e-7, abs_tol=.01)
+                    for f in ("high_price", "low_price")))
+
+
 def _official_day(row: dict, quote: dict) -> None:
     """Restate one security's day from its official conclusion, in place.
 
@@ -217,7 +240,7 @@ def _official_day(row: dict, quote: dict) -> None:
 
 
 def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
-                             max_pages: int = 100, session_day: str | None = None) -> dict:
+                             max_pages: int = MAX_SESSION_PAGES, session_day: str | None = None) -> dict:
     """Return a complete, stable session or an explicit failure with no rows.
 
     ``session_day`` (YYYY-MM-DD) publishes that finished session instead of the
@@ -298,10 +321,25 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             quote = quoted.get(isin) or {}
             if quote.get("trade_date") != day:
                 raise ValueError(f"archive conclusions lag executions for {isin}")
-            if (any(not math.isclose(quote[q], row[k], rel_tol=1e-9, abs_tol=.02)
-                    for q, k in (("quantity", "total_qty"), ("turnover", "total_value")))
-                    or any(quote[f] is None or not math.isclose(quote[f], row[f], rel_tol=1e-7, abs_tol=.01)
-                           for f in ("high_price", "low_price"))):
+            if not _matches_conclusion(row, quote):
+                # The full-market pages can repeat/omit tied closing-auction
+                # executions across their boundaries without changing count.
+                # Do not deduplicate real identical trades or loosen the daily
+                # checks: replace this security only with a complete filtered
+                # read whose totals and range agree with its official day.
+                try:
+                    checked = _read_executions(client, iso_day, still_newest=False,
+                                               max_pages=max_pages, isin=isin)
+                    verified = ts._aggregate(isin, checked, day)
+                    if _matches_conclusion(verified, quote):
+                        row = stats[isin] = verified
+                        grouped[isin] = checked
+                        log.info("OpenInfo %s %s: recovered from %d independently read executions",
+                                 iso_day, isin, len(checked))
+                except Exception as error:
+                    log.warning("OpenInfo %s %s filtered recovery unavailable: %s",
+                                iso_day, isin, type(error).__name__)
+            if not _matches_conclusion(row, quote):
                 disagree.append(isin)
                 continue
             for field in ("open_price", "close_price"):
@@ -313,17 +351,32 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                 row[field] = quote[field]
         traded_count = sum(1 for row in stats.values() if row["trade_count"])
         if len(disagree) > MAX_RECONCILED or len(disagree) * 10 > traded_count:
-            raise ValueError(f"archive conclusions disagree with executions for {len(disagree)} "
-                             f"securities: {', '.join(sorted(disagree))}")
+            # Widespread disagreement is not permission to restate the whole
+            # session. Keep only securities that passed the original checks or
+            # a complete filtered read; expose the delayed names to readers.
+            validation.update(partial=True, withheld=[
+                {"isin": isin, "ticker": quoted[isin].get("ticker") or isin}
+                for isin in sorted(disagree)])
+            for isin in disagree:
+                stats.pop(isin)
+                grouped.pop(isin)
+            if not any(row["trade_count"] for row in stats.values()):
+                raise ValueError("no security agrees with its official conclusion")
+            quotes = [q for q in quotes if q["isin"] in stats]
+            log.warning("OpenInfo %s: %d verified securities, %d withheld after conclusion checks",
+                        day, len(stats), len(disagree))
+            disagree = []
         for isin in disagree:
             _official_day(stats[isin], quoted[isin])
         if disagree or surplus:
             log.warning("OpenInfo fallback: %s executions disagree with the conclusions for %s"
                         " (archive rows beyond its count: %d) — the official conclusion stands",
                         day, ", ".join(sorted(disagree)) or "no security", surplus)
-        log.info("OpenInfo fallback: %s complete, %d executions, %d securities",
-                 day, len(trades), len(stats))
-        return {"source": "openinfo", "reachable": True, "complete": True,
+        trades = [trade for rows in grouped.values() for trade in rows]
+        log.info("OpenInfo fallback: %s %s, %d executions, %d securities",
+                 day, "partial" if validation["partial"] else "complete", len(trades), len(stats))
+        return {"source": "openinfo", "reachable": True, "complete": not validation["partial"],
+                "partial": validation["partial"], "validation": validation,
                 "trade_date": day, "count": len(stats), "stats": stats,
                 "intraday": session_bars(trades, {
                     (isin, day): (row.get("open_price"), row.get("close_price"))

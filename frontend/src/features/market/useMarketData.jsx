@@ -80,9 +80,9 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       .then((d) => {
         if (!d.ok) return;
         if (d.stats) setMarketTradeStats(d.stats);
-        // When OUR pipeline last wrote the board. Merged into the market meta
-        // rather than kept apart, because the header badge reads one object.
-        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.refreshed_at || null, trade_date: d.trade_date || null, validation: d.validation || null }));
+        // Only a successful quote publication advances the reader's timestamp;
+        // newer statistics or a failed run must not make stale prices look fresh.
+        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.quotes_refreshed_at || null, trade_date: d.trade_date || null, validation: d.validation || null }));
       })
       .catch(() => {});
   }, [activeView, marketRows.length, marketLoading]);

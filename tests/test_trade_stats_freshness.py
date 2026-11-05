@@ -15,6 +15,7 @@ fresh session with an older one and make the display rule discard live data.
 """
 from __future__ import annotations
 
+import asyncio
 import pytest
 
 import reports_catalog as rc
@@ -40,6 +41,22 @@ def _row(day: str, value: float, trades: int) -> dict:
 
 def _stored() -> dict:
     return catalogue_market_store.get_all_trade_stats()["UZ7042650000"]
+
+
+@pytest.mark.parametrize("quote_stamp", ["2026-11-03T16:31:00+00:00", None])
+def test_reader_quote_timestamp_comes_from_successful_quotes_not_stats_or_failed_run(monkeypatch, quote_stamp):
+    from server.market import routes
+
+    facts = [{"field": "last_run", "value_text": "2026-11-04T16:30:05+00:00"},
+             {"field": "last_run_status", "value_text": "exit 1"}]
+    if quote_stamp:
+        facts.append({"field": "quotes_last_run", "value_text": quote_stamp})
+    monkeypatch.setattr(routes.catalogue_facts, "get_facts", lambda *args: facts)
+    monkeypatch.setattr(catalogue_market_store, "get_all_trade_stats", lambda: {
+        "UZ7042650000": {"trade_date": "20261104", "updated_at": "2026-11-04 16:30:00"}})
+    response = asyncio.run(routes.api_market_trade_stats())
+    assert response["quotes_refreshed_at"] == quote_stamp
+    assert response["refreshed_at"] == "2026-11-04T16:30:00Z"
 
 
 class TestTradeStatsAreMonotonic:

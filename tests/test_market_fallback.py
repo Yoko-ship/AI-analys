@@ -1,5 +1,8 @@
 """Production collection survives an exchange outage without publishing partial data."""
 from copy import deepcopy
+import gzip
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -177,6 +180,112 @@ def test_archive_cannot_roll_back_a_newer_partial_exchange_session(source):
 
 def test_archive_page_budget_is_enforced(source):
     assert not archive.fetch_latest_trade_stats(max_pages=1, session=object())["complete"]
+
+
+@pytest.mark.parametrize("page_size", [100, 1000])
+@pytest.mark.parametrize("broken_last_page", [False, True])
+def test_nov4_session_uses_actual_page_size_without_publishing_a_short_read(
+        monkeypatch, page_size, broken_last_page):
+    # Real 04.11 response: 14,742 executions, 148 pages of 100, even though
+    # page_size=1000 was requested. Repeat its BRBNP sample to isolate paging;
+    # these are synthetic totals, not a recorded full BRBNP trading session.
+    count = 14742
+    pages = (count + page_size - 1) // page_size
+    sample = execution(isin_code="UZ701879K017", ticker="BRBNP",
+                       trade_datetime="2026-11-04T16:02:00.356000",
+                       trade_price=820, trade_quantity=10, trading_value=8200)
+    requested_pages = []
+
+    def get(client, path, params):
+        if path.endswith("conclusions/"):
+            return {"ticker": "BRBNP", "results": [conclusion(
+                date="2026-11-04", open=820, close=820, high=820, low=820,
+                trading_volume=count * 10, trading_value=count * 8200)]}
+        if "start_date" not in params:
+            return {"results": [sample]}
+        assert params["start_date"] == params["end_date"] == "2026-11-04"
+        page = params["page"]
+        requested_pages.append(page)
+        size = min(page_size, count - (page - 1) * page_size)
+        if broken_last_page and page == pages:
+            size -= 1
+        return {"count": count, "total_pages": pages, "page_size": page_size,
+                "current_page": page, "has_next": page < pages,
+                "results": [dict(sample) for _ in range(size)]}
+
+    monkeypatch.setattr(archive, "_json_get", get)
+    result = archive.fetch_latest_trade_stats(session=object(), session_day="2026-11-04")
+    if broken_last_page:
+        assert requested_pages == list(range(1, pages + 1))
+        assert not result["complete"] and result["stats"] == {} and result["intraday"] == []
+    else:
+        assert result["complete"] and result["trade_date"] == "20261104"
+        row = result["stats"][sample["isin_code"]]
+        assert (row["trade_count"], row["total_qty"], row["total_value"]) == (
+            count, count * 10, count * 8200)
+        assert requested_pages == [*range(1, pages + 1), 1]  # final stability check
+
+
+@pytest.mark.parametrize("count,page_size,message", [
+    (100001, 1000, "record budget"),  # large pages must not evade the memory bound
+    (1001, 1, "page budget"),  # tiny pages must not cause an unbounded crawl
+])
+def test_archive_rejects_excessive_work_before_walking_pages(source, count, page_size, message, caplog):
+    source["mutate"] = lambda payload, params: dict(
+        payload, count=count, page_size=page_size,
+        total_pages=(count + page_size - 1) // page_size)
+    result = archive.fetch_latest_trade_stats(session=object())
+    assert not result["complete"] and result["stats"] == {}
+    assert len(source["calls"]) == 2  # latest day + first page only
+    assert message in caplog.text
+
+
+@pytest.mark.parametrize("problem", [None, "short", "wrong_security", "disagree", "changed", "one_disagrees"])
+def test_nov4_boundary_duplicates_require_complete_filtered_reads_matching_conclusions(monkeypatch, problem):
+    evidence = json.loads(gzip.decompress(Path(
+        "tests/fixtures/openinfo/market_20261104_pagination.json.gz").read_bytes()))
+    filtered_calls = []
+
+    def get(client, path, params):
+        isin = params.get("isu_cd")
+        if path.endswith("conclusions/"):
+            return deepcopy(evidence["conclusions"][isin])
+        if "start_date" not in params:
+            return {"results": [evidence["raw"][0]]}
+        if isin:
+            filtered_calls.append((isin, params["page"]))
+            payload = deepcopy(evidence["filtered"][isin][params["page"] - 1])
+            if problem == "short":
+                payload["results"].pop()
+            elif problem == "wrong_security":
+                payload["results"][0]["isin_code"] = "UZ0000000000"
+            elif problem == "disagree" or (problem == "one_disagrees" and isin == "UZ7001100005"):
+                payload["results"][0]["trade_quantity"] += 100
+            elif problem == "changed" and filtered_calls.count((isin, 1)) > 1:
+                payload["count"] += 1
+            return payload
+        return {"count": len(evidence["raw"]), "total_pages": 1, "page_size": 1000,
+                "current_page": 1, "has_next": False, "results": deepcopy(evidence["raw"])}
+
+    monkeypatch.setattr(archive, "_json_get", get)
+    result = archive.fetch_latest_trade_stats(session=object(), session_day="2026-11-04")
+    if problem == "one_disagrees":
+        assert result["partial"] and not result["complete"]
+        assert set(result["stats"]) == {"UZ701879K017"}
+        assert result["validation"] == {"trade_date": "20261104", "partial": True,
+            "withheld": [{"isin": "UZ7001100005", "ticker": "KFSK"}]}
+        assert {q["isin"] for q in result["quotes"]} == {"UZ701879K017"}
+        assert {b["isin"] for b in result["intraday"]} == {"UZ701879K017"}
+    elif problem:
+        assert not result["complete"] and result["stats"] == {} and result["intraday"] == []
+    else:
+        assert result["complete"]
+        for isin, qty, value, count in [("UZ701879K017", 1737, 1419407.46, 105),
+                                        ("UZ7001100005", 6755, 595294.78, 82)]:
+            row = result["stats"][isin]
+            assert (row["total_qty"], row["total_value"], row["trade_count"]) == (qty, value, count)
+            assert sum(b["quantity"] for b in result["intraday"] if b["isin"] == isin) == qty
+            assert (isin, 1) in filtered_calls
 
 
 def test_growing_archive_session_is_refused(source):

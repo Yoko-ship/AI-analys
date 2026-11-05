@@ -10,7 +10,7 @@ const row = (ticker, price, prev, volume) => ({
 });
 const stocks = [row("AGBA", 1000, 900, 1e6), row("KVTS", 3000, 3100, 3e6)];
 
-async function openBoard(page, cols, validation = null) {
+async function openBoard(page, cols, validation = null, refreshedAt = null) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript((saved) => {
@@ -25,8 +25,9 @@ async function openBoard(page, cols, validation = null) {
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (url.pathname === "/api/companies") return json({ companies: stocks.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
     if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(stocks.map((r) => [r.ticker, { ...r, security_type: "stock" }])) });
-    if (url.pathname === "/api/market/stocks") return json({ stocks });
-    if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: {}, validation });
+    if (url.pathname === "/api/market/stocks") return json({ stocks, updated_at: "2026-11-05T05:00:00Z" });
+    if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: {}, validation,
+      refreshed_at: "2026-11-05T04:30:00Z", quotes_refreshed_at: refreshedAt });
     if (url.pathname === "/api/market/financials") return json({ ok: true, financials: {} });
     if (url.pathname === "/api/market/multiples") return json({ ok: true, items: [] });
     if (url.pathname === "/api/auth/me") return json({ user: null }, 401);
@@ -76,6 +77,27 @@ test("partial market refresh names the delayed security without hiding verified 
   await openBoard(page, ["date"], { partial: true, trade_date: "20261021", withheld: [{ ticker: "BECMP", isin: "UZ702845K017" }] });
   await expect(page.getByText(/Обновление задерживается.*BECMP/)).toBeVisible();
   await expect(page.locator(".market-table tbody tr")).toHaveCount(2);
+});
+
+test("readers see the successful quote update, not a newer mirror timestamp", async ({ page }) => {
+  await openBoard(page, ["date"], null, "2026-11-03T16:31:00Z");
+  const status = page.getByTestId("market-last-update");
+  await expect(status).toContainText("Последнее обновление котировок");
+  await expect(status.locator("time")).toHaveAttribute("datetime", "2026-11-03T16:31:00Z");
+  await expect(status).toContainText("21:31"); // Tashkent, independent of browser timezone
+  await expect(status).toContainText("2026");
+  await page.getByRole("button", { name: "Карта", exact: true }).click();
+  await expect(status).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(status).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("missing collection time is explicit even if the mirror has refreshed", async ({ page }) => {
+  await openBoard(page, ["date"]);
+  const status = page.getByTestId("market-last-update");
+  await expect(status).toContainText("Время обновления котировок неизвестно");
+  await expect(status.locator("time")).toHaveCount(0);
 });
 
 for (const width of [1024, 1440, 2512]) {

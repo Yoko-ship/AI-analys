@@ -43,9 +43,10 @@ import server.settings as settings
 router = APIRouter()
 
 
-async def _market_validation():
-    facts = await asyncio.get_running_loop().run_in_executor(
-        None, partial(catalogue_facts.get_facts, '_collector', 'meta'))
+async def _market_validation(facts=None):
+    if facts is None:
+        facts = await asyncio.get_running_loop().run_in_executor(
+            None, partial(catalogue_facts.get_facts, '_collector', 'meta'))
     value = next((f.get('value_text') for f in facts if f.get('field') == 'market_validation'), None)
     try:
         return json.loads(value) if value else None
@@ -521,17 +522,19 @@ async def api_market_trade_stats() -> dict[str, Any]:
     except Exception as exc:
         http.logger.exception("trade-stats cache read failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    # When the board was last refreshed BY US — the moment the collector's
-    # quotes run (08:00 / 13:00 / 16:10 Tashkent) wrote these rows. This is what
-    # the page's "Обновлено" badge reports: the uzse mirror's own stamp answers a
-    # different question (when someone else's cache refreshed) and can never
-    # show our schedule.
+    # Keep the statistics timestamp for existing clients. The reader's quote
+    # timestamp must come from a successful quote publication: a stats write or
+    # a failed run's heartbeat does not prove prices were updated.
     stamps = [s.get("updated_at") for s in stats.values() if s.get("updated_at")]
     dates = [s.get("trade_date") for s in stats.values() if s.get("trade_date")]
+    facts = await loop.run_in_executor(
+        None, partial(catalogue_facts.get_facts, '_collector', 'meta'))
+    quote_stamp = next((f.get("value_text") for f in facts if f.get("field") == "quotes_last_run"), None)
     return http._json_safe({
         "ok": True,
         "count": len(stats),
-        "validation": await _market_validation(),
+        "validation": await _market_validation(facts),
+        "quotes_refreshed_at": market_dates._as_utc_iso(quote_stamp) if quote_stamp else None,
         "refreshed_at": market_dates._as_utc_iso(max(stamps)) if stamps else None,
         "trade_date": max(dates) if dates else None,
         "stats": stats,
