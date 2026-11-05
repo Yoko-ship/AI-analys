@@ -1,0 +1,21 @@
+{
+  "groups": [
+    {
+      "description": "Distinct Uzbek exchanges: a trading venue is not interchangeable with a listed issuer",
+      "entities": [
+        {
+          "name": "Republican Stock Exchange Toshkent",
+          "source": "https://www.uzse.uz/",
+          "tickers": [],
+          "aliases": ["UZSE", "РФБ", "РФБда", "РФБнинг", "RFB", "RFBda", "RFBning", "Tashkent Stock Exchange", "Toshkent Stock Exchange", "Republican Stock Exchange", "Respublika fond birjasi", "Республика фонд биржаси", "Республиканская фондовая биржа", "Республиканской фондовой бирже", "Республиканской фондовой биржи"]
+        },
+        {
+          "name": "Uzbek Republican Commodity Exchange",
+          "source": "https://uzex.uz/ru/pages/about-us",
+          "tickers": ["URTS"],
+          "aliases": ["URTS", "UZEX", "UZEXda", "UZEXning", "УзРТСБ", "УзРТХБ", "УзРТС", "O'zRTXB", "O'zRTSB", "ЎзРТХБ", "ЎзРТСБ", "Uzbek Commodity Exchange", "Uzbek Republican Commodity Exchange", "Uzbekistan Republican Commodity Exchange", "Узбекская республиканская товарно сырьевая биржа", "Узбекской республиканской товарно сырьевой биржи", "Узбекской республиканской товарно сырьевой бирже", "Узбекская товарно сырьевая биржа", "Узбекской товарно сырьевой биржи", "Узбекской товарно сырьевой бирже", "O'zbekiston respublika tovar xomashyo birjasi", "O'zbekiston respublika tovar xom ashyo birjasi", "O'zbekiston respublikasi tovar xom ashyo birjasi", "Ўзбекистон республика товар хом ашё биржаси"]
+        }
+      ]
+    }
+  ]
+}

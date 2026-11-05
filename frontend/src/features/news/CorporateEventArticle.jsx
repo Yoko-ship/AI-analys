@@ -22,7 +22,7 @@ export function CorporateEventArticle({ story, categories, tx, lang, locale, sec
         <div className="led-art-byline"><b>OpenInfo</b><span>{tx.published}: <time dateTime={story.published_at}>{formatDay(story.published_at?.slice(0,10), locale)}</time></span></div>
       </header>
       <CorporateArticlePhoto story={story} caption={copy.photo} />
-      {story.summary && <p className="led-art-lead ce-article-lead">{pick(story.summary, lang)}</p>}
+      {story.summary && !story.governance && <p className="led-art-lead ce-article-lead">{pick(story.summary, lang)}</p>}
       {children}
     </article>
   </div>;

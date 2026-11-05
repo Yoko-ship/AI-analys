@@ -5,6 +5,52 @@ import pytest
 import corporate_events as ce
 
 SAMPLES=json.loads((Path(__file__).parent/'fixtures/openinfo/semantic_facts.json').read_text())
+GOVERNANCE=json.loads((Path(__file__).parent/'fixtures/openinfo/iptb_2026_governance.json').read_text())['raw']
+
+
+def test_iptb_governance_preserves_people_roles_and_roster_without_pairing_successors():
+    event = ce.from_fact(GOVERNANCE)
+    changes = event['governance']
+    assert [r['name'] for r in changes['appointed']] == ['Мартон Миклош Ратки', 'Данилин Михаил Алексеевич']
+    assert [r['name'] for r in changes['departed']] == ['Элашвили Иракли', 'Быков Максим']
+    assert changes['appointed'][0]['source_field'] == 'factscaseelection.0'
+    assert changes['appointed'][0]['position'] == 'Заместитель председателя правления'
+    assert changes['appointed'][0]['work_place'] == 'АКИБ "Ипотека-банк"'
+    assert len(changes['roster']) == 9
+    assert changes['roster'][-1]['name'] == 'Вакансия'
+    assert set(changes) == {'appointed', 'departed', 'roster'}
+    assert 'Мартон Миклош Ратки' in event['summary']['ru']
+    assert 'Элашвили Иракли' in event['summary']['ru']
+    assert event['pdf_url'] == GOVERNANCE['fact_own_link']
+    assert event['decision_date'] == '2026-10-28'
+
+
+def test_governance_keeps_missing_names_and_source_indexes_without_inventing_people():
+    raw = {**GOVERNANCE, 'factscaseelection': [None, {}, {'position': 'Board member'},
+           {'question_name': 'Named member'}], 'factsterminationpowers': None,
+           'factsmembershipexecutive': [{'name': '-', 'position': 'Vacant seat'}]}
+    event = ce.from_fact(raw)
+    assert event['governance']['appointed'] == [
+        {'source_field': 'factscaseelection.2', 'name': None, 'position': 'Board member', 'work_place': None},
+        {'source_field': 'factscaseelection.3', 'name': 'Named member', 'position': None, 'work_place': None}]
+    assert event['governance']['departed'] == []
+    assert event['governance']['roster'][0]['name'] is None
+
+
+def test_governance_names_are_scoped_to_form_eight_and_roster_is_not_change_evidence():
+    only_name = ce.from_fact({**GOVERNANCE, 'factscaseelection': [{'question_name': 'Named member'}],
+                             'factsterminationpowers': []})
+    assert only_name['confidence'] == 'confirmed'
+    roster_only = ce.from_fact({**GOVERNANCE, 'factscaseelection': [], 'factsterminationpowers': []})
+    assert roster_only['confidence'] == 'review'
+    meeting = ce.from_fact({**sample(6), 'factscaseelection': GOVERNANCE['factscaseelection']})
+    assert not meeting.get('governance')
+    assert 'Мартон' not in json.dumps(meeting, ensure_ascii=False)
+
+
+@pytest.mark.parametrize('url', ['javascript:alert(1)', 'https://example.org/page', None])
+def test_governance_pdf_requires_an_http_pdf_link(url):
+    assert ce.from_fact({**GOVERNANCE, 'fact_own_link': url})['pdf_url'] is None
 
 @pytest.mark.parametrize('sample',SAMPLES,ids=lambda x:str(x['global_id']))
 def test_real_disclosure_fields_have_source_paths_and_distinct_summaries(sample):

@@ -878,7 +878,8 @@ def _system_with_universe(universe: dict[str, str] | None) -> str:
     key = id(universe) if universe else 0
     cached = _system_cache.get(key)
     if cached is None:
-        cached = f"{_SYSTEM}\n\nISSUER UNIVERSE (ticker — name):\n{_format_universe(universe)}"
+        from news_entity_identity import classifier_identity_context
+        cached = f"{_SYSTEM}\n\nISSUER UNIVERSE (ticker — name):\n{_format_universe(universe)}\n\n{classifier_identity_context()}"
         _system_cache.clear()  # one universe per process in practice
         _system_cache[key] = cached
     return cached

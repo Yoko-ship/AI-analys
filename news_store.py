@@ -23,6 +23,7 @@ import reports_catalog as rc
 import catalogue.storage as catalogue_storage
 import catalogue.storage as catalogue_storage
 from delisted import DELISTED_TICKERS
+from news_entity_identity import IDENTITY_TICKERS, consistent_tickers
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +206,43 @@ def _is_web_url(url: str) -> bool:
     return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
 
 
+def _validated_tickers(item):
+    tickers = sorted({str(t).strip().upper() for t in (item.get('tickers') or []) if str(t).strip()})
+    # Filings carry an authoritative org→security join, not a model's guess.
+    if item.get('source_id') in disclosure_source_ids():
+        return tickers
+    return consistent_tickers(item, tickers)
+
+
+def repair_news_entity_links(*, apply=False):
+    """Review, then remove contradictory historical ticker links with the ingest rule.
+
+    Preserve articles, translations and classifications. Removing the stored link
+    also removes its contribution to issuer news, recommendations and sentiment.
+    """
+    if not IDENTITY_TICKERS:
+        return []
+    conn = catalogue_storage.get_catalog_conn()
+    try:
+        with conn:
+            placeholders = ','.join('?' for _ in IDENTITY_TICKERS)
+            rows = conn.execute(
+                f'''SELECT n.id,n.title,n.snippet,n.source_id,e.ticker FROM news n
+                    JOIN news_entities e ON e.news_id=n.id WHERE e.ticker IN ({placeholders})
+                    ORDER BY n.id,e.ticker''', tuple(sorted(IDENTITY_TICKERS))).fetchall()
+            changes = []
+            for row in rows:
+                item = {**dict(row), 'tickers': [row['ticker']]}
+                if row['ticker'] not in _validated_tickers(item):
+                    changes.append({'news_id': row['id'], 'ticker': row['ticker']})
+                    if apply:
+                        conn.execute('DELETE FROM news_entities WHERE news_id=? AND ticker=?',
+                                     (row['id'], row['ticker']))
+            return changes
+    finally:
+        conn.close()
+
+
 def upsert_news(items: list[dict[str, Any]]) -> int:
     """Insert/refresh news items with their NLP output and ticker links.
 
@@ -274,7 +312,7 @@ def upsert_news(items: list[dict[str, Any]]) -> int:
                  it.get("reason"), it.get("model"), it.get("topic")),
             )
             conn.execute("DELETE FROM news_entities WHERE news_id = ?", (news_id,))
-            for ticker in {str(t).strip().upper() for t in (it.get("tickers") or []) if str(t).strip()}:
+            for ticker in _validated_tickers(it):
                 if ticker in DELISTED_TICKERS:
                     # The issuer has no page on the site any more, so the chip would
                     # link nowhere. The story itself is kept — only the tag is dropped.

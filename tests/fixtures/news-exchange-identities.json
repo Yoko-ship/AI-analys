@@ -1,0 +1,78 @@
+[
+  {
+    "id": 7591,
+    "url": "https://www.uzdaily.uz/ru/obiom-torgov-na-rfb-toshkent-dostig-1053-trln-sumov",
+    "source": "UzDaily.uz",
+    "source_id": "uzdaily",
+    "title": "Объём торгов на РФБ «Тошкент» достиг 10,53 трлн сумов",
+    "snippet": "За январь–сентябрь 2026 года на РФБ «Тошкент» заключили более 906 тыс. сделок. Рыночная капитализация акций выросла на 189,28%.",
+    "summary_ru": "За январь–сентябрь 2026 года на РФБ «Тошкент» прошло более 906 тыс. сделок на 10,53 трлн сумов. Капитализация акций выросла на 189,28%.",
+    "tickers": [
+      "URTS"
+    ],
+    "published_at": "2026-11-04T10:45:00",
+    "type": "market",
+    "tone": "positive",
+    "tone_score": 0.78,
+    "impact": "high",
+    "direction": "up",
+    "topic": "markets"
+  },
+  {
+    "id": 7368,
+    "url": "https://uza.uz/en/posts/uzex-over-17-million-transactions-concluded-in-the-first-nine-months-of-the-year_931062",
+    "source": "UzA — National News Agency (English)",
+    "source_id": "uza",
+    "title": "UZEX: Over 1.7 million transactions concluded in the first nine months of the year",
+    "snippet": "More than 1.7 million transactions were completed on the Uzbek Commodity Exchange (UZEX) trading platforms between January and September 2026. Transaction volume increased by 29% compared with the same period last year. In addition, more than 27,600 new clients joined the exchange’s platforms.",
+    "summary_ru": "За январь–сентябрь 2026 года на торговых платформах Узбекской товарно-сырьевой биржи заключили более 1,7 млн сделок, на 29% больше, чем годом ранее. К платформам присоединились свыше 27 600 новых клиентов.",
+    "tickers": [
+      "URTS"
+    ],
+    "published_at": "2026-11-01T13:59:50",
+    "type": "market",
+    "tone": "positive",
+    "tone_score": 0.5,
+    "impact": "medium",
+    "direction": "up",
+    "topic": "markets"
+  },
+  {
+    "id": 7187,
+    "url": "https://www.uzdaily.uz/ru/uzex-uvelichila-obiom-birzhevykh-sdelok-na-29-za-deviat-mesiatsev",
+    "source": "UzDaily.uz",
+    "source_id": "uzdaily",
+    "title": "UZEX увеличила объём биржевых сделок на 29% за девять месяцев",
+    "snippet": "За январь–сентябрь 2026 года UZEX заключила более 1,7 млн сделок, а объём внешнеторговых операций превысил $646 млн.",
+    "summary_ru": "За январь–сентябрь 2026 года UZEX провела более 1,7 млн сделок, а объём внешнеторговых операций превысил $646 млн; общий объём биржевых сделок вырос на 29%.",
+    "tickers": [
+      "URTS"
+    ],
+    "published_at": "2026-10-31T06:20:00",
+    "type": "financial_report",
+    "tone": "positive",
+    "tone_score": 0.65,
+    "impact": "medium",
+    "direction": "up",
+    "topic": "markets"
+  },
+  {
+    "id": 6622,
+    "url": "https://www.uzdaily.uz/ru/pribyl-uzrtsb-za-9-mesiatsev-2026-goda-vyrosla-na-34",
+    "source": "UzDaily.uz",
+    "source_id": "uzdaily",
+    "title": "Прибыль УзРТСБ за 9 месяцев 2026 года выросла на 34%",
+    "snippet": "Чистая прибыль УзРТСБ за январь — сентябрь 2026 года выросла на 34,4%, до 341,7 млрд сумов, активы увеличились в 2,3 раза.",
+    "summary_ru": "Чистая прибыль УзРТСБ за январь—сентябрь 2026 года выросла на 34,4%, до 341,7 млрд сумов; активы увеличились в 2,3 раза.",
+    "tickers": [
+      "URTS"
+    ],
+    "published_at": "2026-10-27T10:30:00",
+    "type": "financial_report",
+    "tone": "positive",
+    "tone_score": 0.82,
+    "impact": "medium",
+    "direction": "up",
+    "topic": "companies"
+  }
+]

@@ -1,10 +1,33 @@
 // Both news feeds and the calendar share the page's navigation row.
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 
 const press = JSON.parse(readFileSync(new URL("../tests/fixtures/news-search.json", import.meta.url), "utf8"));
 const filing = { ...press, id: 6576, source_id: "openinfo_facts", source: "OpenInfo",
   title: '"Olmaliq KMK" AJ: Решения высшего органа управления', title_ru: null, summary_ru: "Решения эмитента." };
+
+test('stock-exchange news has no commodity-exchange tag while UZEX news retains URTS', async ({page}) => {
+  const items = JSON.parse(execFileSync('.venv/bin/python', ['-c', `
+import json,tempfile
+from pathlib import Path
+import catalogue.storage as storage
+import news_store
+with tempfile.TemporaryDirectory() as folder:
+ storage._catalog_db_path=lambda: folder+'/news.db'
+ records=json.loads(Path('tests/fixtures/news-exchange-identities.json').read_text())
+ news_store.upsert_news([{**r,'relevant':True,'relevance_score':.9} for r in records])
+ print(json.dumps(news_store.get_news_feed(days=3650)))
+`], {encoding:'utf8',env:{...process.env,DATABASE_URL:'',DATABASE_PUBLIC_URL:'',DATABASE_BACKEND:'sqlite',PYTHON_DOTENV_DISABLED:'1'}}));
+  await openNews(page);
+  await page.route('**/api/news/feed?**', route => route.fulfill({json:{ok:true,items}}));
+  await page.reload();
+  const stock = page.locator('.newsdesk-row').filter({hasText:'Объём торгов на РФБ «Тошкент» достиг 10,53 трлн сумов'});
+  await expect(stock).toHaveCount(1);
+  await expect(stock).not.toContainText('URTS');
+  const commodity = page.locator('.newsdesk-row').filter({hasText:'UZEX увеличила объём биржевых сделок на 29% за девять месяцев'});
+  await expect(commodity).toContainText('URTS');
+});
 
 async function openNews(page, path = "/news", { admin = false } = {}) {
   const asked = [];

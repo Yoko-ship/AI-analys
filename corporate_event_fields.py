@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 import re
 import math
 
-VERSION = 4
+VERSION = 5
 
 
 def words(ru, en, uz):
@@ -175,6 +175,9 @@ def table_percent(value, table, field_name, code):
 
 def table_row_has_content(row, table, code):
     if table=='facts_decisions_wording':return bool(content(row.get('decisions_wording')))
+    if code == 8 and table in {'factscaseelection', 'factsterminationpowers'}:
+        if isinstance(row.get('question_name'), str) and content(row['question_name']):
+            return True
     return (any((content(row.get(name)) if unit=='text' else numeric(row.get(name))) is not None
                 for name,(unit,_) in NESTED_FIELDS.items())
             or any(table_percent(row.get(name),table,name,code) is not None
@@ -299,5 +302,8 @@ def apply(document, raw):
         d['summary'] = words('Поля дохода на бумагу заполнены нулями; положительная сумма не подтверждена.',
                              'Per-security income fields contain zeros; a positive amount is not confirmed.',
                              'Har bir qog‘oz daromadi maydonlarida nol ko‘rsatilgan; musbat summa tasdiqlanmagan.')
+    if code == 8:
+        from corporate_governance import enrich_governance
+        enrich_governance(d, raw)
     d.pop('_stage_confidence',None)
     return d

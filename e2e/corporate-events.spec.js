@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 const doc = (id, code, ticker, category, stage, priority) => ({
   id, source_url: `https://openinfo.uz/ru/facts/${code}/${id}`, code, tickers: [ticker], isins: ['UZ7011340005'],
@@ -14,6 +15,45 @@ const payload = { ok: true, sources: { facts: { ok: true } },
   categories: { dividends: { ru: 'Дивиденды и выплаты' }, risks: { ru: 'Риски и лицензии' } },
   facts: { 41: { title: { ru: 'Набсовет рекомендовал дивиденды' } }, 23: { title: { ru: 'Компания утратила лицензию' } } },
   items: [a, b].map(d => ({ ...d, story_id: d.id, documents: [d], document_count: 1 })) };
+
+for (const width of [1440, 390]) test(`Ipoteka governance shows named changes and the disclosed roster at ${width}px`, async ({page}, info) => {
+  const filing = JSON.parse(execFileSync('.venv/bin/python', ['-c',
+    "import json; from pathlib import Path; from corporate_events import from_fact; print(json.dumps(from_fact(json.loads(Path('tests/fixtures/openinfo/iptb_2026_governance.json').read_text())['raw'])))"
+  ], {encoding:'utf8'}));
+  await page.setViewportSize({width, height:1000});
+  await setup(page);
+  await page.route('**/api/news/corporate-events?**', route => route.fulfill({json:{...payload,
+    items:[{...filing, story_id:'iptb-governance', documents:[filing], document_count:1}]}}));
+  await page.route('**/logos/IPTB_MARK.svg', route => route.fulfill({contentType:'image/svg+xml', body:readFileSync(new URL('../logos/IPTB_MARK.svg', import.meta.url))}));
+  await page.goto('/news?tab=corporate&event=iptb-governance&start=2026-11-03&end=2026-11-03');
+  const article = page.getByTestId('corporate-event-detail').locator('.ce-article');
+  await expect(article.getByRole('heading', {level:1})).toBeVisible();
+  await expect(article.locator('.ce-article-lead')).toHaveCount(0);
+  await page.evaluate(() => {document.documentElement.dataset.theme = document.body.dataset.theme = 'dark';});
+  await page.evaluate(() => document.fonts.ready);
+  if (process.env.GOVERNANCE_SCREENSHOT_PREFIX) await article.screenshot({path:`${process.env.GOVERNANCE_SCREENSHOT_PREFIX}-${width}.png`, animations:'disabled'});
+  const appointed = article.getByRole('region', {name:'Назначены'});
+  const departed = article.getByRole('region', {name:'Полномочия прекращены'});
+  await expect(appointed).toContainText('Мартон Миклош Ратки');
+  await expect(appointed).toContainText('Данилин Михаил Алексеевич');
+  await expect(departed).toContainText('Элашвили Иракли');
+  await expect(departed).toContainText('Быков Максим');
+  await expect(appointed.locator('li')).toHaveCount(2);
+  await expect(appointed.locator('li').first()).toContainText('Заместитель председателя правления');
+  await expect(appointed).not.toContainText('Элашвили');
+  await expect(article.locator('.ce-extracted-fields')).toHaveCount(0);
+  await expect(article.getByRole('link', {name:'PDF ↗',exact:true})).toHaveAttribute('href', /08-fact-28-10-2026.pdf$/);
+  await article.locator('summary').filter({hasText:'Состав органа управления по раскрытию'}).click();
+  const roster = article.getByRole('region', {name:'Состав органа управления по раскрытию'});
+  await expect(roster.locator('li')).toHaveCount(9);
+  await expect(roster).toContainText('Сентпетери Адам');
+  await expect(roster).toContainText('Вакансия');
+  for (const theme of ['light','dark']) {
+    await page.evaluate(t => {document.documentElement.dataset.theme = document.body.dataset.theme = t;},theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await article.screenshot({path:info.outputPath(`governance-${theme}.png`),animations:'disabled'});
+  }
+});
 async function setup(page) {
   const requested = [];
   await page.addInitScript(() => { sessionStorage.setItem('uz_sponsor_seen', '1'); localStorage.setItem('uz_stock_analyzer_token', 'test'); });
