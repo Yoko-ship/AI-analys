@@ -25,7 +25,7 @@ def calculate(observations, end, mode):
         if direct:
             if len({(r.get('value'), r.get('quality')) for r in direct}) > 1:
                 return {**empty, 'quality': 'blocked', 'reason': 'CONFLICTING_SOURCE_VERSIONS', 'components': direct}
-            if anchor['kind'] == 'flow' and boundary.month > 3:
+            if anchor['kind'] == 'flow' and anchor.get('metric_id') != 'weighted_average_shares' and boundary.month > 3:
                 # Compare an explicitly reported quarter with independently
                 # complete YTD arithmetic, never hide a source disagreement.
                 other = [r for r in same if r not in direct]
@@ -35,6 +35,8 @@ def calculate(observations, end, mode):
                     return {**empty, 'quality': 'blocked', 'reason': 'REPORTED_DERIVED_PERIOD_CONFLICT',
                             'components': [direct[0], derived]}
             return {**direct[0], 'basis': 'reported_quarter', 'components': [direct[0]], 'formula': 'Reported standalone quarter'}
+    if anchor.get('metric_id') == 'weighted_average_shares':
+        return {**empty, 'quality': 'not_applicable', 'reason': 'WEIGHTED_SHARES_NOT_ADDITIVE'}
     if anchor['kind'] != 'flow':
         return {**empty, 'quality': 'not_applicable', 'reason': 'STOCK_IS_AS_OF_DATE' if anchor['kind'] == 'stock' else 'PER_SHARE_IS_NOT_ADDITIVE'}
     terms = [(f'{year}-01-01', end, 1)]

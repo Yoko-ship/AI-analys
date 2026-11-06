@@ -108,7 +108,8 @@ def public_report(report):
     credit = result.get("credit_profile")
     if isinstance(credit, dict):
         credit["public_ratio_policy"] = "current_and_quick_liquidity_excluded"
-    return result
+    from financial_analysis.report_investor_metrics import project
+    return project(result)
 
 
 def special_type(issuer):

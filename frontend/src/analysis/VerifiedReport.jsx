@@ -1,4 +1,5 @@
 import React from "react";
+import {reportRatioUnit,reportRatioReason} from '../lib/reportRatioDisplay.js';
 import "./verified-report.css";
 
 const pick = (lang, ru, uz, en) => ({ ru, uz, en }[lang] || ru);
@@ -149,12 +150,14 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
         </table>
       </div>
     </details> : null)}
-    {report.ratios?.length > 0 && <details className="verified-block">
-      <summary>{t("Финансовые коэффициенты", "Moliyaviy koeffitsiyentlar", "Financial ratios")}</summary>
+    {[[report.ratios,t("Финансовые коэффициенты", "Moliyaviy koeffitsiyentlar", "Financial ratios")],
+      [report.additional_ratios,t("Дополнительные показатели", "Qo‘shimcha ko‘rsatkichlar", "Additional indicators")]].map(([items,title])=>items?.length > 0 ? <details className="verified-block" key={title}>
+      <summary>{title}</summary>
       <div className="verified-ratios">
-        {report.ratios.map((item) => <article key={item.method_id} data-testid={`verified-ratio-${item.metric_code}`}>
+        {items.map((item) => <article key={item.method_id} data-testid={`verified-ratio-${item.metric_code}`}>
           <strong className="verified-ratio-name">{ratioText(item, lang, 0)}</strong>
-          <p className="verified-ratio-value">{fmt(item.value, lang)}{item.unit === "percent" ? "%" : "×"}</p>
+          <p className="verified-ratio-value">{fmt(item.value, lang)}{item.value != null && reportRatioUnit(item.unit,lang)}</p>
+          {item.market_as_of && <small>{t('Котировка','Kotirovka','Quote')}: {item.market_as_of}</small>}
           <p className="verified-ratio-meaning">{ratioText(item, lang, 3)}</p>
           {item.benchmark_type && item.value != null && <small className={`verified-ratio-status ${item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max) ? "good" : "attention"}`}>
             {item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max)
@@ -162,15 +165,19 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
               : t("Требует внимания", "E’tibor talab qiladi", "Needs attention")}
             {` · ${t("ориентир", "me’yor", "reference")} ${item.benchmark_min}${item.benchmark_max ? "–" + item.benchmark_max : "+"}`}
           </small>}
-          {item.value == null && <small>{t("Нет полного набора компонентов", "Tarkibiy qismlar to‘liq emas", "Components are incomplete or invalid")}</small>}
+          {item.value == null && <small>{reportRatioReason(item,lang)}</small>}
           <details className="verified-ratio-details">
             <summary>{t("Как рассчитано", "Qanday hisoblangan", "How it is calculated")}</summary>
             <p><code>{item.metric_code}</code> · {item.formula}</p>
-            <p>{compactNumber(item.numerator_value, lang)} / {compactNumber(item.denominator_value, lang)}</p>
+            {item.denominator_value != null && <p>{compactNumber(item.numerator_value, lang)} / {compactNumber(item.denominator_value, lang)}</p>}
+            {item.components?.length > 0 && <ul>{item.components.map((component,i)=><li key={i}>
+              {component.label||component.raw_label||component.metric_code||t('Котировка','Kotirovka','Quote')}: {fmt(component.value??component.last_price,lang)}{reportRatioUnit(component.unit==='thousand UZS'?'UZS_thousand':component.unit,lang)}
+              {safeUrl(component.source_url) && <> · <a href={safeUrl(component.source_url)} target="_blank" rel="noreferrer">{t('Источник','Manba','Source')}</a></>}
+            </li>)}</ul>}
           </details>
         </article>)}
       </div>
-    </details>}
+    </details> : null)}
     {withCommentary && report.analytical_issues?.length > 0 && <section className="verified-issues">
       <h3>{t("Проблемы и выводы", "Muammolar va xulosalar", "Issues and conclusions")}</h3>
       {report.analytical_issues.map((issue) => <article key={issue.issue_code}>

@@ -24,6 +24,7 @@ retained_earnings|Retained earnings|Нераспределенная прибы�
 treasury_shares|Treasury shares|Собственные выкупленные акции
 other_reserves|Other reserves|Прочие резервы
 equity_owners|Equity attributable to owners of the parent|Капитал, приходящийся на собственников материнской компании
+common_equity|Equity attributable to ordinary shareholders|Капитал, приходящийся на владельцев обыкновенных акций
 nci|Non-controlling interests|Неконтролирующая доля участия
 total_equity|Total equity|Итого капитал
 borrowings_short|Short-term borrowings|Краткосрочные заимствования
@@ -71,6 +72,7 @@ income_tax|Income tax expense|Расходы по налогу на прибыл
 profit_continuing|Profit from continuing operations|Прибыль от продолжающейся деятельности
 net_income|Profit for the year|Прибыль за год
 profit_owners|Profit attributable to owners of the parent|Прибыль, приходящаяся на собственников материнской компании
+profit_ordinary|Profit attributable to ordinary equity holders of the parent|Прибыль, приходящаяся на владельцев обыкновенных акций материнской компании
 profit_nci|Profit attributable to non-controlling interests|Прибыль, приходящаяся на неконтролирующие доли участия
 oci|Other comprehensive income|Прочий совокупный доход
 comprehensive_income|Total comprehensive income|Общий совокупный доход

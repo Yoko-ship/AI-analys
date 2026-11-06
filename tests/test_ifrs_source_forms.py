@@ -71,6 +71,22 @@ def test_bilingual_aliases_identify_the_same_metric_without_summing():
     assert ifrs.metric('Stage 3 loans', 'Notes') != 'npl'
 
 
+def test_weighted_average_shares_keep_the_income_period_instead_of_a_closing_date():
+    text = '''Notes to the separate financial statements
+For the six months ended
+30 June 2026
+Weighted average number of ordinary shares    80
+Ordinary shares outstanding                  100'''
+    rows = {r['metric_id']: r for r in ifrs.extract({1:text}, page_count=1)['rows']}
+    assert rows['weighted_average_shares']['period_start'] == '2026-01-01'
+    assert rows['weighted_average_shares']['period_end'] == '2026-06-30'
+    assert rows['weighted_average_shares']['unit'] == 'shares'
+    assert rows['weighted_average_shares']['raw_value'] == '80'
+    assert rows['ordinary_shares']['period_start'] == '2026-06-30'
+    undated = ifrs.extract({1:text.replace('For the six months ended', '')}, page_count=1)['rows']
+    assert next(r for r in undated if r['metric_id']=='weighted_average_shares')['quality'] == 'blocked'
+
+
 def test_native_notes_after_the_statement_page_budget_are_retained(monkeypatch):
     from financial_ingestion import extract
     from types import SimpleNamespace

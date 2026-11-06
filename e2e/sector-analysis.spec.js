@@ -17,6 +17,22 @@ const PUBLIC_REPORT = {
 };
 const SEC = { ticker: "UZMK", name: "Узметкомбинат", type: "stock", isin: "QA-UZMK", last_price: 4000, sector: "manufacturing" };
 
+test('full report separates additional ratios and formats book value and EPS as money',async({page})=>{
+  await api(page,{...PUBLIC_REPORT,ratios:[
+    {metric_code:'book_value',method_id:'investor:book',name_ru:'Балансовая стоимость капитала',value:500,unit:'UZS_thousand',formula:'total_equity'},
+    {metric_code:'eps_basic',method_id:'investor:eps',name_ru:'Базовая прибыль на акцию (EPS)',value:42,unit:'UZS_per_share',formula:'profit_ordinary / weighted_average_shares'},
+  ],additional_ratios:[{metric_code:'P7',method_id:'additional:P7',value:12,unit:'percent'}]});
+  await page.goto('/company/UZMK');
+  await page.getByTestId('company-insight-card').getByRole('button',{name:'Открыть полный анализ'}).click();
+  const dialog=page.getByRole('dialog');
+  await dialog.getByText('Финансовые коэффициенты',{exact:true}).click();
+  await expect(dialog.getByTestId('verified-ratio-book_value')).toContainText('500 тыс. UZS');
+  await expect(dialog.getByTestId('verified-ratio-eps_basic')).toContainText('42 UZS/акция');
+  await expect(dialog.getByTestId('verified-ratio-P7')).not.toBeVisible();
+  await dialog.getByText('Дополнительные показатели',{exact:true}).click();
+  await expect(dialog.getByTestId('verified-ratio-P7')).toBeVisible();
+});
+
 async function api(page, report = PUBLIC_REPORT, admin = false) {
   await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "local-qa-token"));
   await page.route("**/api/**", (route) => {

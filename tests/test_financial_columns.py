@@ -148,9 +148,11 @@ def test_a_reported_standalone_quarter_needs_no_ytd_subtraction():
     assert len(result['components']) == 1
 
 
-def test_eps_cannot_be_subtracted_like_profit_when_share_counts_may_change():
-    data = [{**r, 'kind': 'per_share', 'metric_id': 'eps_basic'} for r in observations()]
+@pytest.mark.parametrize('metric,kind', [('eps_basic','per_share'), ('weighted_average_shares','flow')])
+def test_eps_cannot_be_subtracted_like_profit_when_share_counts_may_change(metric,kind):
+    data = [{**r, 'kind': kind, 'metric_id': metric} for r in observations()]
     assert periods.calculate(data, '2025-06-30', 'quarter')['quality'] == 'not_applicable'
+    assert periods.calculate(data, '2025-06-30', 'ttm')['quality'] == 'not_applicable'
 def test_kafolat_2025_subtotals_and_reserve_changes_have_literal_meanings():
     import json
     from pathlib import Path

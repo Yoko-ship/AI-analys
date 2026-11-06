@@ -71,7 +71,7 @@ test('catalog ratio meanings move into ! while missing-data reasons remain visib
   const sector=page.locator('.terminal-sector-metrics');
   await expect(sector.locator('.term-info-btn')).toHaveText(['!','!']);
   await expect(sector).not.toContainText('Net interest income relative');
-  await expect(sector).toContainText('INPUTS_MISSING');
+  await expect(sector).toContainText('Components are incomplete or invalid');
   await sector.locator('.term-info-btn').first().click();
   await expect(page.getByRole('tooltip')).toContainText('Net interest income relative to average earning assets.');
   await page.keyboard.press('Escape');
@@ -104,4 +104,31 @@ test.describe('touch explanations',()=>{
     await marker.tap();
     await expect(tip).toHaveCount(0);
   });
+});
+
+test('investor metrics show units and reasons while statutory ratios stay in additional details',async({page})=>{
+  await setup(page,'ru');
+  await page.route('**/api/v1/issuers/*/ai-report**',route=>route.fulfill({json:{
+    status:'available',period:'2026Q2',scope:'separate',ratios:[
+      {metric_code:'operating_margin',name_ru:'Операционная маржа',value:11.65,unit:'percent',meaning_ru:'Операционная прибыль относительно выручки.',formula:'operating_income / revenue × 100'},
+      {metric_code:'book_value',name_ru:'Балансовая стоимость капитала',value:500,unit:'UZS_thousand'},
+      {metric_code:'interest_debt_to_equity',name_ru:'Долг / капитал (D/E)',value:0.5,unit:'ratio'},
+      {metric_code:'price_to_book',name_ru:'P/BV',value:2,unit:'ratio',market_as_of:'2026-07-01'},
+      {metric_code:'eps_basic',name_ru:'Базовая прибыль на акцию (EPS)',value:null,unit:'UZS_per_share',reason_code:'EPS_INPUTS_MISSING'},
+    ],additional_ratios:[{metric_code:'P7',name_ru:'Прибыль до налога / выручка',value:12,unit:'percent'}],
+  }}));
+  await page.goto('/catalog?t=HMKB&f=RAT');
+  const sector=page.locator('.terminal-sector-metrics');
+  await expect(sector.getByRole('row').filter({hasText:'Балансовая стоимость капитала'})).toContainText('500 тыс. UZS');
+  await expect(sector.getByRole('row').filter({hasText:'Долг / капитал'})).toContainText('0,5 ×');
+  await expect(sector.getByRole('row').filter({hasText:'P/BV'})).toContainText('2026-07-01');
+  await expect(sector.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('Нет подтверждённой EPS или данных для её расчёта');
+  await expect(sector.getByText('Прибыль до налога / выручка',{exact:true})).not.toBeVisible();
+  await sector.getByText('Дополнительные показатели',{exact:true}).click();
+  await expect(sector.getByText('Прибыль до налога / выручка',{exact:true})).toBeVisible();
+  await sector.getByRole('row').filter({hasText:'Операционная маржа'}).locator('.term-info-btn').click();
+  await expect(page.getByRole('tooltip')).toContainText('operating_income / revenue');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({width:390,height:844});
+  expect(await sector.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
 });

@@ -125,7 +125,9 @@ def extract(pages, *, page_count):
                 if per_share:
                     kind = 'per_share'
                 if form == 'Notes':
-                    kind = 'stock'  # notes here map only explicitly defined balance/share disclosures
+                    # A weighted share count belongs to the earnings period,
+                    # whereas outstanding shares are a balance at one date.
+                    kind = 'flow' if metric_id == 'weighted_average_shares' else 'stock'
                 start = parser.flow_start(header, year, end, column_index=column, column_count=len(cols))
                 when = end
                 if kind in {'flow', 'per_share'} and not start:

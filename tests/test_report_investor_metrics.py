@@ -1,0 +1,195 @@
+"""Public investor indicators retain the filing's context and share basis."""
+from copy import deepcopy
+import json
+from pathlib import Path
+
+import pytest
+
+import sector_report_service as service
+from financial_columns import source_store
+
+
+REPORT = json.loads((Path(__file__).parent / 'fixtures/sector_ui_report.json').read_text())
+NEW = {'operating_margin', 'book_value', 'interest_debt_to_equity', 'price_to_book', 'eps_basic'}
+
+
+@pytest.fixture
+def report(monkeypatch):
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [])
+    return deepcopy(REPORT)
+
+
+def metrics(report):
+    return {r['metric_code']: r for r in service.public_report(report)['ratios']}
+
+
+def test_uzmk_primary_ratios_use_operating_profit_and_equity_not_pretax_profit(report):
+    original = deepcopy(report)
+    public = service.public_report(report)
+    rows = {r['metric_code']: r for r in public['ratios']}
+    assert NEW <= rows.keys()
+    assert not {'P2', 'P7', 'P8', 'current_ratio', 'quick_ratio'} & rows.keys()
+    assert {r['metric_code'] for r in public['additional_ratios']} == {'P2', 'P7', 'P8'}
+    assert rows['operating_margin']['value'] == pytest.approx(373505355 / 3205904736 * 100)
+    assert rows['book_value']['value'] == 6375622697.23
+    assert rows['book_value']['unit'] == 'UZS_thousand'
+    assert rows['interest_debt_to_equity']['value'] is None  # Only long-term debt is available.
+    assert rows['eps_basic']['value'] is None
+    assert rows['eps_basic']['reason_code'] == 'EPS_INPUTS_MISSING'
+    assert rows['price_to_book']['value'] is None
+    assert report == original
+
+
+def source_rows(report, **values):
+    facts = {r['metric_code']: r['value'] for r in report['verified_facts']}
+    values = {'total_assets': facts['total_assets'], 'total_equity': facts['total_equity'], **values}
+    return [dict(metric_id=key, raw_label=key, value=str(value), unit='UZS_per_share' if key == 'eps_basic' else 'shares' if key in {'ordinary_shares', 'weighted_average_shares'} else 'UZS_thousand',
+                 issuer_id=report['issuer']['id'], standard='NSBU', scope='separate', currency='UZS',
+                 period_end='2026-06-30', period_start='2026-01-01' if key in {'eps_basic', 'profit_ordinary', 'weighted_average_shares'} else '2026-06-30',
+                 kind='flow' if key in {'profit_ordinary', 'weighted_average_shares'} else 'per_share' if key == 'eps_basic' else 'stock',
+                 quality='valid', role='PRIMARY', source_version='filing-1', source_url=report['sources'][0]['url'])
+            for key, value in values.items()]
+
+
+def inject(monkeypatch, rows):
+    from financial_columns import observations
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [{}])
+    monkeypatch.setattr(observations, 'nsbu', lambda _: deepcopy(rows))
+
+
+def test_verified_debt_and_share_inputs_are_used_with_correct_units(report, monkeypatch):
+    rows = source_rows(report, bank_borrowings_long=100, other_borrowings_long=20,
+                       bank_borrowings_short=30, other_borrowings_short=40,
+                       current_portion_long_term_debt=10, common_equity=500,
+                       ordinary_shares=100, profit_ordinary=60, weighted_average_shares=80)
+    inject(monkeypatch, rows)
+    report['instrument'] = {'instrument_type': 'ordinary_share', 'last_price': 10000,
+                            'market_as_of': '2026-07-01', 'freshness': {'status': 'fresh'}}
+    out = metrics(report)
+    assert out['interest_debt_to_equity']['value'] == pytest.approx(200 / 6375622697.23)
+    assert out['eps_basic']['value'] == 750  # thousand UZS × 1000 / weighted shares
+    assert out['eps_basic']['unit'] == 'UZS_per_share'
+    assert out['price_to_book']['value'] == 2
+    assert out['price_to_book']['market_as_of'] == '2026-07-01'
+    assert out['price_to_book']['denominator_value'] == 5000
+    assert out['eps_basic']['components']
+    for row in out.values():
+        if row['metric_code'] in NEW:
+            assert row['name_ru'] and row['meaning_en'] and row['formula']
+
+
+@pytest.mark.parametrize('change', [
+    {'scope': 'consolidated'}, {'standard': 'MSFO'}, {'issuer_id': 'other'},
+    {'period_end': '2025-06-30'}, {'quality': 'blocked'}, {'unit': 'USD_per_share'},
+    {'period_start': '2026-04-01'}, {'role': 'COMPARATIVE'},
+])
+def test_eps_cannot_cross_contexts_or_use_quarterly_or_unverified_cells(report, monkeypatch, change):
+    rows = source_rows(report, eps_basic=42)
+    rows[-1].update(change)
+    inject(monkeypatch, rows)
+    assert metrics(report)['eps_basic']['value'] is None
+
+
+def test_source_revision_must_reconcile_to_the_report_and_conflicts_stay_missing(report, monkeypatch):
+    rows = source_rows(report, eps_basic=42)
+    rows[0]['value'] = '123'
+    inject(monkeypatch, rows)
+    assert metrics(report)['eps_basic']['value'] is None
+    rows = source_rows(report, eps_basic=42)
+    rows.append({**rows[-1], 'value': '43'})
+    inject(monkeypatch, rows)
+    assert metrics(report)['eps_basic']['value'] is None
+
+
+@pytest.mark.parametrize('profit,expected', [(0, 0), (-60, -750)])
+def test_zero_and_losses_are_valid_eps_without_annualising(report, monkeypatch, profit, expected):
+    inject(monkeypatch, source_rows(report, profit_ordinary=profit, weighted_average_shares=80, ordinary_shares=1000))
+    assert metrics(report)['eps_basic']['value'] == expected
+
+
+def test_reported_basic_eps_is_not_recomputed_from_current_shares(report, monkeypatch):
+    inject(monkeypatch, source_rows(report, eps_basic=42, ordinary_shares=1000))
+    out = metrics(report)['eps_basic']
+    assert out['value'] == 42
+    assert out['origin'] == 'reported'
+
+
+@pytest.mark.parametrize('invalid', ['preferred', 'stale', 'undated', 'negative_equity', 'zero_shares'])
+def test_price_to_book_requires_ordinary_equity_shares_and_a_usable_dated_price(report, monkeypatch, invalid):
+    inject(monkeypatch, source_rows(report, common_equity=-500 if invalid == 'negative_equity' else 500,
+                                   ordinary_shares=0 if invalid == 'zero_shares' else 100))
+    report['instrument'] = {'instrument_type': 'preferred_share' if invalid == 'preferred' else 'ordinary_share',
+                            'last_price': 10000, 'market_as_of': None if invalid == 'undated' else '2026-07-01',
+                            'freshness': {'status': 'very_stale' if invalid == 'stale' else 'fresh'}}
+    assert metrics(report)['price_to_book']['value'] is None
+
+
+def test_blocked_filings_and_financial_sectors_do_not_gain_enterprise_metrics(report, monkeypatch):
+    for status in ('quality_blocked', 'mapping_failed', 'no_source'):
+        report['status'] = status
+        out = service.public_report(report)
+        assert out['ratios'] == []
+        assert out.get('additional_ratios', []) == []
+    report['status'] = 'available'
+    for org in ('bank', 'insurance', 'investment_fund_ifrs_annual'):
+        report['issuer']['organization_type'] = org
+        assert not NEW & metrics(report).keys()
+
+
+def test_ifrs_exact_aliases_keep_ordinary_equity_and_profit_separate():
+    from financial_columns.ifrs import metric
+    assert metric('Equity attributable to ordinary shareholders', 'BS') == 'common_equity'
+    assert metric('Profit attributable to ordinary equity holders of the parent', 'PL') == 'profit_ordinary'
+    assert metric('Equity attributable to owners of the parent', 'BS') == 'equity_owners'
+
+
+@pytest.mark.parametrize('mode', ['revised_income', 'mixed_sources'])
+def test_revised_income_and_mixed_source_versions_cannot_fill_eps(report, monkeypatch, mode):
+    if mode == 'revised_income':
+        rows = source_rows(report, eps_basic=42, net_income=1)
+    else:
+        rows = source_rows(report, profit_ordinary=60)
+        rows += [{**r, 'source_version': 'filing-2'} for r in source_rows(report, weighted_average_shares=80)]
+    inject(monkeypatch, rows)
+    assert metrics(report)['eps_basic']['value'] is None
+
+
+@pytest.mark.parametrize('ticker,debt,equity', [
+    ('uztl', 5628836416 + 1936822167, 3030753112),
+    ('uzal', 379419223.7 + 4386362917.1, 1099340322.3),
+])
+def test_real_nsbu_source_forms_include_current_debt_without_double_counting(report, monkeypatch, ticker, debt, equity):
+    from financial_columns import nsbu
+    source = json.loads((Path(__file__).parent / f'fixtures/openinfo/{ticker}_2025_complete_rows.json').read_text())
+    rows = nsbu.rows(source, template='general')
+    values = {r['metric_id']: r['current']['value'] for r in rows if r['metric_id']}
+    report.update(period='2025', financial_as_of='2025-12-31')
+    report['issuer']['ticker'] = ticker.upper()
+    for fact in report['verified_facts']:
+        fact['period'] = '2025'
+        if fact['metric_code'] in values:
+            fact['value'] = values[fact['metric_code']]
+    doc = dict(issuer_id=report['issuer']['id'], scope='separate', period_end='2025-12-31',
+               unit_scale='1000', currency='UZS', quality='valid', source_version='real-filing', rows=rows)
+    for row in rows:
+        row['source_url'] = report['sources'][0]['url']
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [deepcopy(doc)])
+    out = metrics(report)['interest_debt_to_equity']
+    assert out['value'] == pytest.approx(debt / equity)
+    assert out['numerator_value'] == pytest.approx(debt)
+
+
+def test_ifrs_uses_approved_source_rows_and_includes_leases(report, monkeypatch):
+    from financial_ingestion import publication
+    from financial_columns import observations
+    report.update(standard='ifrs', scope='consolidated')
+    rows = source_rows(report, borrowings_short=100, borrowings_long=200, lease_liabilities=50, eps_basic=42)
+    for row in rows:
+        row.update(standard='MSFO', scope='consolidated')
+    monkeypatch.setattr(publication, 'snapshots', lambda ticker, **kw: [{'period_end':'2026-06-30'}])
+    monkeypatch.setattr(observations, 'ifrs', lambda docs: deepcopy(rows))
+    out = metrics(report)
+    assert out['interest_debt_to_equity']['value'] == pytest.approx(350 / 6375622697.23)
+    assert out['eps_basic']['value'] == 42
+    rows[-2]['value'] = None  # Missing leases are not zero.
+    assert metrics(report)['interest_debt_to_equity']['value'] is None
