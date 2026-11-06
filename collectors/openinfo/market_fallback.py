@@ -241,7 +241,7 @@ def _official_day(row: dict, quote: dict) -> None:
 
 def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
                              max_pages: int = MAX_SESSION_PAGES, session_day: str | None = None) -> dict:
-    """Return a complete, stable session or an explicit failure with no rows.
+    """Return validated session data, preserving official quotes in partial reads.
 
     ``session_day`` (YYYY-MM-DD) publishes that finished session instead of the
     newest one — the newest is often still being written (trading, or openinfo
@@ -249,7 +249,8 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
     before it now rather than at 21:30.
 
     The executions are read by ``_read_executions``; the official daily
-    conclusions then have to agree with them before anything is returned.
+    conclusions must agree before execution-derived statistics are published.
+    Independently valid daily quotes survive disputed execution totals.
     """
     failure = {"source": "openinfo", "reachable": False, "complete": False,
                "trade_date": None, "count": 0, "stats": {}, "intraday": []}
@@ -360,9 +361,9 @@ def fetch_latest_trade_stats(*, min_day: str | None = None, session: Any = None,
             for isin in disagree:
                 stats.pop(isin)
                 grouped.pop(isin)
-            if not any(row["trade_count"] for row in stats.values()):
-                raise ValueError("no security agrees with its official conclusion")
-            quotes = [q for q in quotes if q["isin"] in stats]
+            # The daily conclusions are independently published official data.
+            # Disputed executions cannot supply statistics or hourly bars, but
+            # must not discard valid daily quotes, even if no executions pass.
             log.warning("OpenInfo %s: %d verified securities, %d withheld after conclusion checks",
                         day, len(stats), len(disagree))
             disagree = []
@@ -619,6 +620,19 @@ def fetch_quotes(targets: list[tuple[str, str]], *, session: Any = None,
                    "history": sorted(history, key=lambda h: h["date"])[-21:]}
             for target, source in (("open_price", "open"), ("high_price", "high"), ("low_price", "low")):
                 row[target] = _number(point[source]) if point.get(source) is not None else None
+            # A daily price stands on its own conclusion, not on the execution
+            # pagination. Still reject malformed prices and an inconsistent
+            # daily range before making it independently publishable.
+            low, high = row["low_price"], row["high_price"]
+            if any(row[f] is not None and row[f] <= 0
+                   for f in ("open_price", "high_price", "low_price")):
+                raise ValueError("invalid archive daily price")
+            if low is not None and high is not None and low > high:
+                raise ValueError("invalid archive daily range")
+            for price in (close, row["open_price"]):
+                if price is not None and ((low is not None and price < low - .01)
+                                          or (high is not None and price > high + .01)):
+                    raise ValueError("archive daily price outside its own range")
             rows.append(row)
         except Exception:
             log.exception("OpenInfo quote %s unavailable; keeping its stored quote", isin)

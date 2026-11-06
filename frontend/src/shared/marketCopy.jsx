@@ -2,8 +2,8 @@ import { normalizeLanguage } from "./i18n.jsx";
 
 const MARKET_TEXTS = {
   ru: {
-    partialRefresh: "Обновление задерживается",
-    partialRefreshDetail: "Для этих бумаг сохранены данные с прежней датой. Итоги рынка пока неполные.",
+    partialRefresh: "Статистика сделок неполная",
+    partialRefreshDetail: "Официальные дневные котировки обновляются независимо. Статистика сделок по этим бумагам и итоги рынка пока неполные.",
     nav: "Рынок",
     title: "Цены акций",
     subtitle: "Актуальные цены, дневной диапазон и изменение к предыдущему закрытию",
@@ -109,8 +109,8 @@ const MARKET_TEXTS = {
     csvMoneyNote: "Денежные величины — в сумах (UZS).",
   },
   en: {
-    partialRefresh: "Update delayed",
-    partialRefreshDetail: "These securities retain their previous dated data. Market totals are not yet complete.",
+    partialRefresh: "Trade statistics incomplete",
+    partialRefreshDetail: "Official daily quotes update independently. Trade statistics for these securities and market totals are not yet complete.",
     nav: "Market",
     title: "Stock prices",
     subtitle: "Latest prices, daily range, and change versus previous close",
@@ -216,8 +216,8 @@ const MARKET_TEXTS = {
     csvMoneyNote: "Monetary figures are in soum (UZS).",
   },
   uz: {
-    partialRefresh: "Yangilanish kechikmoqda",
-    partialRefreshDetail: "Ushbu qimmatli qogʻozlar uchun avvalgi sanadagi maʼlumotlar saqlangan. Bozor yakunlari hozircha toʻliq emas.",
+    partialRefresh: "Bitimlar statistikasi toʻliq emas",
+    partialRefreshDetail: "Rasmiy kunlik kotirovkalar mustaqil yangilanadi. Ushbu qimmatli qogʻozlar boʻyicha bitimlar statistikasi va bozor yakunlari hozircha toʻliq emas.",
     nav: "Bozor",
     title: "Aksiya narxlari",
     subtitle: "So'nggi narxlar, kunlik oraliq va oldingi yopilish bilan farq",

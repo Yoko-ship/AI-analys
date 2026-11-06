@@ -10,7 +10,7 @@ const row = (ticker, price, prev, volume) => ({
 });
 const stocks = [row("AGBA", 1000, 900, 1e6), row("KVTS", 3000, 3100, 3e6)];
 
-async function openBoard(page, cols, validation = null, refreshedAt = null) {
+async function openBoard(page, cols, validation = null, refreshedAt = null, boardStocks = stocks) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript((saved) => {
@@ -23,9 +23,9 @@ async function openBoard(page, cols, validation = null, refreshedAt = null) {
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    if (url.pathname === "/api/companies") return json({ companies: stocks.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
-    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(stocks.map((r) => [r.ticker, { ...r, security_type: "stock" }])) });
-    if (url.pathname === "/api/market/stocks") return json({ stocks, updated_at: "2026-11-05T05:00:00Z" });
+    if (url.pathname === "/api/companies") return json({ companies: boardStocks.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
+    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(boardStocks.map((r) => [r.ticker, { ...r, security_type: "stock" }])) });
+    if (url.pathname === "/api/market/stocks") return json({ stocks: boardStocks, updated_at: "2026-11-05T05:00:00Z" });
     if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: {}, validation,
       refreshed_at: "2026-11-05T04:30:00Z", quotes_refreshed_at: refreshedAt });
     if (url.pathname === "/api/market/financials") return json({ ok: true, financials: {} });
@@ -34,7 +34,7 @@ async function openBoard(page, cols, validation = null, refreshedAt = null) {
     return json({ ok: true });
   });
   await page.goto("/market");
-  await expect(page.locator(".market-table tbody tr")).toHaveCount(2);
+  await expect(page.locator(".market-table tbody tr")).toHaveCount(boardStocks.length);
   return errors;
 }
 
@@ -73,9 +73,16 @@ test("export carries only the columns shown on the board", async ({ page }) => {
 });
 
 
-test("partial market refresh names the delayed security without hiding verified rows", async ({ page }) => {
-  await openBoard(page, ["date"], { partial: true, trade_date: "20261021", withheld: [{ ticker: "BECMP", isin: "UZ702845K017" }] });
-  await expect(page.getByText(/Обновление задерживается.*BECMP/)).toBeVisible();
+test("incomplete trade statistics do not hide the official daily quote", async ({ page }) => {
+  await openBoard(page, ["date"], { partial: true, trade_date: "20261105", withheld: [{ ticker: "UZMK", isin: "UZ7021720006" }] },
+    "2026-11-06T04:32:43Z", [stocks[0], { ...row("UZMK", 8640, 8799, 107598373.03),
+      isin: "UZ7021720006", quantity: 12389, trade_count: null, last_trade_date: "2026-11-05" }]);
+  await expect(page.getByText(/Статистика сделок неполная.*UZMK/)).toBeVisible();
+  await expect(page.getByText(/Официальные дневные котировки обновляются независимо/)).toBeVisible();
+  await expect(page.getByText(/сохранены данные с прежней датой/)).toHaveCount(0);
+  const stock = page.locator(".market-table tbody tr").filter({ hasText: "UZMK" });
+  await expect(stock).toContainText(/8\s*640/);
+  await expect(stock).toContainText("2026-11-05");
   await expect(page.locator(".market-table tbody tr")).toHaveCount(2);
 });
 

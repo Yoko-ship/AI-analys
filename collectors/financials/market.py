@@ -135,7 +135,10 @@ def push_quotes(stats: dict[str, dict], *, source: str = "uzse",
     except Exception:  # noqa: BLE001 — this must never cost us the session
         collectors_financials_settings.log.warning("board security list unavailable", exc_info=True)
 
-    targets = sorted(t for t in traded | listed if t[0] not in (exclude_isins or set()))
+    # Official quotes can outlive rejected execution statistics, including a
+    # quote-only session or a security absent from the board's current list.
+    archived = {(q["isin"], str(q.get("market") or "STK")) for q in archive_quotes or []}
+    targets = sorted(t for t in traded | listed | archived if t[0] not in (exclude_isins or set()))
     if not targets:
         collectors_financials_settings.log.warning("no traded securities to quote")
         return 0

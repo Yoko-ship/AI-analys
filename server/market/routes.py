@@ -54,6 +54,16 @@ async def _market_validation(facts=None):
         return None
 
 
+def _validated_trade_stats(stats, validation):
+    """Do not let an earlier provisional row override an official daily quote."""
+    if not validation or not validation.get("partial"):
+        return stats
+    withheld = {r["isin"] for r in validation.get("withheld", [])}
+    day = validation.get("trade_date")
+    return {isin: row for isin, row in stats.items()
+            if isin not in withheld or row.get("trade_date") != day}
+
+
 @router.get("/api/market/stocks")
 async def api_market_stocks(request: Request, type: str | None = None,
                             refresh: bool = False) -> Response:
@@ -128,14 +138,17 @@ async def api_market_trades() -> dict[str, Any]:
     except Exception:
         http.logger.exception("market/trades: trade-stats read failed")
         stats = {}
-    day = max((str(s.get("trade_date") or "") for s in stats.values()), default="")
+    validation = await _market_validation()
+    stats = _validated_trade_stats(stats, validation)
+    day = max([str(s.get("trade_date") or "") for s in stats.values()]
+              + [str((validation or {}).get("trade_date") or "")])
     session = [s for s in stats.values() if day and str(s.get("trade_date") or "") == day]
-    if session:
+    if session or (validation or {}).get("partial"):
         stamps = [s.get("updated_at") for s in session if s.get("updated_at")]
         return http._json_safe({
             "ok": True,
             "source": "uzse-trade-results",
-            "validation": await _market_validation(),
+            "validation": validation,
             "trade_date": day,
             "updated_at": market_dates._as_utc_iso(max(stamps)) if stamps else None,
             "securities": len(session),
@@ -525,15 +538,19 @@ async def api_market_trade_stats() -> dict[str, Any]:
     # Keep the statistics timestamp for existing clients. The reader's quote
     # timestamp must come from a successful quote publication: a stats write or
     # a failed run's heartbeat does not prove prices were updated.
-    stamps = [s.get("updated_at") for s in stats.values() if s.get("updated_at")]
-    dates = [s.get("trade_date") for s in stats.values() if s.get("trade_date")]
     facts = await loop.run_in_executor(
         None, partial(catalogue_facts.get_facts, '_collector', 'meta'))
+    validation = await _market_validation(facts)
+    stats = _validated_trade_stats(stats, validation)
+    stamps = [s.get("updated_at") for s in stats.values() if s.get("updated_at")]
+    dates = [s.get("trade_date") for s in stats.values() if s.get("trade_date")]
+    if (validation or {}).get("trade_date"):
+        dates.append(validation["trade_date"])
     quote_stamp = next((f.get("value_text") for f in facts if f.get("field") == "quotes_last_run"), None)
     return http._json_safe({
         "ok": True,
         "count": len(stats),
-        "validation": await _market_validation(facts),
+        "validation": validation,
         "quotes_refreshed_at": market_dates._as_utc_iso(quote_stamp) if quote_stamp else None,
         "refreshed_at": market_dates._as_utc_iso(max(stamps)) if stamps else None,
         "trade_date": max(dates) if dates else None,

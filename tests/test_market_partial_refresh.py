@@ -12,6 +12,64 @@ from collectors.financials import trading, market, delivery
 IPTB = 'UZ7054570005'
 KASU = 'UZ7028660007'
 BECMP = 'UZ702845K017'
+UZMK = 'UZ7021720006'
+
+
+@pytest.fixture
+def nov5_uzmk(monkeypatch):
+    evidence = json.loads(gzip.decompress(Path(
+        'tests/fixtures/openinfo/market_20261105_uzmk.json.gz').read_bytes()))
+    reads = evidence['requests']
+    pages = {r['params']['page']: r['response'] for r in reads
+             if r['path'].endswith('trade-results/')}
+    conclusion = next(r['response'] for r in reads if r['path'].endswith('conclusions/'))
+
+    def get(client, path, params):
+        if path.endswith('conclusions/'):
+            return deepcopy(conclusion)
+        if 'start_date' not in params:
+            return {'results': [pages[1]['results'][0]]}
+        return deepcopy(pages[params['page']])
+
+    monkeypatch.setattr(archive, '_json_get', get)
+    return conclusion
+
+
+def test_uzmk_official_quote_is_publishable_when_no_execution_stats_pass(nov5_uzmk, monkeypatch):
+    data = archive.fetch_latest_trade_stats(session=object(), session_day='2026-11-05')
+    assert data['partial'] and not data['complete']
+    assert data['stats'] == {} and data['intraday'] == []
+    quote, = data['quotes']
+    assert quote['isin'] == UZMK and quote['trade_date'] == '20261105'
+    assert quote['quantity'] == 12389  # not the executions' incorrect 12,773
+    assert quote['turnover'] == 107598373.03
+    assert quote['close_price'] == nov5_uzmk['results'][0]['close']
+
+    monkeypatch.setattr(trading, 'SESSION_DATE', '2026-11-05')
+    monkeypatch.setattr(archive, 'fetch_latest_trade_stats', lambda **kw: deepcopy(data))
+    monkeypatch.setattr(market, 'board_securities', lambda: [])
+    monkeypatch.setattr(market, 'SKIP_QUOTES', False)
+    monkeypatch.setattr(market, 'audit_board', lambda: 0)
+    monkeypatch.setattr(archive, 'fetch_quotes', lambda targets, **kw: [] if not targets else pytest.fail('quote already fetched'))
+    pushed, stamps = [], []
+    monkeypatch.setattr(delivery, '_post', lambda path, body: pushed.append((path, deepcopy(body))) or 0)
+    monkeypatch.setattr(delivery, '_stamp_step', lambda *args: stamps.append(args))
+    assert trading.push_trade_stats() == 0
+    published = next(b for path, b in pushed if path.endswith('/quotes'))
+    assert published['rows'][0]['close_price'] == quote['close_price']
+    assert published['history'][-1]['quantity'] == 12389
+    assert not any(path.endswith('trade-stats') for path, _ in pushed)
+    assert stamps == [('quotes', '20261105')]
+    status = json.loads(next(r['value'] for path, b in pushed if path.endswith('facts')
+                             for r in b['rows'] if r['field'] == 'market_validation'))
+    assert status == data['validation']
+
+
+@pytest.mark.parametrize('invalid', [dict(close=0), dict(close=float('nan')),
+                                    dict(close=9000), dict(high=8000), dict(low=-1)])
+def test_independent_quote_still_requires_valid_prices(nov5_uzmk, invalid):
+    nov5_uzmk['results'][0].update(invalid)
+    assert archive.fetch_quotes([(UZMK, 'STK')], session=object(), as_of='2026-11-05') == []
 
 
 @pytest.fixture
@@ -106,16 +164,31 @@ def test_partial_collection_publishes_verified_rows_without_marking_session_comp
     assert status['withheld'][0]['ticker'] == 'BECMP'
 
 
-def test_market_endpoints_expose_partial_totals_and_delayed_security(monkeypatch):
+@pytest.mark.parametrize('verified', [True, False])
+def test_market_endpoints_expose_partial_totals_and_delayed_security(monkeypatch, verified):
     import catalogue.facts as facts
     from server.market import routes
     status = {'partial': True, 'trade_date': '20261021', 'withheld': [{'isin': BECMP, 'ticker': 'BECMP'}]}
     monkeypatch.setattr(facts, 'get_facts', lambda *a: [{'field': 'market_validation', 'value_text': json.dumps(status)}])
-    monkeypatch.setattr(routes.catalogue_market_store, 'get_all_trade_stats', lambda: {
-        IPTB: {'trade_date': '20261021', 'total_value': 10, 'total_qty': 2, 'trade_count': 1}})
+    stored = {
+        BECMP: {'trade_date': '20261021', 'total_value': 999, 'total_qty': 999, 'trade_count': 99},
+        KASU: {'trade_date': '20261020', 'total_value': 20, 'total_qty': 3, 'trade_count': 2},
+    }
+    if verified:
+        stored[IPTB] = {'trade_date': '20261021', 'total_value': 10, 'total_qty': 2, 'trade_count': 1}
+    monkeypatch.setattr(routes.catalogue_market_store, 'get_all_trade_stats', lambda: deepcopy(stored))
     for endpoint in (routes.api_market_trade_stats, routes.api_market_trades):
         body = asyncio.run(endpoint())
         assert body['validation'] == status
+        assert body['trade_date'] == '20261021'
+        if 'stats' in body:
+            # Yesterday's verified data may remain, but a previously published
+            # provisional row must not override the official quote for this day.
+            assert BECMP not in body['stats'] and KASU in body['stats']
+        else:
+            assert body['securities'] == int(verified)
+            assert body['total_volume'] == (10 if verified else 0)
+            assert body['total_trade_count'] == int(verified)
 
 
 def test_partial_session_is_retried_even_if_quote_stamp_is_current(monkeypatch):

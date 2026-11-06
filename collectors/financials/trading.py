@@ -109,7 +109,8 @@ def push_trade_stats() -> int:
         stats = data.get("stats") or {}
         rows = list(stats.values())
         collectors_financials_settings.log.info("trade stats: %d securities for %s", len(rows), data.get("trade_date"))
-        if data.get("reachable") and (data.get("complete") or (data.get("partial") and rows)):
+        if data.get("reachable") and (data.get("complete") or
+                                      (data.get("partial") and (rows or data.get("quotes")))):
             break
         # A short read is a session with real ISINs and understated turnover, and
         # the board cannot tell it from a quiet day — so it is retried, not
@@ -120,7 +121,13 @@ def push_trade_stats() -> int:
             collectors_financials_settings.log.error("%s — giving up after %d attempts", why, attempt)
             return 1
     withheld = {r["isin"] for r in data.get("validation", {}).get("withheld", [])}
-    if not rows:
+    # A validated official quote may publish even when this security's
+    # execution-derived figures cannot. Without that day's official quote,
+    # keep withholding it: older quotes are not a provisional replacement.
+    official_quoted = {q["isin"] for q in data.get("quotes") or []
+                       if not q.get("provisional") and q.get("trade_date") == data.get("trade_date")}
+    excluded_quotes = withheld - official_quoted
+    if not rows and not data.get("quotes"):
         # The feed is a two-day window, so a Monday-morning run reads Sat+Sun and
         # the exchange truthfully answers "nothing traded". Nothing to push and
         # nothing wrong: the stored session stays the newest one there is, and the
@@ -167,7 +174,8 @@ def push_trade_stats() -> int:
             rows.extend(back)
     except Exception:
         collectors_financials_settings.log.exception("last-day stats backfill failed (pushing today's only)")
-    status = collectors_financials_delivery._post("/api/admin/trade-stats", {"trade_date": data.get("trade_date"), "rows": rows})
+    status = (collectors_financials_delivery._post("/api/admin/trade-stats", {
+        "trade_date": data.get("trade_date"), "rows": rows}) if rows else 0)
     if status == 0 and not data.get("partial"):
         collectors_financials_delivery._stamp_step("trade_stats", str(data.get("trade_date") or ""))
     # Hourly bars for the 1Д/1Н chart, rolled up from the SAME walked executions
@@ -187,7 +195,7 @@ def push_trade_stats() -> int:
             if data.get("source") == "openinfo":
                 status = collectors_financials_market.push_quotes(
                     stats, source="openinfo", archive_quotes=data.get("quotes"),
-                    **({"exclude_isins": withheld} if withheld else {})) or status
+                    **({"exclude_isins": excluded_quotes} if excluded_quotes else {})) or status
             else:
                 status = collectors_financials_market.push_quotes(stats) or status
         except Exception:

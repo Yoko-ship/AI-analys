@@ -98,7 +98,7 @@ def test_a_finished_session_without_conclusions_is_published_provisionally(sourc
     """openinfo posts conclusions overnight; the executions are whole at 16:02."""
     source["trades"] = [execution(trade_datetime="2026-09-25T10:00:01.100000", trade_price=10),
                         execution(trade_datetime="2026-09-25T15:59:59.500000", trade_price=12)]
-    source["conclusions"] = [conclusion(date="2026-09-24", close=9, change=-1,
+    source["conclusions"] = [conclusion(date="2026-09-24", close=9, low=9, change=-1,
                                         trading_volume=3, trading_value=27)]
     data = archive.fetch_latest_trade_stats(session=object())
     assert data["complete"] and data["provisional"]
@@ -129,7 +129,7 @@ def test_a_sweep_opens_at_the_level_nearest_the_previous_close(source):
     stamp = "2026-09-25T10:00:18.808000"
     source["trades"] = [execution(trade_datetime=stamp, trade_price=102500),
                         execution(trade_datetime=stamp, trade_price=104505)]
-    source["conclusions"] = [conclusion(date="2026-09-24", close=106999)]
+    source["conclusions"] = [conclusion(date="2026-09-24", close=106999, high=106999)]
     quote, = archive.fetch_latest_trade_stats(session=object())["quotes"]
     assert quote["open_price"] == 104505
 
@@ -274,7 +274,8 @@ def test_nov4_boundary_duplicates_require_complete_filtered_reads_matching_concl
         assert set(result["stats"]) == {"UZ701879K017"}
         assert result["validation"] == {"trade_date": "20261104", "partial": True,
             "withheld": [{"isin": "UZ7001100005", "ticker": "KFSK"}]}
-        assert {q["isin"] for q in result["quotes"]} == {"UZ701879K017"}
+        # Official daily quotes are independent of the disputed executions.
+        assert {q["isin"] for q in result["quotes"]} == {"UZ7001100005", "UZ701879K017"}
         assert {b["isin"] for b in result["intraday"]} == {"UZ701879K017"}
     elif problem:
         assert not result["complete"] and result["stats"] == {} and result["intraday"] == []
@@ -317,7 +318,7 @@ def test_historical_zero_placeholder_does_not_hide_latest_valid_quote(source):
 
 def test_quiet_security_keeps_its_actual_trading_date(source):
     source["conclusions"] = [conclusion(trading_volume=0, trading_value=0),
-                             conclusion(date="2026-09-24", close=9, change=2)]
+                             conclusion(date="2026-09-24", close=9, low=9, change=2)]
     quote = archive.fetch_quotes([(ISIN, "STK")], session=object())[0]
     assert quote["trade_date"] == "20260924" and quote["prev_close"] == 7
 
