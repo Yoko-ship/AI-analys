@@ -1,0 +1,43 @@
+{
+  "isin": "UZ6058977AF7",
+  "conclusions": {
+    "name": "<AGAT CREDIT> AJ MMT",
+    "ticker": "ACMT2B1U",
+    "logo": null,
+    "results": [
+      {
+        "date": "2026-11-05",
+        "open": 101.79,
+        "close": 101.79,
+        "high": 101.79,
+        "low": 101.79000091552734,
+        "change": -0.77,
+        "trading_volume": 100.0,
+        "trading_value": 10179.0
+      }
+    ]
+  },
+  "executions": {
+    "count": 1,
+    "total_pages": 1,
+    "page_size": 100,
+    "current_page": 1,
+    "has_previous": false,
+    "has_next": false,
+    "results": [
+      {
+        "issuer_full_name": "<AGAT CREDIT> aksiyadorlik jamiyati mikromoliya tashkiloti",
+        "issuer_short_name": "<AGAT CREDIT> AJ MMT",
+        "stock_type": "",
+        "ticker": "ACMT2B1U",
+        "trade_datetime": "2026-11-05T14:39:47.540000",
+        "isin_code": "UZ6058977AF7",
+        "market_id": "BND",
+        "board_id": "G1",
+        "trade_price": 101.79,
+        "trade_quantity": 100.0,
+        "trading_value": 10179.0
+      }
+    ]
+  }
+}

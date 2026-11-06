@@ -28,6 +28,13 @@ def _number(value: Any) -> float:
     return number
 
 
+def _price_below(price: float, bound: float | None) -> bool:
+    # OpenInfo mixes decimal and binary-float prices, including within the
+    # same conclusion. Match the tolerance used to reconcile daily prices.
+    return bound is not None and price < bound and not math.isclose(
+        price, bound, rel_tol=1e-7, abs_tol=.01)
+
+
 def _latest_day(client: Any) -> str:
     payload = _json_get(client, "/iuzse/trade-results/", {"page": 1, "page_size": 1})
     stamp = datetime.fromisoformat(payload["results"][0]["trade_datetime"])
@@ -627,11 +634,11 @@ def fetch_quotes(targets: list[tuple[str, str]], *, session: Any = None,
             if any(row[f] is not None and row[f] <= 0
                    for f in ("open_price", "high_price", "low_price")):
                 raise ValueError("invalid archive daily price")
-            if low is not None and high is not None and low > high:
+            if low is not None and high is not None and _price_below(high, low):
                 raise ValueError("invalid archive daily range")
             for price in (close, row["open_price"]):
-                if price is not None and ((low is not None and price < low - .01)
-                                          or (high is not None and price > high + .01)):
+                if price is not None and (_price_below(price, low)
+                                          or (high is not None and _price_below(high, price))):
                     raise ValueError("archive daily price outside its own range")
             rows.append(row)
         except Exception:

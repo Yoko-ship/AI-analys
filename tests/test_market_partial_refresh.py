@@ -72,6 +72,24 @@ def test_independent_quote_still_requires_valid_prices(nov5_uzmk, invalid):
     assert archive.fetch_quotes([(UZMK, 'STK')], session=object(), as_of='2026-11-05') == []
 
 
+def test_official_bond_range_accepts_source_float_rounding(monkeypatch):
+    # ACMT2B1U on Nov 5: the same 101.79 price is encoded as a binary float
+    # (101.79000091552734) only in low. It must not become a missing quote.
+    evidence = json.loads(Path('tests/fixtures/openinfo/market_20261105_bond_range.json').read_text())
+
+    def get(client, path, params):
+        return deepcopy(evidence['conclusions' if path.endswith('conclusions/') else 'executions'])
+
+    monkeypatch.setattr(archive, '_json_get', get)
+    result = archive.fetch_latest_trade_stats(session=object(), session_day='2026-11-05')
+    assert result['complete'] and not result.get('provisional')
+    quote, = result['quotes']
+    assert quote['isin'] == evidence['isin']
+    assert quote['close_price'] == 101.79
+    assert quote['quantity'] == 100
+    assert quote['turnover'] == 10179
+
+
 @pytest.fixture
 def real_source(monkeypatch):
     evidence = json.loads(gzip.decompress(Path('tests/fixtures/openinfo/market_20261021.json.gz').read_bytes()))
