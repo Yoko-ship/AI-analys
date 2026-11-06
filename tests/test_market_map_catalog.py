@@ -154,6 +154,39 @@ class TestSectors:
 # ---------------------------------------------------------------------------
 
 class TestCatalog:
+    def test_board_activity_does_not_load_financial_reports(self, monkeypatch):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        import server.market.routes as routes
+
+        securities = {'UZTL': {'last_trade_date': '2020-01-01'},
+                      'UZTLP': {'last_trade_date': '2020-01-01'}}
+        board = [row('UZTL', trades=5), row('UZTLP', trades=0)]
+        listings = {'UZTL': {'isin': 'UZ7047110000'}}
+        full = instruments.build_catalog(securities=securities, board=board,
+                                         listings=listings, financials={'UZTL': {}},
+                                         ratios={'UZTLP': {}})
+        expected = [{k: item[k] for k in ('ticker', 'is_active')} for item in full['items']]
+
+        async def cached(kind):
+            return {'stocks': board if kind == 'stock' else []}
+
+        async def unexpected():
+            raise AssertionError('activity must not assemble statements and valuation ratios')
+
+        monkeypatch.setattr(routes.market_board, '_cached_market_board', cached)
+        monkeypatch.setattr(routes.securities_store, 'get_securities_map', lambda: securities)
+        monkeypatch.setattr(routes.catalogue_market_store, 'get_all_listings', lambda: listings)
+        monkeypatch.setattr(routes.market_valuations, '_market_inputs', unexpected)
+        app = FastAPI()
+        app.include_router(routes.router)
+        with TestClient(app) as client:
+            response = client.get('/api/instruments?view=board')
+            assert response.status_code == 200, response.text
+            assert response.json() == {'ok': True, 'items': expected}
+            active = client.get('/api/instruments?view=board&include_inactive=false')
+            assert active.json()['items'] == [item for item in expected if item['is_active']]
+
     def test_every_source_contributes_and_nothing_is_dropped(self):
         got = instruments.build_catalog(
             securities={"A": {"isin": "UZ1", "name": "A", "sector": "finance"}},

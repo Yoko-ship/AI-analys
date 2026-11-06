@@ -501,7 +501,8 @@ async def api_heatmap(request: Request) -> Response:
 
 
 @router.get("/api/instruments")
-async def api_instruments(request: Request, include_inactive: bool = True) -> Response:
+async def api_instruments(request: Request, include_inactive: bool = True,
+                          view: Literal["full", "board"] = "full") -> Response:
     """The single instrument universe (ТЗ §4).
 
     Inactive listings are returned by default and flagged, never dropped: a
@@ -509,6 +510,25 @@ async def api_instruments(request: Request, include_inactive: bool = True) -> Re
     how five references came to hold five different counts.
     """
     try:
+        if view == "board":
+            # The board only needs activity flags for listed securities. Keep
+            # the same trading rule without assembling every issuer's financial
+            # statements and valuation ratios merely to decide which rows show.
+            loop = asyncio.get_running_loop()
+            shares, bonds, securities, listings = await asyncio.gather(
+                market_board._cached_market_board("stock"),
+                market_board._cached_market_board("bond"),
+                loop.run_in_executor(None, securities_store.get_securities_map),
+                loop.run_in_executor(None, catalogue_market_store.get_all_listings),
+            )
+            catalog = instruments.build_catalog(
+                securities=securities, listings=listings,
+                board=[*(shares.get("stocks") or []), *(bonds.get("stocks") or [])],
+                sectors=COMPANY_SECTORS)
+            return http._etag_json(request, {"ok": True, "items": [
+                {"ticker": item["ticker"], "is_active": item["is_active"]}
+                for item in catalog["items"] if include_inactive or item["is_active"]
+            ]}, max_age=300)
         inputs = await market_valuations._market_inputs()
         catalog = instruments.build_catalog(
             securities=inputs["securities"], board=inputs["board"],

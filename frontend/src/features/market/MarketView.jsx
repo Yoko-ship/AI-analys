@@ -26,6 +26,7 @@ function MarketView({
   rows,
   meta,
   loading,
+  loadVersion,
   message,
   query,
   onQueryChange,
@@ -127,6 +128,8 @@ function MarketView({
     instruments,
     suppliedFinancials
   } = useMarketEnrichment({
+    loadVersion,
+    changePeriod,
     rows,
     loading,
     viewMode,

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 export function useMarketEnrichment({
+  loadVersion,
+  changePeriod,
   rows,
   loading,
   viewMode,
@@ -10,8 +12,9 @@ export function useMarketEnrichment({
   const [ratios, setRatios] = useState({});
   const ratiosRequested = useRef(false);
   const [changes, setChanges] = useState({});
+  const needsChanges = changePeriod !== "1d";
   useEffect(() => {
-    if (!rows.length || loading) return undefined;
+    if (!loadVersion || !needsChanges) return undefined;
     let alive = true;
     fetch("/api/market/changes").then(r => r.json()).then(d => {
       if (alive && d && d.ok) setChanges(d.changes || {});
@@ -19,7 +22,7 @@ export function useMarketEnrichment({
     return () => {
       alive = false;
     };
-  }, [rows.length, loading]);
+  }, [loadVersion, needsChanges]);
   const [multiples, setMultiples] = useState({});
   const [multiplesStatus, setMultiplesStatus] = useState("idle");
   const [onDemandFinancials, setOnDemandFinancials] = useState({});
@@ -31,12 +34,12 @@ export function useMarketEnrichment({
   const [mapData, setMapData] = useState(null);
   const [instruments, setInstruments] = useState({});
   useEffect(() => {
-    if (!rows.length || loading) return undefined;
+    if (!loadVersion) return undefined;
     let alive = true;
     // The single instrument universe (ТЗ §4). `is_active` here follows TRADING —
     // ninety days without an execution — rather than a registry flag, which is
     // what the "показать неактивные" switch below actually filters on.
-    fetch("/api/instruments").then(r => r.json()).then(d => {
+    fetch("/api/instruments?view=board").then(r => r.json()).then(d => {
       if (!alive || !d || !d.ok) return;
       const by = {};
       (d.items || []).forEach(i => {
@@ -47,7 +50,7 @@ export function useMarketEnrichment({
     return () => {
       alive = false;
     };
-  }, [rows.length, loading]);
+  }, [loadVersion]);
   useEffect(() => {
     // Summary cards and map tiles do not exist on /market.  Fetching both there
     // spent bandwidth and server time for UI that could not be opened without a

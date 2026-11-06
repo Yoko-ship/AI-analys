@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { mt } from "../../shared/marketCopy.jsx";
 import { splitLanguagePath } from "../../lib/languagePath.js";
 
@@ -24,6 +24,8 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketQuery, setMarketQuery] = useState("");
 
   const [marketLoading, setMarketLoading] = useState(false);
+  const marketRequest = useRef(0);
+  const [marketLoadVersion, setMarketLoadVersion] = useState(0);
 
   const [marketMessage, setMarketMessage] = useState("");
 
@@ -72,23 +74,13 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       .catch(() => {});
   }, [apiFetch, needsCatalog]);
 
-  useEffect(() => {
-    // "main" for the same reason as the stocks load above: the landing must
-    // restate its rows against the same per-trade day statistics as /market.
-    if (activeView !== "issuers" && activeView !== "market" && activeView !== "heatmap"
-      && activeView !== "company" && activeView !== "chart" && activeView !== "main") return;
-    if (!marketRows.length || marketLoading) return;
-    fetch("/api/market/trade-stats")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!d.ok) return;
-        if (d.stats) setMarketTradeStats(d.stats);
-        // Only a successful quote publication advances the reader's timestamp;
-        // newer statistics or a failed run must not make stale prices look fresh.
-        setMarketMeta((prev) => ({ ...prev, refreshed_at: d.quotes_refreshed_at || null, trade_date: d.trade_date || null, validation: d.validation || null }));
-      })
-      .catch(() => {});
-  }, [activeView, marketRows.length, marketLoading]);
+  const loadTradeStats = async () => {
+    try {
+      const response = await fetch("/api/market/trade-stats");
+      const data = await response.json();
+      return data.ok ? data : null;
+    } catch { return null; }
+  };
 
   const loadCompanies = async () => {
     const res = await apiFetch("/api/companies");
@@ -98,7 +90,13 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   };
 
   const loadMarketStocks = async (typeOverride = null, { refresh = false } = {}) => {
+    const requestId = ++marketRequest.current;
+    if (!refresh) setMarketLoadVersion(requestId);
     setMarketLoading(true);
+    const needsStats = ["issuers", "market", "heatmap", "company", "chart", "main"].includes(activeView);
+    // Cold navigation starts independent reads together. A forced refresh waits
+    // for new quotes before fetching their supplements, preserving freshness.
+    const statsRequest = needsStats && !refresh ? loadTradeStats() : null;
     setMarketMessage(mt(language, "loading"));
     try {
       const params = new URLSearchParams();
@@ -111,16 +109,26 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
+      if (requestId !== marketRequest.current) return;
       setMarketRows(Array.isArray(data.stocks) ? data.stocks : []);
       // Merge, don't replace: `refreshed_at`/`trade_date` come from the
       // trade-stats call, which runs on its own and must survive a reload here.
       setMarketMeta((prev) => ({ ...prev, updated_at: data.updated_at || null, count: data.count || 0, type: data.type || requestedType }));
+      if (refresh) setMarketLoadVersion(requestId);
+      if (needsStats) void (statsRequest || loadTradeStats()).then(data => {
+        if (!data || requestId !== marketRequest.current) return;
+        if (data.stats) setMarketTradeStats(data.stats);
+        // Apply the timestamp with its quotes, even when statistics arrived first.
+        setMarketMeta(prev => ({...prev, refreshed_at:data.quotes_refreshed_at || null,
+          trade_date:data.trade_date || null, validation:data.validation || null}));
+      });
       setMarketMessage(mt(language, "ready"));
     } catch (error) {
+      if (requestId !== marketRequest.current) return;
       setMarketMessage(error.message);
       throw error;
     } finally {
-      setMarketLoading(false);
+      if (requestId === marketRequest.current) setMarketLoading(false);
     }
   };
 
@@ -131,5 +139,5 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     const match = companies.find((item) => item.ticker.toUpperCase() === upper || item.company_name.toLowerCase() === normalized.toLowerCase());
     return match?.ticker || upper;
   };
-  return { catalogStatus, companies, loadMarketStocks, marketFinancials, marketLoading, marketMessage, marketMeta, marketQuery, marketRows, marketTradeStats, marketType, resolveTicker, securitiesMap, setMarketQuery, setMarketType };
+  return { marketLoadVersion, catalogStatus, companies, loadMarketStocks, marketFinancials, marketLoading, marketMessage, marketMeta, marketQuery, marketRows, marketTradeStats, marketType, resolveTicker, securitiesMap, setMarketQuery, setMarketType };
 }

@@ -560,6 +560,11 @@ test("navigating to Рынок shows the market board", async ({ page }) => {
 });
 
 test("a slow quote refresh keeps the existing market rows visible", async ({ page }) => {
+  const supplemental = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (['/api/market/trade-stats', '/api/instruments'].includes(path)) supplemental.push(path);
+  });
   let releaseRefresh;
   const refreshGate = new Promise((resolve) => { releaseRefresh = resolve; });
 
@@ -583,17 +588,21 @@ test("a slow quote refresh keeps the existing market rows visible", async ({ pag
   await page.goto("/market");
   const table = page.locator(".market-table-wrap .market-table");
   await expect(table.getByText("AGBA Bank")).toBeVisible();
+  await expect.poll(() => supplemental.length).toBe(2);
 
   await page.getByRole("button", { name: "Обновить", exact: true }).click();
   await expect(page.getByRole("button", { name: /Обновляем|Загружаем котировки/, exact: false })).toBeDisabled();
   await expect(table.getByText("AGBA Bank")).toBeVisible();
   await expect(table.locator(".market-empty-cell")).toHaveCount(0);
 
+  expect(supplemental).toHaveLength(2);
   releaseRefresh();
   await expect(page.getByRole("button", { name: "Обновить", exact: true })).toBeEnabled();
+  await expect.poll(() => supplemental.length).toBe(4);
+  for (const path of new Set(supplemental)) expect(supplemental.filter(item => item === path)).toHaveLength(2);
 });
 
-test("default market defers optional analytics until they are used", async ({ page }) => {
+test("default market loads essential data together and defers optional analytics", async ({ page }) => {
   let releaseStocks;
   const stocksGate = new Promise((resolve) => { releaseStocks = resolve; });
   const secondaryPaths = new Set([
@@ -622,21 +631,43 @@ test("default market defers optional analytics until they are used", async ({ pa
 
   await page.goto("/market", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".market-board .market-empty-cell")).toBeVisible();
-  await page.waitForTimeout(150);
-  expect(requested).toEqual([]);
+  await expect.poll(() => requested.length).toBe(2);
+  expect(new Set(requested)).toEqual(new Set([
+    "/api/market/trade-stats", "/api/instruments",
+  ]));
 
   releaseStocks();
   await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
-  await expect.poll(() => new Set(requested).size).toBe(3);
-  expect(new Set(requested)).toEqual(new Set([
-    "/api/market/trade-stats",
-    "/api/market/changes",
-    "/api/instruments",
-  ]));
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(requested).toHaveLength(2);
+  expect(requested).not.toContain("/api/market/changes");
+  await page.getByRole("button", {name: "1М", exact: true}).click();
+  await expect.poll(() => requested.includes("/api/market/changes")).toBe(true);
 
   await page.getByRole("button", { name: "Карта", exact: true }).click();
   await expect.poll(() => requested.includes("/api/market/summary")).toBe(true);
   await expect.poll(() => requested.includes("/api/heatmap")).toBe(true);
+});
+
+test("a saved market period starts history while quotes are still loading", async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('uz_market_change_period', '1m'));
+  let release;
+  const gate = new Promise(resolve => {release = resolve;});
+  const requests = [];
+  page.on('request', request => {requests.push(new URL(request.url()).pathname);});
+  await page.route('**/api/market/stocks**', async route => {
+    await gate;
+    await route.fulfill({json:STOCKS});
+  });
+  try {
+    await page.goto('/market', {waitUntil:'domcontentloaded'});
+    await expect.poll(() => requests.includes('/api/market/changes')).toBe(true);
+    await expect(page.locator('.market-table-wrap tbody tr')).toHaveCount(0);
+    release();
+    await expect(page.locator('.market-table-wrap tbody tr')).toHaveCount(3);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(requests.filter(path => path === '/api/market/changes')).toHaveLength(1);
+  } finally {release();}
 });
 
 test("saved optional market columns request only their supporting datasets", async ({ page }) => {

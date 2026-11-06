@@ -52,7 +52,7 @@ function App() {
   const shell = useShell({ session, preferences, navigation, market, notifications, auth, toasts });
   const { activeView, setActiveView, openCompanyPage, openNewsArticle, adminSection, setAdminSection, openAnnouncementArticle, newsId, backToNewsCalendar, companyTicker, openChartPage, prevView, chartState, openBondPage } = navigation;
   const { language, theme } = preferences;
-  const { marketRows, marketTradeStats, securitiesMap, companies, catalogStatus, setMarketType, marketMeta, marketLoading, marketMessage, marketQuery, setMarketQuery, marketType, loadMarketStocks, marketFinancials } = market;
+  const { marketLoadVersion, marketRows, marketTradeStats, securitiesMap, companies, catalogStatus, setMarketType, marketMeta, marketLoading, marketMessage, marketQuery, setMarketQuery, marketType, loadMarketStocks, marketFinancials } = market;
   const { token, user, apiFetch, favoriteTickers, hasProAccess, canAccessCatalog } = session;
   const { addToast } = toasts;
   const { setAnalysisCompany } = research;
@@ -215,6 +215,7 @@ function App() {
               rows={marketRows}
               meta={marketMeta}
               loading={marketLoading}
+              loadVersion={marketLoadVersion}
               message={marketMessage}
               query={marketQuery}
               onQueryChange={setMarketQuery}
