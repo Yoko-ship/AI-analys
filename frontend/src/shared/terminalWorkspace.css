@@ -50,9 +50,14 @@ body.terminal-panel-fullscreen .topbar,body.terminal-panel-fullscreen .sponsor-o
 .terminal-heatmap td.negative{background:color-mix(in srgb,var(--negative,#c44848) 22%,transparent);color:var(--negative,#c44848)}
 .terminal-fx-rates{font-size:12px;line-height:1.7;color:var(--text-secondary);margin:12px 0}
 .terminal-sector-metrics{margin:16px 0}
-.terminal-sector-metrics td{white-space:nowrap}
+/* Missing-data explanations must not take the label column's space. Keep
+   both columns readable even when the value is a sentence rather than a number. */
+.terminal-sector-metrics .terminal-table{table-layout:fixed}
+.terminal-sector-metrics .terminal-table th:first-child{width:55%}
+.terminal-sector-metrics td{white-space:normal;overflow-wrap:anywhere}
 .terminal-ratio-label{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .terminal-ratio-label>span{min-width:0;overflow-wrap:anywhere}
+.terminal-sector-metrics .terminal-ratio-label>span{overflow-wrap:normal}
 .terminal-ratio-label>button{flex:none}
 .terminal-market-nav button{padding:8px 12px;font-size:12px}
 @media(max-width:600px){.terminal-market-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.terminal-market-nav button{width:100%;text-align:left}.terminal-fx-rates ul{padding-left:18px}}

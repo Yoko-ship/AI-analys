@@ -106,8 +106,9 @@ test.describe('touch explanations',()=>{
   });
 });
 
-test('investor metrics show units and reasons while statutory ratios stay in additional details',async({page})=>{
+for(const theme of ['light','dark'])test(`investor metrics show units and readable reasons while statutory ratios stay in additional details (${theme})`,async({page},testInfo)=>{
   await setup(page,'ru');
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
   await page.route('**/api/v1/issuers/*/ai-report**',route=>route.fulfill({json:{
     status:'available',period:'2026Q2',scope:'separate',ratios:[
       {metric_code:'operating_margin',name_ru:'Операционная маржа',value:11.65,unit:'percent',meaning_ru:'Операционная прибыль относительно выручки.',formula:'operating_income / revenue × 100'},
@@ -115,7 +116,11 @@ test('investor metrics show units and reasons while statutory ratios stay in add
       {metric_code:'interest_debt_to_equity',name_ru:'Долг / капитал (D/E)',value:0.5,unit:'ratio'},
       {metric_code:'price_to_book',name_ru:'P/BV',value:2,unit:'ratio',market_as_of:'2026-07-01'},
       {metric_code:'eps_basic',name_ru:'Базовая прибыль на акцию (EPS)',value:null,unit:'UZS_per_share',reason_code:'EPS_INPUTS_MISSING'},
-    ],additional_ratios:[{metric_code:'P7',name_ru:'Прибыль до налога / выручка',value:12,unit:'percent'}],
+    ],additional_ratios:[
+      {metric_code:'P7',name_ru:'Прибыль до налога / выручка',value:12,unit:'percent'},
+      {metric_code:'P1',name_ru:'Доходность активов на конец периода (P1)',value:null,unit:'percent',reason_code:'INPUTS_MISSING'},
+      {metric_code:'P3',name_ru:'Прибыль до налога / задействованный капитал (P3)',value:null,unit:'percent',reason_code:'INPUTS_MISSING'},
+    ],
   }}));
   await page.goto('/catalog?t=HMKB&f=RAT');
   const sector=page.locator('.terminal-sector-metrics');
@@ -129,6 +134,25 @@ test('investor metrics show units and reasons while statutory ratios stay in add
   await sector.getByRole('row').filter({hasText:'Операционная маржа'}).locator('.term-info-btn').click();
   await expect(page.getByRole('tooltip')).toContainText('operating_income / revenue');
   await page.keyboard.press('Escape');
-  await page.setViewportSize({width:390,height:844});
-  expect(await sector.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  // The page can hide horizontal overflow while a nowrap missing-data reason
+  // squeezes the metric into a few characters. Check the actual cells as well.
+  for(const width of [360,390,1440]) {
+    await page.setViewportSize({width,height:900});
+    const layout=await sector.locator('tbody tr').evaluateAll(rows=>rows.map(row=>{
+      const label=row.querySelector('.terminal-ratio-label > span');
+      const cell=row.querySelector('td');
+      const bounds=row.closest('.terminal-table-wrap').getBoundingClientRect();
+      return {labelText:label.textContent,labelWidth:label.getBoundingClientRect().width,height:row.getBoundingClientRect().height,
+        cellFits:cell.scrollWidth<=cell.clientWidth+1,
+        rowFits:row.getBoundingClientRect().right<=bounds.right+1};
+    }));
+    for(const row of layout) {
+      if(row.labelText.length>16)expect(row.labelWidth,row.labelText).toBeGreaterThanOrEqual(100);
+      expect(row.height).toBeLessThanOrEqual(180);
+      expect(row.cellFits).toBe(true);
+      expect(row.rowFits).toBe(true);
+    }
+    expect(await sector.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+    await sector.screenshot({path:testInfo.outputPath(`ratio-layout-${width}.png`),animations:'disabled'});
+  }
 });
