@@ -6,7 +6,8 @@ Two routers, mounted separately in api.py:
   unauthenticated by design (the audience is anonymous), answers 204 to
   everything, and never raises: a tracking failure must not surface in the
   browser console of a visitor who never asked to be counted. The same router
-  accepts explicit anonymous ratings at ``POST /api/feedback/ratings``; those
+  accepts explicit ratings at ``POST /api/feedback/ratings`` with optional
+  authenticated account attribution; those
   confirm a durable write or return an error so the visitor can retry.
 * ``admin_router`` carries the panel's read endpoints and the user actions.
   It is mounted behind the human-admin gate in api.py. Collector secrets are
@@ -26,6 +27,7 @@ from psycopg import Error as DatabaseError
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 import server.auth.limits as auth_limits
+from server.auth.access import _require_user
 import web_analytics
 from web_auth import web_auth_store
 
@@ -107,7 +109,12 @@ async def api_site_rating(payload: SiteRatingRequest, request: Request) -> dict[
             "Retry-After": str(auth_limits._rate_limiter.retry_after(key, 3600)),
         })
     try:
-        await _run(web_auth_store.support.create_site_rating, **payload.model_dump(mode="json"))
+        # Guests may rate, but supplied credentials must verify: never silently
+        # turn a signed-in submission into an anonymous one on auth failure.
+        authorization = request.headers.get("authorization")
+        user = await _run(_require_user, authorization) if authorization is not None else None
+        await _run(web_auth_store.support.create_site_rating,
+                   **payload.model_dump(mode="json"), user_id=user.id if user else None)
     except (RuntimeError, DatabaseError) as exc:
         logger.warning("Site rating could not be saved", exc_info=True)
         raise HTTPException(status_code=503, detail="Could not save your rating. Please retry.") from exc

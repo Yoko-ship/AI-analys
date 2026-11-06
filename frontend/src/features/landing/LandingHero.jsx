@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import lightArtwork from '../../assets/landing-glass-light.webp';
 import darkArtwork from '../../assets/landing-glass-dark.webp';
+import { localizedPath } from '../../lib/languagePath.js';
 
 const COPY = {
   ru: {
@@ -44,33 +45,38 @@ function Arrow({ diagonal = false }) {
   </svg>;
 }
 
-export function LandingHero({ lang, theme, onNavigate, onOpenCompany }) {
+export function LandingHero({ lang, theme, onNavigate, onOpenCompany, staticPage = false }) {
   const [topic, setTopic] = useState(0);
   const copy = COPY[lang] || COPY.ru;
+  const Action = staticPage ? 'a' : 'button';
+  const marketPath = localizedPath('/market', lang);
+  const companyPath = localizedPath('/company/UZTL', lang);
   return <section className="lv-stage landing-hero" aria-labelledby="landing-headline">
     <div className="landing-hero-art" aria-hidden="true">
-      <img src={theme === 'dark' ? darkArtwork : lightArtwork} width="1586" height="992" alt="" fetchPriority="high" />
+      <img src={theme === 'dark' ? darkArtwork : lightArtwork} width="1586" height="992" alt="" fetchPriority="high"
+        loading={staticPage ? 'lazy' : undefined}
+        data-light-src={staticPage ? lightArtwork : undefined} data-dark-src={staticPage ? darkArtwork : undefined} />
     </div>
     <div className="landing-hero-main">
       <div className="landing-hero-copy" key={`${lang}-${topic}`}>
         <h1 className="lv-h1" id="landing-headline">{copy.titles[topic].map((line, i) => <span key={line}>{i > 0 && ' '}{line}</span>)}</h1>
         <p className="landing-hero-description">{copy.descriptions[topic]}</p>
         <div className="lv-actions">
-          <button type="button" className="landing-hero-primary" data-track-control="landing_hero_cta" data-track-value={topic === 0 ? 'market' : 'company'}
-            onClick={() => topic === 0 ? onNavigate('market') : onOpenCompany('UZTL')}>
+          <Action type={staticPage ? undefined : 'button'} href={staticPage ? marketPath : undefined} className="landing-hero-primary" data-track-control="landing_hero_cta" data-track-value={topic === 0 ? 'market' : 'company'}
+            onClick={staticPage ? undefined : () => topic === 0 ? onNavigate('market') : onOpenCompany('UZTL')}>
             {topic === 0 ? copy.market : copy.company}<Arrow diagonal />
-          </button>
+          </Action>
         </div>
       </div>
     </div>
     <div className="landing-hero-footer">
       <div className="landing-hero-rail">
         <div className="landing-hero-topics" role="group" aria-label={copy.group}>
-          {copy.topics.map((label, i) => <button type="button" key={i} aria-pressed={topic === i}
+          {copy.topics.map((label, i) => <Action type={staticPage ? undefined : 'button'} href={staticPage ? (i === 0 ? marketPath : companyPath) : undefined} key={i} aria-pressed={staticPage ? undefined : topic === i} data-active={topic === i}
             data-track-control="landing_topic" data-track-value={['shares', 'analysis', 'dividends'][i]}
-            onClick={() => setTopic(i)}><span className="landing-topic-number">0{i + 1} / </span>{label}</button>)}
+            onClick={staticPage ? undefined : () => setTopic(i)}><span className="landing-topic-number">0{i + 1} / </span>{label}</Action>)}
         </div>
-        <button className="landing-hero-explore" type="button" onClick={() => onNavigate('market')}>{copy.explore}<Arrow /></button>
+        <Action className="landing-hero-explore" type={staticPage ? undefined : 'button'} href={staticPage ? marketPath : undefined} onClick={staticPage ? undefined : () => onNavigate('market')}>{copy.explore}<Arrow /></Action>
       </div>
     </div>
   </section>;

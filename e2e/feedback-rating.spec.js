@@ -1,20 +1,26 @@
 import { test, expect } from '@playwright/test';
 
-async function setup(page, { language = 'en', theme = 'light', fail = false } = {}) {
+async function setup(page, { language = 'en', theme = 'light', fail = false, signedIn = false } = {}) {
   const votes = [];
-  await page.addInitScript(({ language, theme }) => {
+  await page.addInitScript(({ language, theme, signedIn }) => {
     localStorage.setItem('uz_stock_analyzer_language', language);
     localStorage.setItem('uz_stock_analyzer_theme', theme);
+    if (signedIn) sessionStorage.setItem('uz_stock_analyzer_token', 'rating-session');
     Math.random = () => 0.5;
-  }, { language, theme });
+  }, { language, theme, signedIn });
   await page.clock.install();
+  const headers = [];
+  votes.headers = headers;
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/api/feedback/ratings') {
       votes.push(route.request().postDataJSON());
+      headers.push(route.request().headers());
       return route.fulfill({ status: fail && votes.length === 1 ? 503 : 200, json: { ok: !(fail && votes.length === 1) } });
     }
-    if (path === '/api/auth/me') return route.fulfill({ status: 401, json: {} });
+    if (path === '/api/auth/me') return route.fulfill(signedIn
+      ? { json: { user: { id: 17, full_name: 'Reader', email: 'reader@example.test' } } }
+      : { status: 401, json: {} });
     return route.fulfill({ json: { ok: true, items: [], stocks: [], rates: [], securities: [] } });
   });
   await page.goto('/');
@@ -37,11 +43,13 @@ test('asks after engaged use, supports 1/2/3, and remembers a successful answer'
   await page.clock.fastForward(89000);
   await expect(prompt(page)).toHaveCount(0);
   await show(page);
-  expect((await prompt(page).boundingBox()).height).toBeLessThanOrEqual(120);
+  await expect(prompt(page)).toContainText('Anonymous rating');
+  expect((await prompt(page).boundingBox()).height).toBeLessThanOrEqual(150);
   await page.screenshot({ path: testInfo.outputPath('rating-desktop.png') });
   await page.keyboard.press('3');
   await expect(prompt(page)).toContainText('Thanks');
   expect(votes).toHaveLength(1);
+  expect(votes.headers[0].authorization).toBeUndefined();
   expect(votes[0]).toMatchObject({ rating: 3, language: 'en', page_path: '/' });
   await page.evaluate(() => sessionStorage.clear());
   await page.reload();
@@ -52,12 +60,16 @@ test('asks after engaged use, supports 1/2/3, and remembers a successful answer'
   await expect(prompt(page)).toBeVisible();
 });
 
-for (const language of ['ru', 'uz', 'en']) test(`desktop rating labels stay on one line (${language})`, async ({ page }) => {
-  await setup(page, { language });
+for (const signedIn of [false, true]) for (const language of ['ru', 'uz', 'en']) test(`desktop rating labels stay on one line (${language}, signed in: ${signedIn})`, async ({ page }) => {
+  await setup(page, { language, signedIn });
   await show(page);
   const card = prompt(page);
+  const notice = signedIn
+    ? { ru: 'Оценка связана с вашим аккаунтом', uz: 'Baho hisobingizga bog‘lanadi', en: 'Your rating is linked to your account' }
+    : { ru: 'Анонимная оценка', uz: 'Anonim baho', en: 'Anonymous rating' };
+  await expect(card).toContainText(notice[language]);
   expect((await card.boundingBox()).width).toBeGreaterThanOrEqual(440);
-  expect((await card.boundingBox()).height).toBeLessThanOrEqual(120);
+  expect((await card.boundingBox()).height).toBeLessThanOrEqual(150);
   await expect(card.locator('kbd')).toHaveText(['1', '2', '3']);
   for (const label of await card.locator('.rating-label').all()) {
     expect(await label.evaluate(el => el.getBoundingClientRect().height <= 18)).toBe(true);
@@ -106,7 +118,7 @@ test('waits while editing or in a dialog without moving focus', async ({ page })
 });
 
 test('failed submission can retry the same response without duplicate votes', async ({ page }) => {
-  const votes = await setup(page, { fail: true });
+  const votes = await setup(page, { fail: true, signedIn: true });
   await show(page);
   await prompt(page).getByRole('button', { name: /Okay/  }).click();
   await expect(prompt(page).getByRole('alert')).toBeVisible();
@@ -114,14 +126,16 @@ test('failed submission can retry the same response without duplicate votes', as
   await expect(prompt(page)).toContainText('Thanks');
   expect(votes).toHaveLength(2);
   expect(votes[1]).toEqual(votes[0]);
+  expect(votes.headers.map(header => header.authorization)).toEqual(['Bearer rating-session', 'Bearer rating-session']);
+  expect(votes[0]).not.toHaveProperty('user_id');
 });
 
 test.describe('touch devices', () => {
   test.use({ hasTouch: true });
-for (const [language, theme] of [['ru', 'light'], ['uz', 'dark'], ['en', 'light']]) {
-  test(`phone rating has large tap targets and fits (${language}, ${theme})`, async ({ page }, testInfo) => {
+for (const signedIn of [false, true]) for (const [language, theme] of [['ru', 'light'], ['uz', 'dark'], ['en', 'light']]) {
+  test(`phone rating has large tap targets and fits (${language}, ${theme}, signed in: ${signedIn})`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 360, height: 740 });
-    const votes = await setup(page, { language, theme });
+    const votes = await setup(page, { language, theme, signedIn });
     await show(page);
     const card = prompt(page);
     const choices = card.locator('.rating-choice');
@@ -136,13 +150,13 @@ for (const [language, theme] of [['ru', 'light'], ['uz', 'dark'], ['en', 'light'
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(360);
     }
-    expect((await card.boundingBox()).height).toBeLessThanOrEqual(120);
+    expect((await card.boundingBox()).height).toBeLessThanOrEqual(150);
     const close = await card.locator('.rating-dismiss').boundingBox();
     expect(close.width).toBeGreaterThanOrEqual(44);
     expect(close.height).toBeGreaterThanOrEqual(44);
     // A narrow phone must still show readable labels and all three choices.
     await page.setViewportSize({ width: 320, height: 640 });
-    expect((await card.boundingBox()).height).toBeLessThanOrEqual(120);
+    expect((await card.boundingBox()).height).toBeLessThanOrEqual(150);
     for (const button of await choices.all()) {
       expect(await button.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       expect(await button.locator('.rating-label').evaluate(el => el.getBoundingClientRect().height <= 18)).toBe(true);
@@ -207,7 +221,11 @@ for (const unavailable of [false, true]) test(`admin feedback handles rating ava
     const path = new URL(route.request().url()).pathname;
     if (unavailable && path === '/api/admin/feedback/ratings') return route.fulfill({ status: 503, json: { detail: 'Ratings unavailable' } });
     const data = path === '/api/auth/me' ? { user: { id: 1, email: 'admin@example.com', is_admin: true } }
-      : path === '/api/admin/feedback/ratings' ? { total: 12, counts: { 1: 2, 2: 3, 3: 7 }, items: [{ rating: 1, page_path: '/company/HMKB', language: 'ru', created_at: '2026-10-29T10:00:00Z' }] }
+      : path === '/api/admin/feedback/ratings' ? { total: 12, counts: { 1: 2, 2: 3, 3: 7 }, items: [
+        { rating: 1, page_path: '/company/HMKB', language: 'ru', created_at: '2026-10-29T10:00:00Z' },
+        { rating: 3, page_path: '/market', language: 'en', created_at: '2026-11-06T10:00:00Z', user_id: 17, full_name: 'Reader', email: 'reader@example.test' },
+        { rating: 2, page_path: '/catalog', language: 'en', created_at: '2026-11-06T11:00:00Z', user_id: 18, full_name: '', email: 'unnamed@example.test' },
+      ] }
       : path === '/api/admin/feedback' ? { items: [{ id: 5, status: 'open', subject: 'Export issue', message: 'PDF will not download.', created_at: '2026-10-29T10:00:00Z' }] }
       : { ok: true, items: [] };
     return route.fulfill({ json: data });
@@ -224,4 +242,8 @@ for (const unavailable of [false, true]) test(`admin feedback handles rating ava
   await expect(ratings).toContainText('Needs work');
   await expect(ratings).toContainText('/company/HMKB');
   await expect(ratings).toContainText('Anonymous');
+  const signedInRow = ratings.getByRole('row').filter({ hasText: 'reader@example.test' });
+  await expect(signedInRow).toContainText('Reader');
+  await expect(signedInRow).not.toContainText('Anonymous');
+  await expect(ratings.getByRole('row').filter({ hasText: 'unnamed@example.test' })).not.toContainText('Anonymous');
 });

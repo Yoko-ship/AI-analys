@@ -23,7 +23,7 @@ export function FeedbackSection({
       <section className="panel" aria-label={t("Оценки сайта", "Sayt baholari", "Site ratings")}>
         <div className="admin-panel-head"><div>
           <h2>{t("Оценки сайта", "Sayt baholari", "Site ratings")}</h2>
-          <p className="admin-muted">{ratings && !ratings.error && <>{ratings.total || 0} {t("ответов", "ta javob", "responses")} · </>} {t("За всё время · без привязки к аккаунту", "Barcha vaqt · hisobga bog‘lanmagan", "All time · anonymous")}</p>
+          <p className="admin-muted">{ratings && !ratings.error && <>{ratings.total || 0} {t("ответов", "ta javob", "responses")} · </>} {t("За всё время · новые оценки авторизованных пользователей связаны с аккаунтом", "Barcha vaqt · hisobga kirganlarning yangi baholari hisobga bog‘langan", "All time · new signed-in ratings are linked to accounts")}</p>
         </div></div>
         {ratings?.error ? <p className="admin-empty" role="alert">{ratings.error}</p> : !ratings ? <p className="admin-empty" role="status">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</p> : <>
         <div className="admin-scroll"><table><thead><tr>{[1, 2, 3].map(value => <th key={value}>{value} · {ratingLabel(value)}</th>)}</tr></thead>
@@ -34,7 +34,9 @@ export function FeedbackSection({
           <thead><tr><th>{t("Когда", "Vaqt", "When")}</th><th>{t("Оценка", "Baho", "Rating")}</th><th>{t("Страница", "Sahifa", "Page")}</th><th>{t("Язык", "Til", "Language")}</th></tr></thead>
           <tbody>{ratings.items.map((item, index) => <tr key={index}>
             <td className="admin-num">{fmtStamp(item.created_at)}</td>
-            <td>{ratingLabel(item.rating)}<div className="admin-sub">{t("Анонимно", "Anonim", "Anonymous")}</div></td>
+            <td>{ratingLabel(item.rating)}<div className="admin-sub">{item.user_id
+              ? <>{item.full_name && <>{item.full_name}<br /></>}{item.email}</>
+              : t("Анонимно", "Anonim", "Anonymous")}</div></td>
             <td>{item.page_path}</td><td>{item.language.toUpperCase()}</td>
           </tr>)}</tbody>
         </table></div>}

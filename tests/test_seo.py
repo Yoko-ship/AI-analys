@@ -703,15 +703,26 @@ def test_market_page_keeps_its_title_when_the_board_fails(tmp_path, monkeypatch)
 
 def test_home_page_lists_the_largest_companies_and_latest_news(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
+    # The build supplies the same hero component as the client. Only home
+    # routes use it; the data snapshot stays available in an expandable section.
+    shells = ''.join(f'<template id="landing-{lang}"><div class="landing-static">{lang} hero</div></template>'
+                     for lang in ("ru", "uz", "en"))
+    (tmp_path / "index.html").write_text(SHELL.replace('</body>', shells + '</body>'))
     _fake_boards(monkeypatch)
     monkeypatch.setattr(news_store, "get_news_feed",
                         lambda **kw: [{"id": 393, "title_ru": "UZTL отчитался"}])
     root = client.get("/").text.split('<div id="root">', 1)[1]
+    assert root.startswith('<div class="landing-static">ru hero</div>')
+    assert '<details class="landing-snapshot">' in root
     assert root.index("/company/UZTL") < root.index("/company/SQBN")
     assert '<a href="/news/393">UZTL отчитался</a>' in root
     uz = client.get("/uz").text.split('<div id="root">', 1)[1]
+    assert uz.startswith('<div class="landing-static">uz hero</div>')
     assert '<a href="/uz/company/UZTL">' in uz
     assert "/news/393" not in uz           # the news is Russian; the Uzbek page does not borrow it
+    market = client.get("/market").text
+    assert '<template id="landing-' not in market
+    assert 'landing-static' not in market
 
 
 # --------------------------------------------------------------------------- languages

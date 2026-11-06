@@ -113,7 +113,7 @@
 }
 .landing-hero-rail { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--hero-line); gap: 20px; }
 .landing-hero-topics { display: flex; align-self: stretch; gap: 24px; }
-.landing-hero-topics button, .landing-hero-explore {
+.landing-hero-topics :is(button, a), .landing-hero-explore {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -128,18 +128,40 @@
   font-size: 12px;
   line-height: 1.3;
 }
-.landing-hero-topics button { text-transform: uppercase; letter-spacing: 0.03em; }
-.landing-hero-topics button + button { margin-left: 8px; }
-.landing-hero-topics button + button::before { content: ''; width: 1px; height: 12px; background: var(--hero-line); position: absolute; left: -17px; }
-.landing-hero-topics button::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--hero-accent); transform: scaleX(0); transform-origin: left; transition: transform 220ms ease; }
-.landing-hero-topics button[aria-pressed="true"] { color: var(--hero-ink); font-weight: 650; }
-.landing-hero-topics button[aria-pressed="true"]::after { transform: scaleX(1); }
+.landing-hero-topics :is(button, a) { text-transform: uppercase; letter-spacing: 0.03em; }
+.landing-hero-topics :is(button, a) + :is(button, a) { margin-left: 8px; }
+.landing-hero-topics :is(button, a) + :is(button, a)::before { content: ''; width: 1px; height: 12px; background: var(--hero-line); position: absolute; left: -17px; }
+.landing-hero-topics :is(button, a)::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--hero-accent); transform: scaleX(0); transform-origin: left; transition: transform 220ms ease; }
+.landing-hero-topics :is(button, a)[data-active="true"] { color: var(--hero-ink); font-weight: 650; }
+.landing-hero-topics :is(button, a)[data-active="true"]::after { transform: scaleX(1); }
 .landing-topic-number { font-weight: 400; }
 .landing-hero-explore { gap: 18px; font-size: 14px; color: var(--hero-ink); }
 .landing-hero-explore svg { transition: transform 180ms ease; }
 .landing-hero-explore:hover svg { transform: translateX(4px); }
-.landing-hero button:focus-visible { outline: 3px solid var(--hero-accent); outline-offset: 5px; }
+.landing-hero :is(button, a):focus-visible { outline: 3px solid var(--hero-accent); outline-offset: 5px; }
 .landing-hero-primary:focus-visible { outline-color: var(--hero-ink); }
+
+/* Build-time HTML uses real links, with the same geometry as the app buttons. */
+.landing-static a { text-decoration: none; }
+.landing-static :is(.theme-toggle, .account-signin) { display: inline-flex; align-items: center; justify-content: center; }
+.landing-static-menu { display: none; }
+.landing-static .landing-view, html[data-landing-prerendered] .landing-view,
+.landing-static .landing-hero-art, .landing-static .landing-hero-copy,
+html[data-landing-prerendered] .landing-hero-art,
+html[data-landing-prerendered] .landing-hero-copy { animation: none; }
+.landing-snapshot { padding: 16px clamp(24px, 3.9vw, 76px); }
+html[data-landing-prerendered] .landing-snapshot { display: none; }
+.landing-snapshot summary { cursor: pointer; }
+.landing-snapshot .seo-snapshot { overflow-x: auto; }
+@media (max-width: 1180px) {
+  .landing-static-menu { display: block; }
+  .landing-static-menu summary { list-style: none; }
+  .landing-static-menu summary::-webkit-details-marker { display: none; }
+  .landing-static-menu nav {
+    position: absolute; left: 0; right: 0; top: 100%; display: grid;
+    padding: 16px; background: var(--hero-header); border-bottom: 1px solid var(--hero-line);
+  }
+}
 
 /* The shared navigation follows the active hero theme on this route only. */
 html[data-theme] .view-main .topbar {
@@ -193,9 +215,9 @@ html[data-theme] .view-main .topbar {
   .landing-hero-footer { order: 2; padding: 0 24px 20px; margin-top: auto; }
   .landing-hero-rail { display: block; }
   .landing-hero-topics { gap: 0; justify-content: space-between; }
-  .landing-hero-topics button { min-height: 50px; gap: 4px; font-size: 10px; letter-spacing: 0; }
-  .landing-hero-topics button + button { margin-left: 0; }
-  .landing-hero-topics button + button::before { display: none; }
+  .landing-hero-topics :is(button, a) { min-height: 50px; gap: 4px; font-size: 10px; letter-spacing: 0; }
+  .landing-hero-topics :is(button, a) + :is(button, a) { margin-left: 0; }
+  .landing-hero-topics :is(button, a) + :is(button, a)::before { display: none; }
   .landing-hero-explore { display: none; }
 }
 @media (max-width: 360px) {

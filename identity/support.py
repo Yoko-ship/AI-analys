@@ -87,14 +87,15 @@ class Support:
         return {"id": int(row["id"]), "status": row["status"]}
 
 
-    def create_site_rating(self, *, response_id: str, rating: int, page_path: str, language: str) -> None:
+    def create_site_rating(self, *, response_id: str, rating: int, page_path: str, language: str,
+                           user_id: int | None = None) -> None:
         """A retry after a lost response must never count as a second vote."""
         with self.database.connect() as conn:
             conn.execute("""
-                INSERT INTO web_site_ratings (response_id, rating, page_path, language)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO web_site_ratings (response_id, rating, page_path, language, user_id)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (response_id) DO NOTHING
-            """, (response_id, rating, page_path, language))
+            """, (response_id, rating, page_path, language, user_id))
 
     def list_site_ratings(self) -> dict[str, Any]:
         with self.database.connect() as conn:
@@ -102,8 +103,11 @@ class Support:
                 SELECT rating, COUNT(*) AS count FROM web_site_ratings GROUP BY rating
             """).fetchall()
             rows = conn.execute("""
-                SELECT rating, page_path, language, created_at FROM web_site_ratings
-                ORDER BY created_at DESC, response_id DESC LIMIT 50
+                SELECT r.rating, r.page_path, r.language, r.created_at,
+                       r.user_id, u.full_name, u.email
+                FROM web_site_ratings r
+                LEFT JOIN web_users u ON u.id = r.user_id
+                ORDER BY r.created_at DESC, r.response_id DESC LIMIT 50
             """).fetchall()
         counts = {str(rating): 0 for rating in (1, 2, 3)}
         counts.update({str(row['rating']): int(row['count']) for row in distribution})

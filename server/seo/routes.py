@@ -1067,8 +1067,19 @@ def render(template: str, meta: PageMeta) -> str:
     if not swapped:
         out = out.replace("</head>", "    " + "\n    ".join(head) + "\n  </head>", 1)
     out = re.sub(r'<html lang="[^"]*"', f'<html lang="{meta.lang}"', out, count=1)
+    # Build-time React markup shares the live hero's copy, layout and hashed
+    # assets. No rendering process or additional data read runs on a request.
+    shells = dict(re.findall(r'<template id="landing-(ru|uz|en)">(.*?)</template>', template, re.S))
+    body = meta.body
+    if meta.alternate == "/" and meta.status == 200 and meta.lang in shells:
+        summary = "Bozor ma’lumotlari" if meta.lang == "uz" else "Данные рынка"
+        body = (shells[meta.lang] + '<details class="landing-snapshot">'
+                f'<summary>{summary}</summary>{body}</details>')
+    else:
+        # Other routes keep their own snapshots and do not carry home templates.
+        out = re.sub(r'<template id="landing-(?:ru|uz|en)">.*?</template>', '', out, flags=re.S)
     if meta.body:
-        out = out.replace('<div id="root"></div>', f'<div id="root">{meta.body}</div>', 1)
+        out = out.replace('<div id="root"></div>', f'<div id="root">{body}</div>', 1)
     return out
 
 

@@ -29,7 +29,7 @@ function interrupted() {
     || document.body.style.overflow === 'hidden';
 }
 
-export function RatingPrompt({ language, blocked }) {
+export function RatingPrompt({ language, blocked, token = '' }) {
   const touchLayout = useMediaQuery('(max-width: 760px), (pointer: coarse)');
   const tx = (ru, uz, en) => language === 'uz' ? uz : language === 'en' ? en : ru;
   const [phase, setPhase] = useState('waiting');
@@ -91,16 +91,23 @@ export function RatingPrompt({ language, blocked }) {
   const send = useCallback(async rating => {
     if (!['ask', 'error'].includes(phaseRef.current)) return;
     if (!submission.current) submission.current = {
-      response_id: crypto.randomUUID(), rating, language,
-      page_path: window.location.pathname.slice(0, 240),
+      // Retrying the same vote also retains its original account attribution.
+      token,
+      body: {
+        response_id: crypto.randomUUID(), rating, language,
+        page_path: window.location.pathname.slice(0, 240),
+      },
     };
     transition('sending');
     controller.current = new AbortController();
     const timeout = setTimeout(() => controller.current?.abort(), 15000);
     try {
       const response = await fetch('/api/feedback/ratings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'omit', body: JSON.stringify(submission.current), signal: controller.current.signal,
+        method: 'POST', headers: {
+          'Content-Type': 'application/json',
+          ...(submission.current.token ? { Authorization: `Bearer ${submission.current.token}` } : {}),
+        },
+        credentials: 'omit', body: JSON.stringify(submission.current.body), signal: controller.current.signal,
       });
       const result = await response.json();
       if (!response.ok || result.ok !== true) throw new Error('Rating not saved');
@@ -111,7 +118,7 @@ export function RatingPrompt({ language, blocked }) {
     } catch {
       if (alive.current && phaseRef.current !== 'closed') transition('error');
     } finally { clearTimeout(timeout); }
-  }, [language, transition]);
+  }, [language, token, transition]);
 
   useEffect(() => {
     if (phase !== 'thanks') return undefined;
@@ -156,12 +163,15 @@ export function RatingPrompt({ language, blocked }) {
           <span className="rating-label">{label}</span>
         </button>)}
       </div>
+      <p className="rating-privacy">{token
+        ? tx('Оценка связана с вашим аккаунтом.', 'Baho hisobingizga bog‘lanadi.', 'Your rating is linked to your account.')
+        : tx('Анонимная оценка.', 'Anonim baho.', 'Anonymous rating.')}</p>
     </>}
     {phase === 'sending' && <p className="rating-message" role="status">{tx('Сохраняем…', 'Saqlanmoqda…', 'Saving…')}</p>}
     {phase === 'thanks' && <p className="rating-message" role="status">{tx('Спасибо за оценку!', 'Bahoyingiz uchun rahmat!', 'Thanks for your rating!')}</p>}
     {phase === 'error' && <>
       <p className="rating-message" role="alert">{tx('Не удалось сохранить оценку. Попробуйте ещё раз.', 'Baho saqlanmadi. Qayta urinib ko‘ring.', 'Your rating was not saved. Please try again.')}</p>
-      <button type="button" className="secondary-btn rating-retry" onClick={() => send(submission.current.rating)}>{tx('Повторить', 'Qayta urinish', 'Retry')}</button>
+      <button type="button" className="secondary-btn rating-retry" onClick={() => send(submission.current.body.rating)}>{tx('Повторить', 'Qayta urinish', 'Retry')}</button>
     </>}
   </aside>, document.body);
 }

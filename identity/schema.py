@@ -237,7 +237,8 @@ def initialize(connection_factory) -> None:
             )
             """
         )
-        # Explicit anonymous ratings: no account, IP, or analytics identifier.
+        # Guest and historical ratings stay anonymous; new signed-in ratings
+        # may link to an account. Account deletion preserves the anonymous vote.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS web_site_ratings (
                 response_id UUID PRIMARY KEY,
@@ -247,6 +248,8 @@ def initialize(connection_factory) -> None:
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        conn.execute("""ALTER TABLE web_site_ratings
+                     ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES web_users(id) ON DELETE SET NULL""")
         conn.execute("""CREATE INDEX IF NOT EXISTS idx_web_site_ratings_created
                      ON web_site_ratings(created_at DESC)""")
         conn.execute(

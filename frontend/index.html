@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,22 +10,52 @@
     <title>UZStock — фондовый рынок Узбекистана</title>
     <meta name="theme-color" content="#f5f7fa" />
     <meta name="msvalidate.01" content="36196DD495093E7257AC6E2FA33C9DC4" />
+    <script>
+      (function () {
+        var theme = "dark";
+        try {
+          var saved = localStorage.getItem("uz_stock_analyzer_theme");
+          if (saved === "light" || saved === "dark") theme = saved;
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#0e0f12" : "#f5f7fa");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- landing-shells -->
     <script>
       (function () {
+        var theme = document.documentElement.dataset.theme;
+        document.body.dataset.theme = theme;
+        var root = document.getElementById("root");
+        var current = root.querySelector(".landing-static");
+        var home = /^\/(uz\/?)?$/.test(location.pathname);
+        if (!home) return;
+        var language = location.pathname.indexOf("/uz") === 0 ? "uz" : "ru";
         try {
-          var saved = localStorage.getItem("uz_stock_analyzer_theme");
-          var theme = saved === "light" || saved === "dark"
-            ? saved
-            : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-          document.documentElement.dataset.theme = theme;
-          document.documentElement.style.colorScheme = theme;
-          document.body.dataset.theme = theme;
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", theme === "dark" ? "#0e0f12" : "#f5f7fa");
+          var saved = localStorage.getItem("uz_stock_analyzer_language");
+          if (language !== "uz" && /^(ru|uz|en)$/.test(saved)) language = saved;
         } catch (e) {}
+        var template = document.getElementById("landing-" + language);
+        if (!template) return;
+        if (!current || current.lang !== language) {
+          var replacement = template.content.firstElementChild.cloneNode(true);
+          if (current) current.replaceWith(replacement);
+          else if (!root.hasChildNodes()) root.appendChild(replacement);
+        }
+        var landing = root.querySelector(".landing-static");
+        if (!landing) return;
+        // Lazy in the static HTML so the preload scanner does not fetch the
+        // default artwork before we can apply the reader's saved theme.
+        var image = landing.querySelector(".landing-hero-art img");
+        image.src = image.getAttribute("data-" + theme + "-src");
+        image.loading = "eager";
+        landing.querySelector(".theme-toggle strong").textContent = theme === "dark" ? "☀" : "☾";
+        document.documentElement.dataset.landingPrerendered = "true";
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>

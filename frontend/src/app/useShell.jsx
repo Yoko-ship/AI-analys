@@ -504,7 +504,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
       </div>
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
-      <RatingPrompt language={language} blocked={['admin', 'auth', 'profile', 'feedback'].includes(activeView) || mobileNavOpen || accountMenuOpen || notifOpen} />
+      <RatingPrompt language={language} token={token} blocked={['admin', 'auth', 'profile', 'feedback'].includes(activeView) || mobileNavOpen || accountMenuOpen || notifOpen} />
       {overlay}
     </div>);
   return { render };
