@@ -77,7 +77,7 @@ test('startup requests match visible history and financial columns without fetch
     [['finRevenue','currentRatio','pe'], '1d', ['/api/market/financials','/api/market/ratios','/api/market/multiples?view=board']],
   ]) {
     const {scope, requested} = browser();
-    scope.localStorage = {getItem:key => key === 'uz_market_cols_v3' ? JSON.stringify(columns) : period};
+    scope.localStorage = {getItem:storageName => storageName === 'uz_market_cols_v3' ? JSON.stringify(columns) : period};
     startMarketStartup(scope, [], marketDataNeeds);
     assert.deepEqual(requested.slice(5), expected);
   }
