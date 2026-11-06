@@ -51,6 +51,36 @@ def _filing(year: int, quarter: int = 0, **fields) -> dict:
     return {"ticker": "AAA", "year": year, "quarter": quarter, **fields}
 
 
+@pytest.mark.parametrize('reader', ['financials', 'ratios'])
+def test_market_reads_reuse_issuer_corrections_only_within_the_request(catalog, monkeypatch, reader):
+    from collections import Counter
+    from catalogue import read_batch, snapshots
+    import data_quality
+    fixture = json.loads(Path('tests/fixtures/uztl_share_classes.json').read_text())
+    monkeypatch.setattr(read_batch, 'securities', lambda: fixture['securities'])
+    ordinary = fixture['rows'][0]
+    catalogue_financial_store.bulk_upsert_financials([
+        *fixture['rows'], {**ordinary, 'quarter': 2, 'report_id': None},
+    ])
+    calls = []
+    corrected = 1000.0
+
+    def corrections(ticker, form):
+        calls.append((ticker, form))
+        return {(2026, 3): {'total_liabilities': corrected}}
+
+    monkeypatch.setattr(data_quality, 'approved_corrections_series', corrections)
+    read = snapshots.get_all_financials if reader == 'financials' else catalogue_ratios.get_all_ratios
+    first = read()
+    assert calls and max(Counter(calls).values()) == 1, 'one corrections read per issuer, not per filing'
+    calls.clear()
+    corrected = 2000.0
+    second = read()
+    assert calls and max(Counter(calls).values()) == 1
+    field = 'total_liabilities' if reader == 'financials' else 'debt_ratio'
+    assert second['UZTL'][field] == pytest.approx(first['UZTL'][field] * 2), 'the next request sees new corrections'
+
+
 class TestLiquidityFromTheFilings:
     def test_the_ratios_are_derived_where_the_feed_is_silent(self, catalog) -> None:
         # The feed knows this issuer — it publishes ROE — but none of the three.

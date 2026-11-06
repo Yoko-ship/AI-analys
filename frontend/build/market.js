@@ -1,4 +1,5 @@
 import { startMarketStartup } from '../src/lib/marketStartup.js';
+import { marketDataNeeds } from '../src/lib/marketDataNeeds.js';
 
 export function marketStartup() {
   return {
@@ -22,7 +23,7 @@ export function marketStartup() {
         visit(market);
         const marker = '<!-- market-startup -->';
         if (!html.includes(marker)) throw new Error('Missing market startup placeholder');
-        const script = `(${startMarketStartup.toString()})(window, ${JSON.stringify([...files].map(file => '/' + file))});`;
+        const script = `(${startMarketStartup.toString()})(window, ${JSON.stringify([...files].map(file => '/' + file))}, ${marketDataNeeds.toString()});`;
         // Attribute-less scripts are hashed by the existing production CSP.
         return html.replace(marker, `<script>${script}</script>`);
       },

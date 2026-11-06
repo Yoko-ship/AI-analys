@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { requestMarketData } from "../../lib/marketStartup.js";
+import { marketDataNeeds } from "../../lib/marketDataNeeds.js";
 export function useMarketEnrichment({
   loadVersion,
   changePeriod,
@@ -13,11 +14,11 @@ export function useMarketEnrichment({
   const [ratios, setRatios] = useState({});
   const ratiosRequested = useRef(false);
   const [changes, setChanges] = useState({});
-  const needsChanges = changePeriod !== "1d";
+  const {changes:needsChanges, financials:needsFinancials, ratios:needsRatios, multiples:needsMultiples} = marketDataNeeds([...visibleCols], changePeriod, type);
   useEffect(() => {
     if (!loadVersion || !needsChanges) return undefined;
     let alive = true;
-    fetch("/api/market/changes").then(r => r.json()).then(d => {
+    requestMarketData("/api/market/changes").then(r => r.json()).then(d => {
       if (alive && d && d.ok) setChanges(d.changes || {});
     }).catch(() => {});
     return () => {
@@ -71,17 +72,14 @@ export function useMarketEnrichment({
       alive = false;
     };
   }, [viewMode, rows.length, loading]);
-  const needsFinancials = ["finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating"].some(key => visibleCols.has(key));
-  const needsRatios = ["currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"].some(key => visibleCols.has(key));
-  const needsMultiples = ["pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets"].some(key => visibleCols.has(key));
   const suppliedFinancials = Object.keys(financials || {}).length > 0;
-  const secondaryEquityReady = Boolean(rows.length && !loading && type !== "bond");
+  const secondaryEquityReady = Boolean(loadVersion && type !== "bond");
   // The board and export share in-flight requests and successful responses.
   // Failed requests can be retried explicitly without a render/fetch loop.
   const loadFinancials = useCallback(() => {
     if (suppliedFinancials) return Promise.resolve();
     if (!financialsRequest.current) {
-      financialsRequest.current = fetch("/api/market/financials").then(r => {
+      financialsRequest.current = requestMarketData("/api/market/financials").then(r => {
         if (!r.ok) throw new Error("financials request failed");
         return r.json();
       }).then(d => {
@@ -99,7 +97,7 @@ export function useMarketEnrichment({
   const loadMultiples = useCallback(() => {
     if (!multiplesRequest.current) {
       setMultiplesStatus("loading");
-      multiplesRequest.current = fetch("/api/market/multiples?view=board").then(r => {
+      multiplesRequest.current = requestMarketData("/api/market/multiples?view=board").then(r => {
         if (!r.ok) throw new Error("multiples request failed");
         return r.json();
       }).then(d => {
@@ -123,7 +121,7 @@ export function useMarketEnrichment({
   useEffect(() => {
     if (!needsRatios || ratiosRequested.current || !secondaryEquityReady) return;
     ratiosRequested.current = true;
-    fetch("/api/market/ratios").then(r => r.json()).then(d => {
+    requestMarketData("/api/market/ratios").then(r => r.json()).then(d => {
       setRatios(d.ok && d.ratios ? d.ratios : {});
     }).catch(() => {});
   }, [needsRatios, secondaryEquityReady]);

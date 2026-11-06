@@ -1,4 +1,5 @@
 import { snapPixel } from "../../lib/geometry.js";
+import { marketDataNeeds } from "../../lib/marketDataNeeds.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 const pinCls = pin => pin ? ` market-col-pinned${pin.edge ? " market-col-pinned-edge" : ""}` : "";
 const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating", "currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"]);
@@ -11,7 +12,7 @@ export function useMarketColumns({
       const s = JSON.parse(localStorage.getItem("uz_market_cols_v3"));
       if (Array.isArray(s)) return new Set(s);
     } catch (e) {/* ignore */}
-    return new Set(["change", "change1w", "change1m", "nominal", "open", "high", "low", "volume", "date", "source"]);
+    return new Set(marketDataNeeds().columns);
   });
   const [colsOpen, setColsOpen] = useState(false);
   const colsBtnRef = useRef(null);

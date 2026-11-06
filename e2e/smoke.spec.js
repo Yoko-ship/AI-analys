@@ -314,7 +314,9 @@ test("deferred market code shows a readable loading state and leaves navigation 
   await expect(page.locator(".market-table-wrap")).toBeVisible();
 });
 
-test("market data and code start before the main application downloads", async ({page}) => {
+for (const saved of [null, ['change', 'pe', 'pb', 'roe', 'finRevenue', 'currentRatio']])
+test(`market data and code start before the main application downloads (${saved ? 'saved financial columns' : 'default columns'})`, async ({page}) => {
+  if (saved) await page.addInitScript(cols => localStorage.setItem('uz_market_cols_v3', JSON.stringify(cols)), saved);
   let release;
   const gate = new Promise(resolve => {release = resolve;});
   const paths = [];
@@ -329,7 +331,8 @@ test("market data and code start before the main application downloads", async (
     await route.continue();
   });
   const essentials = ['/api/market/stocks?type=stock', '/api/companies', '/api/securities',
-    '/api/market/trade-stats', '/api/instruments?view=board'];
+    '/api/market/trade-stats', '/api/instruments?view=board',
+    ...(saved ? ['/api/market/financials', '/api/market/ratios', '/api/market/multiples?view=board'] : ['/api/market/changes'])];
   try {
     await page.goto('/market', {waitUntil:'commit'});
     await expect.poll(() => essentials.every(path => paths.includes(path))).toBe(true);
@@ -658,22 +661,36 @@ test("default market loads essential data together and defers optional analytics
 
   await page.goto("/market", { waitUntil: "domcontentloaded" });
   await expect(page.locator(".market-board .market-empty-cell")).toBeVisible();
-  await expect.poll(() => requested.length).toBe(2);
+  await expect.poll(() => requested.length).toBe(3);
   expect(new Set(requested)).toEqual(new Set([
-    "/api/market/trade-stats", "/api/instruments",
+    "/api/market/trade-stats", "/api/instruments", "/api/market/changes",
   ]));
 
   releaseStocks();
   await expect(page.locator(".market-table-wrap .market-table tbody tr").first()).toBeVisible();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  expect(requested).toHaveLength(2);
-  expect(requested).not.toContain("/api/market/changes");
+  expect(requested).toHaveLength(3);
+  expect(requested.filter(path => path === "/api/market/changes")).toHaveLength(1);
   await page.getByRole("button", {name: "1М", exact: true}).click();
   await expect.poll(() => requested.includes("/api/market/changes")).toBe(true);
 
   await page.getByRole("button", { name: "Карта", exact: true }).click();
   await expect.poll(() => requested.includes("/api/market/summary")).toBe(true);
   await expect.poll(() => requested.includes("/api/heatmap")).toBe(true);
+});
+
+test('UZTL week and month columns fill while Session remains selected', async ({page}) => {
+  await page.route('**/api/market/stocks**', route => route.fulfill({json:{stocks:[
+    {ticker:'UZTL', name:'Uzbektelecom', isin:'UZ7047110000', last_price:22150, close_price:22499.2, trade_count:5, last_trade_date:'2026-11-05'},
+  ]}}));
+  // Real UZTL history response captured 2026-11-06.
+  await page.route('**/api/market/changes', route => route.fulfill({json:{ok:true,changes:{UZTL:{
+    '1w':{pct:-1.55,from:'20261029',base:22499.2}, '1m':{pct:27.95,from:'20261005',base:17311},
+  }}}}));
+  await page.goto('/market');
+  const row = page.locator('.market-table tbody tr').filter({hasText:'UZTL'});
+  await expect(row.locator('td[title*="29.10.2026"]')).toContainText(/1[,.]55/);
+  await expect(row.locator('td[title*="05.10.2026"]')).toContainText(/27[,.]95/);
 });
 
 test("a saved market period starts history while quotes are still loading", async ({page}) => {

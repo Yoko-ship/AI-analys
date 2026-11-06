@@ -16,6 +16,7 @@ import catalogue.storage as catalogue_storage
 import os
 import threading
 import time
+from catalogue.read_batch import scope as read_scope
 
 
 def _ticker_org_map(conn: sqlite3.Connection) -> dict[str, str]:
@@ -75,6 +76,7 @@ def _derived_equity(fields: dict[str, float]) -> float | None:
     return bal if bal is not None else roe_eq
 
 
+@read_scope()
 def get_all_ratios() -> dict[str, dict[str, Any]]:
     """Latest per-ticker financial ratios and equity from the fact store
     (openinfo ``financial_indicators``), keyed by ticker.

@@ -21,6 +21,7 @@ import catalogue.ratios as catalogue_ratios
 import catalogue.settings as catalogue_settings
 import catalogue.storage as catalogue_storage
 import os
+from catalogue.read_batch import scope as read_scope
 
 
 def _financials_enrich_enabled() -> bool:
@@ -171,6 +172,7 @@ def _apply_registered_financial_corrections(
     return row
 
 
+@read_scope()
 def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
 
     """Return the most recent cached indicators per ticker: {ticker: {...}}.
