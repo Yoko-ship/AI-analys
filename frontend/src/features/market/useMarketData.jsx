@@ -32,6 +32,9 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketFinancials, setMarketFinancials] = useState({});
 
   const [marketTradeStats, setMarketTradeStats] = useState({});
+  // Share-class switches filter the same equity snapshot. Only an instrument
+  // type change needs a different request; explicit refresh still reloads it.
+  const quoteType = ["profile", "issuers"].includes(activeView) || ["ordinary", "preferred"].includes(marketType) ? "stock" : marketType;
 
   useEffect(() => {
     if (!needsCatalog) return;
@@ -55,11 +58,11 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     if (activeView !== "issuers" && activeView !== "market" && activeView !== "heatmap"
       && activeView !== "company" && activeView !== "chart" && activeView !== "main" && activeView !== "auth"
       && activeView !== "profile") return;
-    loadMarketStocks(["profile","issuers"].includes(activeView) ? "stock" : null).catch((error) => {
+    loadMarketStocks(quoteType).catch((error) => {
       addToast(error.message, "error");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, marketType, language]);
+  }, [activeView, quoteType, language]);
 
   useEffect(() => {
     if (!needsCatalog) return;

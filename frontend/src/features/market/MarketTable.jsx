@@ -1,6 +1,7 @@
 import React from "react";
 import { mt } from "../../shared/marketCopy.jsx";
-import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
+import { MarketRow } from "./MarketRow.jsx";
+const EMPTY_SECURITY = {};
 import { MarketColMenu, MarketFloatScroll, MarketStickyHead } from "./TableOverlays.jsx";
 import { BondsView } from "../bonds/index.js";
 import { blocksMarketContent } from "../../lib/marketLoading.js";
@@ -48,6 +49,12 @@ export function MarketTable({
   filtered,
   onResetFilters
 }) {
+  // Event handlers must see the current session/navigation without invalidating
+  // unchanged quote rows whenever the shell or a column control renders.
+  const rowActions = React.useRef({onOpenCompany, onAnalyze, onToggleFavorite, openPanel});
+  React.useLayoutEffect(() => {
+    rowActions.current = {onOpenCompany, onAnalyze, onToggleFavorite, openPanel};
+  }, [onOpenCompany, onAnalyze, onToggleFavorite, openPanel]);
   return <>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
     rows={sectorMapRows}
     companies={companies}
@@ -75,65 +82,11 @@ export function MarketTable({
                 <tr>{headCells}</tr>
               </thead>
               <tbody>
-                {blocksMarketContent(loading, rows.length) ? null : visibleRows.map(row => {
-              const sec = smap[row.ticker] || {};
-              const logo = sec.logo_url;
-              const isPreferred = sec.is_preferred || row.share_type === "preferred";
-              const isFav = hasFav(row.ticker);
-              const shareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? mt(lang,'preferred') : row.share_type ? mt(lang,row.share_type) : row.type || '—';
-              const shortShareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? lang === 'en' ? 'Pref.' : lang === 'uz' ? 'Imt.' : 'прив.' : lang === 'en' ? 'Common' : lang === 'uz' ? 'Oddiy' : 'обыкн.';
-              return <tr key={`${row.ticker}-${row.isin}`}>
-                      <td className={`market-ticker-cell${pinCls(pinTicker)}`} style={pinTicker ? {
-                  left: pinTicker.left
-                } : undefined}>
-                        {/* The flex row lives inside the cell: a <td> that is itself
-                            `display: flex` drops out of table layout and stops
-                            stretching to its row, which misaligned every row. */}
-                        <div className="market-ticker-cell-inner">
-                        <button type="button" data-track-control="market_favorite" data-track-ticker={row.ticker} className={`market-fav-btn ${isFav ? "is-fav" : ""}`} aria-pressed={isFav} title={isFav ? lang === "en" ? "Remove from favorites" : lang === "uz" ? "Tanlanganlardan olib tashlash" : "Убрать из избранного" : lang === "en" ? "Add to favorites" : lang === "uz" ? "Tanlanganlarga qo'shish" : "В избранное"} onClick={e => {
-                    e.stopPropagation();
-                    onToggleFavorite && onToggleFavorite(row.ticker, row.name);
-                  }}>
-                          {isFav ? "★" : "☆"}
-                        </button>
-                        <CompanyLogo logo={logo} name={row.name || row.ticker} ticker={row.ticker} />
-                        <div className="market-ticker-info">
-                          <button type="button" data-track-control="company_open" data-track-ticker={row.ticker} className="market-ticker-btn" onClick={() => onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker)}>
-                            {row.ticker || "—"}
-                          </button>
-                          <span className="market-share-class" title={shareLabel} aria-label={shareLabel}>
-                            <span className="market-share-full">{shareLabel}</span>
-                            <span className="market-share-short" aria-hidden="true">{shortShareLabel}</span>
-                          </span>
-                        </div>
-                        <button type="button" data-track-control="company_info" data-track-ticker={row.ticker} className="market-info-btn" title={lang === "en" ? "Company info" : lang === "uz" ? "Kompaniya ma'lumoti" : "О компании"} onClick={() => openPanel(row.ticker)}>ℹ</button>
-                        </div>
-                      </td>
-                      <td className={pinCls(pinCompany).trim() || undefined} style={pinCompany ? {
-                  left: pinCompany.left
-                } : undefined}>
-                        <button type="button" data-track-control="company_open" data-track-ticker={row.ticker} className="market-company-name-btn" onClick={() => onOpenCompany && onOpenCompany(row.ticker)}>
-                          {row.name || sec.name || "—"}
-                        </button>
-                        <span>{row.isin || "—"}</span>
-                      </td>
-                      {visibleOrder.map(k => {
-                  const cell = CELL_OF[k](row);
-                  const pin = pinAt(k);
-                  if (!pin) return React.cloneElement(cell, {
-                    key: k
-                  });
-                  return React.cloneElement(cell, {
-                    key: k,
-                    className: `${cell.props.className || ""}${pinCls(pin)}`.trim(),
-                    style: {
-                      ...(cell.props.style || {}),
-                      left: pin.left
-                    }
-                  });
-                })}
-                    </tr>;
-            })}
+                {blocksMarketContent(loading, rows.length) ? null : visibleRows.map(row => (
+                  <MarketRow key={`${row.ticker}-${row.isin}`} row={row} sec={smap[row.ticker] || EMPTY_SECURITY}
+                    lang={lang} isFav={hasFav(row.ticker)} pinCls={pinCls} pinTicker={pinTicker} pinCompany={pinCompany}
+                    visibleOrder={visibleOrder} CELL_OF={CELL_OF} pinAt={pinAt} actions={rowActions}/>
+                ))}
               </tbody>
             </table>
           </div>

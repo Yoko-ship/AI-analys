@@ -1,5 +1,5 @@
 import { normalizeLanguage } from "../../shared/i18n.jsx";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHANGE_PERIODS, CHANGE_PERIOD_KEY, changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
 import { formatRatio } from "../../shared/format.jsx";
@@ -57,7 +57,7 @@ function MarketView({
   const [marketSector, setMarketSector] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
   const [direction, setDirection] = useState("all");
-  const hasFav = t => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase());
+  const hasFav = useCallback(t => !!favoriteTickers && favoriteTickers.has(String(t || "").trim().toUpperCase()), [favoriteTickers]);
   const [changePeriod, setChangePeriod] = useState(() => {
     try {
       const saved = localStorage.getItem(CHANGE_PERIOD_KEY);
@@ -76,10 +76,10 @@ function MarketView({
     MARKET_COLS,
     CORE_COLS,
     SORT_LABEL_OF
-  } = marketColumns({
+  } = useMemo(() => marketColumns({
     lang,
     changePeriod
-  });
+  }), [lang, changePeriod]);
   const {
     visibleCols,
     setVisibleCols,
@@ -209,19 +209,19 @@ function MarketView({
     cardStats,
     capPeriodChange,
     sectorDormant
-  } = summarizeMarket({
+  } = useMemo(() => summarizeMarket({
     activeSector,
     byClass,
     isDormant,
     windowed,
     rowSector,
     mktCapOf
-  });
+  }), [activeSector, byClass, isDormant, windowed, rowSector, mktCapOf]);
   const {
     LABEL_OF,
     NUM_COLS,
     CELL_OF
-  } = createMarketCells({
+  } = useMemo(() => createMarketCells({
     lang,
     finOf,
     ratioOf,
@@ -237,10 +237,10 @@ function MarketView({
     valuationOf,
     multipleOf,
     multiplesOf
-  });
+  }), [lang, finOf, ratioOf, changeOver, MARKET_COLS, windowed, changePeriod, MOVABLE_KEYS, parOf, priceToPar, stats, mktCapOf, valuationOf, multipleOf, multiplesOf]);
   const {
     visibleRows
-  } = sortMarketRows({
+  } = useMemo(() => sortMarketRows({
     changePeriod,
     changeOver,
     parOf,
@@ -259,7 +259,7 @@ function MarketView({
     rowSector,
     search,
     sortKeys
-  });
+  }), [changePeriod, changeOver, parOf, priceToPar, annualisedFin, finOf, mktCapOf, peOf, pbOf, multipleOf, ratioOf, prepared, direction, favOnly, hasFav, activeSector, rowSector, search, sortKeys]);
   const {
     exportCsv
   } = createMarketExport({

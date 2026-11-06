@@ -54,3 +54,31 @@ test("a percent change is written one way everywhere, and never as «−0%»", a
   assert.equal(formatMarketChange(-0.02, -0.0021, "ru"), "-0,02 · 0%");
   assert.equal(formatMarketChange(-0.001, -0.0001, "ru"), "0,00 · 0%");
 });
+
+test('market number formatting reuses formatters without mixing locales or precision', async () => {
+  const Native = Intl.NumberFormat;
+  let constructions = 0;
+  Intl.NumberFormat = new Proxy(Native, {construct(target, args) {
+    constructions++; return Reflect.construct(target, args);
+  }});
+  try {
+    // A fresh module makes this independent of formatters warmed by other tests.
+    const model = await import('../frontend/src/lib/numberFormat.js?market-performance');
+    for (const lang of ['ru', 'uz', 'en']) {
+      for (const value of [20980, 12680, 0, 0.01, -0.02]) {
+        for (const digits of [2, 4]) {
+          for (const name of ['formatMarketNumber','formatRatio']) {
+            const actual = name === 'formatRatio' ? model[name](value, digits, lang) : model[name](value, lang, digits);
+            const expected = new Native(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-Latn-UZ' : 'ru-RU', {
+              ...(name === 'formatMarketNumber' ? {minimumFractionDigits:Math.abs(value) < 10 ? 2 : 0} : {}), maximumFractionDigits:digits,
+            }).format(value);
+            assert.equal(actual, expected);
+          }
+        }
+      }
+    }
+    const warmed = constructions;
+    for (let i=0; i<100; i++) {model.formatMarketNumber(20980,'ru'); model.formatRatio(1.69,2,'ru');}
+    assert.equal(constructions, warmed);
+  } finally {Intl.NumberFormat = Native;}
+});

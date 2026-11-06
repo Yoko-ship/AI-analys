@@ -1,5 +1,7 @@
 import { snapPixel } from "../../lib/geometry.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+const pinCls = pin => pin ? ` market-col-pinned${pin.edge ? " market-col-pinned-edge" : ""}` : "";
+const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating", "currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"]);
 export function useMarketColumns({
   MARKET_COLS,
   type
@@ -30,8 +32,7 @@ export function useMarketColumns({
     if (n.has(k)) n.delete(k);else n.add(k);
     return n;
   });
-  const EQUITY_ONLY_COLS = new Set(["mktCap", "pe", "pb", "ps", "roe", "roa", "netMargin", "eqAssets", "finRevenue", "finGross", "finCash", "finLiab", "finNet", "finOperating", "currentRatio", "quickRatio", "debtAssets", "assetTurnover", "roce"]);
-  const MOVABLE_KEYS = ["last", ...MARKET_COLS.map(([k]) => k)];
+  const MOVABLE_KEYS = React.useMemo(() => ["last", ...MARKET_COLS.map(([k]) => k)], [MARKET_COLS]);
   const [colOrder, setColOrder] = useState(() => {
     try {
       const s = JSON.parse(localStorage.getItem("uz_market_col_order_v2"));
@@ -83,9 +84,9 @@ export function useMarketColumns({
     if (n.has(k)) n.delete(k);else n.add(k);
     return n;
   });
-  const shownOrder = colOrder.filter(k => (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k)));
-  const pinnedOrder = shownOrder.filter(k => pinnedCols.has(k));
-  const visibleOrder = [...pinnedOrder, ...shownOrder.filter(k => !pinnedCols.has(k))];
+  const shownOrder = React.useMemo(() => colOrder.filter(k => (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k))), [colOrder, visibleCols, type]);
+  const pinnedOrder = React.useMemo(() => shownOrder.filter(k => pinnedCols.has(k)), [shownOrder, pinnedCols]);
+  const visibleOrder = React.useMemo(() => [...pinnedOrder, ...shownOrder.filter(k => !pinnedCols.has(k))], [pinnedOrder, shownOrder, pinnedCols]);
   const colSpan = 3 + visibleOrder.length;
   const [pinOffsets, setPinOffsets] = useState({});
   const pinMeasureRef = useRef(() => {});
@@ -124,11 +125,8 @@ export function useMarketColumns({
     pinMeasureRef.current();
   });
   const lastPinned = pinnedOrder[pinnedOrder.length - 1];
-  const pinAt = key => pinKeys && pinOffsets[key] !== undefined ? {
-    left: pinOffsets[key],
-    edge: key === lastPinned
-  } : null;
-  const pinCls = pin => pin ? ` market-col-pinned${pin.edge ? " market-col-pinned-edge" : ""}` : "";
+  const pins = React.useMemo(() => Object.fromEntries(Object.entries(pinOffsets).map(([key, left]) => [key, {left, edge:key === lastPinned}])), [pinOffsets, lastPinned]);
+  const pinAt = React.useCallback(key => pinKeys ? pins[key] || null : null, [pinKeys, pins]);
   const colGroupOf = key => visibleOrder.filter(k => pinnedCols.has(k) === pinnedCols.has(key));
   const moveColBy = (key, step) => {
     const group = colGroupOf(key);

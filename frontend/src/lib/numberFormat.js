@@ -6,10 +6,24 @@ function locale(language) {
   return language === "en" ? "en-US" : language === "uz" ? "uz-Latn-UZ" : "ru-RU";
 }
 
+// The table formats thousands of values with a handful of display settings.
+// Reuse Intl's locale machinery while keeping each precision/notation separate.
+const formatters = new Map();
+function numberFormatter(language, options) {
+  const name = locale(language);
+  const key = JSON.stringify([name, options]);
+  if (!formatters.has(key)) {
+    const formatter = new Intl.NumberFormat(name, options);
+    if (formatters.size >= 64) formatters.delete(formatters.keys().next().value);
+    formatters.set(key, formatter);
+  }
+  return formatters.get(key);
+}
+
 export function formatCompactNumber(value, language, digits = 1) {
   const number = safeNumber(value);
   if (number === null) return "—";
-  return new Intl.NumberFormat(locale(language), {
+  return numberFormatter(language, {
     notation: Math.abs(number) >= 1000 ? "compact" : "standard",
     maximumFractionDigits: digits,
   }).format(number);
@@ -25,13 +39,13 @@ export function formatSignedPercent(value, digits = 1) {
 export function formatRatio(value, digits = 2, language = "ru") {
   const number = safeNumber(value);
   if (number === null) return "—";
-  return new Intl.NumberFormat(locale(language), { maximumFractionDigits: digits }).format(number);
+  return numberFormatter(language, { maximumFractionDigits: digits }).format(number);
 }
 
 export function formatMarketNumber(value, language, digits = 2) {
   const number = safeNumber(value);
   if (number === null) return "—";
-  return new Intl.NumberFormat(locale(language), {
+  return numberFormatter(language, {
     minimumFractionDigits: Math.abs(number) < 10 ? 2 : 0,
     maximumFractionDigits: digits,
   }).format(number);
