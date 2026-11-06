@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { landingShells } from './frontend/build/landing.js';
+import { marketStartup } from './frontend/build/market.js';
 
 export default defineConfig({
-  plugins: [react(), landingShells()],
+  plugins: [react(), landingShells(), marketStartup()],
   root: "frontend",
   base: "/",
   build: {

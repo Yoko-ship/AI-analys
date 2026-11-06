@@ -314,6 +314,33 @@ test("deferred market code shows a readable loading state and leaves navigation 
   await expect(page.locator(".market-table-wrap")).toBeVisible();
 });
 
+test("market data and code start before the main application downloads", async ({page}) => {
+  let release;
+  const gate = new Promise(resolve => {release = resolve;});
+  const paths = [];
+  const chunks = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/')) paths.push(url.pathname + url.search);
+    if (/\/assets\/MarketView-/.test(url.pathname)) chunks.push(url.pathname);
+  });
+  await page.route(/\/assets\/index-[^/]+\.mjs$/, async route => {
+    await gate;
+    await route.continue();
+  });
+  const essentials = ['/api/market/stocks?type=stock', '/api/companies', '/api/securities',
+    '/api/market/trade-stats', '/api/instruments?view=board'];
+  try {
+    await page.goto('/market', {waitUntil:'commit'});
+    await expect.poll(() => essentials.every(path => paths.includes(path))).toBe(true);
+    await expect.poll(() => chunks.length).toBe(1);
+    release();
+    await expect(page.locator('.market-table-wrap tbody tr')).toHaveCount(3);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    for (const path of essentials) expect(paths.filter(item => item === path), path).toHaveLength(1);
+  } finally {release();}
+});
+
 test("a failed feature download offers reload and recovers without losing the shell", async ({ page }, testInfo) => {
   const chunk = /\/assets\/MarketView-[^/]+\.m?js$/;
   await page.route(chunk, route => route.abort("failed"));

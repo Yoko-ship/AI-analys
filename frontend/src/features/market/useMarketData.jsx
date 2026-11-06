@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { mt } from "../../shared/marketCopy.jsx";
 import { splitLanguagePath } from "../../lib/languagePath.js";
+import { requestMarketData } from "../../lib/marketStartup.js";
 
 export function useMarketData({ toasts: toastsModule, preferences: preferencesModule, session: sessionModule, navigation: navigationModule }) {
   const { addToast } = toastsModule;
@@ -68,7 +69,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
 
   useEffect(() => {
     if (!needsCatalog) return;
-    apiFetch("/api/securities")
+    requestMarketData("/api/securities", apiFetch)
       .then((r) => r.json())
       .then((d) => { if (d.ok && d.securities) setSecuritiesMap(d.securities); })
       .catch(() => {});
@@ -76,14 +77,14 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
 
   const loadTradeStats = async () => {
     try {
-      const response = await fetch("/api/market/trade-stats");
+      const response = await requestMarketData("/api/market/trade-stats");
       const data = await response.json();
       return data.ok ? data : null;
     } catch { return null; }
   };
 
   const loadCompanies = async () => {
-    const res = await apiFetch("/api/companies");
+    const res = await requestMarketData("/api/companies", apiFetch);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Could not load companies");
     setCompanies(data.companies || []);
@@ -106,7 +107,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       const apiType = (requestedType === "preferred" || requestedType === "ordinary") ? "stock" : requestedType;
       params.set("type", apiType);
       if (refresh) params.set("refresh", "true");
-      const res = await apiFetch(`/api/market/stocks${params.toString() ? `?${params}` : ""}`);
+      const res = await requestMarketData(`/api/market/stocks${params.toString() ? `?${params}` : ""}`, apiFetch);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Could not load stock prices");
       if (requestId !== marketRequest.current) return;

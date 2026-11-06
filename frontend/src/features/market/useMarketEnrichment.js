@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { requestMarketData } from "../../lib/marketStartup.js";
 export function useMarketEnrichment({
   loadVersion,
   changePeriod,
@@ -39,7 +40,7 @@ export function useMarketEnrichment({
     // The single instrument universe (ТЗ §4). `is_active` here follows TRADING —
     // ninety days without an execution — rather than a registry flag, which is
     // what the "показать неактивные" switch below actually filters on.
-    fetch("/api/instruments?view=board").then(r => r.json()).then(d => {
+    requestMarketData("/api/instruments?view=board").then(r => r.json()).then(d => {
       if (!alive || !d || !d.ok) return;
       const by = {};
       (d.items || []).forEach(i => {
