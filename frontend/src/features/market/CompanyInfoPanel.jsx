@@ -2,6 +2,7 @@ import { safeHref } from "../../lib/safeHref.js";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useEffect, useRef } from "react";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
+import {industryOf} from '../../lib/companyIndustries.js';
 import { createPortal } from "react-dom";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 
@@ -57,7 +58,7 @@ function CompanyInfoPanel({ ticker, secInfo, wikiInfo, language, onClose, loadin
   if (!ticker) return null;
   const name = secInfo?.name || ticker;
   const logo = secInfo?.logo_url;
-  const sector = secInfo?.sector;
+  const sector = industryOf(ticker)?.sector || secInfo?.sector;
   const isin = secInfo?.isin;
   const isPreferred = secInfo?.is_preferred;
   const secType = secInfo?.type;

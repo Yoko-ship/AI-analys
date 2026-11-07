@@ -10,6 +10,7 @@ COPY package.json package-lock.json /app/
 RUN npm ci
 
 COPY vite.config.js analytics_controls.json /app/
+COPY config/company_industries.json /app/config/company_industries.json
 COPY frontend /app/frontend
 RUN npm run build
 

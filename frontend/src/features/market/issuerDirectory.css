@@ -1,0 +1,45 @@
+.issuer-directory { min-width: 0; }
+.industry-controls { padding: 16px; }
+.industry-controls .hd-toolbar { display: flex; flex-wrap: wrap; gap: 10px; }
+.industry-controls .hd-toolbar > * { min-width: 0; flex: 1 1 230px; max-width: 100%; }
+.industry-help { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 12px 0 0; }
+.industry-count { font-size: 13px; margin: 8px 0 0; }
+.industry-section { margin-top: 28px; min-width: 0; }
+.industry-section h2 { display: flex; align-items: baseline; gap: 12px; font-size: 19px; line-height: 1.4; margin: 0 0 12px; }
+.industry-section h2 > span { color: var(--accent); font-size: 15px; }
+.industry-section h2 small { color: var(--muted); font-size: 13px; font-weight: 400; margin-left: auto; }
+.industry-group { margin-bottom: 10px; overflow: hidden; }
+.industry-group > summary { cursor: pointer; padding: 15px 18px; }
+.industry-group > summary h3 { display: inline; font-size: 14px; margin: 0 10px 0 5px; }
+.industry-group > summary > span { color: var(--muted); font-size: 12px; }
+.industry-table { width: 100%; border-collapse: collapse; }
+.industry-table th, .industry-table td { padding: 10px 18px; text-align: left; font-size: 13px; }
+.industry-table thead th { color: var(--muted); font-size: 12px; font-weight: 500; }
+.industry-table tbody > tr { border-top: 1px solid var(--border); }
+.industry-table td:nth-child(n+3), .industry-table thead th:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+.industry-table th[scope="row"] { font-weight: 400; }
+.industry-table th[scope="row"] small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.industry-issuer th { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.industry-issuer-heading { display: flex; gap: 10px 24px; flex-wrap: wrap; justify-content: space-between; align-items: baseline; }
+.industry-issuer-heading > strong { overflow-wrap: anywhere; }
+.industry-evidence { font-weight: 400; font-size: 12px; max-width: 100%; }
+.industry-evidence > summary { cursor: pointer; padding: 3px 0; }
+.industry-status { color: var(--muted); }
+.industry-status-verified { color: var(--text); }
+.industry-status-conflict { color: var(--text); font-weight: 600; }
+.industry-evidence > div { max-width: 600px; line-height: 1.6; padding: 4px 0; }
+.industry-evidence p { margin: 4px 0; white-space: normal; }
+.industry-evidence a { color: var(--accent); text-decoration: underline; display: block; }
+.industry-security { color: var(--accent); background: none; border: 0; padding: 4px 0; cursor: pointer; font: inherit; font-weight: 600; }
+.issuer-directory :is(button, input, select, summary, a, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.industry-empty { padding: 24px 0; }
+@media (max-width: 600px) {
+  .industry-controls { padding: 12px; }
+  .industry-controls .hd-toolbar > * { flex-basis: 100%; width: 100%; }
+  .industry-section h2 { font-size: 17px; }
+  .industry-group > summary { padding: 14px 10px; }
+  .industry-table th, .industry-table td { padding: 10px; }
+  .industry-table { min-width: 600px; }
+  .industry-table .industry-issuer-heading { flex-direction: column; align-items: flex-start; max-width: calc(100vw - 80px); }
+  .industry-group .concept-table-scroll { overflow-x: auto; }
+}

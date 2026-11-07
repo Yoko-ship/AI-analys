@@ -2,6 +2,7 @@ import React from 'react';
 import { CompanyLogo } from '../../shared/CompanyLogo.jsx';
 import { marketDisplayPrice } from '../../shared/marketModel.jsx';
 import { sectorLabel } from '../../shared/marketCopy.jsx';
+import {industryOf} from '../../lib/companyIndustries.js';
 import { changePeriodLabel } from '../../shared/marketPeriods.jsx';
 import { formatChangePercent, formatCompactNumber } from '../../lib/numberFormat.js';
 import { isoDay, priceFormatFor } from '../../charts/lwCore.js';
@@ -21,7 +22,7 @@ export function CompanyPreviewCard({ item, lang, changePeriod, cache, onClose, o
   const quoteDay = isoDay(row.last_trade_date || row.close_date || security.last_trade_date);
   const preferred = security.is_preferred || row.share_type === 'preferred';
   const story = news.data?.items?.[0];
-  const sector = security.sector || row.sector;
+  const sector = industryOf(ticker)?.sector || security.sector || row.sector;
   return <>
     <header className="company-preview-header">
       <CompanyLogo logo={security.logo_url} name="" ticker={ticker} />

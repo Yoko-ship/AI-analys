@@ -7,6 +7,7 @@ import { QC_COLORS, QC_MAX, chartRangeMonths, chartRangeWindowQuery, quickCompar
 import { CompanyWatchRail, watchRailLists } from "../../shared/CompanyWatchRail.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
 import { sectorLabel } from "../../shared/marketCopy.jsx";
+import {industryOf} from '../../lib/companyIndustries.js';
 import { formatMarketChange } from "../../shared/format.jsx";
 import {issuerDisplayName} from '../../lib/issuerDisplayName.js';
 import { CompanyInsightCard, CompanyInsightDialog } from "./Insights.jsx";
@@ -423,7 +424,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   // callers pass `security_type`/`stock_type`/`industry`. Accept both shapes.
   const securityType = sec.security_type || sec.type;
   const isPreferred = sec.stock_type === "preferred" || sec.share_type === "preferred" || sec.is_preferred === true;
-  const industry = sec.industry || sec.sector;
+  const industry = industryOf(ticker)?.sector || sec.industry || sec.sector;
   const typeLabel = securityType === "bond"
     ? (lang === "ru" ? "Облигация" : lang === "uz" ? "Obligatsiya" : "Bond")
     : isPreferred

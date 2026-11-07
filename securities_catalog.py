@@ -400,6 +400,8 @@ def get_securities_map() -> dict[str, dict]:
     vrows = conn.execute("SELECT ticker, max_volume, max_volume_date, max_quantity FROM volume_records").fetchall()
     conn.close()
     records = {v["ticker"]: v for v in vrows}
+    from company_industries import classification_for
+
     result: dict[str, dict] = {}
     for row in rows:
         d = dict(row)
@@ -433,6 +435,9 @@ def get_securities_map() -> dict[str, dict]:
             d["max_volume"] = vr["max_volume"]
             d["max_volume_date"] = vr["max_volume_date"]
             d["max_quantity"] = vr["max_quantity"]
+        # Apply on read, including securities absent from today's exchange feed.
+        # Keep the legacy sector for financial-template compatibility.
+        d["industry_classification"] = classification_for(d["ticker"])
         result[d["ticker"]] = d
     return result
 

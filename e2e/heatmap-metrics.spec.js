@@ -225,7 +225,7 @@ test("turnover and change filters choose which tiles are drawn, not the market p
   await expect(page.locator(".heatmap-pulse-main strong")).toHaveText(pulse);
   await filters.getByRole("group", { name: "Оборот" }).getByRole("button", { name: "≥ 1 млрд" }).click();
   await expect(tiles).toHaveCount(0);
-  await expect(page.getByRole("status")).toContainText("Нет бумаг под выбранные фильтры");
+  await expect(page.locator('.heatmap-empty-state')).toContainText("Нет бумаг под выбранные фильтры");
   await page.getByRole("button", { name: "Сбросить фильтры" }).first().click();
   await expect(tiles).toHaveCount(3);
   expect(errors).toEqual([]);

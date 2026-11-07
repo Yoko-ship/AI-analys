@@ -24,6 +24,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Iterable
 
 from formulas import _as_date, _num, thresholds
+from company_industries import classification_for, display_sector
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,13 @@ def build_catalog(securities: dict[str, dict[str, Any]] | None = None,
         # Precedence is fixed and documented, so the answer does not depend on
         # which dictionary was read last.
         sector = sec.get("sector") or sectors.get(ticker) or row.get("sector") or None
+        # Curated presentation metadata is independent of financial templates.
+        industry = classification_for(ticker)
+        if industry and industry["sector"] != sector:
+            discrepancies.append({"ticker": ticker, "field": "sector",
+                                  "values": {**distinct, "industry_registry": industry["sector"]},
+                                  "resolution": "curated display hierarchy wins"})
+        sector = display_sector(ticker, sector)
 
         # --- ISIN -------------------------------------------------------------
         isins = {v for v in (sec.get("isin"), listing.get("isin"), row.get("isin")) if v}
@@ -139,6 +147,7 @@ def build_catalog(securities: dict[str, dict[str, Any]] | None = None,
             "type": (sec.get("type") or row.get("type") or "stock"),
             "share_class": _share_class({**sec, **row}),
             "sector": sector,
+            "industry_classification": industry,
             "is_listed": bool(present_in and ("listings" in present_in or "board" in present_in
                                               or "securities" in present_in)),
             "is_active": is_active,

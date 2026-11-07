@@ -14,13 +14,12 @@ import { describe, it } from "node:test";
 import { SECTOR_ORDER, orderSectors, sectorOf } from "../frontend/src/lib/sectors.js";
 
 describe("sectorOf", () => {
-  it("takes the securities catalog over the companies list", () => {
-    // The real disagreement: UTGAP is logistics in the catalog, transport in
-    // COMPANY_SECTORS. The catalog wins — the same precedence the server's
-    // instruments.build_catalog documents.
+  it("uses the reviewed parent section for both gas pipeline share classes", () => {
+    // The PDF groups logistics under H. Old catalog labels must not split it.
     const securities = { UTGAP: { sector: "logistics" } };
     const companies = { UTGAP: { sector: "transport" } };
-    assert.equal(sectorOf("UTGAP", securities, companies), "logistics");
+    assert.equal(sectorOf("UTGAP", securities, companies), "transport");
+    assert.equal(sectorOf("UTGA", securities, companies), "transport");
   });
 
   it("is not fooled by the companies list defaulting an unknown ticker to other", () => {
@@ -28,7 +27,9 @@ describe("sectorOf", () => {
     // omitting the field. Reading it first buried the catalog's "funds".
     const securities = { UZNF: { sector: "funds" }, UZNFP: { sector: "funds" } };
     const companies = { UZNF: { sector: "other" }, UZNFP: { sector: "other" } };
-    assert.equal(sectorOf("UZNF", securities, companies), "funds");
+    // Reviewed UZNF now sits under finance / funds. An unreviewed catalog
+    // security still uses its fallback rather than being discarded.
+    assert.equal(sectorOf("UZNF", securities, companies), "finance");
     assert.equal(sectorOf("UZNFP", securities, companies), "funds");
   });
 
@@ -43,7 +44,7 @@ describe("sectorOf", () => {
   });
 
   it("matches on the ticker regardless of case", () => {
-    assert.equal(sectorOf("uznf", { UZNF: { sector: "funds" } }, {}), "funds");
+    assert.equal(sectorOf("uznf", { UZNF: { sector: "funds" } }, {}), "finance");
   });
 });
 

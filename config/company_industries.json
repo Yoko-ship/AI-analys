@@ -1,0 +1,1196 @@
+{
+  "version": 1,
+  "reviewed_on": "2026-11-07",
+  "source": "UZStock_OKED_tree-1.pdf",
+  "aliases": {
+    "TNGB": "TGBK"
+  },
+  "sections": {
+    "finance": {
+      "code": "K",
+      "label": {
+        "ru": "Финансы и страхование",
+        "en": "Finance and insurance",
+        "uz": "Moliya va sug‘urta"
+      }
+    },
+    "mining": {
+      "code": "B",
+      "label": {
+        "ru": "Добыча полезных ископаемых",
+        "en": "Mining and quarrying",
+        "uz": "Konchilik"
+      }
+    },
+    "manufacturing": {
+      "code": "C",
+      "label": {
+        "ru": "Производство",
+        "en": "Manufacturing",
+        "uz": "Ishlab chiqarish"
+      }
+    },
+    "construction": {
+      "code": "F",
+      "label": {
+        "ru": "Строительство",
+        "en": "Construction",
+        "uz": "Qurilish"
+      }
+    },
+    "trade": {
+      "code": "G",
+      "label": {
+        "ru": "Торговля",
+        "en": "Trade",
+        "uz": "Savdo"
+      }
+    },
+    "transport": {
+      "code": "H",
+      "label": {
+        "ru": "Транспорт и хранение",
+        "en": "Transport and storage",
+        "uz": "Transport va saqlash"
+      }
+    },
+    "telecom": {
+      "code": "J",
+      "label": {
+        "ru": "Информация и связь",
+        "en": "Information and communication",
+        "uz": "Axborot va aloqa"
+      }
+    },
+    "professional": {
+      "code": "M",
+      "label": {
+        "ru": "Профессиональная и техническая деятельность",
+        "en": "Professional and technical activities",
+        "uz": "Kasbiy va texnik faoliyat"
+      }
+    }
+  },
+  "groups": {
+    "banks": {
+      "sector": "finance",
+      "label": {
+        "ru": "Банки",
+        "en": "Banks",
+        "uz": "Banklar"
+      }
+    },
+    "insurance": {
+      "sector": "finance",
+      "label": {
+        "ru": "Страхование",
+        "en": "Insurance",
+        "uz": "Sug‘urta"
+      }
+    },
+    "funds": {
+      "sector": "finance",
+      "label": {
+        "ru": "Инвестиционные фонды",
+        "en": "Investment funds",
+        "uz": "Investitsiya fondlari"
+      }
+    },
+    "leasing": {
+      "sector": "finance",
+      "label": {
+        "ru": "Лизинг",
+        "en": "Leasing",
+        "uz": "Lizing"
+      }
+    },
+    "exchange": {
+      "sector": "finance",
+      "label": {
+        "ru": "Биржи",
+        "en": "Exchanges",
+        "uz": "Birjalar"
+      }
+    },
+    "coal": {
+      "sector": "mining",
+      "label": {
+        "ru": "Уголь",
+        "en": "Coal",
+        "uz": "Ko‘mir"
+      }
+    },
+    "nonferrous-ores": {
+      "sector": "mining",
+      "label": {
+        "ru": "Руды цветных металлов",
+        "en": "Nonferrous ores",
+        "uz": "Rangli metall rudalari"
+      }
+    },
+    "oil-gas": {
+      "sector": "mining",
+      "label": {
+        "ru": "Нефть и газ",
+        "en": "Oil and gas",
+        "uz": "Neft va gaz"
+      }
+    },
+    "well-services": {
+      "sector": "mining",
+      "label": {
+        "ru": "Бурение и обслуживание скважин",
+        "en": "Drilling and well services",
+        "uz": "Burg‘ilash va quduq xizmatlari"
+      }
+    },
+    "automotive": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Автомобили и комплектующие",
+        "en": "Automotive and components",
+        "uz": "Avtomobillar va qismlar"
+      }
+    },
+    "metallurgy": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Металлургия",
+        "en": "Metallurgy",
+        "uz": "Metallurgiya"
+      }
+    },
+    "cement": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Цемент",
+        "en": "Cement",
+        "uz": "Sement"
+      }
+    },
+    "glass": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Стекло",
+        "en": "Glass",
+        "uz": "Shisha"
+      }
+    },
+    "machinery": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Машиностроение",
+        "en": "Machinery",
+        "uz": "Mashinasozlik"
+      }
+    },
+    "chemicals": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Химия и материалы",
+        "en": "Chemicals and materials",
+        "uz": "Kimyo va materiallar"
+      }
+    },
+    "food-processing": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Зерно и пищевая переработка",
+        "en": "Grain and food processing",
+        "uz": "Don va oziq-ovqatni qayta ishlash"
+      }
+    },
+    "rail-repair": {
+      "sector": "manufacturing",
+      "label": {
+        "ru": "Ремонт железнодорожного оборудования",
+        "en": "Rail equipment repair",
+        "uz": "Temiryo‘l uskunalarini ta’mirlash"
+      }
+    },
+    "electrical-networks": {
+      "sector": "construction",
+      "label": {
+        "ru": "Электросети и энергообъекты",
+        "en": "Power networks and facilities",
+        "uz": "Elektr tarmoqlari va inshootlari"
+      }
+    },
+    "infrastructure": {
+      "sector": "construction",
+      "label": {
+        "ru": "Промышленное и инфраструктурное строительство",
+        "en": "Industrial and infrastructure construction",
+        "uz": "Sanoat va infratuzilma qurilishi"
+      }
+    },
+    "electrical-installation": {
+      "sector": "construction",
+      "label": {
+        "ru": "Электромонтажные работы",
+        "en": "Electrical installation",
+        "uz": "Elektr montaj ishlari"
+      }
+    },
+    "trading-complexes": {
+      "sector": "trade",
+      "label": {
+        "ru": "Торговые комплексы",
+        "en": "Trading complexes",
+        "uz": "Savdo majmualari"
+      }
+    },
+    "pharma-wholesale": {
+      "sector": "trade",
+      "label": {
+        "ru": "Оптовая торговля фармацевтикой",
+        "en": "Pharmaceutical wholesale",
+        "uz": "Dori vositalari ulgurji savdosi"
+      }
+    },
+    "gas-pipelines": {
+      "sector": "transport",
+      "label": {
+        "ru": "Газопроводы",
+        "en": "Gas pipelines",
+        "uz": "Gaz quvurlari"
+      }
+    },
+    "rail-logistics": {
+      "sector": "transport",
+      "label": {
+        "ru": "Железнодорожная логистика",
+        "en": "Rail logistics",
+        "uz": "Temiryo‘l logistikasi"
+      }
+    },
+    "postal": {
+      "sector": "transport",
+      "label": {
+        "ru": "Почтовая связь",
+        "en": "Postal services",
+        "uz": "Pochta xizmatlari"
+      }
+    },
+    "road-transport": {
+      "sector": "transport",
+      "label": {
+        "ru": "Автомобильный транспорт",
+        "en": "Road transport",
+        "uz": "Avtomobil transporti"
+      }
+    },
+    "telecommunications": {
+      "sector": "telecom",
+      "label": {
+        "ru": "Телекоммуникации",
+        "en": "Telecommunications",
+        "uz": "Telekommunikatsiya"
+      }
+    },
+    "design": {
+      "sector": "professional",
+      "label": {
+        "ru": "Проектирование",
+        "en": "Design and planning",
+        "uz": "Loyihalash"
+      }
+    },
+    "geophysics": {
+      "sector": "professional",
+      "label": {
+        "ru": "Геофизика и геологоразведка",
+        "en": "Geophysics and exploration",
+        "uz": "Geofizika va geologik qidiruv"
+      }
+    }
+  },
+  "issuers": [
+    {
+      "id": "IPTB",
+      "name": "Ipoteka-bank",
+      "tickers": [
+        "IPTB",
+        "IPTBP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "OCBK",
+      "name": "Octobank",
+      "tickers": [
+        "OCBK"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "GRBK",
+      "name": "Garant bank",
+      "tickers": [
+        "GRBK",
+        "GRBKP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "IPKY",
+      "name": "Ipak Yo‘li Bank",
+      "tickers": [
+        "IPKY",
+        "IPKYP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "TRSB",
+      "name": "Trastbank",
+      "tickers": [
+        "TRSB",
+        "TRSBP"
+      ],
+      "group": "banks",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "SQBN",
+      "name": "O‘zbekiston sanoat-qurilish banki",
+      "tickers": [
+        "SQBN",
+        "SQBNP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "HMKB",
+      "name": "Hamkorbank",
+      "tickers": [
+        "HMKB",
+        "HMKBP"
+      ],
+      "group": "banks",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "MCBA",
+      "name": "Mikrokreditbank",
+      "tickers": [
+        "MCBA",
+        "MCBAP"
+      ],
+      "group": "banks",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "AGBA",
+      "name": "Agrobank",
+      "tickers": [
+        "AGBA",
+        "AGBAP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "ALKB",
+      "name": "Aloqabank",
+      "tickers": [
+        "ALKB",
+        "ALKBP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "BRBN",
+      "name": "Biznesni rivojlantirish banki",
+      "tickers": [
+        "BRBN",
+        "BRBNP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "TNBN",
+      "name": "Turonbank",
+      "tickers": [
+        "TNBN",
+        "TNBNP"
+      ],
+      "group": "banks",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "INFB",
+      "name": "Invest Finance Bank",
+      "tickers": [
+        "INFB"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "ORFI",
+      "name": "Orient Finans Bank",
+      "tickers": [
+        "ORFI",
+        "ORFIP"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UNVB",
+      "name": "Universal bank",
+      "tickers": [
+        "UNVB"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "DRBK",
+      "name": "Davr-bank",
+      "tickers": [
+        "DRBK"
+      ],
+      "group": "banks",
+      "oked": "64190",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "TGBK",
+      "name": "Tenge Bank",
+      "tickers": [
+        "TGBK"
+      ],
+      "group": "banks",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "KFSK",
+      "name": "Kafolat sug‘urta kompaniyasi",
+      "tickers": [
+        "KFSK",
+        "KFSKP"
+      ],
+      "group": "insurance",
+      "oked": "65120",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZAS",
+      "name": "O‘zagrosug‘urta",
+      "tickers": [
+        "UZAS",
+        "UZASP"
+      ],
+      "group": "insurance",
+      "oked": "65120",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "KASU",
+      "name": "Kapital Sug‘urta",
+      "tickers": [
+        "KASU",
+        "KASUP"
+      ],
+      "group": "insurance",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "TMYS",
+      "name": "Temiryo‘l-Sug‘urta",
+      "tickers": [
+        "TMYS"
+      ],
+      "group": "insurance",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "ALSM",
+      "name": "Alskom",
+      "tickers": [
+        "ALSM",
+        "ALSMP"
+      ],
+      "group": "insurance",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZIN",
+      "name": "O‘zbekinvest",
+      "tickers": [
+        "UZIN",
+        "UZINP"
+      ],
+      "group": "insurance",
+      "oked": "65120",
+      "status": "documented",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZNF",
+      "name": "O‘zNIF",
+      "tickers": [
+        "UZNF"
+      ],
+      "group": "funds",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "ODMP",
+      "name": "Daromad Plus",
+      "tickers": [
+        "ODMP"
+      ],
+      "group": "funds",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZAL",
+      "name": "O‘zagrolizing",
+      "tickers": [
+        "UZAL",
+        "UZALP"
+      ],
+      "group": "leasing",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZML",
+      "name": "UzMED-lizing",
+      "tickers": [
+        "UZML"
+      ],
+      "group": "leasing",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "URTS",
+      "name": "Республиканская товарно-сырьевая биржа",
+      "tickers": [
+        "URTS"
+      ],
+      "group": "exchange",
+      "oked": null,
+      "status": "inferred",
+      "page": 2,
+      "evidence": []
+    },
+    {
+      "id": "UZIR",
+      "name": "O‘zbekko‘mir",
+      "tickers": [
+        "UZIR",
+        "UZIRP"
+      ],
+      "group": "coal",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "AGMK",
+      "name": "Алмалыкский ГМК",
+      "tickers": [
+        "AGMK",
+        "AGMKP"
+      ],
+      "group": "nonferrous-ores",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UZNG",
+      "name": "O‘zbekneftgaz",
+      "tickers": [
+        "UZNG",
+        "UZNGP"
+      ],
+      "group": "oil-gas",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "SANE",
+      "name": "Sarbon-Neftegaz",
+      "tickers": [
+        "SANE"
+      ],
+      "group": "oil-gas",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "BNGP",
+      "name": "Buxoroneftgazparmalash",
+      "tickers": [
+        "BNGP",
+        "BNGPP"
+      ],
+      "group": "well-services",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "NGQS",
+      "name": "Neft va gaz quduqlarini sinash",
+      "tickers": [
+        "NGQS"
+      ],
+      "group": "well-services",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "MIQE",
+      "name": "Minora qurish ekspeditsiyasi",
+      "tickers": [
+        "MIQE"
+      ],
+      "group": "well-services",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UZPN",
+      "name": "O‘zpartamponaj",
+      "tickers": [
+        "UZPN"
+      ],
+      "group": "well-services",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UZGF",
+      "name": "O‘zbekgeofizika",
+      "tickers": [
+        "UZGF",
+        "UZGFP"
+      ],
+      "group": "geophysics",
+      "oked": "71120",
+      "status": "verified",
+      "page": 3,
+      "evidence": [
+        {
+          "title": "UZSE · 71120",
+          "url": "https://uzse.uz/reports/3286/financial"
+        }
+      ],
+      "note": {
+        "ru": "В PDF указана добыча. В раскрытии UZSE указан ОКЭД 71120: профессиональная и техническая деятельность.",
+        "en": "The PDF places the issuer in mining. Its UZSE disclosure gives OKED 71120: professional and technical activities.",
+        "uz": "PDFda konchilik ko‘rsatilgan. UZSE hisobotida IFUT 71120: kasbiy va texnik faoliyat ko‘rsatilgan."
+      }
+    },
+    {
+      "id": "UZMT",
+      "name": "UzAuto Motors",
+      "tickers": [
+        "UZMT"
+      ],
+      "group": "automotive",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UTHK",
+      "name": "O‘z-Tong Hong Kompani",
+      "tickers": [
+        "UTHK"
+      ],
+      "group": "automotive",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UZMK",
+      "name": "O‘zbekiston metallurgiya kombinati",
+      "tickers": [
+        "UZMK",
+        "UZMKP"
+      ],
+      "group": "metallurgy",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "QZSM",
+      "name": "Qizilqumsement",
+      "tickers": [
+        "QZSM"
+      ],
+      "group": "cement",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "BECM",
+      "name": "Bekobodsement",
+      "tickers": [
+        "BECM",
+        "BECMP"
+      ],
+      "group": "cement",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "KSCM",
+      "name": "Quvasoycement",
+      "tickers": [
+        "KSCM",
+        "KSCMP"
+      ],
+      "group": "cement",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "KVTS",
+      "name": "Kvars",
+      "tickers": [
+        "KVTS"
+      ],
+      "group": "glass",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UZHM",
+      "name": "O‘zbekkimyomash zavodi",
+      "tickers": [
+        "UZHM"
+      ],
+      "group": "machinery",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "FRAZ",
+      "name": "Farg‘onaazot",
+      "tickers": [
+        "FRAZ",
+        "FRAZP"
+      ],
+      "group": "chemicals",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "PLST",
+      "name": "Portlatishsanoat",
+      "tickers": [
+        "PLST",
+        "PLSTP"
+      ],
+      "group": "chemicals",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "OHDN",
+      "name": "Ohangaron don",
+      "tickers": [
+        "OHDN"
+      ],
+      "group": "food-processing",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "TKDM",
+      "name": "Toshkentdonmahsulotlari",
+      "tickers": [
+        "TKDM",
+        "TKDMP"
+      ],
+      "group": "food-processing",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "BIOK",
+      "name": "Andijon biokimyo zavodi",
+      "tickers": [
+        "BIOK"
+      ],
+      "group": "food-processing",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UVGT",
+      "name": "O‘zvagonta’mir",
+      "tickers": [
+        "UVGT"
+      ],
+      "group": "rail-repair",
+      "oked": null,
+      "status": "inferred",
+      "page": 3,
+      "evidence": []
+    },
+    {
+      "id": "UQEQ",
+      "name": "O‘zqishloqelektrqurilish",
+      "tickers": [
+        "UQEQ"
+      ],
+      "group": "electrical-networks",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "METQ",
+      "name": "Maxsuselektrtarmoqqurilish",
+      "tickers": [
+        "METQ"
+      ],
+      "group": "electrical-networks",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "EQQU",
+      "name": "Elektrqishloqqurilish",
+      "tickers": [
+        "EQQU"
+      ],
+      "group": "electrical-networks",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "JASM",
+      "name": "Janubsanoatmontaj",
+      "tickers": [
+        "JASM"
+      ],
+      "group": "infrastructure",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "YGSY",
+      "name": "Yuggazstroy",
+      "tickers": [
+        "YGSY"
+      ],
+      "group": "infrastructure",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "TGMQ",
+      "name": "Transgazmaxsusqurilish",
+      "tickers": [
+        "TGMQ"
+      ],
+      "group": "infrastructure",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "MXUS",
+      "name": "93-maxsus trest",
+      "tickers": [
+        "MXUS"
+      ],
+      "group": "infrastructure",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "CBSK",
+      "name": "Chilonzor buyum savdo kompleksi",
+      "tickers": [
+        "CBSK"
+      ],
+      "group": "trading-complexes",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": [],
+      "note": {
+        "ru": "Торговля — предварительная группа из PDF. В старых раскрытиях указан ОКОНХ 83200, а не ОКЭД. Нужно проверить, относится ли деятельность к торговле или недвижимости.",
+        "en": "Trade is a provisional PDF grouping. Older disclosures give legacy OKONH 83200, not OKED. Trade versus real estate still needs verification.",
+        "uz": "Savdo — PDFdagi dastlabki guruh. Eski hisobotlarda IFUT emas, OKONX 83200 ko‘rsatilgan. Savdo yoki ko‘chmas mulk faoliyati ekanini tekshirish kerak."
+      }
+    },
+    {
+      "id": "DORI",
+      "name": "Dori-Darmon",
+      "tickers": [
+        "DORI"
+      ],
+      "group": "pharma-wholesale",
+      "oked": "46460",
+      "status": "documented",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "UTGA",
+      "name": "O‘ztransgaz",
+      "tickers": [
+        "UTGA",
+        "UTGAP"
+      ],
+      "group": "gas-pipelines",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "UTYK",
+      "name": "O‘ztemiryo‘lkonteyner",
+      "tickers": [
+        "UTYK"
+      ],
+      "group": "rail-logistics",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "YRFS",
+      "name": "Yo‘lreftrans",
+      "tickers": [
+        "YRFS"
+      ],
+      "group": "rail-logistics",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "UPOS",
+      "name": "O‘zbekiston pochtasi",
+      "tickers": [
+        "UPOS",
+        "UPOSP"
+      ],
+      "group": "postal",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "QATT",
+      "name": "Qashqadaryo texnologik transport",
+      "tickers": [
+        "QATT",
+        "QATTP"
+      ],
+      "group": "road-transport",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "UZTL",
+      "name": "O‘zbektelekom",
+      "tickers": [
+        "UZTL",
+        "UZTLP"
+      ],
+      "group": "telecommunications",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "BTRL",
+      "name": "Boshtransloyiha",
+      "tickers": [
+        "BTRL"
+      ],
+      "group": "design",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "TGPG",
+      "name": "Tashgiprogor",
+      "tickers": [
+        "TGPG"
+      ],
+      "group": "design",
+      "oked": null,
+      "status": "inferred",
+      "page": 4,
+      "evidence": []
+    },
+    {
+      "id": "ORGS",
+      "name": "Orgres",
+      "tickers": [
+        "ORGS"
+      ],
+      "group": "electrical-installation",
+      "oked": "43210",
+      "status": "conflict",
+      "page": 4,
+      "evidence": [
+        {
+          "title": "Openinfo · 2025 · 43210",
+          "url": "https://openinfo.uz/media/msfo/7ea36ac7-22cf-48a2-aac8-1894e1e4ea72.pdf"
+        }
+      ],
+      "note": {
+        "ru": "В PDF — инженерные услуги (M), в отчёте за 2025 год — ОКЭД 43210 (F). Строительство выбрано предварительно; код регистрации требует сверки.",
+        "en": "The PDF lists engineering services (M); the 2025 report gives OKED 43210 (F). Construction is provisional pending registration verification.",
+        "uz": "PDFda muhandislik xizmatlari (M), 2025-yil hisobotida IFUT 43210 (F). Qurilish guruhi ro‘yxatga olish kodi tekshirilguncha dastlabki hisoblanadi."
+      }
+    }
+  ]
+}

@@ -26,6 +26,7 @@ import logging
 from typing import Any, Iterable, Sequence
 
 from formulas import _num, thresholds
+from company_industries import display_sector
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ def classify_tile(row: dict[str, Any], stats: dict[str, Any] | None = None) -> d
     return {
         "ticker": str(row.get("ticker") or "").upper(),
         "name": row.get("name"),
-        "sector": row.get("sector"),
+        "sector": display_sector(row.get("ticker"), row.get("sector")),
         "type": row.get("type"),
         "share_type": row.get("share_type"),
         "change_pct": change,
