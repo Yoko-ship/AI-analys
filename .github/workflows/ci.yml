@@ -852,6 +852,7 @@ jobs:
           # currently running one before replacing it; timers are re-enabled
           # below and do not double-run a Railway-era command.
           for timer in \
+            uzstock-collection-monitor.timer \
             uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \
@@ -860,6 +861,7 @@ jobs:
             systemctl stop "$timer" >/dev/null 2>&1 || true
           done
           for service in \
+            uzstock-collection-monitor.service \
             uzstock-terminal-alerts.service uzstock-terminal-cbu.service \
             uzstock-financial-backup.service uzstock-postgres-backup.service uzstock-financial-monitor.service \
             uzstock-collector.service uzstock-quotes-1610.service \
@@ -1160,6 +1162,35 @@ jobs:
           """
 
           units = {
+              "/etc/systemd/system/uzstock-collection-monitor.service": """[Unit]
+          Description=UZStock collector observations and bounded manual dispatch
+          Wants=network-online.target
+          After=network-online.target snap.docker.dockerd.service
+
+          [Service]
+          Type=oneshot
+          WorkingDirectory=/root/uzstock/app
+          Environment=PYTHONDONTWRITEBYTECODE=1
+          StateDirectory=uzstock-collections
+          StateDirectoryMode=0700
+          TimeoutStartSec=90
+          NoNewPrivileges=true
+          PrivateTmp=true
+          ProtectSystem=strict
+          ReadWritePaths=/var/lib/uzstock-collections
+          ExecStart=/usr/bin/python3 -m collection_ops.host --env-file /root/uzstock/app/.env
+          """,
+              "/etc/systemd/system/uzstock-collection-monitor.timer": """[Unit]
+          Description=Observe collection runs and process manual requests
+
+          [Timer]
+          OnBootSec=45s
+          OnUnitInactiveSec=30s
+          AccuracySec=5s
+
+          [Install]
+          WantedBy=timers.target
+          """,
               "/etc/systemd/system/uzstock-terminal-alerts.service": """[Unit]
           Description=UZStock critical alerts and 09:00 Tashkent daily digest
           After=snap.docker.dockerd.service
@@ -1330,6 +1361,7 @@ jobs:
           rm -f /etc/systemd/system/uzstock-news-collector.service.d/codex.conf
           systemctl daemon-reload
           for timer in \
+            uzstock-collection-monitor.timer \
             uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
             uzstock-collector.timer uzstock-quotes-1610.timer \

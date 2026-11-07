@@ -6,6 +6,7 @@ import collectors.news.settings as collectors_news_settings
 import os
 import requests
 import time
+from collection_ops.delivery import publish
 
 
 def _prod_request(method: str, path: str, *, attempts: int = 3, timeout: int = 60,
@@ -40,16 +41,8 @@ def _prod_request(method: str, path: str, *, attempts: int = 3, timeout: int = 6
 
 def push_news(items: list[dict[str, Any]]) -> int:
     secret = os.getenv("ADMIN_API_SECRET", "").strip()
-    if not secret:
-        collectors_news_settings.logger.error("ADMIN_API_SECRET is not set — cannot push")
-        return 2
     url = collectors_news_settings.DEFAULT_PUSH_URL + "/api/admin/news"
-    resp = requests.post(url, json={"items": items}, headers={"X-Admin-Secret": secret}, timeout=120)
-    if resp.status_code != 200:
-        collectors_news_settings.logger.error("push /api/admin/news failed: HTTP %s %s", resp.status_code, resp.text[:300])
-        return 1
-    collectors_news_settings.logger.info("push /api/admin/news ok: %s", resp.json())
-    return 0
+    return publish(requests.post, collectors_news_settings.logger, "/api/admin/news", url, {"items": items}, secret)
 
 
 def push_news_usage(record: dict[str, Any]) -> bool:

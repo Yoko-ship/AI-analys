@@ -223,6 +223,9 @@ def _mount_v2_alias() -> int:
     return aliased
 
 
+from collection_ops import routes as collection_routes
+
+app.include_router(collection_routes.router)
 app.include_router(research_routes.router)
 app.include_router(auth_routes.router)
 app.include_router(accounts_routes.router)

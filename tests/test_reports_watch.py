@@ -16,6 +16,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import reports_watch as rw  # noqa: E402
 
+@pytest.mark.parametrize("errors", [{}, {"UZTL": "source returned HTTP 429"}])
+def test_collector_records_quiet_watch_and_failed_watch_differently(monkeypatch, capsys, errors):
+    from types import SimpleNamespace
+    import collectors.financials.filings as filings
+    from collection_ops.model import parse_receipts
+    monkeypatch.setattr(filings.requests, "get", lambda *a, **kw: SimpleNamespace(json=lambda: {}))
+    monkeypatch.setattr(rw, "board_tickers", lambda *a: set())
+    monkeypatch.setattr(rw, "scan", lambda **kw: {"filings": 0, "candidates": {}, "refreshed": {},
+        "unchanged": {}, "errors": errors, "rows": []})
+    monkeypatch.setattr(filings.collectors_financials_delivery, "_stamp_step", lambda *a: None)
+    filings.watch_filings_and_push()
+    receipt = parse_receipts(capsys.readouterr().out.splitlines())[-1]
+    assert receipt["ok"] is not bool(errors)
+    if errors:
+        assert "HTTP 429" in receipt["reason"]
+    else:
+        assert receipt["unchanged"] is True
+
 UZTL_ORG = 666
 
 

@@ -11,6 +11,7 @@ from pydantic import Field
 from typing import Any
 from typing import Literal
 import asyncio
+from collection_ops.model import scrub
 import hashlib
 import json
 import provenance
@@ -141,15 +142,17 @@ async def api_admin_trade_stats(
         http.logger.exception("admin trade-stats upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     banked = 0
+    errors = []
     try:
         sessions = catalogue_market_store.trade_stats_as_history(payload.rows, payload.trade_date)
         if sessions:
             banked = await loop.run_in_executor(
                 None, partial(catalogue_market_store.bulk_upsert_quote_history, sessions))
-    except Exception:  # noqa: BLE001 — the session's own numbers are already stored
+    except Exception as exc:  # Keep the session, but report a partial publication.
         http.logger.exception("banking day statistics into quote history failed")
+        errors.append({"stage": "trade_stats_history", "reason": scrub(f"{type(exc).__name__}: {exc}")[:1000]})
     audit_jobs._schedule_audit("ingest:trade-stats")
-    return {"ok": True, "upserted": n, "history": banked}
+    return {"ok": True, "upserted": n, "history": banked, **({"errors": errors} if errors else {})}
 
 
 @router.post("/api/admin/quotes")
@@ -171,21 +174,24 @@ async def api_admin_quotes(
         http.logger.exception("admin quotes upsert failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     days = 0
+    errors = []
     if payload.history:
         try:
             days = await loop.run_in_executor(
                 None, partial(catalogue_market_store.bulk_upsert_quote_history, payload.history))
-        except Exception:  # noqa: BLE001 — history is not worth the session
+        except Exception as exc:  # Keep the board write, report the partial failure.
             http.logger.exception("admin quote-history upsert failed")
+            errors.append({"stage": "quote_history", "reason": scrub(f"{type(exc).__name__}: {exc}")[:1000]})
     bars = 0
     if payload.intraday:
         try:
             bars = await loop.run_in_executor(
                 None, partial(catalogue_market_store.bulk_upsert_intraday_history, payload.intraday))
-        except Exception:  # noqa: BLE001 — hourly bars are not worth the session either
+        except Exception as exc:
             http.logger.exception("admin intraday-history upsert failed")
+            errors.append({"stage": "intraday_history", "reason": scrub(f"{type(exc).__name__}: {exc}")[:1000]})
     audit_jobs._schedule_audit("ingest:quotes")
-    return {"ok": True, "upserted": n, "history": days, "intraday": bars}
+    return {"ok": True, "upserted": n, "history": days, "intraday": bars, **({"errors": errors} if errors else {})}
 
 
 @router.post("/api/admin/financials")
@@ -221,11 +227,13 @@ async def api_admin_financials(
         http.logger.exception("admin financials %s failed", payload.mode)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     ratios_written = 0
+    errors = []
     if payload.ratios:
         try:
             ratios_written = await loop.run_in_executor(None, _write_ratios)
-        except Exception:  # noqa: BLE001 — the sums are what the board reads
+        except Exception as exc:  # Retain sums, report the failed companion write.
             http.logger.exception("admin financials: ratio write failed")
+            errors.append({"stage": "financial_ratios", "reason": scrub(f"{type(exc).__name__}: {exc}")[:1000]})
     audit_jobs._schedule_audit("ingest:financials")
     def _queue_sector_analysis():
         from reporting import store as report_store
@@ -235,7 +243,7 @@ async def api_admin_financials(
                 report_store.enqueue(ticker, hashlib.sha256(json.dumps(row, sort_keys=True, default=str).encode()).hexdigest())
     await loop.run_in_executor(None, _queue_sector_analysis)
     return {"ok": True, ("replaced" if payload.mode == "replace" else "upserted"): n,
-            "ratios": ratios_written}
+            "ratios": ratios_written, **({"errors": errors} if errors else {})}
 
 
 @router.post("/api/admin/facts")

@@ -162,6 +162,7 @@ def watch_filings_and_push(hours: int | None = None) -> int:
     the payload, so an interleaved run cannot disturb anything it did not touch.
     """
     import reports_watch as rw
+    from collection_ops.model import receipt
 
     base = os.getenv("FINANCIALS_PUSH_URL", collectors_financials_settings.DEFAULT_URL).rstrip("/")
     served = requests.get(f"{base}/api/market/financials", timeout=60).json()
@@ -178,7 +179,11 @@ def watch_filings_and_push(hours: int | None = None) -> int:
         collectors_financials_settings.log.info("watch: %s %s", ticker, reason)
     if result["errors"]:
         collectors_financials_settings.log.warning("watch: unresolved %s", result["errors"])
+        receipt("openinfo/filings", ok=False, reason=f"Unresolved filings: {result['errors']}")
     if not result["rows"]:
+        if not result["errors"]:
+            receipt("openinfo/filings", ok=True, unchanged=True,
+                    reason=f"Checked {result['filings']} filings; no changed financial rows found.")
         # Nothing filed, or nothing that changes a figure — a normal quiet run. The
         # heartbeat below still stamps it, so "no new reports" and "watcher dead"
         # stay distinguishable.

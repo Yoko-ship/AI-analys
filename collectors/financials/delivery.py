@@ -4,20 +4,13 @@ from __future__ import annotations
 import collectors.financials.settings as collectors_financials_settings
 import os
 import requests
+from collection_ops.delivery import publish
 
 
 def _post(path: str, body: dict) -> int:
     secret = os.getenv("ADMIN_API_SECRET", "").strip()
-    if not secret:
-        collectors_financials_settings.log.error("ADMIN_API_SECRET is not set — cannot push")
-        return 2
     url = os.getenv("FINANCIALS_PUSH_URL", collectors_financials_settings.DEFAULT_URL).rstrip("/") + path
-    resp = requests.post(url, json=body, headers={"X-Admin-Secret": secret}, timeout=120)
-    if resp.status_code != 200:
-        collectors_financials_settings.log.error("push %s failed: HTTP %s %s", path, resp.status_code, resp.text[:300])
-        return 1
-    collectors_financials_settings.log.info("push %s ok: %s", path, resp.json())
-    return 0
+    return publish(requests.post, collectors_financials_settings.log, path, url, body, secret)
 
 
 def _stamp_step(step: str, detail: str = "") -> None:

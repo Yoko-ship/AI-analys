@@ -1,9 +1,14 @@
 import { fmtInt, fmtStamp, fmtAge } from "./adminModel.js";
+import { CollectionRuns } from "./CollectionRuns.jsx";
 export function StreamsSection({
   t,
-  streams
+  streams,
+  apiFetch
 }) {
   return <div className="admin-section">
+      <CollectionRuns apiFetch={apiFetch} t={t} />
+      <h3>{t("Свежесть данных", "Ma’lumotlar yangiligi", "Data freshness")}</h3>
+      <p className="muted">{t("Последняя запись в таблице — это отдельная проверка, а не результат запуска.", "Jadvaldagi oxirgi yozuv — ishga tushirish natijasi emas, alohida tekshiruv.", "The last table write is a separate check from the outcome of a run.")}</p>
       <div className="panel">
         <div className="admin-scroll">
           <table>

@@ -118,7 +118,7 @@ export default function AdminPanel({
     users: t("Зарегистрированные: список, воронка от визита до возврата, безопасные действия поддержки и их постоянный журнал.", "Ro'yxatdan o'tganlar: ro'yxat, voronka, xavfsiz amallar va ularning jurnali.", "Registered users: the visit-to-return funnel, safe support actions and their durable audit trail."),
     feedback: t("Анонимные оценки сайта и обращения пользователей. Доступны только администраторам.", "Anonim sayt baholari va murojaatlar. Faqat administratorlar ko‘radi.", "Anonymous site ratings and support requests. Visible only to administrators."),
     companies: t("Новые бумаги приходят с UZSE и OpenInfo автоматически. Здесь администратор проверяет точное соответствие эмитента и публикует компанию без правки кода.", "Yangi qog'ozlar UZSE va OpenInfo'dan avtomatik keladi; administrator ularni tekshiradi va e'lon qiladi.", "New securities arrive automatically from UZSE and OpenInfo. Review the issuer match here and publish without a code change."),
-    streams: t("Показана последняя запись в таблице, которую пишет служба, а не её код возврата: сборщики работают отдельными сервисами и в этот процесс не отчитываются.", "Xizmat yozadigan jadvaldagi oxirgi yozuv ko'rsatilgan.", "The last write in the table each service fills, not its exit code: the collectors run as separate services and do not report here."),
+    streams: t("Результаты сборов, причины ошибок и ручной запуск. Проверяйте подтверждение публикации отдельно от завершения процесса.", "Yig‘ish natijalari, xato sabablari va qo‘lda ishga tushirish. Nashr tasdig‘i alohida ko‘rsatiladi.", "Collection results, failure reasons and manual runs. Publication confirmation is shown separately from process completion."),
     issuer: t("Расчёт разложен построчно: каждое слагаемое двенадцатимесячной базы со своим периодом и знаком, капитализация по классам, остатки, из которых берутся знаменатели, и все прошедшие проверки.", "Hisob-kitob qatorma-qator yoyilgan.", "The calculation laid out line by line: every component of the twelve-month base with its period and sign, the capitalisation by class, the balances the denominators come from."),
   };
 
@@ -230,7 +230,7 @@ export default function AdminPanel({
     setCompanyVisibility={setCompanyVisibility}
     syncCompany={syncCompany}
   />;
-  const streamsBody = <StreamsSection t={t} streams={streams} />;
+  const streamsBody = <StreamsSection t={t} streams={streams} apiFetch={apiFetch} />;
 
 
   /* ── Система · Эмитент (the TTM ledger) ─────────────────────────────────── */

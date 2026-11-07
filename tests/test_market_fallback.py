@@ -510,7 +510,7 @@ def coverage(monkeypatch, stats_day, quotes_day=None, official=None):
     ("", None, None, "20260930", True, True, "go"),                       # no stamp at all
 ])
 def test_a_run_with_nothing_to_publish_stops_after_one_or_two_requests(
-        monkeypatch, published, quotes_day, official, newest, posted, finished, outcome):
+        monkeypatch, capsys, published, quotes_day, official, newest, posted, finished, outcome):
     coverage(monkeypatch, published, quotes_day, official)
     monkeypatch.setattr(archive, "_session_finished", lambda day: finished)
     monkeypatch.setattr(trading.uzse_access, "enabled", lambda: False)
@@ -523,6 +523,14 @@ def test_a_run_with_nothing_to_publish_stops_after_one_or_two_requests(
     status = trading.push_trade_stats()
     assert bool(walked) is (outcome == "go")
     assert status == (0 if outcome == "published" else 1)
+    from collection_ops.model import parse_receipts
+    receipts = parse_receipts(capsys.readouterr().out.splitlines())
+    if outcome == "published":
+        assert receipts[-1]["unchanged"] is True
+        assert newest in receipts[-1]["reason"]
+    elif outcome == "not yet":
+        assert receipts[-1]["ok"] is False
+        assert "still trading" in receipts[-1]["reason"]
 
 
 def test_unknown_prod_state_or_a_pinned_session_always_runs_in_full(monkeypatch):

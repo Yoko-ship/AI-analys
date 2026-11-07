@@ -11,6 +11,7 @@ import time
 import trade_stats as ts
 import uzse_access
 from collectors.openinfo import market_fallback as archive_market
+from collection_ops.model import receipt
 
 # --session-date / MARKET_SESSION_DATE: publish this finished openinfo session
 # (YYYY-MM-DD) instead of the newest one.
@@ -64,12 +65,17 @@ def _session_to_publish() -> str:
         newest = archive_market.latest_session()
         posted = archive_market.conclusions_posted(newest)
         if newest == published and (official == newest or not posted):
+            receipt("openinfo/session", ok=True, unchanged=True,
+                    reason=f"Session {newest} is already published" +
+                    (" officially." if official == newest else "; official conclusions are not posted yet."))
             collectors_financials_settings.log.info(
                 "session %s is already published%s — nothing to do", newest,
                 "" if official == newest else " (provisionally; conclusions not posted yet)")
             return "published"
         if not posted and not archive_market._session_finished(
                 f"{newest[:4]}-{newest[4:6]}-{newest[6:]}"):
+            receipt("openinfo/session", ok=False,
+                    reason=f"Session {newest} is still trading; publication is deferred.")
             collectors_financials_settings.log.error(
                 "session %s is still trading — nothing published", newest)
             return "not yet"

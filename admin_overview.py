@@ -4,13 +4,10 @@ One question, one query pass: *is the data alive, and what is waiting for a
 decision*. Everything here is measured, never estimated — if a number cannot be
 derived from a table it is not returned at all, and the screen renders a dash.
 
-A note on the freshness block. The five collectors run as separate Railway cron
-services and push over HTTP, so this process never sees their exit codes and
-there is no run log to read. What it *can* see is the mark each one leaves: the
-newest ``updated_at`` in the table that collector writes. That is reported
-literally — «последняя запись», not «прогон завершён» — because a service that
-died before writing and a service that had nothing to write are the same
-silence from here, and the panel must not claim to tell them apart.
+The freshness block measures table writes only. The separate collection_ops
+observer records production systemd runs, publication receipts, failure logs
+and manual requests; a recent table timestamp must never stand in for a run's
+outcome.
 
 Dates are compared as ISO text against a cutoff computed in Python rather than
 with ``datetime('now', ?)``: that idiom is SQLite-only and the catalog now runs
@@ -29,7 +26,7 @@ logger = logging.getLogger(__name__)
 STREAMS: tuple[dict[str, str], ...] = (
     {"key": "financials", "service": "collector", "schedule": "08:00 · Пн–Пт",
      "title": "Отчётность", "table": "catalog_financials", "column": "updated_at"},
-    {"key": "reports", "service": "reports-watch", "schedule": "ежечасно 09–23 · Пн–Сб",
+    {"key": "reports", "service": "reports-watch", "schedule": "23:00 · Пн–Сб",
      "title": "Каталог отчётов", "table": "catalog_reports", "column": "synced_at"},
     {"key": "quotes", "service": "quotes-1610 / quotes-2130 / quotes-catchup", "schedule": "16:10 и 21:30 · догон 09:30, 18:00, 23:30",
      "title": "Котировки", "table": "catalog_quotes", "column": "updated_at"},
