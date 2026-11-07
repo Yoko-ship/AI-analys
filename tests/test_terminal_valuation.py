@@ -93,14 +93,28 @@ def test_fv_endpoint_never_exposes_unvalidated_models_publicly():
     assert TestClient(api.app).get('/api/admin/terminal/valuation/AGBA').status_code==401
 
 
+def test_rv_peer_filter_reaches_the_service_with_its_year_and_reporting_context(monkeypatch):
+    from server.terminal import service
+    calls = []
+    async def screener(form, scope, year, *, peer_ticker=None):
+        calls.append((form, scope, year, peer_ticker))
+        return {'ok': True, 'rows': []}
+    monkeypatch.setattr(service, 'screener', screener)
+    client = TestClient(api.app)
+    response = client.get('/api/terminal/screener?peer_ticker=biok&form=MSFO&scope=consolidated&year=2024')
+    assert response.status_code == 200
+    assert calls == [('MSFO', 'consolidated', 2024, 'BIOK')]
+    assert client.get('/api/terminal/screener?peer_ticker=bad!').status_code == 422
+
+
 def test_screener_valuation_matches_fv_and_keeps_the_admin_boundary(monkeypatch, mockup_banks):
     from server.terminal import service, configuration, valuation
     from server.auth import access
     client = TestClient(api.app)
     assert client.get('/api/admin/terminal/valuations').status_code == 401
     calls = []
-    async def screener(form, scope):
-        calls.append((form, scope))
+    async def screener(form, scope, *, peer_ticker=None):
+        calls.append((form, scope, peer_ticker))
         return {'rows': mockup_banks}
     monkeypatch.setattr(service, 'screener', screener)
     monkeypatch.setattr(configuration, 'parameters', lambda: {'values': valuation.REFERENCE, 'as_of': '2026-10-15', 'version': 'test'})
@@ -113,7 +127,7 @@ def test_screener_valuation_matches_fv_and_keeps_the_admin_boundary(monkeypatch,
         assert rows['HMKB']['price_to_value_pct'] == single['summary']['price_to_value_pct']
         assert rows['HMKB']['period'] == '2025'
         assert rows['HMKB']['standard'] == 'NSBU'
-        assert all(call == ('NSBU', 'separate') for call in calls)
+        assert calls == [('NSBU', 'separate', None), ('NSBU', 'separate', 'HMKB')]
     finally:
         api.app.dependency_overrides.pop(access._admin_panel_gate, None)
 

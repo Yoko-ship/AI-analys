@@ -134,9 +134,11 @@ async def api_admin_terminal_catalogue() -> dict[str, Any]:
 @public_router.get("/api/terminal/screener")
 async def api_terminal_screener(form: Literal["NSBU", "MSFO"] = "NSBU",
                                scope: Literal["separate", "consolidated"] = "separate",
-                               year: int | None = Query(default=None, ge=2015, le=2100)):
+                               year: int | None = Query(default=None, ge=2015, le=2100),
+                               peer_ticker: str | None = Query(default=None, pattern=r'^[A-Za-z0-9]{1,12}$')):
     from server.terminal import service
-    return await service.screener(form, scope if form == "MSFO" else "separate", year)
+    selection = {'peer_ticker': peer_ticker.upper()} if peer_ticker else {}
+    return await service.screener(form, scope if form == "MSFO" else "separate", year, **selection)
 
 
 @public_router.get("/api/terminal/issuer/{ticker}/analytics")
@@ -231,7 +233,7 @@ async def api_terminal_valuation(ticker: str, form: Literal["NSBU", "MSFO"] = "N
                                  growth: float | None = Query(default=None, ge=-99, le=100)):
     from fastapi import HTTPException
     from server.terminal import service, valuation, configuration
-    data=await service.screener(form, scope if form == "MSFO" else "separate")
+    data=await service.screener(form, scope if form == "MSFO" else "separate", peer_ticker=ticker.upper())
     base=next((r for r in data["rows"] if r["ticker"]==ticker.upper()),None)
     if base is None:raise HTTPException(404,"Issuer unavailable")
     config=await _run(configuration.parameters)

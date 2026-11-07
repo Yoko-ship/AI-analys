@@ -1,6 +1,56 @@
 """The 65-issuer screener must not rebuild the security registry per alias."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import pytest
+
+
+@pytest.mark.parametrize('ticker,kind,year,form,scope', [
+    ('BIOK', 'industry', None, 'NSBU', 'separate'),
+    ('HMKB', 'bank', 2024, 'NSBU', 'separate'),
+    ('BIOK', 'industry', 2025, 'MSFO', 'consolidated'),
+])
+def test_peer_screen_reads_only_comparable_issuer_types_without_changing_values(monkeypatch, ticker, kind, year, form, scope):
+    from server.terminal import service, valuation
+    companies = [{'ticker': t, 'kind': k} for t, k in [
+        ('BIOK', 'industry'), ('BECM', 'industry'), ('QZSM', 'industry'), ('UZTL', 'industry'),
+        ('HMKB', 'bank'), ('AGBA', 'bank'), ('ALSK', 'insurance'), ('UZAL', 'financial')]]
+    reads, macro_reads = [], []
+    monkeypatch.setattr(service, 'universe', lambda: companies)
+    monkeypatch.setattr(service, 'market_context', lambda: {
+        c['ticker']: {'price': 14_400, 'market_cap': 120_000, 'market_date': '2026-11-06'} for c in companies})
+    def central(year=None):
+        macro_reads.append(year)
+        return {'banks': {'HMKB': {'npl': {'npl_pct': 1.7}}}, 'sector_series': {'capital': {'period': str(year)}}}
+    monkeypatch.setattr(service.cbu, 'context', central)
+    monkeypatch.setattr(service.bank_ratios, 'enrich', lambda ticker, row, *args: row)
+    monkeypatch.setattr(service.dividends, 'read_snapshot', lambda ticker: [])
+    async def financials(ticker, frequency, standard, perimeter):
+        reads.append(ticker)
+        return {'standard': standard, 'scope': perimeter, 'periods': ['2024', '2025'],
+                'series': {field: {'values': {'2024': value, '2025': value * 1.2}}
+                           for field, value in [('net_profit', 1000), ('total_assets', 10000),
+                                                ('total_equity', 5000), ('net_revenue', 15000)]}}
+    monkeypatch.setattr(service, 'financial_series', financials)
+    full = asyncio.run(service.screener(form, scope, year))
+    reads.clear(); macro_reads.clear()
+    selected = asyncio.run(service.screener(form, scope, year, peer_ticker=ticker.lower()))
+    expected = [row for row in full['rows'] if row['kind'] == kind]
+    assert selected['rows'] == expected
+    assert reads == [c['ticker'] for c in companies if c['kind'] == kind]
+    assert macro_reads == ([year] if kind == 'bank' else [])
+    base = next(row for row in selected['rows'] if row['ticker'] == ticker)
+    assert valuation.calculate(base, selected['rows'], valuation.REFERENCE) == valuation.calculate(base, full['rows'], valuation.REFERENCE)
+
+
+def test_missing_peer_issuer_does_not_fall_back_to_loading_the_whole_market(monkeypatch):
+    from server.terminal import service
+    monkeypatch.setattr(service, 'universe', lambda: [{'ticker': 'HMKB', 'kind': 'bank'}])
+    def unused(*args, **kwargs):
+        pytest.fail('An unavailable peer issuer must not trigger market or financial reads')
+    monkeypatch.setattr(service, 'market_context', unused)
+    monkeypatch.setattr(service, 'financial_series', unused)
+    monkeypatch.setattr(service.cbu, 'context', unused)
+    assert asyncio.run(service.screener(peer_ticker='BIOK'))['rows'] == []
 
 
 def test_issuer_alias_lookup_reuses_registry_only_inside_one_read_batch(monkeypatch):

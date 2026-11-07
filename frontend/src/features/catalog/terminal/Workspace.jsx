@@ -164,7 +164,7 @@ export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,
 
 export function PeersScreen({ticker,form,scope,lang,onOpen}) {
   const [year,setYear]=React.useState("");
-  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}${year?`&year=${year}`:""}`,{ticker,form,func:"RV"});
+  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}&peer_ticker=${encodeURIComponent(ticker)}${year?`&year=${year}`:""}`,{ticker,form,func:"RV"});
   const years=[...new Set([...(data?.years||[]).map(String),...(year?[year]:[])])].sort().reverse();
   const base=(data?.rows||[]).find(r=>r.ticker===ticker);
   const peers=base?(data?.rows||[]).filter(r=>r.ticker!==ticker&&["kind","standard","scope","period"].every(k=>r[k]===base[k])):[];

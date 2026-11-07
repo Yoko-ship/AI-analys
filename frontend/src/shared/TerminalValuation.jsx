@@ -2,38 +2,41 @@ import React from "react";
 import { words } from "./TerminalTables.jsx";
 import { ValuationDashboard } from "./ValuationDashboard.jsx";
 import { reportScreenLoad } from "../lib/terminalJournal.js";
+import { useCatalogRequests } from './CatalogData.jsx';
+
+const validValuation = data => data?.ok === true;
 
 export function TerminalValuation(props) {
   return props.editable ? <ValuationScenario {...props}/> : <AutomaticValuation {...props}/>;
 }
 
 function AutomaticValuation({apiFetch,lang="ru",ticker,form="NSBU",scope="separate"}) {
+  const {read,peek,version}=useCatalogRequests();
   const [load,setLoad]=React.useState(null);
   const [attempt,setAttempt]=React.useState(0);
-  const key=`${ticker}:${form}:${scope}:${attempt}`;
+  const query=new URLSearchParams({form,scope});
+  const url=`/api/admin/terminal/valuation/${encodeURIComponent(ticker)}?${query}`;
+  const key=`${url}:${attempt}:${version}`;
   React.useEffect(()=>{
     let alive=true;
+    const controller=new AbortController();
     const started=performance.now();
-    const read=async()=>{
-      try {
-        const query=new URLSearchParams({form,scope});
-        const response=await apiFetch(`/api/admin/terminal/valuation/${encodeURIComponent(ticker)}?${query}`);
-        if(!response.ok)throw new Error(String(response.status));
-        const data=await response.json();
+    // The provider shares reads between catalog tabs and saved panels. Outside
+    // the catalog, readJson still uses the caller's authenticated fetcher.
+    read(url,{signal:controller.signal,validate:validValuation},apiFetch).then(data=>{
         if(alive){setLoad({key,data});reportScreenLoad({ticker,func:'FV',form,startedAt:started});}
-      } catch(error) {
+      }).catch(error=>{
         if(alive){setLoad({key,error:error.message});reportScreenLoad({ticker,func:'FV',form,startedAt:started,error:error.message});}
-      }
-    };
-    read();
-    return()=>{alive=false;};
-  },[apiFetch,ticker,form,scope,key]);
-  const current=load?.key===key?load:null;
+      });
+    return()=>{alive=false;controller.abort();};
+  },[apiFetch,ticker,form,url,key,read]);
+  const cached=peek(url);
+  const current=load?.key===key?load:cached?{data:cached}:null;
   const t=(ru,uz,en)=>words(lang,ru,uz,en);
   return <section className="terminal-valuation" aria-label={`FV · ${ticker}`}>
     {!current&&<p role="status">{t('Расчёт оценки…','Baho hisoblanmoqda…','Calculating valuation…')}</p>}
     {current?.error&&<div role="alert" className="terminal-warning">
-      <p>{['401','403'].includes(current.error)?t('Войдите как администратор для просмотра оценки.','Bahoni ko‘rish uchun administrator sifatida kiring.','Sign in as an administrator to view the valuation.'):t('Не удалось загрузить оценку. Повторите попытку.','Bahoni yuklab bo‘lmadi. Qayta urinib ko‘ring.','Could not load the valuation. Please retry.')}</p>
+      <p>{/^(HTTP )?(401|403)$/.test(current.error)?t('Войдите как администратор для просмотра оценки.','Bahoni ko‘rish uchun administrator sifatida kiring.','Sign in as an administrator to view the valuation.'):t('Не удалось загрузить оценку. Повторите попытку.','Bahoni yuklab bo‘lmadi. Qayta urinib ko‘ring.','Could not load the valuation. Please retry.')}</p>
       <button type="button" className="ghost-btn" onClick={()=>setAttempt(n=>n+1)}>{t('Повторить','Qayta urinish','Retry')}</button>
     </div>}
     {current?.data&&<ValuationDashboard result={current.data} lang={lang}/>}

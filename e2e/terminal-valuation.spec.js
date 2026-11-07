@@ -16,7 +16,7 @@ function valuation(ticker='HMKB', standard='NSBU') {
     }};
 }
 
-async function setup(page, {admin=true, fail=false, theme='dark', referenceOnly=false, lang='en', valuationResult=null}={}) {
+async function setup(page, {admin=true, fail=false, theme='dark', referenceOnly=false, lang='en', valuationResult=null, beforeNavigate}={}) {
   await page.addInitScript(({theme,lang}) => {
     localStorage.setItem('uz_stock_analyzer_token','admin-token');
     localStorage.setItem('uz_stock_analyzer_language',lang);
@@ -41,9 +41,43 @@ async function setup(page, {admin=true, fail=false, theme='dark', referenceOnly=
     if(path==='/api/admin/terminal/templates')return json({ok:true,valuation:{values:parameters,as_of:'2026-10-15',version:'v2'}});
     return json({ok:true,items:[],rows:[],companies:[],snapshot:{},quarters:{rows:[]},growth:[],companies_synced:2,total_reports:88});
   });
+  await beforeNavigate?.();
   await page.goto(`/catalog?t=${valuationResult?.ticker||'HMKB'}&f=FV&std=NSBU`);
   return requests;
 }
+
+test('BIOK FV and RV reuse loaded data and request only the peer universe', async ({page}) => {
+  const peers=[];
+  const requests=await setup(page,{valuationResult:valuation('BIOK'),beforeNavigate:() =>
+    page.route('**/api/terminal/screener?*',route=>{
+      peers.push(new URL(route.request().url()));
+      return route.fulfill({json:{ok:true,years:['2025','2024'],rows:[{ticker:'BIOK',name:'BIOK',kind:'industry',standard:'NSBU',scope:'separate',period:'2025'}]}});
+    })});
+  const tab=code=>page.locator('.terminal-tab').filter({has:page.locator('strong',{hasText:new RegExp(`^${code}$`)})});
+  await expect(page.locator('.terminal-fv-kpis')).toBeVisible();
+  for(const code of ['RV','FV','RV','FV']) {
+    await tab(code).click();
+    await expect(page.locator(code==='FV'?'.terminal-fv-kpis':'.terminal-peers-screen .terminal-peer-table')).toBeVisible();
+  }
+  expect(requests).toHaveLength(1);
+  expect(peers).toHaveLength(1);
+  expect(peers[0].searchParams.get('peer_ticker')).toBe('BIOK');
+  await tab('RV').click();
+  await page.getByRole('combobox',{name:'Reporting year',exact:true}).selectOption('2024');
+  await expect.poll(()=>peers.length).toBe(2);
+  expect(peers[1].searchParams.get('peer_ticker')).toBe('BIOK');
+  expect(peers[1].searchParams.get('year')).toBe('2024');
+});
+
+test('BIOK FV refreshes after catalog sync instead of keeping an old valuation', async ({page}) => {
+  const result=valuation('BIOK');
+  const requests=await setup(page,{valuationResult:result});
+  await expect(page.locator('.terminal-fv-kpis')).toContainText('97.44');
+  result.current_price=14400;
+  await page.locator('.catalog-sync-all').click();
+  await expect.poll(()=>requests.length).toBe(2);
+  await expect(page.locator('.terminal-fv-kpis')).toContainText('14,400');
+});
 
 for(const referenceOnly of [false,true]) test(`FV opens without the assumptions banner and exports its calculation table (${referenceOnly?'reference':'reviewed'})`,async({page},testInfo)=>{
   await page.setViewportSize({width:1440,height:1000});

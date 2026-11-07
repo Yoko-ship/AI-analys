@@ -127,7 +127,7 @@ def bank_metrics(bank):
             for kind, fields in BANK_FIELDS.items() for field in fields}
 
 
-async def screener(form="NSBU", scope="separate", year=None):
+async def screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None):
     """Share simultaneous identical reads, without retaining completed results.
 
     SQLite batches serialize across requests as well as across issuers. The
@@ -139,13 +139,15 @@ async def screener(form="NSBU", scope="separate", year=None):
     if state is None:
         state = {'lock': asyncio.Lock(), 'pending': {}}
         loop._terminal_screener_reads = state
-    key = (form, scope, str(year) if year is not None else None)
+    peer_ticker = peer_ticker.upper() if peer_ticker else None
+    selection = {'peer_ticker': peer_ticker} if peer_ticker else {}
+    key = (form, scope, str(year) if year is not None else None, peer_ticker)
     task = state['pending'].get(key)
     if task is None:
         async def build():
             try:
                 async with state['lock']:
-                    return await _screener_batch(form, scope, year)
+                    return await _screener_batch(form, scope, year, **selection)
             finally:
                 state['pending'].pop(key, None)
         task = asyncio.create_task(build())
@@ -155,16 +157,29 @@ async def screener(form="NSBU", scope="separate", year=None):
     return deepcopy(await asyncio.shield(task))
 
 
-async def _screener_batch(form, scope, year):
+async def _screener_batch(form, scope, year, **selection):
     from catalogue.read_batch import scope as read_scope
     with read_scope():
-        return await _screener(form, scope, year)
+        return await _screener(form, scope, year, **selection)
 
 
-async def _screener(form="NSBU", scope="separate", year=None):
+async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None):
     loop = asyncio.get_running_loop()
     central_read = partial(cbu.context,year=year) if year is not None else cbu.context
-    companies, market, central = await asyncio.gather(loop.run_in_executor(None, universe), loop.run_in_executor(None, market_context), loop.run_in_executor(None, central_read))
+    if peer_ticker:
+        companies = await asyncio.to_thread(universe)
+        base = next((c for c in companies if c['ticker'] == peer_ticker), None)
+        # FV and RV compare only the same issuer type. Select before loading
+        # histories so an industrial issuer never waits for unrelated banks.
+        companies = [c for c in companies if c['kind'] == base['kind']] if base else []
+        market, central = {}, {'banks': {}}
+        if companies:
+            if base['kind'] == 'bank':
+                market, central = await asyncio.gather(asyncio.to_thread(market_context), asyncio.to_thread(central_read))
+            else:
+                market = await asyncio.to_thread(market_context)
+    else:
+        companies, market, central = await asyncio.gather(loop.run_in_executor(None, universe), loop.run_in_executor(None, market_context), loop.run_in_executor(None, central_read))
     # SQLite issuer reads contend across executor threads: the 65-issuer
     # production probe took 1.33s serialized versus 4.19s with six readers.
     semaphore = asyncio.Semaphore(1)
