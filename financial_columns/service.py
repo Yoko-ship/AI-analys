@@ -9,7 +9,8 @@ from financial_ingestion import publication
 from . import derived, matrix, observations, ratios, source_store
 
 
-def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all'):
+def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all',
+         include_sources=True, include_ratios=True):
     ticker, form = ticker.upper().strip(), form.upper()
     form = 'MSFO' if form == 'IFRS' else form
     if form not in {'NSBU', 'MSFO'} or scope not in {None, 'separate', 'consolidated', 'unknown'}:
@@ -22,6 +23,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         raise ValueError('Investor view requires IFRS')
     if statement not in {'all', 'income', 'balance'}:
         raise ValueError('Unknown financial statement')
+    include_ratios = include_ratios and statement == 'all' and view != 'overview'
     c = get_catalog_conn()
     try:
         row = c.execute('SELECT company_name,org_id FROM catalog_companies WHERE ticker=?', (ticker,)).fetchone()
@@ -30,7 +32,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         published = [dict(r) for r in c.execute(
             "SELECT field,period,value_num,unit,source,source_url FROM facts WHERE entity_id=? "
             "AND dataset='financial_indicators' AND source='openinfo_financial_indicators' AND value_num IS NOT NULL",
-            (issuer_id,))] if form == 'NSBU' else []
+            (issuer_id,))] if form == 'NSBU' and include_ratios else []
     finally:
         c.close()
     template = organization_kind(ticker, name=issuer.get('company_name'), sector=issuer.get('sector'))
@@ -42,7 +44,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         docs = source_store.read(issuer_id, standard=form, scope=scope)
         source_rows = observations.nsbu(docs)
         forms = [{'period_end': d['period_end'], 'source_version': d['source_version'],
-                  'previous_version': d.get('previous_version'), 'documents': d['source_forms']} for d in docs]
+                  'previous_version': d.get('previous_version'), 'documents': d['source_forms']} for d in docs] if include_sources else []
         coverage = {'complete': bool(docs) and all(d['source_coverage']['complete'] for d in docs),
                     'notes': 'not_applicable', 'issues': sorted({issue for d in docs for issue in d['source_coverage']['issues']})}
         available_scopes = ['separate']
@@ -64,7 +66,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
                             for owner in latest['payload'].get('shareholders') or []]
         forms = [{'period_end': s['period_end'], 'source_version': s['id'],
                   'documents': s['payload'].get('source_forms', []),
-                  'source_url': s['payload'].get('source', {}).get('pdf_url')} for s in snapshots]
+                  'source_url': s['payload'].get('source', {}).get('pdf_url')} for s in snapshots] if include_sources else []
         covers = [s['payload'].get('source_coverage') or {'complete': False, 'notes': 'missing', 'issues': ['LEGACY_PARTIAL_IMPORT']} for s in snapshots]
         coverage = {'complete': bool(covers) and all(v['complete'] for v in covers),
                     'notes': 'present' if covers and all(v.get('notes') == 'present' for v in covers) else 'missing',
@@ -87,9 +89,9 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
     table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'},
                          interim_ttm=view == 'investor')
     ratio_rows = []
-    for column in table['columns']:
+    for column in table['columns'] if include_ratios else []:
         for ratio in ratios.calculate(source_rows, ticker=ticker, template=template,
-                                      end=column['end'], basis=column['basis']):
+                                      end=column['end'], basis=column['basis'], enriched=True):
             existing = next((r for r in ratio_rows if r['metric_id'] == ratio['metric_id']), None)
             if existing is None:
                 existing = {'id': 'ratio:' + ratio['metric_id'], 'metric_id': ratio['metric_id'],
@@ -108,7 +110,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
     if view == 'investor':
         from .investor import project
         from .investor_ratios import calculate
-        payload['ratios'] = calculate(source_rows, ratio_rows, table['columns'], template)
+        payload['ratios'] = calculate(source_rows, ratio_rows, table['columns'], template) if include_ratios else []
         return project(payload, source_rows)
     if view in {'template', 'overview'}:
         from .presentation import project

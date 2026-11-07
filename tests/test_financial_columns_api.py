@@ -13,6 +13,38 @@ app = FastAPI()
 app.include_router(router)
 
 
+def test_table_request_skips_unused_documents_and_ratios_without_losing_evidence(source, monkeypatch):
+    from financial_columns import ratios, service
+    full = service.load('IPTB', view='template', freq='quarter')
+    def unused_calculation(*args, **kwargs):
+        pytest.fail('A statement table must not calculate the unopened ratios tab')
+    monkeypatch.setattr(ratios, 'calculate', unused_calculation)
+    compact = service.load('IPTB', view='template', freq='quarter', include_sources=False, include_ratios=False)
+    assert compact['rows'] == full['rows']
+    assert compact['overview_rows'] == full['overview_rows']
+    assert compact['columns'] == full['columns']
+    assert compact['source_forms'] == compact['ratios'] == compact['published_ratios'] == []
+    assert len(json.dumps(compact)) < len(json.dumps(full))
+    assert any(cell.get('source_url') and cell.get('source_version')
+               for row in compact['rows'] for cell in row['cells'].values())
+
+
+def test_ratio_periods_prepare_derived_history_only_once(source, monkeypatch):
+    from financial_columns import service, ratios
+    calls = []
+    original = service.derived.enrich
+    def counted(rows):
+        calls.append(len(rows))
+        return original(rows)
+    expected = service.load('IPTB', freq='quarter', view='template')
+    monkeypatch.setattr(service.derived, 'enrich', counted)
+    monkeypatch.setattr(ratios, 'enrich', counted)
+    actual = service.load('IPTB', freq='quarter', view='template')
+    assert actual == expected
+    assert len(actual['columns']) > 1
+    assert len(calls) == 1
+
+
 @pytest.mark.parametrize('statement,form', [('balance','BANK_BS'),('income','BANK_PL')])
 @pytest.mark.parametrize('view', ['template','overview'])
 def test_statement_tabs_and_exports_keep_only_the_requested_statement(source, statement, form, view):

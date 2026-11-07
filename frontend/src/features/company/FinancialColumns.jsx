@@ -97,7 +97,8 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const [query, setQuery] = React.useState(''), [loaded, setLoaded] = React.useState(null), [retry, setRetry] = React.useState(0), [passport, setPassport] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState({});
   React.useEffect(() => { setPassport(null); }, [statement]);
-  const params = new URLSearchParams({ form: standard, scope, freq, view: 'template' });
+  const params = new URLSearchParams({ form: standard, scope, freq, view: 'template',
+    include_sources: 'false', include_ratios: String(view === 'ratios') });
   const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template',
     statement: ['summary', 'original'].includes(view) ? statement : 'all' });
   const url = `/api/company/${encodeURIComponent(ticker)}/financials/columns?${params}`;

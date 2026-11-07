@@ -16,10 +16,12 @@ router = APIRouter()
 
 @router.get('/api/company/{ticker}/financials/columns')
 async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU',
-                                scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all') -> Response:
+                                scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all',
+                                include_sources: bool = True, include_ratios: bool = True) -> Response:
     from financial_columns.service import load
     try:
-        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement)
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement,
+                                          include_sources=include_sources, include_ratios=include_ratios)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _etag_json(request, payload, max_age=300)

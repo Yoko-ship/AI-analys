@@ -297,12 +297,40 @@ async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 
       if (fail) return route.fulfill({ status: 503, json: { detail: 'Source temporarily unavailable' } });
       const data = reports || (ticker === 'HMKB' ? hmkbFixture : (url.searchParams.get('view') === 'template' ? templateFixture : fixture)[url.searchParams.get('freq') || 'annual']);
       if (url.searchParams.get('form') === 'MSFO') return json({ ...data, presentation:'investor',statements:{pl:[],bs:[],cf:[],equity:[]},standard: 'MSFO', rows: [], overview_rows: [], ratios: [], source_forms: [], coverage: { complete: false, notes: 'missing', issues: ['NOTES_MISSING'] } });
-      return json({ ...data, source_forms: [{ period_end: '2026-09-30', documents: [original] }] });
+      return route.fulfill({ headers: {'Cache-Control':'public, max-age=300'}, json: { ...data,
+        source_forms: url.searchParams.get('include_sources') === 'false' ? [] : [{ period_end: '2026-09-30', documents: [original] }],
+        ratios: url.searchParams.get('include_ratios') === 'false' ? [] : data.ratios,
+        published_ratios: url.searchParams.get('include_ratios') === 'false' ? [] : data.published_ratios,
+      } });
     }
     return json({ ok: true, companies_synced: 1, total_reports: 2, companies: [], rows: [], items: [], series: {}, periods: [], rates: [], availability: {} });
   });
   await page.goto(`/catalog?t=${ticker}&f=${func}`);
 }
+
+test('BIOK period switching reuses loaded tables and loads ratios only when opened', async ({page}) => {
+  const requests = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/company/BIOK/financials/columns') requests.push(new URL(request.url()));
+  });
+  await setup(page, {ticker:'BIOK'});
+  const terminal = page.getByTestId('financial-columns');
+  await expect(terminal).toHaveAttribute('aria-busy','false');
+  for (const name of ['Quarters','6M / 9M','Annual','Quarters']) {
+    await terminal.getByRole('button',{name,exact:true}).click();
+    await expect(terminal).toHaveAttribute('aria-busy','false');
+  }
+  expect(requests.map(url=>url.searchParams.get('freq'))).toEqual(['annual','quarter','interim']);
+  expect(requests.every(url=>url.searchParams.get('include_sources') === 'false')).toBe(true);
+  expect(requests.every(url=>url.searchParams.get('include_ratios') === 'false')).toBe(true);
+  await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
+  await expect(terminal).toHaveAttribute('aria-busy','false');
+  expect(requests).toHaveLength(4);
+  expect(requests.at(-1).searchParams.get('include_ratios')).toBe('true');
+  await terminal.getByRole('tab',{name:'Overview',exact:true}).click();
+  await expect(terminal).toHaveAttribute('aria-busy','false');
+  expect(requests).toHaveLength(4);
+});
 
 for (const theme of ['light', 'dark']) test(`two annual reports and the current report appear together (${theme})`, async ({ page }, testInfo) => {
   await setup(page, { ticker: 'HMKB', func: 'SUM', theme, reports: recentReports });
