@@ -58,6 +58,20 @@ def _rows():
 
 
 class TestTheStore:
+    def test_market_anchor_includes_newer_traded_quotes_in_an_older_snapshot(self, store):
+        from datetime import date
+        catalogue_market_store.bulk_upsert_quote_history([
+            {'isin':'UZ7007440009', 'trade_date':'20260910', 'close_price':2550.05,
+             'quantity':634, 'turnover':1670486.14}])
+        catalogue_market_store.bulk_upsert_quotes([
+            {'isin':'UZ7007440009', 'ticker':'MIQE', 'trade_date':'2026-09-11',
+             'close_price':2401, 'quantity':626, 'turnover':1570020.69},
+            {'isin':'UZ7038380000', 'ticker':'CBSK', 'trade_date':'2026-11-06',
+             'close_price':4.06, 'quantity':100},
+            {'isin':'NO_TRADE', 'trade_date':'2026-11-07', 'close_price':10,
+             'quantity':0, 'turnover':0}])
+        assert catalogue_market_store.latest_session_date() == date(2026,11,6)
+
     def test_normalises_every_date_form_the_two_sources_use(self, store):
         catalogue_market_store.bulk_upsert_quote_history(_rows())
         days = [r["trade_date"] for r in catalogue_market_store.get_quote_history([ISIN_A])[ISIN_A]]

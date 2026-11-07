@@ -1,5 +1,6 @@
 import React from "react";
 import { mt } from "../../shared/marketCopy.jsx";
+import { CompanyPreviewProvider } from "./CompanyPreview.jsx";
 import { MarketRow } from "./MarketRow.jsx";
 const EMPTY_SECURITY = {};
 import { MarketColMenu, MarketFloatScroll, MarketStickyHead } from "./TableOverlays.jsx";
@@ -55,7 +56,7 @@ export function MarketTable({
   React.useLayoutEffect(() => {
     rowActions.current = {onOpenCompany, onAnalyze, onToggleFavorite, openPanel};
   }, [onOpenCompany, onAnalyze, onToggleFavorite, openPanel]);
-  return <>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
+  return <CompanyPreviewProvider lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
     rows={sectorMapRows}
     companies={companies}
     securitiesMap={smap}
@@ -120,5 +121,5 @@ export function MarketTable({
           }
         }} onClose={closeColMenu} />;
       })()}
-          </>}</>;
+          </>}</CompanyPreviewProvider>;
 }

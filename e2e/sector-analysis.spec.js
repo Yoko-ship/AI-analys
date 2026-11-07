@@ -160,6 +160,25 @@ test("company page defers the full analysis until the reader opens it", async ({
   await expect.poll(() => requested.some((path) => path.startsWith("/api/catalog/company/UZMK/reports"))).toBe(true);
 });
 
+test('investor indicators retain units, precise missing inputs and additional ratios in the full report', async ({page}) => {
+  await api(page, {...PUBLIC_REPORT,ratios:[
+    {metric_code:'interest_debt_to_equity',method_id:'de',name_ru:'Долг / капитал (D/E)',value:36000000/173774432,unit:'ratio'},
+    {metric_code:'book_value',method_id:'bv',name_ru:'Балансовая стоимость капитала',value:173774432,unit:'UZS_thousand'},
+    {metric_code:'eps_basic',method_id:'eps',name_ru:'EPS',value:0.25,unit:'UZS_per_share'},
+    {metric_code:'price_to_book',method_id:'pb',name_ru:'P/BV',value:null,unit:'ratio',missing_inputs:['ordinary_shares']},
+  ],additional_ratios:[PUBLIC_REPORT.ratios.find(r=>r.metric_code==='P2')]});
+  await page.goto('/company/UZMK');
+  await page.getByTestId('company-insight-card').getByRole('button',{name:'Открыть полный анализ'}).click();
+  const dialog=page.getByRole('dialog');
+  await dialog.getByText('Финансовые коэффициенты',{exact:true}).click();
+  await expect(dialog.getByTestId('verified-ratio-interest_debt_to_equity')).toContainText('0,21 ×');
+  await expect(dialog.getByTestId('verified-ratio-book_value')).toContainText('тыс. UZS');
+  await expect(dialog.getByTestId('verified-ratio-eps_basic')).toContainText('0,25 UZS/акция');
+  await expect(dialog.getByTestId('verified-ratio-price_to_book')).toContainText('число обычных акций на отчётную дату');
+  await dialog.getByText('Дополнительные показатели',{exact:true}).click();
+  await expect(dialog.getByTestId('verified-ratio-P2')).toBeVisible();
+});
+
 test("blocked reports keep a dated prior report and never open empty details", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   // Instead of «Анализ временно недоступен»: the snapshot on the date from the

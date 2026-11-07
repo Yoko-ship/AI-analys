@@ -34,6 +34,28 @@ async function run(page, text) {
   await page.locator('.terminal-command').getByRole("combobox").press("Enter");
 }
 
+for (const width of [1440, 390]) test(`CBSK ratios retain short-term debt and explain missing share inputs (${width}px)`, async ({page},testInfo) => {
+  await page.setViewportSize({width,height:1000});
+  await fixture(page,[{ticker:'CBSK',company_name:'Chilonzor buyum savdo kompleksi',sector:'trade'}]);
+  await page.route('**/api/v1/issuers/CBSK/ai-report?**',r=>r.fulfill({json:{ok:true,status:'available',period:'2026Q2',scope:'separate',ratios:[
+    {metric_code:'interest_debt_to_equity',name_ru:'Долг / капитал (D/E)',value:36000000/173774432,unit:'ratio',formula:'(570 + 580 + 730 + 740 + 750) / equity'},
+    {metric_code:'price_to_book',name_ru:'P/BV',value:null,unit:'ratio',reason_code:'BOOK_OR_QUOTE_INPUTS_MISSING',missing_inputs:['common_equity','ordinary_shares'],market_as_of:'2026-11-06'},
+    {metric_code:'eps_basic',name_ru:'Базовая прибыль на акцию (EPS)',value:null,unit:'UZS_per_share',reason_code:'EPS_INPUTS_MISSING',missing_inputs:['profit_ordinary','weighted_average_shares']},
+  ]}}));
+  await run(page,'CBSK RAT');
+  const table=page.locator('.terminal-sector-metrics');
+  await expect(table).toContainText('2026Q2');
+  await expect(table.getByRole('row').filter({hasText:'Долг / капитал'})).toContainText('0,21 ×');
+  const pb=table.getByRole('row').filter({hasText:'P/BV'});
+  await expect(pb).toContainText('число обычных акций на отчётную дату');
+  await expect(pb).toContainText('2026-11-06');
+  await expect(pb).not.toContainText('актуальной котировки');
+  await expect(table.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('средневзвешенное число обычных акций');
+  expect(await table.locator('.terminal-table-wrap').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await table.screenshot({path:testInfo.outputPath(`cbsk-ratios-${width}.png`)});
+});
+
 for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual ratios and missing-value explanations work on EQS and RV (${theme}, ${width}px)`,async({page},testInfo)=>{
   await page.setViewportSize({width,height:1000});
   await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
@@ -515,7 +537,7 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   await expect(table).not.toContainText('current_ratio');
   await expect(table).not.toContainText('quick_ratio');
   for(const row of await table.locator('tbody tr').all())await expect(row.locator('th,td')).toHaveCount(2);
-  await expect(table.locator('tbody tr').first().getByRole('cell')).toHaveText('2,14 %');
+  await expect(table.locator('tbody tr').first().getByRole('cell')).toHaveText('2,14%');
   await expect(section).not.toContainText('nsbu-enterprise-profitability');
   await expect(section).not.toContainText('period-returns-1.0');
   await table.locator('tbody tr').first().getByRole('button').click();
@@ -525,7 +547,7 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   await section.getByRole('button',{name:'CSV',exact:true}).click();
   const {readFile}=await import('node:fs/promises');
   const csv=await readFile(await (await download).path(),'utf8');
-  expect(csv).toContain('2,14 %');
+  expect(csv).toContain('2,14%');
   expect(csv).not.toMatch(/Метод \/ причина пропуска|nsbu-enterprise-|period-returns-/);
   expect(await table.locator('tbody td').evaluateAll(cells=>cells.every(cell=>{
     const text=document.createRange();text.selectNodeContents(cell);

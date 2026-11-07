@@ -277,9 +277,10 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     archive's 21.04.2026 printed a close of 0 for 25 securities, which the card
     dropped as no session at all: every «1Г» on those cards was one session short
     of the board's. There is one history now. From the store's first session on,
-    every session is the store's — the same row the board, the sparklines and the
-    session counts read — and the archive answers only for the years before it
-    (the chart's «Макс»). A session the archive has inside that span and the store
+    every session inside its covered dates is the store's — the same row the board,
+    the sparklines and the session counts read. The archive supplies older years
+    and newly published sessions beyond that coverage. A stale local snapshot must
+    not suppress the archive's newer trades. A session inside the covered span that the store
     lacks is a gap in the STORE, which the collector's reconcile pass fills from
     the same archive (``--backfill-history``); showing it here alone is what made
     the card and the board describe different years.
@@ -308,6 +309,8 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
         return data
     covered_from = min(str(r["trade_date"]) for r in rows)
     covered_from = f"{covered_from[:4]}-{covered_from[4:6]}-{covered_from[6:]}"
+    covered_through = max(str(r["trade_date"]) for r in rows)
+    covered_through = f"{covered_through[:4]}-{covered_through[4:6]}-{covered_through[6:]}"
     sessions = []
     for r in rows:
         close = formulas.to_number(r.get("close_price"))
@@ -322,12 +325,16 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
                          "trading_value": r.get("turnover"), "trade_count": r.get("trade_count")})
     sessions, applied = corporate_actions.adjust_history(sessions, data.get("ticker"), isin)
     older = [p for p in points if str(p.get("date") or "")[:10] < covered_from]
-    merged = sorted([*older, *sessions], key=lambda p: str(p.get("date") or ""))
+    newer = [p for p in points if str(p.get("date") or "")[:10] > covered_through
+             and (formulas.to_number(p.get("close")) or 0) > 0
+             and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
+                  or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
+    merged = sorted([*older, *sessions, *newer], key=lambda p: str(p.get("date") or ""))
     adjustments = list(data.get("adjustments") or [])
     known = {a.get("ex_date") for a in adjustments}
     adjustments.extend(a for a in applied if a.get("ex_date") not in known)
     return {**data, "points": merged, "adjustments": adjustments,
-            "store_from": covered_from}
+            "store_from": covered_from, "store_through": covered_through}
 
 
 _MARKET_AS_OF: dict[str, Any] = {"at": 0.0, "value": None}

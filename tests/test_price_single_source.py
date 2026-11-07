@@ -407,6 +407,22 @@ class TestTheCardReadsTheBoardsHistory:
                             lambda isins, days=30: {isin: stored})
         return market_history._with_stored_sessions(isin, archive or self.ARCHIVE)
 
+    def test_miqe_newer_official_session_survives_an_older_local_history(self, monkeypatch):
+        """The local snapshot ended on Sep 10, while OpenInfo carried Sep 11."""
+        isin = 'UZ7007440009'
+        archive = {'ticker': 'MIQE', 'adjustments': [], 'points': [
+            {'date': '2026-09-10', 'close': 2550.05, 'trading_volume': 634, 'trading_value': 1670486.14},
+            {'date': '2026-09-11', 'close': 2401, 'open': 2761, 'high': 2761,
+             'low': 2158.4, 'trading_volume': 626, 'trading_value': 1570020.69},
+        ]}
+        stored = [{'trade_date': '20260910', 'close_price': 2550.05, 'quantity': 634,
+                   'turnover': 1670486.14, 'open_price': 2650}]
+        got = self._merge(monkeypatch, stored, archive, isin)
+        assert [p['date'] for p in got['points']] == ['2026-09-10', '2026-09-11']
+        assert got['points'][0]['open'] == 2650  # The stored overlap still wins.
+        assert got['points'][-1] == archive['points'][-1]
+        assert got['store_through'] == '2026-09-10'
+
     def test_every_session_from_the_stores_first_is_the_stores(self, monkeypatch) -> None:
         got = self._merge(monkeypatch, self.STORED)
 

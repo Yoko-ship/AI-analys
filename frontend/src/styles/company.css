@@ -494,6 +494,9 @@
 /* Interactive price chart */
 .company-chart-wrap { position: relative; }
 .company-chart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.cpc-history-status { display:flex; flex-direction:column; gap:4px; margin:0 0 12px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; color:var(--text-secondary); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.cpc-history-status strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.cpc-history-gap { color:var(--text-secondary); }
 .company-chart-opts { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .cpc-tool-strip { display: flex; align-items: center; gap: 4px; }
 .cpc-tool-slot { position: relative; }

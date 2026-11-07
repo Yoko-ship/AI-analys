@@ -1,0 +1,18 @@
+{
+  "issuer_id": "396",
+  "ticker": "BIOK",
+  "period_start": "2024-01-01",
+  "period_end": "2024-12-31",
+  "scope": "separate",
+  "source_url": "https://openinfo.uz/media/msfo/185f57aa-c739-4e6d-897c-2409033a3040.pdf",
+  "source_standard": "MSFO",
+  "ordinary_shares": "5713280",
+  "weighted_average_shares": "5713280",
+  "ordinary_only": true,
+  "source_lines": {
+    "ordinary_shares": "Note 16, p.29: ordinary shares 5713280; total share capital consists of that class",
+    "weighted_average_shares": "Note 16, p.30: weighted-average shares in circulation for 2024: 5713280",
+    "ordinary_only": "Note 16, p.29: ordinary share capital equals total share capital; p.30: equal dividend and residual rights"
+  },
+  "unit": "shares"
+}

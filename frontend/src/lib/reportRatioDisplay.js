@@ -8,6 +8,16 @@ export function reportRatioUnit(unit,lang){
 }
 
 export function reportRatioReason(item,lang){
+  const inputs={
+    common_equity:['капитал обычных акционеров','oddiy aksiyadorlar kapitali','ordinary shareholders’ equity'],
+    ordinary_shares:['число обычных акций на отчётную дату','hisobot sanasidagi oddiy aksiyalar soni','ordinary shares at the reporting date'],
+    usable_quote:['подходящая котировка обычной акции','oddiy aksiyaning mos kotirovkasi','a usable ordinary-share quote'],
+    profit_ordinary:['прибыль обычных акционеров','oddiy aksiyadorlarga tegishli foyda','profit attributable to ordinary shareholders'],
+    weighted_average_shares:['средневзвешенное число обычных акций за этот период','shu davrdagi oddiy aksiyalarning o‘rtacha tortilgan soni','weighted-average ordinary shares for this period'],
+    reported_eps_conflict:['согласованная опубликованная EPS','bir-biriga mos e’lon qilingan EPS','consistent reported EPS'],
+  };
+  const missing=Array.isArray(item.missing_inputs)?[...new Set(item.missing_inputs)].filter(key=>inputs[key]):[];
+  if(missing.length)return pick(lang,'Отсутствуют или не подтверждены: ','Yetishmaydi yoki tasdiqlanmagan: ','Missing or unverified: ')+missing.map(key=>pick(lang,...inputs[key])).join('; ');
   const reasons={
     EPS_INPUTS_MISSING:['Нет подтверждённой EPS или данных для её расчёта','Tasdiqlangan EPS yoki hisoblash ma’lumotlari yo‘q','Verified EPS or the inputs needed to calculate it are unavailable'],
     DEBT_INPUTS_MISSING:['Не подтверждён полный состав долга или положительный капитал','Qarz tarkibi yoki musbat kapital tasdiqlanmagan','Complete debt components or positive equity are unverified'],

@@ -1,8 +1,9 @@
 """Investor indicators over verified report facts and compatible filed disclosures.
 
 Report money is thousand UZS. Per-share amounts are UZS and share counts are
-individual shares. No share count or ordinary-share entitlement is inferred
-from nominal capital, a current exchange listing, or a different filing.
+individual shares. Independently reviewed share disclosures may supply dated
+counts and rights, never another standard's profit or equity. Current exchange
+counts and nominal capital do not establish historical share entitlement.
 """
 from collections import defaultdict
 from copy import deepcopy
@@ -11,7 +12,7 @@ import logging
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-1'
+VERSION = 'report-investor-metrics-2'
 NAMES = {
     'operating_margin': ('Операционная маржа', 'Operatsion marja', 'Operating margin'),
     'book_value': ('Балансовая стоимость капитала', 'Kapitalning balans qiymati', 'Book value of equity'),
@@ -93,12 +94,35 @@ def _pick(rows, key, unit, end, start=None):
     return {'value': value, 'components': candidates}
 
 
-def calculate(report, rows):
+def calculate(report, rows, share_basis=None):
     facts = _facts(report)
     end, start = report['financial_as_of'], report['financial_as_of'][:4] + '-01-01'
     rows = _compatible(report, rows, facts)
     pick = lambda key, unit='UZS_thousand', flow=False: _pick(rows, key, unit, end, start if flow else None)
     fact = lambda key: {'value': decimal(facts.get(key, {}).get('value')), 'components': [facts[key]] if key in facts else []}
+    basis = share_basis or {}
+    basis_ok = (basis.get('verification_status') == 'verified'
+                and str(basis.get('issuer_id')) == str(report['issuer']['id'])
+                and basis.get('ticker') == report['issuer']['ticker']
+                and basis.get('scope') == report['scope'] and basis.get('period_end') == end)
+    ordinary_only = basis_ok and basis.get('ordinary_only') is True and report['scope'] == 'separate'
+
+    def disclosed_count(part, key, *, flow=False):
+        # A conflicting/blocked source cell is not a missing source cell.
+        if part['components'] or not basis_ok or (flow and basis.get('period_start') != start):
+            return part
+        value = decimal(basis.get(key))
+        if value is None or value <= 0:
+            return part
+        return {'value': value, 'components': [{**basis, 'metric_id': key, 'value': str(value)}]}
+
+    def ordinary_fact(part, key, *, flow=False):
+        if part['components'] or not ordinary_only or (flow and basis.get('period_start') != start):
+            return part
+        value = fact(key)
+        if value['value'] is not None:
+            value['components'].append({**basis, 'metric_id': 'ordinary_only'})
+        return value
     result = []
 
     def emit(code, value, formula, parts, unit='ratio', reason='INPUTS_MISSING', **extra):
@@ -132,7 +156,8 @@ def calculate(report, rows):
     emit('interest_debt_to_equity', ratio(debt['value'], equity['value']),
          f"({' + '.join(fields)}) / total_equity", [debt, equity], reason='DEBT_INPUTS_MISSING')
 
-    common, shares = pick('common_equity'), pick('ordinary_shares', 'shares')
+    common = ordinary_fact(pick('common_equity'), 'total_equity')
+    shares = disclosed_count(pick('ordinary_shares', 'shares'), 'ordinary_shares')
     bvps = ratio(common['value'] * 1000 if common['value'] is not None and common['value'] > 0 else None, shares['value'])
     instrument = report.get('instrument') or {}
     price, quoted = decimal(instrument.get('last_price')), instrument.get('market_as_of')
@@ -142,19 +167,27 @@ def calculate(report, rows):
     emit('price_to_book', ratio(price, bvps) if usable else None,
          'ordinary_share_price / (common_equity × 1000 / ordinary_shares)',
          [{'value': price, 'components': [instrument]}, {'value': bvps, 'components': common['components'] + shares['components']}],
-         reason='BOOK_OR_QUOTE_INPUTS_MISSING', market_as_of=quoted)
+          reason='BOOK_OR_QUOTE_INPUTS_MISSING', market_as_of=quoted,
+          missing_inputs=([key for key, part in [('common_equity',common),('ordinary_shares',shares)]
+                           if part['value'] is None or part['value'] <= 0] + ([] if usable else ['usable_quote'])))
 
     disclosed = pick('eps_basic', 'UZS_per_share', True)
     if disclosed['value'] is not None:
         emit('eps_basic', disclosed['value'], 'disclosed basic earnings per share', [disclosed], 'UZS_per_share', origin='reported')
     else:
-        profit, weighted = pick('profit_ordinary', flow=True), pick('weighted_average_shares', 'shares', True)
+        profit = ordinary_fact(pick('profit_ordinary', flow=True), 'net_income', flow=True)
+        weighted = disclosed_count(pick('weighted_average_shares', 'shares', True), 'weighted_average_shares', flow=True)
         value = ratio(profit['value'] * 1000 if profit['value'] is not None else None, weighted['value'])
         # A conflicting/blocked disclosed EPS must not be bypassed by recomputing it.
         if disclosed['components']:
             value = None
         emit('eps_basic', value, 'profit_ordinary × 1000 / weighted_average_shares',
-             [profit, weighted], 'UZS_per_share', reason='EPS_INPUTS_MISSING')
+              [profit, weighted], 'UZS_per_share', reason='EPS_INPUTS_MISSING',
+              missing_inputs=(['reported_eps_conflict'] if disclosed['components'] else
+                  (['profit_ordinary'] if profit['value'] is None else []) +
+                  (['weighted_average_shares'] if weighted['value'] is None or weighted['value'] <= 0 else [])),
+              basis='verified_share_disclosure' if any(c.get('verification_status') == 'verified' and c.get('unit') == 'shares'
+                    for p in [profit, weighted] for c in p['components']) else 'filing')
     return result
 
 
@@ -170,7 +203,14 @@ def project(report):
     except Exception:
         logging.getLogger(__name__).warning('Optional investor disclosures unavailable for %s', report['issuer']['ticker'], exc_info=True)
         rows = []
-    metrics = calculate(report, rows)
+    from financial_columns import share_disclosures
+    try:
+        basis = share_disclosures.read(report['issuer']['id'], report['issuer']['ticker'],
+                                       report['financial_as_of'], report['scope'])
+    except Exception:
+        logging.getLogger(__name__).warning('Share disclosure unavailable for %s', report['issuer']['ticker'], exc_info=True)
+        basis = None
+    metrics = calculate(report, rows, basis)
     report['additional_ratios'] = [r for r in report['ratios'] if r['metric_code'] in ADDITIONAL]
     report['ratios'] = metrics + [r for r in report['ratios'] if r['metric_code'] not in ADDITIONAL]
     report['ratio_policy_version'] = VERSION

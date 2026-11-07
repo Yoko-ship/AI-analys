@@ -17,8 +17,7 @@ test('IFRS interim captions retain YTD basis and BS excludes TTM',async({page})=
     }
     return route.fulfill({json:result});
   });
-  await page.goto('/company/SQBN?tab=financials');
-  await page.getByRole('button',{name:'МСФО',exact:true}).click();
+  await page.goto('/company/SQBN?tab=financials&standard=MSFO');
   const ui=page.getByTestId('ifrs-investor');
   await ui.getByRole('button',{name:'6M / 9M / TTM',exact:true}).click();
   await ui.getByRole('tab',{name:'PL Profit or loss',exact:true}).click();

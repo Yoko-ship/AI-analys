@@ -26,12 +26,11 @@ function IssuerFinancials(props) {
     onScopeChange={props.onScopeChange} onStandardChange={props.showContextControls===false?undefined:setStandard}
     initialMode={props.freq==='quarterly'?'quarter':'annual'} companies={props.companies} onTickerChange={props.onTickerChange}
     initialTab={props.section==='balance'?'bs':props.section==='ratios'?'rat':'overview'} onLoad={props.onLoad}/>;
-  return <LegacyIssuerFinancials {...props} standard={standard} onStandardChange={setStandard}/>;
+  return <LegacyIssuerFinancials {...props} standard={standard}/>;
 }
 
-function LegacyIssuerFinancials({ ticker, lang, ratios, standard: standardProp, onStandardChange,
+function LegacyIssuerFinancials({ ticker, lang, ratios, standard = "NSBU",
   scope: scopeProp, onScopeChange, freq: freqProp, onFreqChange, initialFreq = "annual", section, onSectionChange, onLoad, fromYear = null, showContextControls = true }) {
-  const [standard, setStandard] = useControllable(standardProp, onStandardChange, "NSBU");
   const [freq, setFreq] = useControllable(freqProp, onFreqChange, initialFreq);
   const [scope, setScope] = useControllable(scopeProp, onScopeChange, "");
   const [currency, setCurrency] = React.useState("UZS");
@@ -142,7 +141,7 @@ function LegacyIssuerFinancials({ ticker, lang, ratios, standard: standardProp, 
     </details>}
     <CompanyFinancialsTab ticker={ticker} ratios={ratios ?? ownRatios ?? {}} lang={lang}
       key={`${ticker}:${standard}:${scope}:${freq}`}
-      standard={standard} onStandardChange={showContextControls ? setStandard : undefined}
+      standard={standard}
       scope={scope || series?.scope}
       onScopeChange={showContextControls ? setScope : undefined}
       series={financialDisplaySeries(convertSeries(series?.series || {}, fx, currency))}

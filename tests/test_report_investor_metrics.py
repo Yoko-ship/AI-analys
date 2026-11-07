@@ -23,6 +23,26 @@ def metrics(report):
     return {r['metric_code']: r for r in service.public_report(report)['ratios']}
 
 
+@pytest.mark.parametrize('missing_short_debt', [False, True])
+def test_cbsk_q2_short_term_loans_are_debt_and_missing_is_not_zero(monkeypatch, missing_short_debt):
+    case = json.loads((Path(__file__).parent / 'fixtures/cbsk_2026q2_investor_inputs.json').read_text())
+    if missing_short_debt:
+        case['source']['rows'] = [r for r in case['source']['rows'] if r['metric_id'] != 'bank_borrowings_short']
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [deepcopy(case['source'])])
+    out = metrics(case['report'])
+    debt = out['interest_debt_to_equity']
+    if missing_short_debt:
+        assert debt['value'] is None
+    else:
+        assert debt['value'] == pytest.approx(36000000 / 173774432)
+        assert debt['numerator_value'] == 36000000
+        assert {'570', '580', '730', '740', '750'} <= {c.get('source_code') for c in debt['components']}
+    assert out['price_to_book']['value'] is None
+    assert out['price_to_book']['missing_inputs'] == ['common_equity', 'ordinary_shares']
+    assert out['eps_basic']['value'] is None
+    assert out['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']
+
+
 def test_uzmk_primary_ratios_use_operating_profit_and_equity_not_pretax_profit(report):
     original = deepcopy(report)
     public = service.public_report(report)
@@ -193,3 +213,109 @@ def test_ifrs_uses_approved_source_rows_and_includes_leases(report, monkeypatch)
     assert out['eps_basic']['value'] == 42
     rows[-2]['value'] = None  # Missing leases are not zero.
     assert metrics(report)['interest_debt_to_equity']['value'] is None
+
+
+@pytest.fixture
+def biok_report(report, monkeypatch, tmp_path):
+    # Real BIOK 2024 audited figures (p.4: assets/equity; p.5: net profit).
+    # The price is an explicit test input, not a historical quote claim.
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    from financial_ingestion import publication
+    monkeypatch.setattr(publication, 'snapshots', lambda *a, **kw: [])
+    report.update(standard='ifrs', scope='separate', period='2024', financial_as_of='2024-12-31')
+    report['issuer'].update(id='396', ticker='BIOK', name='Biokimyo AJ')
+    values = dict(total_assets=174930061, total_equity=143292694, net_income=26037647)
+    report['verified_facts'] = [dict(metric_code=k, value=v, period='2024',
+        unit_normalized='thousand UZS', verification_status='verified') for k,v in values.items()]
+    report['instrument'] = dict(instrument_type='ordinary_share', last_price=10000,
+        market_as_of='2025-01-06', freshness={'status':'fresh'})
+    return report
+
+
+def share_basis():
+    return json.loads((Path(__file__).parent / 'fixtures/biok_2024_share_basis.json').read_text())
+
+
+def import_basis(basis):
+    from financial_columns import share_disclosures
+    return share_disclosures.record(basis, actor='test-reviewer', reason='Checked source lines')
+
+
+def test_biok_2024_report_uses_dated_share_disclosures_without_financial_form_cells(biok_report):
+    import_basis(share_basis())
+    out = metrics(biok_report)
+    assert out['eps_basic']['value'] == pytest.approx(26037647 * 1000 / 5713280)
+    assert out['price_to_book']['value'] == pytest.approx(10000 / (143292694 * 1000 / 5713280))
+    assert out['eps_basic']['basis'] == 'verified_share_disclosure'
+    assert any(c.get('source_url') == share_basis()['source_url'] for c in out['eps_basic']['components'])
+
+
+@pytest.mark.parametrize('change', [
+    {'issuer_id':'78'}, {'ticker':'ABKZ'}, {'period_end':'2023-12-31', 'period_start':'2023-01-01'},
+    {'scope':'consolidated'}, {'ordinary_only':False},
+])
+def test_different_issuer_period_scope_or_share_rights_cannot_fill_missing_metrics(biok_report, change):
+    import_basis({**share_basis(), **change})
+    out = metrics(biok_report)
+    assert out['eps_basic']['value'] is None
+    assert out['price_to_book']['value'] is None
+
+
+def test_closing_shares_never_replace_missing_weighted_average(biok_report):
+    basis = share_basis()
+    del basis['weighted_average_shares']
+    import_basis(basis)
+    out = metrics(biok_report)
+    assert out['price_to_book']['value'] is not None
+    assert out['eps_basic']['value'] is None
+    assert out['eps_basic']['missing_inputs'] == ['weighted_average_shares']
+
+
+def test_weighted_shares_must_cover_the_whole_income_period(biok_report):
+    import_basis({**share_basis(), 'period_start':'2024-04-01'})
+    out = metrics(biok_report)
+    assert out['price_to_book']['value'] is not None
+    assert out['eps_basic']['value'] is None
+
+
+def test_nsbu_uses_share_counts_but_never_borrows_ifrs_profit_or_equity(biok_report):
+    import_basis(share_basis())
+    biok_report['standard'] = 'nsbu'
+    for fact in biok_report['verified_facts']:
+        fact['value'] /= 2
+    out = metrics(biok_report)
+    assert out['eps_basic']['value'] == pytest.approx(26037647 / 2 * 1000 / 5713280)
+    assert out['price_to_book']['value'] == pytest.approx(10000 / (143292694 / 2 * 1000 / 5713280))
+
+
+def test_share_disclosures_cannot_override_conflicting_filing_inputs(biok_report, monkeypatch):
+    import_basis(share_basis())
+    from financial_analysis import report_investor_metrics as subject
+    # Existing source conflicts/blocks remain binding, even with a supplemental disclosure.
+    rows = []
+    for key,value in [('total_assets',174930061),('total_equity',143292694),('eps_basic',42)]:
+        rows.append(dict(issuer_id='396', standard='MSFO', scope='separate', source_version='filing',
+            source_url='https://openinfo.uz/source', metric_id=key, value=str(value),
+            period_end='2024-12-31', period_start='2024-01-01' if key=='eps_basic' else '2024-12-31',
+            unit='UZS_per_share' if key=='eps_basic' else 'UZS_thousand', quality='valid', role='PRIMARY'))
+    rows.append({**rows[-1], 'value':'43'})
+    monkeypatch.setattr(subject, '_load', lambda _: rows)
+    assert metrics(biok_report)['eps_basic']['value'] is None
+
+
+@pytest.mark.parametrize('change', [{'unit':'UZS_thousand'}, {'ordinary_shares':-1},
+    {'weighted_average_shares':0}, {'ordinary_only':True,'source_lines':{}}, {'source_url':''}])
+def test_share_import_requires_evidence_and_valid_units(biok_report, change):
+    with pytest.raises(ValueError):
+        import_basis({**share_basis(), **change})
+
+
+def test_conflicting_share_disclosures_are_withheld_until_explicit_replacement(biok_report):
+    from financial_columns import share_disclosures
+    first = import_basis(share_basis())
+    changed = {**share_basis(), 'ordinary_shares':'6000000'}
+    with pytest.raises(ValueError, match='replace'):
+        import_basis(changed)
+    assert share_disclosures.read('396', 'BIOK', '2024-12-31', 'separate')['ordinary_shares'] == '5713280'
+    second = share_disclosures.record(changed, actor='reviewer', reason='Explicit correction', replace=True)
+    assert first != second

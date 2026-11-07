@@ -461,7 +461,15 @@ def latest_session_date() -> date | None:
     """
     conn = catalogue_storage.get_catalog_conn()
     try:
-        row = conn.execute("SELECT MAX(trade_date) AS d FROM catalog_quote_history").fetchone()
+        # A restored history snapshot can lag the current session quotes. Both
+        # are dated exchange records; a carried-forward quote is not a session.
+        row = conn.execute("""SELECT MAX(d) AS d FROM (
+            SELECT MAX(trade_date) AS d FROM catalog_quote_history
+            UNION ALL
+            SELECT MAX(REPLACE(trade_date, '-', '')) AS d FROM catalog_quotes
+            WHERE (quantity > 0 OR turnover > 0) AND close_price > 0
+              AND LENGTH(REPLACE(trade_date, '-', '')) = 8
+        ) sessions""").fetchone()
     finally:
         conn.close()
     stamp = str((row["d"] if row else None) or "")

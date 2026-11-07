@@ -472,34 +472,48 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
 
   if (loading) return <div className="chart-loading muted">{t("Загрузка...", "Yuklanmoqda...", "Loading...")}</div>;
 
-  // A week with no executions is a fact about the security, not a failure to
-  // load anything — «история недоступна» would be a lie about a page that has
-  // years of it.
+  const lastRecorded = daily.at(-1);
+  const lastRecordedDay = String(lastRecorded?.date || '').slice(0,10);
+  const marketDay = String(asOf || '').slice(0,10);
+  const missingRecent = /^\d{4}-\d{2}-\d{2}$/.test(marketDay) && lastRecordedDay < marketDay;
+  const statusDate = day => new Date(`${day}T00:00:00Z`).toLocaleDateString(
+    lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU',
+    {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+  const historyStatus = lastRecorded && <div className="cpc-history-status" data-testid="company-price-freshness" role="status">
+    <span>{t('Последняя цена в истории','Tarixdagi oxirgi narx','Last recorded price')}: <time dateTime={lastRecordedDay}>{statusDate(lastRecordedDay)}</time>
+      {' · '}<strong>{lastRecorded.close.toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2})} {t('сум','so‘m','UZS')}</strong></span>
+    {missingRecent&&<span className="cpc-history-gap">{t('Более свежих цен в источниках нет','Manbalarda yangiroq narxlar yo‘q','No newer prices are available from the sources')}.
+      {' '}{t('Рыночная сессия','Bozor sessiyasi','Market session')}: <time dateTime={marketDay}>{statusDate(marketDay)}</time></span>}
+  </div>;
+
+  // An empty source window does not establish that no trades occurred. Keep
+  // the last recorded date visible even when the chosen period has no prices.
   const emptyNote = (msg) => (
     <div className="company-chart-wrap">
       <div className="company-chart-toolbar">{rangeBar}</div>
+      {historyStatus}
       <div className="muted" style={{ padding: "48px 0", textAlign: "center", fontSize: 14 }}>{msg}</div>
     </div>
   );
   if (range === "1d" && windowed.length === 0) {
-    return emptyNote(t("В последних сессиях сделок не было — часовой график недоступен",
-      "So'nggi sessiyalarda bitim bo'lmagan — soatlik grafik mavjud emas",
-      "No trades in the recent sessions — no hourly view to draw"));
+    return emptyNote(t("За последние сессии нет данных для часового графика",
+      "So‘nggi sessiyalar uchun soatlik grafik ma’lumotlari yo‘q",
+      "No hourly price data is available for the recent sessions"));
   }
-  if (cutoff && !model.hourlyRange && windowed.length < 2 && daily.length >= 2) {
+  if (cutoff && !model.hourlyRange && windowed.length === 0 && daily.length >= 2) {
     return emptyNote(chartRange(range).ytd
-      ? t("С начала года сделок не было", "Yil boshidan bitim bo'lmagan", "No trades since the start of the year")
+      ? t("В источниках нет цен с начала года", "Manbalarda yil boshidan narxlar yo‘q", "No prices are available from the sources since the start of the year")
       : chartRange(range).days
-        ? t("За выбранные дни сделок не было", "Tanlangan kunlarda bitim bo'lmagan", "No trades in the selected days")
-        : t("За выбранный период сделок не было", "Tanlangan davrda bitim bo'lmagan", "No trades in the selected period"));
+        ? t("В источниках нет цен за выбранные дни", "Manbalarda tanlangan kunlar uchun narxlar yo‘q", "No prices are available from the sources for the selected days")
+        : t("В источниках нет цен за выбранный период", "Manbalarda tanlangan davr uchun narxlar yo‘q", "No prices are available from the sources for the selected period"));
   }
   if (model.hourBars && !spec) {
     // Picking another period resets the interval to «День».
     return emptyNote(longIntraday === null
       ? t("Загрузка часовых баров…", "Soatlik barlar yuklanmoqda…", "Loading hourly bars…")
-      : t("По этой бумаге часовых баров нет — сделок за последние 60 дней не было. Выберите другой период, чтобы вернуться к дневным свечам.",
-          "Bu qog'oz bo'yicha soatlik barlar yo'q — so'nggi 60 kunda bitim bo'lmagan. Kunlik shamlarga qaytish uchun boshqa davrni tanlang.",
-          "No hourly bars for this security — it has not traded in the last 60 days. Pick another period to return to daily bars."));
+      : t("По этой бумаге нет часовых данных за последние 60 дней. Выберите другой период, чтобы вернуться к дневным свечам.",
+          "Bu qog‘oz bo‘yicha so‘nggi 60 kun uchun soatlik ma’lumotlar yo‘q. Kunlik shamlarga qaytish uchun boshqa davrni tanlang.",
+          "No hourly data is available for this security over the last 60 days. Pick another period to return to daily bars."));
   }
   if ((daily.length < 2 && windowed.length === 0) || !spec) {
     return emptyNote(t("История цен недоступна", "Narxlar tarixi mavjud emas", "Price history unavailable"));
@@ -736,6 +750,8 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
         </p>
       )}
 
+      {historyStatus}
+
       {stepLine && (
         <p className="cpc-tier-note muted">
           {t("Цена показана ступенями — между сделками она не менялась",
@@ -754,6 +770,7 @@ function CompanyPriceChart({ history, loading, range, onRangeChange, adjustments
           onRange={(r) => setVisible((cur) => (cur && cur.from === r.from && cur.to === r.to && cur.changed === r.changed ? cur : r))}
           className={`company-price-chart ${cursorOn ? "is-inspect" : ""} ${drawMode ? "is-drawing" : ""}`}
           data-chart-type={effectiveChartType} data-chart-interval={chartInterval}
+          data-last-price-date={lastRecordedDay}
           data-series={spec.series.map((s) => s.key).join(",")}
           data-trend-points={drawingPoints.length} data-grid={chartPrefs.grid ? "on" : "off"}
           data-visible-bars={visible ? visible.to - visible.from + 1 : spec.series[0].data.length}

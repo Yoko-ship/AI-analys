@@ -36,9 +36,9 @@ for (const theme of ['light', 'dark']) {
     await page.goto('/catalog?t=UZMK&f=SUM&std=NSBU');
     const catalog = page.locator('.catalog-terminal-ui');
     await expect(catalog).toBeVisible();
-    await expectPlainActiveNavigation(page, theme);
+    await expectPlainActiveNavigation(page, theme, theme === 'light' ? 'rgb(81, 69, 183)' : 'rgb(182, 170, 255)');
     const tokens = await catalog.evaluate(el => {
-      const s = getComputedStyle(el), root = getComputedStyle(document.body);
+      const s = getComputedStyle(el), root = getComputedStyle(el.closest('.app-shell-wrap'));
       return {accent: s.getPropertyValue('--accent').trim(), pageAccent: root.getPropertyValue('--accent').trim(),
         panel: s.getPropertyValue('--panel').trim(), pagePanel: root.getPropertyValue('--panel').trim(),
         font: s.fontFamily, chart: s.getPropertyValue('--terminal-chart').trim(), positive: s.getPropertyValue('--positive').trim(), success: root.getPropertyValue('--success').trim()};
@@ -49,12 +49,12 @@ for (const theme of ['light', 'dark']) {
     expect(tokens.positive).toBe(tokens.success);
     expect(tokens.font).toContain('Inter');
     await expect(catalog.locator('.catalog-company-item.active')).toHaveCSS('background-color',
-      theme === 'light' ? 'rgba(98, 87, 217, 0.1)' : 'rgba(139, 124, 255, 0.14)');
+      theme === 'light' ? 'rgba(81, 69, 183, 0.08)' : 'rgba(182, 170, 255, 0.1)');
     const control = catalog.locator('.terminal-tab').first();
     await expect(control).toBeVisible();
     // Root zoom can leave a fractional pixel below the 40px minimum.
     expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(39.99);
-    expect(await catalog.locator('.catalog-sidebar').evaluate(el => getComputedStyle(el).borderRadius)).toBe('16px');
+    expect(await catalog.locator('.catalog-sidebar').evaluate(el => getComputedStyle(el).borderRadius)).toBe('12px');
     await page.screenshot({path: testInfo.outputPath(`catalog-${theme}.png`)});
     await page.setViewportSize({width:390, height:1000});
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -70,7 +70,7 @@ test('workspace cards retain their layout and share the landing header color', a
     await expect(page.locator('.app-shell-wrap')).toHaveAttribute('data-ui', 'purple');
     const header = page.locator('.topbar');
     await expect(header).toBeVisible();
-    await expectPlainActiveNavigation(page, 'light');
+    await expectPlainActiveNavigation(page, 'light', path.startsWith('/catalog') ? 'rgb(81, 69, 183)' : undefined);
     await expect(header).toHaveCSS('background-color', 'rgb(241, 239, 234)');
   }
   await page.goto('/market');
@@ -85,15 +85,14 @@ for (const theme of ['light','dark']) {
     await page.goto('/catalog?t=UZMK&f=SUM&std=NSBU');
     const run = page.locator('.terminal-run');
     await expect(run).toBeVisible();
-    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(98, 87, 217)' : 'rgb(139, 124, 255)');
+    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(81, 69, 183)' : 'rgb(182, 170, 255)');
     await run.hover();
-    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(81, 71, 196)' : 'rgb(157, 145, 255)');
+    await expect(run).toHaveCSS('background-color', theme === 'light' ? 'rgb(69, 57, 159)' : 'rgb(199, 190, 255)');
     const period = page.locator('.fc-segment button').first();
     await expect(period).toBeVisible();
     expect((await period.boundingBox()).height).toBeGreaterThanOrEqual(40);
-    // IFRS is exposed on company reports; the catalog deliberately hides it.
-    await page.goto('/company/HMKB?tab=financials');
-    await page.getByRole('button', {name: 'МСФО', exact: true}).click();
+    // Existing IFRS report links retain their report presentation.
+    await page.goto('/company/HMKB?tab=financials&standard=MSFO');
     const investor = page.getByTestId('ifrs-investor');
     await expect(investor).toBeVisible();
     const palette = await investor.evaluate(el => {

@@ -24,8 +24,7 @@ async function setup(page,theme='dark') {
 
 for(const theme of ['light','dark'])test(`shared IFRS investor has all sections, sources and mobile layout (${theme})`,async({page},testInfo)=>{
   await setup(page,theme);
-  await page.goto('/company/HMKB?tab=financials');
-  await page.getByRole('button',{name:'МСФО',exact:true}).click();
+  await page.goto('/company/HMKB?tab=financials&standard=MSFO');
   const ui=page.getByTestId('ifrs-investor');
   await expect(ui).toBeVisible();
   await expect(ui.locator('.investor-kpis > article')).toHaveCount(6);

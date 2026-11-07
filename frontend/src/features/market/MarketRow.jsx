@@ -1,9 +1,8 @@
 import React from 'react';
 import {mt} from '../../shared/marketCopy.jsx';
-import {CompanyLogo} from '../../shared/CompanyLogo.jsx';
+import {CompanyPreviewLogo} from './CompanyPreview.jsx';
 
 export const MarketRow = React.memo(function MarketRow({row, sec, lang, isFav, pinCls, pinTicker, pinCompany, visibleOrder, CELL_OF, pinAt, actions}) {
-  const logo = sec.logo_url;
   const isPreferred = sec.is_preferred || row.share_type === "preferred";
   const shareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? mt(lang,'preferred') : row.share_type ? mt(lang,row.share_type) : row.type || '—';
   const shortShareLabel = row.type === 'bond' || sec.type === 'bond' ? mt(lang,'bondOne') : isPreferred ? lang === 'en' ? 'Pref.' : lang === 'uz' ? 'Imt.' : 'прив.' : lang === 'en' ? 'Common' : lang === 'uz' ? 'Oddiy' : 'обыкн.';
@@ -21,7 +20,7 @@ export const MarketRow = React.memo(function MarketRow({row, sec, lang, isFav, p
       }}>
               {isFav ? "★" : "☆"}
             </button>
-            <CompanyLogo logo={logo} name={row.name || row.ticker} ticker={row.ticker} />
+            <CompanyPreviewLogo row={row} security={sec} />
             <div className="market-ticker-info">
               <button type="button" data-track-control="company_open" data-track-ticker={row.ticker} className="market-ticker-btn" onClick={() => actions.current.onOpenCompany ? actions.current.onOpenCompany(row.ticker) : actions.current.onAnalyze?.(row.ticker)}>
                 {row.ticker || "—"}

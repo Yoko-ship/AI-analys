@@ -570,7 +570,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
   ), document.body);
 }
 
-function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, periods, loading, lang, standard = "NSBU", onStandardChange, freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange, organizationType }) {
+function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, periods, loading, lang, standard = "NSBU", freq = "annual", onFreqChange, splits, dataGaps = [], periodBasis, scope, onScopeChange, section: sectionProp, onSectionChange, organizationType }) {
   const t = React.useCallback((ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru), [lang]);
   // A host may steer the sub-tab: the catalog terminal opens PL, BS and RAT as
   // sections of this one view. A click is still the tab's own (the host only
@@ -634,15 +634,6 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
       .finally(() => setPassportLoading(false));
   }, [ticker, standard, scope, t]);
 
-  const standardToggle = onStandardChange ? (
-    <div className="fin-freq" role="group" aria-label={t("Стандарт", "Standart", "Standard")}>
-      {[["NSBU", "НСБУ"], ["MSFO", "МСФО"]].map(([code, label]) => (
-        <button key={code} type="button" className={`fin-freq-btn ${standard === code ? "active" : ""}`}
-          aria-pressed={standard === code} onClick={() => onStandardChange(code)}>{label}</button>
-      ))}
-    </div>
-  ) : null;
-
   const scopeToggle = standard === "MSFO" && onScopeChange ? (
     <div className="fin-freq" role="group" aria-label={t("Периметр отчётности", "Hisobot qamrovi", "Accounting scope")}>
       {[["consolidated", t("Группа", "Guruh", "Consolidated group")],
@@ -668,7 +659,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
 
   if (loading) return (
     <div className="company-financials">
-      <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
+      <div className="fin-subtabs">{scopeToggle}{freqToggle}</div>
       <div className="chart-loading muted">{t("Загрузка…", "Yuklanmoqda…", "Loading…")}</div>
     </div>
   );
@@ -692,7 +683,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
   if (available.length === 0 && quarterly) {
     return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Квартальные финансовые данные пока недоступны. Опубликованные документы можно проверить во вкладке «Отчётность».",
                                   "Choraklik moliyaviy ma'lumotlar hozircha mavjud emas. E'lon qilingan hujjatlarni Hisobotlar bo‘limida tekshiring.",
@@ -710,7 +701,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
   if (available.length === 0) {
     if (standard !== "NSBU") return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Для выбранного периметра проверенные показатели по МСФО пока недоступны. Опубликованные документы можно открыть во вкладке «Отчётность».",
                                   "Tanlangan qamrov uchun tekshirilgan MHXS ko‘rsatkichlari hali mavjud emas. E'lon qilingan hujjatlarni Hisobotlar bo‘limida oching.",
@@ -727,7 +718,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
       .filter(([k]) => m[k] != null);
     if (legacy.length === 0) return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: 32, textAlign: "center" }}>
           <p className="muted">{t("Финансовые показатели пока недоступны",
                                   "Moliyaviy ko‘rsatkichlar hozircha mavjud emas",
@@ -737,7 +728,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
     );
     return (
       <div className="company-financials">
-        <div className="fin-subtabs">{standardToggle}{scopeToggle}{freqToggle}</div>
+        <div className="fin-subtabs">{scopeToggle}{freqToggle}</div>
         <div className="panel" style={{ padding: "16px 20px" }}>
           {ratios?.year && (
             <div className="muted" style={{ marginBottom: 12, fontSize: 13 }}>
@@ -946,7 +937,6 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
         </button>
         {section !== "splits" && (
           <>
-        {standardToggle}
         {scopeToggle}
         {freqToggle}
             {/* Line | Bars | Table. Sits with the period switch because it answers

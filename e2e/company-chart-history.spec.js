@@ -1,4 +1,47 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from 'node:fs';
+
+const MIQE_HISTORY=JSON.parse(readFileSync(new URL('../tests/fixtures/miqe_price_history.json',import.meta.url),'utf8')).results;
+
+for(const [theme,width] of [['dark',1440],['light',390]]) test(`MIQE shows the last recorded price and explains the missing recent period (${theme})`,async({page},testInfo)=>{
+  let marketDay='2026-11-06';
+  await page.setViewportSize({width,height:1000});
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  await page.route('**/api/**',route=>{
+    const path=new URL(route.request().url()).pathname;
+    const security={ticker:'MIQE',name:'Minora qurish ekspeditsiyasi',isin:'UZ7007440009',type:'stock',last_price:2401,last_trade_date:'2026-09-11'};
+    const json=body=>route.fulfill({json:body});
+    if(path==='/api/securities')return json({ok:true,securities:{MIQE:security}});
+    if(path==='/api/market/stocks')return json({stocks:[security]});
+    if(path==='/api/securities/MIQE/info')return json({ok:true,security});
+    if(path==='/api/price-history/MIQE')return json({ok:true,as_of:marketDay,points:MIQE_HISTORY.map(p=>({...p,volume:p.trading_volume,value:p.trading_value}))});
+    if(path==='/api/company/MIQE/metrics')return json({ok:true,quality:{candles_enabled:true}});
+    return json({ok:true,points:[],items:[],rows:[]});
+  });
+  await page.goto('/company/MIQE');
+  const note=page.getByTestId('company-price-freshness');
+  await expect(note).toContainText('Последняя цена в истории');
+  await expect(note.locator('time').first()).toHaveAttribute('datetime','2026-09-11');
+  await expect(note).toContainText('2 401');
+  await expect(note).toContainText('Более свежих цен в источниках нет');
+  await expect(note.locator('time').last()).toHaveAttribute('datetime','2026-11-06');
+  await expect(page.locator('.company-price-chart')).toHaveAttribute('data-last-price-date','2026-09-11');
+  await page.locator('.company-chart-wrap').screenshot({path:testInfo.outputPath(`miqe-history-${theme}.png`)});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await page.getByRole('button',{name:'1М',exact:true}).click();
+  await expect(note).toBeVisible();
+  await expect(page.locator('.company-chart-wrap')).toContainText('В источниках нет цен за выбранный период');
+  await expect(page.locator('.company-price-chart')).toHaveCount(0);
+  await page.getByRole('button',{name:'1Г',exact:true}).click();
+  await expect(page.locator('.company-price-chart')).toBeVisible();
+  // September 11 is the one recorded session after the September 10 cutoff.
+  marketDay='2026-10-10';
+  await page.reload();
+  await expect(note.locator('time').last()).toHaveAttribute('datetime',marketDay);
+  await page.getByRole('button',{name:'1М',exact:true}).click();
+  await expect(page.locator('.company-price-chart')).toBeVisible();
+  await expect(page.locator('.company-chart-wrap')).not.toContainText('В источниках нет цен за выбранный период');
+});
 
 const TICKER = "UNVB";
 const SECURITY = {
@@ -165,6 +208,7 @@ test("the company overview chart zooms, pans through history, and resets", async
   await expect(chart).toHaveAttribute("data-grid", "on");
   await page.keyboard.press("Escape");
 
+  await chart.scrollIntoViewIfNeeded();
   const box = await chart.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.45);
