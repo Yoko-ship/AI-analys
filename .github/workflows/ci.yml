@@ -831,7 +831,9 @@ jobs:
           cd /root/uzstock/app
           expected_sha="$1"
           [[ "$expected_sha" =~ ^[a-f0-9]{40}$ ]] || exit 2
-          git fetch origin API
+          # This source repository is public. Fetch over HTTPS so a blocked
+          # outbound SSH port cannot stall a verified release before checkout.
+          GIT_TERMINAL_PROMPT=0 git -c url.https://github.com/.insteadOf=git@github.com: -c url.https://github.com/.insteadOf=ssh://git@github.com/ fetch origin API
           test "$(git rev-parse origin/API)" = "$expected_sha" || { echo "A newer release superseded this commit." >&2; exit 1; }
           test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "uzstock-web:release-$expected_sha")" = "$expected_sha"
           # Emergency fixes have occasionally been applied directly on the VPS.

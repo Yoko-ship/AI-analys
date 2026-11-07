@@ -1,10 +1,28 @@
 """Plan releases against the running revision, preserving unshipped changes."""
 import subprocess
+import shlex
 from pathlib import Path
 
 import pytest
 
 from scripts.release_plan import plan_release
+
+
+@pytest.mark.parametrize('origin', ['git@github.com:Yoko-ship/AI-analys.git',
+                                  'ssh://git@github.com/Yoko-ship/AI-analys.git'])
+def test_production_fetch_uses_public_https_without_changing_the_servers_origin(repo, origin):
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.safe_load((root / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
+    update = next(step['run'] for step in workflow['jobs']['deploy-production']['steps'] if step.get('name') == 'Update VPS')
+    command = shlex.split(next(line.strip() for line in update.splitlines() if line.strip().endswith('fetch origin API')))
+    command = command[command.index('git') + 1:]
+    # Resolve the effective URL with Git itself, using the production SSH-origin
+    # shape that timed out during ad4ae12's release. No network or credentials.
+    git(repo, 'remote', 'add', 'origin', origin)
+    assert command[-3:] == ['fetch', 'origin', 'API']
+    assert git(repo, *command[:-3], 'remote', 'get-url', 'origin') == 'https://github.com/Yoko-ship/AI-analys.git'
+    assert git(repo, 'remote', 'get-url', 'origin') == origin
 
 
 def git(repo, *args):
