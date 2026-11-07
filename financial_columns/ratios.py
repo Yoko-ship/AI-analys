@@ -101,7 +101,15 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('cir', 'CIR', flow('operating_costs_positive'), [flow('operating_income_before_ecl')], factor=Decimal(100),
           formula='operating costs / operating income before credit losses × 100', applicable=template == 'bank', unit='percent', flow_ratio=True)
     ratio('cost_of_risk', 'Cost of risk', flow('loan_credit_loss_cost'), [point('loans_gross', start), point('loans_gross', end)],
-          factor=Decimal(100), formula='loan credit loss cost / average(gross loans) × 100', applicable=templ…194 tokens truncated…lue']) + Decimal(expenses['value']))
+          factor=Decimal(100), formula='loan credit loss cost / average(gross loans) × 100', applicable=template == 'bank', unit='percent', flow_ratio=True, annualize=True)
+    model = next(iter(current_models)) if len(current_models) == 1 else None
+    ratio('loss_ratio', 'Loss ratio (legacy)', flow('net_incurred_claims'), [flow('net_earned_premiums')],
+          factor=Decimal(100), formula='net incurred claims / net earned premiums × 100',
+          applicable=template == 'insurance' and model == 'legacy', unit='percent', flow_ratio=True)
+    claims, expenses = flow('net_incurred_claims'), flow('insurance_expense_nonoverlap')
+    combined = {**claims, 'components': [claims, expenses], 'value': None}
+    if all(p.get('value') is not None and p.get('quality') in {'valid', 'warn'} for p in (claims, expenses)):
+        combined['value'] = str(Decimal(claims['value']) + Decimal(expenses['value']))
         combined['quality'] = 'warn' if any(p['quality'] == 'warn' for p in (claims, expenses)) else 'valid'
     ratio('combined_ratio', 'Combined ratio (legacy)', combined, [flow('net_earned_premiums')],
           factor=Decimal(100), formula='(net incurred claims + expenses explicitly excluding claims) / net earned premiums × 100',
