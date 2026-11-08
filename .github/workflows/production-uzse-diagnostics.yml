@@ -59,7 +59,9 @@ jobs:
               -p LastTriggerUSec -p NextElapseUSecMonotonic
             journalctl -u uzstock-collection-monitor.service -n 100 --no-pager -o cat
             journalctl --no-pager -n 80 -o cat _SYSTEMD_UNIT=uzstock-bank-fx.service + UNIT=uzstock-bank-fx.service + SYSLOG_IDENTIFIER=uzstock-bank-fx
+            journalctl --no-pager -n 100 -o cat _SYSTEMD_UNIT=uzstock-terminal-cbu.service + UNIT=uzstock-terminal-cbu.service + SYSLOG_IDENTIFIER=uzstock-terminal-cbu
             docker exec uzstock-web python -c 'import json; from collection_ops import store; d=store.overview(); j=next(j for j in d["items"] if j["id"]=="bank-fx"); print(json.dumps({"observer":d["observer"], "bank_fx":j["latest"], "requests":j["requests"][:1]}))'
+            docker exec uzstock-web python -c 'import json; from collection_ops import store; print(json.dumps({"collection_failures":[{"job":j["id"], "latest":j["latest"]} for j in store.overview()["items"] if j["latest"]["status"] in ("failed","partial")]}))'
             python3 - <<'PY'
           import subprocess
           from collection_ops import host
