@@ -91,10 +91,11 @@ function OriginalDocuments({ forms, t }) {
   </details>;
 }
 
-export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all' }) {
+export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all', isAdmin = false, apiFetch = fetch }) {
   const {read, peek, version} = useCatalogRequests();
   const t = (...labels) => words(lang, ...labels);
-  const [freq, setFreq] = React.useState('annual'), [view, setView] = React.useState('summary'), [representation, setRepresentation] = React.useState('table');
+  const [freq, setFreq] = React.useState('annual'), [selectedView, setView] = React.useState('summary'), [representation, setRepresentation] = React.useState('table');
+  const view = selectedView === 'owners' && !isAdmin ? 'summary' : selectedView;
   const [query, setQuery] = React.useState(''), [loaded, setLoaded] = React.useState(null), [retry, setRetry] = React.useState(0), [passport, setPassport] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState({});
   React.useEffect(() => { setPassport(null); }, [statement]);
@@ -140,8 +141,8 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
       <div className="fc-exports">{['csv','xlsx'].map(ext => <a key={ext} href={`/api/company/${encodeURIComponent(ticker)}/financials/columns.${ext}?${exportParams}`} download>{ext.toUpperCase()}</a>)}</div>
     </div>
     <div className={`fc-stats${showContextControls ? '' : ' fc-stats-embedded'}`}>{showContextControls && <div><span>{t('Эмитент', 'Emitent', 'Issuer')}</span><strong>{ticker}</strong><small>{data?.issuer_name || ticker} · {standard === 'MSFO' ? 'IFRS' : 'NSBU'}</small></div>}{[['total_assets','Активы','Aktivlar','Assets'],['total_equity','Капитал','Kapital','Equity'],['net_income','Чистая прибыль','Sof foyda','Net profit']].map(([id,...labels]) => <div key={id}><span>{t(...labels)}</span><strong>{stat(id).value}</strong><small>{stat(id).period} · {t('тыс. UZS', 'ming UZS', 'thousands UZS')}</small></div>)}</div>
-    <div className="fc-subnav"><div role="tablist" aria-label={t('Финансовые данные', 'Moliyaviy ma’lumotlar', 'Financial data')}>{VIEWS.map(([id,...labels]) => <button key={id} type="button" role="tab" data-track-control="finance_view" data-track-value={id} data-track-ticker={ticker} aria-selected={view === id} onClick={() => { if (view !== id) trackFeature(id === "ratios" ? "ratios" : "financials", ticker); setView(id); }}>{t(...labels)}</button>)}</div><input type="search" aria-label={t('Поиск показателя', 'Ko‘rsatkich qidirish', 'Search metrics')} placeholder={t('Поиск показателя…', 'Ko‘rsatkich qidirish…', 'Search metrics…')} value={query} onChange={e => setQuery(e.target.value)}/><button type="button" onClick={() => {setQuery('');setCollapsed({});}}>{t('Сбросить', 'Tiklash', 'Reset')}</button></div>
-    {view === 'owners' ? <CompanyShareholders key={ticker} ticker={ticker} lang={lang}/> : <>
+    <div className="fc-subnav"><div role="tablist" aria-label={t('Финансовые данные', 'Moliyaviy ma’lumotlar', 'Financial data')}>{VIEWS.filter(([id]) => id !== 'owners' || isAdmin).map(([id,...labels]) => <button key={id} type="button" role="tab" data-track-control="finance_view" data-track-value={id} data-track-ticker={ticker} aria-selected={view === id} onClick={() => { if (view !== id) trackFeature(id === "ratios" ? "ratios" : "financials", ticker); setView(id); }}>{t(...labels)}</button>)}</div><input type="search" aria-label={t('Поиск показателя', 'Ko‘rsatkich qidirish', 'Search metrics')} placeholder={t('Поиск показателя…', 'Ko‘rsatkich qidirish…', 'Search metrics…')} value={query} onChange={e => setQuery(e.target.value)}/><button type="button" onClick={() => {setQuery('');setCollapsed({});}}>{t('Сбросить', 'Tiklash', 'Reset')}</button></div>
+    {view === 'owners' ? <CompanyShareholders key={ticker} ticker={ticker} lang={lang} apiFetch={apiFetch}/> : <>
     {!current && <p className="fc-empty" role="status">{t('Загрузка отчётности…', 'Hisobot yuklanmoqda…', 'Loading statements…')}</p>}
     {current?.error && <div role="alert" className="fc-empty">{t('Не удалось загрузить отчётность.', 'Hisobotni yuklab bo‘lmadi.', 'Could not load financial statements.')} <button type="button" onClick={() => setRetry(n => n+1)}>{t('Повторить', 'Qayta urinish', 'Retry')}</button></div>}
     {data && <>

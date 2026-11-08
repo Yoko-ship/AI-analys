@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -200,11 +201,29 @@ def test_ownership_dates_and_share_classes_are_not_combined(monkeypatch):
     assert [r['name'] for r in result['items']] == ['Owner']
 
 
-def test_public_route_etag_and_unknown_company_empty_state():
+def test_admin_route_access_private_etag_and_unknown_company_empty_state(monkeypatch):
+    import web_auth
+    monkeypatch.setenv('ADMIN_EMAILS', 'admin@example.test')
+    monkeypatch.setenv('ADMIN_ROLES', '{"analyst@example.test": "analyst"}')
+    monkeypatch.setattr(web_auth.web_auth_store.sessions, 'get_user_by_token',
+                        lambda token: None if token == 'expired' else SimpleNamespace(
+                            id=41, email=f'{token}@example.test', email_verified=True))
+    path = '/api/company/HMKBP/shareholders'
+    admin = {'Authorization': 'Bearer admin'}
     with TestClient(app) as client:
-        response = client.get('/api/company/HMKBP/shareholders')
+        assert client.get(path).status_code == 401
+        for token, status in [('expired', 401), ('reader', 403), ('analyst', 403)]:
+            assert client.get(path, headers={'Authorization': f'Bearer {token}'}).status_code == status
+        response = client.get(path, headers=admin)
         assert response.status_code == 200
         assert response.json()['ownership']['items'][0]['share'] == '59.21'
-        assert client.get('/api/company/HMKBP/shareholders', headers={'If-None-Match': response.headers['etag']}).status_code == 304
-        unknown = client.get('/api/company/UNKNOWN/shareholders').json()
+        assert response.headers['cache-control'] == 'private, no-store'
+        assert response.headers['vary'] == 'Authorization'
+        conditional = {'If-None-Match': response.headers['etag']}
+        assert client.get(path, headers=conditional).status_code == 401
+        assert client.get(path, headers={**conditional, 'Authorization': 'Bearer reader'}).status_code == 403
+        cached = client.get(path, headers={**admin, **conditional})
+        assert cached.status_code == 304
+        assert cached.headers['cache-control'] == 'private, no-store'
+        unknown = client.get('/api/company/UNKNOWN/shareholders', headers=admin).json()
         assert unknown['ownership']['items'] == unknown['management']['items'] == []

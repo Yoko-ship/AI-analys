@@ -3,13 +3,13 @@
     "path": "/api/company/{ticker}/shareholders",
     "methods": ["GET"],
     "name": "api_company_shareholders",
-    "dependencies": []
+    "dependencies": ["_require_admin_user"]
   },
   {
     "path": "/api/v2/company/{ticker}/shareholders",
     "methods": ["GET"],
     "name": "api_company_shareholders__v2",
-    "dependencies": []
+    "dependencies": ["_require_admin_user"]
   },
   {
     "path": "/api/v1/issuers/{issuer_id}/profile",

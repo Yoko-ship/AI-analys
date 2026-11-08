@@ -478,10 +478,11 @@ function CatalogCompareTable({ result, language }) {
   );
 }
 
-const CatalogFinancials = React.memo(function CatalogFinancials({ticker, lang, form, scope, func, fromYear, onForm, onScope, go}) {
+const CatalogFinancials = React.memo(function CatalogFinancials({ticker, lang, form, scope, func, fromYear, onForm, onScope, go, user, apiFetch}) {
   return <React.Suspense fallback={<div className="catalog-loading">{clg(lang, 'loading')}</div>}>
     <section className="terminal-screen" aria-label={functionLabel(func, lang)}>
       <FinancialColumns statement={func === 'BS' ? 'balance' : 'income'} showContextControls={false}
+        isAdmin={Boolean(user?.is_admin || user?.admin_role === 'administrator')} apiFetch={apiFetch}
         ticker={ticker} lang={lang} standard={form} scope={scope} fromYear={fromYear}
         onStandardChange={onForm} onScopeChange={onScope}
         onLoad={load => reportScreenLoad({ticker, func, form, ...load})}
@@ -973,6 +974,7 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
               {terminal.form !== "MSFO" && terminal.func === "SUM" && <AnalyticsScreen ticker={ticker} form={terminal.form} scope={terminal.scope} lang={lang} summary fromYear={terminal.fromYear} />}
               {terminal.form !== "MSFO" && (terminal.func === "SUM" || FINANCIAL_SECTIONS[terminal.func]) && (
                 <CatalogFinancials ticker={ticker} lang={lang} form={terminal.form} scope={terminal.scope}
+                  user={user} apiFetch={apiFetch}
                   func={terminal.func} fromYear={terminal.fromYear} onForm={terminal.setForm} onScope={terminal.setScope} go={terminal.go}/>
               )}
               {terminal.func === "DVD" && (

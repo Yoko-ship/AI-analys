@@ -18,7 +18,7 @@ import { CompanyDividendsTab } from "./Financials.jsx";
 import { IssuerFinancials } from "./IssuerFinancials.jsx";
 import { CompanyShareholders } from './CompanyShareholders.jsx';
 
-function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
+function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, isAdmin = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
   // A data-quality row can link an administrator directly to the affected
   // financial view. Normal company links carry no query and still open обзор.
@@ -27,7 +27,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const qualityPeriod = companyQuery.get("qualityPeriod") || "";
   const qualityField = companyQuery.get("qualityField") || "";
   const requestedTab = companyQuery.get("tab");
-  const [tab, setTab] = React.useState(['financials', 'shareholders', 'reports'].includes(requestedTab) ? requestedTab : 'overview');
+  const [selectedTab, setTab] = React.useState(['financials', 'shareholders', 'reports'].includes(requestedTab) ? requestedTab : 'overview');
+  // Keep admin deep links through session loading, but never render or fetch
+  // the restricted section until the current account has been verified.
+  const tab = selectedTab === 'shareholders' && !isAdmin ? 'overview' : selectedTab;
 
   // A company is a new page, even though the SPA swaps it into the same
   // document. Reset the previous view's scroll offset before paint so opening
@@ -445,7 +448,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     ...(securityType !== "bond" ? [{ key: "dividends", label: lang === "ru" ? "Дивиденды" : lang === "uz" ? "Dividendlar" : "Dividends" }] : []),
     { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
     { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
-    { key: 'shareholders', label: lang === 'ru' ? 'Акционеры' : lang === 'uz' ? 'Aksiyadorlar' : 'Shareholders' },
+    ...(isAdmin ? [{ key: 'shareholders', label: lang === 'ru' ? 'Акционеры' : lang === 'uz' ? 'Aksiyadorlar' : 'Shareholders' }] : []),
   ];
   return (
     <div className="company-page">

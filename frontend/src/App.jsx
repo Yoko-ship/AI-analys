@@ -165,6 +165,7 @@ function App() {
               onToggleFavorite={handleToggleFavorite}
               signedIn={Boolean(token)}
               hasProAccess={hasProAccess}
+              isAdmin={Boolean(token && (user?.is_admin || user?.admin_role === 'administrator'))}
               apiFetch={apiFetch}
               onUpgrade={() => setActiveView(token ? "profile" : "auth")}
               onOpenCompany={openCompanyPage}

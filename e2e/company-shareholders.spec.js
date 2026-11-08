@@ -16,14 +16,18 @@ const management = {
 };
 const empty = {status: 'unavailable', items: []};
 
-async function setup(page, respond = () => ({ok: true, ownership, management})) {
+async function setup(page, respond = () => ({ok: true, ownership, management}), {role = 'administrator', authenticate} = {}) {
   const requests = [];
-  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_theme', 'light'));
+  await page.addInitScript(role => {
+    localStorage.setItem('uz_stock_analyzer_theme', 'light');
+    if (role) localStorage.setItem('uz_stock_analyzer_token', `shareholders-${role}`);
+  }, role);
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname;
     const json = (body, status = 200) => route.fulfill({status, contentType: 'application/json', body: JSON.stringify(body)});
     if (path.endsWith('/shareholders')) {
       requests.push(path);
+      if (role === 'administrator') expect(route.request().headers().authorization).toBe('Bearer shareholders-administrator');
       const result = await respond(path, requests.length);
       return json(result, result.ok === false ? 503 : 200);
     }
@@ -33,11 +37,49 @@ async function setup(page, respond = () => ({ok: true, ownership, management})) 
     if (path.endsWith('/info')) return json({ok: true, security, wiki: {}});
     if (path.includes('/price-history/')) return json({ok: true, points: [], adjustments: []});
     if (path.endsWith('/reports')) return json({ok: true, reports: [], ratios: {}});
-    if (path === '/api/auth/me') return json({user: null}, 401);
+    if (path === '/api/auth/me') {
+      await authenticate?.();
+      return role ? json({user: {id: 1, email: `${role}@example.test`, is_admin: role === 'administrator', admin_role: role === 'reader' ? null : role, pro_access: true}}) : json({user: null}, 401);
+    }
     return json({ok: true, items: [], series: {}, quality: {}});
   });
   return requests;
 }
+
+for (const role of [null, 'reader', 'analyst']) {
+  for (const path of ['/company/HMKB', '/company/HMKBP?tab=shareholders']) {
+    test(`${role || 'guest'} cannot open Shareholders at ${path}`, async ({page}, testInfo) => {
+      await page.setViewportSize({width: 390, height: 844});
+      const requests = await setup(page, undefined, {role});
+      await page.goto(path);
+      if (role) await expect(page.getByRole('button', {name: `Аккаунт и настройки: ${role}@example.test`})).toBeVisible();
+      await expect(page.locator('[data-track-control="company_tab"][data-track-value="overview"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('button', {name: 'Акционеры', exact: true})).toHaveCount(0);
+      await expect(page.getByTestId('company-shareholders')).toHaveCount(0);
+      await page.locator('[data-track-control="company_tab"][data-track-value="financials"]').click();
+      await expect(page.locator('[data-track-control="company_tab"][data-track-value="financials"]')).toHaveAttribute('aria-pressed', 'true');
+      expect(requests).toHaveLength(0);
+      if (role === 'reader' && path.includes('?')) await page.screenshot({path: testInfo.outputPath('nonadmin-mobile.png')});
+    });
+  }
+}
+
+test('admin deep link waits for authentication and loses access after logout', async ({page}) => {
+  let release;
+  const authenticated = new Promise(resolve => {release = resolve;});
+  const requests = await setup(page, undefined, {authenticate: () => authenticated});
+  await page.goto('/company/HMKB?tab=shareholders');
+  await expect(page.locator('[data-track-control="company_tab"][data-track-value="overview"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', {name: 'Акционеры', exact: true})).toHaveCount(0);
+  expect(requests).toHaveLength(0);
+  release();
+  await expect(page.getByTestId('company-shareholders')).toContainText('Ibragimov Ikram');
+  await page.getByRole('button', {name: 'Аккаунт и настройки: administrator@example.test'}).click();
+  await page.getByRole('button', {name: 'Выйти', exact: true}).click();
+  await expect(page.getByTestId('company-shareholders')).toHaveCount(0);
+  await expect(page.getByRole('button', {name: 'Акционеры', exact: true})).toHaveCount(0);
+  expect(requests).toHaveLength(1);
+});
 
 test('company cards fill the page with readable stable rows and source links', async ({page}, testInfo) => {
   await page.setViewportSize({width: 1920, height: 1080});

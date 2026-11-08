@@ -4,20 +4,24 @@ import re
 from functools import partial
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from server.http import _etag_json, _json_safe
+from server.auth.access import _require_admin_user
 import server.http as http
 from . import financials
 
 router = APIRouter()
 
 
-@router.get('/api/company/{ticker}/shareholders')
+@router.get('/api/company/{ticker}/shareholders', dependencies=[Depends(_require_admin_user)])
 async def api_company_shareholders(request: Request, ticker: str) -> Response:
     from .shareholders import load
-    return _etag_json(request, await asyncio.to_thread(load, ticker), max_age=300)
+    response = _etag_json(request, await asyncio.to_thread(load, ticker), max_age=0)
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['Vary'] = 'Authorization'
+    return response
 
 
 @router.get('/api/company/{ticker}/financials/columns')
