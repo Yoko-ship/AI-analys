@@ -1,0 +1,156 @@
+{
+  "ticker": "ODMP",
+  "issuer_name": "“Daromad Рlus” investisiya fondi  aksiyadorlik jamiyati",
+  "issuer_id": "538",
+  "standard": "NSBU",
+  "scope": "separate",
+  "freq": "annual",
+  "unit": "UZS_thousand",
+  "columns": [
+    {
+      "key": "2024",
+      "label": "2024",
+      "end": "2024-12-31",
+      "basis": "annual"
+    },
+    {
+      "key": "2025",
+      "label": "2025",
+      "end": "2025-12-31",
+      "basis": "annual"
+    },
+    {
+      "key": "2026-09-30",
+      "label": "2026 · 9M",
+      "end": "2026-09-30",
+      "basis": "ytd"
+    }
+  ],
+  "rows": [
+    {
+      "metric_id": "total_assets",
+      "source_form": "F1",
+      "source_code": "400",
+      "kind": "stock",
+      "unit": "UZS_thousand",
+      "id": "F1:400",
+      "label": "Всего активов",
+      "cells": {
+        "2024": {
+          "source_code": "400",
+          "source_form": "F1",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=16678&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": 10466040.15,
+          "value": "10466040.15",
+          "period_end": "2024-12-31",
+          "period_start": "2024-12-31",
+          "source_version": "921ade50688972467c0763bb5fa7af2a8db7d0b81661903a27e90db03217477c",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        },
+        "2025": {
+          "source_code": "400",
+          "source_form": "F1",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18020&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": 16084985.36,
+          "value": "16084985.36",
+          "period_end": "2025-12-31",
+          "period_start": "2025-12-31",
+          "source_version": "38fc282aa5a8fcf0b7e6933f4b93415437c64c74b49278f8d37bd55a32ef9ce8",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        },
+        "2026-09-30": {
+          "source_code": "400",
+          "source_form": "F1",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19244&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": 15659261.18,
+          "value": "15659261.18",
+          "period_end": "2026-09-30",
+          "period_start": "2026-09-30",
+          "source_version": "0331d3428244b17a965aad1277a7adeaa9a4d13e4df1779d99ad203c306ad1f6",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        }
+      },
+      "source_label": "Всего по активу баланса (стр.130+стр.390)",
+      "display_ref": "НСБУ · форма эмитента",
+      "display_field": "assets",
+      "display_group": "Основные показатели по опубликованной форме"
+    },
+    {
+      "metric_id": "net_income",
+      "source_form": "F2",
+      "source_code": "270",
+      "kind": "flow",
+      "unit": "UZS_thousand",
+      "id": "F2:270",
+      "label": "Прибыль / убыток",
+      "cells": {
+        "2024": {
+          "source_code": "270",
+          "source_form": "F2",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=16678&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": [
+            114977.06,
+            0
+          ],
+          "value": "114977.06",
+          "period_end": "2024-12-31",
+          "period_start": "2024-01-01",
+          "source_version": "921ade50688972467c0763bb5fa7af2a8db7d0b81661903a27e90db03217477c",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        },
+        "2025": {
+          "source_code": "270",
+          "source_form": "F2",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18020&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": [
+            6043297.6,
+            0
+          ],
+          "value": "6043297.6",
+          "period_end": "2025-12-31",
+          "period_start": "2025-01-01",
+          "source_version": "38fc282aa5a8fcf0b7e6933f4b93415437c64c74b49278f8d37bd55a32ef9ce8",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        },
+        "2026-09-30": {
+          "source_code": "270",
+          "source_form": "F2",
+          "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19244&lang=ru",
+          "unit": "UZS_thousand",
+          "quality": "valid",
+          "raw_value": [
+            -288401.4,
+            0
+          ],
+          "value": "-288401.4",
+          "period_end": "2026-09-30",
+          "period_start": "2026-01-01",
+          "source_version": "0331d3428244b17a965aad1277a7adeaa9a4d13e4df1779d99ad203c306ad1f6",
+          "currency": "UZS",
+          "unit_scale": "1000"
+        }
+      },
+      "source_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+      "display_ref": "НСБУ · форма эмитента",
+      "display_field": "net_profit",
+      "display_group": "Основные показатели по опубликованной форме"
+    }
+  ],
+  "ratios": [],
+  "fixture_source": "https://uzstock.uz/api/company/ODMP/financials/columns?form=NSBU&scope=separate&freq=annual&view=overview"
+}

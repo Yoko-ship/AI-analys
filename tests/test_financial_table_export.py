@@ -1,4 +1,4 @@
-"""The BIOK download must open as the displayed period table in Excel."""
+"""Every issuer template must download as the displayed period table in Excel."""
 import csv
 import io
 import json
@@ -16,6 +16,51 @@ from server.company.financial_routes import router
 @pytest.fixture
 def biok():
     return json.loads(Path('tests/fixtures/financial_columns/biok_export_matrix.json').read_text(encoding='utf-8'))
+
+
+@pytest.mark.parametrize('ticker,source_template,display_template,code,label,value', [
+    ('ALKB', 'bank', 'bank', '1л', 'Итого процентных доходов', 3230868672),
+    ('KFSK', 'insurance', 'insurance', '060', 'Чистая выручка от страховых услуг', 418452510),
+    ('UZAL', 'general', 'leasing', '140', 'Доходы от финансовой аренды', 0),
+    ('UZTL', 'general', 'telecom', '030', 'Долгосрочные инвестиции, всего', 653365162),
+])
+@pytest.mark.parametrize('extension', ['csv', 'xlsx'])
+def test_real_sector_filings_export_period_columns(ticker, source_template, display_template, code, label, value, extension):
+    from financial_columns.nsbu import rows
+    from financial_columns.presentation import project
+    document = json.loads(Path(f'tests/fixtures/openinfo/{ticker.lower()}_2025_complete_rows.json').read_text(encoding='utf-8'))
+    source = [{**r, 'id': r['source_form'] + ':' + r['source_code'], 'cells': {'2025': r['current']}}
+              for r in rows(document, template=source_template)]
+    data = project({'ticker': ticker, 'issuer_name': ticker, 'template': display_template,
+                    'standard': 'NSBU', 'scope': 'separate', 'freq': 'annual', 'rows': source, 'ratios': [],
+                    'columns': [{'key': '2025', 'label': '2025', 'end': '2025-12-31', 'basis': 'annual'}]})
+    content, _ = export(data, extension, layout='table', tab='original')
+    if extension == 'csv':
+        table = list(csv.reader(io.StringIO(content.decode('utf-8-sig')), delimiter=';'))
+        assert table[0] == ['Показатель', 'Код', 'Единица', '2025']
+        item = next(r for r in table[1:] if r[:2] == [label, code])
+        assert item[2:] == ['тыс. UZS', str(value)]
+    else:
+        book = load_workbook(io.BytesIO(content))
+        assert book.active['D5'].value == '2025'
+        item = next(r for r in book.active.iter_rows(min_row=6) if (r[0].value, r[1].value) == (label, code))
+        assert item[2].value == 'тыс. UZS'
+        assert item[3].value == value and item[3].data_type == 'n'
+        assert 'Источники' in book.sheetnames
+
+
+def test_odmp_fund_preserves_fractional_amounts_in_csv_and_excel():
+    data = json.loads(Path('tests/fixtures/financial_columns/odmp_export_matrix.json').read_text(encoding='utf-8'))
+    content, _ = export(data, 'csv', layout='table')
+    table = list(csv.reader(io.StringIO(content.decode('utf-8-sig')), delimiter=';'))
+    assert table[0][3:] == ['2024', '2025', '2026 · 9M']
+    assert table[1][3:] == ['10466040,15', '16084985,36', '15659261,18']
+    assert table[2][-1] == '-288401,4'
+    content, _ = export(data, 'xlsx', layout='table')
+    sheet = load_workbook(io.BytesIO(content)).active
+    assert [c.value for c in sheet[6]][3:] == [10466040.15, 16084985.36, 15659261.18]
+    assert sheet['F7'].value == -288401.4
+    assert sheet['F7'].data_type == 'n'
 
 
 def test_biok_table_download_has_period_columns_numeric_amounts_and_source_sheet(biok, monkeypatch):
