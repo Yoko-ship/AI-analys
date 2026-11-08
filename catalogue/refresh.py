@@ -501,7 +501,8 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                              limit: int | None = None,
                              ttl_days: int | None = None,
                              sync_missing: bool = True,
-                             sync_limit: int | None = None) -> dict[str, Any]:
+                             sync_limit: int | None = None,
+                             reuse_verified: bool = False) -> dict[str, Any]:
     """Lazily fill the financials cache for stale/missing tickers, in batches.
 
     Parses the latest annual NSBU report (form 1 + form 2) for each candidate and
@@ -534,6 +535,15 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
         conn = catalogue_storage.get_catalog_conn()
         candidates = _fin_candidates(conn, form, ttl_days, tickers)
         conn.close()
+        reused = 0
+        if reuse_verified and form == "NSBU" and candidates:
+            from financial_ingestion.history_reuse import verified_history
+
+            verified = verified_history([cand["ticker"] for cand in candidates]).periods
+            pending = [cand for cand in candidates
+                       if (cand["ticker"], cand["year"], cand["quarter"]) not in verified]
+            reused = len(candidates) - len(pending)
+            candidates = pending
         for cand in candidates[:limit]:
             ticker, year, quarter = cand["ticker"], cand["year"], cand["quarter"]
             processed += 1
@@ -570,7 +580,7 @@ def refresh_financials_cache(tickers: list[str] | None = None, *,
                     filled += 1
             except Exception:
                 catalogue_settings.logger.exception("financials refresh failed for %s", ticker)
-        return {"ok": True, "synced": synced, "candidates": len(candidates),
-                "processed": processed, "filled": filled}
+        return {"ok": True, "synced": synced, "candidates": len(candidates) + reused,
+                "processed": processed, "filled": filled, "reused": reused}
     finally:
         catalogue_settings._FIN_LOCK.release()

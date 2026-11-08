@@ -507,8 +507,20 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
     if force and not issuers:
         collectors_financials_settings.log.error("No matching bank issuer is catalogued; sync the report catalog first")
         return 1
+    facts = catalogue_facts.get_facts(dataset="bank_history")
     attempts = {str(f["entity_id"]): str(f.get("value_text") or "")
-                for f in catalogue_facts.get_facts(dataset="bank_history") if f["field"] == "last_attempt"}
+                for f in facts if f["field"] == "last_attempt"}
+    reused = 0
+    if not force and issuers:
+        from financial_ingestion.history_reuse import verified_history
+
+        published = {str(f["entity_id"]) for f in facts
+                     if f["field"] == "status" and f.get("value_text") == "ok"}
+        verified = verified_history([row["ticker"] for row in issuers.values()]).complete_issuers
+        pending = {org: row for org, row in issuers.items()
+                   if org not in published or row["ticker"] not in verified}
+        reused = len(issuers) - len(pending)
+        issuers = pending
     if not force:
         for org, company in issuers.items():
             attempts[org] = max(attempts.get(org, ""), _bank_history_remote_attempt(company["ticker"]))
@@ -560,4 +572,9 @@ def backfill_bank_financials(limit: int = 2, *, force: bool = False,
     collectors_financials_settings.log.info("bank history: %d issuers due, %d attempted, status=%d", len(due), min(limit, len(due)), status)
     if due:
         collectors_financials_delivery._stamp_step("bank_history", "partial" if status else "ok")
+    else:
+        from collection_ops.model import receipt
+
+        receipt("bank_history", ok=True, phase="collection", unchanged=True, counts={"processed": 0},
+                reason=f"No bank repairs due; {reused} issuers have verified history and a successful prior publication.")
     return status

@@ -7,7 +7,7 @@ import uuid
 import dbx
 from catalogue.storage import get_catalog_conn as connect
 from collection_ops.model import outcome, parse_time, scrub, utcnow
-from collection_ops.registry import JOBS
+from collection_ops.registry import JOBS, canonical_id, related_ids
 
 FRESH_SECONDS = 180
 
@@ -65,6 +65,7 @@ def _finish(c, request_id, status, detail):
     c.execute("DELETE FROM collection_locks WHERE request_id=?", (request_id,))
 
 def _job(job):
+    job = canonical_id(job)
     if job not in JOBS:
         raise OperationError("Unknown collector.")
     return JOBS[job]
@@ -80,7 +81,10 @@ def _fresh(stamp):
     return time is not None and 0 <= (utcnow() - time).total_seconds() < FRESH_SECONDS
 
 def _pending(c, job):
-    row = c.execute("SELECT r.* FROM collection_requests r JOIN collection_locks l ON l.request_id=r.id WHERE l.job=?", (job,)).fetchone()
+    family = related_ids(job)
+    row = c.execute("SELECT r.* FROM collection_requests r JOIN collection_locks l ON l.request_id=r.id "
+                    "WHERE l.job IN (" + ",".join("?" for _ in family) + ") "
+                    "ORDER BY CASE WHEN r.status='queued' THEN 1 ELSE 0 END,r.requested_at,r.id LIMIT 1", family).fetchone()
     return dict(row) if row else None
 
 def report(observations):
@@ -136,6 +140,8 @@ def overview():
     with _db() as c:
         items, stamps = [], []
         for job in JOBS.values():
+            family = related_ids(job.id)
+            placeholders = ",".join("?" for _ in family)
             stamp, latest = _observation(c, job.id)
             if stamp:
                 stamps.append(stamp)
@@ -147,9 +153,9 @@ def overview():
                      "timer_inactive" if not latest.get("timer_active") else
                      "missed_schedule" if latest.get("missed_schedule") else None)
             history = [{k: v for k, v in json.loads(r["payload"]).items() if k not in ("evidence", "receipts")} for r in c.execute(
-                "SELECT payload FROM collection_runs WHERE job=? ORDER BY observed_at DESC,invocation DESC LIMIT 10", (job.id,)).fetchall()]
+                f"SELECT payload FROM collection_runs WHERE job IN ({placeholders}) ORDER BY observed_at DESC,job,invocation DESC LIMIT 10", family).fetchall()]
             requests = [dict(r) for r in c.execute(
-                "SELECT * FROM collection_requests WHERE job=? ORDER BY requested_at DESC,id DESC LIMIT 10", (job.id,)).fetchall()]
+                f"SELECT * FROM collection_requests WHERE job IN ({placeholders}) ORDER BY requested_at DESC,id DESC LIMIT 10", family).fetchall()]
             items.append({**job.public(), "latest": latest, "history": history, "requests": requests,
                           "request": pending, "observed_at": stamp, "next_run": latest.get("next_run"),
                           "schedule_issue": issue,
@@ -162,12 +168,14 @@ def read_run(job, invocation):
     _job(job)
     with _db() as c:
         row = c.execute("SELECT payload FROM collection_runs WHERE job=? AND invocation=?", (job, invocation)).fetchone()
+        if not row and canonical_id(job) != job:
+            row = c.execute("SELECT payload FROM collection_runs WHERE job=? AND invocation=?", (canonical_id(job), invocation)).fetchone()
         if not row:
             raise OperationError("This run is no longer in the retained history.")
         return json.loads(row["payload"])
 
 def enqueue(job, *, actor_id):
-    _job(job)
+    job = _job(job).id
     with _db() as c:
         pending = _pending(c, job)
         if pending:
@@ -187,12 +195,17 @@ def enqueue(job, *, actor_id):
 
 def claim():
     with _db() as c:
-        row = c.execute("SELECT * FROM collection_requests WHERE status='queued' ORDER BY requested_at,id LIMIT 1").fetchone()
-        if not row:
-            return None
-        c.execute("UPDATE collection_requests SET status='dispatching',claimed_at=? WHERE id=?",
-                  (utcnow().isoformat(), row["id"]))
-        return {**dict(row), "status": "dispatching"}
+        rows = c.execute("SELECT * FROM collection_requests WHERE status='queued' ORDER BY requested_at,id").fetchall()
+        for row in rows:
+            # Requests queued against different retired schedules now share one
+            # worker. Wait for its current request, without blocking other jobs.
+            pending = _pending(c, row["job"])
+            if not pending or pending["id"] != row["id"]:
+                continue
+            c.execute("UPDATE collection_requests SET status='dispatching',claimed_at=? WHERE id=?",
+                      (utcnow().isoformat(), row["id"]))
+            return {**dict(row), "job": canonical_id(row["job"]), "status": "dispatching"}
+        return None
 
 def ack(request_id, status, invocation="", detail=""):
     if status not in ("dispatched", "failed", "uncertain"):
@@ -217,7 +230,7 @@ def release(request_id, *, actor_id):
         row = c.execute("SELECT * FROM collection_requests WHERE id=?", (request_id,)).fetchone()
         if not row or row["status"] not in ("queued", "uncertain"):
             raise OperationError("Only queued or uncertain requests can be cleared.")
-        stamp, latest = _observation(c, row["job"])
+        stamp, latest = _observation(c, canonical_id(row["job"]))
         if not _fresh(stamp) or latest.get("active"):
             raise OperationError("Wait for a fresh monitor report confirming that the service is not running.")
         _finish(c, request_id, "cleared", f"Cleared by administrator {actor_id}; this does not stop a service.")

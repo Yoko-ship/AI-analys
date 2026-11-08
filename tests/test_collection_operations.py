@@ -8,6 +8,56 @@ from collection_ops import model, store
 NOW = datetime(2026, 11, 7, 10, tzinfo=timezone.utc)
 JOB = "quotes-catchup"
 
+
+def test_merged_quote_job_keeps_each_retired_services_history(isolated_store):
+    for old in ("quotes-1610", "quotes-2130"):
+        store.report([observation(job=old, invocation="same-old-id", evidence=old)])
+    store.report([observation()])
+    quotes = [j for j in store.overview()["items"] if j["id"].startswith("quotes-")]
+    assert [j["id"] for j in quotes] == [JOB]
+    assert {r["job"] for r in quotes[0]["history"]} == {JOB, "quotes-1610", "quotes-2130"}
+    assert store.read_run("quotes-1610", "same-old-id")["evidence"] == "quotes-1610"
+    assert store.read_run("quotes-2130", "same-old-id")["evidence"] == "quotes-2130"
+
+
+def test_queued_retired_job_uses_single_worker_without_losing_request(isolated_store):
+    store.report([observation()])
+    request_id = "b" * 32
+    c = isolated_store()
+    with c:
+        c.execute("INSERT INTO collection_requests(id,job,status,actor_id,requested_at) VALUES(?,?,'queued',41,?)",
+                  (request_id, "quotes-1610", NOW.isoformat()))
+        c.execute("INSERT INTO collection_locks(job,request_id) VALUES(?,?)", ("quotes-1610", request_id))
+    c.close()
+    assert store.enqueue(JOB, actor_id=41)["id"] == request_id
+    assert store.enqueue("quotes-2130", actor_id=41)["id"] == request_id
+    claimed = store.claim()
+    assert claimed["job"] == JOB
+    store.ack(request_id, "dispatched", "merged-run", "Accepted")
+    store.report([observation(invocation="merged-run")])
+    job = next(j for j in store.overview()["items"] if j["id"] == JOB)
+    assert job["request"] is None
+    assert job["requests"][0]["status"] == "finished"
+    assert store.read_run("quotes-1610", "merged-run")["invocation"] == "merged-run"
+
+def test_preexisting_quote_requests_are_serialized_without_blocking_other_jobs(isolated_store):
+    store.report([observation(), observation(job="bank-fx")])
+    c = isolated_store()
+    with c:
+        for request_id, job in (("a", "quotes-1610"), ("b", "quotes-2130")):
+            c.execute("INSERT INTO collection_requests(id,job,status,actor_id,requested_at) VALUES(?,?,'queued',41,?)",
+                      (request_id, job, NOW.isoformat()))
+            c.execute("INSERT INTO collection_locks(job,request_id) VALUES(?,?)", (job, request_id))
+    c.close()
+    assert store.claim()["id"] == "a"
+    assert store.claim() is None
+    other = store.enqueue("bank-fx", actor_id=41)
+    assert store.claim()["id"] == other["id"]
+    store.ack("a", "dispatched", "first-merged-run")
+    store.report([observation(invocation="first-merged-run")])
+    assert store.claim()["id"] == "b"
+
+
 def observation(**changes):
     return {"job": JOB, "invocation": "run-1", "started_at": "2026-11-07T09:58:00+00:00",
             "finished_at": "2026-11-07T09:59:00+00:00", "active": False,

@@ -175,6 +175,30 @@ def test_fresh_collector_reads_remote_rotation_checkpoint(catalog, monkeypatch):
     assert collectors_financials_backfill.backfill_bank_financials() == 0
 
 
+@pytest.mark.parametrize("prior_status,force,expected", [("ok", False, []), ("partial", False, ["BANK"]), ("ok", True, ["BANK"])])
+def test_complete_bank_history_is_not_recollected_unless_publication_failed_or_forced(catalog, monkeypatch, capsys, prior_status, force, expected):
+    from types import SimpleNamespace
+    from financial_ingestion import history_reuse
+    filing(catalog, "BANK", "12")
+    catalogue_facts.upsert_facts([
+        {"entity_id": "12", "dataset": "bank_history", "field": "last_attempt", "value": "2000-01-01", "source": "collector"},
+        {"entity_id": "12", "dataset": "bank_history", "field": "status", "value": prior_status, "source": "collector"},
+    ])
+    monkeypatch.setattr(history_reuse, "verified_history", lambda tickers: SimpleNamespace(complete_issuers={"BANK"}))
+    calls = []
+    monkeypatch.setattr(catalogue_sync, "sync_company", lambda ticker, *a, **k: calls.append(ticker) or {"errors": ["stop after selection"]})
+    monkeypatch.setattr(collectors_financials_delivery, "_post", lambda *a, **k: 0)
+    monkeypatch.setattr(collectors_financials_delivery, "_stamp_step", lambda *a, **k: None)
+    collectors_financials_backfill.backfill_bank_financials(force=force)
+    assert calls == expected
+    if not expected:
+        from collection_ops.model import outcome, parse_receipts
+        receipts = parse_receipts(capsys.readouterr().out.splitlines())
+        result = outcome({"invocation": "verified-history", "result": "success", "exit_code": 0, "receipts": receipts})
+        assert result["status"] == "no_change"
+        assert "1 issuers have verified history" in result["reason"]
+
+
 def test_ifrs_api_distinguishes_an_unparsed_report_from_no_publication(catalog, monkeypatch):
     filing(catalog, "IPTB", "17", 2022, form="MSFO")
     monkeypatch.setattr(catalogue_filings, 'get_company_index', lambda ticker: {"org_id": "17"})

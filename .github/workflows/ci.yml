@@ -1294,17 +1294,7 @@ jobs:
               # pause after repeated 403/429 and the daily request count live
               # there, and a worker without it neither honours a pause another
               # process tripped nor appears in the count.
-              "/etc/systemd/system/uzstock-quotes-1610.service": worker(
-                  "uzstock-quotes-1610", "UZStock post-close quotes collector",
-                  "python collector_financials.py --trades-only", data_volume=True),
-              "/etc/systemd/system/uzstock-quotes-1610.timer": timer(
-                  "Run UZStock 16:10 local quotes collector", "Mon..Sat *-*-* 11:10:00"),
-              "/etc/systemd/system/uzstock-quotes-2130.service": worker(
-                  "uzstock-quotes-2130", "UZStock final-session quotes collector",
-                  "python collector_financials.py --trades-only", data_volume=True),
-              "/etc/systemd/system/uzstock-quotes-2130.timer": timer(
-                  "Run UZStock 21:30 local quotes collector", "Mon..Sat *-*-* 16:30:00"),
-              # The fallback when a scheduled run above fails (09.10.2026: both
+              # One worker handles closing quotes and recovery (09.10.2026: both
               # Friday runs failed and the board stayed on Thursday all weekend).
               # Each run first asks openinfo whether prod already holds the newest
               # session (one or two requests) and stops there, so on a good day
@@ -1314,11 +1304,12 @@ jobs:
               # day, before the session opens, takes the official conclusions —
               # Sunday included, so a lost Friday no longer waits for Monday.
               "/etc/systemd/system/uzstock-quotes-catchup.service": worker(
-                  "uzstock-quotes-catchup", "UZStock quotes catch-up after a failed run",
+                  "uzstock-quotes-catchup", "UZStock closing quotes and recovery",
                   "python collector_financials.py --trades-only", data_volume=True),
               "/etc/systemd/system/uzstock-quotes-catchup.timer": timer(
-                  "Re-run the UZStock quotes collector after a failed run",
-                  "*-*-* 04:30:00", "Mon..Sat *-*-* 13:00:00", "Mon..Sat *-*-* 18:30:00"),
+                  "Collect closing quotes and recover missing sessions",
+                  "*-*-* 04:30:00", "Mon..Sat *-*-* 11:10:00", "Mon..Sat *-*-* 13:00:00",
+                  "Mon..Sat *-*-* 16:30:00", "Mon..Sat *-*-* 18:30:00"),
               # The 1Д/1Н chart during the session: one openinfo request an
               # hour (the session so far in a single page), bars only. The
               # board itself waits for the evening run and the conclusions.
@@ -1360,9 +1351,9 @@ jobs:
           # trade feed (plus one more after every deploy) and a mid-session
           # 13:00 run added up to ~30 full crawls a day, and uzse.uz blocked
           # this host's IP. Hourly bars come from each execution's own
-          # timestamp, so the 16:10 and 21:30 runs still build every hour of
-          # the session; nothing is lost but mid-session freshness.
-          for retired in uzstock-intraday uzstock-quotes-1300; do
+          # timestamp. The former closing/final quote services are also retired:
+          # their schedules now belong to the single quotes-catchup timer.
+          for retired in uzstock-intraday uzstock-quotes-1300 uzstock-quotes-1610 uzstock-quotes-2130; do
             systemctl disable --now "$retired.timer" >/dev/null 2>&1 || true
             systemctl stop "$retired.service" >/dev/null 2>&1 || true
             docker rm -f "$retired" >/dev/null 2>&1 || true
@@ -1371,16 +1362,23 @@ jobs:
           # Retire the isolated news-only release override after this image includes Codex.
           rm -f /etc/systemd/system/uzstock-news-collector.service.d/codex.conf
           systemctl daemon-reload
+          for retired in uzstock-quotes-1610 uzstock-quotes-2130; do
+            if systemctl is-active --quiet "$retired.timer" || systemctl is-active --quiet "$retired.service"; then
+              echo 'A retired quote schedule is still active.'
+              exit 1
+            fi
+          done
           for timer in \
             uzstock-collection-monitor.timer \
             uzstock-terminal-alerts.timer uzstock-terminal-cbu.timer \
             uzstock-financial-backup.timer uzstock-postgres-backup.timer uzstock-financial-monitor.timer \
-            uzstock-collector.timer uzstock-quotes-1610.timer \
-            uzstock-quotes-2130.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
+            uzstock-collector.timer uzstock-quotes-catchup.timer uzstock-reports-watch.timer uzstock-hourly-bars.timer \
             uzstock-bank-fx.timer uzstock-bank-history.timer uzstock-financial-ingestion.timer uzstock-news-collector.timer uzstock-event-evidence.timer; do
             systemctl enable --now "$timer"
             systemctl is-active --quiet "$timer"
           done
+          echo 'Single quotes timer is active; former closing/final services are inactive.'
+          systemctl cat uzstock-quotes-catchup.timer | grep '^OnCalendar='
           if [ -s /root/uzstock/offsite-backup.env ]; then
             systemctl enable --now uzstock-offsite-backup.timer
             systemctl is-active --quiet uzstock-offsite-backup.timer
@@ -1873,10 +1871,10 @@ jobs:
           cd /root/uzstock/app
           git rev-parse HEAD
           docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
-          systemctl show uzstock-quotes-2130.service -p FragmentPath -p ActiveState
+          systemctl show uzstock-quotes-catchup.service -p FragmentPath -p ActiveState
           # The collector validates its selected source, including the automatic
           # OpenInfo fallback. Requiring UZSE here would prevent outage recovery.
-          for unit in uzstock-quotes-1610.service uzstock-quotes-2130.service uzstock-quotes-catchup.service; do
+          for unit in uzstock-quotes-catchup.service; do
             state=$(systemctl show "$unit" -p ActiveState --value)
             if [ "$state" = active ] || [ "$state" = activating ]; then
               echo 'A market collector is already running; no duplicate crawl started.'
@@ -1884,8 +1882,8 @@ jobs:
             fi
           done
           result=0
-          systemctl start uzstock-quotes-2130.service || result=$?
-          journalctl -u uzstock-quotes-2130.service -n 100 --no-pager 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py quotes-refresh 100 || true
+          systemctl start uzstock-quotes-catchup.service || result=$?
+          journalctl -u uzstock-quotes-catchup.service -n 100 --no-pager 2>&1 | python3 /root/uzstock/app/scripts/ci_log.py quotes-refresh 100 || true
           exit "$result"
           REMOTE
 

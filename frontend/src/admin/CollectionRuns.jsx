@@ -60,7 +60,7 @@ function PastRun({ run, job, read, t }) {
   const [error, setError] = useState("");
   return <details className="collection-past" onToggle={async event => {
     if (!event.currentTarget.open || detail) return;
-    try { setDetail(await read(`/${job.id}/runs/${run.invocation}`)); } catch (failure) { setError(failure.message); }
+    try { setDetail(await read(`/${encodeURIComponent(run.job || job.id)}/runs/${encodeURIComponent(run.invocation)}`)); } catch (failure) { setError(failure.message); }
   }}>
     <summary>{stamp(run.started_at)} · {t(...(STATES[run.status] || STATES.unknown))}</summary>
     <p>{run.reason}</p>
@@ -102,7 +102,7 @@ function Collector({ job, t, busy, disabled, act, read }) {
       <pre className="collection-command"><code>{job.run_command}</code></pre>
       <pre className="collection-command"><code>{job.logs_command}</code></pre>
       <h4>{t("История запусков", "Ishga tushirishlar tarixi", "Run history")}</h4>
-      {(job.history || []).map(run => <PastRun key={run.invocation} run={run} job={job} read={read} t={t} />)}
+      {(job.history || []).map(run => <PastRun key={`${run.job || job.id}:${run.invocation}`} run={run} job={job} read={read} t={t} />)}
       {!job.history?.length && <p className="muted">{t("История появится после первого наблюдения.", "Tarix birinchi kuzatuvdan keyin paydo bo‘ladi.", "History begins when monitoring observes a run.")}</p>}
       {!!job.requests?.length && <details className="collection-past"><summary>{t("Ручные запросы", "Qo‘lda yuborilgan so‘rovlar", "Manual requests")}</summary>
         {job.requests.map(request => <p key={request.id}>{stamp(request.requested_at)} · {t(...(STATES[request.status] || STATES.unknown))} · {request.detail}</p>)}

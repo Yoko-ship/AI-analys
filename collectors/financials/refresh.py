@@ -11,15 +11,16 @@ import catalogue.sync as catalogue_sync
 
 
 def refresh_local() -> None:
-    """Sync the catalog (catch new filings) then recompute all latest annuals."""
+    """Sync new filings and fill gaps, reusing verified history when available."""
     collectors_financials_settings.log.info("sync_all: refreshing report catalog ...")
     try:
         res = catalogue_sync.sync_all()
         collectors_financials_settings.log.info("sync_all done: %s", {k: res.get(k) for k in ("synced", "skipped") if k in res} or "ok")
     except Exception:
         collectors_financials_settings.log.exception("sync_all failed (continuing with cached catalog)")
-    collectors_financials_settings.log.info("recomputing financials for all annual reports ...")
-    res = catalogue_refresh.refresh_financials_cache(ttl_days=0, sync_missing=False, limit=1000)
+    collectors_financials_settings.log.info("refreshing financials, reusing verified history ...")
+    res = catalogue_refresh.refresh_financials_cache(ttl_days=0, sync_missing=False, limit=1000,
+                                                   reuse_verified=True)
     collectors_financials_settings.log.info("financials refresh: %s", res)
     collectors_financials_settings.log.info("filling remaining gaps from report PDFs (broken-Excel issuers) ...")
     try:

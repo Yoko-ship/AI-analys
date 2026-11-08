@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 const job = {
-  id: "quotes-catchup", title: "Quotes catch-up", title_ru: "Догрузка котировок", title_uz: "Kotirovkalarni to‘ldirish",
-  schedule: "09:30 daily; 18:00, 23:30 Mon–Sat · Asia/Tashkent",
+  id: "quotes-catchup", title: "Quotes", title_ru: "Котировки", title_uz: "Kotirovkalar",
+  schedule: "09:30 daily; 16:10, 18:00, 21:30, 23:30 Mon–Sat",
   unit: "uzstock-quotes-catchup.service", next_run: "2026-11-07T13:00:00+00:00",
   schedule_issue: null, can_run: true, request: null,
   latest: { status: "failed", reason: "HTTP 429: source rate limit", reason_code: "failed",
@@ -97,4 +97,22 @@ test("a disconnected monitor never presents old results as live", async ({ page 
   await page.goto("/admin/streams");
   await expect(page.getByRole("alert").filter({ hasText: "monitor" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run now", exact: true })).toBeDisabled();
+});
+
+test("merged quotes preserve readable results from retired schedules", async ({ page }, info) => {
+  await mock(page);
+  const archived = { ...job.latest, job: "quotes-1610", invocation: "old-close-run",
+    status: "completed", publication: "acknowledged", reason: "174 writes acknowledged", evidence: "retained closing quote journal" };
+  await page.route("**/api/admin/collections", route => route.fulfill({ contentType: "application/json",
+    body: JSON.stringify({ observer: { online: true }, items: [{ ...job, title: "Quotes",
+      history: [archived], schedule: "09:30 daily; 16:10, 18:00, 21:30, 23:30 Mon–Sat" }] }) }));
+  await page.route("**/api/admin/collections/quotes-1610/runs/old-close-run", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify(archived) }));
+  await page.goto("/admin/streams");
+  await expect(page.locator(".collection-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.locator(".collection-past summary").first().click();
+  await expect(page.locator(".collection-past .collection-log")).toHaveText("retained closing quote journal");
+  await expect(page.locator(".collection-past").getByText("Writes acknowledged by server", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("merged-quotes-history.png"), fullPage: true });
 });

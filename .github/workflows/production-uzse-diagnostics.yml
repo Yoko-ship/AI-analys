@@ -40,7 +40,7 @@ jobs:
           cd /root/uzstock/app
           git rev-parse HEAD
           docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
-          systemctl show uzstock-quotes-2130.service -p ActiveState -p Result -p ExecMainStatus
+          systemctl show uzstock-quotes-catchup.service -p ActiveState -p Result -p ExecMainStatus
           systemctl list-timers 'uzstock-quotes-*' --no-pager
           REMOTE
       - name: Inspect collector monitor failures

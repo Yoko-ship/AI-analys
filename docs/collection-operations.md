@@ -26,9 +26,34 @@ Use the commands in that collector's Details for another service. These run the
 same job and options as its scheduled run. They do not perform an arbitrary
 historical backfill or bypass source rate limits.
 
-The allowlist covers full financial collection, closing/final/catch-up quotes,
+The allowlist contains 10 jobs: full financial collection, quotes,
 intraday bars, filings, bank history, financial document ingestion, bank FX,
 Central Bank publications, corporate disclosures and news.
+
+The single **Quotes** job runs at 09:30 daily and at 16:10, 18:00, 21:30 and
+23:30 Monday–Saturday (Tashkent time). It keeps the existing
+`uzstock-quotes-catchup` service name. The former `quotes-1610` and `quotes-2130`
+timers are retired; their observed history remains available in this job's
+Details. Existing queued requests use the single worker sequentially. Old API
+job identifiers remain aliases, so saved API requests use the same worker.
+
+Financial collection reuses the history loader's completed periods only while
+the report sources, parser version and saved financial values all still match.
+New or changed filings, partial parses and lost data remain eligible. The full
+collector continues publishing saved rows, including retries of failed uploads.
+Bank history skips verified issuers only after a successful prior publication;
+otherwise its existing repair rotation remains in place. Catalog discovery and
+document processing continue independently.
+
+To force a particular bank's repair, run this inside the deployed application
+environment (with the usual data volume and credentials):
+
+```sh
+python collector_financials.py --bank-history-only --bank-history-ticker HMKB
+```
+
+This bypasses reuse and the weekly rotation. The scheduled service and **Run now**
+use the due-only repair mode; a no-change receipt explains when nothing is due.
 
 ## Read the result
 

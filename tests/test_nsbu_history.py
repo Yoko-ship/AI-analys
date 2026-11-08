@@ -58,6 +58,8 @@ def report(ticker="UZIR", year=2018, quarter=3, url="https://openinfo.uz/42.xlsx
 
 
 def test_all_periods_and_aliases_resume_and_msfo_is_untouched(catalog):
+    from financial_ingestion.history_reuse import verified_history
+    assert not verified_history().complete_issuers
     report()
     report(quarter=0)
     report(form="MSFO")
@@ -74,16 +76,41 @@ def test_all_periods_and_aliases_resume_and_msfo_is_untouched(catalog):
 
 
 def test_changed_url_record_parser_and_lost_cache_require_retry(catalog, monkeypatch):
+    from financial_ingestion.history_reuse import verified_history
     report()
     assert history.run()["complete"] == 1
+    assert verified_history(["UZIR"]).complete_issuers == {"UZIR", "UZIRP"}
     report(url="https://openinfo.uz/new.xlsx", record="43", published="2018-12-01")
+    assert not verified_history(["UZIR"]).periods
     assert history.run()["processed"] == 1
     assert catalogue_filings.get_report_urls("UZIRP", "NSBU", 2018, 3)["excel_url"].endswith("new.xlsx")
     monkeypatch.setattr(history, "implementation_digest", lambda: "parser-v2")
+    assert not verified_history(["UZIR"]).periods
     assert history.run()["processed"] == 1
     catalogue_financial_store.upsert_financials_cache("UZIRP", "NSBU", 2018, 3, {"revenue": 1})
+    assert not verified_history(["UZIR"]).complete_issuers
     assert history.run()["processed"] == 1
     assert history.run(force=True)["processed"] == 1
+
+
+def test_daily_refresh_reuses_verified_history_even_after_cache_ttl(catalog, monkeypatch):
+    report()
+    assert history.run()["complete"] == 1
+    c = catalogue_storage.get_catalog_conn()
+    with c:
+        c.execute("UPDATE catalog_financials SET updated_at='2000-01-01 00:00:00'")
+    c.close()
+    monkeypatch.setattr(catalogue_sources, "fetch_report_excel_data", lambda *a, **k: pytest.fail("already verified"))
+    result = catalogue_refresh.refresh_financials_cache(tickers=["UZIR"], ttl_days=0,
+                                                       sync_missing=False, reuse_verified=True)
+    assert result["processed"] == 0
+    assert result["reused"] == 1
+    # The scheduled full collector must opt into reuse too; it still publishes
+    # saved rows later, so skipping a parse does not skip a failed upload retry.
+    from collectors.financials import refresh
+    monkeypatch.setattr(refresh.catalogue_sync, "sync_all", lambda: {})
+    monkeypatch.setattr(catalogue_refresh, "refresh_financials_from_pdf", lambda: {})
+    refresh.refresh_local()
 
 
 def test_partial_and_failed_periods_retry_without_stopping_other_periods(catalog, monkeypatch):
@@ -100,6 +127,9 @@ def test_partial_and_failed_periods_retry_without_stopping_other_periods(catalog
     first = history.run()
     assert first["processed"] == 2 and first["partial"] == 1
     assert len(first["errors"]) == 1
+    from financial_ingestion.history_reuse import verified_history
+    assert not verified_history().periods
+    assert not verified_history().complete_issuers
     assert history.run()["processed"] == 2
 
 

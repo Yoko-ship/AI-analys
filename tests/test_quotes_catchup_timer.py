@@ -1,8 +1,8 @@
-"""The quotes catch-up timer: the fallback for a failed scheduled market run.
+"""One quotes timer preserves closing collections and recovery windows.
 
 09.10.2026 both Friday runs (16:10 and 21:30) failed and the board kept
-Thursday's session all weekend. A third worker re-runs the same idempotent
---trades-only collector later the same evening and every morning.
+Thursday's session all weekend. The single idempotent --trades-only worker
+keeps both closing runs, evening recovery and the daily morning check.
 """
 import ast
 import textwrap
@@ -20,7 +20,7 @@ def _units():
     return workflow, namespace["units"]
 
 
-def test_catchup_reruns_the_trades_collector_after_the_scheduled_runs():
+def test_one_quotes_worker_keeps_close_final_and_recovery_schedules():
     workflow, units = _units()
     service = units["/etc/systemd/system/uzstock-quotes-catchup.service"]
     assert "python collector_financials.py --trades-only" in service
@@ -31,19 +31,23 @@ def test_catchup_reruns_the_trades_collector_after_the_scheduled_runs():
     # 09:30 every day (Sunday too, so a lost Friday does not wait for Monday),
     # then 18:00 and 23:30 Tashkent — each past the 60-minute openinfo pause
     # after the 16:10 and 21:30 runs it backs up.
-    assert calendars == ["*-*-* 04:30:00", "Mon..Sat *-*-* 13:00:00", "Mon..Sat *-*-* 18:30:00"]
+    assert calendars == ["*-*-* 04:30:00", "Mon..Sat *-*-* 11:10:00", "Mon..Sat *-*-* 13:00:00",
+                         "Mon..Sat *-*-* 16:30:00", "Mon..Sat *-*-* 18:30:00"]
     # Stopped before the image is replaced, re-enabled after, and counted as a
     # running collector by the manual refresh.
-    assert workflow.count("uzstock-quotes-2130.timer uzstock-quotes-catchup.timer") == 2
-    assert workflow.count("uzstock-quotes-2130.service uzstock-quotes-catchup.service uzstock-reports-watch") == 1
-    assert "uzstock-quotes-2130.service uzstock-quotes-catchup.service; do" in workflow
+    assert "systemctl start uzstock-quotes-catchup.service" in workflow
+    for old in ("quotes-1610", "quotes-2130"):
+        assert f"/etc/systemd/system/uzstock-{old}.service" not in units
+        assert f"/etc/systemd/system/uzstock-{old}.timer" not in units
+    assert "for retired in uzstock-intraday uzstock-quotes-1300 uzstock-quotes-1610 uzstock-quotes-2130; do" in workflow
 
 
-def test_single_calendar_timers_are_unchanged():
+def test_intraday_bars_remain_an_independent_small_collection():
     _, units = _units()
-    timer = units["/etc/systemd/system/uzstock-quotes-2130.timer"]
+    timer = units["/etc/systemd/system/uzstock-hourly-bars.timer"]
     assert [line for line in timer.splitlines() if line.startswith("OnCalendar=")] == [
-        "OnCalendar=Mon..Sat *-*-* 16:30:00"]
+        "OnCalendar=Mon..Sat *-*-* 06..11:05:00"]
+    assert "--intraday-only" in units["/etc/systemd/system/uzstock-hourly-bars.service"]
 
 
 def test_every_server_worker_has_uzse_pinned_off():
