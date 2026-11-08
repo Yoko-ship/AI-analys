@@ -1,0 +1,68 @@
+{
+  "global_id": 97297,
+  "raw": {
+    "id": 14825,
+    "fact_number": "8",
+    "fact_identifier": "f-08-14825",
+    "organization_short_name": "\"Hamkorbank\" ATB",
+    "organization_ticket_name": "HMKB, HMKBP",
+    "date_apply": "2026-06-08",
+    "date_protocol": "2026-06-15",
+    "meeting_emintet": "supervisory_board",
+    "pub_date": "2026-06-15T11:11:06",
+    "status": "approved",
+    "fact_own_link": "https://hamkorbank.uz/for-investors/material-facts/",
+    "factscaseelection": [
+      {
+        "question_name": "Ющак Рафал Марцин (Juszcak Rafal Marcin)",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Председатель правления"
+      }
+    ],
+    "factsterminationpowers": [
+      {
+        "question_name": "Ющак Рафал Марцин (Juszcak Rafal Marcin)",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Вр.и.о. Председатель правления"
+      }
+    ],
+    "factsmembershipexecutive": [
+      {
+        "name": "Ющак Рафал Марцин (Juszcak Rafal Marcin)",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Председатель правления"
+      },
+      {
+        "name": "Жураев Бахтиёржон Туймуратович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Заместитель председателя правления"
+      },
+      {
+        "name": "Шамсиддинов Саиджон Шамсиддинович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Заместитель председателя правления"
+      },
+      {
+        "name": "Мамасалиев Шерзодбек Орифжонович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Заместитель председателя правления (CFO)"
+      },
+      {
+        "name": "Алиханов Хикматилло Хошимович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Заместитель председателя правления"
+      },
+      {
+        "name": "Махмудов Акмалжон Комилович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Заместитель председателя правления"
+      },
+      {
+        "name": "Ибрагимова Азиза Икрамовна",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Советник Председателя Правления"
+      }
+    ],
+    "organization": 8
+  }
+}

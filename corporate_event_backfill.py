@@ -42,9 +42,19 @@ def run(*, limit=40, days=120, now=None):
         conn.close()
 
 
-if __name__ == '__main__':
+def main(argv=None):
+    import governance_collection
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--limit',type=int,default=40)
     parser.add_argument('--days',type=int,default=120)
-    args=parser.parse_args()
-    print(json.dumps(run(limit=args.limit,days=args.days)))
+    parser.add_argument('--governance-limit', type=int, default=100)
+    args=parser.parse_args(argv)
+    evidence = run(limit=args.limit,days=args.days)
+    governance = governance_collection.run(limit=args.governance_limit,
+        progress=governance_collection.report_receipt)
+    print(json.dumps({'evidence': evidence, 'governance': governance}, ensure_ascii=False), flush=True)
+    return 1 if evidence['failed'] or governance['failed'] else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

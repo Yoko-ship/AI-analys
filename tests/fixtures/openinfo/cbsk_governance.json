@@ -1,0 +1,29 @@
+{
+  "global_id": 96557,
+  "raw": {
+    "id": 14731,
+    "organization_name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati",
+    "organization_short_name_text": "\"Chilonzor buyum savdo kompleksi\" AJ",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-14731",
+    "meeting_emintet": "annual_general_meeting",
+    "date_apply": "2026-04-21",
+    "date_protocol": "2026-04-30",
+    "status": "approved",
+    "pub_date": "2026-04-30T16:55:36",
+    "fact_own_link": "http://chbsk.uz/",
+    "organization_short_name": "\"Chilonzor buyum savdo kompleksi\" AJ",
+    "organization_ticket_name": "CBSK",
+    "organization": 633,
+    "factscaseelection": [],
+    "factsmembershipexecutive": [
+      {
+        "name": "Закиров Зафар Махмудович",
+        "work_place": "\"Чилонзор буюм савдо комплекси\" АЖ",
+        "position": "Директор"
+      }
+    ],
+    "factsterminationpowers": []
+  }
+}

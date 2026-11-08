@@ -1,0 +1,115 @@
+{
+  "global_id": 98321,
+  "raw": {
+    "id": 15012,
+    "organization_name": "“Garant bank” aksiyadorlik jamiyati",
+    "organization_short_name_text": "“Garant bank” AJ",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-15012",
+    "meeting_emintet": "annual_general_meeting",
+    "date_apply": "2026-06-29",
+    "date_protocol": "2026-07-09",
+    "status": "approved",
+    "pub_date": "2026-07-13T12:50:51",
+    "fact_own_link": "www.garantbank.uz",
+    "organization_short_name": "“Garant bank” AJ",
+    "organization_ticket_name": "GRBK, GRBKP",
+    "organization": 11,
+    "factscaseelection": [
+      {
+        "question_name": "Ахраров Азиз Хамидуллаевич",
+        "work_place": "“GARANT MALIK INVEST” МЧЖ",
+        "position": "директор ўринбосари"
+      },
+      {
+        "question_name": "Таджиев Авазхон Асадуллаевич",
+        "work_place": "\"CARVILLE CA\"  МЧЖ",
+        "position": "Молиявий директор"
+      },
+      {
+        "question_name": "Мавлянов Зафар Сахибович",
+        "work_place": "“NEW SILK ROAD AND GAS” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "question_name": "Шакиров Фаррух Мансурович",
+        "work_place": "“INTERHOTEL” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "question_name": "Ли Цзыцзянь",
+        "work_place": "“Beijing Fengruixiang Information Technology Co, Ltd",
+        "position": "Президенти, Бош директори"
+      },
+      {
+        "question_name": "Умаров Сарвар Бахтиярович",
+        "work_place": "“Nb Nice Trade” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "question_name": "Асамов Абдукадир Рашидович",
+        "work_place": "-",
+        "position": "тадбиркор"
+      },
+      {
+        "question_name": "Маткаримов Азамат Закирович",
+        "work_place": "\"Multi Xizmet\" МЧЖ",
+        "position": "Директори"
+      },
+      {
+        "question_name": "Захидов Азизбек Рустамович",
+        "work_place": "\"Deloitte & Touche LLC\"",
+        "position": "гурух раҳбари"
+      }
+    ],
+    "factsmembershipexecutive": [
+      {
+        "name": "Ахраров Азиз Хамидуллаевич",
+        "work_place": "“GARANT MALIK INVEST” МЧЖ",
+        "position": "директор ўринбосари"
+      },
+      {
+        "name": "Таджиев Авазхон Асадуллаевич",
+        "work_place": "\"CARVILLE CA\"  МЧЖ",
+        "position": "Молиявий директор"
+      },
+      {
+        "name": "Мавлянов Зафар Сахибович",
+        "work_place": "“NEW SILK ROAD AND GAS” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "name": "Шакиров Фаррух Мансурович",
+        "work_place": "“INTERHOTEL” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "name": "Ли Цзыцзянь",
+        "work_place": "“Beijing Fengruixiang Information Technology Co, Ltd”",
+        "position": "Президенти, Бош директори"
+      },
+      {
+        "name": "Умаров Сарвар Бахтиярович",
+        "work_place": "“Nb Nice Trade” МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "name": "Асамов Абдукадир Рашидович",
+        "work_place": "-",
+        "position": "тадбиркор"
+      },
+      {
+        "name": "Маткаримов Азамат Закирович",
+        "work_place": "\"Multi Xizmet\" МЧЖ",
+        "position": "Директор"
+      },
+      {
+        "name": "Захидов Азизбек Рустамович",
+        "work_place": "\"Deloitte & Touche LLC\"",
+        "position": "гурух раҳбари"
+      }
+    ],
+    "factsterminationpowers": []
+  }
+}

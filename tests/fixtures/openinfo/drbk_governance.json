@@ -1,0 +1,71 @@
+{
+  "global_id": 99783,
+  "raw": {
+    "id": 15180,
+    "organization_name": "\"Davr-bank\" Xususiy aksiyadorlik tijorat banki",
+    "organization_short_name_text": "\"Davr-bank\" XATB",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-15180",
+    "meeting_emintet": "extraordinary_general_meeting",
+    "date_apply": "2026-10-09",
+    "date_protocol": "2026-10-09",
+    "status": "approved",
+    "pub_date": "2026-10-13T20:50:38",
+    "fact_own_link": "davrbank.uz",
+    "organization_short_name": "\"Davr-bank\" XATB",
+    "organization_ticket_name": "DVRB",
+    "organization": 26,
+    "factscaseelection": [
+      {
+        "question_name": "Гадиров Гейбат Гасанага",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      },
+      {
+        "question_name": "Сулейманлы Айнур Ялчын гызы",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      }
+    ],
+    "factsmembershipexecutive": [
+      {
+        "name": "Самадов Абдумажид Абдувахитович",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Председатель Правления"
+      },
+      {
+        "name": "Сулейманлы Айнур Ялчын гызы",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      },
+      {
+        "name": "Гадиров Гейбат Гасанага",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      },
+      {
+        "name": "Назаров Самаржон Сидикович",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      },
+      {
+        "name": "Халилов Нодир Нуритдинович",
+        "work_place": "Правления Банка",
+        "position": "Директор департамента Риск-менеджмента"
+      }
+    ],
+    "factsterminationpowers": [
+      {
+        "question_name": "Тожиев Равшан Жовлиевич",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, Заместитель Председателя Правления"
+      },
+      {
+        "question_name": "Курбанов Алишер Самандарович",
+        "work_place": "Правления Банка",
+        "position": "Член Правления, и.о. Заместитель Председателя Правления"
+      }
+    ]
+  }
+}

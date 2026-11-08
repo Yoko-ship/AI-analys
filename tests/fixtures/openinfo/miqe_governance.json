@@ -1,0 +1,35 @@
+{
+  "global_id": 96033,
+  "raw": {
+    "id": 14666,
+    "organization_name": "\"Minora qurish ekspeditsiyasi\" aksiyadorlik jamiyati",
+    "organization_short_name_text": "\"Minora qurish ekspeditsiyasi\" AJ",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-14666",
+    "meeting_emintet": "supervisory_board",
+    "date_apply": "2026-03-24",
+    "date_protocol": "2026-03-27",
+    "status": "approved",
+    "pub_date": "2026-03-27T15:27:48",
+    "fact_own_link": "https://mqe-aj.uz/images/2026/2.2.Muhim%20faktlar/ru_sf_8_27.03.2026.pdf",
+    "organization_short_name": "\"Minora qurish ekspeditsiyasi\" AJ",
+    "organization_ticket_name": "MIQE",
+    "organization": 197,
+    "factscaseelection": [
+      {
+        "question_name": "Тураев Азиз Азимович",
+        "work_place": "АО \"Minora qurish ekspeditsiyasi\"",
+        "position": "Временно исполняющий обязанности директора"
+      }
+    ],
+    "factsmembershipexecutive": [],
+    "factsterminationpowers": [
+      {
+        "question_name": "Аманов Уткир Умедиллаевич",
+        "work_place": "АО \"Minora qurish tkspeditsiyasi\"",
+        "position": "Директор"
+      }
+    ]
+  }
+}

@@ -35,6 +35,35 @@ def iptb_document():
     return from_fact(raw)
 
 
+@pytest.mark.parametrize('fixture_name,body', [
+    ('agmkp_governance', 'supervisory'),
+    ('grbk_governance', 'unspecified'),
+    ('cbsk_governance', 'executive'),
+    ('miqe_governance', 'executive'),
+    ('iptb_2026_governance', 'executive'),
+    ('brbn_governance', 'executive'),
+    ('drbk_governance', 'executive'),
+    ('ocbk_governance', 'executive'),
+])
+def test_real_filings_do_not_label_other_employers_directors_as_company_executives(fixture_name, body):
+    raw = json.loads(Path(f'tests/fixtures/openinfo/{fixture_name}.json').read_text(encoding='utf-8'))['raw']
+    assert from_fact(raw)['governance']['body'] == body
+
+
+def test_unidentified_body_changes_are_not_merged_into_another_unidentified_roster():
+    raw = json.loads(Path('tests/fixtures/openinfo/grbk_governance.json').read_text(encoding='utf-8'))['raw']
+    older = from_fact(raw)
+    newer = copy.deepcopy(older)
+    newer.update(source_url='https://openinfo.uz/ru/facts/8/16001', published_at='2026-11-06T10:00:00', event_date='2026-11-05')
+    newer['governance'].update(roster=[], departed=[], appointed=[{
+        'name': 'A newly disclosed member', 'position': 'Director', 'work_place': 'An external company'}])
+    save_documents([older, newer])
+    result = load('GRBK')['management']
+    assert result['body'] == 'unspecified'
+    assert result['status'] == 'partial'
+    assert [p['name'] for p in result['items']] == ['A newly disclosed member']
+
+
 def test_hmkb_reviewed_2025_table_has_exact_percentages_and_page():
     result = load('HMKB')['ownership']
     assert result['as_of'] == '2025-12-31'
@@ -71,6 +100,27 @@ def test_iptb_real_form8_roster_excludes_departed_people_and_vacancy():
 def test_reviewed_governance_is_available_before_collector_backfill():
     result = load('IPTB')['management']
     assert [p['name'] for p in result['items']] == [p['name'] for p in iptb_document()['governance']['roster'] if p['name'] != 'Вакансия']
+
+
+def test_hmkb_newer_supervisory_filing_cannot_replace_executive_management():
+    for name in ['executive', 'supervisory']:
+        fixture = json.loads(Path(f'tests/fixtures/openinfo/hmkb_2026_{name}.json').read_text(encoding='utf-8'))
+        save_documents([from_fact(fixture['raw'])])
+    result = load('HMKB')['management']
+    assert result['as_of'] == '2026-06-08'
+    assert result['body'] == 'executive'
+    assert result['source']['url'] == 'https://openinfo.uz/ru/facts/8/14825'
+    assert len(result['items']) == 7
+    assert result['items'][0]['name'] == 'Ющак Рафал Марцин (Juszcak Rafal Marcin)'
+    assert not any('Компаньон' in (p.get('work_place') or '') for p in result['items'])
+
+
+def test_supervisory_only_filing_is_labelled_as_supervisory():
+    fixture = json.loads(Path('tests/fixtures/openinfo/hmkb_2026_supervisory.json').read_text(encoding='utf-8'))
+    save_documents([from_fact(fixture['raw'])])
+    result = load('HMKB')['management']
+    assert result['body'] == 'supervisory'
+    assert result['items'][-1]['work_place'] == 'ЗАО «Банк Компаньон»'
 
 
 def test_later_change_only_disclosure_does_not_erase_existing_roster():

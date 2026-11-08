@@ -1,4 +1,29 @@
 from datetime import datetime, timezone, timedelta
+import pytest
+
+
+@pytest.mark.parametrize('failed', [0, 1])
+def test_daily_entrypoint_discovers_governance_for_all_issuers(monkeypatch, capsys, failed):
+    import corporate_event_backfill as backfill
+    import governance_collection
+    calls = []
+    monkeypatch.setattr(backfill, 'run', lambda **kw: {'failed': 0, 'enriched': 3})
+    def collect(**kw):
+        calls.append(kw)
+        kw['progress']({'tickers': ['HMKB', 'HMKBP'], 'imported': 2, 'state': 'failed' if failed else 'complete',
+                        'stage': 'detail', 'reason': 'HTTP_503' if failed else 'EXECUTIVE_ROSTER_FOUND'})
+        return {'attempted': 71, 'failed': failed}
+    monkeypatch.setattr(governance_collection, 'run', collect)
+    assert backfill.main(['--limit', '40', '--days', '120']) == failed
+    assert len(calls) == 1 and calls[0]['limit'] == 100
+    from collection_ops.model import parse_receipts
+    output = capsys.readouterr().out
+    assert 'governance' in output
+    receipts = parse_receipts(output.splitlines())
+    assert receipts[0]['counts']['written'] == 2
+    if failed:
+        assert receipts[-1]['ok'] is False and receipts[-1]['reason'] == 'HTTP_503'
+        assert 'detail' in receipts[-1]['stage']
 
 
 def test_historical_enrichment_is_bounded_and_does_not_retry_every_page_load(monkeypatch,tmp_path):

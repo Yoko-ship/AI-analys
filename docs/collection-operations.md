@@ -52,6 +52,63 @@ requests. Logs are bounded excerpts; use journalctl for the complete retained lo
 Earlier observed publication failures survive subsequent journal-tail updates.
 History starts with deployment/observation, not retroactively for every past run.
 
+## Management disclosures for every company
+
+The **Corporate disclosures** job also discovers Openinfo form 8 history for every
+issuer in the company and market-security catalogs, independently of the recent news feed.
+Market-only securities use the existing exact ticker/ISIN issuer index; there is
+also an exact, unambiguous company-name match within the market directory to
+reuse a known issuer for another share class. There is no fuzzy name matching,
+and an otherwise unresolved security can match an exact registered company name
+in the Openinfo index. Company-page reads do not contact Openinfo. Ordinary
+and preferred shares share one issuer check. It runs at most once per issuer per
+day, processes 100 issuers per invocation, and rechecks cached documents after
+seven days. New filings are discovered on each eligible run. The latest complete
+executive roster and subsequent changes are kept separately from supervisory and
+audit bodies. The decision-making body alone does not identify the affected body.
+
+Use **Run now** for **Corporate disclosures** to process eligible issuers. To
+bypass the daily check for an immediate retry, with the normal application
+environment and catalog data mounted, run these commands:
+
+```sh
+python -m governance_collection --ticker HMKB --force
+python -m governance_collection --force
+```
+
+`--force` bypasses the daily schedule, while preserving the document cache so a
+bounded archive scan can resume immediately. `--max-documents 100` raises the
+default 30 new-document budget per issuer. It does not bypass source pacing,
+retries or the circuit breaker. To run the full scheduled job:
+
+```sh
+python corporate_event_backfill.py --limit 40 --days 120
+```
+
+Each issuer emits a JSON receipt with tickers, `checked_at`, `last_success_at`,
+`state`, `reason`, and imported/examined counts. A failed receipt adds `stage`
+(`listing` or `detail`). The persisted receipt is exposed in
+`GET /api/company/{ticker}/shareholders` under `management.collection`; archived
+people are retained if an update fails. Source failures cause a nonzero job exit.
+
+| Reason | Meaning / action |
+| --- | --- |
+| `EXECUTIVE_ROSTER_FOUND` | A dated executive roster was found; newer changes are also retained. |
+| `NO_FORM8_DISCLOSURES` | Openinfo returned no form 8 disclosures for this issuer. |
+| `NO_EXECUTIVE_ROSTER` | Available history was checked, but contains no identifiable full executive roster; another disclosed body or partial changes may still be shown. |
+| `MISSING_ISSUER_ID` | Match the catalog company to the correct Openinfo issuer before collecting. |
+| `NOT_COLLECTED` | This issuer has not yet been checked by the new collector. |
+| `ARCHIVE_LIMIT_REACHED` | The bounded scan is partial; rerun to resume cached history or raise `--max-documents`. |
+| `HTTP_<status>`, `TIMEOUT`, `CONNECTION_ERROR` | The source request failed; inspect the stage and rerun after service recovery. |
+| `SOURCE_PAUSED` | The shared Openinfo circuit breaker is open; remaining issuers wait for the next run. |
+| `ISSUER_MISMATCH`, `WRONG_DISCLOSURE_TYPE`, `DISCLOSURE_ID_MISMATCH` | Source identity did not match the requested company/form/document; no unverified document is published. |
+| `INVALID_SOURCE_RESPONSE`, `PAGINATION_STALLED` | Unexpected source structure or repeated pagination; inspect the source response before changing the parser. |
+
+The result also lists `missing_identity` tickers, remaining issuers, failures and
+partial scans. A successful process does not imply every company published a
+roster. Dates and source links on the company page describe the underlying
+disclosure, not a guarantee that the roster is current today.
+
 ## Deployment and recovery
 
 The existing CI release installs `uzstock-collection-monitor.service` and its

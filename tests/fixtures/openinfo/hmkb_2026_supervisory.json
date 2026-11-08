@@ -1,0 +1,78 @@
+{
+  "global_id": 99726,
+  "raw": {
+    "id": 15173,
+    "fact_number": "8",
+    "fact_identifier": "f-08-15173",
+    "organization_short_name": "\"Hamkorbank\" ATB",
+    "organization_ticket_name": "HMKB, HMKBP",
+    "date_apply": "2026-09-30",
+    "date_protocol": "2026-10-07",
+    "meeting_emintet": "supervisory_board",
+    "pub_date": "2026-10-09T17:00:35",
+    "status": "approved",
+    "fact_own_link": "https://hamkorbank.uz/for-investors/material-facts/",
+    "factscaseelection": [
+      {
+        "question_name": "Черикбаева Маргарита Шаимовна",
+        "work_place": "ЗАО «Банк Компаньон»",
+        "position": "Председатель правления (CEO)"
+      }
+    ],
+    "factsterminationpowers": [
+      {
+        "question_name": "Солиев Нусратилла Лутпуллаевич",
+        "work_place": "ОНК ООО «FAIR TAX»",
+        "position": "Главный директор"
+      }
+    ],
+    "factsmembershipexecutive": [
+      {
+        "name": "Ибрагимов Икрам Ибрагимович",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Председатель  Совета банка"
+      },
+      {
+        "name": "Жураев Шокир Жумаевич",
+        "work_place": "АКБ “Hamkorbank”",
+        "position": "Член Совета"
+      },
+      {
+        "name": "Тошмуродов Шухрат Маматкулович",
+        "work_place": "ООО “Colvir Cental Asia”",
+        "position": "Главный директор"
+      },
+      {
+        "name": "Вердиев Вусал Исак Оглу",
+        "work_place": "Евразия, Африка",
+        "position": "Независимый директор"
+      },
+      {
+        "name": "Истомин Иван Александрович",
+        "work_place": "Embedifly (Великобритания)",
+        "position": "Директор"
+      },
+      {
+        "name": "Талвитие Юрки Петтери",
+        "work_place": "Kotona Manor Oy",
+        "position": "Член Совета"
+      },
+      {
+        "name": "Самарина Анна Юрьевна",
+        "work_place": "ООО «КУА Геритидж Инвестмент Менеджмент» (Украина)",
+        "position": "Директор"
+      },
+      {
+        "name": "Акмалов Шавкат Нигматуллаевич",
+        "work_place": "AG Access Мiсrоfiпапсе Holding",
+        "position": "Директор департамента внутреннего аудита и кибербезопасности"
+      },
+      {
+        "name": "Черикбаева Маргарита Шаимовна",
+        "work_place": "ЗАО «Банк Компаньон»",
+        "position": "Председатель правления (CEO)"
+      }
+    ],
+    "organization": 8
+  }
+}

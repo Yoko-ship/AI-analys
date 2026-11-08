@@ -18,7 +18,9 @@ def test_iptb_governance_preserves_people_roles_and_roster_without_pairing_succe
     assert changes['appointed'][0]['work_place'] == 'АКИБ "Ипотека-банк"'
     assert len(changes['roster']) == 9
     assert changes['roster'][-1]['name'] == 'Вакансия'
-    assert set(changes) == {'appointed', 'departed', 'roster'}
+    assert set(changes) == {'appointed', 'departed', 'roster', 'body', 'source_title', 'issuer_names'}
+    assert changes['body'] == 'executive'
+    assert changes['issuer_names'] == [GOVERNANCE['organization_short_name']]
     assert 'Мартон Миклош Ратки' in event['summary']['ru']
     assert 'Элашвили Иракли' in event['summary']['ru']
     assert event['pdf_url'] == GOVERNANCE['fact_own_link']

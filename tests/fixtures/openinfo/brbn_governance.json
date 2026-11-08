@@ -1,0 +1,70 @@
+{
+  "global_id": 99903,
+  "raw": {
+    "id": 15194,
+    "organization_name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+    "organization_short_name_text": "ATB \"Biznesni rivojlantirish banki\"",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-15194",
+    "meeting_emintet": "supervisory_board",
+    "date_apply": "2026-10-12",
+    "date_protocol": "2026-10-21",
+    "status": "approved",
+    "pub_date": "2026-10-23T20:45:10",
+    "fact_own_link": "http://www.brb.uz",
+    "organization_short_name": "ATB \"Biznesni rivojlantirish banki\"",
+    "organization_ticket_name": "BRBN, BRBNP",
+    "organization": 23,
+    "factscaseelection": [],
+    "factsmembershipexecutive": [
+      {
+        "name": "Annaklichev Saxi Saparmuxamedovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisi v.b."
+      },
+      {
+        "name": "Yusupov Shoxzod Maxmatmurodovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisining birinchi o‘rinbosari v.b."
+      },
+      {
+        "name": "Voxidov Oybek Roziqovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisi o‘rinbosari v.b."
+      },
+      {
+        "name": "Bobojonov Boboxon Po‘latovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisi o‘rinbosari v.b."
+      },
+      {
+        "name": "Sharipov Baxromxodja Shuxratovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisi o‘rinbosari v.b."
+      },
+      {
+        "name": "Xakimov Durbek Sa’dullayevich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Risk bosh direktori;"
+      },
+      {
+        "name": "Yusupov Jamolbek Qosimovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Komplayens nazorati departamenti direktori"
+      },
+      {
+        "name": "Nazarov Alimjon Mirzayevich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Sud va huquqni muhofaza qiluvchi organlar bilan ishlash departamenti direktori"
+      }
+    ],
+    "factsterminationpowers": [
+      {
+        "question_name": "Abbosov Nizomiddin Ravshanovich",
+        "work_place": "\"БРБ\" АТБ",
+        "position": "Boshqaruv raisi o‘rinbosari v.b."
+      }
+    ]
+  }
+}

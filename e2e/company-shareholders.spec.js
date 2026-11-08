@@ -10,7 +10,7 @@ const ownership = {
   ],
 };
 const management = {
-  status: 'disclosed', as_of: '2026-10-28', source: {url: 'https://openinfo.uz/ru/facts/8/15218'},
+  status: 'disclosed', body: 'executive', as_of: '2026-10-28', source: {url: 'https://openinfo.uz/ru/facts/8/15218'},
   items: [{name: 'Сентпетери Адам', position: 'Председатель Правления', source_url: 'https://openinfo.uz/ru/facts/8/15218'},
     {name: 'Мартон Миклош Ратки', position: 'Заместитель председателя правления', source_url: 'https://openinfo.uz/ru/facts/8/15218'}],
 };
@@ -58,6 +58,7 @@ test('company cards fill the page with readable stable rows and source links', a
   await expect(panel).toContainText('28.10.2026');
   await expect(panel.getByRole('link', {name: 'Ibragimov Ikram'})).toHaveAttribute('href', `${ownership.source.url}#page=13`);
   await expect(panel).toContainText('Председатель Правления');
+  await expect(panel).toContainText('Исполнительный орган');
   const cards = panel.locator('.shareholder-card');
   const left = await cards.nth(0).boundingBox(), right = await cards.nth(1).boundingBox();
   expect(right.x).toBeGreaterThan(left.x + left.width);
@@ -96,6 +97,25 @@ test('company cards fill the page with readable stable rows and source links', a
   await panel.screenshot({path: testInfo.outputPath('shareholders-mobile.png')});
   expect(requests).toHaveLength(1);
   expect(errors).toEqual([]);
+});
+
+for (const [body, label] of [['supervisory', 'Наблюдательный совет'], ['unspecified', 'Орган управления не уточнён']]) test(`${body} roles keep their employer and explain a failed refresh without hiding people`, async ({page}) => {
+  await setup(page, () => ({ok: true, ownership: empty, management: {
+    ...management, body, items: [{name: 'Черикбаева Маргарита Шаимовна', position: 'Председатель правления (CEO)', work_place: 'ЗАО «Банк Компаньон»'}],
+    collection: {state: 'failed', reason: 'HTTP_503', checked_at: '2026-11-08T10:00:00Z'},
+  }}));
+  await page.goto('/company/HMKB?tab=shareholders');
+  const card = page.getByRole('region', {name: 'Руководство', exact: true});
+  await expect(card).toContainText(label);
+  await expect(card).toContainText('ЗАО «Банк Компаньон»');
+  await expect(card).toContainText('Openinfo временно недоступен');
+  await expect(card).toContainText('Показаны ранее полученные сведения');
+});
+
+test('missing issuer identity explains why management could not be collected', async ({page}) => {
+  await setup(page, () => ({ok: true, ownership: empty, management: {...empty, collection: {state: 'unavailable', reason: 'MISSING_ISSUER_ID'}}}));
+  await page.goto('/company/NOID?tab=shareholders');
+  await expect(page.getByRole('region', {name: 'Руководство', exact: true})).toContainText('Компания пока не сопоставлена с эмитентом в Openinfo');
 });
 
 test('deep link shows independently missing ownership without hiding management', async ({page}) => {

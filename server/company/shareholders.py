@@ -12,8 +12,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import dbx
+import governance_store
 from catalogue.storage import get_catalog_conn
 from financial_ingestion import publication
+from corporate_governance import person_key as _person_key, named_person
 
 REVIEWED = Path(__file__).resolve().parents[2] / 'config' / 'company_disclosures.json'
 
@@ -90,18 +92,27 @@ def _published_ownership(ticker):
                                   'version': snapshot['id'], 'page': items[0].get('page')}}
 
 
-def _person_key(person):
-    # Never match two people by their row numbers, or guess a successor.
-    return ' '.join(str(person.get('name') or '').casefold().split())
-
-
 def _people(rows, doc, as_of):
-    vacancies = {'вакансия', 'вакантно', 'vacant', 'vacancy', 'vakant', "bo'sh", 'bo‘sh'}
     return [{**row, 'source_url': doc['source_url'], 'as_of': as_of}
-            for row in rows or [] if _person_key(row) and _person_key(row) not in vacancies]
+            for row in rows or [] if named_person(row)]
 
 
 def _management(documents, today):
+    from corporate_governance import body_for
+    grouped = defaultdict(list)
+    for document in documents:
+        grouped[body_for(document.get('governance') or {})].append(document)
+    bodies = []
+    for body, rows in grouped.items():
+        # Unknown bodies cannot safely share a running roster: they might be
+        # different committees. Publish one disclosure without inventing a merge.
+        batches = [[row] for row in rows] if body == 'unspecified' else [rows]
+        bodies.extend({**result, 'body': body} for batch in batches
+                      if (result := _management_roster(batch, today))['as_of'])
+    return max(bodies, key=lambda result: (result['body'] == 'executive', result['as_of'])) if bodies else _empty()
+
+
+def _management_roster(documents, today):
     dated = []
     for doc in documents:
         published = _day(doc.get('published_at'))
@@ -143,6 +154,9 @@ def load(ticker, *, today=None):
         company = conn.execute('SELECT org_id FROM catalog_companies WHERE ticker=?', (ticker,)).fetchone()
         issuer_id = str(company['org_id']) if company and company['org_id'] else None
         tickers = {ticker}
+        if not issuer_id:
+            issuer_id, related = governance_store.identity(ticker)
+            tickers.update(related)
         if issuer_id:
             tickers.update(row['ticker'] for row in conn.execute('SELECT ticker FROM catalog_companies WHERE org_id=?', (issuer_id,)))
         stored = []
@@ -164,4 +178,5 @@ def load(ticker, *, today=None):
     documents = {doc['source_url']: doc for doc in reviewed['governance']}
     documents.update({doc['source_url']: doc for doc in stored})
     management = _management([doc for doc in documents.values() if matches(doc)], today)
+    management['collection'] = governance_store.status(issuer_id)
     return {'ok': True, 'ticker': ticker, 'ownership': ownership, 'management': management}

@@ -1,0 +1,55 @@
+{
+  "global_id": 99274,
+  "raw": {
+    "id": 15121,
+    "organization_name": "«Octobank» aksiyadorlik jamiyati",
+    "organization_short_name_text": "«Octobank» AJ",
+    "fact_title": "Изменение в составе наблюдательного совета, ревизионной комиссии или исполнительного органа",
+    "fact_number": "8",
+    "fact_identifier": "f-08-15121",
+    "meeting_emintet": "supervisory_board",
+    "date_apply": "2026-09-11",
+    "date_protocol": "2026-09-11",
+    "status": "approved",
+    "pub_date": "2026-09-11T17:08:37",
+    "fact_own_link": "www.octobank.uz",
+    "organization_short_name": "«Octobank» AJ",
+    "organization_ticket_name": "OCBK",
+    "organization": 27,
+    "factscaseelection": [
+      {
+        "question_name": "Мирзаев Баходир Алимович",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Заместитель Председателя Правления"
+      }
+    ],
+    "factsmembershipexecutive": [
+      {
+        "name": "Турсунов Искандар Бахтинурович",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Председатель Правления"
+      },
+      {
+        "name": "Жумаев Хамид Хусенович",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Первый Заместитель Председателя Правления"
+      },
+      {
+        "name": "Шавкиев Сардор Завкиевич",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Заместитель Председателя Правления"
+      },
+      {
+        "name": "Аллаёрова Дилрабо Нормаматовна",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Главный бухгалтер"
+      },
+      {
+        "name": "Мирзаев Баходир Алимович",
+        "work_place": "АО \"Октобанк\"",
+        "position": "Заместитель Председателя Правления"
+      }
+    ],
+    "factsterminationpowers": []
+  }
+}
