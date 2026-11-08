@@ -2,6 +2,19 @@
 from pathlib import Path
 import yaml
 
+
+def test_governance_backfill_runs_only_after_the_verified_production_release():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))
+    job = workflow['jobs']['backfill-governance']
+    assert job['needs'] == 'deploy-production'
+    assert job['environment'] == 'uzstock-production'
+    assert 'backfill_governance' in job['if'] and '[backfill-governance]' in job['if']
+    commands = '\n'.join(step.get('run', '') for step in job['steps'])
+    assert 'python -u -m governance_collection --force' in commands
+    assert 'docker exec uzstock-web' in commands
+    assert 'set -euo pipefail' in commands
+    assert 'docker build' not in commands
+
 ROOT = Path(__file__).resolve().parents[1]
 
 

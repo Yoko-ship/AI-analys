@@ -37,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      backfill_governance:
+        description: Collect management disclosures for every company after deployment
+        required: false
+        type: boolean
+        default: false
 
 # Finish an active release instead of cancelling it during a container swap.
 # GitHub retains only the newest pending run for this branch.
@@ -1659,6 +1664,42 @@ jobs:
               raise SystemExit("No persisted news usage record was found")
           print("NEWS_USAGE_REPORT=" + json.dumps(dict(row), ensure_ascii=False, sort_keys=True))
           PY
+          REMOTE
+
+  backfill-governance:
+    name: Collect company management disclosures
+    environment: uzstock-production
+    needs: deploy-production
+    if: github.ref == 'refs/heads/API' && ((github.event_name == 'workflow_dispatch' && inputs.backfill_governance) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[backfill-governance]')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Configure deployment SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+      - name: Verify the running revision and collect management disclosures
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          test "$(git rev-parse HEAD)" = "$1"
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
+          docker exec uzstock-web python -u -m governance_collection --force 2>&1 \
+            | python3 scripts/ci_log.py governance-backfill 300
           REMOTE
 
   backfill-column-sources:

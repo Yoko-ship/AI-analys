@@ -85,6 +85,11 @@ retries or the circuit breaker. To run the full scheduled job:
 python corporate_event_backfill.py --limit 40 --days 120
 ```
 
+For an operational release from GitHub Actions, manually run **CI** on the **API**
+branch with **backfill_governance** enabled. The collection starts only after the
+tested image is deployed and its revision matches the server checkout. A release
+commit containing `[backfill-governance]` requests the same post-release collection.
+
 Each issuer emits a JSON receipt with tickers, `checked_at`, `last_success_at`,
 `state`, `reason`, and imported/examined counts. A failed receipt adds `stage`
 (`listing` or `detail`). The persisted receipt is exposed in

@@ -21,8 +21,10 @@ def test_postgres_dispatch_is_durable_and_claimed_once(monkeypatch):
         c.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
     try:
         scoped = make_conninfo(dsn, options=f"-c search_path={schema}")
+        # dbx builds its own name/index-addressable rows from driver tuples,
+        # just as the production connection does. dict_row iterates column names.
         monkeypatch.setattr(store, "connect", lambda: dbx.Connection(
-            psycopg.connect(scoped, row_factory=psycopg.rows.dict_row), dbx.POSTGRES))
+            psycopg.connect(scoped), dbx.POSTGRES))
         store.report([observation()])
         with ThreadPoolExecutor(max_workers=2) as pool:
             requests = list(pool.map(lambda _: store.enqueue(JOB, actor_id=41), range(2)))
