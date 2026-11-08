@@ -58,6 +58,18 @@ jobs:
               -p ActiveState -p SubState -p Result -p ExecMainStatus -p WorkingDirectory \
               -p LastTriggerUSec -p NextElapseUSecMonotonic
             journalctl -u uzstock-collection-monitor.service -n 100 --no-pager -o cat
+            journalctl --no-pager -n 80 -o cat _SYSTEMD_UNIT=uzstock-bank-fx.service + UNIT=uzstock-bank-fx.service + SYSLOG_IDENTIFIER=uzstock-bank-fx
+            docker exec uzstock-web python -c 'import json; from collection_ops import store; d=store.overview(); j=next(j for j in d["items"] if j["id"]=="bank-fx"); print(json.dumps({"observer":d["observer"], "bank_fx":j["latest"], "requests":j["requests"][:1]}))'
+            python3 - <<'PY'
+          import subprocess
+          from collection_ops import host
+          from collection_ops.registry import JOBS
+          try:
+              entries = host.journal(JOBS["bank-fx"], host.properties("uzstock-bank-fx.service"))
+              print("Bank FX journal entries:", len(entries))
+          except subprocess.CalledProcessError as exc:
+              print("Bank FX journal read failed:", exc.stderr)
+          PY
           } 2>&1 | python3 scripts/ci_log.py collection-monitor-diagnostic 140
           REMOTE
       - name: Compare production container and host source access
