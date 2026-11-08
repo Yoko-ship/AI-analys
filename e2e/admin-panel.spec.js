@@ -14,6 +14,32 @@ async function mockAdmin(page) {
   });
 }
 
+for (const width of [1440, 390]) test(`admin tabs never scroll vertically at ${width}px`, async ({ page }, info) => {
+  await mockAdmin(page);
+  await page.setViewportSize({ width, height: 900 });
+  await page.addInitScript(() => {
+    localStorage.setItem("uz_stock_analyzer_language", "ru");
+    localStorage.setItem("uz_stock_analyzer_theme", "light");
+  });
+  await page.goto("/admin/streams");
+  const tabs = page.locator(".admin-tabs");
+  await expect(tabs.getByRole("button", { name: "Система", exact: true })).toBeVisible();
+  const dimensions = await tabs.evaluate(element => ({ height: element.clientHeight, scrollHeight: element.scrollHeight }));
+  expect(dimensions.scrollHeight).toBe(dimensions.height);
+  await tabs.evaluate(element => { element.scrollTop = 100; });
+  expect(await tabs.evaluate(element => element.scrollTop)).toBe(0);
+  const buttons = tabs.getByRole("button");
+  await buttons.first().focus();
+  for (let i = 1; i < await buttons.count(); i += 1) await page.keyboard.press("Tab");
+  const last = buttons.last();
+  await expect(last).toBeFocused();
+  expect(await tabs.evaluate(element => element.scrollTop)).toBe(0);
+  if (width === 390) expect(await tabs.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/admin\/companies$/);
+  await tabs.screenshot({ path: info.outputPath(`admin-tabs-${width}.png`) });
+});
+
 test("admin opens straight on the product tabs, with no second navigation", async ({ page }, testInfo) => {
   const failures = [];
   page.on("pageerror", (error) => failures.push(error.message));

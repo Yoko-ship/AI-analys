@@ -100,7 +100,6 @@
   padding: 10px 11px;
   border: none;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   background: none;
   color: var(--muted);
   font: inherit;
@@ -110,6 +109,7 @@
   transition: color 0.15s var(--ease-out, ease), border-color 0.15s var(--ease-out, ease);
 }
 .admin-tab:hover:not(:disabled) { color: var(--text); }
+.admin-tab:focus-visible { outline-offset: -3px; }
 .admin-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .admin-tab:disabled { cursor: default; opacity: 0.45; }
 .admin-tab .adm-i { width: 15px; height: 15px; }
