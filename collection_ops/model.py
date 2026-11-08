@@ -5,10 +5,11 @@ import json
 import os
 import re
 import uuid
+from collection_ops.diagnosis import explain, recorded_events
 
 MARKER = "COLLECTION_RECEIPT "
 MAX_EVIDENCE = 12000
-WRITE_COUNTS = frozenset({"upserted", "inserted", "updated", "replaced", "written", "history", "intraday", "coupons", "key_rate", "ratios"})
+WRITE_COUNTS = frozenset({"upserted", "inserted", "updated", "replaced", "written", "history", "intraday", "coupons", "key_rate", "ratios", "datasets"})
 
 def utcnow():
     return datetime.now(timezone.utc)
@@ -71,7 +72,7 @@ def outcome(observation):
             return [clean(item) for item in value]
         return value
     value = clean(observation)
-    receipts = value.get("receipts") or []
+    receipts = recorded_events(value)
     # Meta heartbeat writes prove only that the heartbeat endpoint worked.
     material = [r for r in receipts if r.get("stage") != "heartbeat"]
     failed = [r for r in material if r.get("ok") is False]
@@ -86,7 +87,7 @@ def outcome(observation):
     elif value.get("invocation"):
         result, exit_code = value.get("result"), value.get("exit_code")
         if result not in ("success", "") or exit_code not in (0, None):
-            status = "failed"
+            status = "partial" if accepted and result == "exit-code" else "failed"
             code, reason = {
                 "timeout": ("timeout", "The service exceeded its time limit."),
                 "oom-kill": ("memory_limit", "The service was terminated for exceeding its memory limit."),
@@ -106,4 +107,5 @@ def outcome(observation):
             reason = failed[-1].get("reason") or reason
     evidence = str(value.get("evidence") or "")[-MAX_EVIDENCE:]
     return {**value, "status": status, "reason_code": code, "reason": reason,
-            "failed_stage": stage, "publication": publication, "evidence": evidence}
+            "failed_stage": stage, "publication": publication, "evidence": evidence,
+            "diagnosis": explain(value, material, status)}

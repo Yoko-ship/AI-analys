@@ -2,11 +2,83 @@
 from datetime import datetime, timedelta, timezone
 import json
 import sqlite3
+from pathlib import Path
 import pytest
 from collection_ops import model, store
 
 NOW = datetime(2026, 11, 7, 10, tzinfo=timezone.utc)
 JOB = "quotes-catchup"
+
+
+def recorded_failure(job):
+    fixture = json.loads(Path("tests/fixtures/collection_failures_20261108.json").read_text(encoding="utf-8"))
+    return next(case["observation"] for case in fixture["cases"] if case["job"] == job)
+
+
+def test_cbu_real_partial_update_explains_missing_tables_and_inflation():
+    run = model.outcome(recorded_failure("terminal-cbu"))
+    assert run["status"] == "partial"
+    assert run["publication"] == "acknowledged"
+    diagnosis = run["diagnosis"]
+    assert diagnosis["saved_datasets"] == 9
+    missing = next(i for i in diagnosis["issues"] if i["code"] == "table_missing")
+    assert missing["period"] == "2026-11"
+    assert set(missing["datasets"]) == {"npl", "main", "structure", "capital", "liquidity", "profitability", "industry"}
+    assert any(i["code"] == "format_changed" and i["datasets"] == ["inflation"] for i in diagnosis["issues"])
+
+
+def test_real_bank_repair_names_the_rejected_period_and_preserves_success():
+    run = model.outcome(recorded_failure("bank-history"))
+    assert run["status"] == "partial"
+    issue = run["diagnosis"]["issues"][0]
+    assert (issue["code"], issue["ticker"], issue["period"], issue["actual_date"]) == (
+        "period_mismatch", "SQBN", "2019Q2", "2020-06-17")
+
+
+def test_real_document_errors_explain_protected_values_and_limited_evidence():
+    diagnosis = model.outcome(recorded_failure("financial-ingestion"))["diagnosis"]
+    assert diagnosis["evidence_limited"]
+    issue = next(i for i in diagnosis["issues"] if i.get("ticker") == "UZMT")
+    assert issue["code"] == "incomplete_values"
+    assert issue["fields"] == ["cash", "total_liabilities"]
+
+
+def test_old_history_gets_current_explanations_without_a_rerun(isolated_store):
+    store.report([recorded_failure("terminal-cbu")])
+    c = isolated_store()
+    old = recorded_failure("terminal-cbu")
+    with c:
+        c.execute("UPDATE collection_runs SET payload=?", (json.dumps(old),))
+        c.execute("UPDATE collection_observations SET payload=?", (json.dumps(old),))
+    c.close()
+    assert store.read_run(old["job"], old["invocation"])["diagnosis"]["saved_datasets"] == 9
+    item = next(j for j in store.overview()["items"] if j["id"] == old["job"])
+    assert item["latest"]["diagnosis"]["saved_datasets"] == 9
+    assert item["history"][0]["diagnosis"]["saved_datasets"] == 9
+
+
+@pytest.mark.parametrize("reason,phase,code", [
+    ("HTTP 429: source rate limit", "collection", "rate_limited"),
+    ("ReadTimeout: request timed out", "collection", "source_timeout"),
+    ("HTTP 503", "publication", "publication_unavailable"),
+    ("FormatChanged: Inflation table missing", "collection", "format_changed"),
+])
+def test_failure_explanations_distinguish_source_from_saving(reason, phase, code):
+    run = model.outcome(observation(receipts=[{"stage": "source", "ok": False, "reason": reason, "phase": phase}]))
+    assert run["diagnosis"]["issues"][0]["code"] == code
+
+
+def test_unknown_failure_does_not_invent_an_upstream_cause():
+    run = model.outcome(observation(result="exit-code", exit_code=1,
+                                   evidence="INFO recovered from HTTP 429 yesterday\nprocess exited"))
+    assert run["diagnosis"]["issues"] == [{"code": "unknown"}]
+
+
+def test_cbu_listing_failure_does_not_mistake_exception_type_for_dataset():
+    from collection_ops.diagnosis import cbu_events
+    events = cbu_events({"month": "2026-11", "loaded": [], "errors": ["ReadTimeout: HTTPSConnectionPool(cbu.uz)"]})
+    assert events[0]["stage"] == "cbu/source/2026-11"
+    assert model.outcome(observation(receipts=events))["diagnosis"]["issues"][0]["code"] == "source_timeout"
 
 
 def test_merged_quote_job_keeps_each_retired_services_history(isolated_store):

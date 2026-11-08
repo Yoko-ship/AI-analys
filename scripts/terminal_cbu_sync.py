@@ -7,6 +7,8 @@ import argparse
 from datetime import date
 import json
 from server.terminal import cbu, journal
+from collection_ops.diagnosis import cbu_events
+from collection_ops.model import receipt, scrub
 
 
 def months(start,end):
@@ -34,15 +36,18 @@ def main():
     pending=list(refresh_months(date.today())) if args.refresh else list(months(args.from_month,args.through_month))
     for i,(year,month) in enumerate(pending):
         try:result=cbu.sync_month(year,month,with_sdmx=i==len(pending)-1)
-        except Exception as exc:result={'loaded':[],'errors':[type(exc).__name__]}
+        except Exception as exc:result={'loaded':[],'errors':[f'{type(exc).__name__}: {scrub(str(exc))}']}
         failed=failed or bool(result['errors'])
         print(json.dumps({'month':f'{year}-{month:02d}',**result},ensure_ascii=False),flush=True)
+        for event in cbu_events({'month':f'{year}-{month:02d}',**result}):
+            receipt(**event)
     from server.currency.history import rates
     for year in range(args.fx_from_year,date.today().year):
         try:rates(f'{year}-12-31')
         except Exception as exc:
             failed=True
             print(json.dumps({'fx_year':year,'error':type(exc).__name__}),flush=True)
+            receipt(f'cbu/fx/{year}-12', ok=False, reason=f'{type(exc).__name__}: {scrub(str(exc))}')
     journal.flush()
     return 1 if failed else 0
 

@@ -57,6 +57,19 @@ use the due-only repair mode; a no-change receipt explains when nothing is due.
 
 ## Read the result
 
+The card explains the recorded cause, what is known about saved data, and the
+next action in the selected interface language. Details name affected tables,
+months, companies and report periods. **Technical details** contains the raw
+message, logs and server commands. An exit code alone never establishes a cause:
+when the retained evidence is insufficient, the card says so explicitly.
+
+Existing history is explained on read, without rerunning collectors. Recognized
+legacy result records (CBU monthly summaries and acknowledged publication logs)
+can establish partial success; ordinary log messages cannot. Missing tables are
+reported as not found, not as proof the publisher has never released them.
+CBU runs now record each saved dataset and failed source separately, retaining
+the detailed format-validation error for the next investigation.
+
 - **Completed** means the process exited successfully. Check **Publication**:
   acknowledged writes can include existing, unchanged records.
 - **No change** requires an explicit source/collector receipt saying why nothing

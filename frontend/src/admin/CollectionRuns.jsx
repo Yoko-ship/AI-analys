@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useCollectionOperations } from "./useCollectionOperations.js";
+import { CollectionExplanation } from "./CollectionExplanation.jsx";
+import { requestText, scheduleText } from "./collection-messages.js";
 import "./collection-runs.css";
 
-function stamp(value) {
+function stamp(value, t) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? "—" : new Intl.DateTimeFormat("en-GB", {
+  return Number.isNaN(date.valueOf()) ? "—" : new Intl.DateTimeFormat(t("ru-RU", "uz-Latn-UZ", "en-GB"), {
     timeZone: "Asia/Tashkent", dateStyle: "medium", timeStyle: "short",
   }).format(date);
 }
@@ -35,17 +37,21 @@ const ISSUES = {
 function State({ value, t }) {
   return <span className={`collection-state collection-state--${value}`}>{t(...(STATES[value] || STATES.unknown))}</span>;
 }
-function RunEvidence({ run, t }) {
+function RunEvidence({ run, job, t }) {
   return <div className="collection-evidence">
     <dl className="collection-facts">
-      <div><dt>{t("Начало", "Boshlanish", "Started")}</dt><dd>{stamp(run.started_at)}</dd></div>
-      <div><dt>{t("Окончание", "Tugash", "Finished")}</dt><dd>{stamp(run.finished_at)}</dd></div>
+      <div><dt>{t("Начало", "Boshlanish", "Started")}</dt><dd>{stamp(run.started_at, t)}</dd></div>
+      <div><dt>{t("Окончание", "Tugash", "Finished")}</dt><dd>{stamp(run.finished_at, t)}</dd></div>
       <div><dt>{t("Публикация", "Nashr", "Publication")}</dt><dd>{
         run.publication === "acknowledged" ? t("Запись подтверждена сервером", "Yozuv serverda tasdiqlandi", "Writes acknowledged by server")
           : run.publication === "partial" ? t("Часть записей не применена", "Yozuvlar qisman qo‘llandi", "Some writes failed")
             : run.publication === "failed" ? t("Ошибка публикации", "Nashr xatosi", "Publication failed")
               : t("Нет подтверждения записи", "Yozuv tasdiqlanmadi", "No confirmed write")}</dd></div>
     </dl>
+    <details className="collection-technical"><summary>{t("Технические подробности", "Texnik tafsilotlar", "Technical details")}</summary>
+    {job && <code>{job.unit}</code>}
+    {job?.requests?.map(request => <p key={request.id}>{stamp(request.requested_at, t)} · {request.detail}</p>)}
+    {run.reason && <p>{run.reason}</p>}
     {run.failed_stage && <p>{t("Этап", "Bosqich", "Stage")}: <code>{run.failed_stage}</code></p>}
     {!!run.receipts?.length && <ul className="collection-receipts">{run.receipts.map((receipt, index) =>
       <li key={index}><code>{receipt.stage}</code> · {receipt.ok ? "✓" : "✕"} {receipt.reason}
@@ -53,6 +59,12 @@ function RunEvidence({ run, t }) {
     <p className="muted">{t("Счётчики записи могут включать уже существовавшие строки.", "Hisobga olingan yozuvlar oldingi qatorlarni ham o‘z ichiga olishi mumkin.", "Write counts may include existing, unchanged rows.")}</p>
     <pre className="collection-log">{run.evidence || t("Журнал этого запуска недоступен.", "Bu ishga tushirish jurnali mavjud emas.", "No log was captured for this run.")}</pre>
     {run.evidence_truncated && <p className="muted">{t("Показан фрагмент журнала. Полный журнал доступен на сервере.", "Jurnalning bir qismi ko‘rsatilgan. To‘liq jurnal serverda.", "This is a log excerpt. The full journal is available on the server.")}</p>}
+    {job && <>
+      <h4>{t("Запустить вручную на сервере", "Serverda qo‘lda ishga tushirish", "Run manually on the server")}</h4>
+      <pre className="collection-command"><code>{job.run_command}</code></pre>
+      <pre className="collection-command"><code>{job.logs_command}</code></pre>
+    </>}
+    </details>
   </div>;
 }
 function PastRun({ run, job, read, t }) {
@@ -62,8 +74,8 @@ function PastRun({ run, job, read, t }) {
     if (!event.currentTarget.open || detail) return;
     try { setDetail(await read(`/${encodeURIComponent(run.job || job.id)}/runs/${encodeURIComponent(run.invocation)}`)); } catch (failure) { setError(failure.message); }
   }}>
-    <summary>{stamp(run.started_at)} · {t(...(STATES[run.status] || STATES.unknown))}</summary>
-    <p>{run.reason}</p>
+    <summary>{stamp(run.started_at, t)} · {t(...(STATES[run.status] || STATES.unknown))}</summary>
+    <CollectionExplanation run={detail || run} t={t} expanded />
     {error && <p role="alert">{error}</p>}
     {detail && <RunEvidence run={detail} t={t} />}
   </details>;
@@ -74,21 +86,21 @@ function Collector({ job, t, busy, disabled, act, read }) {
   const issue = ISSUES[job.schedule_issue];
   return <article className="panel collection-card" aria-label={job.title}>
     <div className="collection-card-head">
-      <div className="collection-title"><h3>{t(job.title_ru, job.title_uz, job.title)}</h3><code>{job.unit}</code></div>
+      <div className="collection-title"><h3>{t(job.title_ru, job.title_uz, job.title)}</h3></div>
       <State value={latest.status} t={t} />
       <button className="primary-btn" disabled={disabled || !!busy || !job.can_run} onClick={() => act(job)}>
         {busy === job.id ? t("Отправка…", "Yuborilmoqda…", "Sending…") : t("Запустить", "Ishga tushirish", "Run now")}
       </button>
     </div>
-    <p className="collection-reason">{latest.reason}</p>
+    <CollectionExplanation run={latest} t={t} expanded={open} />
     {issue && <p className="collection-warning">{t(...issue)}</p>}
     <div className="collection-timing">
-      <span>{t("Расписание", "Jadval", "Schedule")}: {job.schedule}</span>
-      <span>{t("Следующий запуск", "Keyingi ishga tushirish", "Next run")}: {stamp(job.next_run)}</span>
-      <span>{t("Последняя попытка", "Oxirgi urinish", "Last attempt")}: {stamp(latest.started_at)}</span>
+      <span>{t("Расписание", "Jadval", "Schedule")}: {scheduleText(job.schedule, t)}</span>
+      <span>{t("Следующий запуск", "Keyingi ishga tushirish", "Next run")}: {stamp(job.next_run, t)}</span>
+      <span>{t("Последняя попытка", "Oxirgi urinish", "Last attempt")}: {stamp(latest.started_at, t)}</span>
     </div>
     {job.request && <div className="collection-request" role="status">
-      <State value={job.request.status} t={t} /> <span>{job.request.detail}</span>
+      <State value={job.request.status} t={t} /> <span>{requestText(job.request.status, t)}</span>
       {["queued", "uncertain"].includes(job.request.status) && <button className="secondary-btn" disabled={disabled || !!busy || latest.status === "running"} onClick={() => act(job, true)}>
         {t("Снять запрос", "So‘rovni bekor qilish", "Clear request")}
       </button>}
@@ -97,15 +109,12 @@ function Collector({ job, t, busy, disabled, act, read }) {
       {open ? t("Скрыть детали", "Tafsilotlarni yopish", "Hide details") : t("Подробнее", "Batafsil", "Details")}
     </button>
     {open && <div id={`details-${job.id}`} className="collection-detail">
-      <RunEvidence run={latest} t={t} />
-      <h4>{t("Запустить вручную на сервере", "Serverda qo‘lda ishga tushirish", "Run manually on the server")}</h4>
-      <pre className="collection-command"><code>{job.run_command}</code></pre>
-      <pre className="collection-command"><code>{job.logs_command}</code></pre>
+      <RunEvidence run={latest} job={job} t={t} />
       <h4>{t("История запусков", "Ishga tushirishlar tarixi", "Run history")}</h4>
       {(job.history || []).map(run => <PastRun key={`${run.job || job.id}:${run.invocation}`} run={run} job={job} read={read} t={t} />)}
       {!job.history?.length && <p className="muted">{t("История появится после первого наблюдения.", "Tarix birinchi kuzatuvdan keyin paydo bo‘ladi.", "History begins when monitoring observes a run.")}</p>}
       {!!job.requests?.length && <details className="collection-past"><summary>{t("Ручные запросы", "Qo‘lda yuborilgan so‘rovlar", "Manual requests")}</summary>
-        {job.requests.map(request => <p key={request.id}>{stamp(request.requested_at)} · {t(...(STATES[request.status] || STATES.unknown))} · {request.detail}</p>)}
+        {job.requests.map(request => <p key={request.id}>{stamp(request.requested_at, t)} · {t(...(STATES[request.status] || STATES.unknown))} · {requestText(request.status, t)}</p>)}
       </details>}
     </div>}
   </article>;

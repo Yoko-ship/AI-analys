@@ -386,7 +386,7 @@ def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
             links = discover_sdmx(catalogue.text)
         except Exception as exc:
             links = {}
-            result['errors'].append(f'SDMX catalogue: {type(exc).__name__}')
+            result['errors'].append(f'SDMX catalogue: {type(exc).__name__}: {exc}')
         for kind,source in links.items():
             try:
                 response=requests.get(source,timeout=30)
@@ -396,7 +396,7 @@ def sync_month(year=None,month=None,*,with_sdmx=True,kinds=None):
             except Exception as exc:result["errors"].append(f"{kind}: {type(exc).__name__}: {exc}")
     if with_sdmx:
         try:sync_inflation();result["loaded"].append("inflation")
-        except Exception as exc:result["errors"].append(f"inflation: {type(exc).__name__}")
+        except Exception as exc:result["errors"].append(f"inflation: {type(exc).__name__}: {exc}")
     return result
 
 

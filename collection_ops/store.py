@@ -74,7 +74,7 @@ def _observation(c, job):
     row = c.execute("SELECT observed_at,payload FROM collection_observations WHERE job=?", (job,)).fetchone()
     if not row:
         return None, None
-    return row["observed_at"], json.loads(row["payload"])
+    return row["observed_at"], outcome(json.loads(row["payload"]))
 
 def _fresh(stamp):
     time = parse_time(stamp)
@@ -152,7 +152,7 @@ def overview():
                      "timer_disabled" if not latest.get("timer_enabled") else
                      "timer_inactive" if not latest.get("timer_active") else
                      "missed_schedule" if latest.get("missed_schedule") else None)
-            history = [{k: v for k, v in json.loads(r["payload"]).items() if k not in ("evidence", "receipts")} for r in c.execute(
+            history = [{k: v for k, v in outcome(json.loads(r["payload"])).items() if k not in ("evidence", "receipts")} for r in c.execute(
                 f"SELECT payload FROM collection_runs WHERE job IN ({placeholders}) ORDER BY observed_at DESC,job,invocation DESC LIMIT 10", family).fetchall()]
             requests = [dict(r) for r in c.execute(
                 f"SELECT * FROM collection_requests WHERE job IN ({placeholders}) ORDER BY requested_at DESC,id DESC LIMIT 10", family).fetchall()]
@@ -172,7 +172,7 @@ def read_run(job, invocation):
             row = c.execute("SELECT payload FROM collection_runs WHERE job=? AND invocation=?", (canonical_id(job), invocation)).fetchone()
         if not row:
             raise OperationError("This run is no longer in the retained history.")
-        return json.loads(row["payload"])
+        return outcome(json.loads(row["payload"]))
 
 def enqueue(job, *, actor_id):
     job = _job(job).id

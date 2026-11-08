@@ -7,6 +7,42 @@ from server.terminal import journal
 FIXTURE=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_202609.json').read_text())
 
 
+def test_cbu_sync_records_saved_sources_and_precise_failures(monkeypatch, capsys):
+    import sys
+    from datetime import date
+    from scripts import terminal_cbu_sync as cli
+    from server.currency import history
+    from collection_ops.model import outcome, parse_receipts
+
+    monkeypatch.setattr(sys, "argv", ["terminal_cbu_sync", "--refresh", "--fx-from-year", str(date.today().year)])
+    monkeypatch.setattr(cli, "refresh_months", lambda today: [(2026, 10), (2026, 11)])
+    results = iter([
+        {"loaded": ["main", "npl"], "errors": []},
+        {"loaded": ["rates"], "errors": ["npl: no published table", "inflation: FormatChanged: Inflation table missing"]},
+    ])
+    monkeypatch.setattr(cbu, "sync_month", lambda *a, **kw: next(results))
+    monkeypatch.setattr(history, "rates", lambda *a: pytest.fail("unexpected historical FX request"))
+    monkeypatch.setattr(journal, "flush", lambda: None)
+    assert cli.main() == 1
+    receipts = parse_receipts(capsys.readouterr().out.splitlines())
+    assert len(receipts) == 5
+    assert receipts[-1]["reason"] == "FormatChanged: Inflation table missing"
+    run = outcome({"job": "terminal-cbu", "invocation": "run", "result": "exit-code", "exit_code": 1, "receipts": receipts})
+    assert run["status"] == "partial"
+    assert run["diagnosis"]["saved_datasets"] == 3
+
+
+def test_cbu_format_failure_keeps_its_explanation(monkeypatch):
+    from types import SimpleNamespace
+    import requests
+
+    monkeypatch.setattr(requests, "get", lambda *a, **kw: SimpleNamespace(text="", raise_for_status=lambda: None))
+    monkeypatch.setattr(cbu, "discover_sdmx", lambda text: {})
+    monkeypatch.setattr(cbu, "sync_inflation", lambda: (_ for _ in ()).throw(cbu.FormatChanged("Inflation table missing")))
+    result = cbu.sync_month(2026, 11, kinds=[])
+    assert result["errors"] == ["inflation: FormatChanged: Inflation table missing"]
+
+
 def test_year_context_uses_real_historical_observations_without_latest_fallback(tmp_path,monkeypatch):
     monkeypatch.setenv('CBU_DATA_DB',str(tmp_path/'cbu.sqlite3'))
     historical=json.loads((Path(__file__).parent/'fixtures/cbu_terminal_2020.json').read_text())
