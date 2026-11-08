@@ -127,7 +127,7 @@ test('HMKB current ratios show annualization and matching source periods',async(
     expect(url.searchParams.get('view')).toBe('template');
   }
   await terminal.getByRole('tab', {name:'Shareholders', exact:true}).click();
-  await expect(terminal.getByRole('link', {name:'CSV', exact:true})).toHaveAttribute('href', /statement=all/);
+  await expect(terminal.getByRole('link', {name:'CSV', exact:true})).toHaveCount(0);
   await terminal.getByRole('tab', {name:'Ratios', exact:true}).click();
   await last('roe').getByRole('button').click();
   const passport=page.getByRole('dialog',{name:'Source passport'});
@@ -425,6 +425,33 @@ test('the terminal displays and exports only the reference field list', async ({
   await expect(terminal.locator('.fc-documents')).toHaveCount(0);
   await terminal.getByRole('searchbox').fill('7а');
   await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
+});
+
+test('BIOK downloads the displayed table with periods, language and active filters', async ({page}) => {
+  const biok = JSON.parse(readFileSync('tests/fixtures/financial_columns/biok_export_matrix.json', 'utf8'));
+  await setup(page, {ticker:'BIOK', lang:'ru', reports:biok});
+  const terminal = page.getByTestId('financial-columns');
+  const excel = terminal.getByRole('link', {name:'XLSX', exact:true});
+  await expect(excel).toHaveAttribute('href', /layout=table/);
+  await expect(excel).toHaveAttribute('href', /lang=ru/);
+  await expect(excel).toHaveAttribute('href', /tab=summary/);
+  await expect(excel).toHaveAttribute('href', /statement=income/);
+  await terminal.getByRole('tab', {name:'Исходные строки форм', exact:true}).click();
+  await terminal.getByRole('searchbox').fill('Расходы периода');
+  await expect(terminal.locator('tr[data-metric="operating_expenses"]')).toHaveCount(1);
+  const params = new URL(await excel.getAttribute('href'), 'http://localhost').searchParams;
+  expect(params.get('query')).toBe('Расходы периода');
+  expect(params.get('tab')).toBe('original');
+  expect(params.get('from_year')).toBe('2020');
+  await page.route('**/api/company/BIOK/financials/columns.csv?**', route => route.fulfill({
+    contentType:'text/csv; charset=utf-8', headers:{'Content-Disposition':'attachment; filename="BIOK-NSBU-annual.csv"'},
+    body:'\ufeffПоказатель;Код;Единица;2024;2025;2026 · 9M\r\nРасходы периода;040;тыс. UZS;-20714060;-18645393;-11675525\r\n',
+  }));
+  const downloading = page.waitForEvent('download');
+  await terminal.getByRole('link', {name:'CSV', exact:true}).click();
+  const download = await downloading;
+  expect(download.suggestedFilename()).toBe('BIOK-NSBU-annual.csv');
+  expect(await download.failure()).toBeNull();
 });
 
 for (const theme of ['light','dark']) test(`financial statements share the catalog theme and controls (${theme})`, async ({page},testInfo) => {

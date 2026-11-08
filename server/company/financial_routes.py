@@ -2,7 +2,7 @@
 import asyncio
 import re
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
@@ -39,14 +39,19 @@ async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU
 
 @router.get('/api/company/{ticker}/financials/columns.{extension}')
 async def api_financial_columns_export(ticker: str, extension: str, form: str = 'NSBU',
-                                       scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all') -> Response:
+                                       scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all',
+                                       layout: Literal['records', 'table'] = 'records', lang: Literal['ru', 'uz', 'en'] = 'ru',
+                                       tab: Literal['summary', 'original', 'ratios'] = 'summary', from_year: int = 1900,
+                                       query: str = '') -> Response:
     from financial_columns.service import load
     from financial_columns.exports import export
     if extension not in {'csv', 'xlsx'}:
         raise HTTPException(status_code=404, detail='Unknown export format')
     try:
-        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement)
-        body, media_type = await asyncio.to_thread(export, payload, extension)
+        payload = await asyncio.to_thread(load, ticker, form=form, scope=scope, freq=freq, view=view, statement=statement,
+                                          include_sources=layout != 'table', include_ratios=layout != 'table' or tab == 'ratios')
+        body, media_type = await asyncio.to_thread(export, payload, extension, layout=layout, lang=lang,
+                                                   tab=tab, from_year=from_year, query=query)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     filename = re.sub(r'[^A-Za-z0-9_-]', '_', ticker)[:32] or 'issuer'

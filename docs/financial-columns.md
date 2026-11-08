@@ -92,7 +92,25 @@ columns and export endpoints (default `all`, preserving audit callers).
 Multiple source components share one display row but retain separate
 amount buttons and passports; no total is invented. The longer reference list
 is available under Original forms. Overview exports request `view=overview` and
-retain each component's source code and amount as separate export records.
+retain each component's source code and amount as a separate row.
+
+Terminal downloads use `layout=table`, with indicators down the rows and the
+displayed reporting periods across columns. `tab=summary|original|ratios`,
+`from_year`, `query`, `lang=ru|uz|en` and the existing statement/period parameters
+keep the export aligned with the selected view. XLSX is the first download option:
+it preserves numeric cells, units, frozen headers, quality flags and a separate
+Sources sheet. Reported ratios have their own sheet when present. Missing values
+stay blank, distinct borrowing components are never summed, and values beyond
+Excel's 15-digit precision remain text. Formula-like labels are stored literally.
+
+Table CSV uses UTF-8 with BOM and the selected language's separators: semicolon
+columns and decimal commas for RU/UZ, comma columns and decimal points for EN.
+It deliberately avoids Excel's `sep=` directive, which broke Cyrillic decoding
+when verified in the installed Windows Excel. XLSX handles differing spreadsheet
+regional settings without relying on delimiter detection. The API's default
+`layout=records` keeps the detailed, comma-delimited evidence export compatible
+with existing callers.
+
 Chart selectors also expose each component separately, using its source code;
 the same component is matched across periods even when the source order changes.
 Missing or blocked components are not plotted as zero or added into a new total.

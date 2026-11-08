@@ -12,7 +12,7 @@ FIELDS = ('ticker', 'issuer_id', 'standard', 'scope', 'metric_id', 'label', 'per
 def records(payload):
     for row in payload['rows'] + payload['ratios']:
         for column in payload['columns']:
-            cell = row['cells'][column['key']]
+            cell = row['cells'].get(column['key'], {})
             for part in cell.get('display_parts') or [cell]:
                 yield {key: {**payload, **row, 'period_end': column['end'], 'basis': column['basis'], **part}.get(key) for key in FIELDS}
     for row in payload.get('published_ratios', []):
@@ -33,7 +33,12 @@ def literal(value):
     return value
 
 
-def export(payload, extension):
+def export(payload, extension, *, layout='records', lang='ru', tab='summary', from_year=1900, query=''):
+    if layout == 'table':
+        from .table_export import export_table
+        return export_table(payload, extension, lang=lang, tab=tab, from_year=from_year, query=query)
+    if layout != 'records':
+        raise ValueError('Unknown export layout')
     rows = list(records(payload))
     if extension == 'csv':
         stream = io.StringIO(newline='')
