@@ -14,6 +14,12 @@ from . import financials
 router = APIRouter()
 
 
+@router.get('/api/company/{ticker}/shareholders')
+async def api_company_shareholders(request: Request, ticker: str) -> Response:
+    from .shareholders import load
+    return _etag_json(request, await asyncio.to_thread(load, ticker), max_age=300)
+
+
 @router.get('/api/company/{ticker}/financials/columns')
 async def api_financial_columns(request: Request, ticker: str, form: str = 'NSBU',
                                 scope: str | None = None, freq: str = 'annual', view: str = 'full', statement: str = 'all',

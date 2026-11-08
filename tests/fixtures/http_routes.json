@@ -1,5 +1,17 @@
 [
   {
+    "path": "/api/company/{ticker}/shareholders",
+    "methods": ["GET"],
+    "name": "api_company_shareholders",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/company/{ticker}/shareholders",
+    "methods": ["GET"],
+    "name": "api_company_shareholders__v2",
+    "dependencies": []
+  },
+  {
     "path": "/api/v1/issuers/{issuer_id}/profile",
     "methods": [
       "GET"

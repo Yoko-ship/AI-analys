@@ -16,6 +16,7 @@ import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
 import { QuickCompareStrip } from "../../shared/QuickCompareStrip.jsx";
 import { CompanyDividendsTab } from "./Financials.jsx";
 import { IssuerFinancials } from "./IssuerFinancials.jsx";
+import { CompanyShareholders } from './CompanyShareholders.jsx';
 
 function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, onOpenChart, marketRows, tradeStats, favoriteTickers, onToggleFavorite, signedIn, hasProAccess = false, apiFetch = fetch, onUpgrade }) {
   const lang = normalizeLanguage(language);
@@ -26,7 +27,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const qualityPeriod = companyQuery.get("qualityPeriod") || "";
   const qualityField = companyQuery.get("qualityField") || "";
   const requestedTab = companyQuery.get("tab");
-  const [tab, setTab] = React.useState(requestedTab === "financials" ? "financials" : "overview");
+  const [tab, setTab] = React.useState(['financials', 'shareholders'].includes(requestedTab) ? requestedTab : 'overview');
 
   // A company is a new page, even though the SPA swaps it into the same
   // document. Reset the previous view's scroll offset before paint so opening
@@ -444,6 +445,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
     ...(securityType !== "bond" ? [{ key: "dividends", label: lang === "ru" ? "Дивиденды" : lang === "uz" ? "Dividendlar" : "Dividends" }] : []),
     { key: "reports", label: lang === "ru" ? "Отчёты" : lang === "uz" ? "Hisobotlar" : "Reports" },
     { key: "financials", label: lang === "ru" ? "Финансы" : lang === "uz" ? "Moliya" : "Financials" },
+    { key: 'shareholders', label: lang === 'ru' ? 'Акционеры' : lang === 'uz' ? 'Aksiyadorlar' : 'Shareholders' },
   ];
   return (
     <div className="company-page">
@@ -485,6 +487,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
           {TABS.map((t) => (
             <button key={t.key} type="button" data-track-control="company_tab" data-track-value={t.key} data-track-ticker={ticker}
               className={`company-tab-btn ${tab === t.key ? "active" : ""}`}
+              aria-pressed={tab === t.key}
               onClick={() => { if (tab !== t.key) trackFeature(t.key, ticker); setTab(t.key); }}>
               {t.label}
             </button>
@@ -580,6 +583,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
         {tab === "reports" && (
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
         )}
+        {tab === 'shareholders' && <CompanyShareholders key={ticker} ticker={ticker} lang={lang} apiFetch={apiFetch}/>}
         {tab === "financials" && (
           <>
             {qualityIssue && <div className="panel" style={{ padding: "12px 16px", marginBottom: 12, border: "1px solid rgba(220, 80, 80, 0.5)" }}>

@@ -308,6 +308,20 @@ async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 
   await page.goto(`/catalog?t=${ticker}&f=${func}`);
 }
 
+test('existing Shareholders view uses issuer disclosures even when financial statements fail', async ({page}) => {
+  await setup(page, {fail: true});
+  await page.route('**/api/company/IPTB/shareholders', route => route.fulfill({json: {
+    ok: true, ownership: {status: 'unavailable', items: []}, management: {
+      status: 'disclosed', as_of: '2026-10-28', source: {url: 'https://openinfo.uz/ru/facts/8/15218'},
+      items: [{name: 'Сентпетери Адам', position: 'Председатель Правления'}],
+    },
+  }}));
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('tab', {name: 'Shareholders', exact: true}).click();
+  await expect(terminal.getByTestId('company-shareholders')).toContainText('Сентпетери Адам');
+  await expect(terminal.getByRole('alert')).toHaveCount(0);
+});
+
 test('BIOK period switching reuses loaded tables and loads ratios only when opened', async ({page}) => {
   const requests = [];
   page.on('request', request => {

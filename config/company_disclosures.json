@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "ownership": [
+    {
+      "issuer_id": "8",
+      "tickers": [
+        "HMKB",
+        "HMKBP"
+      ],
+      "as_of": "2025-12-31",
+      "scope": "consolidated",
+      "share_class": "ownership_interest",
+      "source": {
+        "url": "https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf",
+        "page": 13,
+        "file_hash": "cd6514cd6149ef83905be64a18cbed3425b390eb1362712cdb1279f521b7a241",
+        "reviewed_at": "2026-11-08",
+        "review_method": "Visual transcription of the 2025 shareholder column on PDF page 13 (printed page 5). Legal-entity subtotal and subsidiary holdings excluded."
+      },
+      "items": [
+        {
+          "name": "Ibragimov Ikram",
+          "share": "59.21",
+          "kind": "individual"
+        },
+        {
+          "name": "Nederlandse Financierings-Maatschappij Voor Ontwikkelingslanden n.v. (FMO)",
+          "share": "14.55",
+          "kind": "entity"
+        },
+        {
+          "name": "ResponsAbility Participations Aktiengesellschaft",
+          "share": "10.53",
+          "kind": "entity"
+        },
+        {
+          "name": "International Finance Corporation",
+          "share": "7.28",
+          "kind": "entity"
+        },
+        {
+          "name": "ResponsAbility Sicav (lux) micro and SME finance leaders",
+          "share": "2.68",
+          "kind": "entity"
+        },
+        {
+          "name": "Motonak Capital Management Pte. Ltd",
+          "share": "1.22",
+          "kind": "entity"
+        },
+        {
+          "name": "Others, individually owning less than 1%",
+          "share": "4.53",
+          "kind": "aggregate"
+        }
+      ]
+    }
+  ],
+  "governance": [
+    {
+      "source_url": "https://openinfo.uz/ru/facts/8/15218",
+      "published_at": "2026-11-03T17:44:49",
+      "event_date": "2026-10-28",
+      "decision_date": "2026-10-28",
+      "code": 8,
+      "tickers": [
+        "IPTB",
+        "IPTBP"
+      ],
+      "governance": {
+        "appointed": [
+          {
+            "source_field": "factscaseelection.0",
+            "name": "Мартон Миклош Ратки",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ \"Ипотека-банк\""
+          },
+          {
+            "source_field": "factscaseelection.1",
+            "name": "Данилин Михаил Алексеевич",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ \"Ипотека-банк\""
+          }
+        ],
+        "departed": [
+          {
+            "source_field": "factsterminationpowers.0",
+            "name": "Элашвили Иракли",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ \"Ипотека-банк\""
+          },
+          {
+            "source_field": "factsterminationpowers.1",
+            "name": "Быков Максим",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ \"Ипотека-банк\""
+          }
+        ],
+        "roster": [
+          {
+            "source_field": "factsmembershipexecutive.0",
+            "name": "Сентпетери Адам",
+            "position": "Председатель Правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.1",
+            "name": "Виктор Воробей",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.2",
+            "name": "Дмитрий Сапронов",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.3",
+            "name": "Нодирбек Алишерович Рахбаров",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.4",
+            "name": "Эльёр Исроилович Иномжонов",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.5",
+            "name": "Дмитрий Волчек",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.6",
+            "name": "Мартон Миклош Ратки",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.7",
+            "name": "Данилин Михаил Алексеевич",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          },
+          {
+            "source_field": "factsmembershipexecutive.8",
+            "name": "Вакансия",
+            "position": "Заместитель председателя правления",
+            "work_place": "АКИБ “Ипотека банк”"
+          }
+        ]
+      },
+      "issuer_id": "17"
+    }
+  ]
+}
