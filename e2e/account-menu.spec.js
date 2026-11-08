@@ -24,27 +24,70 @@ async function mockApi(page, { signedIn }) {
 }
 
 for (const [device, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
-  test(`signed-in user can sign out from the top bar on ${device}`, async ({ page }) => {
+  for (const signedIn of [false, true]) {
+    test(`language and theme live under the avatar on ${device}, signed in: ${signedIn}`, async ({ page }, testInfo) => {
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.setViewportSize(viewport);
+      await mockApi(page, { signedIn });
+      await page.goto('/');
+      await expect(page.locator('#languageSelect')).not.toBeVisible();
+      await expect(page.locator('.theme-toggle')).not.toBeVisible();
+      const avatar = page.locator('.topbar .account-button');
+      await avatar.click();
+      const preferences = page.getByRole('dialog', { name: /Аккаунт/ });
+      await expect(preferences.getByRole('combobox', { name: 'Язык', exact: true })).toBeVisible();
+      const initialTheme = await page.locator('html').getAttribute('data-theme');
+      await preferences.locator('.theme-toggle').click();
+      const changedTheme = initialTheme === 'dark' ? 'light' : 'dark';
+      await expect(page.locator('html')).toHaveAttribute('data-theme', changedTheme);
+      await expect(preferences).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`avatar-${changedTheme}.png`), animations: 'disabled' });
+      await preferences.locator('.theme-toggle').click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', initialTheme);
+      await page.screenshot({ path: testInfo.outputPath(`avatar-${initialTheme}.png`), animations: 'disabled' });
+      const box = await preferences.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      await preferences.getByRole('combobox').click();
+      await page.getByRole('option', { name: 'O‘zbekcha', exact: true }).click();
+      await expect(page.locator('html')).toHaveAttribute('lang', 'uz');
+      await expect(page).toHaveURL(/\/uz$/);
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).not.toBeVisible();
+      await expect(avatar).toBeFocused();
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('lang', 'uz');
+      await expect(page.locator('html')).toHaveAttribute('data-theme', initialTheme);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  for (const path of ['/', '/market']) {
+  test(`signed-in user can sign out from the top bar on ${device} at ${path}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const calls = await mockApi(page, { signedIn: true });
-    await page.goto("/market");
+    await page.goto(path);
 
     const account = page.locator(".topbar").getByRole("button", { name: /Аккаунт/ });
     await expect(account).toBeVisible();
     await expect(account).toHaveText("EI");
     await account.click();
 
-    const menu = page.getByRole("menu", { name: /Аккаунт/ });
+    const menu = page.getByRole("dialog", { name: /Аккаунт/ });
     await expect(menu.getByText("E2E Investor")).toBeVisible();
     await expect(menu.getByText("e2e@test.uz")).toBeVisible();
-    await expect(menu.getByRole("menuitem", { name: "Профиль" })).toBeVisible();
-    await menu.getByRole("menuitem", { name: "Выйти" }).click();
+    await expect(menu.getByRole("button", { name: "Профиль" })).toBeVisible();
+    await menu.getByRole("button", { name: "Выйти" }).click();
 
     expect(calls).toContain("/api/auth/logout");
     await expect(page.locator(".topbar").getByRole("button", { name: "Войти" })).toBeVisible();
-    await expect(account).toHaveCount(0);
+    await expect(account).not.toHaveText("EI");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("uz_stock_analyzer_token"))).toBeNull();
   });
+  }
 }
 
 test("the account menu opens the profile and closes on Escape", async ({ page }) => {
@@ -52,14 +95,14 @@ test("the account menu opens the profile and closes on Escape", async ({ page })
   await page.goto("/market");
   const account = page.locator(".topbar").getByRole("button", { name: /Аккаунт/ });
   await account.click();
-  await expect(page.getByRole("menu", { name: /Аккаунт/ })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /Аккаунт/ })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("menu", { name: /Аккаунт/ })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /Аккаунт/ })).toHaveCount(0);
 
   await account.click();
-  await page.getByRole("menu", { name: /Аккаунт/ }).getByRole("menuitem", { name: "Профиль" }).click();
+  await page.getByRole("dialog", { name: /Аккаунт/ }).getByRole("button", { name: "Профиль" }).click();
   await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.getByRole("menu", { name: /Аккаунт/ })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /Аккаунт/ })).toHaveCount(0);
 });
 
 test("signed-out visitor sees a sign-in button in the top bar", async ({ page }) => {
@@ -91,8 +134,8 @@ test("the open account menu stays fully on screen on a phone", async ({ page }) 
   await mockApi(page, { signedIn: true });
   await page.goto("/market");
   await page.locator(".topbar").getByRole("button", { name: /Аккаунт/ }).click();
-  const box = await page.getByRole("menu", { name: /Аккаунт/ }).boundingBox();
+  const box = await page.getByRole("dialog", { name: /Аккаунт/ }).boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(360);
-  await expect(page.getByRole("menuitem", { name: "Выйти" })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Выйти" })).toBeInViewport();
 });

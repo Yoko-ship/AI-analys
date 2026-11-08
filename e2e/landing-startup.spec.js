@@ -55,6 +55,10 @@ for (const sample of cases) {
       await expect(page.locator('html')).toHaveAttribute('data-theme', sample.theme || 'dark');
       const before = { box: await heading.boundingBox(), background: await hero.evaluate(el => getComputedStyle(el).backgroundColor), src: await image.getAttribute('src') };
       const stableElements = ['.landing-hero-primary', '.landing-hero-art', '.landing-hero-description', '.topbar'];
+      await expect(page.locator('.topbar .account-avatar')).toBeVisible();
+      await expect(page.locator('.topbar .language-trigger')).not.toBeVisible();
+      await expect(page.locator('.topbar .theme-toggle')).not.toBeVisible();
+      stableElements.push('.topbar .account-avatar');
       const boxes = await Promise.all(stableElements.map(selector => page.locator(selector).boundingBox()));
       await page.screenshot({ path: testInfo.outputPath('before-javascript.png') });
       await release();

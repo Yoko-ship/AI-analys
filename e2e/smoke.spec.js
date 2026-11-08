@@ -1,4 +1,5 @@
-import { selectLanguage } from './language-control.js';
+import {openIndustryChooser, chooseIndustry} from './industry-control.js';
+import { selectLanguage, toggleTheme } from './language-control.js';
 import { test, expect } from "@playwright/test";
 
 /* Smoke tests for the dashboard app (visual restyle — logic unchanged).
@@ -418,7 +419,7 @@ test("shared market data keeps the board, company and chart aligned", async ({ p
 test("theme toggle flips the data-theme attribute", async ({ page }) => {
   await page.goto("/");
   const before = await page.locator("html").getAttribute("data-theme");
-  await page.locator(".theme-toggle").click();
+  await toggleTheme(page);
   const after = before === "dark" ? "light" : "dark";
   await expect(page.locator("html")).toHaveAttribute("data-theme", after);
 });
@@ -427,7 +428,7 @@ test("landing and workspace routes inherit one shared application palette", asyn
   for (const expected of [{ theme: "light", accent: "#6257d9" }, { theme: "dark", accent: "#8b7cff" }]) {
     await page.goto("/");
     if (await page.locator("html").getAttribute("data-theme") !== expected.theme) {
-      await page.locator(".theme-toggle").click();
+      await toggleTheme(page);
     }
 
     const palettes = [];
@@ -454,7 +455,7 @@ test("language switch re-renders the hero copy", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".lv-h1")).toContainText(/\S/);
   await selectLanguage(page, 'en');
-  await expect(page.locator(".lv-h1")).toHaveText(/Behind every\s*share is\s*a company\./);
+  await expect(page.locator(".lv-h1")).toHaveText(/The bigger picture\.\s*Behind every company\./);
 });
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
@@ -1147,7 +1148,7 @@ test("a story opens on its own /news/{id} page instead of the source site (§3.1
   await page.goto("/news/11");
   await expect(page.locator(".led-art-title")).toContainText("Биржа расширяет листинг банков");
   if (await page.locator("html").getAttribute("data-theme") !== "light") {
-    await page.locator(".theme-toggle").click();
+    await toggleTheme(page);
   }
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.screenshot({ path: testInfo.outputPath("news-article-mobile.png"), fullPage: true, animations: "disabled" });
@@ -1733,12 +1734,13 @@ test("the sector row is drawn only where it can actually choose", async ({ page 
   await page.goto("/");
   await page.getByRole("button", { name: "Рынок", exact: true }).click();
 
-  const sector = page.locator(".market-sector-select select");
-  await expect(sector.locator("option")).toHaveCount(4);
-  await expect(sector.locator("option").nth(1)).toHaveText("Финансы");
+  const menu = await openIndustryChooser(page);
+  await expect(menu.locator('button[data-value]')).toHaveCount(6);
+  await expect(menu.locator('button[data-value="finance"]')).toContainText('Финансы и страхование');
+  await expect(menu.locator('button[data-value="group:banks"]')).toContainText('Банки');
 
   const tickers = page.locator(".market-table tbody .market-ticker-btn");
-  await sector.selectOption("finance");
+  await chooseIndustry(page, 'finance');
   await expect(tickers).toHaveText(["AGBA"]);
 
   // Bonds: one sector between them, so no row — and the choice made on the shares

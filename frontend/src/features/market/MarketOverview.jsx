@@ -1,12 +1,13 @@
+import {marketIndustryLabel} from "../../shared/industryCopy.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { formatCompactVolume, tradeCountLabel } from "../../shared/marketModel.jsx";
-import { mt, sectorLabel } from "../../shared/marketCopy.jsx";
+import { mt } from "../../shared/marketCopy.jsx";
 import { formatRatio } from "../../shared/format.jsx";
 import { MarketBreadthCard, MarketStatCard } from "./Statistics.jsx";
 export function MarketOverview({
   viewMode,
   lang,
-  cardSector,
+  cardIndustry,
   setMarketSector,
   cardStats,
   formatLeader,
@@ -23,12 +24,12 @@ export function MarketOverview({
               page, in the filter bar — so the row has to say for itself which
               sector it is answering for, and offer the way back. Without this the
               numbers change under a control the reader cannot see from here. */}
-          {cardSector && <div className="market-stats-scope">
+          {cardIndustry && <div className="market-stats-scope">
               <span className="market-stats-scope-label">
                 {lang === "en" ? "Sector" : lang === "uz" ? "Tarmoq" : "Категория"}:
               </span>
               <button type="button" className="market-stats-scope-chip" onClick={() => setMarketSector(null)}>
-                {sectorLabel(lang, cardSector)}
+                {marketIndustryLabel(lang, cardIndustry)}
                 <span aria-hidden="true">×</span>
               </button>
             </div>}
@@ -54,7 +55,7 @@ export function MarketOverview({
           // left out. Under a sector chip there is no server answer to ask for, so
           // the sum comes from that sector's active rows — the same pool the three
           // counters beside it use — and the note counts what it left out of THEM.
-          const server = cardSector ? null : marketSummary?.market_cap;
+          const server = cardIndustry ? null : marketSummary?.market_cap;
           const value = server?.value ?? cardStats.totalMarketCap;
           if (!(value > 0)) return null;
           let sub = "UZS";

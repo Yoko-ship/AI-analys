@@ -1,4 +1,5 @@
-import { selectLanguage } from './language-control.js';
+import {chooseIndustry} from './industry-control.js';
+import { selectLanguage, toggleTheme } from './language-control.js';
 import { test, expect } from "@playwright/test";
 import path from "node:path";
 
@@ -131,7 +132,7 @@ for (const type of ["stock", "bond"]) {
       for (const [i, key] of ["volume", "volQty", "avgShare", "avgTrade", "bigTrade", "volShare"].entries()) {
         await expect(metric(page, key)).toHaveText(expected[i]);
       }
-      if (width === 1280) await page.locator(".theme-toggle").click();
+      if (width === 1280) await toggleTheme(page);
       const tile = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
       await expect(tile).toHaveAttribute("title", /Крупнейшая сделка/);
       // A tile carries price and turnover only; the six metrics live in the panel.
@@ -164,7 +165,7 @@ test("metrics follow the selected period, sector and missing data on the one com
   await expect(metric(page, "avgTrade")).toHaveText("1 250 000 UZS");
   await expect(metric(page, "bigTrade")).toHaveText("4 000 000 UZS");
   await expect(page.locator('.heatmap-metric-details [data-metric="bigTrade"]')).toContainText("Детали по 3 из 5 сессий");
-  await page.getByLabel("Отрасль", { exact: true }).selectOption({ label: "Финансы" });
+  await chooseIndustry(page, 'finance');
   await expect(metric(page, "volShare")).toHaveText("25%");
   await page.getByLabel("Бумага на карте").selectOption("EMPTY");
   for (const key of ["volume", "volQty", "avgShare", "avgTrade", "bigTrade", "volShare"]) await expect(metric(page, key)).toHaveText("—");

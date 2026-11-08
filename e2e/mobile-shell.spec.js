@@ -38,7 +38,11 @@ for (const [width, theme] of [[320, 'dark'], [360, 'dark'], [390, 'dark'], [390,
       .filter(r => r.left < 0 || r.right > document.documentElement.clientWidth).length);
     expect(overhang).toBe(0);
     if (width >= 360) expect((await page.locator('.topbar-brand').boundingBox()).width).toBeGreaterThanOrEqual(30);
-    await expect(page.locator('.theme-toggle')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.account-button')).toBeInViewport({ ratio: 1 });
+    await page.locator('.account-button').click();
+    await expect(page.locator('.account-preferences .theme-toggle')).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('#languageSelect')).toBeInViewport({ ratio: 1 });
+    await page.keyboard.press('Escape');
 
     // Toolbar buttons are icon-only on a phone.
     await page.getByText('Фильтры и инструменты',{exact:true}).click();
@@ -109,7 +113,8 @@ test('audit: phone quotes lead secondary tools and filters remain usable', async
   await page.goto('/market');
   const first=page.locator('.market-table-wrap tbody tr').first();
   await expect(first).toBeVisible();
-  expect((await first.boundingBox()).y).toBeLessThan(480);
+  // The board slides into place; visibility alone can catch its arrival frame.
+  await expect.poll(async () => (await first.boundingBox()).y).toBeLessThan(480);
   await page.getByText('Фильтры и инструменты',{exact:true}).click();
   await expect(page.getByLabel('Отрасль',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Привилегированные',exact:true}).click();

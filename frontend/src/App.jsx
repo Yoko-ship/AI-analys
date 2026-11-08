@@ -57,7 +57,7 @@ function App() {
   const { addToast } = toasts;
   const { setAnalysisCompany } = research;
   const { handleToggleFavorite } = favorites;
-  return shell.render(<FeatureBoundary key={activeView} language={language}>
+  return shell.render(<FeatureBoundary key={activeView === 'heatmap' ? 'market' : activeView} language={language}>
           {activeView === "main" && (
             <LandingView
               language={language}

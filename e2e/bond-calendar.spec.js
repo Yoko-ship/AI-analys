@@ -1,4 +1,4 @@
-import { selectLanguage } from './language-control.js';
+import { selectLanguage, toggleTheme } from './language-control.js';
 import { test, expect } from "@playwright/test";
 
 const flow = (date, ticker, coupon, principal = 0) => ({ date, ticker, coupon, principal, source: "reconstructed" });
@@ -59,7 +59,7 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 
     await expect(page.locator('.bondsec-cell[data-date="2026-10-20"]')).toHaveClass(/outside-period/);
     await expect(page.getByRole("button", { name: "Предыдущий месяц" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Следующий месяц" })).toBeDisabled();
-    if (viewport.width === 1280) await page.locator(".theme-toggle").click();
+    if (viewport.width === 1280) await toggleTheme(page);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: testInfo.outputPath("custom-period.png"), fullPage: true });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);

@@ -2,10 +2,12 @@ import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
-import { orderSectors, sectorOf } from "../../lib/sectors.js";
+import {sectorOf} from '../../lib/sectors.js';
+import {industryOf} from '../../lib/companyIndustries.js';
+import {groupMarketIndustries} from '../../lib/marketIndustries.js';
 import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
 import { formatCompactVolume, marketDisplayPrice } from "../../shared/marketModel.jsx";
-import { sectorLabel } from "../../shared/marketCopy.jsx";
+import {marketIndustryLabel} from '../../shared/industryCopy.js';
 import { marketVolumeMetrics } from "../../lib/marketVolume.js";
 import { formatMapMetric, HeatmapMetricPicker, mapMetricCoverage, useHeatmapMetrics } from "./HeatmapMetrics.jsx";
 
@@ -117,7 +119,7 @@ function squarifyTreemap(items, x, y, width, height) {
   return output;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement" }) {
+function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement", emptyFiltered = false, onResetFilters }) {
   // Which question the map is drawing. Over a window every cell's colour is the
   // change over it and its bottom meter is the turnover over it — the caller
   // has already restated the rows (see `mapRows`), so the board arithmetic
@@ -219,6 +221,12 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   // Say plainly when the market-board request has not produced any rows instead
   // of making a missing response look like a blank exchange session.
   if (marketRows.length === 0) {
+    if (emptyFiltered) return <p className="market-empty-cell heatmap-empty-state" role="status">
+      {lang === 'en' ? 'No securities match the selected filters.' : lang === 'uz' ? 'Tanlangan filtrlarga mos qog‘oz yo‘q.' : 'Нет бумаг под выбранные фильтры.'}{' '}
+      {onResetFilters && <button type="button" className="heatmap-filters-reset" onClick={onResetFilters}>
+        {lang === 'en' ? 'Reset filters' : lang === 'uz' ? 'Filtrlarni tozalash' : 'Сбросить фильтры'}
+      </button>}
+    </p>;
     const message = lang === "uz"
       ? "Bozor xaritasini chizish uchun ma'lumot hozircha mavjud emas. Sahifani yangilang."
       : lang === "en"
@@ -267,28 +275,30 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
     total: rs.length,
   });
 
-  const rowsBySector = {};
-  tradedRows.forEach((row) => { (rowsBySector[sectorKeyOf(row.ticker)] ||= []).push(row); });
-  const sectorItems = orderSectors(Object.keys(rowsBySector)).map((sector) => {
-    const sectorRows = rowsBySector[sector].slice().sort((a, b) => tileWeight(b) - tileWeight(a));
-    return {
-      sector,
-      rows: sectorRows,
-      value: sectorRows.reduce((sum, row) => sum + tileWeight(row), 0),
-    };
+  const sectorItems = groupMarketIndustries(tradedRows, securitiesMap, companyMap).map(section => {
+    const groups = section.groups.map(group => ({...group,
+      rows: [...group.rows].sort((a, b) => tileWeight(b) - tileWeight(a)),
+      value: group.rows.reduce((sum, row) => sum + tileWeight(row), 0),
+    })).sort((a, b) => b.value - a.value);
+    return {...section, groups, value: groups.reduce((sum, group) => sum + group.value, 0)};
   }).sort((a, b) => b.value - a.value);
   const sectorRects = squarifyTreemap(sectorItems, 0, 0, treeSize.w, treeSize.h);
   const sectorLayout = sectorRects.map((sectorRect) => {
     const showHeader = sectorRect.w > 86 && sectorRect.h > 54;
     const headerHeight = showHeader ? 26 : 0;
-    const stocks = squarifyTreemap(
-      sectorRect.rows.map((row) => ({ row, value: tileWeight(row) })),
+    const groups = squarifyTreemap(
+      sectorRect.groups,
       sectorRect.x,
       sectorRect.y + headerHeight,
       sectorRect.w,
       Math.max(0, sectorRect.h - headerHeight)
-    );
-    return { ...sectorRect, showHeader, headerHeight, stocks };
+    ).map(group => {
+      const labelHeight = group.id && group.w > 100 && group.h > 76 ? 22 : 0;
+      const stocks = squarifyTreemap(group.rows.map(row => ({row, value: tileWeight(row)})),
+        group.x, group.y + labelHeight, group.w, Math.max(0, group.h - labelHeight));
+      return {...group, labelHeight, stocks};
+    });
+    return {...sectorRect, showHeader, headerHeight, groups, stocks: groups.flatMap(group => group.stocks)};
   });
   const TREEMAP_GAP = 4;
 
@@ -359,7 +369,9 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
           </span>
           <span className="heatmap-focus-facts">
             <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
-            <span><small>{mapCopy.sectors}</small><strong>{sectorLabel(lang, sectorKeyOf(focusRow.ticker))}</strong></span>
+            <span><small>{mapCopy.sectors}</small><strong>{marketIndustryLabel(lang, sectorKeyOf(focusRow.ticker))}
+              {industryOf(focusRow.ticker)?.group && <small>{marketIndustryLabel(lang, `group:${industryOf(focusRow.ticker).group}`)}</small>}
+            </strong></span>
           </span>
           <span className="heatmap-focus-open">{type === "bond"
             ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
@@ -387,13 +399,19 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                   className="heatmap-tree-label"
                   style={{ left: sector.x, top: sector.y, width: sector.w, height: sector.headerHeight }}
                 >
-                  <span>{sectorLabel(lang, sector.sector)}</span>
+                  <span title={marketIndustryLabel(lang, sector.sector)}>{marketIndustryLabel(lang, sector.sector)}</span>
                   <strong className={`tone-${sectorAverage > flatBand ? "good" : sectorAverage < -flatBand ? "danger" : "neutral"}`}>
                     {formatPct(sectorAverage)}
                   </strong>
                   <small>{sectorTally.total}</small>
                 </div>
               )}
+              {sector.groups.filter(group => group.labelHeight).map(group => <div key={group.id}
+                className="heatmap-tree-label heatmap-tree-subgroup" data-sector={sector.sector} data-group={group.id}
+                style={{left: group.x, top: group.y, width: group.w, height: group.labelHeight}}
+                title={marketIndustryLabel(lang, `group:${group.id}`)}>
+                <span>{marketIndustryLabel(lang, `group:${group.id}`)}</span>
+              </div>)}
               {sector.stocks.map((stock) => {
                 const row = stock.row;
                 const status = tileStatus(row);
@@ -446,9 +464,15 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                       height,
                       "--tile-fill": status === "ok" ? heatmapColor(row.changePercent, fullScale) : undefined,
                     }}
-                    aria-label={`${row.ticker}, ${companyName}, ${sectorLabel(lang, sector.sector)}, ${status === "ok" ? formatPct(row.changePercent) : mapCopy.noData}`}
-                    title={metricTitle}
+                    aria-label={[row.ticker, companyName, marketIndustryLabel(lang, sector.sector),
+                      industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
+                      status === 'ok' ? formatPct(row.changePercent) : mapCopy.noData].filter(Boolean).join(', ')}
+                    title={[marketIndustryLabel(lang, sector.sector),
+                      industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
+                      metricTitle].filter(Boolean).join('\n')}
                     data-ticker={row.ticker}
+                    data-sector={sector.sector}
+                    data-group={industryOf(row.ticker)?.group || ''}
                     onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
                     onMouseEnter={() => setHover({ ticker: row.ticker, row })}
                     onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}

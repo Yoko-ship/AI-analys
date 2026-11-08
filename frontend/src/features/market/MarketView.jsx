@@ -2,6 +2,7 @@ import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHANGE_PERIODS, CHANGE_PERIOD_KEY, changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
+import {marketIndustryLabel} from "../../shared/industryCopy.js";
 import { formatRatio } from "../../shared/format.jsx";
 import { CompanyInfoPanel } from "./CompanyInfoPanel.jsx";
 import { marketColumns } from "./marketColumns.js";
@@ -173,10 +174,10 @@ function MarketView({
     dormantCount,
     prepared,
     search,
-    rowSector,
-    presentSectors,
+    matchesIndustry,
+    industryOptions,
     sectorWord,
-    activeSector,
+    activeIndustry,
     sectorMapRows,
     ratioOf,
     mktCapOf,
@@ -207,19 +208,19 @@ function MarketView({
     multiplesStatus
   });
   const {
-    cardSector,
+    cardIndustry,
     stats,
     cardStats,
     capPeriodChange,
     sectorDormant
   } = useMemo(() => summarizeMarket({
-    activeSector,
+    activeIndustry,
     byClass,
     isDormant,
     windowed,
-    rowSector,
+    matchesIndustry,
     mktCapOf
-  }), [activeSector, byClass, isDormant, windowed, rowSector, mktCapOf]);
+  }), [activeIndustry, byClass, isDormant, windowed, matchesIndustry, mktCapOf]);
   const {
     LABEL_OF,
     NUM_COLS,
@@ -258,17 +259,16 @@ function MarketView({
     prepared: prepared.filter(row => matchesDirection(row.changePercent, direction)),
     favOnly,
     hasFav,
-    activeSector,
-    rowSector,
+    matchesIndustry,
     search,
     sortKeys
-  }), [changePeriod, changeOver, parOf, priceToPar, annualisedFin, finOf, mktCapOf, peOf, pbOf, multipleOf, ratioOf, prepared, direction, favOnly, hasFav, activeSector, rowSector, search, sortKeys]);
+  }), [changePeriod, changeOver, parOf, priceToPar, annualisedFin, finOf, mktCapOf, peOf, pbOf, multipleOf, ratioOf, prepared, direction, favOnly, hasFav, matchesIndustry, search, sortKeys]);
   const {
     exportCsv
   } = createMarketExport({
     lang,
     type,
-    activeSector,
+    activeSector: activeIndustry ? marketIndustryLabel(lang, activeIndustry) : null,
     favOnly,
     inactiveOnly,
     query,
@@ -367,8 +367,8 @@ function MarketView({
           lang={lang}
           type={type}
           onTypeChange={onTypeChange}
-          presentSectors={presentSectors}
-          activeSector={activeSector}
+          industryOptions={industryOptions}
+          activeIndustry={activeIndustry}
           setMarketSector={setMarketSector}
           sectorWord={sectorWord}
           viewMode={viewMode}
@@ -468,7 +468,7 @@ function MarketView({
       <MarketOverview
         viewMode={viewMode}
         lang={lang}
-        cardSector={cardSector}
+        cardIndustry={cardIndustry}
         setMarketSector={setMarketSector}
         cardStats={cardStats}
         formatLeader={formatLeader}

@@ -52,6 +52,19 @@ Search matches names, all share tickers, aliases and ISINs; a match keeps the
 issuer's share classes together. Each share retains its own price and turnover.
 Missing prices remain missing. PDF issuers without current quotes still appear.
 
+The market's existing industry dropdown offers parent sections and their
+subgroups in one list. It lists classifications present in the current market
+feed; the directory remains the full issuer register, including issuers without
+quotes. Share-class and inactive filters do not silently clear an industry
+selection. Table/map navigation preserves the filters, and an empty combination
+offers a reset instead of reporting a data outage.
+
+The heatmap nests subgroups inside parent sections. Small tiles retain their
+full classification in accessible labels and tooltips even where a subgroup
+heading cannot fit. Table rows, map tiles, selected-industry totals and CSV
+exports all use the same selection rule. Legacy saved sector filters remain
+valid; subgroup selections use `group:<registry group id>`.
+
 ## Verification
 
 Run backend and frontend suites, then build and run the feature browser checks:
@@ -61,5 +74,5 @@ python -m pytest -q
 npm run test:unit
 npm run lint
 npm run build
-npm run test:e2e -- e2e/industry-directory.spec.js e2e/heatmap-metrics.spec.js e2e/company-preview.spec.js
+npm run test:e2e -- e2e/market-industries.spec.js e2e/industry-directory.spec.js e2e/heatmap-metrics.spec.js e2e/company-preview.spec.js
 ```

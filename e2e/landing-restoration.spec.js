@@ -43,7 +43,7 @@ for (const options of cases) {
     await expect(companyLogo).toHaveCSS('object-fit', 'contain');
     expect(await landing.locator('.landing-table-wrap').evaluate(table => table.scrollWidth <= table.clientWidth)).toBe(true);
     await expect(landing.locator('.landing-market')).not.toContainText('BOND');
-    await expect(landing.locator('.landing-news-card')).toHaveCount(1);
+    await expect(landing.locator('.landing-news-row')).toHaveCount(1);
     const guide = landing.locator('.landing-about');
     await expect(guide.locator('.landing-company-example')).toBeVisible();
     await expect(guide.getByRole('heading', { level: 3 })).toHaveText('Хамкорбанк');
@@ -120,7 +120,7 @@ test('shared language control translates the whole homepage and preserves naviga
   await selectLanguage(page, 'en');
   await expect(page.locator('.lv-h1')).toHaveText('The bigger picture. Behind every company.');
   await expect(page.locator('.landing-sector-card').first()).toContainText('Finance');
-  await expect(page.locator('.landing-news-card')).toContainText('Companies publish annual results');
+  await expect(page.locator('.landing-news-row')).toContainText('Companies publish annual results');
   await selectLanguage(page, 'uz');
   await expect(page).toHaveURL(/\/uz\/?$/);
   await expect(page.locator('.lv-h1')).toHaveText('Katta manzara. Har bir kompaniya ortida.');
@@ -130,10 +130,10 @@ test('shared language control translates the whole homepage and preserves naviga
   await expect(page).toHaveURL(/\/uz\/market$/);
 });
 
-test('news cards and event shortcut open the actual article and calendar', async ({ page }) => {
+test('news list and event shortcut open the actual article and calendar', async ({ page }) => {
   await setupLanding(page);
   await page.goto('/');
-  await page.locator('.landing-news-card').click();
+  await page.locator('.landing-news-row').click();
   await expect(page).toHaveURL(/\/news\/6570$/);
   await page.goBack();
   await page.locator('.landing-steps').getByRole('button', { name: /Следите за событиями/ }).click();
@@ -157,7 +157,7 @@ test('failed data has a retry and never fabricates quotes or news', async ({ pag
   await expect(page.locator('.landing-market tbody tr')).toHaveCount(5);
   await expect(page.locator('.landing-ticker-links button')).toHaveText(['HMKB', 'UZMT', 'UZTL']);
   await expect(page.locator('.landing-company-example')).toContainText('HMKB');
-  await expect(page.locator('.landing-news-card')).toHaveCount(1);
+  await expect(page.locator('.landing-news-row')).toHaveCount(1);
 });
 
 test('the company guide uses the current market example and opens its company page', async ({ page }) => {

@@ -2,7 +2,7 @@
 // language on load, the address bar follows a language switch, and every in-app
 // navigation keeps the reader's prefix (frontend/src/lib/languagePath.js).
 import { test, expect } from "@playwright/test";
-import { selectLanguage } from './language-control.js';
+import { openAccountMenu, selectLanguage } from './language-control.js';
 
 const UZ_TITLE = "UZStock — O‘zbekiston fond bozori";
 
@@ -95,6 +95,7 @@ for (const [width, theme] of [[1440, 'light'], [1440, 'dark'], [320, 'light'], [
       localStorage.setItem('uz_track_internal', '1');
     }, theme);
     const errors = await open(page, '/');
+    await openAccountMenu(page);
     const trigger = page.getByRole('combobox', { name: 'Язык', exact: true });
     await expect(trigger).toHaveText('RU');
     const triggerBox = await trigger.boundingBox();
@@ -125,6 +126,7 @@ for (const [width, theme] of [[1440, 'light'], [1440, 'dark'], [320, 'light'], [
     await expect(page.locator('.lv-h1')).toContainText('Behind every');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await openAccountMenu(page);
     await expect(page.locator('#languageSelect')).toHaveText('EN');
     expect(errors).toEqual([]);
   });
@@ -132,6 +134,9 @@ for (const [width, theme] of [[1440, 'light'], [1440, 'dark'], [320, 'light'], [
 
 test('language menu supports keyboard selection, cancellation and outside dismissal', async ({ page }) => {
   await open(page, '/');
+  const avatar = page.locator('.topbar .account-button');
+  await avatar.focus();
+  await avatar.press('Enter');
   const trigger = page.locator('#languageSelect');
   await trigger.focus();
   await page.keyboard.press('Space');
@@ -141,6 +146,7 @@ test('language menu supports keyboard selection, cancellation and outside dismis
   await page.keyboard.press('Escape');
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(trigger).toBeFocused();
+  await expect(page.locator('.account-preferences')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang','ru');
   await trigger.press('Enter');
   await page.keyboard.press('End');
@@ -152,4 +158,10 @@ test('language menu supports keyboard selection, cancellation and outside dismis
   await page.mouse.click(20, 400);
   await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.account-preferences')).toHaveCount(0);
+  await expect(avatar).toBeFocused();
+  await avatar.click();
+  await page.mouse.click(20, 400);
+  await expect(page.locator('.account-preferences')).toHaveCount(0);
 });

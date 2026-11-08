@@ -1,7 +1,7 @@
 import React from "react";
 import { marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { prepareMarketRows } from "../../lib/marketData.js";
-import { orderSectors, sectorOf } from "../../lib/sectors.js";
+import {groupMarketIndustries, matchesMarketIndustry} from '../../lib/marketIndustries.js';
 export function useMarketRows({
   changes,
   securitiesMap,
@@ -126,10 +126,14 @@ export function useMarketRows({
     const prepared = byClass.filter(r => isDormant(r) === inactiveOnly);
     const mapRows = byClass.filter(r => !isDormant(r));
     const periodMapRows = mapRows;
-    const rowSector = r => sectorOf(r.ticker, smap, companyMap);
-    const presentSectors = orderSectors([...new Set(prepared.map(rowSector))]);
-    const activeSector = presentSectors.includes(marketSector) ? marketSector : null;
-    const sectorMapRows = activeSector ? periodMapRows.filter(r => rowSector(r) === activeSector) : periodMapRows;
+    // Share-class and inactive toggles must not silently widen an industry
+    // selection. Keep its options stable across those filters, including empty results.
+    const industryOptions = groupMarketIndustries(preparedAll, smap, companyMap);
+    const available = new Set(industryOptions.flatMap(section => [section.sector,
+      ...section.groups.filter(group => group.id).map(group => `group:${group.id}`)]));
+    const activeIndustry = available.has(marketSector) ? marketSector : null;
+    const matchesIndustry = row => matchesMarketIndustry(row.ticker, activeIndustry, smap, companyMap);
+    const sectorMapRows = periodMapRows.filter(matchesIndustry);
     const ratioOf = ticker => ratios[ticker] || ratios[String(ticker || "").toUpperCase()] || null;
     const mktCapOf = r => Number.isFinite(r.marketCap) ? r.marketCap : null;
     const multiplesOf = r => multiples[String(r.ticker || "").toUpperCase()] || null;
@@ -173,9 +177,9 @@ export function useMarketRows({
       isDormant,
       dormantCount,
       prepared,
-      rowSector,
-      presentSectors,
-      activeSector,
+      matchesIndustry,
+      industryOptions,
+      activeIndustry,
       sectorMapRows,
       ratioOf,
       mktCapOf,

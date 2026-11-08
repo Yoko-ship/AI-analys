@@ -6,8 +6,10 @@ import { mt } from '../../shared/marketCopy.jsx';
 import { localizedPath } from '../../lib/languagePath.js';
 import { LandingHero } from './LandingHero.jsx';
 import { LANDING_COPY } from './landingCopy.js';
+import { GuestAvatar, accountLabels } from '../../app/AccountMenu.jsx';
 
 export function StaticLanding({ language }) {
+  const settings = accountLabels[language];
   const copy = {
     ru: { feedback: 'Обратная связь', signIn: 'Войти', menu: 'Меню' },
     uz: { feedback: 'Fikr-mulohaza', signIn: 'Kirish', menu: 'Menyu' },
@@ -34,8 +36,11 @@ export function StaticLanding({ language }) {
         <nav className="topbar-nav">{links}</nav>
         <div className="topbar-actions">
           <a className="account-signin" href={localizedPath('/auth', language)}>{copy.signIn}</a>
-          <div className="topbar-meta"><div className="topbar-controls">
-            <div className="topbar-language">
+          <details className="account-wrap account-static">
+            <summary className="account-button account-avatar account-avatar-guest" aria-label={settings.account}><GuestAvatar /></summary>
+            <div className="account-menu account-preferences">
+              <div className="account-menu-head"><strong>{settings.settings}</strong></div>
+              <div className="account-preference-row"><span>{settings.language}</span><div className="topbar-language">
               <a className="language-trigger" href={language === 'uz' ? '/' : '/uz'} aria-label={language === 'uz' ? 'Русский' : 'O‘zbekcha'}>
                 <svg className="language-globe" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                   <circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" />
@@ -43,9 +48,10 @@ export function StaticLanding({ language }) {
                 {language.toUpperCase()}
                 <span className="language-chevron"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></span>
               </a>
+              </div></div>
+              <div className="account-preference-row"><span>{settings.theme}</span><span className="theme-toggle" aria-hidden="true"><strong>☾</strong></span></div>
             </div>
-            <span className="theme-toggle" aria-hidden="true"><strong>☀</strong></span>
-          </div></div>
+          </details>
         </div>
       </header>
       <main className="content"><div className="landing-view"><div className="landing-container">

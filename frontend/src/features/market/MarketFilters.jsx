@@ -1,5 +1,6 @@
 import { CHANGE_PERIODS, changePeriodLabel } from "../../shared/marketPeriods.jsx";
-import { mt, sectorLabel } from "../../shared/marketCopy.jsx";
+import { mt } from "../../shared/marketCopy.jsx";
+import {IndustryFilter} from './IndustryFilter.jsx';
 import { TermInfo } from "../../shared/TermInfo.jsx";
 import { MarketColsPopover } from "./TableOverlays.jsx";
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
@@ -7,8 +8,8 @@ export function MarketFilters({
   lang,
   type,
   onTypeChange,
-  presentSectors,
-  activeSector,
+  industryOptions,
+  activeIndustry,
   setMarketSector,
   sectorWord,
   viewMode,
@@ -68,23 +69,8 @@ export function MarketFilters({
                     {label}
                   </button>)}
               </div>}
-          {/* Отрасль. A dropdown rather than the row of chips this used to be:
-              eleven chips took a band of the pinned bar to themselves, wrapped
-              onto two lines on a laptop, and — because the band was drawn for
-              the table only — the map had no sector control at all. One list,
-              one answer, both views. */}
-          {presentSectors.length > 1 && <label className="market-sector-select">
-              <select
-                value={activeSector || ""}
-                data-all={activeSector ? undefined : "1"}
-                onChange={event => setMarketSector(event.target.value || null)}
-                aria-label={sectorWord}
-                title={lang === "en" ? "Show one sector only" : lang === "uz" ? "Faqat bitta sohani ko'rsatish" : "Показать только одну отрасль"}
-              >
-                <option value="">{`${sectorWord}: ${sectorLabel(lang, "all").toLowerCase()}`}</option>
-                {presentSectors.map(s => <option key={s} value={s}>{sectorLabel(lang, s)}</option>)}
-              </select>
-            </label>}
+          {(industryOptions.length > 1 || industryOptions.some(section => section.groups.some(group => group.id))) &&
+            <IndustryFilter lang={lang} label={sectorWord} options={industryOptions} value={activeIndustry} onChange={setMarketSector} />}
           {viewMode === "table" && <button
             type="button"
             className={`market-fav-filter ${favOnly ? "active" : ""}`}

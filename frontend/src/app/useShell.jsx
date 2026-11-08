@@ -8,11 +8,10 @@ import { mt } from "../shared/marketCopy.jsx";
 import { createPortal } from "react-dom";
 import { ct } from "../features/research/index.js";
 import { patternName } from "../lib/patterns.js";
-import { accountInitials } from "../shared/accountIdentity.jsx";
 import { DisclaimerNote } from "../shared/DisclaimerNote.jsx";
 import { RatingPrompt } from "../features/feedback/index.js";
 import { ToastStack } from "./toasts.jsx";
-import { LanguageSelect } from "./LanguageSelect.jsx";
+import { AccountMenu } from "./AccountMenu.jsx";
 import { localizedPath } from "./routing.jsx";
 
 export function useShell({ session: sessionModule, preferences: preferencesModule, navigation: navigationModule, market: marketModule, notifications: notificationsModule, auth: authModule, toasts: toastsModule }) {
@@ -24,22 +23,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
   const { handleLogout } = authModule;
   const { toasts, setToasts } = toastsModule;
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-
-  const accountMenuRef = useRef(null);
-
-  useEffect(() => {
-    if (!accountMenuOpen) return undefined;
-    const closeOutside = (event) => {
-      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target)) setAccountMenuOpen(false);
-    };
-    const closeOnEscape = (event) => { if (event.key === "Escape") setAccountMenuOpen(false); };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [accountMenuOpen]);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const drawerLayout = useMediaQuery('(max-width: 1180px)');
@@ -419,42 +402,22 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
             </div>
           )}
 
-          {token && user ? (
-            <div className="account-wrap" ref={accountMenuRef}>
-              <button
-                className="account-button"
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={accountMenuOpen}
-                aria-label={`${language === "en" ? "Account" : language === "uz" ? "Akkaunt" : "Аккаунт"}: ${user.full_name || user.email}`}
-                onClick={() => { setAccountMenuOpen((open) => !open); setNotifOpen(false); }}
-              >
-                {user.avatar_data_url
-                  ? <img src={user.avatar_data_url} alt="" />
-                  : accountInitials(user)}
-              </button>
-              {accountMenuOpen && (
-                <div className="account-menu panel" role="menu" aria-label={language === "en" ? "Account" : language === "uz" ? "Akkaunt" : "Аккаунт"}>
-                  <div className="account-menu-head">
-                    {user.full_name ? <strong>{user.full_name}</strong> : null}
-                    <span>{user.email}</span>
-                  </div>
-                  <button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}>
-                    {t(language, "nav.profile")}
-                  </button>
-                  <button type="button" role="menuitem" className="is-logout" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }}>
-                    {t(language, "auth.logout")}
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : !token ? (
-            <button className="account-signin" type="button" onClick={() => { setMobileNavOpen(false); setActiveView("auth"); }}>
+          {!token && (
+            <button className="account-signin" type="button" onClick={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("auth"); }}>
               {language === "en" ? "Sign in" : language === "uz" ? "Kirish" : "Войти"}
             </button>
-          ) : null}
+          )}
 
-          <div className="topbar-meta">
+          <AccountMenu user={token ? user : null} language={language} setLanguage={setLanguage}
+            theme={theme} toggleTheme={toggleTheme} open={accountMenuOpen} landing={activeView === "main"}
+            onOpenChange={open => {
+              setAccountMenuOpen(open);
+              if (open) { setNotifOpen(false); setNavMenu(null); setMobileNavOpen(false); }
+            }}
+            onProfile={() => { setAccountMenuOpen(false); setMobileNavOpen(false); setActiveView("profile"); }}
+            onLogout={() => { setAccountMenuOpen(false); setMobileNavOpen(false); handleLogout(); }} />
+
+          {user?.is_admin && <div className="topbar-meta">
             <div className="topbar-controls">
               {/* The panel is not a product section, so it stays out of the main
                   nav — but an administrator should not have to type the URL. The
@@ -478,14 +441,8 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
                 </button>
               )}
 
-              <LanguageSelect language={language} onChange={setLanguage} landing={activeView === "main"}
-                onOpen={() => { setAccountMenuOpen(false); setNotifOpen(false); setNavMenu(null); }} />
-
-              <button className="theme-toggle" type="button" onClick={toggleTheme} title={theme === "dark" ? t(language, "theme.light") : t(language, "theme.dark")}>
-                <strong>{theme === "dark" ? "☀" : "☾"}</strong>
-              </button>
             </div>
-          </div>
+          </div>}
           </div>
         </header>
 

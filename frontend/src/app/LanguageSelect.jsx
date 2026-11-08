@@ -17,7 +17,7 @@ export function LanguageSelect({ language, onChange, landing, onOpen }) {
   const value = normalizeLanguage(language);
   const copy = labels[value];
   return <div className="topbar-language">
-    <Select.Root value={value} onValueChange={onChange} onOpenChange={open => { if (open) onOpen(); }}>
+    <Select.Root value={value} onValueChange={onChange} onOpenChange={open => { if (open) onOpen?.(); }}>
       <Select.Trigger id="languageSelect" className="language-trigger" aria-label={copy.field}>
         <svg className="language-globe" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
           <circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" />

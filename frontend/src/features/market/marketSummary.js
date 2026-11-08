@@ -1,22 +1,22 @@
 import { buildMarketStats } from "../../shared/marketModel.jsx";
 export function summarizeMarket({
-  activeSector,
+  activeIndustry,
   byClass,
   isDormant,
   windowed,
-  rowSector,
+  matchesIndustry,
   mktCapOf
 }) {
-  const cardSector = activeSector;
+  const cardIndustry = activeIndustry;
   const stats = buildMarketStats(byClass.filter(r => !isDormant(r)), {
     windowed
   });
-  const cardStats = cardSector ? buildMarketStats(byClass.filter(r => !isDormant(r) && rowSector(r) === cardSector), {
+  const cardStats = cardIndustry ? buildMarketStats(byClass.filter(r => !isDormant(r) && matchesIndustry(r)), {
     windowed
   }) : stats;
   const capPeriodChange = (() => {
     if (!windowed) return null;
-    const pool = byClass.filter(r => !isDormant(r) && (!cardSector || rowSector(r) === cardSector));
+    const pool = byClass.filter(r => !isDormant(r) && matchesIndustry(r));
     let now = 0;
     let before = 0;
     pool.forEach(r => {
@@ -28,9 +28,9 @@ export function summarizeMarket({
     });
     return before > 0 ? (now - before) / before * 100 : null;
   })();
-  const sectorDormant = cardSector ? byClass.filter(r => isDormant(r) && rowSector(r) === cardSector).length : 0;
+  const sectorDormant = cardIndustry ? byClass.filter(r => isDormant(r) && matchesIndustry(r)).length : 0;
   return {
-    cardSector,
+    cardIndustry,
     stats,
     cardStats,
     capPeriodChange,

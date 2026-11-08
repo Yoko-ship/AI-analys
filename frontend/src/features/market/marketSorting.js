@@ -15,8 +15,7 @@ export function sortMarketRows({
   prepared,
   favOnly,
   hasFav,
-  activeSector,
-  rowSector,
+  matchesIndustry,
   search,
   sortKeys
 }) {
@@ -80,7 +79,7 @@ export function sortMarketRows({
   };
   const visibleRows = prepared.filter(row => {
     if (favOnly && !hasFav(row.ticker)) return false;
-    if (activeSector && rowSector(row) !== activeSector) return false;
+    if (!matchesIndustry(row)) return false;
     if (!search) return true;
     return `${row.ticker || ""} ${row.name || ""} ${row.isin || ""}`.toLowerCase().includes(search);
   }).sort((a, b) => {

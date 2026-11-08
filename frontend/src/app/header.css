@@ -52,9 +52,6 @@ html[data-theme] .topbar .topbar-nav-btn:focus-visible {
   .topbar-actions { gap: 6px; }
   .topbar .topbar-actions .account-signin { padding-inline: 10px; font-size: 12px; }
 }
-@media (max-width: 600px) {
-  .topbar:has(.account-wrap) .brand-copy { display: none; }
-}
 @media (max-width: 360px) {
   .topbar .brand-copy { display: none; }
 }

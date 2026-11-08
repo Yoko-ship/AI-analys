@@ -2,6 +2,32 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {industryOf, buildIssuerTree} from '../frontend/src/lib/companyIndustries.js';
 import {sectorOf} from '../frontend/src/lib/sectors.js';
+import {groupMarketIndustries, matchesMarketIndustry} from '../frontend/src/lib/marketIndustries.js';
+
+test('market hierarchy includes only present securities, keeps share classes and unknown listings', () => {
+  const rows = ['IPTB', 'IPTBP', 'UZNF', 'DORI', 'CBSK', 'UZGFP', 'NEW'].map(ticker => ({ticker}));
+  const securities = {DORI: {sector: 'manufacturing'}, UZGFP: {sector: 'mining'}, NEW: {sector: 'agriculture'}};
+  const sections = groupMarketIndustries(rows, securities);
+  assert.deepEqual(sections.find(s => s.sector === 'finance').groups.map(g => g.id), ['banks', 'funds']);
+  assert.deepEqual(sections.find(s => s.sector === 'trade').groups.map(g => g.id), ['trading-complexes', 'pharma-wholesale']);
+  assert.deepEqual(sections.find(s => s.sector === 'professional').groups[0].rows, [{ticker: 'UZGFP'}]);
+  assert.deepEqual(sections.find(s => s.sector === 'agriculture').groups[0].rows, [{ticker: 'NEW'}]);
+  assert.equal(sections.flatMap(s => s.groups.flatMap(g => g.rows)).length, rows.length);
+  assert.deepEqual(groupMarketIndustries([], securities), []);
+});
+
+test('sector and subgroup selection share one rule, including aliases and unreviewed fallbacks', () => {
+  for (const ticker of ['IPTB', 'IPTBP', 'TNGB']) assert.equal(matchesMarketIndustry(ticker, 'group:banks'), true);
+  assert.equal(matchesMarketIndustry('UZNF', 'finance'), true);
+  assert.equal(matchesMarketIndustry('UZNF', 'group:banks'), false);
+  assert.equal(matchesMarketIndustry('UZNF', 'group:funds'), true);
+  assert.equal(matchesMarketIndustry('BNGP', 'group:well-services'), true);
+  assert.equal(matchesMarketIndustry('BNGPP', 'group:well-services'), true);
+  assert.equal(matchesMarketIndustry('BNG', 'group:well-services'), false);
+  assert.equal(matchesMarketIndustry('NEW', 'mining', {NEW: {sector: 'mining'}}), true);
+  assert.equal(matchesMarketIndustry('NEW', 'group:nonexistent'), false);
+  assert.equal(matchesMarketIndustry('NEW', null), true);
+});
 
 test('curated industry wins over stale catalogs without losing future sectors', () => {
   assert.equal(sectorOf('DORI', {DORI: {sector: 'manufacturing'}}), 'trade');

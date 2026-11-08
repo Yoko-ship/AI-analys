@@ -1,3 +1,4 @@
+import { toggleTheme } from './language-control.js';
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 const report=JSON.parse(readFileSync(new URL('../tests/fixtures/sector_ui_report.json',import.meta.url),'utf8'));
@@ -124,14 +125,14 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await hoverBar(page,balanceChart,-1);
   await expect(balanceTooltip).toContainText('19 млн долларов');
   await expect(balanceTooltip).toContainText('8 млн долларов');
-  await page.locator('.theme-toggle').click();
+  await toggleTheme(page);
   await balanceCard.scrollIntoViewIfNeeded();
   await hoverBar(page,balanceChart,-1);
   await expect(balanceTooltip).toContainText('19 млн долларов');
   await balanceCard.screenshot({path:testInfo.outputPath('history-tooltip-dark.png'),animations:'disabled'});
   await expectReadableAnalysis(sum);
   await sum.locator('.terminal-summary-narrative').screenshot({path:testInfo.outputPath('analysis-readable-dark.png'),animations:'disabled'});
-  await page.locator('.theme-toggle').click();
+  await toggleTheme(page);
   await sum.getByText('Таблица истории',{exact:true}).click();
   await expect(sum.locator('.terminal-history-table')).toContainText('12');
   const current=sum.locator('.terminal-history-table tr').filter({hasText:'6 мес. 2026'});

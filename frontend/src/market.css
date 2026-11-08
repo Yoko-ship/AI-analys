@@ -658,7 +658,6 @@ html[data-theme="dark"] .market-layout .market-type-control button.active {
   color: var(--bg) !important;
 }
 
-.market-layout .market-sector-select select,
 .market-layout .market-fav-filter,
 .market-layout .market-cols-btn,
 .market-layout .market-search input {
@@ -669,22 +668,6 @@ html[data-theme="dark"] .market-layout .market-type-control button.active {
   font-size: 12.5px;
   font-weight: 600;
   box-shadow: none;
-}
-
-.market-layout .market-sector-select select {
-  padding: 0 30px 0 11px;
-  line-height: 34px;
-}
-
-.market-layout .market-sector-select::after {
-  right: 11px;
-  width: 6px;
-  height: 6px;
-}
-
-html[data-theme="dark"] .market-layout .market-sector-select select {
-  background: var(--panel) !important;
-  background-color: var(--panel) !important;
 }
 
 .market-layout .market-fav-filter {
@@ -733,8 +716,7 @@ html[data-theme="dark"] .market-layout .market-controls {
 }
 
 .market-layout .market-fav-filter.active,
-.market-layout .market-cols-btn.active,
-.market-layout .market-sector-select select:not([data-all="1"]) {
+.market-layout .market-cols-btn.active {
   border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
   background: var(--accent-light);
   color: var(--accent);
@@ -1242,7 +1224,6 @@ html[data-theme="dark"] .market-layout .heatmap-tree-tile.is-neutral {
     font-size: 11.5px;
   }
 
-  .market-layout .market-sector-select select,
   .market-layout .market-fav-filter,
   .market-layout .market-cols-btn,
   .market-layout .market-search input {

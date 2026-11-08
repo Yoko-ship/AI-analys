@@ -58,6 +58,8 @@ export function MarketTable({
   }, [onOpenCompany, onAnalyze, onToggleFavorite, openPanel]);
   return <CompanyPreviewProvider lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
     rows={sectorMapRows}
+    emptyFiltered={filtered && rows.length > 0}
+    onResetFilters={onResetFilters}
     companies={companies}
     securitiesMap={smap}
     language={lang}

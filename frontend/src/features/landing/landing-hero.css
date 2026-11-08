@@ -141,12 +141,15 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
 .landing-data-notice button:disabled { cursor: wait; opacity: .6; }
 .landing-news { padding-block: 48px 64px; border-top: 1px solid var(--border); }
 .landing-news .landing-eyebrow { margin-bottom: 10px; }
-.landing-news-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
-.landing-news-card { display: flex; flex-direction: column; min-height: 230px; padding: 26px 24px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-.landing-news-card:hover { border-color: var(--accent); }
-.landing-news-source { font-size: 11px; color: var(--muted); }
-.landing-news-card h3 { margin: 18px 0 24px; font-size: 19px; font-weight: 750; line-height: 1.45; }
-.landing-news-bottom { display: flex; align-items: center; justify-content: space-between; gap: 15px; border-top: 1px solid var(--border); padding-top: 17px; margin-top: auto; color: var(--muted); font-size: 11px; }
+.landing-news-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
+.landing-news-list > li { border-bottom: 1px solid var(--border); }
+.landing-news-row { display: grid; grid-template-columns: 180px minmax(0, 1fr) 20px; align-items: center; gap: 32px; padding: 22px 12px; }
+.landing-news-row:hover { background: var(--panel); }
+.landing-news-meta { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.landing-news-meta time { font-variant-numeric: tabular-nums; }
+.landing-news-row h3 { margin: 0; min-width: 0; font-size: 17px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.landing-news-row > svg { width: 20px; height: 20px; color: var(--muted); }
+.landing-view .landing-news-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .landing-about { padding-block: 48px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: center; gap: 80px; border-top: 1px solid var(--border); }
 .landing-about--intro-only { grid-template-columns: 1fr; }
 .landing-about-intro { max-width: 480px; }
@@ -211,9 +214,7 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-sector-intro > p { max-width: 540px; }
   .landing-sector-card > img { height: 170px; }
   .landing-section-heading h2 { font-size: 28px; }
-  .landing-news-grid { gap: 12px; }
-  .landing-news-card { padding: 20px 16px; }
-  .landing-news-card h3 { font-size: 16px; }
+  .landing-news-row { grid-template-columns: 150px minmax(0, 1fr) 20px; gap: 20px; }
   .landing-about { grid-template-columns: 1fr; gap: 28px; padding-block: 32px; }
   .landing-about-intro { max-width: 560px; }
   .landing-about h2 { font-size: 30px; }
@@ -262,9 +263,9 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-company small { max-width: 100px; font-size: 10px; }
   .landing-quote-note { font-size: 10px; }
   .landing-news { padding-block: 36px; }
-  .landing-news-grid { grid-template-columns: 1fr; }
-  .landing-news-card { min-height: 185px; padding: 23px; }
-  .landing-news-card h3 { font-size: 20px; }
+  .landing-news-row { grid-template-columns: minmax(0, 1fr) 20px; gap: 10px 16px; padding: 20px 4px; }
+  .landing-news-meta { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 4px 16px; }
+  .landing-news-row h3 { font-size: 16px; }
   .landing-about h2 { font-size: 27px; }
   .landing-about .landing-about-description { font-size: 13px; }
   .landing-company-example { padding: 20px; }

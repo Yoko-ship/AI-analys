@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { selectLanguage } from './language-control.js';
+import { selectLanguage, toggleTheme } from './language-control.js';
 
 const stocks = ['IPTB', 'IPTBP', 'DORI', 'PLST', 'PLSTP', 'UZGF', 'UZGFP', 'ORGS', 'CBSK', 'METQ', 'NEW'];
 async function openDirectory(page) {
@@ -58,7 +58,7 @@ for (const width of [1280, 390]) test(`industry hierarchy is readable in both th
   await page.locator('[data-issuer="UZGF"] summary').click();
   await expect(page.getByRole('link', {name: 'UZSE · 71120'})).toBeVisible();
   for (const theme of ['initial', 'alternate']) {
-    if (theme === 'alternate') await page.locator('.theme-toggle').click();
+    if (theme === 'alternate') await toggleTheme(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path: testInfo.outputPath(`industry-${theme}.png`), fullPage: true});
   }

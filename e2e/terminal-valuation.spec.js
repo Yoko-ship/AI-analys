@@ -1,3 +1,4 @@
+import { toggleTheme } from './language-control.js';
 import { test, expect } from '@playwright/test';
 import {expectFullWidth} from './helpers/full-width.js';
 
@@ -121,7 +122,7 @@ for(const referenceOnly of [false,true]) test(`FV opens without the assumptions 
   expect(await fv.locator('.terminal-fv-kpis dt').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(12);
   await page.screenshot({path:testInfo.outputPath('fv-mobile.png'),fullPage:true,animations:'disabled'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
-  await page.locator('.theme-toggle').click();
+  await toggleTheme(page);
   await expect(page.locator('body')).toHaveAttribute('data-theme','light');
   await page.screenshot({path:testInfo.outputPath('fv-mobile-light.png'),fullPage:true,animations:'disabled'});
   await page.getByRole('combobox',{name:'Company search'}).fill('AGBA MSFO FV');

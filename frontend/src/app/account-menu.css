@@ -1,0 +1,72 @@
+.topbar .account-avatar { width: 44px; height: 44px; font-size: 13px; }
+.topbar .account-avatar-guest { background: var(--panel); color: var(--text); }
+.account-avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Radix positions the portal wrapper and keeps it inside the viewport. */
+.account-menu.account-preferences {
+  position: relative;
+  inset: auto;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: var(--radix-popover-content-available-height);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  color: var(--text);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 16%);
+}
+.account-preferences .account-menu-head { padding: 8px 10px 12px; margin-bottom: 4px; }
+.account-preferences .account-menu-head strong { color: var(--text); line-height: 1.4; }
+.account-preferences .account-menu-head span { color: var(--muted); line-height: 1.5; }
+.account-preference-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+.account-preferences .language-trigger,
+.account-preferences .theme-toggle {
+  width: 112px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+}
+.account-preferences .theme-toggle { transition: background-color 150ms; }
+.account-preferences .language-globe { display: block; }
+.account-preferences .theme-toggle strong { font-size: 18px; }
+.account-preferences .theme-toggle:focus-visible,
+.account-menu-action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.account-menu-action {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.account-menu-action:hover { background: var(--surface-2); }
+.account-menu-footer { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.account-menu-action.is-logout { color: var(--danger); }
+
+/* The initial, server-rendered header uses the same avatar before React loads. */
+.account-static summary { list-style: none; }
+.account-static summary::-webkit-details-marker { display: none; }
+.account-static > .account-preferences { position: absolute; top: calc(100% + 8px); right: 0; }
