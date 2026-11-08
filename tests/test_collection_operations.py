@@ -26,6 +26,55 @@ def isolated_store(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "utcnow", lambda: NOW)
     return connect
 
+
+def test_release_requires_new_reports_for_every_collector(isolated_store):
+    from collection_ops.verify import require_fresh_reports
+    from collection_ops.registry import JOBS
+
+    since = NOW - timedelta(seconds=10)
+    with pytest.raises(RuntimeError, match="offline"):
+        require_fresh_reports(store.overview(), since)
+    store.report([observation()])
+    with pytest.raises(RuntimeError, match="collector"):
+        require_fresh_reports(store.overview(), since)
+    # A collector failure is useful evidence, not a failed monitor health check.
+    store.report([observation(job=job, result="exit-code", exit_code=1) for job in JOBS])
+    assert require_fresh_reports(store.overview(), since)["observed_jobs"] == len(JOBS)
+    with pytest.raises(RuntimeError, match="before this check"):
+        require_fresh_reports(store.overview(), NOW + timedelta(seconds=1))
+
+
+@pytest.mark.parametrize("completes", [True, False])
+def test_manual_verification_waits_for_one_real_request(isolated_store, monkeypatch, completes):
+    from collection_ops import verify
+
+    job = "bank-fx"
+    store.report([observation(job=job)])
+    delays = []
+
+    def advance(seconds):
+        delays.append(seconds)
+        if completes:
+            request = store.claim()
+            assert request["actor_id"] == 0  # Server operator, never impersonate an admin user.
+            store.ack(request["id"], "dispatched", "manual-bank-fx")
+            store.report([observation(job=job, invocation="manual-bank-fx", receipts=[
+                {"stage": "/api/admin/bank-fx", "ok": True, "counts": {"upserted": 12}}])])
+
+    monkeypatch.setattr(verify.time, "sleep", advance)
+    monkeypatch.setattr(verify.time, "monotonic", lambda: sum(delays))
+    if completes:
+        result = verify.exercise_manual_run(store, job, timeout=10)
+        assert result["status"] == "completed"
+        assert result["publication"] == "acknowledged"
+        assert delays == [5]
+    else:
+        with pytest.raises(RuntimeError, match="not confirmed"):
+            verify.exercise_manual_run(store, job, timeout=10)
+        assert delays == [5, 5]
+    current = next(x for x in store.overview()["items"] if x["id"] == job)
+    assert len(current["requests"]) == 1
+
 @pytest.mark.parametrize("result,code,expected", [
     ("timeout", None, "timeout"), ("oom-kill", 137, "memory_limit"),
     ("exit-code", 1, "failed"), ("signal", 9, "terminated"),

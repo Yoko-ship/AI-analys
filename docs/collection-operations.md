@@ -120,6 +120,17 @@ The existing CI release installs `uzstock-collection-monitor.service` and its
 30-second timer on the same production host. It uses standard-library Python,
 the existing ignored application environment file and the loopback API. The web
 container receives no Docker socket or general command-execution capability.
+The host service explicitly uses `--api-url http://127.0.0.1:8001`: port 8000 is
+inside the container. Deployment tests check this address against Docker's host
+port mapping, and each release starts the monitor and requires a new persisted
+report from every collector before reporting success.
+For an explicit end-to-end dispatch check, manually run CI on API with
+`verify_collection_run` enabled (or use `[verify-collections]` in a release commit).
+It queues exactly one bank FX collection, waits up to ten minutes for the monitor
+to dispatch it and record its completion, and requires a publication receipt.
+This server-operator request is recorded with actor ID 0; browser requests still
+require the signed-in administrator and authenticator. Ordinary releases only
+check monitoring and do not submit an extra collection.
 CI still builds and tests one image, publishes it by digest and uses the matching
 server checkout; no second server build is introduced.
 

@@ -182,6 +182,8 @@ def read_environment(path):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-file", type=Path, required=True)
+    parser.add_argument("--api-url", required=True,
+                        help="API origin reachable from the host, using its published port")
     parser.add_argument("--state-dir", type=Path, default=Path("/var/lib/uzstock-collections"))
     args = parser.parse_args(argv)
     # Host-only code: no database driver, project dependencies or registry credentials.
@@ -191,7 +193,7 @@ def main(argv=None):
         raise RuntimeError("ADMIN_API_SECRET is not configured for collection monitoring.")
     opener = build_opener(ProxyHandler({}))
     def post(path, body):
-        request = Request("http://127.0.0.1:8000/api/admin/collections" + path,
+        request = Request(args.api_url.rstrip("/") + "/api/admin/collections" + path,
                           data=json.dumps(body).encode(), method="POST",
                           headers={"Content-Type": "application/json", "X-Admin-Secret": secret})
         with opener.open(request, timeout=15) as response:

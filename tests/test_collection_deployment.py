@@ -1,4 +1,6 @@
 import textwrap
+import re
+import shlex
 from pathlib import Path
 from collection_ops.registry import JOBS
 
@@ -25,3 +27,15 @@ def test_host_monitor_is_installed_and_started_without_privileging_the_web():
     for job in JOBS.values():
         assert "/etc/systemd/system/" + job.unit in installed
         assert "/etc/systemd/system/" + job.unit.replace(".service", ".timer") in installed
+
+
+def test_monitor_connects_to_the_published_host_port_not_the_container_port():
+    installed, workflow = units()
+    # Production regression: the web container exposes 8000 on host port 8001.
+    # Read the deployment mapping so changing it cannot silently break monitoring.
+    address, port = re.search(r"-p (127\.0\.0\.1):(\d+):8000", workflow).groups()
+    service = installed["/etc/systemd/system/uzstock-collection-monitor.service"]
+    command = shlex.split(next(line.removeprefix("ExecStart=") for line in service.splitlines()
+                              if line.startswith("ExecStart=")))
+    assert "--api-url" in command
+    assert command[command.index("--api-url") + 1] == f"http://{address}:{port}"

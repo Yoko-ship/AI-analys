@@ -42,6 +42,11 @@ on:
         required: false
         type: boolean
         default: false
+      verify_collection_run:
+        description: Enqueue one bank FX collection after deployment and verify dispatch and publication
+        required: false
+        type: boolean
+        default: false
 
 # Finish an active release instead of cancelling it during a container swap.
 # GitHub retains only the newest pending run for this branch.
@@ -828,10 +833,11 @@ jobs:
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
           EXPECTED_SHA: ${{ github.sha }}
+          VERIFY_COLLECTION_RUN: ${{ inputs.verify_collection_run || contains(github.event.head_commit.message, '[verify-collections]') }}
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
-            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA'" <<'REMOTE'
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$EXPECTED_SHA' '$VERIFY_COLLECTION_RUN'" <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
           expected_sha="$1"
@@ -1183,7 +1189,7 @@ jobs:
           PrivateTmp=true
           ProtectSystem=strict
           ReadWritePaths=/var/lib/uzstock-collections
-          ExecStart=/usr/bin/python3 -m collection_ops.host --env-file /root/uzstock/app/.env
+          ExecStart=/usr/bin/python3 -m collection_ops.host --env-file /root/uzstock/app/.env --api-url http://127.0.0.1:8001
           """,
               "/etc/systemd/system/uzstock-collection-monitor.timer": """[Unit]
           Description=Observe collection runs and process manual requests
@@ -1380,6 +1386,18 @@ jobs:
             systemctl is-active --quiet uzstock-offsite-backup.timer
           else
             systemctl disable --now uzstock-offsite-backup.timer >/dev/null 2>&1 || true
+          fi
+          # An active timer alone does not prove that its service reaches the API.
+          # Require a new persisted report from every installed collector.
+          monitor_check_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if ! systemctl start uzstock-collection-monitor.service; then
+            journalctl -u uzstock-collection-monitor.service -n 100 --no-pager \
+              | python3 scripts/ci_log.py collection-monitor-start 100
+            exit 1
+          fi
+          docker exec uzstock-web python -m collection_ops.verify --since "$monitor_check_started"
+          if [ "${2:-false}" = "true" ]; then
+            docker exec uzstock-web python -m collection_ops.verify --since "$monitor_check_started" --exercise bank-fx
           fi
           REMOTE
 

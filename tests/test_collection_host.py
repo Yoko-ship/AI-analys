@@ -92,3 +92,48 @@ def test_dispatch_waits_only_for_confirmation_with_bounded_pacing(monkeypatch, t
     monkeypatch.setattr(host, "command", lambda *args: "")
     assert host.dispatch({"id": "abc", "job": "quotes-catchup"}, tmp_path)["status"] == "uncertain"
     assert delays == [0.1, 0.2, 0.4, 0.8]
+
+
+def test_host_reports_and_claims_through_its_configured_api(monkeypatch, tmp_path):
+    """Exercise real HTTP, not a mocked opener that misses host/container ports."""
+    import sys
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            received.append((self.path, self.headers.get("X-Admin-Secret"),
+                             json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"request": None} if self.path.endswith("/claim")
+                                        else {"ok": True}).encode())
+
+        def log_message(self, *args):
+            pass
+
+    monkeypatch.setitem(sys.modules, "fcntl", SimpleNamespace(
+        LOCK_EX=2, LOCK_NB=4, flock=lambda *args: None))
+    monkeypatch.setattr(host, "collect", lambda: [{"job": "quotes-catchup"}])
+    env = tmp_path / ".env"
+    env.write_text("ADMIN_API_SECRET=monitor-test-secret\n", encoding="utf-8")
+    monkeypatch.setenv("ADMIN_API_SECRET", "original-test-value")
+    # Proxy variables and the container's push URL must not redirect the host agent.
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("FINANCIALS_PUSH_URL", "http://uzstock-web:8000")
+    with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            assert host.main(["--env-file", str(env), "--state-dir", str(tmp_path / "state"),
+                              "--api-url", f"http://127.0.0.1:{server.server_port}/"]) == 0
+        finally:
+            server.shutdown()
+            thread.join()
+    assert received == [
+        ("/api/admin/collections/report", "monitor-test-secret", {"items": [{"job": "quotes-catchup"}]}),
+        ("/api/admin/collections/claim", "monitor-test-secret", {}),
+    ]
