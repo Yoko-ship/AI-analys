@@ -43,6 +43,23 @@ jobs:
           systemctl show uzstock-quotes-2130.service -p ActiveState -p Result -p ExecMainStatus
           systemctl list-timers 'uzstock-quotes-*' --no-pager
           REMOTE
+      - name: Inspect collector monitor failures
+        env:
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /root/uzstock/app
+          {
+            systemctl show uzstock-collection-monitor.service uzstock-collection-monitor.timer \
+              -p ActiveState -p SubState -p Result -p ExecMainStatus -p WorkingDirectory \
+              -p LastTriggerUSec -p NextElapseUSecMonotonic
+            journalctl -u uzstock-collection-monitor.service -n 100 --no-pager -o cat
+          } 2>&1 | python3 scripts/ci_log.py collection-monitor-diagnostic 140
+          REMOTE
       - name: Compare production container and host source access
         env:
           PROD_HOST: ${{ secrets.PROD_HOST }}
