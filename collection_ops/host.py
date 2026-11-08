@@ -30,8 +30,11 @@ def command(args, timeout=12):
     return result.stdout
 
 def properties(unit):
+    # The default display drops microseconds. Using that rounded finish time as
+    # journalctl's upper bound hides receipts/errors emitted in the final second.
     return dict(line.split("=", 1) for line in command(
-        ["systemctl", "show", unit, "--property=" + ",".join(PROPERTIES)]).splitlines() if "=" in line)
+        ["systemctl", "show", unit, "--timestamp=us+utc",
+         "--property=" + ",".join(PROPERTIES)]).splitlines() if "=" in line)
 
 def system_time(value):
     if not value or value in ("n/a", "0"):

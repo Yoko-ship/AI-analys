@@ -26,6 +26,37 @@ def test_active_run_and_finished_run_have_the_same_identity():
     second = host.observation(JOBS["quotes-catchup"], properties, {}, [])
     assert first["invocation"] == second["invocation"]
 
+
+def test_bank_fx_receipt_in_final_fraction_of_second_is_retained(monkeypatch):
+    """2026-11-08: 174 writes at 14:00:00.093 disappeared behind --until 14:00:00."""
+    from datetime import datetime
+    from collection_ops.model import MARKER, outcome
+
+    entries = [
+        ("2026-11-08T14:00:00.093000+00:00", {"MESSAGE": MARKER + json.dumps({
+            "stage": "/api/admin/bank-fx", "ok": True, "counts": {"upserted": 174}})}),
+        # A later invocation within the same second must not contaminate this run.
+        ("2026-11-08T14:00:00.900000+00:00", {"MESSAGE": MARKER + json.dumps({
+            "stage": "/api/admin/bank-fx", "ok": False, "reason": "next run failed"})}),
+    ]
+
+    def command(args, **kwargs):
+        if args[0] == "systemctl":
+            precise = "--timestamp=us+utc" in args
+            return ("LoadState=loaded\nActiveState=inactive\nResult=success\nExecMainStatus=0\n"
+                    "InactiveExitTimestamp=Sun 2026-11-08 13:59:56" + (".010000" if precise else "") + " UTC\n"
+                    "InactiveEnterTimestamp=Sun 2026-11-08 14:00:00" + (".300000" if precise else "") + " UTC\n")
+        until = datetime.fromisoformat(args[args.index("--until") + 1])
+        return "\n".join(json.dumps(entry) for stamp, entry in entries if datetime.fromisoformat(stamp) <= until)
+
+    monkeypatch.setattr(host, "command", command)
+    job = JOBS["bank-fx"]
+    service = host.properties(job.unit)
+    result = outcome(host.observation(job, service, {}, host.journal(job, service)))
+    assert result["status"] == "completed"
+    assert result["publication"] == "acknowledged"
+    assert result["receipts"][0]["counts"] == {"upserted": 174}
+
 def test_dispatch_unknown_service_never_executes(monkeypatch, tmp_path):
     monkeypatch.setattr(host, "command", lambda *a, **k: pytest.fail("must not execute"))
     with pytest.raises(ValueError):
