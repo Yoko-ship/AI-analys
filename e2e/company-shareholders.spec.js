@@ -39,7 +39,8 @@ async function setup(page, respond = () => ({ok: true, ownership, management})) 
   return requests;
 }
 
-test('direct company tab loads on demand and shows compact source-linked cards', async ({page}, testInfo) => {
+test('company cards fill the page with readable stable rows and source links', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 1920, height: 1080});
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const requests = await setup(page);
@@ -61,9 +62,32 @@ test('direct company tab loads on demand and shows compact source-linked cards',
   const left = await cards.nth(0).boundingBox(), right = await cards.nth(1).boundingBox();
   expect(right.x).toBeGreaterThan(left.x + left.width);
   expect(Math.abs(left.y - right.y)).toBeLessThan(2);
+  const available = await page.locator('.company-page-body').boundingBox();
+  const width = (await panel.boundingBox()).width;
+  expect(width).toBeGreaterThan(available.width * 0.95);
+  const longName = panel.getByRole('link', {name: ownership.items[1].name, exact: true});
+  const metrics = await longName.evaluate(el => ({
+    fontSize: parseFloat(getComputedStyle(el).fontSize),
+    whiteSpace: getComputedStyle(el).whiteSpace,
+    clipped: el.scrollWidth > el.clientWidth + 1,
+  }));
+  expect(metrics.fontSize).toBeGreaterThanOrEqual(15);
+  expect(metrics.whiteSpace).not.toBe('nowrap');
+  expect(metrics.clipped).toBe(false);
+  const row = longName.locator('xpath=ancestor::tr');
+  await page.evaluate(() => document.fonts.ready);
+  const before = await row.boundingBox();
+  expect(before.height).toBeGreaterThanOrEqual(48);
+  await longName.hover();
+  // Allow subpixel table-border rounding, but never a newly wrapped line.
+  expect(Math.abs((await row.boundingBox()).height - before.height)).toBeLessThanOrEqual(1);
+  await longName.focus();
+  expect(Math.abs((await row.boundingBox()).height - before.height)).toBeLessThanOrEqual(1);
+  await longName.blur();
+  await page.mouse.move(0, 0);
   await expect(page.locator('body')).toHaveAttribute('data-theme', 'light');
   await panel.screenshot({path: testInfo.outputPath('shareholders-light.png')});
-  await page.evaluate(() => {document.body.dataset.theme = 'dark';});
+  await page.evaluate(() => {document.body.dataset.theme = 'dark';document.documentElement.dataset.theme = 'dark';});
   await panel.screenshot({path: testInfo.outputPath('shareholders-dark.png')});
   await page.setViewportSize({width: 390, height: 844});
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -92,6 +116,12 @@ test('failed request is visible and retryable; empty management is explicit', as
   await panel.getByRole('button', {name: 'Повторить'}).click();
   await expect(panel).toContainText('Ibragimov Ikram');
   await expect(panel).toContainText('Нет проверенных данных о руководстве');
+  const cards = panel.locator('.shareholder-card');
+  const ownershipCard = await cards.nth(0).boundingBox(), managementCard = await cards.nth(1).boundingBox();
+  expect(Math.abs(ownershipCard.height - managementCard.height)).toBeLessThan(2);
+  await expect(cards.nth(1).getByRole('heading', {name: 'Сведения пока недоступны'})).toBeVisible();
+  await panel.getByRole('button', {name: 'Смотреть отчёты'}).click();
+  await expect(page.locator('[data-track-control="company_tab"][data-track-value="reports"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('loading state never displays fabricated data', async ({page}) => {

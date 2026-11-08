@@ -1,5 +1,7 @@
 import React from 'react';
 import {safeHref} from '../../lib/safeHref.js';
+import {Icons} from '../../shared/Icons.jsx';
+import {localizedPath} from '../../lib/languagePath.js';
 import './companyShareholders.css';
 
 function sourceHref(source, page) {
@@ -19,7 +21,18 @@ function SourceNote({data, t, locale}) {
   </footer>;
 }
 
-export function CompanyShareholders({ticker, lang = 'ru', apiFetch = fetch}) {
+function EmptyDisclosure({children, ticker, onOpenReports, t, lang}) {
+  return <div className="shareholder-empty">
+    <span className="shareholder-empty-icon" aria-hidden="true">{Icons.users}</span>
+    <h3>{t('Сведения пока недоступны', 'Ma’lumotlar hozircha mavjud emas', 'No verified details yet')}</h3>
+    <p>{children}</p>
+    {onOpenReports
+      ? <button type="button" className="shareholder-reports-link" onClick={onOpenReports}>{t('Смотреть отчёты', 'Hisobotlarni ko‘rish', 'View reports')} <span aria-hidden="true">→</span></button>
+      : <a className="shareholder-reports-link" href={localizedPath(`/company/${encodeURIComponent(ticker)}?tab=reports`, lang)}>{t('Смотреть отчёты', 'Hisobotlarni ko‘rish', 'View reports')} <span aria-hidden="true">→</span></a>}
+  </div>;
+}
+
+export function CompanyShareholders({ticker, lang = 'ru', apiFetch = fetch, onOpenReports}) {
   const t = (ru, uz, en) => lang === 'en' ? en : lang === 'uz' ? uz : ru;
   const locale = lang === 'en' ? 'en-GB' : lang === 'uz' ? 'uz-UZ' : 'ru-RU';
   const [loaded, setLoaded] = React.useState(null);
@@ -46,29 +59,30 @@ export function CompanyShareholders({ticker, lang = 'ru', apiFetch = fetch}) {
       <p>{t('Не удалось загрузить сведения об акционерах и руководстве.', 'Aksiyadorlar va rahbariyat ma’lumotlarini yuklab bo‘lmadi.', 'Could not load shareholders and management.')}</p>
       <button type="button" onClick={() => setRetry(value => value + 1)}>{t('Повторить', 'Qayta urinish', 'Retry')}</button>
     </div>}
-    {ownership && management && <div className="shareholder-grid">
+    {ownership && management && <div className={`shareholder-grid${!ownership.items.length && management.items.length ? ' shareholder-grid--management' : ''}`}>
       <section className="shareholder-card" aria-label={t('Акционеры', 'Aksiyadorlar', 'Shareholders')}>
         <header><h2>{t('Акционеры', 'Aksiyadorlar', 'Shareholders')}</h2>
           {ownership.items.length > 0 && <span>{ownership.share_class === 'preferred' ? t('Привилегированные акции', 'Imtiyozli aksiyalar', 'Preferred shares') : ownership.share_class === 'ordinary' ? t('Обыкновенные акции', 'Oddiy aksiyalar', 'Ordinary shares') : t('Доля в капитале', 'Kapitaldagi ulush', 'Ownership interest')}</span>}
         </header>
-        {ownership.items.length ? <table className="shareholder-table" aria-label={t('Доли акционеров', 'Aksiyadorlar ulushlari', 'Ownership percentages')}><tbody>
+        {ownership.items.length ? <div className="shareholder-table-wrap"><table className="shareholder-table" aria-label={t('Доли акционеров', 'Aksiyadorlar ulushlari', 'Ownership percentages')}>
+          <thead><tr><th scope="col">{t('Акционер', 'Aksiyador', 'Shareholder')}</th><th scope="col">{t('Доля', 'Ulush', 'Holding')}</th></tr></thead><tbody>
           {ownership.items.map((owner, index) => <tr key={`${owner.name}:${index}`}>
             <th scope="row"><a href={sourceHref(owner.source_url || ownership.source?.url, owner.page || ownership.source?.page)} target="_blank" rel="noreferrer" title={owner.name}>
               {owner.kind === 'aggregate' ? t('Прочие (менее 1% каждый)', 'Boshqalar (har biri 1% dan kam)', 'Others (less than 1% each)') : owner.name}
-            </a></th><td>{percentage(owner.share)}</td>
+            </a></th><td><strong>{percentage(owner.share)}</strong><span className="shareholder-share-track" aria-hidden="true"><span style={{width: `${Number(owner.share)}%`}}/></span></td>
           </tr>)}
-        </tbody></table> : <p className="shareholder-empty">{t('Нет проверенных данных о долях акционеров в загруженных раскрытиях.', 'Yuklangan hujjatlarda aksiyadorlar ulushlari haqida tasdiqlangan ma’lumot yo‘q.', 'No verified ownership percentages in the collected disclosures.')}</p>}
+        </tbody></table></div> : <EmptyDisclosure ticker={ticker} onOpenReports={onOpenReports} t={t} lang={lang}>{t('Нет проверенных данных о долях акционеров в загруженных раскрытиях.', 'Yuklangan hujjatlarda aksiyadorlar ulushlari haqida tasdiqlangan ma’lumot yo‘q.', 'No verified ownership percentages in the collected disclosures.')}</EmptyDisclosure>}
         {ownership.status === 'partial' && <p className="shareholder-note">{t('Раскрыта часть акционеров. Доли не пересчитываются до 100%.', 'Aksiyadorlarning bir qismi oshkor etilgan. Ulushlar 100% ga qayta hisoblanmaydi.', 'Only some shareholders are disclosed. Percentages are not rescaled to 100%.')}</p>}
         <SourceNote data={ownership} t={t} locale={locale}/>
       </section>
       <section className="shareholder-card" aria-label={t('Руководство', 'Rahbariyat', 'Management')}>
-        <header><h2>{t('Руководство', 'Rahbariyat', 'Management')}</h2></header>
+        <header><h2>{t('Руководство', 'Rahbariyat', 'Management')}</h2><span>{t('По раскрытиям компании', 'Kompaniya ma’lumotlari bo‘yicha', 'Company disclosures')}</span></header>
         {management.items.length ? <ul className="shareholder-management">
           {management.items.map((person, index) => <li key={`${person.name}:${index}`}>
             {person.position && <span>{person.position}</span>}
             <a href={sourceHref(person.source_url || management.source?.url)} target="_blank" rel="noreferrer">{person.name}</a>
           </li>)}
-        </ul> : <p className="shareholder-empty">{t('Нет проверенных данных о руководстве в загруженных раскрытиях.', 'Yuklangan hujjatlarda rahbariyat haqida tasdiqlangan ma’lumot yo‘q.', 'No verified management information in the collected disclosures.')}</p>}
+        </ul> : <EmptyDisclosure ticker={ticker} onOpenReports={onOpenReports} t={t} lang={lang}>{t('Нет проверенных данных о руководстве в загруженных раскрытиях.', 'Yuklangan hujjatlarda rahbariyat haqida tasdiqlangan ma’lumot yo‘q.', 'No verified management information in the collected disclosures.')}</EmptyDisclosure>}
         {management.status === 'partial' && <p className="shareholder-note">{t('Состав может быть неполным: опубликованы отдельные изменения.', 'Tarkib to‘liq bo‘lmasligi mumkin: alohida o‘zgarishlar e’lon qilingan.', 'The roster may be incomplete: only individual changes were disclosed.')}</p>}
         <SourceNote data={management} t={t} locale={locale}/>
       </section>

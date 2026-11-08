@@ -27,7 +27,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
   const qualityPeriod = companyQuery.get("qualityPeriod") || "";
   const qualityField = companyQuery.get("qualityField") || "";
   const requestedTab = companyQuery.get("tab");
-  const [tab, setTab] = React.useState(['financials', 'shareholders'].includes(requestedTab) ? requestedTab : 'overview');
+  const [tab, setTab] = React.useState(['financials', 'shareholders', 'reports'].includes(requestedTab) ? requestedTab : 'overview');
 
   // A company is a new page, even though the SPA swaps it into the same
   // document. Reset the previous view's scroll offset before paint so opening
@@ -583,7 +583,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
         {tab === "reports" && (
           <CompanyReportsTab reports={companyData?.reports || []} lang={lang} />
         )}
-        {tab === 'shareholders' && <CompanyShareholders key={ticker} ticker={ticker} lang={lang} apiFetch={apiFetch}/>}
+        {tab === 'shareholders' && <CompanyShareholders key={ticker} ticker={ticker} lang={lang} apiFetch={apiFetch} onOpenReports={() => setTab('reports')}/>}
         {tab === "financials" && (
           <>
             {qualityIssue && <div className="panel" style={{ padding: "12px 16px", marginBottom: 12, border: "1px solid rgba(220, 80, 80, 0.5)" }}>

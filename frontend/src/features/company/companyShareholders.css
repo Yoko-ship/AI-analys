@@ -1,30 +1,142 @@
-.company-shareholders { --owners-link: #245bbd; --owners-share: #16713d; max-width: 1000px; }
-body[data-theme="dark"] .company-shareholders { --owners-link: #8cb4ff; --owners-share: #53d398; }
-.shareholder-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-.shareholder-card { min-width: 0; padding: 14px 16px 12px; border: 1px solid var(--border-hover, var(--border)); border-radius: 6px; background: var(--panel); color: var(--text); }
-.shareholder-card > header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding-bottom: 10px; margin-bottom: 9px; border-bottom: 1px solid var(--border); }
-.shareholder-card h2 { margin: 0; font-size: 13px; line-height: 1.5; font-weight: 650; }
-.shareholder-card > header > span { color: var(--muted); font-size: 11px; }
-.shareholder-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
-.shareholder-table th { text-align: left; font-weight: 400; }
-.shareholder-table th, .shareholder-table td { padding: 3px 0; border: 0; }
-.shareholder-table td { width: 72px; padding-left: 12px; text-align: right; color: var(--owners-share); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.shareholder-table a { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--owners-link); text-decoration: none; }
-.shareholder-table a:hover, .shareholder-table a:focus-visible { white-space: normal; overflow-wrap: anywhere; text-decoration: underline; }
-.shareholder-management { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-.shareholder-management li { min-width: 0; }
-.shareholder-management li > span { display: block; color: var(--muted); font-size: 11px; line-height: 1.4; margin-bottom: 2px; }
-.shareholder-management a { color: var(--text); font-size: 13px; line-height: 1.5; text-decoration: none; overflow-wrap: anywhere; }
-.shareholder-management a:hover { text-decoration: underline; }
-.shareholder-source { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 10px; margin-top: 13px; color: var(--muted); font-size: 11px; line-height: 1.5; }
-.shareholder-source:empty { display: none; }
-.shareholder-source a { color: var(--owners-link); }
-.shareholder-empty, .shareholder-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
-.shareholder-message { padding: 16px; font-size: 13px; color: var(--text); }
-.shareholder-message button { font: inherit; padding: 7px 14px; border: 1px solid var(--border-hover); border-radius: 5px; background: var(--panel); color: var(--text); cursor: pointer; }
-.company-shareholders :is(a, button):focus-visible { outline: 2px solid var(--owners-link); outline-offset: 3px; border-radius: 2px; }
-@media (max-width: 680px) {
-  .shareholder-grid { grid-template-columns: minmax(0, 1fr); }
-  .shareholder-card { padding: 12px; }
-  .shareholder-table a { white-space: normal; overflow-wrap: anywhere; }
+.company-shareholders {
+  width: 100%;
+  min-width: 0;
+  container: shareholders / inline-size;
+}
+.company-shareholders .shareholder-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.company-shareholders .shareholder-grid--management { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.company-shareholders .shareholder-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 14px);
+  background: var(--panel);
+  color: var(--text);
+}
+.company-shareholders .shareholder-card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.company-shareholders .shareholder-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.company-shareholders .shareholder-card > header > span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.company-shareholders .shareholder-table-wrap { padding: 0 24px 8px; }
+.company-shareholders .shareholder-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.company-shareholders .shareholder-table th { text-align: left; font-weight: 500; }
+.company-shareholders .shareholder-table :is(th, td) { border: 0; background: transparent; vertical-align: middle; }
+.company-shareholders .shareholder-table thead th { padding: 14px 0 10px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.company-shareholders .shareholder-table thead th:last-child { text-align: right; width: 120px; }
+.company-shareholders .shareholder-table tbody :is(th, td) { padding: 15px 0; border-bottom: 1px solid var(--border); }
+.company-shareholders .shareholder-table tbody tr:last-child :is(th, td) { border-bottom: 0; }
+.company-shareholders .shareholder-table td { padding-left: 24px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.company-shareholders .shareholder-table td strong { color: var(--success); font-size: 16px; font-weight: 600; }
+.company-shareholders .shareholder-table a {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.company-shareholders .shareholder-table a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.company-shareholders .shareholder-share-track { display: block; width: 80px; height: 3px; border-radius: 2px; margin: 7px 0 0 auto; background: var(--success-light); overflow: hidden; }
+.company-shareholders .shareholder-share-track > span { display: block; height: 100%; border-radius: inherit; background: var(--success); }
+.company-shareholders .shareholder-management { list-style: none; padding: 0 24px 8px; margin: 0; }
+.company-shareholders .shareholder-management li { min-width: 0; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.company-shareholders .shareholder-management li:last-child { border-bottom: 0; }
+.company-shareholders .shareholder-management li > span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.company-shareholders .shareholder-management a { color: var(--text); font-size: 15px; font-weight: 500; line-height: 1.5; text-decoration: none; overflow-wrap: anywhere; }
+.company-shareholders .shareholder-management a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.company-shareholders .shareholder-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: auto;
+  padding: 18px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.company-shareholders .shareholder-source:empty { display: none; }
+.company-shareholders .shareholder-source time { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.company-shareholders .shareholder-source a { color: var(--accent); text-decoration: none; }
+.company-shareholders .shareholder-source a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.company-shareholders .shareholder-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: 36px 28px;
+  text-align: center;
+}
+.company-shareholders .shareholder-empty-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 20px; border-radius: 50%; background: var(--surface-2); color: var(--muted); }
+.company-shareholders .shareholder-empty-icon svg { width: 24px; height: 24px; }
+.company-shareholders .shareholder-empty h3 { margin: 0 0 10px; color: var(--text); font-size: 16px; font-weight: 500; line-height: 1.5; text-wrap: balance; }
+.company-shareholders .shareholder-empty p { margin: 0; max-width: 36ch; color: var(--muted); font-size: 14px; line-height: 1.65; text-wrap: pretty; }
+.company-shareholders .shareholder-reports-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  margin-top: 22px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm, 10px);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.company-shareholders .shareholder-reports-link:hover { background: var(--surface-2); border-color: var(--accent); color: var(--accent); }
+.company-shareholders .shareholder-note { margin: 0; padding: 12px 24px 20px; color: var(--muted); font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+.company-shareholders .shareholder-message { margin: 0; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-md, 14px); background: var(--panel); font-size: 14px; color: var(--text); }
+.company-shareholders .shareholder-message button { min-height: 40px; font: inherit; padding: 8px 16px; border: 1px solid var(--border-hover); border-radius: var(--radius-sm, 10px); background: var(--panel); color: var(--text); cursor: pointer; }
+.company-shareholders :is(a, button):focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+@container shareholders (max-width: 760px) {
+  .company-shareholders .shareholder-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .company-shareholders .shareholder-card > header { padding: 20px; }
+  .company-shareholders .shareholder-table-wrap, .company-shareholders .shareholder-management { padding: 0 20px 8px; }
+  .company-shareholders .shareholder-source { padding: 16px 20px; }
+  .company-shareholders .shareholder-empty { min-height: 260px; padding: 28px 20px; }
+}
+@container shareholders (max-width: 420px) {
+  .company-shareholders .shareholder-card > header { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .company-shareholders .shareholder-table thead th:last-child { width: 82px; }
+  .company-shareholders .shareholder-table td { padding-left: 12px; }
+  .company-shareholders .shareholder-share-track { width: 60px; }
+  .company-shareholders .shareholder-source { flex-direction: column; align-items: flex-start; }
 }

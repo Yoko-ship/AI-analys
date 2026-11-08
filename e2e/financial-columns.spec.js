@@ -320,6 +320,10 @@ test('existing Shareholders view uses issuer disclosures even when financial sta
   await terminal.getByRole('tab', {name: 'Shareholders', exact: true}).click();
   await expect(terminal.getByTestId('company-shareholders')).toContainText('Сентпетери Адам');
   await expect(terminal.getByRole('alert')).toHaveCount(0);
+  const reports = terminal.getByRole('link', {name: 'View reports'});
+  await expect(reports).toHaveAttribute('href', '/company/IPTB?tab=reports');
+  await reports.click();
+  await expect(page.locator('[data-track-control="company_tab"][data-track-value="reports"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('BIOK period switching reuses loaded tables and loads ratios only when opened', async ({page}) => {
