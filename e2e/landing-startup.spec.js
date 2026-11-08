@@ -5,11 +5,11 @@ test.beforeEach(async ({}, testInfo) => {
 });
 
 const cases = [
-  { width: 1440, theme: 'light', language: 'ru', path: '/', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 1440, theme: 'dark', language: 'en', path: '/', title: /Behind every\s*share is\s*a company\./ },
-  { width: 390, theme: 'light', language: 'ru', path: '/uz', title: /Har bir aksiya\s*ortida —\s*kompaniya\./ },
-  { width: 390, theme: 'dark', language: 'uz', path: '/', title: /Har bir aksiya\s*ortida —\s*kompaniya\./ },
-  { width: 1440, theme: null, language: 'ru', path: '/', title: /За каждой\s*акцией —\s*компания\./ },
+  { width: 1440, theme: 'light', language: 'ru', path: '/', title: /Большая картина\.\s*За каждой компанией\./ },
+  { width: 1440, theme: 'dark', language: 'en', path: '/', title: /The bigger picture\.\s*Behind every company\./ },
+  { width: 390, theme: 'light', language: 'ru', path: '/uz', title: /Katta manzara\.\s*Har bir kompaniya ortida\./ },
+  { width: 390, theme: 'dark', language: 'uz', path: '/', title: /Katta manzara\.\s*Har bir kompaniya ortida\./ },
+  { width: 1440, theme: null, language: 'ru', path: '/', title: /Большая картина\.\s*За каждой компанией\./ },
 ];
 
 for (const sample of cases) {
@@ -22,7 +22,7 @@ for (const sample of cases) {
     }, sample);
     const artworkRequests = [];
     page.on('request', request => {
-      if (/landing-glass.*webp/.test(request.url())) artworkRequests.push(request.url());
+      if (/tashkent-economy.*webp/.test(request.url())) artworkRequests.push(request.url());
     });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -53,9 +53,8 @@ for (const sample of cases) {
       // Isolate the app handoff from the independent webfont download.
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator('html')).toHaveAttribute('data-theme', sample.theme || 'dark');
-      if (sample.width > 1180) expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
       const before = { box: await heading.boundingBox(), background: await hero.evaluate(el => getComputedStyle(el).backgroundColor), src: await image.getAttribute('src') };
-      const stableElements = ['.landing-hero-primary', '.landing-hero-art', '.landing-hero-topics', '.topbar'];
+      const stableElements = ['.landing-hero-primary', '.landing-hero-art', '.landing-hero-description', '.topbar'];
       const boxes = await Promise.all(stableElements.map(selector => page.locator(selector).boundingBox()));
       await page.screenshot({ path: testInfo.outputPath('before-javascript.png') });
       await release();
@@ -73,10 +72,10 @@ for (const sample of cases) {
       expect(new Set(artworkRequests).size).toBe(1);
       await expect.poll(() => image.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
       const downloads = await page.evaluate(() => performance.getEntriesByType('resource')
-        .filter(entry => /landing-glass.*webp/.test(entry.name) && entry.transferSize > 0));
+        .filter(entry => /tashkent-economy.*webp/.test(entry.name) && entry.transferSize > 0));
       expect(downloads).toHaveLength(1);
       await page.screenshot({ path: testInfo.outputPath('after-javascript.png') });
-      await page.locator('.lv-actions button').click();
+      await page.locator('.landing-hero-primary').click();
       await expect(page).toHaveURL(/\/market$/);
       expect(errors).toEqual([]);
     } finally { await release(); }

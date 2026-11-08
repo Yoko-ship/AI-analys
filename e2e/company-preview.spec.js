@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { setupLanding } from './landing-fixtures.js';
 
 // Real board tickers, deterministic prices: these fixtures exercise the preview,
 // not the market's current quote or the issuer's financial results.
@@ -187,4 +188,101 @@ test('sparse history keeps dated closes and omits invalid prices without invente
   expect(await bars.last().locator('line').evaluate(el => el.getAttribute('y1') === el.getAttribute('y2'))).toBe(true);
   await expect(preview(page)).toContainText('История: 2026-11-02 — 2026-11-05');
   await expect(preview(page)).toContainText('История скорректирована на корпоративные действия');
+});
+
+async function openHomepage(page, options = {}) {
+  await setupLanding(page, options);
+  const requests = [], errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/price-history/*?*', route => {
+    requests.push(new URL(route.request().url()).pathname + new URL(route.request().url()).search);
+    return route.fulfill({ json: { ok: true, points: history, adjustments: [] } });
+  });
+  await page.route('**/api/news/ticker/*?*', route => route.fulfill({ json: { ok: true, items: [] } }));
+  await page.goto('/');
+  await expect(page.locator('.landing-market tbody tr')).toHaveCount(5);
+  return { requests, errors };
+}
+
+for (const theme of ['dark', 'light']) test(`homepage logos share the market chart preview (${theme})`, async ({ page }, testInfo) => {
+  const { requests, errors } = await openHomepage(page, { theme });
+  expect(requests).toEqual([]);
+  const tableLogo = page.locator('.landing-market').getByRole('button', { name: 'Обзор компании HMKB', exact: true });
+  const featuredLogo = page.locator('.landing-company-example').getByRole('button', { name: 'Обзор компании HMKB', exact: true });
+  await tableLogo.hover();
+  const card = preview(page);
+  await expect(card.getByRole('img', { name: /График цены HMKB/ })).toBeVisible();
+  await expect(card.locator('[data-candle]')).toHaveCount(110);
+  await expect(card.locator('.company-preview-quote')).toContainText('118');
+  await expect(card).toContainText('Хамкорбанк');
+  await expect(tableLogo).toHaveAttribute('aria-expanded', 'true');
+  await expect(featuredLogo).toHaveAttribute('aria-expanded', 'false');
+  await expect(page).toHaveURL(/\/$/);
+  expect(await card.evaluate(el => el.parentElement === document.body)).toBe(true);
+  await card.hover();
+  await page.screenshot({ path: testInfo.outputPath(`homepage-table-preview-${theme}.png`) });
+  await page.mouse.move(3, 3);
+  await expect(card).toBeHidden();
+  await featuredLogo.hover();
+  await expect(card.getByRole('img', { name: /График цены HMKB/ })).toBeVisible();
+  await expect(featuredLogo).toHaveAttribute('aria-expanded', 'true');
+  await expect(tableLogo).toHaveAttribute('aria-expanded', 'false');
+  await page.screenshot({ path: testInfo.outputPath(`homepage-featured-preview-${theme}.png`) });
+  expect(requests).toEqual(['/api/price-history/HMKB?months=6']);
+  await card.getByRole('link', { name: 'Открыть компанию', exact: true }).click();
+  await expect(page).toHaveURL(/\/company\/HMKB$/);
+  await expect(card).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('homepage preview supports keyboard access and keeps company name navigation separate', async ({ page }) => {
+  await openHomepage(page);
+  const table = page.locator('.landing-market');
+  const trigger = table.getByRole('button', { name: 'Обзор компании GRBK', exact: true });
+  await trigger.focus();
+  await expect(preview(page)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(preview(page)).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(preview(page).getByRole('link', { name: 'Открыть компанию', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await table.locator('.landing-company').filter({ hasText: 'GRBK' }).click();
+  await expect(page).toHaveURL(/\/company\/GRBK$/);
+  await expect(preview(page)).toBeHidden();
+});
+
+test('homepage preview shows failed history and retries on reopening', async ({ page }) => {
+  await openHomepage(page);
+  await page.route('**/api/price-history/MIQE?*', route => route.fulfill({ status: 503, json: { ok: false } }));
+  const trigger = page.locator('.landing-market').getByRole('button', { name: 'Обзор компании MIQE', exact: true });
+  await trigger.hover();
+  await expect(preview(page)).toContainText('Не удалось загрузить график');
+  await expect(preview(page).locator('[data-candle]')).toHaveCount(0);
+  await expect(preview(page).locator('.company-preview-quote')).toContainText(/2\s*401/);
+  await page.mouse.move(3, 3);
+  await expect(preview(page)).toBeHidden();
+  await page.unroute('**/api/price-history/MIQE?*');
+  await trigger.hover();
+  await expect(preview(page).getByRole('img', { name: /График цены MIQE/ })).toBeVisible();
+});
+
+test.describe('homepage touch previews', () => {
+  test.use({ hasTouch: true });
+  for (const surface of ['.landing-market', '.landing-company-example']) test(`homepage logo opens a chart on tap at ${surface}`, async ({ page }, testInfo) => {
+    await openHomepage(page, { width: 320, theme: 'light' });
+    await page.locator(surface).getByRole('button', { name: 'Обзор компании HMKB', exact: true }).tap();
+    const card = preview(page);
+    await expect(card.getByRole('img', { name: /График цены HMKB/ })).toBeVisible();
+    const box = await card.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(8);
+    expect(box.x + box.width).toBeLessThanOrEqual(312);
+    expect(box.y).toBeGreaterThanOrEqual(8);
+    expect(box.y + box.height).toBeLessThanOrEqual(992);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('homepage-preview-mobile.png') });
+    await page.touchscreen.tap(3, 3);
+    await expect(card).toBeHidden();
+    await expect(page).toHaveURL(/\/$/);
+  });
 });

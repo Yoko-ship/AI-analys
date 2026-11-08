@@ -5,6 +5,7 @@ import { t } from '../../shared/i18n.jsx';
 import { mt } from '../../shared/marketCopy.jsx';
 import { localizedPath } from '../../lib/languagePath.js';
 import { LandingHero } from './LandingHero.jsx';
+import { LANDING_COPY } from './landingCopy.js';
 
 export function StaticLanding({ language }) {
   const copy = {
@@ -47,8 +48,9 @@ export function StaticLanding({ language }) {
           </div></div>
         </div>
       </header>
-      <main className="content"><div className="landing-view">
-        <LandingHero lang={language} theme="dark" staticPage />
+      <main className="content"><div className="landing-view"><div className="landing-container">
+        <LandingHero copy={LANDING_COPY[language]} lang={language} staticPage />
+      </div>
       </div></main>
     </div>
   </div>;

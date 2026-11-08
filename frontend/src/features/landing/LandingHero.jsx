@@ -1,83 +1,31 @@
-import { useState } from 'react';
-import lightArtwork from '../../assets/landing-glass-light.webp';
-import darkArtwork from '../../assets/landing-glass-dark.webp';
+import artwork from '../../assets/landing/tashkent-economy.webp';
 import { localizedPath } from '../../lib/languagePath.js';
 
-const COPY = {
-  ru: {
-    topics: ['Акции', 'Аналитика', 'Дивиденды'],
-    titles: [['За каждой', 'акцией —', 'компания.'], ['За цифрами —', 'целая история.'], ['У каждой', 'выплаты —', 'своя история.']],
-    descriptions: [
-      'Котировки, отчётность и события рынка Узбекистана.',
-      'Отчётность, финансовая история и показатели компаний. Изучайте данные в контексте.',
-      'История дивидендов и корпоративные события. Узнайте, что стоит за каждой выплатой.',
-    ],
-    market: 'Исследовать рынок', company: 'Изучить компанию',
-    explore: 'Исследуйте рынок', group: 'Откройте для себя UZStock',
-  },
-  uz: {
-    topics: ['Aksiyalar', 'Tahlil', 'Dividendlar'],
-    titles: [['Har bir aksiya', 'ortida —', 'kompaniya.'], ['Raqamlar ortida —', 'butun bir tarix.'], ['Har bir to‘lovning', 'o‘z tarixi bor.']],
-    descriptions: [
-      'O‘zbekiston bozori kotirovkalari, hisobotlari va voqealari.',
-      'Kompaniyalar hisobotlari, moliyaviy tarixi va ko‘rsatkichlari. Ma’lumotlarni mazmuni bilan o‘rganing.',
-      'Dividendlar tarixi va korporativ voqealar. Har bir to‘lov ortidagi ma’lumotlarni o‘rganing.',
-    ],
-    market: 'Bozorni o‘rganish', company: 'Kompaniyani o‘rganish',
-    explore: 'Bozorni o‘rganing', group: 'UZStock imkoniyatlari',
-  },
-  en: {
-    topics: ['Shares', 'Analysis', 'Dividends'],
-    titles: [['Behind every', 'share is', 'a company.'], ['Behind the numbers,', 'a bigger picture.'], ['Every dividend', 'has a story.']],
-    descriptions: [
-      'Quotes, financial reports and events from Uzbekistan’s market.',
-      'Financial reports, company history and key ratios. Explore the numbers in context.',
-      'Dividend history and corporate events. Discover the context behind each payment.',
-    ],
-    market: 'Explore the market', company: 'Explore the company',
-    explore: 'Explore the market', group: 'Discover UZStock',
-  },
-};
-
-function Arrow({ diagonal = false }) {
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-    <path d={diagonal ? 'M5 19 19 5M5 5h14v14' : 'M4 12h16m-6-6 6 6-6 6'} />
-  </svg>;
+export function LandingArrow() {
+  return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" /></svg>;
 }
 
-export function LandingHero({ lang, theme, onNavigate, onOpenCompany, staticPage = false }) {
-  const [topic, setTopic] = useState(0);
-  const copy = COPY[lang] || COPY.ru;
+export function LandingHero({ copy, onNavigate, lang = 'ru', staticPage = false }) {
   const Action = staticPage ? 'a' : 'button';
-  const marketPath = localizedPath('/market', lang);
-  const companyPath = localizedPath('/company/UZTL', lang);
-  return <section className="lv-stage landing-hero" aria-labelledby="landing-headline">
-    <div className="landing-hero-art" aria-hidden="true">
-      <img src={theme === 'dark' ? darkArtwork : lightArtwork} width="1586" height="992" alt="" fetchPriority="high"
-        loading={staticPage ? 'lazy' : undefined}
-        data-light-src={staticPage ? lightArtwork : undefined} data-dark-src={staticPage ? darkArtwork : undefined} />
-    </div>
-    <div className="landing-hero-main">
-      <div className="landing-hero-copy" key={`${lang}-${topic}`}>
-        <h1 className="lv-h1" id="landing-headline">{copy.titles[topic].map((line, i) => <span key={line}>{i > 0 && ' '}{line}</span>)}</h1>
-        <p className="landing-hero-description">{copy.descriptions[topic]}</p>
-        <div className="lv-actions">
-          <Action type={staticPage ? undefined : 'button'} href={staticPage ? marketPath : undefined} className="landing-hero-primary" data-track-control="landing_hero_cta" data-track-value={topic === 0 ? 'market' : 'company'}
-            onClick={staticPage ? undefined : () => topic === 0 ? onNavigate('market') : onOpenCompany('UZTL')}>
-            {topic === 0 ? copy.market : copy.company}<Arrow diagonal />
-          </Action>
-        </div>
+  const action = staticPage ? { href: localizedPath('/market', lang) }
+    : { type: 'button', onClick: () => onNavigate('market') };
+  return <section className="landing-hero" aria-labelledby="landing-headline">
+    <div className="landing-hero-copy">
+      <p className="landing-eyebrow">{copy.eyebrow}</p>
+      <h1 className="lv-h1" id="landing-headline">{copy.title.map((line, i) => <span key={line}>{i > 0 && ' '}{line}</span>)}</h1>
+      <p className="landing-hero-description">{copy.description}</p>
+      <div className="landing-actions">
+        <Action className="landing-button landing-hero-primary" {...action}>{copy.explore}<LandingArrow /></Action>
+        <Action className="landing-button landing-hero-secondary" {...action}>{copy.market}</Action>
       </div>
     </div>
-    <div className="landing-hero-footer">
-      <div className="landing-hero-rail">
-        <div className="landing-hero-topics" role="group" aria-label={copy.group}>
-          {copy.topics.map((label, i) => <Action type={staticPage ? undefined : 'button'} href={staticPage ? (i === 0 ? marketPath : companyPath) : undefined} key={i} aria-pressed={staticPage ? undefined : topic === i} data-active={topic === i}
-            data-track-control="landing_topic" data-track-value={['shares', 'analysis', 'dividends'][i]}
-            onClick={staticPage ? undefined : () => setTopic(i)}><span className="landing-topic-number">0{i + 1} / </span>{label}</Action>)}
-        </div>
-        <Action className="landing-hero-explore" type={staticPage ? undefined : 'button'} href={staticPage ? marketPath : undefined} onClick={staticPage ? undefined : () => onNavigate('market')}>{copy.explore}<Arrow /></Action>
+    <div className="landing-hero-art">
+      <img src={artwork} width="1536" height="1024" alt={copy.artAlt} fetchPriority="high" />
+      <div className="landing-art-chart" aria-hidden="true">
+        <span>{copy.artCard}</span>
+        <svg viewBox="0 0 160 52" fill="none"><path d="M2 44 13 36 22 40 33 25 43 30 55 16 66 28 77 23 89 31 100 14 111 20 123 8 135 16 145 5 158 11" /></svg>
       </div>
+      <span className="landing-art-caption">{copy.artCaption}</span>
     </div>
   </section>;
 }

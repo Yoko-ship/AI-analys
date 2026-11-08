@@ -1,9 +1,54 @@
 import { test, expect } from '@playwright/test';
+import { setupLanding } from './landing-fixtures.js';
 
 const palette = {
-  dark: { background: 'rgb(11, 13, 18)', header: 'rgb(14, 16, 22)', accent: '#8b7cff', hero: 'rgb(10, 17, 32)', masthead: 'rgb(10, 17, 32)', ink: 'rgb(240, 244, 255)', blend: 'normal' },
-  light: { background: 'rgb(232, 230, 225)', header: 'rgb(241, 239, 234)', accent: '#6257d9', hero: 'rgb(232, 230, 225)', masthead: 'rgb(241, 239, 234)', ink: 'rgb(24, 33, 55)', blend: 'multiply' },
+  dark: { background: 'rgb(11, 13, 18)', header: 'rgb(14, 16, 22)', accent: '#8b7cff', hero: 'rgb(17, 20, 27)', masthead: 'rgb(10, 17, 32)', ink: 'rgb(243, 245, 251)', brand: 'rgb(240, 244, 255)', blend: 'normal' },
+  light: { background: 'rgb(232, 230, 225)', header: 'rgb(241, 239, 234)', accent: '#6257d9', hero: 'rgb(245, 243, 239)', masthead: 'rgb(241, 239, 234)', ink: 'rgb(24, 33, 55)', brand: 'rgb(24, 33, 55)', blend: 'normal' },
 };
+
+for (const theme of ['light', 'dark']) {
+  for (const width of [1440, 390]) {
+    test(`market search has a restrained accessible focus at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+      await setupLanding(page, { theme, width });
+      await page.goto('/');
+      const search = page.getByRole('searchbox', { name: 'Поиск компании или тикера' });
+      await search.scrollIntoViewIfNeeded();
+      const resting = await search.boundingBox();
+      const radius = await search.evaluate(input => getComputedStyle(input).borderRadius);
+      await search.click();
+      await expect(search).toBeFocused();
+      await expect(search).toHaveCSS('outline-offset', '-2px');
+      await expect(search).toHaveCSS('outline-width', '2px');
+      await expect(search).toHaveCSS('outline-style', 'solid');
+      await expect(search).toHaveCSS('box-shadow', 'none');
+      await expect(search).toHaveCSS('border-radius', radius);
+      const clicked = await search.boundingBox();
+      expect(clicked.width).toBe(resting.width);
+      expect(clicked.height).toBe(resting.height);
+      const contrast = await search.evaluate(input => {
+        const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(Number)
+          .map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
+          .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
+        const style = getComputedStyle(input);
+        const a = luminance(style.outlineColor), b = luminance(style.backgroundColor);
+        return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(3);
+      await page.screenshot({ path: testInfo.outputPath('search-focus.png'), clip: { x: clicked.x - 8, y: clicked.y - 8, width: clicked.width + 16, height: clicked.height + 16 } });
+      await page.keyboard.press('Shift+Tab');
+      const lastFilter = page.locator('.landing-filters button').last();
+      await expect(lastFilter).toBeFocused();
+      await expect(lastFilter).toHaveCSS('outline-style', 'solid');
+      await page.keyboard.press('Tab');
+      await expect(search).toBeFocused();
+      await expect(search).toHaveCSS('outline-width', '2px');
+      await expect(search).toHaveCSS('outline-offset', '-2px');
+      await search.fill('GRBK');
+      await expect(page.locator('.landing-market tbody tr')).toHaveCount(1);
+      await expect(page.locator('.landing-market tbody tr')).toContainText('GRBK');
+    });
+  }
+}
 
 async function setup(page, width, theme = 'dark') {
   await page.setViewportSize({ width, height: 900 });
@@ -19,7 +64,7 @@ async function setup(page, width, theme = 'dark') {
 
 for (const width of [2560, 1440, 390]) {
   for (const theme of ['dark', 'light']) {
-    test(`glass hero follows the ${theme} theme and preserves the workspace at ${width}px`, async ({ page }, testInfo) => {
+    test(`illustrated hero follows the ${theme} theme and preserves the workspace at ${width}px`, async ({ page }, testInfo) => {
       await setup(page, width, theme);
       const original = palette[theme];
       const checkLanding = async expected => {
@@ -29,7 +74,7 @@ for (const width of [2560, 1440, 390]) {
         await expect(page.locator('.topbar')).toHaveCSS('background-color', expected.masthead);
         await expect(page.locator('.landing-hero')).toHaveCSS('background-color', expected.hero);
         await expect(page.locator('.lv-h1')).toHaveCSS('color', expected.ink);
-        await expect(page.locator('.topbar .brand-title')).toHaveCSS('color', expected.ink);
+        await expect(page.locator('.topbar .brand-title')).toHaveCSS('color', expected.brand);
         await expect(page.locator('.landing-hero-art img')).toHaveCSS('mix-blend-mode', expected.blend);
         await expect(page.locator('.landing-hero-art img')).toHaveCSS('filter', 'none');
         // Lower glare must preserve readable text and the primary action.
@@ -37,7 +82,7 @@ for (const width of [2560, 1440, 390]) {
           const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(Number)
             .map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
             .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
-          return ['.lv-h1', '.landing-hero-description', '.landing-hero-topics button', '.landing-hero-primary'].map(selector => {
+          return ['.lv-h1', '.landing-hero-description', '.landing-hero-primary'].map(selector => {
             const el = hero.querySelector(selector), style = getComputedStyle(el);
             const a = luminance(style.color), b = luminance(selector.endsWith('primary') ? style.backgroundColor : getComputedStyle(hero).backgroundColor);
             return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
@@ -60,7 +105,7 @@ for (const width of [2560, 1440, 390]) {
       const originalArtwork = await page.locator('.landing-hero-art img').evaluate(img => img.currentSrc);
       await page.locator('.theme-toggle').click();
       await checkLanding(palette[theme === 'dark' ? 'light' : 'dark']);
-      await expect.poll(() => page.locator('.landing-hero-art img').evaluate(img => img.currentSrc)).not.toBe(originalArtwork);
+      await expect.poll(() => page.locator('.landing-hero-art img').evaluate(img => img.currentSrc)).toBe(originalArtwork);
       const switchedArtwork = await page.locator('.landing-hero-art img').evaluate(img => img.currentSrc);
       await page.reload();
       await checkLanding(palette[theme === 'dark' ? 'light' : 'dark']);

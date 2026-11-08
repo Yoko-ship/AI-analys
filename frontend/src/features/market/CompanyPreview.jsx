@@ -75,7 +75,15 @@ export function CompanyPreviewProvider({ lang, changePeriod, onOpenCompany, chil
     place();
     const observer = new ResizeObserver(place);
     observer.observe(element);
-    const onScroll = event => { if (!element.contains(event.target)) close(); };
+    const onScroll = event => {
+      if (element.contains(event.target)) return;
+      const box = active.anchor.getBoundingClientRect();
+      // Tabbing to a logo below the fold scrolls it into view. Keep its newly
+      // opened preview attached instead of dismissing it on that same scroll.
+      if (document.activeElement === active.anchor && box.bottom > 0 && box.top < window.innerHeight
+        && box.right > 0 && box.left < window.innerWidth) place();
+      else close();
+    };
     const onOutside = event => { if (!element.contains(event.target) && !active.anchor.contains(event.target)) close(); };
     const onKey = event => {
       if (event.key === 'Escape') { event.preventDefault(); close(true); }
@@ -115,8 +123,9 @@ export function CompanyPreviewProvider({ lang, changePeriod, onOpenCompany, chil
 
 export function CompanyPreviewLogo({ row, security }) {
   const ctx = React.useContext(PreviewContext);
-  const item = anchor => ({ row, security, anchor });
-  const open = ctx.active?.row.ticker === row.ticker;
+  const triggerId = React.useId();
+  const item = anchor => ({ row, security, anchor, triggerId });
+  const open = ctx.active?.triggerId === triggerId;
   return <button type="button" className="company-preview-trigger" aria-label={previewLabel(ctx.lang, row.ticker)}
     aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? ctx.id : undefined}
     onPointerEnter={event => { if (event.pointerType !== 'touch') ctx.show(item(event.currentTarget)); }}

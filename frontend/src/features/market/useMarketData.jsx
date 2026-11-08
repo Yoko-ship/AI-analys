@@ -29,6 +29,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketLoadVersion, setMarketLoadVersion] = useState(0);
 
   const [marketMessage, setMarketMessage] = useState("");
+  const [marketError, setMarketError] = useState(false);
 
   const [securitiesMap, setSecuritiesMap] = useState({});
 
@@ -37,7 +38,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
   const [marketTradeStats, setMarketTradeStats] = useState({});
   // Share-class switches filter the same equity snapshot. Only an instrument
   // type change needs a different request; explicit refresh still reloads it.
-  const quoteType = ["profile", "issuers"].includes(activeView) || ["ordinary", "preferred"].includes(marketType) ? "stock" : marketType;
+  const quoteType = ["main", "profile", "issuers"].includes(activeView) || ["ordinary", "preferred"].includes(marketType) ? "stock" : marketType;
 
   useEffect(() => {
     if (!needsCatalog) return;
@@ -94,6 +95,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     const requestId = ++marketRequest.current;
     if (!refresh) setMarketLoadVersion(requestId);
     setMarketLoading(true);
+    setMarketError(false);
     const needsStats = ["issuers", "market", "heatmap", "company", "chart", "main"].includes(activeView);
     // Cold navigation starts independent reads together. A forced refresh waits
     // for new quotes before fetching their supplements, preserving freshness.
@@ -126,6 +128,7 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
       setMarketMessage(mt(language, "ready"));
     } catch (error) {
       if (requestId !== marketRequest.current) return;
+      setMarketError(true);
       setMarketMessage(error.message);
       throw error;
     } finally {
@@ -140,5 +143,5 @@ export function useMarketData({ toasts: toastsModule, preferences: preferencesMo
     const match = companies.find((item) => item.ticker.toUpperCase() === upper || item.company_name.toLowerCase() === normalized.toLowerCase());
     return match?.ticker || upper;
   };
-  return { marketLoadVersion, catalogStatus, companies, loadMarketStocks, marketFinancials, marketLoading, marketMessage, marketMeta, marketQuery, marketRows, marketTradeStats, marketType, resolveTicker, securitiesMap, setMarketQuery, setMarketType };
+  return { marketLoadVersion, catalogStatus, companies, loadMarketStocks, marketFinancials, marketLoading, marketError, marketMessage, marketMeta, marketQuery, marketRows, marketTradeStats, marketType, resolveTicker, securitiesMap, setMarketQuery, setMarketType };
 }

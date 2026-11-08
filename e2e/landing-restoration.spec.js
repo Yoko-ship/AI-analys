@@ -1,162 +1,217 @@
 import { test, expect } from '@playwright/test';
+import { landingStocks, setupLanding } from './landing-fixtures.js';
+import { selectLanguage } from './language-control.js';
 
 const cases = [
-  { width: 1440, theme: 'dark', language: 'ru', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 1440, theme: 'light', language: 'ru', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 320, theme: 'dark', language: 'ru', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 390, theme: 'light', language: 'ru', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 768, theme: 'light', language: 'ru', title: /За каждой\s*акцией —\s*компания\./ },
-  { width: 1440, theme: 'light', language: 'en', title: /Behind every\s*share is\s*a company\./ },
-  { width: 390, theme: 'dark', language: 'uz', title: /Har bir aksiya\s*ortida —\s*kompaniya\./ },
+  { width: 1440, theme: 'dark', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 1440, theme: 'light', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 320, theme: 'dark', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 390, theme: 'light', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 768, theme: 'light', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 1440, theme: 'light', language: 'en', title: 'The bigger picture. Behind every company.' },
+  { width: 390, theme: 'dark', language: 'uz', title: 'Katta manzara. Har bir kompaniya ortida.' },
 ];
-
-for (const { width, theme, language, title } of cases) {
-  test(`glass landing at ${width}px, ${theme}, ${language}`, async ({ page }, testInfo) => {
+for (const options of cases) {
+  test(`illustrated homepage at ${options.width}px, ${options.theme}, ${options.language}`, async ({ page }, testInfo) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.setViewportSize({ width, height: 900 });
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.addInitScript(({ theme, language }) => {
-      localStorage.setItem('uz_stock_analyzer_theme', theme);
-      localStorage.setItem('uz_stock_analyzer_language', language);
-      localStorage.setItem('uz_track_internal', '1');
-      sessionStorage.setItem('uz_sponsor_seen', '1');
-    }, { theme, language });
-    const stocks = ['UZTL', 'HMKB', 'AGBA', 'KVTS'].map((ticker, i) => ({
-      ticker, name: `${ticker} issuer`, type: 'stock', last_price: 100 + i,
-      close_price: 90, volume: 1000000, quantity: 1000, last_trade_date: '2026-10-26',
-    }));
-    await page.route('**/api/**', route => {
-      const path = new URL(route.request().url()).pathname;
-      const payload = path === '/api/market/stocks' ? { stocks }
-        : path === '/api/companies' ? { companies: stocks.map(s => ({ ...s, company_name: s.name })) }
-        : path === '/api/securities' ? { securities: Object.fromEntries(stocks.map(s => [s.ticker, s])) }
-        : path === '/api/news/feed' ? { items: [{ id: 6570, title: 'UZStock market update', published_at: '2026-10-26', source: 'OpenInfo' }] }
-        : { items: [], stats: {}, series: {}, changes: {} };
-      return route.fulfill({ json: { ok: true, ...payload } });
-    });
-    await page.goto(language === 'uz' ? '/uz' : '/');
+    await setupLanding(page, options);
+    await page.goto(options.language === 'uz' ? '/uz' : '/');
     const landing = page.locator('.landing-view');
-    await expect(landing.getByRole('heading', { level: 1 })).toHaveText(title);
+    await expect(landing.getByRole('heading', { level: 1 })).toHaveText(options.title);
+    await expect(page.locator('header.topbar')).toHaveCount(1);
+    await expect(page.locator('.topbar .brand-icon')).toBeVisible();
+    await expect(landing.locator('.landing-steps > *')).toHaveCount(4);
+    await expect(landing.locator('.landing-sector-card')).toHaveCount(3);
     const artwork = landing.locator('.landing-hero-art img');
     await expect(artwork).toBeVisible();
-    await expect.poll(() => artwork.evaluate(img => img.complete && img.naturalWidth > 600)).toBe(true);
-    await expect(landing.locator('canvas')).toHaveCount(0);
-    const primary = landing.locator('.lv-actions button');
-    await expect(primary).toBeInViewport();
-    const buttonBox = await primary.boundingBox();
-    expect(buttonBox.height).toBeGreaterThanOrEqual(44);
-    expect(buttonBox.x).toBeGreaterThanOrEqual(0);
-    expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(width);
-    const headlineBox = await landing.locator('h1').boundingBox();
-    expect(headlineBox.x + headlineBox.width).toBeLessThanOrEqual(width);
-    await expect(page.locator('.topbar .brand-icon')).toBeVisible();
-    await expect(page.locator('.topbar-brand')).toHaveAttribute('aria-label', /^UZStock/);
-    if (width > 360) await expect(page.locator('.topbar .brand-title')).toBeVisible();
-    const iconContrast = await page.locator('.theme-toggle strong').evaluate(el => {
-      const luminance = color => color.match(/[\d.]+/g).slice(0, 3).map(Number).map(v => {
-        const c = v / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
-      const a = luminance(getComputedStyle(el).color);
-      const b = luminance(getComputedStyle(el.closest('.topbar')).backgroundColor);
-      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-    });
-    expect(iconContrast).toBeGreaterThanOrEqual(4.5);
-    const artBox = await artwork.boundingBox();
-    await expect(landing.getByRole('button', { name: /^UZTL\b/ })).toHaveCount(0);
-    const footerBox = await landing.locator('.landing-hero-footer').boundingBox();
+    await expect.poll(() => artwork.evaluate(img => img.complete && img.naturalWidth >= 1536)).toBe(true);
     await expect(artwork).toHaveCSS('object-fit', 'contain');
-    expect(artBox.y + artBox.height).toBeLessThanOrEqual(footerBox.y + 1);
-    if (width <= 980) {
+    const primary = landing.locator('.landing-hero-primary');
+    await expect(primary).toBeInViewport();
+    expect((await primary.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    if (options.width <= 800) {
+      const artBox = await artwork.boundingBox(), buttonBox = await primary.boundingBox();
       expect(artBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
-      const ratio = await artwork.evaluate(img => img.naturalWidth / img.naturalHeight);
-      expect(Math.abs(artBox.width / artBox.height - ratio)).toBeLessThan(0.01);
     }
-    await expect(landing.locator('.landing-hero-shade')).toHaveCount(0);
-    expect(await landing.locator('.landing-hero-art').evaluate(el => getComputedStyle(el, '::after').backgroundImage)).toBe('none');
-    await expect(landing.locator('.landing-hero-topics button')).toHaveCount(3);
-    expect(await landing.locator('.lv-stage').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length)).toBe(0);
-    expect((await landing.locator('.lv-stage').boundingBox()).height).toBeGreaterThan(400);
-    await expect(landing.locator(':scope > *')).toHaveCount(1);
-    await expect(landing.locator('.lv-table, .lv-tape-belt, .lv-movers, .lv-company-card, .lv-news-card, .lv-step, .lv-cta')).toHaveCount(0);
-    await expect(page.locator('.app-footer')).toHaveCount(0);
-    if (width >= 1180) expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
+    await expect(landing.locator('.landing-market tbody tr')).toHaveCount(5);
+    const companyLogo = landing.locator('.landing-market .company-preview-trigger').filter({ has: page.locator('img[src="/logos/HMKB_MARK.png"]') }).locator('img');
+    await companyLogo.scrollIntoViewIfNeeded();
+    await expect(companyLogo).toBeVisible();
+    await expect(companyLogo).toHaveAttribute('src', '/logos/HMKB_MARK.png');
+    await expect.poll(() => companyLogo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(companyLogo).toHaveCSS('object-fit', 'contain');
+    expect(await landing.locator('.landing-table-wrap').evaluate(table => table.scrollWidth <= table.clientWidth)).toBe(true);
+    await expect(landing.locator('.landing-market')).not.toContainText('BOND');
+    await expect(landing.locator('.landing-news-card')).toHaveCount(1);
+    const guide = landing.locator('.landing-about');
+    await expect(guide.locator('.landing-company-example')).toBeVisible();
+    await expect(guide.getByRole('heading', { level: 3 })).toHaveText('Хамкорбанк');
+    await expect(guide.locator('.landing-example-price')).toContainText('118');
+    await expect(guide.locator('time')).toHaveAttribute('datetime', '2026-11-06');
+    expect(await guide.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await guide.screenshot({ path: testInfo.outputPath('company-guide.png') });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath('landing.png') });
-
-    await landing.locator('.lv-actions button').click();
-    await expect(page.locator('.view-market')).toBeVisible();
-    await page.goBack();
-    await expect(landing.getByRole('heading', { level: 1 })).toHaveText(title);
-
+    await page.screenshot({ path: testInfo.outputPath('homepage.png'), fullPage: true });
+    await landing.locator('.landing-market').screenshot({ path: testInfo.outputPath('company-logos.png') });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: testInfo.outputPath('viewport.png') });
+    for (const selector of ['.landing-about .landing-primary', '.landing-hero-primary', '.landing-hero-secondary']) {
+      await landing.locator(selector).click();
+      await expect(page).toHaveURL(options.language === 'uz' ? /\/uz\/market$/ : /\/market$/);
+      await expect(page.locator('.view-market')).toBeVisible();
+      if (selector === '.landing-about .landing-primary') await page.screenshot({ path: testInfo.outputPath('discover-market.png') });
+      await page.goBack();
+      await expect(landing.getByRole('heading', { level: 1 })).toHaveText(options.title);
+    }
     expect(errors).toEqual([]);
   });
 }
 
-test('hero topics work with the keyboard and open the featured company', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('uz_stock_analyzer_language', 'ru');
-    localStorage.setItem('uz_track_internal', '1');
-  });
-  await page.route('**/api/**', route => route.fulfill({ json: { ok: true, stocks: [], items: [] } }));
+test('unavailable company logos keep a readable fallback and company navigation', async ({ page }) => {
+  await setupLanding(page);
+  await page.route('**/logos/UZTL_MARK.svg', route => route.fulfill({ status: 404, body: '' }));
   await page.goto('/');
-  const topics = page.locator('.landing-hero-topics button');
-  await expect(topics.first()).toHaveAttribute('aria-pressed', 'true');
-  await topics.nth(1).focus();
-  await page.keyboard.press('Enter');
-  await expect(topics.nth(1)).toHaveAttribute('aria-pressed', 'true');
-  await expect(topics.first()).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.locator('.lv-h1')).toHaveText(/За цифрами —\s*целая история\./);
-  await topics.nth(2).press('Space');
-  await expect(page.locator('.lv-h1')).toHaveText(/У каждой\s*выплаты —\s*своя история\./);
-  await expect(page.locator('.landing-hero-note')).toHaveCount(0);
-  await page.locator('.lv-actions button').press('Enter');
+  const market = page.locator('.landing-market');
+  const failedLogoCompany = market.getByRole('button', { name: 'Обзор компании UZTL', exact: true });
+  await failedLogoCompany.scrollIntoViewIfNeeded();
+  await expect(failedLogoCompany.locator('.chip-logo-fallback')).toHaveText('UZ');
+  await expect(failedLogoCompany.locator('img')).toHaveCount(0);
+  await expect(market.getByRole('button', { name: 'Обзор компании MIQE', exact: true }).locator('.chip-logo-fallback')).toHaveText('MI');
+  await market.locator('.landing-company').filter({ hasText: 'UZTL' }).click();
   await expect(page).toHaveURL(/\/company\/UZTL$/);
-  await page.goBack();
-  await page.locator('.lv-actions button').click();
-  await expect(page).toHaveURL(/\/market$/);
 });
 
-test('hero motion settles and the page stays usable when artwork fails', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('uz_track_internal', '1'));
-  await page.route('**/api/**', route => route.fulfill({ json: {} }));
+test('compact wordmarks use their emblem and stay legible on dark rows', async ({ page }) => {
+  await setupLanding(page);
+  const security = { ticker: 'URTS', name: 'UzEx', type: 'stock', last_price: 12940, logo_url: '/logos/URTS.svg' };
+  await page.route('**/api/market/stocks?*', route => route.fulfill({ json: { ok: true, stocks: [security] } }));
+  await page.route('**/api/securities', route => route.fulfill({ json: { ok: true, securities: { URTS: security } } }));
   await page.goto('/');
-  const stage = page.locator('.lv-stage');
-  await expect(page.locator('.landing-hero-art img')).toBeVisible();
-  await expect.poll(() => stage.evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length)).toBe(0);
-  await page.route('**/*landing-glass*.webp', route => route.abort());
+  const logo = page.locator('.landing-market').getByRole('button', { name: 'Обзор компании URTS', exact: true }).locator('img');
+  await logo.scrollIntoViewIfNeeded();
+  await expect.poll(() => logo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect(logo).toHaveCSS('object-fit', 'cover');
+  await expect(logo).toHaveCSS('object-position', '0% 50%');
+  await expect(logo).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
+
+test('sector cards and search use real quotes and open the selected company', async ({ page }) => {
+  await setupLanding(page);
+  await page.goto('/');
+  const market = page.locator('.landing-market');
+  await expect(market.locator('tr').filter({ hasText: 'MIQE' })).toContainText('2 401');
+  await page.locator('.landing-sector-card').filter({ hasText: 'Финансы' }).click();
+  await expect(market.locator('tbody tr')).toHaveCount(2);
+  await market.getByLabel('Поиск компании или тикера').fill('grbk');
+  await expect(market.locator('tbody tr')).toHaveCount(1);
+  await expect(market.locator('tbody tr')).toContainText('4 315');
+  await market.getByLabel('Поиск компании или тикера').fill('нет-компании');
+  await expect(market.getByRole('status')).toContainText('Компании не найдены');
+  await market.getByRole('button', { name: 'Сбросить фильтры' }).click();
+  await expect(market.locator('tbody tr')).toHaveCount(5);
+  await market.locator('.landing-company').filter({ hasText: 'GRBK' }).click();
+  await expect(page).toHaveURL(/\/company\/GRBK$/);
+});
+
+test('shared language control translates the whole homepage and preserves navigation', async ({ page }) => {
+  await setupLanding(page);
+  await page.goto('/');
+  await selectLanguage(page, 'en');
+  await expect(page.locator('.lv-h1')).toHaveText('The bigger picture. Behind every company.');
+  await expect(page.locator('.landing-sector-card').first()).toContainText('Finance');
+  await expect(page.locator('.landing-news-card')).toContainText('Companies publish annual results');
+  await selectLanguage(page, 'uz');
+  await expect(page).toHaveURL(/\/uz\/?$/);
+  await expect(page.locator('.lv-h1')).toHaveText('Katta manzara. Har bir kompaniya ortida.');
   await page.reload();
+  await expect(page.locator('.landing-sector-card').first()).toContainText('Moliya');
+  await page.locator('.landing-hero-secondary').click();
+  await expect(page).toHaveURL(/\/uz\/market$/);
+});
+
+test('news cards and event shortcut open the actual article and calendar', async ({ page }) => {
+  await setupLanding(page);
+  await page.goto('/');
+  await page.locator('.landing-news-card').click();
+  await expect(page).toHaveURL(/\/news\/6570$/);
+  await page.goBack();
+  await page.locator('.landing-steps').getByRole('button', { name: /Следите за событиями/ }).click();
+  await expect(page).toHaveURL(/\/news\?tab=calendar$/);
+});
+
+test('failed data has a retry and never fabricates quotes or news', async ({ page }) => {
+  await setupLanding(page);
+  await page.route('**/api/market/stocks?*', route => route.fulfill({ status: 503, json: { detail: 'Temporarily unavailable' } }));
+  await page.route('**/api/news/feed?*', route => route.fulfill({ status: 503, json: { ok: false } }));
+  await page.goto('/');
+  await expect(page.locator('.landing-market tbody tr')).toHaveCount(0);
+  await expect(page.locator('.landing-ticker-links button')).toHaveCount(0);
+  await expect(page.locator('.landing-company-example')).toHaveCount(0);
+  await expect(page.locator('.landing-market').getByRole('alert')).toContainText('Не удалось загрузить котировки');
+  await expect(page.locator('.landing-news').getByRole('alert')).toContainText('Не удалось загрузить новости');
+  await page.unroute('**/api/market/stocks?*');
+  await page.unroute('**/api/news/feed?*');
+  await page.locator('.landing-market').getByRole('button', { name: 'Повторить' }).click();
+  await page.locator('.landing-news').getByRole('button', { name: 'Повторить' }).click();
+  await expect(page.locator('.landing-market tbody tr')).toHaveCount(5);
+  await expect(page.locator('.landing-ticker-links button')).toHaveText(['HMKB', 'UZMT', 'UZTL']);
+  await expect(page.locator('.landing-company-example')).toContainText('HMKB');
+  await expect(page.locator('.landing-news-card')).toHaveCount(1);
+});
+
+test('the company guide uses the current market example and opens its company page', async ({ page }) => {
+  await setupLanding(page);
+  const stocks = landingStocks.map(row => row.ticker === 'GRBK' ? { ...row, volume: 1200000 } : row);
+  await page.route('**/api/market/stocks?*', route => route.fulfill({ json: { ok: true, stocks } }));
+  await page.goto('/');
+  const guide = page.locator('.landing-about');
+  await expect(guide.getByRole('heading', { level: 3 })).toHaveText('Гарант банк');
+  await expect(guide.locator('.landing-example-price')).toContainText('4 315');
+  await expect(guide.locator('.landing-example-turnover')).toContainText('1,20 млн');
+  await guide.locator('.landing-example-open').click();
+  await expect(page).toHaveURL(/\/company\/GRBK$/);
+});
+
+test('sector shortcuts update with turnover leaders and open the selected company', async ({ page }, testInfo) => {
+  await setupLanding(page);
+  let stocks = landingStocks.map(row => row.ticker === 'GRBK' ? { ...row, volume: 1200000 } : row);
+  await page.route('**/api/market/stocks?*', route => route.fulfill({ json: { ok: true, stocks } }));
+  await page.goto('/');
+  const shortcuts = page.locator('.landing-ticker-links');
+  await expect(shortcuts.getByRole('button')).toHaveText(['GRBK', 'UZMT', 'UZTL']);
+  await expect(page.locator('.landing-ticker-note')).toHaveText('Лидеры отраслей по обороту');
+  await expect(shortcuts.getByRole('button', { name: 'GRBK', exact: true })).toHaveAttribute('title', /Финансы.*06\.11\.2026/);
+  await page.locator('.landing-sector-intro').screenshot({ path: testInfo.outputPath('dynamic-shortcuts.png') });
+  await shortcuts.getByRole('button', { name: 'GRBK', exact: true }).click();
+  await expect(page).toHaveURL(/\/company\/GRBK$/);
+  stocks = landingStocks.map(row => row.ticker === 'UZTL' ? { ...row, last_trade_date: '2026-11-05' } : row);
+  await page.goBack();
+  await expect(shortcuts.getByRole('button')).toHaveText(['HMKB', 'UZMT']);
+  await page.reload();
+  await expect(shortcuts.getByRole('button')).toHaveText(['HMKB', 'UZMT']);
+  await expect(page.locator('.landing-sector-card')).toHaveCount(3);
+});
+
+test('homepage remains usable if artwork fails', async ({ page }) => {
+  await setupLanding(page);
+  await page.route('**/*tashkent-economy*.webp', route => route.abort());
+  await page.goto('/');
   await expect(page.locator('.lv-h1')).toBeVisible();
-  await expect(page.locator('.lv-actions button')).toBeVisible();
-  await page.locator('.lv-actions button').click();
+  await page.locator('.landing-hero-secondary').click();
   await expect(page).toHaveURL(/\/market$/);
 });
 
-
-test.describe('full-detail artwork on high-density mobile screens', () => {
-  test.use({ deviceScaleFactor: 2 });
-  for (const [width, theme] of [[390, 'light'], [768, 'dark']]) {
-    test(`preserves the full source image at ${width}px ${theme}`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.addInitScript(theme => {
-        localStorage.setItem('uz_stock_analyzer_theme', theme);
-        localStorage.setItem('uz_track_internal', '1');
-      }, theme);
-      await page.route('**/api/**', route => route.fulfill({ json: {} }));
-      await page.goto('/');
-      const image = page.locator('.landing-hero-art img');
-      await image.evaluate(img => img.decode());
-      const sourceWidth = await image.evaluate(async img => {
-        const bitmap = await createImageBitmap(await (await fetch(img.currentSrc)).blob());
-        const width = bitmap.width;
-        bitmap.close();
-        return width;
-      });
-      // The supplied artwork is 1586px wide; phones must not get a reduced 960px copy.
-      expect(sourceWidth).toBeGreaterThanOrEqual(1586);
-      await expect(image).toHaveCSS('filter', 'none');
-    });
-  }
+test('the quote preview puts recent sessions before large historic trades', async ({ page }) => {
+  await setupLanding(page);
+  await page.route('**/api/market/stocks?*', route => route.fulfill({ json: { ok: true, stocks: [
+    ...landingStocks,
+    { ticker: 'DRBK', name: 'Davr-bank', type: 'stock', last_price: 5000, close_price: 5000, volume: 100000000000, quantity: 10000, last_trade_date: '2019-10-31' },
+  ] } }));
+  await page.goto('/');
+  const market = page.locator('.landing-market');
+  await expect(market.locator('tbody tr').first()).toContainText('HMKB');
+  await market.getByLabel('Поиск компании или тикера').fill('DRBK');
+  await expect(market.locator('tbody tr')).toHaveCount(1);
+  await expect(market.locator('tbody tr')).toContainText('31.10.2019');
 });

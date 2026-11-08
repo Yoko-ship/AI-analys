@@ -50,11 +50,14 @@
         }
         var landing = root.querySelector(".landing-static");
         if (!landing) return;
-        // Lazy in the static HTML so the preload scanner does not fetch the
-        // default artwork before we can apply the reader's saved theme.
+        // Apply an alternate artwork only when the hero provides one. A shared
+        // illustration keeps its original URL in both themes.
         var image = landing.querySelector(".landing-hero-art img");
-        image.src = image.getAttribute("data-" + theme + "-src");
-        image.loading = "eager";
+        if (image) {
+          var themedSource = image.getAttribute("data-" + theme + "-src");
+          if (themedSource) image.src = themedSource;
+          image.loading = "eager";
+        }
         landing.querySelector(".theme-toggle strong").textContent = theme === "dark" ? "☀" : "☾";
         document.documentElement.dataset.landingPrerendered = "true";
       })();

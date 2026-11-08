@@ -61,9 +61,11 @@ function App() {
           {activeView === "main" && (
             <LandingView
               language={language}
-              theme={theme}
               onNavigate={setActiveView}
               onOpenCompany={openCompanyPage}
+              market={market}
+              onOpenNews={openNewsArticle}
+              onCalendar={() => navigation.openNewsTab('calendar')}
             />
           )}
 
