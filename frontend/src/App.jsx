@@ -61,6 +61,7 @@ function App() {
           {activeView === "main" && (
             <LandingView
               language={language}
+              isAdmin={Boolean(token && (user?.is_admin || user?.admin_role === 'administrator'))}
               onNavigate={setActiveView}
               onOpenCompany={openCompanyPage}
               market={market}
@@ -244,7 +245,7 @@ function App() {
               accountKey={token ? user?.id || "pending" : null}
               onSavedScreener={sessionState.refreshProfile}
               apiFetch={apiFetch}
-              isAdmin={Boolean(user?.is_admin)}
+              isAdmin={Boolean(token && (user?.is_admin || user?.admin_role === 'administrator'))}
             />
           )}
 

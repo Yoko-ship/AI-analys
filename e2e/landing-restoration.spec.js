@@ -35,7 +35,7 @@ for (const options of cases) {
       expect(artBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
     }
     await expect(landing.locator('.landing-market tbody tr')).toHaveCount(5);
-    const companyLogo = landing.locator('.landing-market .company-preview-trigger').filter({ has: page.locator('img[src="/logos/HMKB_MARK.png"]') }).locator('img');
+    const companyLogo = landing.locator('.landing-market img[src="/logos/HMKB_MARK.png"]');
     await companyLogo.scrollIntoViewIfNeeded();
     await expect(companyLogo).toBeVisible();
     await expect(companyLogo).toHaveAttribute('src', '/logos/HMKB_MARK.png');
@@ -73,11 +73,11 @@ test('unavailable company logos keep a readable fallback and company navigation'
   await page.route('**/logos/UZTL_MARK.svg', route => route.fulfill({ status: 404, body: '' }));
   await page.goto('/');
   const market = page.locator('.landing-market');
-  const failedLogoCompany = market.getByRole('button', { name: 'Обзор компании UZTL', exact: true });
+  const failedLogoCompany = market.locator('tbody tr').filter({ hasText: 'UZTL' });
   await failedLogoCompany.scrollIntoViewIfNeeded();
   await expect(failedLogoCompany.locator('.chip-logo-fallback')).toHaveText('UZ');
   await expect(failedLogoCompany.locator('img')).toHaveCount(0);
-  await expect(market.getByRole('button', { name: 'Обзор компании MIQE', exact: true }).locator('.chip-logo-fallback')).toHaveText('MI');
+  await expect(market.locator('tbody tr').filter({ hasText: 'MIQE' }).locator('.chip-logo-fallback')).toHaveText('MI');
   await market.locator('.landing-company').filter({ hasText: 'UZTL' }).click();
   await expect(page).toHaveURL(/\/company\/UZTL$/);
 });
@@ -88,7 +88,7 @@ test('compact wordmarks use their emblem and stay legible on dark rows', async (
   await page.route('**/api/market/stocks?*', route => route.fulfill({ json: { ok: true, stocks: [security] } }));
   await page.route('**/api/securities', route => route.fulfill({ json: { ok: true, securities: { URTS: security } } }));
   await page.goto('/');
-  const logo = page.locator('.landing-market').getByRole('button', { name: 'Обзор компании URTS', exact: true }).locator('img');
+  const logo = page.locator('.landing-market').locator('tbody tr').filter({ hasText: 'URTS' }).locator('img');
   await logo.scrollIntoViewIfNeeded();
   await expect.poll(() => logo.evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
   await expect(logo).toHaveCSS('object-fit', 'cover');

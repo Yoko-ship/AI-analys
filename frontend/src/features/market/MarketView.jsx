@@ -419,6 +419,7 @@ function MarketView({
         />}
         </MarketFilters>
         <MarketTable
+          isAdmin={isAdmin}
           onResetFilters={resetFilters}
           filtered={Boolean(query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}
           stats={stats}

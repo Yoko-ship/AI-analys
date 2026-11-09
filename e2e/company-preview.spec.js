@@ -17,7 +17,20 @@ const history = Array.from({ length: 110 }, (_, i) => {
     value: 2e7 + (i % 11) * 3e6, volume: 2000 };
 }).reverse();
 
-async function openBoard(page, { theme = 'dark', mode = 'ready' } = {}) {
+async function setupPreviewSession(page, { role = 'administrator', authenticate } = {}) {
+  await page.addInitScript(role => {
+    if (role) localStorage.setItem('uz_stock_analyzer_token', `preview-${role}`);
+  }, role);
+  await page.route('**/api/auth/me', async route => {
+    await authenticate?.();
+    return route.fulfill({ status: role ? 200 : 401, json: { user: role ? {
+      id: 1, email: `${role}@example.test`, is_admin: role === 'legacy-admin',
+      admin_role: role === 'reader' ? null : role, pro_access: true,
+    } : null } });
+  });
+}
+
+async function openBoard(page, { theme = 'dark', mode = 'ready', ...session } = {}) {
   const requests = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(theme => {
@@ -47,6 +60,7 @@ async function openBoard(page, { theme = 'dark', mode = 'ready' } = {}) {
     if (path === '/api/auth/me') return route.fulfill({ status: 401, json: { user: null } });
     return json({ ok: true });
   });
+  await setupPreviewSession(page, session);
   await page.goto('/market');
   await expect(page.locator('.market-table tbody tr')).toHaveCount(2);
   return { requests, errors };
@@ -192,6 +206,7 @@ test('sparse history keeps dated closes and omits invalid prices without invente
 
 async function openHomepage(page, options = {}) {
   await setupLanding(page, options);
+  await setupPreviewSession(page, options);
   const requests = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/price-history/*?*', route => {
@@ -285,4 +300,50 @@ test.describe('homepage touch previews', () => {
     await expect(card).toBeHidden();
     await expect(page).toHaveURL(/\/$/);
   });
+});
+
+for (const role of [null, 'reader', 'analyst']) {
+  for (const surface of ['market', 'homepage']) test(`${role || 'guest'} cannot open chart previews on ${surface}`, async ({ page }) => {
+    const { requests } = await (surface === 'market' ? openBoard : openHomepage)(page, { role });
+    if (role) await expect(page.getByRole('button', { name: `Аккаунт и настройки: ${role}@example.test` })).toBeVisible();
+    const logos = surface === 'market' ? [logoFor(page, 'UNVB')] : [
+      page.locator('.landing-market .chip-logo').first(),
+      page.locator('.landing-company-example .chip-logo').first(),
+    ];
+    await page.clock.install();
+    for (const logo of logos) {
+      await logo.hover();
+      await page.clock.runFor(1000);
+      await expect(preview(page)).toHaveCount(0);
+      await logo.click();
+      await expect(preview(page)).toHaveCount(0);
+    }
+    await expect(page.locator('.company-preview-trigger')).toHaveCount(0);
+    expect(requests).toEqual([]);
+    const company = surface === 'market' ? rowFor(page, 'UNVB').getByRole('button', { name: 'UNVB', exact: true })
+      : page.locator('.landing-market .landing-company').filter({ hasText: 'HMKB' });
+    await company.click();
+    await expect(page).toHaveURL(/\/company\/(UNVB|HMKB)$/);
+  });
+}
+
+for (const surface of ['market', 'homepage']) test(`preview on ${surface} waits for admin authentication and disappears after logout`, async ({ page }) => {
+  let release;
+  const authenticated = new Promise(resolve => { release = resolve; });
+  await (surface === 'market' ? openBoard : openHomepage)(page, { authenticate: () => authenticated });
+  await expect(page.locator('.company-preview-trigger')).toHaveCount(0);
+  release();
+  const trigger = page.getByRole('button', { name: `Обзор компании ${surface === 'market' ? 'UNVB' : 'HMKB'}`, exact: true }).first();
+  await trigger.focus();
+  await expect(preview(page)).toBeVisible();
+  await page.getByRole('button', { name: 'Аккаунт и настройки: administrator@example.test' }).click();
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect(preview(page)).toHaveCount(0);
+  await expect(page.locator('.company-preview-trigger')).toHaveCount(0);
+});
+
+test('legacy administrator flag still enables chart previews', async ({ page }) => {
+  await openBoard(page, { role: 'legacy-admin' });
+  await logoFor(page, 'UNVB').hover();
+  await expect(preview(page)).toBeVisible();
 });

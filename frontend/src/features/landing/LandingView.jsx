@@ -8,7 +8,7 @@ import { LandingNews } from './LandingNews.jsx';
 import { LandingCompanyGuide } from './LandingCompanyGuide.jsx';
 import { CompanyPreviewProvider } from '../market/index.js';
 
-export function LandingView({ language, onNavigate, onOpenCompany, market, onOpenNews, onCalendar }) {
+export function LandingView({ language, onNavigate, onOpenCompany, market, onOpenNews, onCalendar, isAdmin = false }) {
   const lang = normalizeLanguage(language);
   const copy = LANDING_COPY[lang];
   const [sector, setSector] = useState('');
@@ -16,7 +16,7 @@ export function LandingView({ language, onNavigate, onOpenCompany, market, onOpe
     setSector(value);
     document.getElementById('landing-market')?.scrollIntoView({ block: 'start' });
   };
-  return <CompanyPreviewProvider lang={lang} changePeriod="1d" onOpenCompany={onOpenCompany}><div className="landing-view" id="landing-top">
+  return <CompanyPreviewProvider enabled={isAdmin} lang={lang} changePeriod="1d" onOpenCompany={onOpenCompany}><div className="landing-view" id="landing-top">
     <div className="landing-container">
       <LandingHero copy={copy} onNavigate={onNavigate} />
       <nav className="landing-steps" aria-label={copy.explore}>

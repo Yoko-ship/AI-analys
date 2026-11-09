@@ -7,7 +7,13 @@ import './companyPreview.css';
 const PreviewContext = React.createContext(null);
 const previewLabel = (lang, ticker) => `${lang === 'en' ? 'Company preview' : lang === 'uz' ? 'Kompaniya haqida' : 'Обзор компании'} ${ticker}`;
 
-export function CompanyPreviewProvider({ lang, changePeriod, onOpenCompany, children }) {
+export function CompanyPreviewProvider({ enabled = false, children, ...props }) {
+  // Unmount preview state, timers and requests when administrator access ends.
+  return enabled ? <ActiveCompanyPreviewProvider {...props}>{children}</ActiveCompanyPreviewProvider>
+    : <PreviewContext.Provider value={null}>{children}</PreviewContext.Provider>;
+}
+
+function ActiveCompanyPreviewProvider({ lang, changePeriod, onOpenCompany, children }) {
   const [active, setActive] = React.useState(null);
   const [position, setPosition] = React.useState(null);
   const panel = React.useRef(null), activeRef = React.useRef(null);
@@ -124,6 +130,7 @@ export function CompanyPreviewProvider({ lang, changePeriod, onOpenCompany, chil
 export function CompanyPreviewLogo({ row, security }) {
   const ctx = React.useContext(PreviewContext);
   const triggerId = React.useId();
+  if (!ctx) return <CompanyLogo logo={security.logo_url} name="" ticker={row.ticker} />;
   const item = anchor => ({ row, security, anchor, triggerId });
   const open = ctx.active?.triggerId === triggerId;
   return <button type="button" className="company-preview-trigger" aria-label={previewLabel(ctx.lang, row.ticker)}
