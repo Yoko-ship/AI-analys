@@ -1,0 +1,4136 @@
+{
+  "CBSK": {
+    "issuer_id": "633",
+    "issuer_name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati",
+    "documents": [
+      {
+        "issuer_id": "633",
+        "ticker": "CBSK",
+        "period_end": "2024-12-31",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "2b8bb96cdbf2cc87e1bdfc7e02b9b1f28b762482604d72f50dfa9c3ffdb27aeb",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 142699264.9,
+              "value": "142699264.9",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 132091159,
+              "value": "132091159",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              142699264.9,
+              132091159,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 13781892.3,
+              "value": "13781892.3",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 25814894,
+              "value": "25814894",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              13781892.3,
+              25814894,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 156481157.2,
+              "value": "156481157.2",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 157906053,
+              "value": "157906053",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              156481157.2,
+              157906053,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 134988556.9,
+              "value": "134988556.9",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 147796991,
+              "value": "147796991",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              134988556.9,
+              147796991,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 21492600.3,
+              "value": "21492600.3",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 10109062,
+              "value": "10109062",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              21492600.3,
+              10109062,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 21492600.3,
+              "value": "21492600.3",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 10109062,
+              "value": "10109062",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              21492600.3,
+              10109062,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 156481157.2,
+              "value": "156481157.2",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 157906053,
+              "value": "157906053",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              156481157.2,
+              157906053,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                105105254,
+                0
+              ],
+              "value": "105105254",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                77468288,
+                0
+              ],
+              "value": "77468288",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              105105254,
+              0,
+              77468288,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                105105254,
+                0
+              ],
+              "value": "105105254",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                77468288,
+                0
+              ],
+              "value": "77468288",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              105105254,
+              0,
+              77468288,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                61979703
+              ],
+              "value": "-61979703",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                40242603
+              ],
+              "value": "-40242603",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              61979703,
+              0,
+              40242603
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                615043,
+                0
+              ],
+              "value": "615043",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                927169,
+                0
+              ],
+              "value": "927169",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              615043,
+              0,
+              927169,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                43740594,
+                0
+              ],
+              "value": "43740594",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                38152854,
+                0
+              ],
+              "value": "38152854",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              43740594,
+              0,
+              38152854,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                43740594,
+                0
+              ],
+              "value": "43740594",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                38152854,
+                0
+              ],
+              "value": "38152854",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              43740594,
+              0,
+              38152854,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                8795319
+              ],
+              "value": "-8795319",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                7630571
+              ],
+              "value": "-7630571",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              8795319,
+              0,
+              7630571
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                34945275,
+                0
+              ],
+              "value": "34945275",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                30522283,
+                0
+              ],
+              "value": "30522283",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              34945275,
+              0,
+              30522283,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5277&lang=ru"
+          }
+        ]
+      },
+      {
+        "issuer_id": "633",
+        "ticker": "CBSK",
+        "period_end": "2025-12-31",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "58bb6f009ff86f9c54ab975762df22ed78a67ba0ca7e50d6f775e4ee7b24aa6a",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 132091159,
+              "value": "132091159",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 129047436,
+              "value": "129047436",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              132091159,
+              129047436,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 38603017,
+              "value": "38603017",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 73027933,
+              "value": "73027933",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              38603017,
+              73027933,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 170694176,
+              "value": "170694176",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 202075369,
+              "value": "202075369",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              170694176,
+              202075369,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 158677677,
+              "value": "158677677",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 184642814,
+              "value": "184642814",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              158677677,
+              184642814,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 12016499,
+              "value": "12016499",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 17432555,
+              "value": "17432555",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              12016499,
+              17432555,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 12016499,
+              "value": "12016499",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 17432555,
+              "value": "17432555",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              12016499,
+              17432555,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 170694176,
+              "value": "170694176",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 202075369,
+              "value": "202075369",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              170694176,
+              202075369,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                77468288,
+                0
+              ],
+              "value": "77468288",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                95132336,
+                0
+              ],
+              "value": "95132336",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              77468288,
+              0,
+              95132336,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                77468288,
+                0
+              ],
+              "value": "77468288",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                95132336,
+                0
+              ],
+              "value": "95132336",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              77468288,
+              0,
+              95132336,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                39940631
+              ],
+              "value": "-39940631",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                43595659
+              ],
+              "value": "-43595659",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              39940631,
+              0,
+              43595659
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                927169,
+                0
+              ],
+              "value": "927169",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1546155,
+                0
+              ],
+              "value": "1546155",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              927169,
+              0,
+              1546155,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                38454826,
+                0
+              ],
+              "value": "38454826",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                53082832,
+                0
+              ],
+              "value": "53082832",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              38454826,
+              0,
+              53082832,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                38454826,
+                0
+              ],
+              "value": "38454826",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                53082832,
+                0
+              ],
+              "value": "53082832",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              38454826,
+              0,
+              53082832,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                7630571
+              ],
+              "value": "-7630571",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                11363347
+              ],
+              "value": "-11363347",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              7630571,
+              0,
+              11363347
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                30522283,
+                0
+              ],
+              "value": "30522283",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                41719485,
+                0
+              ],
+              "value": "41719485",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              30522283,
+              0,
+              41719485,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=5891&lang=ru"
+          }
+        ]
+      },
+      {
+        "issuer_id": "633",
+        "ticker": "CBSK",
+        "period_end": "2026-09-30",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "daa757f4fc5e2043a9d423b30a0378fede7a0f6fe8b77e8939a23a7de3e16d99",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 129047436,
+              "value": "129047436",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 132314990.99,
+              "value": "132314990.99",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              129047436,
+              132314990.99,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 73027933,
+              "value": "73027933",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 92925801,
+              "value": "92925801",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              73027933,
+              92925801,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 202075369,
+              "value": "202075369",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 225240792,
+              "value": "225240792",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              202075369,
+              225240792,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 184642814,
+              "value": "184642814",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 185183885.97,
+              "value": "185183885.97",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              184642814,
+              185183885.97,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 17432555,
+              "value": "17432555",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 40056906,
+              "value": "40056906",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              17432555,
+              40056906,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 17432555,
+              "value": "17432555",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 40056906,
+              "value": "40056906",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              17432555,
+              40056906,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 202075369,
+              "value": "202075369",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 225240792,
+              "value": "225240792",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              202075369,
+              225240792,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                71745678,
+                0
+              ],
+              "value": "71745678",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                74357988,
+                0
+              ],
+              "value": "74357988",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              71745678,
+              0,
+              74357988,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                71745678,
+                0
+              ],
+              "value": "71745678",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                74357988,
+                0
+              ],
+              "value": "74357988",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              71745678,
+              0,
+              74357988,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                35943446
+              ],
+              "value": "-35943446",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                33420351
+              ],
+              "value": "-33420351",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              35943446,
+              0,
+              33420351
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                1131649,
+                0
+              ],
+              "value": "1131649",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                845333,
+                0
+              ],
+              "value": "845333",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              1131649,
+              0,
+              845333,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                36933881,
+                0
+              ],
+              "value": "36933881",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                41782970,
+                0
+              ],
+              "value": "41782970",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              36933881,
+              0,
+              41782970,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                36933881,
+                0
+              ],
+              "value": "36933881",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                41782970,
+                0
+              ],
+              "value": "41782970",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              36933881,
+              0,
+              41782970,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                7390393
+              ],
+              "value": "-7390393",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                8362844
+              ],
+              "value": "-8362844",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              7390393,
+              0,
+              8362844
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                29561573,
+                0
+              ],
+              "value": "29561573",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                33451374,
+                0
+              ],
+              "value": "33451374",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              29561573,
+              0,
+              33451374,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          }
+        ]
+      }
+    ]
+  },
+  "KVTS": {
+    "issuer_id": "445",
+    "issuer_name": "Акционерное общество «Кварц»",
+    "documents": [
+      {
+        "issuer_id": "445",
+        "ticker": "KVTS",
+        "period_end": "2025-12-31",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "c8b89d08cfe588f1ec2b150e87c4c61885a5bd6b0aa83d7c6189f8a8d0f5bbbb",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 363222861.17,
+              "value": "363222861.17",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 273286636.09,
+              "value": "273286636.09",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              363222861.17,
+              273286636.09,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 360930111.34,
+              "value": "360930111.34",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 287034844.45,
+              "value": "287034844.45",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              360930111.34,
+              287034844.45,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 724152972.51,
+              "value": "724152972.51",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 560321480.54,
+              "value": "560321480.54",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              724152972.51,
+              560321480.54,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 236983676.93,
+              "value": "236983676.93",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 238172447.76,
+              "value": "238172447.76",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              236983676.93,
+              238172447.76,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 291836926.7,
+              "value": "291836926.7",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 234579055.78,
+              "value": "234579055.78",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              291836926.7,
+              234579055.78,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 487169295.58,
+              "value": "487169295.58",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 322149032.78,
+              "value": "322149032.78",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              487169295.58,
+              322149032.78,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 724152972.51,
+              "value": "724152972.51",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 560321480.54,
+              "value": "560321480.54",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              724152972.51,
+              560321480.54,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                521909900.19,
+                0
+              ],
+              "value": "521909900.19",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                593357005.58,
+                0
+              ],
+              "value": "593357005.58",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              521909900.19,
+              0,
+              593357005.58,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                502761575.26
+              ],
+              "value": "-502761575.26",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                445440256.47
+              ],
+              "value": "-445440256.47",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              502761575.26,
+              0,
+              445440256.47
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                19148324.93,
+                0
+              ],
+              "value": "19148324.93",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                147916749.11,
+                0
+              ],
+              "value": "147916749.11",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              19148324.93,
+              0,
+              147916749.11,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                145472585.05
+              ],
+              "value": "-145472585.05",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                116171874.36
+              ],
+              "value": "-116171874.36",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              145472585.05,
+              0,
+              116171874.36
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                14875119.35,
+                0
+              ],
+              "value": "14875119.35",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                3941611.63,
+                0
+              ],
+              "value": "3941611.63",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              14875119.35,
+              0,
+              3941611.63,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                111449140.77
+              ],
+              "value": "-111449140.77",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                35686486.38,
+                0
+              ],
+              "value": "35686486.38",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              0,
+              111449140.77,
+              35686486.38,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                141565053.55
+              ],
+              "value": "-141565053.55",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1340874.93,
+                0
+              ],
+              "value": "1340874.93",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              0,
+              141565053.55,
+              1340874.93,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                141565053.55
+              ],
+              "value": "-141565053.55",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1340874.93,
+                0
+              ],
+              "value": "1340874.93",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              0,
+              141565053.55,
+              1340874.93,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6078&lang=ru"
+          }
+        ]
+      },
+      {
+        "issuer_id": "445",
+        "ticker": "KVTS",
+        "period_end": "2026-09-30",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "93921a6c2337f6adc113c470f217e48506efa61e60108fd5ebf3c37600e51a0f",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 273286636.09,
+              "value": "273286636.09",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 207628977.93,
+              "value": "207628977.93",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              273286636.09,
+              207628977.93,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 287034844.45,
+              "value": "287034844.45",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 310010247.57,
+              "value": "310010247.57",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              287034844.45,
+              310010247.57,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 560321480.54,
+              "value": "560321480.54",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 517639225.5,
+              "value": "517639225.5",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              560321480.54,
+              517639225.5,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 238172447.76,
+              "value": "238172447.76",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 265775925.36,
+              "value": "265775925.36",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              238172447.76,
+              265775925.36,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 234579055.78,
+              "value": "234579055.78",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 251863300.14,
+              "value": "251863300.14",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              234579055.78,
+              251863300.14,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 322149032.78,
+              "value": "322149032.78",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 251863300.14,
+              "value": "251863300.14",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              322149032.78,
+              251863300.14,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                386012628.72,
+                0
+              ],
+              "value": "386012628.72",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                519401371.4,
+                0
+              ],
+              "value": "519401371.4",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              386012628.72,
+              0,
+              519401371.4,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                287391776.06
+              ],
+              "value": "-287391776.06",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                375893230.43
+              ],
+              "value": "-375893230.43",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              287391776.06,
+              0,
+              375893230.43
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                98620852.66,
+                0
+              ],
+              "value": "98620852.66",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                143508140.97,
+                0
+              ],
+              "value": "143508140.97",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              98620852.66,
+              0,
+              143508140.97,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                89037530.01
+              ],
+              "value": "-89037530.01",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                91342689.79
+              ],
+              "value": "-91342689.79",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              89037530.01,
+              0,
+              91342689.79
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                2654402.49,
+                0
+              ],
+              "value": "2654402.49",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                2635068.77,
+                0
+              ],
+              "value": "2635068.77",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              2654402.49,
+              0,
+              2635068.77,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                12237725.14,
+                0
+              ],
+              "value": "12237725.14",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                54800519.95,
+                0
+              ],
+              "value": "54800519.95",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              12237725.14,
+              0,
+              54800519.95,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                15083412.02
+              ],
+              "value": "-15083412.02",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                36931121.06,
+                0
+              ],
+              "value": "36931121.06",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              0,
+              15083412.02,
+              36931121.06,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                477606.36
+              ],
+              "value": "-477606.36",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                8614506.12
+              ],
+              "value": "-8614506.12",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              477606.36,
+              0,
+              8614506.12
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                15561018.38
+              ],
+              "value": "-15561018.38",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                28316614.94,
+                0
+              ],
+              "value": "28316614.94",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              0,
+              15561018.38,
+              28316614.94,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          }
+        ]
+      }
+    ]
+  },
+  "UZIR": {
+    "issuer_id": "374",
+    "issuer_name": "\"O'zbekko'mir\" aksiyadorlik jamiyati",
+    "documents": [
+      {
+        "issuer_id": "374",
+        "ticker": "UZIR",
+        "period_end": "2025-12-31",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "2aa048bd9babbea13f95c5c90c24d7cac2b1745329587d1157eaebc75c8189ed",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 2146942188,
+              "value": "2146942188",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 2030486131,
+              "value": "2030486131",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              2146942188,
+              2030486131,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 984710015,
+              "value": "984710015",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1236031707,
+              "value": "1236031707",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              984710015,
+              1236031707,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 3131652203,
+              "value": "3131652203",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 3266520838,
+              "value": "3266520838",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              3131652203,
+              3266520838,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 943741787,
+              "value": "943741787",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1017797770,
+              "value": "1017797770",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              943741787,
+              1017797770,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 665569323,
+              "value": "665569323",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 906056009,
+              "value": "906056009",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              665569323,
+              906056009,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 2187910416,
+              "value": "2187910416",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 2248723068,
+              "value": "2248723068",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              2187910416,
+              2248723068,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 3131652203,
+              "value": "3131652203",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 3266520838,
+              "value": "3266520838",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              3131652203,
+              3266520838,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                1379010611,
+                0
+              ],
+              "value": "1379010611",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1444590663,
+                0
+              ],
+              "value": "1444590663",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              1379010611,
+              0,
+              1444590663,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                879720186
+              ],
+              "value": "-879720186",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                1115699915
+              ],
+              "value": "-1115699915",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              879720186,
+              0,
+              1115699915
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                499290425,
+                0
+              ],
+              "value": "499290425",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                328890748,
+                0
+              ],
+              "value": "328890748",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              499290425,
+              0,
+              328890748,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                337413215
+              ],
+              "value": "-337413215",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                339732947
+              ],
+              "value": "-339732947",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              337413215,
+              0,
+              339732947
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                55159237,
+                0
+              ],
+              "value": "55159237",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                60692170,
+                0
+              ],
+              "value": "60692170",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              55159237,
+              0,
+              60692170,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                217036447,
+                0
+              ],
+              "value": "217036447",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                49849971,
+                0
+              ],
+              "value": "49849971",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              217036447,
+              0,
+              49849971,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                40952579,
+                0
+              ],
+              "value": "40952579",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                6967243,
+                0
+              ],
+              "value": "6967243",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              40952579,
+              0,
+              6967243,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                4069847
+              ],
+              "value": "-4069847",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                6967243
+              ],
+              "value": "-6967243",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              4069847,
+              0,
+              6967243
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                36882732,
+                0
+              ],
+              "value": "36882732",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                563912,
+                0
+              ],
+              "value": "563912",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              36882732,
+              0,
+              563912,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6080&lang=ru"
+          }
+        ]
+      },
+      {
+        "issuer_id": "374",
+        "ticker": "UZIR",
+        "period_end": "2026-09-30",
+        "scope": "separate",
+        "template": "industry",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "quality": "valid",
+        "source_version": "b932bd93a2e41fe89612bb18c2473044d74bb98a225b97812c3c6835252f3cf0",
+        "source_coverage": {
+          "complete": true,
+          "issues": []
+        },
+        "source_forms": [],
+        "rows": [
+          {
+            "source_form": "F1",
+            "source_code": "130",
+            "raw_label": "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+            "metric_id": "noncurrent_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 2030489131,
+              "value": "2030489131",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1678128935,
+              "value": "1678128935",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр. 012+022+030+090+100+110+120)",
+              "130",
+              2030489131,
+              1678128935,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 55,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "390",
+            "raw_label": "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+            "metric_id": "current_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 1236031707,
+              "value": "1236031707",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1289635611,
+              "value": "1289635611",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр. 140+190+200+210+320+370+380)",
+              "390",
+              1236031707,
+              1289635611,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 83,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "400",
+            "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+            "metric_id": "total_assets",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 3266520838,
+              "value": "3266520838",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 2967764546,
+              "value": "2967764546",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              3266520838,
+              2967764546,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 84,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "480",
+            "raw_label": "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+            "metric_id": "total_equity",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 1017797770,
+              "value": "1017797770",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1010784365,
+              "value": "1010784365",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              1017797770,
+              1010784365,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 94,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "600",
+            "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+            "metric_id": "current_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 606056009,
+              "value": "606056009",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 985777743,
+              "value": "985777743",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+              "600",
+              606056009,
+              985777743,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 108,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "770",
+            "raw_label": "Итого по разделу II (стр.490+600)",
+            "metric_id": "total_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 2248723068,
+              "value": "2248723068",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 1956980190,
+              "value": "1956980190",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              2248723068,
+              1956980190,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 127,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "780",
+            "raw_label": "Всего по пассиву баланса (стр.480+770)",
+            "metric_id": "total_equity_liabilities",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 3266520838,
+              "value": "3266520838",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 2967764546,
+              "value": "2967764546",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              3266520838,
+              2967764546,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 128,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "010",
+            "raw_label": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+            "metric_id": "revenue",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                957475485,
+                0
+              ],
+              "value": "957475485",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1127406421,
+                0
+              ],
+              "value": "1127406421",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              957475485,
+              0,
+              1127406421,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 133,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "020",
+            "raw_label": "Себестоимость реализованной продукции (товаров, работ и услуг)",
+            "metric_id": "cost_of_sales",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                730903508
+              ],
+              "value": "-730903508",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                845679322
+              ],
+              "value": "-845679322",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              730903508,
+              0,
+              845679322
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 134,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "030",
+            "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+            "metric_id": "gross_profit",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                226571977,
+                0
+              ],
+              "value": "226571977",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                281727099,
+                0
+              ],
+              "value": "281727099",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              226571977,
+              0,
+              281727099,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 135,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "040",
+            "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+            "metric_id": "operating_expenses",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                214859344
+              ],
+              "value": "-214859344",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                253070632
+              ],
+              "value": "-253070632",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+              "040",
+              0,
+              214859344,
+              0,
+              253070632
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 136,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "090",
+            "raw_label": "Прочие доходы от основной деятельности",
+            "metric_id": "other_operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                47952038,
+                0
+              ],
+              "value": "47952038",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                336770218,
+                0
+              ],
+              "value": "336770218",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие доходы от основной деятельности",
+              "090",
+              47952038,
+              0,
+              336770218,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 140,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "100",
+            "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+            "metric_id": "operating_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                59664671,
+                0
+              ],
+              "value": "59664671",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                365426685,
+                0
+              ],
+              "value": "365426685",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+              "100",
+              59664671,
+              0,
+              365426685,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 141,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "240",
+            "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+            "metric_id": "profit_before_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                5891584,
+                0
+              ],
+              "value": "5891584",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                6411975,
+                0
+              ],
+              "value": "6411975",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              5891584,
+              0,
+              6411975,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 155,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "250",
+            "raw_label": "Налог на прибыль",
+            "metric_id": "income_tax",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                4057976
+              ],
+              "value": "-4057976",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                4984401
+              ],
+              "value": "-4984401",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              4057976,
+              0,
+              4984401
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 156,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "260",
+            "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+            "metric_id": "other_profit_payments",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                0
+              ],
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 157,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          },
+          {
+            "source_form": "F2",
+            "source_code": "270",
+            "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+            "metric_id": "net_income",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                1833608,
+                0
+              ],
+              "value": "1833608",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                1427574,
+                0
+              ],
+              "value": "1427574",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              1833608,
+              0,
+              1427574,
+              0
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru"
+          }
+        ]
+      }
+    ]
+  }
+}

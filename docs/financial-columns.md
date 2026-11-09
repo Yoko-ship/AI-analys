@@ -61,6 +61,15 @@ published figures. Missing ratio bases are not filled with estimates.
   not cash CAPEX. NAV per share is restricted to UZNF with verified share counts.
 * Zeros, missing cells, dashes and crossed cells retain their meaning. Source
   reconciliation checks flag differences without rewriting the source totals.
+  Differences up to one thousand UZS retain the existing rounding allowance.
+  Larger differences within 0.1% of both the reported total and the total from
+  its components carry a warning; ratios use the reported amount and retain
+  that warning. This is a discrepancy policy, not a claim that the source
+  reconciles. Larger differences, zero-total and sign conflicts stay blocked.
+  Every discrepancy records its source version, reported and reconciled totals,
+  signed check difference and severity. A warning cannot downgrade a blocked
+  input. Ratio cells explain warnings and missing values, and their source
+  passports show the reconciliation evidence.
 * OpenInfo-published ratios remain separate from UZStock calculations.
 
 ## Interfaces

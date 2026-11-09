@@ -83,7 +83,7 @@ test('catalog ratio meanings move into ! while missing-data reasons remain visib
   const terminal=page.getByTestId('financial-columns');
   await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
   const rows=terminal.locator('.fc-table tbody tr[data-metric]');
-  expect(await rows.count()).toBeGreaterThan(0);
+  await expect(rows.first()).toBeVisible();
   await expect(terminal.locator('.fc-table .term-info-btn')).toHaveCount(await rows.count());
 });
 

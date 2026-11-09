@@ -2,6 +2,12 @@
 from decimal import Decimal
 
 
+# A source discrepancy above the rounding allowance is always disclosed.
+# Up to 0.1% of BOTH the filed and reconciled total is usable with a warning;
+# larger discrepancies, zero totals and sign conflicts remain blocked.
+RECONCILIATION_RELATIVE_LIMIT = Decimal('0.001')
+
+
 def nsbu(documents):
     result = []
     for doc in documents:
@@ -86,26 +92,38 @@ def check(observations):
             if row.get('metric_id') and row.get('value') is not None and row.get('quality') in {'valid', 'warn'}:
                 values.setdefault(row['metric_id'], []).append(row)
         rules = [
-            ('SOURCE_BALANCE_MISMATCH', [('total_assets', 1), ('total_liabilities', -1), ('total_equity', -1)]),
-            ('SOURCE_ASSET_SUBTOTAL_MISMATCH', [('total_assets', 1), ('noncurrent_assets', -1), ('current_assets', -1)]),
-            ('SOURCE_PASSIVE_TOTAL_MISMATCH', [('total_assets', 1), ('total_equity_liabilities', -1)]),
-            ('SOURCE_RESERVE_MISMATCH', [('insurance_reserves_gross', 1), ('reinsurer_share_reserves', -1), ('insurance_reserves_net', -1)]),
-            ('SOURCE_INSURANCE_BALANCE_MISMATCH', [('total_assets', 1), ('total_equity', -1), ('insurance_reserves_net', -1), ('nonreserve_liabilities', -1)]),
+            ('SOURCE_BALANCE_MISMATCH', 'total_assets', [('total_assets', 1), ('total_liabilities', -1), ('total_equity', -1)]),
+            ('SOURCE_ASSET_SUBTOTAL_MISMATCH', 'total_assets', [('total_assets', 1), ('noncurrent_assets', -1), ('current_assets', -1)]),
+            ('SOURCE_PASSIVE_TOTAL_MISMATCH', 'total_assets', [('total_assets', 1), ('total_equity_liabilities', -1)]),
+            ('SOURCE_RESERVE_MISMATCH', 'insurance_reserves_net', [('insurance_reserves_gross', 1), ('reinsurer_share_reserves', -1), ('insurance_reserves_net', -1)]),
+            ('SOURCE_INSURANCE_BALANCE_MISMATCH', 'total_assets', [('total_assets', 1), ('total_equity', -1), ('insurance_reserves_net', -1), ('nonreserve_liabilities', -1)]),
         ]
         if rows[0].get('standard') == 'NSBU' and any(r.get('source_form') == 'F2' for r in rows):
             rules += [
-                ('SOURCE_GROSS_PROFIT_MISMATCH', [('revenue', 1), ('cost_of_sales', 1), ('gross_profit', -1)]),
-                ('SOURCE_OPERATING_PROFIT_MISMATCH', [('gross_profit', 1), ('operating_expenses', 1), ('other_operating_income', 1), ('operating_income', -1)]),
-                ('SOURCE_NET_PROFIT_MISMATCH', [('profit_before_tax', 1), ('income_tax', 1), ('other_profit_payments', 1), ('net_income', -1)]),
+                ('SOURCE_GROSS_PROFIT_MISMATCH', 'gross_profit', [('revenue', 1), ('cost_of_sales', 1), ('gross_profit', -1)]),
+                ('SOURCE_OPERATING_PROFIT_MISMATCH', 'operating_income', [('gross_profit', 1), ('operating_expenses', 1), ('other_operating_income', 1), ('operating_income', -1)]),
+                ('SOURCE_NET_PROFIT_MISMATCH', 'net_income', [('profit_before_tax', 1), ('income_tax', 1), ('other_profit_payments', 1), ('net_income', -1)]),
             ]
-        for code, terms in rules:
+        for code, total_field, terms in rules:
             if not all(len(values.get(field, [])) == 1 for field, _ in terms):
                 continue
             parts = [values[field][0] for field, _ in terms]
             difference = sum(Decimal(part['value']) * sign for part, (_, sign) in zip(parts, terms))
             if abs(difference) > 1:  # one display unit, thousands UZS, permits source rounding
-                issues.append({'code': code, 'period_end': end, 'scope': scope,
-                               'difference': str(difference), 'unit': 'UZS_thousand'})
+                reported = Decimal(values[total_field][0]['value'])
+                total_sign = dict(terms)[total_field]
+                reconciled = reported - difference / total_sign
+                limit = min(abs(reported), abs(reconciled)) * RECONCILIATION_RELATIVE_LIMIT
+                severity = 'warn' if abs(difference) <= limit else 'blocked'
+                issue = {'code': code, 'period_end': end, 'scope': scope,
+                         'difference': str(difference), 'unit': 'UZS_thousand',
+                         'severity': severity, 'metric_id': total_field,
+                         'reported_total': str(reported), 'reconciled_total': str(reconciled),
+                         'source_version': parts[0].get('source_version')}
+                issues.append(issue)
                 for row in parts:
-                    row.update(quality='blocked', reason=code)
+                    row.setdefault('reconciliation_issues', []).append(issue)
+                    # A later minor mismatch must never erase a blocking one.
+                    if row['quality'] != 'blocked':
+                        row.update(quality=severity, reason=code)
     return issues

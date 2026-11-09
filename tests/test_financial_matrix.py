@@ -176,7 +176,7 @@ def test_source_subtotals_flag_conflicts_without_replacing_reported_amounts():
     assert issues[0]['code'] == 'SOURCE_RESERVE_MISMATCH'
     assert inputs[-1]['value'] == '259436980.5'
     assert inputs[-1]['raw_value'] == '259436970.5'
-    assert inputs[-1]['quality'] == 'blocked'
+    assert inputs[-1]['quality'] == 'warn'
 
 
 def test_reported_quarter_disagreement_with_complete_ytd_history_is_visible():

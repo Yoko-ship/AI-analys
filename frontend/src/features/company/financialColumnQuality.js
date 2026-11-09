@@ -20,6 +20,7 @@ const REASONS = {
   UNDER_REVIEW: ['Этот период находится на проверке.', 'Bu davr tekshirilmoqda.', 'This period is under review.'],
   AVERAGE_EARNING_ASSETS_MISSING: ['Нет сопоставимой средней базы доходных активов.', 'Daromadli aktivlarning o‘rtacha bazasi yo‘q.', 'A comparable average interest-earning asset base is missing.'],
   INPUTS_MISSING: ['Для формулы не хватает подтверждённых входных данных.', 'Formula uchun tasdiqlangan ma’lumotlar yetarli emas.', 'Verified inputs are missing for this formula.'],
+  INCOMPATIBLE_OR_BLOCKED_INPUTS: ['Расчёт заблокирован: входные данные не прошли проверку или относятся к разному периметру.', 'Hisoblash bloklangan: kirish ma’lumotlari tekshiruvdan o‘tmagan yoki qamrovi farq qiladi.', 'Calculation blocked: inputs failed validation or have incompatible reporting scopes.'],
   STOCK_REQUIRES_REPORTING_DATE: ['Балансовый показатель относится к дате, а не TTM.', 'Balans ko‘rsatkichi TTM emas, sanaga tegishli.', 'A balance-sheet measure belongs to a reporting date, not TTM.'],
   STOCK_IS_AS_OF_DATE: ['Остаток показывается на отчётную дату.', 'Qoldiq hisobot sanasiga ko‘rsatiladi.', 'Balances are shown at the reporting date.'],
   NONPOSITIVE_DENOMINATOR: ['Нулевая или отрицательная база не допускает обычный коэффициент.', 'Nol yoki manfiy baza odatiy koeffitsiyentga mos emas.', 'A zero or negative denominator does not support the usual ratio.'],
@@ -34,4 +35,17 @@ export function qualityReason(code, t) {
     ? ['Итоги источника не сходятся. Исходные суммы сохранены.', 'Manba jami mos kelmaydi. Asl summalar saqlangan.', 'Source totals do not reconcile. The original amounts are retained.']
     : ['См. условия расчёта и входные данные в паспорте.', 'Hisoblash shartlari va manba ma’lumotlarini tekshiring.', 'See the formula conditions and source inputs in the passport.']);
   return t(...labels) + (detail ? ` (${detail})` : '');
+}
+
+export function reconciliationIssues(cell) {
+  const issues = new Map();
+  const visit = part => {
+    for (const issue of part.reconciliation_issues || []) {
+      const key = JSON.stringify([issue.source_version, issue.period_end, issue.code, issue.difference]);
+      issues.set(key, issue);
+    }
+    for (const component of part.components || []) visit(component);
+  };
+  visit(cell);
+  return [...issues.values()];
 }

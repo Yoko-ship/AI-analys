@@ -50,6 +50,8 @@
 .fc-value:hover { color: var(--accent); border-bottom-color: currentColor; }
 .fc-value-missing, .fc-value-not_applicable { color: var(--fc-muted); border-color: transparent; }
 .fc-value-blocked, .fc-value-warn { text-decoration: underline dotted; text-underline-offset: 4px; }
+.fc-value .fc-value-reason { display: block; max-width: 220px; margin: 4px 0 0 auto; white-space: normal; color: var(--fc-muted); font-size: 11px; font-weight: 400; line-height: 1.45; text-align: right; }
+.fc-reconciliation { margin-block: 16px; border-top: 1px solid var(--border); }
 .fc-empty, .fc-notice, .fc-published, .fc-documents { padding: 12px 0; margin: 0; }
 .fc-empty { color: var(--fc-muted); line-height: 1.7; }
 .fc-notice { border-left: 3px solid var(--warning, #c5881b); padding-left: 12px; }

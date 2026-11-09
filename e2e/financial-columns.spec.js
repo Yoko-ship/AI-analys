@@ -119,7 +119,7 @@ test('HMKB current ratios show annualization and matching source periods',async(
   await expect(last('roe')).toContainText('annualized');
   await expect(last('roa')).toContainText('4.92');
   await expect(last('cir')).toHaveText('42.83');
-  await expect(last('nim')).toHaveText('—');
+  await expect(last('nim')).toContainText('A comparable average interest-earning asset base is missing.');
   // Ratio and owner exports must not inherit the income/balance tab filter.
   for (const name of ['CSV', 'XLSX']) {
     const url = new URL(await terminal.getByRole('link', {name, exact:true}).getAttribute('href'), page.url());
@@ -144,6 +144,53 @@ test('HMKB current ratios show annualization and matching source periods',async(
   await terminal.locator('.fc-scroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
   await expect(last('roe')).toContainText('26.51');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
+test('CBSK ratios show usable values with warnings and explain unavailable values on mobile', async ({page}, testInfo) => {
+  const evidence=JSON.parse(readFileSync('tests/fixtures/financial_columns/reconciliation_reports.json','utf8')).CBSK;
+  const doc=evidence.documents.find(d=>d.period_end==='2026-09-30');
+  const filed=doc.rows.find(r=>r.metric_id==='net_income');
+  const reason='SOURCE_NET_PROFIT_MISMATCH';
+  const profit={...filed,...filed.current,quality:'warn',reason,period_start:'2026-01-01',period_end:doc.period_end,
+    reconciliation_issues:[{code:reason,severity:'warn',difference:'-31248',unit:'UZS_thousand',reported_total:'33451374',reconciled_total:'33420126'}]};
+  const sourceRows=['total_assets','total_equity','net_income'].map(metric=>{
+    const row=doc.rows.find(r=>r.metric_id===metric);
+    return {...row,id:`${row.source_form}:${row.source_code}`,label:row.raw_label,
+      cells:Object.fromEntries(evidence.documents.map(d=>{
+        const source=d.rows.find(r=>r.metric_id===metric);
+        return [d.period_end.endsWith('12-31')?d.period_end.slice(0,4):d.period_end,{...source,...source.current}];
+      }))};
+  });
+  const reports={...structuredClone(recentReports),ticker:'CBSK',issuer_name:evidence.issuer_name,
+    rows:sourceRows,overview_rows:sourceRows,
+    ratios:[['roe','ROE','24.12039585222919782581105131'],['roa','ROA','20.87533122811144977968666155'],['roce','ROCE',null]].map(([metric_id,label,value])=>({
+      id:`ratio:${metric_id}`,metric_id,label,unit:'percent',source_form:'RAT',kind:'ratio',cells:{
+        '2024':{value:null,quality:'blocked',reason:'INCOMPATIBLE_OR_BLOCKED_INPUTS',components:[{...profit,quality:'blocked'}]},
+        '2025':{value:0,quality:'valid'},
+        '2026-09-30':{value,quality:value===null?'missing':'warn',annualized:true,
+          reason:value===null?'NOPAT_OR_INVESTED_CAPITAL_POLICY_MISSING':reason,components:value===null?[]:[profit]},
+      },
+    })),published_ratios:[]};
+  await page.setViewportSize({width:390,height:844});
+  await setup(page,{ticker:'CBSK',reports});
+  const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
+  const roe=terminal.locator('tr[data-metric="roe"]'), current=roe.locator('td').last();
+  await expect(current).toContainText('24.12');
+  await expect(current.locator('.fc-value-reason')).toContainText('Source totals do not reconcile');
+  await expect(roe.locator('td').first()).toContainText('Calculation blocked');
+  await expect(roe.locator('td').nth(1)).toHaveText('0');
+  await expect(terminal.locator('tr[data-metric="roce"] td').last()).toContainText('NOPAT');
+  await terminal.locator('.fc-scroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await current.getByRole('button').click();
+  const passport=page.getByRole('dialog',{name:'Source passport'});
+  await expect(passport).toContainText('33,451,374');
+  await expect(passport).toContainText('33,420,126');
+  await expect(passport).toContainText('-31,248');
+  await expect(passport).toContainText('thousand UZS');
+  await passport.getByRole('button',{name:'Close',exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  await terminal.screenshot({path:testInfo.outputPath('cbsk-ratio-warnings-mobile.png')});
 });
 
 test('balance rows belong to BS while SUM and PL retain income rows',async({page},testInfo)=>{
@@ -447,8 +494,13 @@ test('BIOK downloads the displayed table with periods, language and active filte
     contentType:'text/csv; charset=utf-8', headers:{'Content-Disposition':'attachment; filename="BIOK-NSBU-annual.csv"'},
     body:'\ufeffПоказатель;Код;Единица;2024;2025;2026 · 9M\r\nРасходы периода;040;тыс. UZS;-20714060;-18645393;-11675525\r\n',
   }));
+  // Native download-attribute requests bypass Chromium's route interception.
+  // Let this same URL's mocked Content-Disposition response initiate download.
+  const csv = terminal.getByRole('link', {name:'CSV', exact:true});
+  await expect(csv).toHaveAttribute('download', '');
+  await csv.evaluate(link => link.removeAttribute('download'));
   const downloading = page.waitForEvent('download');
-  await terminal.getByRole('link', {name:'CSV', exact:true}).click();
+  await csv.click();
   const download = await downloading;
   expect(download.suggestedFilename()).toBe('BIOK-NSBU-annual.csv');
   expect(await download.failure()).toBeNull();

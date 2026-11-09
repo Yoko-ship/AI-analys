@@ -64,6 +64,7 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
                 value = str(Decimal(numerator['value']) / denominator * factor)
                 if any(r['quality'] == 'warn' for r in items):
                     quality = 'warn'
+                    why = next((r.get('reason') for r in items if r['quality'] == 'warn' and r.get('reason')), None)
         result.append({'metric_id': metric_id, 'label': label, 'value': value, 'quality': quality,
                        'reason': why, 'formula': formula, 'components': items, 'period_end': end,
                        'period_start': (date.fromisoformat(start) + timedelta(days=1)).isoformat() if flow_ratio else end,

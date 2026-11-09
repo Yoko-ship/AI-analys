@@ -2,7 +2,7 @@ import { trackFeature } from "../../lib/track.js";
 import React from 'react';
 import { words } from '../../shared/TerminalTables.jsx';
 import { safeHref } from '../../lib/safeHref.js';
-import { qualityReason } from './financialColumnQuality.js';
+import { qualityReason, reconciliationIssues } from './financialColumnQuality.js';
 import { financialGroup } from './financialColumnGroups.js';
 import { FinancialHistoryChart } from './FinancialHistoryChart.jsx';
 import { RatioInfo } from '../../shared/RatioInfo.jsx';
@@ -41,11 +41,12 @@ function Status({ value, t }) {
   return <span className={`fc-status fc-status-${value || 'missing'}`}>{t(...(QUALITY[value] || QUALITY.missing))}</span>;
 }
 
-function FinancialValue({ cell, open, format, t }) {
+function FinancialValue({ cell, open, format, t, explainQuality = false }) {
   const parts = cell.display_parts || [cell];
   return <div className={cell.display_parts ? 'fc-value-parts' : undefined}>{parts.map((part, i) => <button key={i} type="button" className={`fc-value fc-value-${part.quality}`} title={t(...(QUALITY[part.quality] || QUALITY.missing))} onClick={() => open(part)}>
     {cell.display_parts && <small>{part.source_code || part.raw_label || part.metric_id}: </small>}{format(part.value)}{['warn','blocked'].includes(part.quality) && <span aria-hidden="true"> ⚑</span>}
     {part.annualized && part.value != null && <small>{t('в годовом выражении', 'yillik hisobda', 'annualized')}</small>}
+    {explainQuality && part.quality !== 'valid' && <small className="fc-value-reason">{part.reason ? qualityReason(part.reason, t) : t(...(QUALITY[part.quality] || QUALITY.missing))}</small>}
   </button>)}</div>;
 }
 
@@ -53,6 +54,7 @@ export function SourcePassport({ item, close, t, format }) {
   const dialog = React.useRef(null);
   React.useEffect(() => { dialog.current?.showModal(); }, []);
   const cell = item.cell;
+  const reconciliations = reconciliationIssues(cell);
   const details = [
     [t('Стандарт / периметр', 'Standart / qamrov', 'Standard / scope'), `${cell.standard || item.standard} · ${cell.scope || item.scope}`],
     [t('Период', 'Davr', 'Period'), `${cell.period_start || item.end} — ${cell.period_end || item.end}`],
@@ -72,6 +74,16 @@ export function SourcePassport({ item, close, t, format }) {
     {cell.formula && <p><strong>{t('Формула', 'Formula', 'Formula')}:</strong> {cell.formula}</p>}
     {cell.normalization && <p>{cell.normalization}</p>}
     {cell.reason && <p className="fc-notice">{qualityReason(cell.reason, t)}</p>}
+    {reconciliations.map((issue, i) => <section className="fc-reconciliation" key={i}>
+      <h4>{t('Сверка исходных сумм', 'Manba summalarini tekshirish', 'Source reconciliation')}</h4>
+      <p>{qualityReason(issue.code, t)} {issue.period_end}</p>
+      <Status value={issue.severity} t={t}/>
+      <dl>
+        <dt>{t('Итог в отчёте', 'Hisobotdagi jami', 'Reported total')}</dt><dd>{format(issue.reported_total)}</dd>
+        <dt>{t('Итог по составляющим', 'Tarkibiy qismlar jami', 'Total from components')}</dt><dd>{format(issue.reconciled_total)}</dd>
+        <dt>{t('Расхождение', 'Tafovut', 'Difference')}</dt><dd>{format(issue.difference)} {t('тыс. сум', 'ming so‘m', 'thousand UZS')}</dd>
+      </dl>
+    </section>)}
     {cell.components?.length > 0 && <><h4>{t('Входные данные', 'Kirish ma’lumotlari', 'Calculation inputs')}</h4><div className="fc-scroll"><table data-own-export><thead><tr><th>{t('Показатель', 'Ko‘rsatkich', 'Metric')}</th><th>{t('Период', 'Davr', 'Period')}</th><th>{t('Значение', 'Qiymat', 'Amount')}</th></tr></thead><tbody>{cell.components.map((part, i) => <tr key={i}><td>{part.raw_label || part.metric_id || '—'}</td><td>{part.period_start} — {part.period_end}</td><td>{format(part.value)}</td></tr>)}</tbody></table></div></>}
     {cell.raw_line && <pre>{cell.raw_line}</pre>}
     {cell.components?.length > 0 && <ul>{[...new Set(cell.components.flatMap(part => [part.source_url, ...(part.components || []).map(p => p.source_url)]).filter(Boolean))].map(url => <li key={url}><a href={safeHref(url)} target="_blank" rel="noreferrer">{t('Источник расчёта', 'Hisoblash manbasi', 'Calculation source')}</a></li>)}</ul>}
@@ -151,7 +163,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
       {standard === 'MSFO' && data.coverage?.notes !== 'present' && <p className="fc-notice">{t('Примечания отсутствуют или не проверены.', 'Izohlar yo‘q yoki tekshirilmagan.', 'Notes are missing or have not been verified.')}</p>}
       {!data.rows?.length && <p className="fc-empty">{t('Нет проверенных строк источника в этом периметре.', 'Ushbu qamrovda tekshirilgan manba qatorlari yo‘q.', 'No verified source rows in this accounting scope.')}</p>}
       {view === 'original' && data.presentation !== 'template' && <OriginalDocuments forms={data.source_forms || []} t={t}/>}
-      {representation === 'chart' ? <FinancialHistoryChart rows={rows} columns={columns} view={view} groupLabel={group => t(...(GROUPS[group] || [group,group,group]))} format={format} lang={lang} t={t}/> : <div className="fc-scroll"><table className="fc-table" data-own-export><thead><tr><th>{t('Показатель', 'Ko‘rsatkich', 'Metric')}</th>{columns.map(column => <th key={column.key}>{column.label}<small>{column.basis === 'as_of' ? t('на дату', 'sana bo‘yicha', 'as of') : column.basis === 'ytd' ? 'YTD' : column.basis === 'quarter' ? t('отдельный квартал', 'alohida chorak', 'standalone quarter') : ''}</small></th>)}</tr></thead><tbody>{groups.map(group => <React.Fragment key={group}><tr className="fc-group"><th colSpan={columns.length+1}><button type="button" aria-expanded={!collapsed[group]} onClick={() => setCollapsed({...collapsed,[group]:!collapsed[group]})}>{collapsed[group] ? '▸' : '▾'} {t(...(GROUPS[group] || [group,group,group]))}</button></th></tr>{!collapsed[group] && rows.filter(r => financialGroup(r, view) === group).map(row => <tr key={row.id} data-metric={row.metric_id || ''}><th scope="row">{row.label}{view === 'ratios' && <RatioInfo metric={row.metric_id} label={row.label} lang={lang} meaning={row[`meaning_${lang}`] || row.meaning_ru} formula={[...new Set(Object.values(row.cells).map(cell => cell.formula).filter(Boolean))].join('\n')}/>}<small>{view === 'summary' && row.display_ref ? row.display_ref : `${row.source_form} ${row.source_code || ''}`}{row.unit === 'UZS_thousand' ? t(' · тыс.', ' · ming', ' · thous.') : row.unit === 'percent' ? ' · %' : row.unit === 'ratio' ? ' · ×' : row.unit === 'UZS_per_share' ? ' · UZS / share' : ''}</small></th>{columns.map(column => {const cell = row.cells[column.key] || {quality:'missing'};return <td key={column.key}><FinancialValue cell={cell} open={part => setPassport({cell:part,row,end:column.end,standard,scope})} format={format} t={t}/></td>;})}</tr>)}</React.Fragment>)}</tbody></table></div>}
+      {representation === 'chart' ? <FinancialHistoryChart rows={rows} columns={columns} view={view} groupLabel={group => t(...(GROUPS[group] || [group,group,group]))} format={format} lang={lang} t={t}/> : <div className="fc-scroll"><table className="fc-table" data-own-export><thead><tr><th>{t('Показатель', 'Ko‘rsatkich', 'Metric')}</th>{columns.map(column => <th key={column.key}>{column.label}<small>{column.basis === 'as_of' ? t('на дату', 'sana bo‘yicha', 'as of') : column.basis === 'ytd' ? 'YTD' : column.basis === 'quarter' ? t('отдельный квартал', 'alohida chorak', 'standalone quarter') : ''}</small></th>)}</tr></thead><tbody>{groups.map(group => <React.Fragment key={group}><tr className="fc-group"><th colSpan={columns.length+1}><button type="button" aria-expanded={!collapsed[group]} onClick={() => setCollapsed({...collapsed,[group]:!collapsed[group]})}>{collapsed[group] ? '▸' : '▾'} {t(...(GROUPS[group] || [group,group,group]))}</button></th></tr>{!collapsed[group] && rows.filter(r => financialGroup(r, view) === group).map(row => <tr key={row.id} data-metric={row.metric_id || ''}><th scope="row">{row.label}{view === 'ratios' && <RatioInfo metric={row.metric_id} label={row.label} lang={lang} meaning={row[`meaning_${lang}`] || row.meaning_ru} formula={[...new Set(Object.values(row.cells).map(cell => cell.formula).filter(Boolean))].join('\n')}/>}<small>{view === 'summary' && row.display_ref ? row.display_ref : `${row.source_form} ${row.source_code || ''}`}{row.unit === 'UZS_thousand' ? t(' · тыс.', ' · ming', ' · thous.') : row.unit === 'percent' ? ' · %' : row.unit === 'ratio' ? ' · ×' : row.unit === 'UZS_per_share' ? ' · UZS / share' : ''}</small></th>{columns.map(column => {const cell = row.cells[column.key] || {quality:'missing'};return <td key={column.key}><FinancialValue cell={cell} explainQuality={view === 'ratios'} open={part => setPassport({cell:part,row,end:column.end,standard,scope})} format={format} t={t}/></td>;})}</tr>)}</React.Fragment>)}</tbody></table></div>}
       {view === 'ratios' && data.published_ratios?.length > 0 && <PublishedRatios ratios={data.published_ratios} lang={lang} format={format} query={query} onClearSearch={() => setQuery('')}/>}
       {!data.rows?.length && data.presentation !== 'template' && fallback && <details className="fc-legacy"><summary>{t('Ранее опубликованные показатели', 'Oldin e’lon qilingan ko‘rsatkichlar', 'Previously published indicators')}</summary>{fallback}</details>}
     </>}
