@@ -1,3 +1,4 @@
+import {TECHNICAL_KEYS} from './technicalColumns.js';
 import { snapPixel } from "../../lib/geometry.js";
 import { marketDataNeeds } from "../../lib/marketDataNeeds.js";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -38,7 +39,7 @@ export function useMarketColumns({
     try {
       const s = JSON.parse(localStorage.getItem("uz_market_col_order_v2"));
       if (Array.isArray(s)) {
-        const known = new Set(["last", ...MARKET_COLS.map(([k]) => k)]);
+        const known = new Set(["last", ...MARKET_COLS.map(([k]) => k), ...TECHNICAL_KEYS]);
         const kept = s.filter(k => known.has(k));
         const missing = ["last", ...MARKET_COLS.map(([k]) => k)].filter(k => !kept.includes(k));
         return [...kept, ...missing];
@@ -57,7 +58,7 @@ export function useMarketColumns({
   const moveCol = (from, to) => {
     if (!from || from === to) return;
     setColOrder(prev => {
-      const arr = prev.filter(k => MOVABLE_KEYS.includes(k));
+      const arr = [...prev.filter(k => MOVABLE_KEYS.includes(k)), ...MOVABLE_KEYS.filter(k => !prev.includes(k))];
       const fi = arr.indexOf(from);
       const ti = arr.indexOf(to);
       if (fi < 0 || ti < 0) return prev;
@@ -85,7 +86,8 @@ export function useMarketColumns({
     if (n.has(k)) n.delete(k);else n.add(k);
     return n;
   });
-  const shownOrder = React.useMemo(() => colOrder.filter(k => (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k))), [colOrder, visibleCols, type]);
+  const availableOrder = React.useMemo(() => [...colOrder.filter(k => MOVABLE_KEYS.includes(k)), ...MOVABLE_KEYS.filter(k => !colOrder.includes(k))], [colOrder, MOVABLE_KEYS]);
+  const shownOrder = React.useMemo(() => availableOrder.filter(k => (k === "last" || visibleCols.has(k)) && !(type === "bond" && EQUITY_ONLY_COLS.has(k))), [availableOrder, visibleCols, type]);
   const pinnedOrder = React.useMemo(() => shownOrder.filter(k => pinnedCols.has(k)), [shownOrder, pinnedCols]);
   const visibleOrder = React.useMemo(() => [...pinnedOrder, ...shownOrder.filter(k => !pinnedCols.has(k))], [pinnedOrder, shownOrder, pinnedCols]);
   const colSpan = 3 + visibleOrder.length;

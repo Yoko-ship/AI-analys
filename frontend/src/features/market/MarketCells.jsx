@@ -1,3 +1,5 @@
+import {technicalCell} from './TechnicalCell.jsx';
+import {TECHNICAL_KEYS} from './technicalColumns.js';
 import { safeHref } from "../../lib/safeHref.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, finValue, marketDisplayPrice, sessionCountLabel, tradeCountLabel } from "../../shared/marketModel.jsx";
@@ -22,7 +24,8 @@ export function createMarketCells({
   mktCapOf,
   valuationOf,
   multipleOf,
-  multiplesOf
+  multiplesOf,
+  technical = {}
 }) {
   const statusText = status => multipleStatusText(status, lang);
   // An off-session deal (board T1 negotiated, NC placement): real money that never
@@ -214,6 +217,7 @@ export function createMarketCells({
     return [label, sessions, span, bound, partial].filter(Boolean).join(" · ");
   };
   const CELL_OF = {
+    ...Object.fromEntries(TECHNICAL_KEYS.map(key => [key, row => technicalCell(row, key, technical, lang)])),
     last: row => <td className="num">{(() => {
         const p = marketDisplayPrice(row);
         return p == null ? "—" : formatMarketNumber(p, lang);

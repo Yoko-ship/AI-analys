@@ -1,8 +1,10 @@
+import {technicalColumns} from './technicalColumns.js';
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
 export function marketColumns({
   lang,
-  changePeriod
+  changePeriod,
+  isAdmin = false
 }) {
   const COL_GROUPS = [{
     key: "overview",
@@ -42,6 +44,7 @@ export function marketColumns({
     title: mt(lang, "grpRatios"),
     cols: [["currentRatio", mt(lang, "currentRatio")], ["quickRatio", mt(lang, "quickRatio")], ["debtAssets", mt(lang, "debtAssets")], ["assetTurnover", mt(lang, "assetTurnover")], ["roce", "ROCE"]]
   }];
+  if (isAdmin) COL_GROUPS.push({key:"technical", title:"Technical", cols:technicalColumns(lang)});
   const MARKET_COLS = COL_GROUPS.flatMap(g => g.cols);
   const CORE_COLS = [["ticker", mt(lang, "ticker")], ["company", mt(lang, "company")], ["last", mt(lang, "last")]];
   const SORT_LABEL_OF = Object.fromEntries([...CORE_COLS, ...MARKET_COLS]);

@@ -1,3 +1,4 @@
+import {TechnicalSettings} from './TechnicalSettings.jsx';
 import { CHANGE_PERIODS, changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
 import {IndustryFilter} from './IndustryFilter.jsx';
@@ -45,6 +46,8 @@ export function MarketFilters({
   sortHintSeen,
   dismissSortHint,
   clearSort,
+  technicalFilters,
+  setTechnicalFilters,
   children
 }) {
   return <div className="market-filterbar">
@@ -125,7 +128,7 @@ export function MarketFilters({
                   <span className="market-cols-count">{shownOrder.length}</span>
                 </span>
               </button>
-              {colsOpen && <MarketColsPopover anchorRef={colsBtnRef} onClose={() => setColsOpen(false)} title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"} closeLabel={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}>
+              {colsOpen && <MarketColsPopover preferredWidth={COL_GROUPS.some(group => group.key === "technical") && (openGroups.has("technical") || colsSearch) ? 420 : 300} anchorRef={colsBtnRef} onClose={() => setColsOpen(false)} title={lang === "en" ? "Columns" : lang === "uz" ? "Ustunlar" : "Колонки"} closeLabel={lang === "en" ? "Close" : lang === "uz" ? "Yopish" : "Закрыть"}>
                   <>
                     <div className="market-cols-search">
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
@@ -178,7 +181,7 @@ export function MarketFilters({
                                     <span className={`market-cols-group-chevron${open ? " open" : ""}`}>›</span>
                                   </span>
                                 </button>
-                                {open && <div className="market-cols-group-body">
+                                {open && group.key === "technical" ? <TechnicalSettings lang={lang} cols={cols} visibleCols={visibleCols} toggleCol={toggleCol} setVisibleCols={setVisibleCols} filters={technicalFilters} setFilters={setTechnicalFilters} /> : open && <div className="market-cols-group-body">
                                     {!q && <label className="market-cols-row market-cols-all">
                                         <input type="checkbox" checked={allOn} ref={el => {
                             if (el) el.indeterminate = someOn && !allOn;

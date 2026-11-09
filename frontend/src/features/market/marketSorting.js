@@ -1,3 +1,4 @@
+import {TECHNICAL_KEYS, technicalValue} from './technicalColumns.js';
 import { avgSharePrice, avgTradeValue, compareSortValues, marketDisplayPrice } from "../../shared/marketModel.jsx";
 import { marketRowDay } from "../../lib/valuation.js";
 export function sortMarketRows({
@@ -17,9 +18,11 @@ export function sortMarketRows({
   hasFav,
   matchesIndustry,
   search,
-  sortKeys
+  sortKeys,
+  technical = {}
 }) {
   const sortAccessors = {
+    ...Object.fromEntries(TECHNICAL_KEYS.map(key => [key, row => technicalValue(technical, row.ticker, key)])),
     ticker: r => r.ticker || "",
     company: r => r.name || "",
     last: r => marketDisplayPrice(r),

@@ -123,7 +123,7 @@ function MarketFloatScroll({ wrapRef, colSignature, rowCount, loading }) {
   );
 }
 
-function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) {
+function MarketColsPopover({ anchorRef, onClose, title, closeLabel, preferredWidth = 300, children }) {
   const [pos, setPos] = useState(null);
   const [sheet, setSheet] = useState(() => window.matchMedia("(max-width: 760px)").matches);
 
@@ -148,7 +148,7 @@ function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) 
       // see rootZoom(). Measured pixels come in from the rect, CSS pixels go out.
       const { zoom, vw, vh } = zoomedViewport();
       const anchorRight = r.right / zoom, anchorBottom = r.bottom / zoom;
-      const width = Math.min(300, vw - 24);
+      const width = Math.min(preferredWidth, vw - 24);
       // Right-aligned to the button, but never off either edge of the viewport.
       const left = Math.max(12, Math.min(anchorRight - width, vw - width - 12));
       const top = Math.max(8, Math.min(anchorBottom + 8, vh - 200));
@@ -164,7 +164,7 @@ function MarketColsPopover({ anchorRef, onClose, title, closeLabel, children }) 
       window.removeEventListener("resize", schedule);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [anchorRef, sheet]);
+  }, [anchorRef, sheet, preferredWidth]);
 
   // Esc closes. On the sheet the page behind is frozen as well, so the scroll
   // gesture belongs to the sheet alone — the complaint that "scroll gets in the

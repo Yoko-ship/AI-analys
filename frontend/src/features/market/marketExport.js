@@ -1,3 +1,4 @@
+import {TECHNICAL_KEYS, TECHNICAL_PERCENT, isTechnical, technicalValue, numericBound} from './technicalColumns.js';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/marketModel.jsx";
@@ -29,7 +30,9 @@ export function createMarketExport({
   mktCapOf,
   peOf,
   pbOf,
-  multipleOf
+  multipleOf,
+  technical = {},
+  technicalFilters = {}
 }) {
   const exportCsv = () => {
     const ruLocale = lang !== "en";
@@ -88,6 +91,7 @@ export function createMarketExport({
     // column the reader left switched on. A column switched off on screen is
     // absent from the file too.
     const EXPORT_OF = {
+      ...Object.fromEntries(TECHNICAL_KEYS.map(key => [key, row => round(technicalValue(technical, row.ticker, key), key === "dayVolume" ? 0 : 2)])),
       last: row => round(marketDisplayPrice(row), 2),
       // Mirrors the cell: «нет сделок» on a 1D board is a blank, never a 0.
       change: row => changePeriod === "1d" ? row.tradedToday ? round(row.changePercent, 2) : "" : round(changeOver(row.ticker, changePeriod)?.pct, 2),
@@ -128,7 +132,7 @@ export function createMarketExport({
     };
     // The screen prints «%» inside the cell; a spreadsheet cell holds the bare number,
     // so the unit moves to the heading.
-    const PCT_COLS = new Set(["change", "change1w", "change1m", "volShare", "roe", "roa", "netMargin", "eqAssets", "debtAssets"]);
+    const PCT_COLS = new Set([...TECHNICAL_PERCENT, "change", "change1w", "change1m", "volShare", "roe", "roa", "netMargin", "eqAssets", "debtAssets"]);
     const cols = visibleOrder.filter(k => EXPORT_OF[k]);
     const ratioFields = { currentRatio: 'current_ratio', quickRatio: 'quick_ratio', debtAssets: 'debt_ratio',
       assetTurnover: 'total_asset_turnover', roce: 'return_to_capital_employed' };
@@ -141,6 +145,13 @@ export function createMarketExport({
           ratioCalculationDescription(field, calculation, lang),
         ].map(cell).join(sep));
       }
+    }
+    for (const [key, bounds] of Object.entries(technicalFilters)) {
+      const min = numericBound(bounds.min), max = numericBound(bounds.max);
+      if (min != null || max != null) lines.push(['Technical', `${LABEL_OF[key] || key}: ${min ?? '−∞'} … ${max ?? '∞'}`].map(cell).join(sep));
+    }
+    if (cols.some(isTechnical)) {
+      for (const row of visibleRows) lines.push([`${row.ticker} · Technical`, technical[row.ticker]?.as_of || '', 'Daily sessions / split-adjusted'].map(cell).join(sep));
     }
     const label = k => LABEL_OF[k] || k;
     const header = [mt(lang, "ticker"), mt(lang, "company"), ...cols.map(k => PCT_COLS.has(k) && !label(k).includes("%") ? `${label(k)}, %` : label(k))];

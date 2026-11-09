@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from company_catalog import COMPANY_SECTORS
 from datetime import date
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import Response
@@ -38,9 +38,24 @@ import server.market.dates as market_dates
 import server.market.history as market_history
 import server.market.valuations as market_valuations
 import server.settings as settings
+from server.auth.access import _require_admin_user
 
 
 router = APIRouter()
+
+
+@router.get('/api/market/technical', dependencies=[Depends(_require_admin_user)])
+async def api_market_technical(request: Request) -> Response:
+    from .technical import load
+    try:
+        payload = await asyncio.to_thread(load)
+    except Exception as exc:
+        http.logger.exception('Technical screener unavailable')
+        raise HTTPException(status_code=503, detail='Technical data unavailable') from exc
+    response = http._etag_json(request, payload, max_age=0)
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['Vary'] = 'Authorization'
+    return response
 
 
 async def _market_validation(facts=None):

@@ -5036,5 +5036,25 @@
     "dependencies": [
       "_require_admin_user"
     ]
+  },
+  {
+    "path": "/api/market/technical",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_technical",
+    "dependencies": [
+      "_require_admin_user"
+    ]
+  },
+  {
+    "path": "/api/v2/market/technical",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_market_technical__v2",
+    "dependencies": [
+      "_require_admin_user"
+    ]
   }
 ]
