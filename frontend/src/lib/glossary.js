@@ -1,3 +1,5 @@
+import {TECHNICAL_TERMS} from './technicalGlossary.js';
+
 /**
  * One glossary for the whole site (ТЗ §3.2).
  *
@@ -19,6 +21,7 @@
  */
 
 export const TERMS = {
+  ...TECHNICAL_TERMS,
   // ── Котировки и торги: the market board's own columns ─────────────────────
   ticker: {
     ru: { term: "Тикер", def: "Короткий буквенный код бумаги на бирже. Например, Hamkorbank — HMKB, его привилегированные акции — HMKBP: буква P на конце почти всегда означает преф." },

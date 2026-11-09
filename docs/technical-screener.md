@@ -7,13 +7,12 @@ administrator and return `Cache-Control: private, no-store`.
 
 “Show Technical” adds SMA20/50/200, 52W High/Low, RSI (14), session change,
 change from open, gap and volume in shares. The normal price column remains
-visible. ATR (14) and Beta are optional and off by default. Each metric and the
-price have inclusive minimum/maximum filters; empty bounds mean no restriction.
-A bounded filter excludes missing values. Filtering does not require showing
-that column. Sorting uses unrounded values with missing values last. CSV follows
-the visible columns and filtered/sorted rows, and includes the active bounds and
-individual snapshot dates. Column selections and order persist in this browser;
-filter bounds belong to the current signed-in account and view.
+visible. ATR (14) and Beta are optional and off by default. The settings only
+select columns; numeric range filters are not currently available. Hover or tap
+the information icon beside a metric to read its full term and purpose in the
+selected language. Sorting uses unrounded values with missing values last. CSV
+follows the visible columns and filtered/sorted rows, and includes individual
+snapshot dates. Column selections and order persist in this browser.
 
 The endpoint reads the latest 600 stored daily records in one batch. Ordinary
 and preferred shares keep separate histories. Bonds are excluded. Existing

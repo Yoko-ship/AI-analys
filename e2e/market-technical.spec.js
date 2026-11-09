@@ -55,7 +55,7 @@ for(const role of [null,'reader','analyst']) test(`${role||'guest'} cannot use s
   expect(requests).toEqual([]);
 });
 
-test('admin Technical columns support exact values, numeric filtering, sorting and CSV',async({page},testInfo)=>{
+test('admin Technical columns support exact values, sorting and unfiltered CSV',async({page},testInfo)=>{
   const {requests,errors}=await setup(page);
   expect(requests).toEqual([]);
   const panel=await settings(page);
@@ -74,18 +74,14 @@ test('admin Technical columns support exact values, numeric filtering, sorting a
   await expect(page.locator('.market-table tbody tr').first()).toContainText('HMKB');
   await page.locator('.market-table thead th[data-sort-key="rsi14"]').click();
   await expect(page.locator('.market-table tbody tr').first()).toContainText('SQBNP');
-  await page.locator('.market-cols-btn').click();
-  await panel.getByLabel('RSI (14): от', {exact:true}).fill('30');
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.market-table tbody tr')).toHaveCount(1);
-  await expect(page.locator('.market-table tbody tr')).toContainText('HMKB');
+  await expect(page.locator('.market-table tbody tr')).toHaveCount(2);
   await expect(page.getByTestId('technical-status')).toContainText('2026-11-06');
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/Экспорт CSV/}).click()]);
   const csv=(await(await download.createReadStream()).toArray()).join('');
   expect(csv).toContain('SMA20');
   expect(csv).toContain('RSI (14)');
   expect(csv).toContain('2026-11-06');
-  expect(csv).not.toContain('SQBNP;');
+  expect(csv).toContain('SQBNP;');
   expect(requests).toEqual(['Bearer technical-session']);
   await page.screenshot({path:testInfo.outputPath('technical-table.png')});
   expect(errors).toEqual([]);
@@ -97,13 +93,14 @@ for(const width of [390,1440]) test(`Technical settings fit ${width}px and keep 
   const panel=await settings(page);
   await panel.getByRole('button',{name:'Показать Technical',exact:true}).click();
   await panel.getByRole('checkbox',{name:'ATR (14), UZS',exact:true}).check();
-  await panel.getByLabel('SMA20, %: от',{exact:true}).fill('-5');
-  await panel.getByLabel('SMA20, %: до',{exact:true}).fill('10');
+  await expect(panel.getByRole('spinbutton')).toHaveCount(0);
+  await expect(panel.getByText(/^(от|до)$/)).toHaveCount(0);
+  await expect(panel.getByRole('button',{name:'Сбросить фильтры',exact:true})).toHaveCount(0);
   await panel.getByRole('button',{name:'Показать Technical',exact:true}).scrollIntoViewIfNeeded();
   await page.locator('.market-cols-dropdown').screenshot({path:testInfo.outputPath(`technical-settings-${width}.png`)});
   const box=await panel.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
-  if(width===1440) expect(box.width).toBeGreaterThanOrEqual(380);
+  if(width===1440) expect(box.width).toBeLessThanOrEqual(300);
   expect(box.x+box.width).toBeLessThanOrEqual(width);
   expect(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.keyboard.press('Escape');
@@ -140,4 +137,65 @@ test('Technical waits for authenticated admin and is removed on logout',async({p
   await expect(page.locator('[data-technical]')).toHaveCount(0);
   await expect(page.getByTestId('technical-status')).toHaveCount(0);
   expect(requests).toHaveLength(1);
+});
+
+for (const language of ['ru', 'uz', 'en']) test(`Technical abbreviations explain their full terms in ${language} without sorting`, async ({page}, testInfo) => {
+  await setup(page, {saved:[...technicalKeys, 'atr14', 'beta']});
+  if (language !== 'ru') {
+    const {selectLanguage} = await import('./language-control.js');
+    await selectLanguage(page, language);
+  }
+  const names = {sma20:/Simple Moving Average/i, sma50:/Simple Moving Average/i, sma200:/Simple Moving Average/i,
+    high52w:/52/, low52w:/52/, rsi14:/Relative Strength Index/i, atr14:/Average True Range/i, beta:/Beta/i,
+    dayChange:/.+/, changeOpen:/.+/, gap:/Gap/i, dayVolume:/.+/};
+  const before = await page.locator('.market-table .market-ticker-btn').allTextContents();
+  for (const [key, name] of Object.entries(names)) {
+    const marker = page.locator(`.market-table thead th[data-sort-key="${key}"] .term-info-btn`);
+    await marker.hover();
+    const tip = page.getByRole('tooltip');
+    await expect(tip.locator('.term-tooltip-term')).toHaveText(name);
+    await expect(tip.locator('.term-tooltip-def')).not.toBeEmpty();
+    if (key === 'rsi14') {
+      await expect(tip).toContainText(language === 'ru' ? 'роста и снижения' : language === 'uz' ? 'ko‘tarilish' : 'gains and losses');
+      await marker.click();
+      await expect(tip).toHaveClass(/is-pinned/);
+      await expect(tip).toBeVisible();
+      await page.screenshot({path:testInfo.outputPath(`technical-term-${language}.png`)});
+      await page.keyboard.press('Escape');
+    }
+    await page.mouse.move(0, 0);
+    await expect(tip).toHaveCount(0);
+  }
+  await expect(page.locator('.market-sort-chain')).toHaveCount(0);
+  expect(await page.locator('.market-table .market-ticker-btn').allTextContents()).toEqual(before);
+  const marker = page.locator('.market-table th[data-sort-key="sma20"] .term-info-btn');
+  await marker.focus();
+  await expect(page.getByRole('tooltip')).toContainText('Simple Moving Average');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+});
+
+test.describe('Technical definitions on touch screens', () => {
+  test.use({hasTouch:true});
+  test('settings explain optional abbreviations without changing the selection', async ({page}, testInfo) => {
+    await page.setViewportSize({width:390,height:844});
+    await setup(page);
+    const panel = await settings(page);
+    const checkbox = panel.getByRole('checkbox', {name:'ATR (14), UZS', exact:true});
+    const marker = panel.getByRole('button', {name:'ATR (14), UZS — что это значит', exact:true});
+    await marker.tap();
+    const tip = page.getByRole('tooltip');
+    await expect(tip).toContainText('Average True Range');
+    await expect(tip).toContainText('направление');
+    await expect(checkbox).not.toBeChecked();
+    const box = await tip.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await page.screenshot({path:testInfo.outputPath('technical-term-touch.png')});
+    await page.keyboard.press('Escape');
+    await expect(tip).toHaveCount(0);
+    await expect(panel).toBeVisible();
+    await expect(checkbox).not.toBeChecked();
+    await expect(panel.getByRole('spinbutton')).toHaveCount(0);
+  });
 });

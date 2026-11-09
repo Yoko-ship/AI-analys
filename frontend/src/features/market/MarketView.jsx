@@ -1,8 +1,6 @@
 import {useMarketTechnical} from './useMarketTechnical.js';
-import {hasTechnicalFilters, isTechnical, matchesTechnicalFilters, technicalValue} from './technicalColumns.js';
+import {isTechnical} from './technicalColumns.js';
 import {TechnicalStatus} from './TechnicalSettings.jsx';
-import {marketDisplayPrice} from '../../shared/marketModel.jsx';
-const EMPTY_TECHNICAL_FILTERS = {};
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CHANGE_PERIODS, CHANGE_PERIOD_KEY, changePeriodLabel } from "../../shared/marketPeriods.jsx";
@@ -78,11 +76,6 @@ function MarketView({
     } catch (e) {/* ignore */}
   }, [changePeriod]);
   const technicalEnabled = isAdmin && type !== 'bond' && viewMode === 'table';
-  const [technicalFilterState, setTechnicalFilterState] = useState({});
-  const technicalFilters = technicalEnabled && technicalFilterState.owner === accountKey ? technicalFilterState.values : EMPTY_TECHNICAL_FILTERS;
-  const setTechnicalFilters = next => setTechnicalFilterState(previous => ({owner:accountKey,
-    values:typeof next === 'function' ? next(previous.owner === accountKey ? previous.values : {}) : next}));
-  const technicalFiltered = hasTechnicalFilters(technicalFilters);
   const [inactiveOnly, setInactiveOnly] = useState(false);
   const {
     COL_GROUPS,
@@ -165,9 +158,8 @@ function MarketView({
     coarsePointer
   } = useMarketSorting();
   const sortKeys = useMemo(() => storedSortKeys.filter(({key}) => Object.hasOwn(SORT_LABEL_OF, key)), [storedSortKeys, SORT_LABEL_OF]);
-  const technicalNeeded = [...visibleCols].some(isTechnical) || technicalFiltered || sortKeys.some(({key}) => isTechnical(key));
+  const technicalNeeded = [...visibleCols].some(isTechnical) || sortKeys.some(({key}) => isTechnical(key));
   const technical = useMarketTechnical({enabled:technicalEnabled, needed:technicalNeeded, accountKey, apiFetch, loadVersion});
-  const technicalOf = useCallback((row, key) => key === 'last' ? marketDisplayPrice(row) : technicalValue(technical.data, row.ticker, key), [technical.data]);
   const {
     panelTicker,
     setPanelTicker,
@@ -273,14 +265,14 @@ function MarketView({
     pbOf,
     multipleOf,
     ratioOf,
-    prepared: prepared.filter(row => matchesDirection(row.changePercent, direction) && matchesTechnicalFilters(row, technicalFilters, technicalOf)),
+    prepared: prepared.filter(row => matchesDirection(row.changePercent, direction)),
     technical:technical.data,
     favOnly,
     hasFav,
     matchesIndustry,
     search,
     sortKeys
-  }), [changePeriod, changeOver, parOf, priceToPar, annualisedFin, finOf, mktCapOf, peOf, pbOf, multipleOf, ratioOf, prepared, direction, favOnly, hasFav, matchesIndustry, search, sortKeys, technicalFilters, technicalOf, technical.data]);
+  }), [changePeriod, changeOver, parOf, priceToPar, annualisedFin, finOf, mktCapOf, peOf, pbOf, multipleOf, ratioOf, prepared, direction, favOnly, hasFav, matchesIndustry, search, sortKeys, technical.data]);
   const {
     exportCsv
   } = createMarketExport({
@@ -308,8 +300,7 @@ function MarketView({
     peOf,
     pbOf,
     multipleOf,
-    technical:technical.data,
-    technicalFilters
+    technical:technical.data
   });
   const { startExport, exporting, exportError } = useMarketExport({ type, prepareExport:() => technicalEnabled && technicalNeeded && technical.status !== 'ready' ? Promise.reject(new Error('Technical data unavailable')) : prepareExport(), exportCsv });
   const {
@@ -340,7 +331,7 @@ function MarketView({
   const formatLeader = row => row ? `${row.ticker} ${formatRatio(row.changePercent, 2, lang)}%` : "—";
   const resetFilters = () => {
     setMarketSector(null); onQueryChange(''); onTypeChange('stock'); setDirection('all');
-    setFavOnly(false); setInactiveOnly(false); setSortKeys([]); setTechnicalFilters({});
+    setFavOnly(false); setInactiveOnly(false); setSortKeys([]);
   };
   return <section className={`market-layout${viewMode === "heatmap" ? " is-heatmap" : ""}`}>
       <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} compact={viewMode === "heatmap"} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
@@ -424,8 +415,6 @@ function MarketView({
           sortHintSeen={sortHintSeen}
           dismissSortHint={dismissSortHint}
           clearSort={clearSort}
-          technicalFilters={technicalFilters}
-          setTechnicalFilters={setTechnicalFilters}
         >
 
         {/* ТЗ Дополнение 1 §А.2: bonds get their own table, not a row in the
@@ -436,15 +425,15 @@ function MarketView({
           onApply={saved => {
             setMarketSector(saved.sector || null); onQueryChange(saved.query); onTypeChange(saved.type);
             setChangePeriod(saved.period); setDirection(saved.direction); setFavOnly(saved.favoriteOnly);
-            setSortKeys(saved.sortKeys); setInactiveOnly(false); setTechnicalFilters({});
+            setSortKeys(saved.sortKeys); setInactiveOnly(false);
           }}
         />}
         </MarketFilters>
-        {technicalEnabled && technicalNeeded && <TechnicalStatus lang={lang} status={technical.status} asOf={technical.asOf} retry={technical.retry} filtered={technicalFiltered} clear={() => setTechnicalFilters({})} />}
+        {technicalEnabled && technicalNeeded && <TechnicalStatus lang={lang} status={technical.status} asOf={technical.asOf} retry={technical.retry} />}
         <MarketTable
           isAdmin={isAdmin}
           onResetFilters={resetFilters}
-          filtered={Boolean(technicalFiltered || query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}
+          filtered={Boolean(query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}
           stats={stats}
           windowed={windowed}
           viewMode={viewMode}

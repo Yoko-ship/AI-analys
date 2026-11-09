@@ -1,4 +1,4 @@
-import {TECHNICAL_KEYS, TECHNICAL_PERCENT, isTechnical, technicalValue, numericBound} from './technicalColumns.js';
+import {TECHNICAL_KEYS, TECHNICAL_PERCENT, isTechnical, technicalValue} from './technicalColumns.js';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/marketModel.jsx";
@@ -31,8 +31,7 @@ export function createMarketExport({
   peOf,
   pbOf,
   multipleOf,
-  technical = {},
-  technicalFilters = {}
+  technical = {}
 }) {
   const exportCsv = () => {
     const ruLocale = lang !== "en";
@@ -145,10 +144,6 @@ export function createMarketExport({
           ratioCalculationDescription(field, calculation, lang),
         ].map(cell).join(sep));
       }
-    }
-    for (const [key, bounds] of Object.entries(technicalFilters)) {
-      const min = numericBound(bounds.min), max = numericBound(bounds.max);
-      if (min != null || max != null) lines.push(['Technical', `${LABEL_OF[key] || key}: ${min ?? '−∞'} … ${max ?? '∞'}`].map(cell).join(sep));
     }
     if (cols.some(isTechnical)) {
       for (const row of visibleRows) lines.push([`${row.ticker} · Technical`, technical[row.ticker]?.as_of || '', 'Daily sessions / split-adjusted'].map(cell).join(sep));
