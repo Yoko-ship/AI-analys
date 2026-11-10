@@ -7,6 +7,7 @@ import { TermInfo } from "../../shared/TermInfo.jsx";
 import { MarketColsPopover } from "./TableOverlays.jsx";
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 export function MarketFilters({
+  isAdmin = false,
   lang,
   type,
   onTypeChange,
@@ -234,7 +235,7 @@ export function MarketFilters({
         <span className="market-period-label">
           {lang === "en" ? "Change over" : lang === "uz" ? "O'zgarish davri" : "Изменение за"}
         </span>
-        {viewMode === 'heatmap' ? <HeatmapPerformanceFilter lang={lang} value={changePeriod} onChange={setChangePeriod} /> :
+        {isAdmin && viewMode === 'heatmap' ? <HeatmapPerformanceFilter lang={lang} value={changePeriod} onChange={setChangePeriod} /> :
         <div className="segmented-control market-period-control" role="group" aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
           {CHANGE_PERIODS.map(p => <button
             key={p.code}

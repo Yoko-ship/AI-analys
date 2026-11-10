@@ -536,7 +536,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
           </div>
         )}
         {tab === "overview" && (
-          <CompanyOverviewTab sec={sec} ticker={ticker} priceHistory={priceHistory} priceLoading={priceLoading}
+          <CompanyOverviewTab isAdmin={isAdmin} sec={sec} ticker={ticker} priceHistory={priceHistory} priceLoading={priceLoading}
             priceAdjustments={priceAdjustments} priceAsOf={priceAsOf} intraday={intraday}
             compare={{
               peers: comparePeers, securitiesMap, selected: compareTickers,
@@ -593,7 +593,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               <strong>{lang === "ru" ? "Административная проверка" : lang === "uz" ? "Ma'muriy tekshiruv" : "Administrative review"}: {qualityIssue}</strong>
               <span className="muted" style={{ marginLeft: 8 }}>{[qualityPeriod, qualityField].filter(Boolean).join(" · ")}</span>
             </div>}
-            <IssuerFinancials ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
+            <IssuerFinancials isAdmin={isAdmin} ticker={ticker} ratios={companyData?.ratios || {}} lang={lang}
               companies={marketRows} onTickerChange={next=>{const url=new URL(window.location.href);url.pathname=url.pathname.replace(/\/company\/[^/]+/,`/company/${encodeURIComponent(next)}`);url.search='?tab=financials&standard=MSFO';window.location.assign(url.href);}}
               standard={finStandard} onStandardChange={setFinStandard}
               freq={finFreq} onFreqChange={setFinFreq} />

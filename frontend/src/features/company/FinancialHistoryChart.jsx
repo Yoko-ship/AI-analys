@@ -17,7 +17,7 @@ const unitOf = row => row.unit === '%' ? 'percent' : row.unit || 'UZS_thousand';
 const unitLabel = (unit, t) => unit === 'percent' ? '%' : unit === 'ratio' ? '×' :
   unit === 'UZS_per_share' ? 'UZS / share' : unit === 'UZS_thousand' ? t('тыс. UZS', 'ming UZS', 'thousands UZS') : unit;
 
-function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t }) {
+function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t, title }) {
   const host=React.useRef(null),gesture=React.useRef(null);
   const [width,setWidth]=React.useState(800),[offset,setOffset]=React.useState(0),[inspected,setInspected]=React.useState(null);
   React.useLayoutEffect(()=>{
@@ -54,6 +54,7 @@ function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t }) {
     host.current.querySelectorAll('[data-period-hit]')[bounded]?.focus();
   };
   return <div className="fc-chart-plot" ref={host}>
+    {title && <h3 className="fc-balance-title">{title}</h3>}
     <div className="fc-chart-navigation">
       <div><strong className="fc-chart-range">{visible[0]?.label} — {visible.at(-1)?.label}</strong><span className="fc-chart-unit">{axisUnit}</span></div>
       <div className="fc-chart-paging">
@@ -63,7 +64,7 @@ function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t }) {
       </div>
     </div>
     <div className="fc-chart-scroll" role="region" aria-label={t('История показателей','Ko‘rsatkichlar tarixi','Metric history')}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t('Финансовая история','Moliyaviy tarix','Financial history')}
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={title || t('Финансовая история','Moliyaviy tarix','Financial history')}
         data-period-count={visible.length} data-scale-min={scale.min} data-scale-max={scale.max}
         onPointerMove={event=>{if(event.pointerType==='mouse')inspectAt(event);}}
         onPointerDown={event=>{gesture.current=event.clientX;inspectAt(event);}}
@@ -101,6 +102,34 @@ function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t }) {
   </div>;
 }
 
+export function BalanceHistoryCharts({ rows, columns, format, t }) {
+  const definitions = [
+    ['total_assets', t('Всего активов', 'Jami aktivlar', 'Total assets')],
+    ['total_liabilities', t('Всего обязательств', 'Jami majburiyatlar', 'Total liabilities')],
+    ['total_equity', t('Всего капитала', 'Jami kapital', 'Total equity')],
+  ];
+  // Published totals come from the original rows, even when the compact overview omits them.
+  // Never reconstruct a missing total by adding potentially overlapping statement lines.
+  const published = definitions.map(([metric]) => rows.find(row => row.metric_id === metric && row.kind === 'stock'));
+  const fallbackUnit = published.find(Boolean)?.unit || 'UZS_thousand';
+  const totals = definitions.map(([metric, label], index) => ({
+    id: metric, cells: {}, unit: fallbackUnit, ...published[index], label,
+  }));
+  const colors = new Map(totals.map((row, index) => [row.id, COLORS[index]]));
+  const panels = [
+    { id: 'assets', title: t('Активы', 'Aktivlar', 'Assets'), rows: totals.slice(0, 1) },
+    { id: 'funding', title: t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity'), rows: totals.slice(1) },
+  ];
+  return <section className="fc-balance-history fc-chart-visuals">
+    <p className="fc-balance-caption">{t('Баланс на конец каждого отчётного периода', 'Har bir hisobot davri oxiridagi balans', 'Balance at the end of each reporting period')}</p>
+    <div className="fc-balance-panels">{panels.map(panel => <div key={panel.id} data-balance-chart={panel.id}>
+      {[...new Set(panel.rows.map(unitOf))].map(unit => <HistoryBars key={unit} title={panel.title}
+        rows={panel.rows.filter(row => unitOf(row) === unit)} columns={columns} colors={colors}
+        rawUnit={unit} unit={unitLabel(unit, t)} format={format} t={t}/>) }
+    </div>)}</div>
+  </section>;
+}
+
 export function FinancialHistoryChart({ rows, columns, view, groupLabel, format, lang, t }) {
   const [hiddenChoice, setHidden] = React.useState(null);
   const [grouped, setGrouped] = React.useState(true);
@@ -127,7 +156,7 @@ export function FinancialHistoryChart({ rows, columns, view, groupLabel, format,
     return next;
   });
   const units = [...new Set(selected.map(unitOf))];
-  return <section className="fc-chart">
+  return <section className="fc-chart fc-chart-visuals">
     {available.length === 0 ? <p className="fc-empty">{t('Нет проверенных значений для графика.', 'Grafik uchun tekshirilgan qiymatlar yo‘q.', 'No verified values to chart.')}</p> : <>
       {units.map(unit => <HistoryBars key={unit} rows={selected.filter(row => unitOf(row) === unit)} columns={columns} colors={colors.current}
         rawUnit={unit} unit={unitLabel(unit, t)} format={format} lang={lang} t={t}/>) }

@@ -58,7 +58,7 @@ function sessionsWord(n, lang) {
   return "сессий";
 }
 
-function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, dividends, lastPrice, securityType, lang, placement = "rail" }) {
+function CompanyKeyStats({ isAdmin = false, row, sec, metrics12, metricsWindow, range, mult, dividends, lastPrice, securityType, lang, placement = "rail" }) {
   const t = (ru, uz, en) => (lang === "uz" ? uz : lang === "en" ? en : ru);
   const num = (v) => (Number.isFinite(v) ? formatMarketNumber(v, lang) : null);
   const compact = (v) => (Number.isFinite(v) ? formatCompactVolume(v, lang) : null);
@@ -301,7 +301,7 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   putMultiple("P/B", mult?.pb, 2, "×", mult?.pb?.base_period || mult?.balance_period || undefined);
   putMultiple("P/S", mult?.ps, 2, "×", mult?.ps?.base_period || mult?.base_period || undefined);
   putMultiple("BVPS", mult?.bvps, 2, "", mult?.bvps?.base_period || mult?.balance_period || undefined);
-  pushBlock("valuation", t("Мультипликатор", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
+  pushBlock("valuation", t(isAdmin ? "Мультипликатор" : "Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
 
   // --- Profitability -------------------------------------------------------
   // Долг/Капитал ушёл из витрины по ТЗ мультипликаторов (лист 06); его место

@@ -65,8 +65,9 @@ test('company menu entries stay removed before and after admin verification and 
     await expect(page.locator('.topbar-nav').getByRole('button',{name,exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Close menu',exact:true}).click();
   await page.locator('.account-button').click();
-  await page.getByRole('menuitem',{name:'Log out',exact:true}).click();
-  await expect(page.locator('.account-button')).toHaveCount(0);
+  await page.getByRole('button',{name:'Log out',exact:true}).click();
+  await expect(page.locator('.account-avatar-guest')).toBeVisible();
+  await expect(page.getByRole('banner').getByRole('button',{name:'Sign in',exact:true})).toBeVisible();
   for(const name of ['Company directory','Compare companies'])
     await expect(page.locator('.nav-dd-mobile-item').filter({hasText:name})).toHaveCount(0);
 });
@@ -119,7 +120,7 @@ test('an admin bookmark waits for verified access, survives reload, and closes o
   await page.screenshot({ path: testInfo.outputPath('catalog-admin-mobile.png'), fullPage: true, animations: 'disabled' });
   await page.getByRole('button', { name: 'Close menu', exact: true }).click();
   await page.locator('.account-button').click();
-  await page.getByRole('menuitem', { name: 'Log out', exact: true }).click();
+  await page.getByRole('button', { name: 'Log out', exact: true }).click();
   await expect(page.locator('.nav-catalog-wrap')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Hamkorbank', exact: true })).toHaveCount(0);
   await page.goBack();

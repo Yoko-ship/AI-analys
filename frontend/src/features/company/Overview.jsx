@@ -9,7 +9,7 @@ import { sectorLabel } from "../../shared/marketCopy.jsx";
 import React from "react";
 import { companyReportPresentation, reportFormLabel } from "../../lib/reportPresentation.js";
 
-function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdjustments, priceAsOf, intraday, priceRange, onRangeChange, lang, infoLoading, registryData, registryLoading, registryError, onRegistryRetry, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
+function CompanyOverviewTab({ isAdmin = false, sec, ticker, priceHistory, priceLoading, priceAdjustments, priceAsOf, intraday, priceRange, onRangeChange, lang, infoLoading, registryData, registryLoading, registryError, onRegistryRetry, securityType, isPreferred, industry, marketRow, priceMetrics, metrics12, mult, dividends, lastPrice, watchRail, compare, onExpandChart }) {
   const nominalVal = safeNumber(marketRow?.nominal) || null;
 
   return (
@@ -74,11 +74,11 @@ function CompanyOverviewTab({ sec, ticker, priceHistory, priceLoading, priceAdju
             below the main column rather than level with it. That is the trade
             the customer chose: subject over balance. */}
         <div className="company-overview-sidebar">
-          <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+          <CompanyKeyStats isAdmin={isAdmin} row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
             metricsWindow={priceMetrics} range={priceRange}
             dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
             placement="rail" />
-          <CompanyKeyStats row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
+          <CompanyKeyStats isAdmin={isAdmin} row={marketRow} sec={sec} metrics12={metrics12} mult={mult}
             dividends={dividends} lastPrice={lastPrice} securityType={securityType} lang={lang}
             placement="lower" />
           <div className="co-sidebar-block">

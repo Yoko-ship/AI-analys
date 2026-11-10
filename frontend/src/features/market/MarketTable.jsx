@@ -58,6 +58,7 @@ export function MarketTable({
     rowActions.current = {onOpenCompany, onAnalyze, onToggleFavorite, openPanel};
   }, [onOpenCompany, onAnalyze, onToggleFavorite, openPanel]);
   return <CompanyPreviewProvider enabled={isAdmin} lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
+    isAdmin={isAdmin}
     rows={sectorMapRows}
     emptyFiltered={filtered && rows.length > 0}
     onResetFilters={onResetFilters}

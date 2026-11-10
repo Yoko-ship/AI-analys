@@ -375,6 +375,7 @@ function MarketView({
             it can stick under the topbar as a unit. Scrolling to row 300 must not
             cost the reader the controls that put those rows on screen. */}
         <MarketFilters
+          isAdmin={isAdmin}
           lang={lang}
           type={type}
           onTypeChange={onTypeChange}

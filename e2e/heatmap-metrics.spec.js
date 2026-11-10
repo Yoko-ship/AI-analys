@@ -26,10 +26,11 @@ const changes = Object.fromEntries(all.filter((r) => r.volume).map((r) => [r.tic
   } },
 }]));
 
-async function openMap(page, type = "stock", path = "/heatmap", selectTicker = true) {
+async function openMap(page, type = "stock", path = "/heatmap", selectTicker = true, user = null) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
+  if (user) await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_token", "role-test"));
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -39,7 +40,7 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
     if (url.pathname === "/api/market/stocks") return json({ stocks: url.searchParams.get("type") === "bond" ? bonds : stocks });
     if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: tradeStats });
     if (url.pathname === "/api/market/changes") return json({ ok: true, changes });
-    if (url.pathname === "/api/auth/me") return json({ user: null }, 401);
+    if (url.pathname === "/api/auth/me") return json({ user }, user ? 200 : 401);
     return json({ ok: true });
   });
   await page.goto(path);
@@ -51,13 +52,19 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
 async function chooseMapPeriod(page, code) {
-  await page.locator('.heatmap-performance-trigger').click();
-  await page.locator(`.heatmap-performance-menu button[data-period="${code}"]`).click();
+  const trigger=page.locator('.heatmap-performance-trigger');
+  if(await trigger.count()) {
+    await trigger.click();
+    await page.locator(`.heatmap-performance-menu button[data-period="${code}"]`).click();
+  } else {
+    const codes=['1d','1w','1m','3m','6m','1y','ytd'];
+    await page.locator('.market-filterbar .market-period-control').getByRole('button').nth(codes.indexOf(code)).click();
+  }
 }
 
 for (const width of [1280, 390]) test(`searchable heatmap performance periods at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 844});
-  const errors = await openMap(page);
+  const errors = await openMap(page, "stock", "/heatmap", true, {id:1,admin_role:"administrator"});
   const trigger = page.locator('.heatmap-performance-trigger');
   await expect(trigger).toContainText('За сессию');
   await trigger.click();
@@ -191,7 +198,7 @@ for (const type of ["stock", "bond"]) {
   for (const width of [1280, 390]) {
     test(`${type} map exposes all six trading metrics at ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 900 });
-      const errors = await openMap(page, type);
+      const errors = await openMap(page, type, "/heatmap", true, {id:1,is_admin:true});
       const ticker = type === "bond" ? "BOND1" : "AGBA";
       const expected = type === "bond"
         ? ["8 000 000 UZS", "80 шт", "100 000 UZS", "4 000 000 UZS", "4 000 000 UZS", "40%"]
@@ -310,7 +317,7 @@ test('area selector and legend describe the same measure',async({page})=>{
 });
 
 test('heatmap hover keeps missing quotes empty and follows the selected period', async ({page}) => {
-  await openMap(page);
+  await openMap(page, 'stock', '/heatmap', true, {id:1,is_admin:true});
   await page.getByLabel('Площадь плитки').selectOption('equal');
   await page.locator('.heatmap-tree-tile[data-ticker="EMPTY"]').hover();
   const card = page.locator('.heatmap-preview');

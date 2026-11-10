@@ -3,14 +3,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import {expectFullWidth} from './helpers/full-width.js';
 
-async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}]) {
+async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}], user = {id:1,is_admin:true,email:"admin@example.test"}, start = "/catalog?f=CF") {
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
   let preferences = {};
   const rows = companies.map((c,i)=>({...c,name:c.company_name,kind:i?"industry":"bank",standard:"NSBU",scope:"separate",period:"2025",roe:i?8:20,pb:1,pe:8,de:i?2:null,cg5:10,dy:12,issues:[]}));
   await page.route("**/api/**", route => {
     const u = new URL(route.request().url());
     const json = body => route.fulfill({contentType:"application/json",body:JSON.stringify(body)});
-    if(u.pathname==="/api/auth/me") return json({user:{id:1,is_admin:true,email:'admin@example.test'}});
+    if(u.pathname==="/api/auth/me") return json({user});
     if(u.pathname==="/api/profile") return json({preferences});
     if(u.pathname==="/api/profile/preferences") { preferences = route.request().postDataJSON(); return json({ok:true,preferences}); }
     if(u.pathname==="/api/catalog/companies") return json({ok:true,companies});
@@ -26,8 +26,8 @@ async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агро�
   });
   // Tests install their screen-specific responses after this shared setup.
   // Start on filings so SUM cannot cache placeholder analytics/history first.
-  await page.goto("/catalog?f=CF");
-  await expect(page.getByRole("heading",{name:companies[0].company_name,exact:true})).toBeVisible();
+  await page.goto(start);
+  if (start.startsWith("/catalog")) await expect(page.getByRole("heading",{name:companies[0].company_name,exact:true})).toBeVisible();
 }
 async function run(page, text) {
   await page.locator('.terminal-command').getByRole("combobox").fill(text);
@@ -771,4 +771,27 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep 
   await expect(sector.locator('dt')).toHaveText(['Достаточность капитала','ROE']);
   await expect(sector.locator('dd')).toHaveText(['0%','—']);
   await expect(sector.getByRole('link')).toHaveCount(0);
+});
+
+for (const [role,user,admin] of [['guest',null,false],['member',{id:2},false],['pro',{id:3,pro_access:true},false],['admin',{id:1,is_admin:true},true],['administrator',{id:1,admin_role:'administrator'},true]]) test(`company presentation changes are admin-only: ${role}`,async({page})=>{
+  await fixture(page,undefined,user,"/market");
+  await page.route("**/api/market/multiples?**",route=>route.fulfill({json:{ok:true,items:[{ticker:"AGBA",pe:{value:8,status:"ok",base_period:"2025"}}]}}));
+  await page.route('**/api/currency/rates?as_of=*',route=>{
+    const day=new URL(route.request().url()).searchParams.get('as_of');
+    return route.fulfill({json:{ok:true,as_of:day,rates:[{ccy:'USD',per_unit:10000,effective_date:day}]}});
+  });
+  await page.goto('/company/AGBA');
+  await expect.soft(page.getByRole('heading',{name:admin?'Мультипликатор':'Оценка',exact:true})).toBeVisible();
+  await expect.soft(page.getByRole('heading',{name:admin?'Оценка':'Мультипликатор',exact:true})).toHaveCount(0);
+  await page.goto('/company/AGBA?tab=financials');
+  await page.getByLabel('Валюта').selectOption('USD');
+  const rates=page.locator('.terminal-fx-rates');
+  if(admin){
+    await expect(rates).toContainText('Пересчёт в USD');
+    await expect(rates.locator('a')).toHaveCount(0);
+  } else {
+    await expect(rates.locator('summary')).toHaveText('Курсы ЦБ на конец каждого периода');
+    await expect(rates.getByRole('link',{name:'CBU',exact:true})).toHaveCount(2);
+    await expect(rates).not.toContainText('Пересчёт в USD');
+  }
 });

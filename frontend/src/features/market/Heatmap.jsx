@@ -120,7 +120,7 @@ function squarifyTreemap(items, x, y, width, height) {
   return output;
 }
 
-function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement", emptyFiltered = false, onResetFilters }) {
+function MarketHeatmap({ isAdmin = false, rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement", emptyFiltered = false, onResetFilters }) {
   // Which question the map is drawing. Over a window every cell's colour is the
   // change over it and its bottom meter is the turnover over it — the caller
   // has already restated the rows (see `mapRows`), so the board arithmetic
@@ -165,7 +165,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
 
-  useEffect(() => { closePreview(); }, [period, type, areaMode, minTurnover, changeFilter, closePreview]);
+  useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, changeFilter, closePreview]);
 
   useEffect(() => {
     const element = treeElement;
@@ -400,7 +400,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 
       <label className="heatmap-area-control">{lang==='en'?'Tile area':lang==='uz'?'Katak maydoni':'Площадь плитки'} <select value={areaMode} onChange={e=>setAreaMode(e.target.value)}>{[['movement',mapCopy.movement],['turnover',mapCopy.turnover],['capitalization',lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'],['equal',lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки']].map(([key,title])=><option key={key} value={key}>{title}</option>)}</select></label>
       <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}>
-        {hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"
+        {isAdmin && hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"
           style={{left: hoverGroup.x, top: hoverGroup.y, width: hoverGroup.w, height: hoverGroup.h}} />}
         {sectorLayout.map((sector) => {
           const sectorRows = sector.stocks.map((stock) => stock.row);
@@ -477,9 +477,16 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     aria-label={[row.ticker, companyName, marketIndustryLabel(lang, sector.sector),
                       industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
                       status === 'ok' ? formatPct(row.changePercent) : mapCopy.noData].filter(Boolean).join(', ')}
-                    aria-haspopup="dialog"
-                    aria-expanded={active}
-                    aria-controls={active ? preview.id : undefined}
+                    title={isAdmin ? undefined : [marketIndustryLabel(lang, sector.sector),
+                      industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
+                      ...selectedMetrics.map(({key, label}) => [
+                        `${label}: ${formatMapMetric(key, values[key], lang)}`,
+                        windowed ? mapMetricCoverage(row, key, lang) : '',
+                      ].filter(Boolean).join(' · ')),
+                    ].filter(Boolean).join('\n')}
+                    aria-haspopup={isAdmin ? 'dialog' : undefined}
+                    aria-expanded={isAdmin ? active : undefined}
+                    aria-controls={isAdmin && active ? preview.id : undefined}
                     data-ticker={row.ticker}
                     data-sector={sector.sector}
                     data-group={industryOf(row.ticker)?.group || ''}
@@ -489,7 +496,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     onFocus={event => preview.show(event, row, true)}
                     onBlur={event => { if (!preview.panel.current?.contains(event.relatedTarget)) preview.leave(); }}
                     onKeyDown={event => {
-                      if (active && (event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey))) {
+                      if (isAdmin && active && (event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey))) {
                         event.preventDefault();
                         preview.panel.current?.querySelector('button')?.focus();
                       }
@@ -519,7 +526,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         })}
       </div>
 
-      {hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
+      {isAdmin && hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
         industry={[marketIndustryLabel(lang, hoverSector.sector), hoverGroup.id && marketIndustryLabel(lang, `group:${hoverGroup.id}`)].filter(Boolean).join(' · ')}
         name={hoverRow.name || companyMap[hoverRow.ticker]?.company_name || hoverRow.ticker}
         security={securitiesMap?.[hoverRow.ticker]} lang={lang} period={period} type={type}

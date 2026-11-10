@@ -4,13 +4,14 @@ import {openIndustryChooser, chooseIndustry} from './industry-control.js';
 
 const tickers = ['IPTB', 'IPTBP', 'UZNF', 'DORI', 'CBSK', 'PLST', 'PLSTP', 'UZGF', 'UZGFP', 'ORGS', 'UVGT', 'MIQE', 'BNGP', 'BNGPP', 'NEW'];
 const preferred = new Set(['IPTBP', 'PLSTP', 'UZGFP', 'BNGPP']);
-async function openMarket(page, url = '/market') {
+async function openMarket(page, url = '/market', user = null) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
     sessionStorage.setItem('uz_sponsor_seen', '1');
     localStorage.setItem('uz_stock_analyzer_theme', 'light');
   });
+  if (user) await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'role-test'));
   await page.route('**/api/**', route => {
     const url = new URL(route.request().url());
     let data = {ok: true};
@@ -21,7 +22,7 @@ async function openMarket(page, url = '/market') {
     }]))};
     if (url.pathname === '/api/market/stocks') data = {stocks: tickers.map(ticker => ({ticker, name: `${ticker} issuer`, type: 'stock', isin: `UZ-${ticker}`,
       last_price: 110, close_price: 100, volume: 1e6, quantity: 100, trade_count: 2, last_trade_date: '2026-11-06'}))};
-    if (url.pathname === '/api/auth/me') return route.fulfill({status: 401, json: {user: null}});
+    if (url.pathname === '/api/auth/me') return route.fulfill({status: user ? 200 : 401, json: {user}});
     if (url.pathname.startsWith('/api/price-history/')) data = {ok: true, points: [
       {date: '2026-11-04', close: 100}, {date: '2026-11-05', close: 105}, {date: '2026-11-06', close: 110},
     ]};
@@ -34,7 +35,7 @@ const tiles = page => page.locator('.heatmap-tree-tile');
 
 for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
-  const errors = await openMarket(page, '/heatmap');
+  const errors = await openMarket(page, '/heatmap', {id:1,is_admin:true});
   await page.getByLabel('Площадь плитки').selectOption('equal');
   const tile = page.locator('.heatmap-tree-tile[data-ticker="IPTB"]');
   await tile.hover();
@@ -166,3 +167,22 @@ for (const width of [1440, 390]) test(`market classifications filter table, map 
   await expect(menu.locator('button[data-value="group:banks"]')).toContainText('Banklar');
   expect(errors).toEqual([]);
 });
+
+for (const [role, user] of [['guest',null], ['member',{id:2}], ['pro',{id:3,pro_access:true}], ['moderator',{id:4,admin_role:'moderator'}]]) {
+  test(`new heatmap features are admin-only: ${role}`, async ({page}) => {
+    const previewRequests=[];
+    page.on('request',request=>{if(/\/api\/(price-history|news\/ticker)\//.test(request.url()))previewRequests.push(request.url());});
+    await openMarket(page, '/heatmap', user);
+    await expect(page.locator('.heatmap-performance-trigger')).toHaveCount(0);
+    await expect(page.getByRole('group',{name:'Период изменения',exact:true})).toBeVisible();
+    const tile=tiles(page).first();
+    await tile.hover();
+    await tile.focus();
+    await expect(tile).not.toHaveAttribute('aria-haspopup','dialog');
+    await expect(tile).toHaveAttribute('title', /.+/);
+    await expect(page.locator('.heatmap-preview, .heatmap-group-highlight')).toHaveCount(0);
+    expect(previewRequests).toEqual([]);
+    await page.getByRole('group',{name:'Период изменения',exact:true}).getByRole('button',{name:'1М',exact:true}).click();
+    await expect(page.locator('.heatmap-performance-trigger')).toHaveCount(0);
+  });
+}

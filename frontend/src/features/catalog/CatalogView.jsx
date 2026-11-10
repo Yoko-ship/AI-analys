@@ -488,7 +488,7 @@ const CatalogFinancials = React.memo(function CatalogFinancials({ticker, lang, f
         onLoad={load => reportScreenLoad({ticker, func, form, ...load})}
         fallback={FINANCIAL_SECTIONS[func] && <>
           <StatementOverview ticker={ticker} form={form} scope={scope} lang={lang} section={FINANCIAL_SECTIONS[func]} fromYear={fromYear}/>
-          <IssuerFinancials ticker={ticker} lang={lang} showContextControls={false} standard={form} onStandardChange={onForm}
+          <IssuerFinancials isAdmin={Boolean(user?.is_admin || user?.admin_role === "administrator")} ticker={ticker} lang={lang} showContextControls={false} standard={form} onStandardChange={onForm}
             scope={scope} onScopeChange={onScope} section={FINANCIAL_SECTIONS[func]} fromYear={fromYear}
             onSectionChange={key => SECTION_FUNCTIONS[key] && go({func:SECTION_FUNCTIONS[key]})}
             onLoad={load => reportScreenLoad({ticker, func, form, ...load})}/>
