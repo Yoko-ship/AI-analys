@@ -271,6 +271,16 @@ export const TERMS = {
     en: { term: "P/B (price to book)", def: "Market capitalisation over shareholders' equity. A P/B under 1 means the market values the company below the equity on its own balance sheet." },
     uz: { term: "P/B (narx / balans qiymati)", def: "Kapitalizatsiyaning o‘z kapitaliga nisbati. P/B 1 dan kichik bo‘lsa, bozor kompaniyani balansdagi kapitalidan arzonroq baholayapti." },
   },
+  ps: {
+    ru: { term: "P/S (Price to Sales)", def: "Капитализация эмитента, делённая на выручку за 12 месяцев. Показывает, во сколько раз рынок оценивает компанию относительно её годовой выручки: P/S = 2 означает две годовые выручки, а не две годовые прибыли. Период и оценочный расчёт отмечены в ячейке. Для банков и инвестиционных фондов без сопоставимой выручки от продаж показатель не применяется." },
+    en: { term: "P/S (price to sales)", def: "Issuer market capitalisation divided by twelve months of revenue. It expresses the company's market value as a multiple of annual revenue: P/S = 2 means twice annual revenue, not twice annual profit. The cell identifies the period and any estimate. It does not apply to banks or investment funds without comparable sales revenue." },
+    uz: { term: "P/S (narx / tushum)", def: "Emitent kapitalizatsiyasining 12 oylik tushumga nisbati. Kompaniyaning bozor qiymati yillik tushumidan necha baravar ekanini ko‘rsatadi: P/S = 2 ikki yillik tushumni anglatadi, ikki yillik foydani emas. Davr va taxminiy hisob katakda ko‘rsatiladi. Sotuv tushumi taqqoslanmaydigan banklar va investitsiya fondlari uchun qo‘llanmaydi." },
+  },
+  eqAssets: {
+    ru: { term: "Капитал/Активы", def: "Собственный капитал / совокупные активы × 100 % по балансу на одну отчётную дату. Показывает долю активов, профинансированную собственным капиталом: 20 % означает одну пятую активов. Это балансовое соотношение, а не норматив достаточности регулятивного капитала банка." },
+    en: { term: "Equity/Assets", def: "Shareholders' equity / total assets × 100%, using the balance sheet at the same reporting date. It shows the share of assets financed by equity: 20% means one fifth of assets. This is a balance-sheet ratio, not a bank's regulatory capital adequacy ratio." },
+    uz: { term: "Kapital/Aktivlar", def: "Bir hisobot sanasidagi balans bo‘yicha o‘z kapitali / jami aktivlar × 100 %. Aktivlarning o‘z kapitali hisobidan moliyalashtirilgan ulushini ko‘rsatadi: 20 % aktivlarning beshdan bir qismini anglatadi. Bu balans nisbati, bank regulyativ kapitalining yetarlilik me’yori emas." },
+  },
   evEbitda: {
     ru: { term: "EV/EBITDA", def: "Стоимость бизнеса вместе с долгом, делённая на EBITDA. Более полный аналог P/E: учитывает долговую нагрузку, поэтому сравнивает компании с разной структурой капитала честнее." },
     en: { term: "EV/EBITDA", def: "Enterprise value, debt included, over EBITDA. A fuller counterpart to P/E: because it carries the debt, it compares companies with different capital structures more fairly." },

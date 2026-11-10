@@ -26,6 +26,12 @@ def stamp(value):
 def normalize(rows):
     dated = {}
     for raw in rows:
+        # The quote page carries the last close through days with no trades.
+        # Such a row is not an observation or a hole in a traded session.
+        # Unknown/contradictory activity must still go through validation.
+        if (number(raw.get('quantity')) == 0 and number(raw.get('turnover')) == 0
+                and number(raw.get('trade_count')) in (None, 0)):
+            continue
         day = stamp(raw.get('trade_date'))
         if day is None:
             continue
@@ -66,9 +72,15 @@ def wilder_rsi(rows):
 
 
 def valid_range(row):
-    return (all(row[k] is not None for k in ('low', 'high', 'close'))
-            and row['low'] <= row['close'] <= row['high']
-            and (row['open'] is None or row['low'] <= row['open'] <= row['high']))
+    if any(row[k] is None for k in ('low', 'high', 'close')):
+        return False
+    # OpenInfo lows are single-precision numbers: HMKB's 99.30 open is
+    # paired with 99.30000305175781. Match the importer's relative allowance,
+    # without its absolute one-cent floor (too broad for sub-soum stocks).
+    tolerance = max(row['low'], row['high']) * 1e-6
+    return (row['low'] <= row['high'] + tolerance
+            and row['low'] - tolerance <= row['close'] <= row['high'] + tolerance
+            and (row['open'] is None or row['low'] - tolerance <= row['open'] <= row['high'] + tolerance))
 
 
 def wilder_atr(rows):

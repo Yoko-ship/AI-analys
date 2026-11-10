@@ -177,7 +177,9 @@ test("candle history zooms with Ctrl+wheel, pans by mouse, and resets", async ({
   await page.waitForTimeout(50);
   await page.mouse.click(lineBox.x + lineBox.width * 0.68, lineBox.y + lineBox.height * 0.55);
   await expect(chart).toHaveAttribute("data-trend-points", "2");
-  await page.getByTitle("Светлая").click();
+  await page.getByRole("button", { name: "Аккаунт и настройки", exact: true }).click();
+  await page.locator(".account-menu .theme-toggle").click();
+  await page.keyboard.press("Escape");
   await expect(page.locator("body")).toHaveAttribute("data-theme", "light");
   const lightShot = testInfo.outputPath("candle-history-light.png");
   await page.screenshot({ path: lightShot, fullPage: false });
@@ -343,6 +345,12 @@ test("«Час» draws the stored hourly bars on a longer range, on both charts"
   await expect(chart).toHaveAttribute("data-visible-bars", "70");
   await expect(page.getByTestId("ac-hourly-note")).toContainText("Часовые бары");
   expect(asked).toContain("60");
+
+  // The URL must reopen the same hourly candles, including on another device.
+  await page.reload();
+  await expect(chart).toHaveAttribute("data-chart-interval", "H");
+  await expect(chart).toHaveAttribute("data-chart-type", "candle");
+  await expect(chart).toHaveAttribute("data-visible-bars", "70");
 
   await page.goto(`/company/${TICKER}`);
   await page.getByTestId("company-chart-interval").click();

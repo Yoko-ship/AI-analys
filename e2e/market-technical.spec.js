@@ -70,6 +70,8 @@ test('admin Technical columns support exact values, sorting and unfiltered CSV',
   await expect(cell(page,'SQBNP','dayVolume')).toHaveText('0');
   await expect(cell(page,'HMKB','beta')).toHaveAttribute('title',/индекс/);
   await expect(cell(page,'HMKB','atr14')).toContainText('3,5');
+  await expect(cell(page,'SQBNP','atr14')).toHaveText('Неполные цены');
+  await expect(cell(page,'SQBNP','atr14')).toHaveAttribute('title', /максимума или минимума/);
   await page.locator('.market-table thead th[data-sort-key="rsi14"]').click();
   await expect(page.locator('.market-table tbody tr').first()).toContainText('HMKB');
   await page.locator('.market-table thead th[data-sort-key="rsi14"]').click();
@@ -85,6 +87,16 @@ test('admin Technical columns support exact values, sorting and unfiltered CSV',
   expect(requests).toEqual(['Bearer technical-session']);
   await page.screenshot({path:testInfo.outputPath('technical-table.png')});
   expect(errors).toEqual([]);
+});
+
+for (const observations of [0, 7]) test(`ATR explains why ${observations} sessions cannot produce a value`, async ({page}) => {
+  await setup(page, {saved:['atr14']});
+  await page.route('**/api/market/technical', route => route.fulfill({json:{ok:true, technical:{
+    ...technical, SQBNP:{as_of:observations ? '2026-11-05' : null, observations, values:{atr14:null}, missing:{atr14:'insufficient_history'}},
+  }}}));
+  await page.reload();
+  await expect(cell(page,'HMKB','atr14')).toContainText('3,5');
+  await expect(cell(page,'SQBNP','atr14')).toHaveText(observations ? 'Нужно 14 сессий' : 'Нет истории');
 });
 
 for(const width of [390,1440]) test(`Technical settings fit ${width}px and keep optional columns after reload`,async({page},testInfo)=>{

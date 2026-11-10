@@ -1,11 +1,18 @@
 import { fmtInt, fmtStamp, fmtAge } from "./adminModel.js";
 import { CollectionRuns } from "./CollectionRuns.jsx";
+import { mt } from "../shared/marketCopy.jsx";
 export function StreamsSection({
   t,
   streams,
+  language,
+  tradeValidation,
   apiFetch
 }) {
   return <div className="admin-section">
+      {tradeValidation?.partial && <p className="product-coverage" role="status">
+        {mt(language, "partialRefresh")}: {(tradeValidation.withheld || []).map(r => r.ticker || r.isin).join(", ")}.
+        {" "}{mt(language, "partialRefreshDetail")}
+      </p>}
       <CollectionRuns apiFetch={apiFetch} t={t} />
       <h3>{t("Свежесть данных", "Ma’lumotlar yangiligi", "Data freshness")}</h3>
       <p className="muted">{t("Последняя запись в таблице — это отдельная проверка, а не результат запуска.", "Jadvaldagi oxirgi yozuv — ishga tushirish natijasi emas, alohida tekshiruv.", "The last table write is a separate check from the outcome of a run.")}</p>

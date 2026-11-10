@@ -1,12 +1,15 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
-async function mockChartApi(page, ticker, price) {
+const unvb = JSON.parse(readFileSync(new URL('./fixtures/unvb-chart-november.json', import.meta.url)));
+
+async function mockChartApi(page, ticker, price, sector = 'finance') {
   const history = Array.from({ length: 260 }, (_, i) => {
     const day = new Date(Date.now() - (260 - i) * 864e5).toISOString().slice(0, 10);
     const close = price * (1 + Math.sin(i / 12) * 0.05);
     return { date: day, open: close * 0.99, close, high: close * 1.01, low: close * 0.98, value: 1000000 + i * 1000 };
   });
-  const security = { name: `${ticker} company`, company_name: `${ticker} company`, security_type: 'stock', sector: 'finance', last_price: price, close_price: price };
+  const security = { name: `${ticker} company`, company_name: `${ticker} company`, security_type: 'stock', sector, last_price: price, close_price: price };
   const stocks = Array.from({ length: 16 }, (_, i) => ({ ...security, ticker: `PEER${i}`, price }));
   const securities = Object.fromEntries(stocks.map(s => [s.ticker, s]));
   securities[ticker] = security;
@@ -23,12 +26,65 @@ async function mockChartApi(page, ticker, price) {
   });
 }
 
-for (const [ticker, width, price] of [['UZMK', 320, 6800], ['UNVB', 390, 8200], ['IPTB', 430, 3.23]]) {
+for (const [type, width, height] of [['candle', 780, 360], ['bars', 780, 360], ['candle', 915, 240]]) {
+  test(`UNVB: landscape ${type} ${width}x${height} keeps prices, volume and dates together below the app header`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height });
+    // Embedded phone browsers have no native fullscreen; emulate their CSS
+    // workspace so desktop Chrome's fullscreen window does not block rotation.
+    await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = () => Promise.reject(new Error('Fullscreen unavailable'));
+    });
+    await page.clock.setFixedTime(new Date('2026-11-09T16:41:00Z'));
+    await mockChartApi(page, 'UNVB', 13200.12);
+    await page.route('**/api/price-history/UNVB?*', route => route.fulfill({ json: {
+      ok: true, points: unvb.history, adjustments: [], as_of: unvb.as_of,
+    } }));
+    await page.route('**/api/intraday/UNVB?*', route => route.fulfill({ json: {
+      ok: true, points: unvb.intraday,
+    } }));
+    await page.goto(`/chart/UNVB?type=${type}&range=3m`);
+    await page.getByTestId('advanced-chart-interval').click();
+    await page.locator('.ac-menu').getByRole('button', { name: 'Час H', exact: true }).click();
+    const chart = page.locator('.ac-canvas');
+    await expect(chart).toHaveAttribute('data-panes', '2');
+    await expect(chart).toHaveAttribute('data-chart-type', type);
+    await expect(chart).toHaveAttribute('data-chart-interval', 'H');
+    // Reproduce the second screenshot: scroll the plot beneath the sticky
+    // app header. Its entire price/volume/time axis must fit in that space.
+    await page.locator('.ac-plot').evaluate(el => {
+      const header = document.querySelector('.topbar').getBoundingClientRect();
+      window.scrollBy(0, el.getBoundingClientRect().top - header.bottom - 8);
+    });
+    await expect.poll(async () => {
+      const box = await chart.boundingBox();
+      return box.y + box.height;
+    }).toBeLessThanOrEqual(height);
+    const panes = await chart.locator('tr').evaluateAll(rows => rows.map(r => r.getBoundingClientRect().height).filter(h => h > 2));
+    expect(panes).toHaveLength(3);
+    expect(panes[0]).toBeGreaterThan(panes[1] * (height >= 360 ? 3 : 2));
+    await page.screenshot({ path: testInfo.outputPath(`unvb-landscape-${type}.png`) });
+
+    // Expanding and rotating must preserve the selected representation.
+    await page.getByRole('button', { name: 'Развернуть график на весь экран' }).click();
+    await expect(chart).toHaveAttribute('data-chart-type', type);
+    await expect.poll(async () => {
+      const box = await chart.boundingBox();
+      return box.y + box.height;
+    }).toBeLessThanOrEqual(height);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(async () => {
+      const box = await chart.boundingBox();
+      return box.y + box.height;
+    }).toBeLessThanOrEqual(844);
+  });
+}
+
+for (const [ticker, width, price, sector] of [['UZMK', 320, 6800, 'manufacturing'], ['UNVB', 390, 8200, 'finance'], ['IPTB', 430, 3.23, 'finance']]) {
   test(`${ticker}: mobile chart fits ${width}px and keeps its menus usable`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await mockChartApi(page, ticker, price);
+    await mockChartApi(page, ticker, price, sector);
     await page.goto(`/chart/${ticker}?type=candle&range=1y`);
     const chart = page.locator('.ac-canvas');
     await expect(chart).toBeVisible();

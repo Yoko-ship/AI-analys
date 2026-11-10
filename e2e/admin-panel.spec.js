@@ -14,6 +14,28 @@ async function mockAdmin(page) {
   });
 }
 
+for (const partial of [true, false]) test(`collectors show a trade-statistics warning only for partial data (${partial})`, async ({ page }) => {
+  await mockAdmin(page);
+  await page.addInitScript(() => localStorage.setItem("uz_stock_analyzer_language", "ru"));
+  let requested = false;
+  await page.route("**/api/market/trade-stats", route => {
+    requested = true;
+    return route.fulfill({ json: { ok: true, validation: { partial, withheld: partial ? [{ ticker: "UZMK", isin: "UZ7021720006" }] : [] } } });
+  });
+  await page.goto("/admin/streams");
+  await expect.poll(() => requested).toBe(true);
+  await expect(page.getByRole("heading", { name: "Свежесть данных" })).toBeVisible();
+  const notice = page.getByText(/Статистика сделок неполная.*UZMK/);
+  if (partial) {
+    await expect(notice).toBeVisible();
+    await expect(page.getByText(/Официальные дневные котировки обновляются независимо/)).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(notice).toBeVisible();
+  } else {
+    await expect(notice).toHaveCount(0);
+  }
+});
+
 for (const width of [1440, 390]) test(`admin tabs never scroll vertically at ${width}px`, async ({ page }, info) => {
   await mockAdmin(page);
   await page.setViewportSize({ width, height: 900 });

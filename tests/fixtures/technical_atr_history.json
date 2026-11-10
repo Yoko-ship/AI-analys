@@ -1,0 +1,1692 @@
+{
+  "HMKB": [
+    {
+      "trade_date": "20261020",
+      "open_price": 99.3,
+      "high_price": 110.0,
+      "low_price": 99.30000305175781,
+      "close_price": 103.8,
+      "quantity": 3652281.0,
+      "turnover": 373233057.06,
+      "trade_count": 944.0
+    },
+    {
+      "trade_date": "20261021",
+      "open_price": 104.01,
+      "high_price": 108.89,
+      "low_price": 103.80000305175781,
+      "close_price": 107.87,
+      "quantity": 457318.0,
+      "turnover": 48713274.81,
+      "trade_count": 673.0
+    },
+    {
+      "trade_date": "20261022",
+      "open_price": 105.02,
+      "high_price": 110.35,
+      "low_price": 105.0199966430664,
+      "close_price": 107.01,
+      "quantity": 448680.0,
+      "turnover": 48178597.85,
+      "trade_count": 714.0
+    },
+    {
+      "trade_date": "20261023",
+      "open_price": 107.0,
+      "high_price": 110.4,
+      "low_price": 103.0,
+      "close_price": 105.99,
+      "quantity": 614925.0,
+      "turnover": 65006084.41,
+      "trade_count": 512.0
+    },
+    {
+      "trade_date": "20261026",
+      "open_price": 105.58,
+      "high_price": 105.58,
+      "low_price": 102.9000015258789,
+      "close_price": 105.33,
+      "quantity": 5794547.0,
+      "turnover": 599165191.61,
+      "trade_count": 607.0
+    },
+    {
+      "trade_date": "20261027",
+      "open_price": 108.5,
+      "high_price": 108.5,
+      "low_price": 102.06999969482422,
+      "close_price": 103.2,
+      "quantity": 587449.0,
+      "turnover": 60923296.7,
+      "trade_count": 486.0
+    },
+    {
+      "trade_date": "20261028",
+      "open_price": 103.2,
+      "high_price": 105.89,
+      "low_price": 102.5,
+      "close_price": 105.0,
+      "quantity": 985220.0,
+      "turnover": 102437742.91,
+      "trade_count": 546.0
+    },
+    {
+      "trade_date": "20261029",
+      "open_price": 104.5,
+      "high_price": 105.83,
+      "low_price": 102.51000213623047,
+      "close_price": 105.0,
+      "quantity": 801190.0,
+      "turnover": 83658956.22,
+      "trade_count": 468.0
+    },
+    {
+      "trade_date": "20261030",
+      "open_price": 105.0,
+      "high_price": 108.1,
+      "low_price": 104.83000183105469,
+      "close_price": 107.0,
+      "quantity": 4133339.0,
+      "turnover": 438588643.94,
+      "trade_count": 573.0
+    },
+    {
+      "trade_date": "20261102",
+      "open_price": 107.0,
+      "high_price": 118.0,
+      "low_price": 106.12999725341797,
+      "close_price": 110.0,
+      "quantity": 8080252.0,
+      "turnover": 883813705.16,
+      "trade_count": 921.0
+    },
+    {
+      "trade_date": "20261103",
+      "open_price": 118.98,
+      "high_price": 119.99,
+      "low_price": 110.5999984741211,
+      "close_price": 116.8,
+      "quantity": 3988353.0,
+      "turnover": 459538979.4,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261104",
+      "open_price": 118.0,
+      "high_price": 118.8,
+      "low_price": 112.0,
+      "close_price": 115.0,
+      "quantity": 4723846.0,
+      "turnover": 549191852.94,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261105",
+      "open_price": 116.47,
+      "high_price": 117.2,
+      "low_price": 112.70999908447266,
+      "close_price": 116.0,
+      "quantity": 3379411.0,
+      "turnover": 390929871.76,
+      "trade_count": 701.0
+    },
+    {
+      "trade_date": "20261106",
+      "open_price": 117.7,
+      "high_price": 119.0,
+      "low_price": 115.5,
+      "close_price": 118.0,
+      "quantity": 5557147.0,
+      "turnover": 658856138.48,
+      "trade_count": 895.0
+    }
+  ],
+  "KVTS": [
+    {
+      "trade_date": "20261020",
+      "open_price": 3289.0,
+      "high_price": 3289.0,
+      "low_price": 3102.010009765625,
+      "close_price": 3102.01,
+      "quantity": 14445.0,
+      "turnover": 45180828.67,
+      "trade_count": 113.0
+    },
+    {
+      "trade_date": "20261021",
+      "open_price": 3100.0,
+      "high_price": 3240.0,
+      "low_price": 3083.0,
+      "close_price": 3100.0,
+      "quantity": 15865.0,
+      "turnover": 49174277.03,
+      "trade_count": 146.0
+    },
+    {
+      "trade_date": "20261022",
+      "open_price": 3083.03,
+      "high_price": 3199.0,
+      "low_price": 3000.0,
+      "close_price": 3000.0,
+      "quantity": 24463.0,
+      "turnover": 74908526.13,
+      "trade_count": 196.0
+    },
+    {
+      "trade_date": "20261023",
+      "open_price": 3050.0,
+      "high_price": 3299.97,
+      "low_price": 2902.0,
+      "close_price": 2902.0,
+      "quantity": 95441.0,
+      "turnover": 281420797.74,
+      "trade_count": 300.0
+    },
+    {
+      "trade_date": "20261026",
+      "open_price": 3001.0,
+      "high_price": 3249.0,
+      "low_price": 3000.0,
+      "close_price": 3100.01,
+      "quantity": 16656.0,
+      "turnover": 51074073.27,
+      "trade_count": 199.0
+    },
+    {
+      "trade_date": "20261027",
+      "open_price": 3150.0,
+      "high_price": 3399.0,
+      "low_price": 3050.0,
+      "close_price": 3120.0,
+      "quantity": 4809.0,
+      "turnover": 15673090.45,
+      "trade_count": 132.0
+    },
+    {
+      "trade_date": "20261028",
+      "open_price": 3225.0,
+      "high_price": 3329.0,
+      "low_price": 3120.0,
+      "close_price": 3323.91,
+      "quantity": 6740.0,
+      "turnover": 21649727.1,
+      "trade_count": 146.0
+    },
+    {
+      "trade_date": "20261029",
+      "open_price": 3398.0,
+      "high_price": 3448.0,
+      "low_price": 3205.06005859375,
+      "close_price": 3222.0,
+      "quantity": 13360.0,
+      "turnover": 44558295.05,
+      "trade_count": 172.0
+    },
+    {
+      "trade_date": "20261030",
+      "open_price": 3300.0,
+      "high_price": 3398.0,
+      "low_price": 3231.02001953125,
+      "close_price": 3348.99,
+      "quantity": 3764.0,
+      "turnover": 12526163.83,
+      "trade_count": 78.0
+    },
+    {
+      "trade_date": "20261102",
+      "open_price": 3398.0,
+      "high_price": 3398.0,
+      "low_price": 3231.5,
+      "close_price": 3380.0,
+      "quantity": 23288.0,
+      "turnover": 78079464.96,
+      "trade_count": 180.0
+    },
+    {
+      "trade_date": "20261103",
+      "open_price": 3383.0,
+      "high_price": 3400.0,
+      "low_price": 3250.0,
+      "close_price": 3300.0,
+      "quantity": 9993.0,
+      "turnover": 33381732.33,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261104",
+      "open_price": 3500.0,
+      "high_price": 3500.0,
+      "low_price": 3270.0,
+      "close_price": 3329.9,
+      "quantity": 25829.0,
+      "turnover": 85960086.07,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261105",
+      "open_price": 3329.91,
+      "high_price": 3499.0,
+      "low_price": 3262.300048828125,
+      "close_price": 3290.1,
+      "quantity": 4480.0,
+      "turnover": 14928581.95,
+      "trade_count": 99.0
+    },
+    {
+      "trade_date": "20261106",
+      "open_price": 3500.0,
+      "high_price": 3700.0,
+      "low_price": 3290.0,
+      "close_price": 3339.9,
+      "quantity": 5672.0,
+      "turnover": 18934599.38,
+      "trade_count": 156.0
+    }
+  ],
+  "BECMP": [
+    {
+      "trade_date": "20260603",
+      "open_price": 37000.0,
+      "high_price": 37000.0,
+      "low_price": 37000.0,
+      "close_price": 37000.0,
+      "quantity": 4.0,
+      "turnover": 148000.0,
+      "trade_count": 2.0
+    },
+    {
+      "trade_date": "20260615",
+      "open_price": 31000.0,
+      "high_price": 31000.0,
+      "low_price": 31000.0,
+      "close_price": 31000.0,
+      "quantity": 1.0,
+      "turnover": 31000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260710",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260713",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260714",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260715",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260716",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260717",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260720",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260721",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 31000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260722",
+      "open_price": 24800.0,
+      "high_price": 32000.0,
+      "low_price": 24800.0,
+      "close_price": 24800.0,
+      "quantity": 5.0,
+      "turnover": 138400.0,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260723",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260724",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260727",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260728",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260729",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260730",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260731",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260803",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260804",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260805",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260806",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260807",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260810",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260811",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260812",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260813",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260814",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 24800.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260817",
+      "open_price": 29760.0,
+      "high_price": 29760.0,
+      "low_price": 29760.0,
+      "close_price": 29760.0,
+      "quantity": 1.0,
+      "turnover": 29760.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260818",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260819",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260820",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260821",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260824",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260825",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260826",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260827",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260828",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260902",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260903",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260904",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260907",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260908",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 29760.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260909",
+      "open_price": 32000.01,
+      "high_price": 32000.01,
+      "low_price": 23808.0,
+      "close_price": 23808.0,
+      "quantity": 20.0,
+      "turnover": 537622.21,
+      "trade_count": 7.0
+    },
+    {
+      "trade_date": "20260910",
+      "open_price": 23850.0,
+      "high_price": 23850.0,
+      "low_price": 23850.0,
+      "close_price": 23850.0,
+      "quantity": 16.0,
+      "turnover": 381600.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260911",
+      "open_price": 28620.0,
+      "high_price": 28620.0,
+      "low_price": 28620.0,
+      "close_price": 28620.0,
+      "quantity": 16.0,
+      "turnover": 457920.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260914",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260915",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260916",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260917",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260918",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260921",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260922",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260923",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260924",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260925",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 28620.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261009",
+      "open_price": 28000.0,
+      "high_price": 28000.0,
+      "low_price": 28000.0,
+      "close_price": 28000.0,
+      "quantity": 1.0,
+      "turnover": 28000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20261020",
+      "open_price": 33600.0,
+      "high_price": 33600.0,
+      "low_price": 33600.0,
+      "close_price": 33600.0,
+      "quantity": 1.0,
+      "turnover": 33600.0,
+      "trade_count": 2.0
+    },
+    {
+      "trade_date": "20261021",
+      "open_price": 40320.0,
+      "high_price": 40320.0,
+      "low_price": 40320.0,
+      "close_price": 40320.0,
+      "quantity": 12.0,
+      "turnover": 483840.0,
+      "trade_count": 16.0
+    },
+    {
+      "trade_date": "20261022",
+      "open_price": 40320.0,
+      "high_price": 48384.0,
+      "low_price": 40320.0,
+      "close_price": 48384.0,
+      "quantity": 3.0,
+      "turnover": 137087.5,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20261027",
+      "open_price": 38707.2,
+      "high_price": 38707.2,
+      "low_price": 38707.19921875,
+      "close_price": 38707.2,
+      "quantity": 1.0,
+      "turnover": 38707.2,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20261029",
+      "open_price": 46448.64,
+      "high_price": 46448.64,
+      "low_price": 46448.640625,
+      "close_price": 46448.64,
+      "quantity": 1.0,
+      "turnover": 46448.64,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20261103",
+      "open_price": 46000.0,
+      "high_price": 46000.0,
+      "low_price": 37158.921875,
+      "close_price": 37158.92,
+      "quantity": 5.0,
+      "turnover": 203476.76,
+      "trade_count": 4.0
+    }
+  ],
+  "EQQU": [
+    {
+      "trade_date": "20251203",
+      "open_price": 305000.0,
+      "high_price": 305000.0,
+      "low_price": 305000.0,
+      "close_price": 305000.0,
+      "quantity": 885.0,
+      "turnover": 269925000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260311",
+      "open_price": 306000.0,
+      "high_price": 306000.0,
+      "low_price": 306000.0,
+      "close_price": 306000.0,
+      "quantity": 32.0,
+      "turnover": 9792000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260406",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 25.0,
+      "turnover": 7750000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260422",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 40.0,
+      "turnover": 12400000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260428",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 25.0,
+      "turnover": 7750000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260514",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 46.0,
+      "turnover": 14260000.0,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260610",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 12.0,
+      "turnover": 3720000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260710",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260713",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 12.0,
+      "turnover": 3720000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260714",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260715",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260716",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260717",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260720",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260721",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260722",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260723",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260724",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260727",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260728",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 106.0,
+      "turnover": 32860000.0,
+      "trade_count": 5.0
+    },
+    {
+      "trade_date": "20260729",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260730",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260731",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 780.0,
+      "turnover": 241800000.0,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260803",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260804",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260805",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260806",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260807",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260810",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260811",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260812",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260813",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260814",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260817",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260818",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260819",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260820",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260821",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260824",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260825",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260826",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 34.0,
+      "turnover": 10540000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260827",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 35.0,
+      "turnover": 10850000.0,
+      "trade_count": 1.0
+    },
+    {
+      "trade_date": "20260828",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260902",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260903",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260904",
+      "open_price": 310000.0,
+      "high_price": 310000.0,
+      "low_price": 310000.0,
+      "close_price": 310000.0,
+      "quantity": 155.0,
+      "turnover": 48050000.0,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260907",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260908",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260909",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260910",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260911",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260914",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260915",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260916",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260917",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260918",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260921",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260922",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260923",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260924",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260925",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 310000.0,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20261006",
+      "open_price": 311000.0,
+      "high_price": 313000.0,
+      "low_price": 311000.0,
+      "close_price": 313000.0,
+      "quantity": 55.0,
+      "turnover": 17175000.0,
+      "trade_count": 4.0
+    }
+  ],
+  "TKDM": [
+    {
+      "trade_date": "20260820",
+      "open_price": 2700.0,
+      "high_price": 2700.0,
+      "low_price": 2700.0,
+      "close_price": 2700.0,
+      "quantity": 4.0,
+      "turnover": 10800.0,
+      "trade_count": 2.0
+    },
+    {
+      "trade_date": "20260821",
+      "open_price": 2760.0,
+      "high_price": 2760.0,
+      "low_price": 2363.0,
+      "close_price": 2363.0,
+      "quantity": 42.0,
+      "turnover": 115521.0,
+      "trade_count": 5.0
+    },
+    {
+      "trade_date": "20260824",
+      "open_price": 2760.0,
+      "high_price": 2780.0,
+      "low_price": 2410.0,
+      "close_price": 2410.0,
+      "quantity": 193.0,
+      "turnover": 534970.0,
+      "trade_count": 9.0
+    },
+    {
+      "trade_date": "20260825",
+      "open_price": 2411.0,
+      "high_price": 2780.0,
+      "low_price": 2411.0,
+      "close_price": 2411.8,
+      "quantity": 57.0,
+      "turnover": 157637.8,
+      "trade_count": 12.0
+    },
+    {
+      "trade_date": "20260826",
+      "open_price": null,
+      "high_price": null,
+      "low_price": null,
+      "close_price": 2411.8,
+      "quantity": 0.0,
+      "turnover": 0.0,
+      "trade_count": null
+    },
+    {
+      "trade_date": "20260827",
+      "open_price": 2400.0,
+      "high_price": 2700.0,
+      "low_price": 2400.0,
+      "close_price": 2412.3,
+      "quantity": 31.0,
+      "turnover": 75435.39,
+      "trade_count": 5.0
+    },
+    {
+      "trade_date": "20260828",
+      "open_price": 2700.0,
+      "high_price": 2750.0,
+      "low_price": 2699.0,
+      "close_price": 2750.0,
+      "quantity": 14.0,
+      "turnover": 37844.0,
+      "trade_count": 5.0
+    },
+    {
+      "trade_date": "20260902",
+      "open_price": 2410.0,
+      "high_price": 2748.0,
+      "low_price": 2410.0,
+      "close_price": 2748.0,
+      "quantity": 3.0,
+      "turnover": 7758.000000000001,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260903",
+      "open_price": 2700.0,
+      "high_price": 2750.0,
+      "low_price": 2669.0,
+      "close_price": 2750.0,
+      "quantity": 8.0,
+      "turnover": 21619.0,
+      "trade_count": 6.0
+    },
+    {
+      "trade_date": "20260904",
+      "open_price": 2749.0,
+      "high_price": 3000.0,
+      "low_price": 2748.0,
+      "close_price": 3000.0,
+      "quantity": 5438.0,
+      "turnover": 15860769.0,
+      "trade_count": 22.0
+    },
+    {
+      "trade_date": "20260907",
+      "open_price": 2800.0,
+      "high_price": 2899.0,
+      "low_price": 2800.0,
+      "close_price": 2899.0,
+      "quantity": 9.0,
+      "turnover": 25299.0,
+      "trade_count": 4.0
+    },
+    {
+      "trade_date": "20260908",
+      "open_price": 2800.0,
+      "high_price": 2851.0,
+      "low_price": 2800.0,
+      "close_price": 2851.0,
+      "quantity": 10.0,
+      "turnover": 28453.0,
+      "trade_count": 3.0
+    },
+    {
+      "trade_date": "20260909",
+      "open_price": 2800.0,
+      "high_price": 2900.0,
+      "low_price": 2800.0,
+      "close_price": 2890.0,
+      "quantity": 71.0,
+      "turnover": 204402.0,
+      "trade_count": 12.0
+    },
+    {
+      "trade_date": "20260910",
+      "open_price": 2890.0,
+      "high_price": 2900.0,
+      "low_price": 2890.0,
+      "close_price": 2900.0,
+      "quantity": 77.0,
+      "turnover": 223250.0,
+      "trade_count": 7.0
+    },
+    {
+      "trade_date": "20260911",
+      "open_price": 2990.0,
+      "high_price": 2990.0,
+      "low_price": 2850.0,
+      "close_price": 2990.0,
+      "quantity": 70.0,
+      "turnover": 205100.0,
+      "trade_count": 4.0
+    }
+  ]
+}

@@ -11,7 +11,14 @@ export function technicalCell(row, key, data, lang) {
   const title = [technicalDescription(key, lang), snapshot?.as_of,
     snapshot && `${snapshot.observations} ${tt(lang, 'сессий', 'sessiya', 'sessions')}`, value == null && reason !== 'benchmark_unavailable' ? missing : null].filter(Boolean).join(' · ');
   const percent = TECHNICAL_PERCENT.has(key);
+  const unavailable = key === 'atr14' && snapshot && reason
+    ? reason === 'missing_ohlc'
+      ? tt(lang, 'Неполные цены', 'Narxlar to‘liq emas', 'Incomplete prices')
+      : snapshot.observations === 0
+        ? tt(lang, 'Нет истории', 'Tarix yo‘q', 'No history')
+        : tt(lang, 'Нужно 14 сессий', '14 sessiya kerak', 'Needs 14 sessions')
+    : '—';
   return <td className={`num${percent && value ? value > 0 ? ' technical-value-positive' : ' technical-value-negative' : ''}`} data-technical={key} title={title}>
-    {value == null ? '—' : `${formatRatio(value, key === 'dayVolume' ? 0 : 2, lang)}${percent ? '%' : ''}`}
+    {value == null ? unavailable : `${formatRatio(value, key === 'dayVolume' ? 0 : 2, lang)}${percent ? '%' : ''}`}
   </td>;
 }

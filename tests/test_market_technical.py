@@ -1,5 +1,7 @@
 """Admin screener metrics from daily exchange history, never invented prices."""
 from datetime import date, timedelta
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -88,6 +90,45 @@ def test_bad_prices_do_not_compress_history_or_form_fictitious_ranges(source):
     for key in ['sma20', 'rsi14', 'atr14', 'changeOpen', 'gap']:
         assert row['values'][key] is None, key
     assert row['values']['dayChange'] == 0
+
+
+@pytest.mark.parametrize('ticker', ['HMKB', 'KVTS', 'BECMP', 'EQQU', 'TKDM'])
+def test_atr_uses_real_sessions_despite_source_precision_and_no_trade_days(source, ticker):
+    cases = json.loads((Path(__file__).parent / 'fixtures/technical_atr_history.json').read_text())
+    rows = cases[ticker]
+    source[0][ticker] = rows
+    traded = [r for r in rows if r['quantity'] > 0 or r['turnover'] > 0]
+    # Independently seed Wilder ATR from the 14 actual trading sessions.
+    ranges = [max(r['high_price'] - r['low_price'],
+                  abs(r['high_price'] - (traded[i-1]['close_price'] if i else r['close_price'])),
+                  abs(r['low_price'] - (traded[i-1]['close_price'] if i else r['close_price'])))
+              for i, r in enumerate(traded)]
+    result = fetch(source, ticker)
+    assert result['values']['atr14'] == pytest.approx(sum(ranges) / 14)
+    assert result['observations'] == 14
+    assert 'atr14' not in result['missing']
+
+
+@pytest.mark.parametrize('quantity,turnover,count', [(None, None, None), (0, 100, 1), (0, 0, 1)])
+def test_unknown_or_conflicting_trade_activity_does_not_hide_a_broken_session(source, quantity, turnover, count):
+    rows = history([100] * 15)
+    rows[-1].update(high_price=None, low_price=None, quantity=quantity, turnover=turnover, trade_count=count)
+    source[0]['HMKB'] = rows
+    result = fetch(source)
+    assert result['observations'] == 15
+    assert result['values']['atr14'] is None
+
+
+@pytest.mark.parametrize('prices', [
+    {'close_price': 2400, 'low_price': 2880, 'high_price': 2880, 'open_price': 2880},  # UZTL 21.04.2026
+    {'close_price': 1, 'low_price': 1.001, 'high_price': 1.1, 'open_price': 1.05},
+    {'close_price': 100, 'low_price': 99, 'high_price': 101, 'open_price': 102},
+    {'close_price': 100, 'low_price': 101, 'high_price': 99, 'open_price': 100},
+])
+def test_precision_allowance_never_accepts_real_price_conflicts(source, prices):
+    source[0]['HMKB'] = history([100] * 14)
+    source[0]['HMKB'][-1].update(prices)
+    assert fetch(source)['values']['atr14'] is None
 
 
 def test_share_classes_keep_their_own_history_and_bonds_are_excluded(source):

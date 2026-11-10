@@ -56,6 +56,7 @@ export default function AdminPanel({
     setFeedbackFilter,
     feedbackBusy,
     overview,
+    tradeValidation,
     ledger,
     ledgerTicker,
     setLedgerTicker,
@@ -230,7 +231,7 @@ export default function AdminPanel({
     setCompanyVisibility={setCompanyVisibility}
     syncCompany={syncCompany}
   />;
-  const streamsBody = <StreamsSection t={t} streams={streams} apiFetch={apiFetch} />;
+  const streamsBody = <StreamsSection t={t} streams={streams} apiFetch={apiFetch} language={language} tradeValidation={tradeValidation} />;
 
 
   /* ── Система · Эмитент (the TTM ledger) ─────────────────────────────────── */

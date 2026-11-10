@@ -33,7 +33,7 @@ export function useNavigation({ language } = {}) {
       from: q.get("from") || "",
       to: q.get("to") || "",
       type: q.get("type") || "line",
-      interval: ["W", "M"].includes(q.get("iv")) ? q.get("iv") : "D",
+      interval: ["H", "W", "M"].includes(q.get("iv")) ? q.get("iv") : "D",
       indicators: list("ind"),
       fin: list("fin"),
       compare: list("cmp").map((s) => s.toUpperCase()),

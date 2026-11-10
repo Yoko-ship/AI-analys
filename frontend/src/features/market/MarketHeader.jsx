@@ -24,10 +24,6 @@ export function MarketHeader({
               {" "}({mt(lang, "tashkentTime")})
             </> : mt(lang, "quoteUpdateUnknown")}
           </p>
-          {meta?.validation?.partial && <p role="status">
-            {mt(lang, "partialRefresh")}: {meta.validation.withheld.map(r => r.ticker || r.isin).join(", ")}.
-            {" "}{mt(lang, "partialRefreshDetail")}
-          </p>}
         </div>
         {/* The search sits in the masthead, the first control a reader meets:
             looking a company up is what most visits to this page are for. */}

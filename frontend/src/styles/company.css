@@ -757,6 +757,14 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
    the chart is the screen — one line of name and price, a tight toolbar, and
    the compare strip and notes wait until the phone is upright again. */
 @media (orientation: landscape) and (max-height: 520px) {
+  /* The page view must also fit a complete chart below the sticky app header.
+     A desktop 420px floor hid volume and dates on landscape phones/WebViews.
+     The shared shell measures the real header; dvh follows browser chrome. */
+  body .advanced-chart:not(.is-fullscreen) .ac-plot {
+    height: max(0px, calc(100dvh - var(--topbar-h, 80px) - 16px)) !important;
+    min-height: 0;
+    scroll-margin-top: calc(var(--topbar-h, 80px) + 8px);
+  }
   body .advanced-chart.is-fullscreen { padding: 6px 10px; gap: 6px; }
   body .advanced-chart.is-fullscreen .ac-head { flex-wrap: nowrap; gap: 10px; }
   body .advanced-chart.is-fullscreen .ac-head .chip-logo,
@@ -774,7 +782,7 @@ body.advanced-chart-fullscreen .topbar { visibility: hidden; }
   body .advanced-chart.is-fullscreen .ac-quote { margin-left: 0; min-width: 0; overflow: hidden; flex-wrap: nowrap; white-space: nowrap; }
   /* The exit button leads the range row instead of wrapping onto a row of its own. */
   body .advanced-chart.is-fullscreen .ac-fullscreen-btn { order: -1; }
-  body .advanced-chart.is-fullscreen .ac-body { flex: 1 1 0; min-height: 180px; }
+  body .advanced-chart.is-fullscreen .ac-body { flex: 1 1 0; min-height: 0; }
   body .advanced-chart.is-fullscreen .ac-plot { min-height: 0; }
 }
 /* A phone held upright: the header and the compare strip kept the plot at the
