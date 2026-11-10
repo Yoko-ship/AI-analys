@@ -132,13 +132,21 @@ function LegacyIssuerFinancials({ ticker, lang, ratios, standard = "NSBU",
     });
     return ()=>controller.abort();
   },[currency,periodKey]);
+  const missingRates = periods.filter(period => !Number.isFinite(fx[period]?.per_unit) || fx[period].per_unit <= 0).length;
   const t=(ru,uz,en)=>lang === "uz" ? uz : lang === "en" ? en : ru;
   return (
     <div data-currency={currency} data-terminal-ticker={ticker} data-terminal-standard={standard} data-terminal-scope={scope||series?.scope||"separate"} data-terminal-function={section==="balance"?"BS":"PL"}>
     <div className="terminal-controls"><label>{t("Валюта","Valyuta","Currency")}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option>UZS</option><option>USD</option></select></label></div>
-    {currency === "USD" && <details className="terminal-fx-rates" open><summary>{t("Курсы ЦБ на конец каждого периода","Har davr oxiridagi MB kursi","CBU rates at each period end")}</summary>
-      {fxLoading ? <p role="status">{t("Загрузка курсов…","Kurslar yuklanmoqda…","Loading rates…")}</p> : <ul>{periods.map(p=><li key={p}>{p} · {periodEnd(p)} · {fx[p] ? `1 USD = ${fx[p].per_unit} UZS (${fx[p].effective_date})` : t("Курс отсутствует — суммы скрыты","Kurs yo‘q — summalar yashirildi","Rate missing — amounts unavailable")} · <a href={`https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${periodEnd(p)}/`} target="_blank" rel="noreferrer">CBU</a></li>)}</ul>}
-    </details>}
+    {currency === "USD" && <p className="terminal-fx-rates fin-note muted" role="status">
+      {fxLoading ? t("Загрузка курсов…", "Kurslar yuklanmoqda…", "Loading rates…") : <>
+        {t("Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.",
+          "Summalar har bir hisobot davri oxiridagi MB kursi bo‘yicha USDga o‘girilgan.",
+          "Amounts are converted to USD at the CBU rate at the end of each reporting period.")}
+        {missingRates > 0 && <> {t(`Нет курса для ${missingRates} из ${periods.length} периодов — суммы за них скрыты.`,
+          `${periods.length} davrdan ${missingRates} tasi uchun kurs yo‘q — bu davrlar summalari yashirilgan.`,
+          `Rates are missing for ${missingRates} of ${periods.length} periods; those amounts are unavailable.`)}</>}
+      </>}
+    </p>}
     <CompanyFinancialsTab ticker={ticker} ratios={ratios ?? ownRatios ?? {}} lang={lang}
       key={`${ticker}:${standard}:${scope}:${freq}`}
       standard={standard}

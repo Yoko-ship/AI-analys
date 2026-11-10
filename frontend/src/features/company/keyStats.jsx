@@ -301,7 +301,7 @@ function CompanyKeyStats({ row, sec, metrics12, metricsWindow, range, mult, divi
   putMultiple("P/B", mult?.pb, 2, "×", mult?.pb?.base_period || mult?.balance_period || undefined);
   putMultiple("P/S", mult?.ps, 2, "×", mult?.ps?.base_period || mult?.base_period || undefined);
   putMultiple("BVPS", mult?.bvps, 2, "", mult?.bvps?.base_period || mult?.balance_period || undefined);
-  pushBlock("valuation", t("Оценка", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
+  pushBlock("valuation", t("Мультипликатор", "Baholash", "Valuation"), [...valuationRows, ...rows.splice(0, rows.length)]);
 
   // --- Profitability -------------------------------------------------------
   // Долг/Капитал ушёл из витрины по ТЗ мультипликаторов (лист 06); его место

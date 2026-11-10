@@ -10,6 +10,7 @@ import { formatCompactVolume, marketDisplayPrice } from "../../shared/marketMode
 import {marketIndustryLabel} from '../../shared/industryCopy.js';
 import { marketVolumeMetrics } from "../../lib/marketVolume.js";
 import { formatMapMetric, HeatmapMetricPicker, mapMetricCoverage, useHeatmapMetrics } from "./HeatmapMetrics.jsx";
+import { HeatmapPreview, useHeatmapHover } from './HeatmapPreview.jsx';
 
 // How far a move has to go before the tile is fully saturated, per period. A
 // session's 5 % is a big day; six months' 5 % is nothing, and drawing a half-year
@@ -154,7 +155,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const lowConfidence = (r) => !windowed && metaOf(r)?.confidence === "low";
   const lang = normalizeLanguage(language);
   const [areaMode,setAreaMode]=useState(initialArea);
-  const [hover, setHover] = useState(null);
+  const preview = useHeatmapHover();
+  const { hover, close: closePreview } = preview;
   const [selectedTicker, setSelectedTicker] = useState("");
   const [minTurnover, setMinTurnover] = useState(0);
   const [changeFilter, setChangeFilter] = useState("all");
@@ -162,6 +164,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const selectedMetrics = metricSelection.selected;
   const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => { closePreview(); }, [period, type, areaMode, minTurnover, changeFilter, closePreview]);
 
   useEffect(() => {
     const element = treeElement;
@@ -340,6 +344,14 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
   const focusName = focusRow
     ? focusRow.name || companyMap[focusRow.ticker]?.company_name || focusRow.ticker
     : null;
+  const hoverRow = tradedRows.find(row => row.ticker === hover?.ticker);
+  const hoverSector = hoverRow && sectorLayout.find(sector => sector.sector === sectorKeyOf(hoverRow.ticker));
+  const hoverGroup = hoverSector?.groups.find(group => group.id === (industryOf(hoverRow.ticker)?.group || ''));
+  const openCompany = ticker => {
+    closePreview();
+    if (onOpenCompany) onOpenCompany(ticker);
+    else onAnalyze(ticker);
+  };
 
   const changeLabel = (key) => key === "all" ? turnoverStepLabel(0, lang)
     : key === "up" ? mapCopy.changeUp : key === "down" ? mapCopy.changeDown
@@ -388,6 +400,8 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
 
       <label className="heatmap-area-control">{lang==='en'?'Tile area':lang==='uz'?'Katak maydoni':'Площадь плитки'} <select value={areaMode} onChange={e=>setAreaMode(e.target.value)}>{[['movement',mapCopy.movement],['turnover',mapCopy.turnover],['capitalization',lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'],['equal',lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки']].map(([key,title])=><option key={key} value={key}>{title}</option>)}</select></label>
       <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}>
+        {hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"
+          style={{left: hoverGroup.x, top: hoverGroup.y, width: hoverGroup.w, height: hoverGroup.h}} />}
         {sectorLayout.map((sector) => {
           const sectorRows = sector.stocks.map((stock) => stock.row);
           const sectorAverage = avgOf(sectorRows);
@@ -444,10 +458,6 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                   { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
                   { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
                 ].slice(0, metricSlots);
-                const metricTitle = selectedMetrics.map(({ key, label }) => [
-                  `${label}: ${formatMapMetric(key, values[key], lang)}`,
-                  windowed ? mapMetricCoverage(row, key, lang) : "",
-                ].filter(Boolean).join(" · ")).join("\n");
                 const preferred = isPreferredRow(row);
                 const showPreferredBadge = preferred && width >= 84 && height >= 44;
                 const microTile = !showTicker;
@@ -467,17 +477,23 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
                     aria-label={[row.ticker, companyName, marketIndustryLabel(lang, sector.sector),
                       industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
                       status === 'ok' ? formatPct(row.changePercent) : mapCopy.noData].filter(Boolean).join(', ')}
-                    title={[marketIndustryLabel(lang, sector.sector),
-                      industryOf(row.ticker)?.group && marketIndustryLabel(lang, `group:${industryOf(row.ticker).group}`),
-                      metricTitle].filter(Boolean).join('\n')}
+                    aria-haspopup="dialog"
+                    aria-expanded={active}
+                    aria-controls={active ? preview.id : undefined}
                     data-ticker={row.ticker}
                     data-sector={sector.sector}
                     data-group={industryOf(row.ticker)?.group || ''}
-                    onClick={() => (onOpenCompany ? onOpenCompany(row.ticker) : onAnalyze(row.ticker))}
-                    onMouseEnter={() => setHover({ ticker: row.ticker, row })}
-                    onMouseLeave={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
-                    onFocus={() => setHover({ ticker: row.ticker, row })}
-                    onBlur={() => setHover((current) => (current?.ticker === row.ticker ? null : current))}
+                    onClick={() => openCompany(row.ticker)}
+                    onPointerEnter={event => { if (event.pointerType !== 'touch') preview.show(event, row); }}
+                    onPointerLeave={preview.leave}
+                    onFocus={event => preview.show(event, row, true)}
+                    onBlur={event => { if (!preview.panel.current?.contains(event.relatedTarget)) preview.leave(); }}
+                    onKeyDown={event => {
+                      if (active && (event.key === 'ArrowDown' || (event.key === 'Tab' && !event.shiftKey))) {
+                        event.preventDefault();
+                        preview.panel.current?.querySelector('button')?.focus();
+                      }
+                    }}
                   >
                     {showLogo && <span className="htt-logo" style={{ "--logo-size": `${logoSize}px` }} aria-hidden="true">
                       <CompanyLogo logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}
@@ -502,6 +518,12 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
           );
         })}
       </div>
+
+      {hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
+        industry={[marketIndustryLabel(lang, hoverSector.sector), hoverGroup.id && marketIndustryLabel(lang, `group:${hoverGroup.id}`)].filter(Boolean).join(' · ')}
+        name={hoverRow.name || companyMap[hoverRow.ticker]?.company_name || hoverRow.ticker}
+        security={securitiesMap?.[hoverRow.ticker]} lang={lang} period={period} type={type}
+        statusOf={tileStatus} formatPct={formatPct} metrics={selectedMetrics} values={marketVolumeMetrics(hoverRow, stats)} onOpen={openCompany} />}
 
       {sectorItems.length === 0 && filtersActive && (
         <p className="market-empty-cell heatmap-empty-state" role="status">
@@ -581,7 +603,7 @@ function MarketHeatmap({ rows, companies, securitiesMap, language, onAnalyze, on
         <HeatmapMetricPicker lang={lang} {...metricSelection} />
         <label className="heatmap-security-picker">
           {lang === "ru" ? "Бумага на карте" : lang === "uz" ? "Xaritadagi qog'oz" : "Security on map"}
-          <select value={focusRow?.ticker || ""} onChange={(event) => { setSelectedTicker(event.target.value); setHover(null); }}>
+          <select value={focusRow?.ticker || ""} onChange={(event) => { setSelectedTicker(event.target.value); closePreview(); }}>
             {tradedRows.map((row) => <option key={row.ticker} value={row.ticker}>{row.ticker}</option>)}
           </select>
         </label>

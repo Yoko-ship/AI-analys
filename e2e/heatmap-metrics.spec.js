@@ -9,7 +9,7 @@ const row = (ticker, type, price, prev, volume, quantity, count, industry) => ({
   volume, quantity, trade_count: count, last_trade_date: day, industry,
 });
 const stocks = [row("AGBA", "stock", 1000, 900, 1e6, 1000, 4, "finance"),
-  row("KVTS", "stock", 3000, 3100, 3e6, 1000, 6, "manufacturing"), row("EMPTY", "stock", null, 100, null, null, null, "finance")];
+  row("KVTS", "stock", 3000, 3100, 3e6, 1000, 6, "manufacturing"), row("EMPTY", "stock", null, null, null, null, null, "finance")];
 const bonds = [row("BOND1", "bond", 100000, 95000, 8e6, 80, 2, "finance"),
   row("BOND2", "bond", 100000, 99000, 12e6, 120, 3, "manufacturing")];
 const all = [...stocks, ...bonds];
@@ -50,6 +50,73 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+async function chooseMapPeriod(page, code) {
+  await page.locator('.heatmap-performance-trigger').click();
+  await page.locator(`.heatmap-performance-menu button[data-period="${code}"]`).click();
+}
+
+for (const width of [1280, 390]) test(`searchable heatmap performance periods at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 844});
+  const errors = await openMap(page);
+  const trigger = page.locator('.heatmap-performance-trigger');
+  await expect(trigger).toContainText('За сессию');
+  await trigger.click();
+  const menu = page.getByRole('dialog', {name: 'Период изменения', exact: true});
+  const search = menu.getByRole('searchbox', {name: 'Найти период'});
+  await expect(search).toBeFocused();
+  await expect(menu.locator('[data-period]')).toHaveCount(7);
+  await expect(menu.locator('[data-period="1d"]')).toHaveAttribute('aria-pressed', 'true');
+  await search.fill('  НЕДЕЛ  ');
+  await expect(menu.locator('[data-period]')).toHaveCount(1);
+  await search.press('ArrowDown');
+  await expect(menu.locator('[data-period="1w"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toContainText('За неделю');
+  await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"] .htt-pct')).toContainText('+12');
+  await expect(metric(page, 'volume')).toHaveText('10 000 000 UZS');
+  await page.reload();
+  await expect(trigger).toContainText('За неделю');
+  await trigger.click();
+  await expect(search).toHaveValue('');
+  await expect(menu.locator('[data-period="1w"]')).toHaveAttribute('aria-pressed', 'true');
+  await search.fill('no such period');
+  await expect(menu.getByRole('status')).toHaveText('Ничего не найдено');
+  await menu.getByRole('button', {name: 'Очистить поиск'}).click();
+  await expect(search).toBeFocused();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    const bounds = await menu.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(8);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 8);
+    expect(bounds.y).toBeGreaterThanOrEqual(8);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(836);
+    await page.screenshot({path: testInfo.outputPath(`performance-${theme}.png`)});
+  }
+  // A phone keyboard reduces the space available to the open menu.
+  await page.setViewportSize({width, height: 420});
+  await expect.poll(async () => { const box = await menu.boundingBox(); return box.y >= 8 && box.y + box.height <= 412; }).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await page.setViewportSize({width, height: 844});
+  await selectLanguage(page, 'en');
+  await expect(trigger).toContainText('1-Week Performance');
+  await trigger.click();
+  await page.getByRole('searchbox', {name: 'Find a period'}).fill('month');
+  await expect(page.locator('.heatmap-performance-menu [data-period]')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+  await selectLanguage(page, 'uz');
+  await expect(trigger).toContainText('1 haftalik o‘zgarish');
+  await chooseMapPeriod(page, '1y');
+  await expect(metric(page, 'volume')).toHaveText('—');
+  await chooseMapPeriod(page, '1d');
+  await expect(metric(page, 'volume')).toHaveText('1,000,000 UZS');
+  await page.locator('.market-view-toggle button').first().click();
+  await expect(page).toHaveURL(/\/market$/);
+  await expect(page.locator('.market-period-control')).toBeVisible();
+  expect(errors).toEqual([]);
+});
 test('market map draws its tiles when market data arrives after mounting', async ({page}) => {
   await openMap(page, 'stock', '/heatmap', false);
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
@@ -134,7 +201,9 @@ for (const type of ["stock", "bond"]) {
       }
       if (width === 1280) await toggleTheme(page);
       const tile = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
-      await expect(tile).toHaveAttribute("title", /Крупнейшая сделка/);
+      await tile.hover();
+      await expect(page.locator('.heatmap-preview-metrics')).toContainText('Крупнейшая сделка');
+      await page.keyboard.press('Escape');
       // A tile carries price and turnover only; the six metrics live in the panel.
       if (width === 1280) await expect(tile.locator(".htt-metrics [data-metric]")).toHaveCount(2);
       await page.getByRole("button", { name: /Показатели/ }).click();
@@ -159,7 +228,7 @@ for (const type of ["stock", "bond"]) {
 
 test("metrics follow the selected period, sector and missing data on the one combined board", async ({ page }) => {
   const errors = await openMap(page);
-  await page.getByRole("button", { name: "1Н", exact: true }).click();
+  await chooseMapPeriod(page, '1w');
   await expect(metric(page, "volume")).toHaveText("10 000 000 UZS");
   await expect(metric(page, "avgShare")).toHaveText("5 000 UZS");
   await expect(metric(page, "avgTrade")).toHaveText("1 250 000 UZS");
@@ -238,4 +307,24 @@ test('area selector and legend describe the same measure',async({page})=>{
  await expect(page.locator('.heatmap-area-note')).toContainText('Оборот');
  await page.getByLabel('Площадь плитки').selectOption('equal');
  await expect(page.locator('.heatmap-area-note')).toContainText('Равные плитки');
+});
+
+test('heatmap hover keeps missing quotes empty and follows the selected period', async ({page}) => {
+  await openMap(page);
+  await page.getByLabel('Площадь плитки').selectOption('equal');
+  await page.locator('.heatmap-tree-tile[data-ticker="EMPTY"]').hover();
+  const card = page.locator('.heatmap-preview');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.heatmap-preview-price')).toHaveText('— UZS');
+  await expect(card.locator('.heatmap-preview-change')).toContainText('—');
+  await expect(card.locator('svg')).toHaveCount(0);
+  await expect(card.locator('.heatmap-preview-no-history').first()).toHaveText('—');
+  await expect(card.locator('.heatmap-preview-metrics dd')).toHaveText(['—', '—', '—', '—', '—', '—']);
+  await page.keyboard.press('Escape');
+  await chooseMapPeriod(page, '1w');
+  await page.locator('.heatmap-tree-tile[data-ticker="AGBA"]').hover();
+  await expect(card.locator('.heatmap-preview-change')).toContainText('+12');
+  await expect(card.locator('.heatmap-preview-change')).toContainText('нед.');
+  await expect(card.locator('.heatmap-preview-metrics')).toContainText('10 000 000 UZS');
+  await expect(card.locator('.heatmap-preview-metrics')).toContainText('Детали по 3 из 5 сессий');
 });

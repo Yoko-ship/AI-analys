@@ -468,17 +468,19 @@ test("catalog is a fundamental workspace without price history requests", async(
   expect(prices).toEqual([]);
 });
 
-test("PL converts each year at its own CBU closing rate and reports missing rates", async({page})=>{
+test("PL converts each year at its own CBU closing rate with a brief summary and no rate links", async({page}, testInfo)=>{
   await fixture(page);
+  let missingRate = false;
   await page.route('**/api/currency/rates?as_of=*',route=>{
     const day=new URL(route.request().url()).searchParams.get('as_of');
-    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,as_of:day,rates:[{ccy:'USD',per_unit:day.startsWith('2025')?10000:9000,effective_date:day}]})});
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,as_of:day,rates:missingRate && day.startsWith('2024') ? [] : [{ccy:'USD',per_unit:day.startsWith('2025')?10000:9000,effective_date:day}]})});
   });
   await run(page,'AGBA PL');
   await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
   await page.getByLabel('Валюта').selectOption('USD');
-  await expect(page.locator('.terminal-fx-rates')).toContainText('2025-12-31');
-  await expect(page.locator('.terminal-fx-rates')).toContainText('2024-12-31');
+  const summary = page.locator('.terminal-fx-rates');
+  await expect(summary).toHaveText('Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.');
+  await expect(summary.locator('a, ul, li, summary')).toHaveCount(0);
   await expect(page.locator('.fin-note').filter({hasText:'Суммы в USD'})).toBeVisible();
   await page.locator('[data-currency=USD]').getByRole('button',{name:'Таблица',exact:true}).click();
   await expect(page.locator('.fin-table')).toContainText(/2[\s\u00a0]000[\s\u00a0]000/);
@@ -488,10 +490,22 @@ test("PL converts each year at its own CBU closing rate and reports missing rate
   const {readFile}=await import('node:fs/promises');
   expect(await readFile(await downloaded.path(),'utf8')).toContain('Currency,USD');
   await page.evaluate(()=>window.scrollTo(0,0));
-  await page.screenshot({path:'/tmp/uzstock-terminal-desktop.png',fullPage:true});
+  await page.screenshot({path:testInfo.outputPath('fx-summary-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
-  await page.waitForTimeout(350);
-  await page.screenshot({path:'/tmp/uzstock-terminal-mobile.png',fullPage:true});
+  await summary.scrollIntoViewIfNeeded();
+  expect((await summary.boundingBox()).height).toBeLessThan(100);
+  await page.screenshot({path:testInfo.outputPath('fx-summary-mobile.png')});
+  await page.goto('/company/AGBA?tab=financials');
+  await page.getByLabel('Валюта').selectOption('USD');
+  await expect(summary).toHaveText('Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.');
+  await expect(summary.locator('a, ul, li, summary')).toHaveCount(0);
+  await summary.scrollIntoViewIfNeeded();
+  await page.screenshot({path:testInfo.outputPath('company-fx-summary-mobile.png')});
+  await page.getByLabel('Валюта').selectOption('UZS');
+  await expect(summary).toHaveCount(0);
+  missingRate = true;
+  await page.getByLabel('Валюта').selectOption('USD');
+  await expect(summary).toContainText('Нет курса для 1 из 2 периодов — суммы за них скрыты.');
 });
 
 test("RAT keeps bank figures and quarterly ratios without CBU sector accordions",async({page},testInfo)=>{

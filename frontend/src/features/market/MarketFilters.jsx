@@ -2,6 +2,7 @@ import {TechnicalSettings} from './TechnicalSettings.jsx';
 import { CHANGE_PERIODS, changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { mt } from "../../shared/marketCopy.jsx";
 import {IndustryFilter} from './IndustryFilter.jsx';
+import {HeatmapPerformanceFilter} from './HeatmapPerformanceFilter.jsx';
 import { TermInfo } from "../../shared/TermInfo.jsx";
 import { MarketColsPopover } from "./TableOverlays.jsx";
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
@@ -233,6 +234,7 @@ export function MarketFilters({
         <span className="market-period-label">
           {lang === "en" ? "Change over" : lang === "uz" ? "O'zgarish davri" : "Изменение за"}
         </span>
+        {viewMode === 'heatmap' ? <HeatmapPerformanceFilter lang={lang} value={changePeriod} onChange={setChangePeriod} /> :
         <div className="segmented-control market-period-control" role="group" aria-label={lang === "en" ? "Change period" : lang === "uz" ? "O'zgarish davri" : "Период изменения"}>
           {CHANGE_PERIODS.map(p => <button
             key={p.code}
@@ -244,7 +246,7 @@ export function MarketFilters({
           >
               {p.code === "1d" ? lang === "en" ? "Session" : lang === "uz" ? "Sessiya" : "Сессия" : p.code === "ytd" ? "YTD" : changePeriodLabel(p.code, lang)}
             </button>)}
-        </div>
+        </div>}
         </div>
 
         {/* A sort built from two headers is invisible once you scroll — the carets

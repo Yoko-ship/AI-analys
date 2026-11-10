@@ -22,12 +22,64 @@ async function openMarket(page, url = '/market') {
     if (url.pathname === '/api/market/stocks') data = {stocks: tickers.map(ticker => ({ticker, name: `${ticker} issuer`, type: 'stock', isin: `UZ-${ticker}`,
       last_price: 110, close_price: 100, volume: 1e6, quantity: 100, trade_count: 2, last_trade_date: '2026-11-06'}))};
     if (url.pathname === '/api/auth/me') return route.fulfill({status: 401, json: {user: null}});
+    if (url.pathname.startsWith('/api/price-history/')) data = {ok: true, points: [
+      {date: '2026-11-04', close: 100}, {date: '2026-11-05', close: 105}, {date: '2026-11-06', close: 110},
+    ]};
     return route.fulfill({json: data});
   });
   await page.goto(url);
   return errors;
 }
 const tiles = page => page.locator('.heatmap-tree-tile');
+
+for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  const errors = await openMarket(page, '/heatmap');
+  await page.getByLabel('Площадь плитки').selectOption('equal');
+  const tile = page.locator('.heatmap-tree-tile[data-ticker="IPTB"]');
+  await tile.hover();
+  const card = page.getByRole('dialog', {name: 'Обзор компании IPTB', exact: true});
+  await expect(card).toBeVisible();
+  await expect(card.locator('.heatmap-preview-industry')).toContainText('Банки');
+  await expect(card.locator('.heatmap-preview-name')).toHaveText('IPTB issuer');
+  await expect(card.locator('.heatmap-preview-price')).toContainText('110');
+  await expect(card.locator('.heatmap-preview-change')).toContainText('+10');
+  await expect(card.locator('[data-peer]')).toHaveCount(2);
+  await expect(card.locator('[data-peer="IPTBP"]')).toBeVisible();
+  await expect(card.locator('[data-peer="UZNF"]')).toHaveCount(0);
+  await expect(card.locator('svg')).toHaveCount(2);
+  await expect(page.locator('.heatmap-group-highlight')).toHaveAttribute('data-group', 'banks');
+  await expect(tile).not.toHaveAttribute('title');
+  await card.hover(); // Users can move into the card to read and scroll it.
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    const box = await card.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(8);
+    expect(box.x + box.width).toBeLessThanOrEqual(width - 8);
+    expect(box.y).toBeGreaterThanOrEqual(8);
+    expect(box.y + box.height).toBeLessThanOrEqual(892);
+    await page.screenshot({path: testInfo.outputPath(`heatmap-hover-${theme}.png`)});
+  }
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await expect(tile).toBeFocused();
+  await tile.blur();
+  await tile.focus();
+  await expect(card).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(card.getByRole('button', {name: 'Закрыть обзор'})).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await page.locator('.heatmap-tree-tile[data-ticker="DORI"]').hover();
+  const other = page.getByRole('dialog', {name: 'Обзор компании DORI', exact: true});
+  await expect(other).toBeVisible();
+  await expect(other.locator('[data-peer]')).toHaveCount(1);
+  await page.mouse.move(0, 0);
+  await expect(other).toHaveCount(0);
+  await tile.click();
+  await expect(page).toHaveURL(/\/company\/IPTB$/);
+  expect(errors).toEqual([]);
+});
 
 for (const width of [1440, 390]) test(`market classifications filter table, map and totals at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 1000});

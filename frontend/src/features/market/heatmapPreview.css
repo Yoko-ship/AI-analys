@@ -1,0 +1,58 @@
+.heatmap-preview {
+  z-index: 1200;
+  width: min(400px, calc(100vw - 16px));
+  max-height: min(640px, var(--radix-popover-content-available-height), calc(100dvh - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-preview-industry { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 0 12px; background: var(--bg-2); color: var(--text-secondary); font-size: 11px; border-bottom: 1px solid var(--border); }
+.heatmap-preview-industry button { flex-shrink: 0; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 20px; cursor: pointer; }
+.heatmap-preview-identity { display: flex; align-items: center; gap: 8px; padding: 12px 12px 4px; }
+.heatmap-preview-identity .chip-logo, .heatmap-preview-identity .chip-logo-fallback { width: 28px; height: 28px; flex: 0 0 28px; font-size: 10px; }
+.heatmap-preview-identity > div > strong { font-size: 18px; }
+.heatmap-preview-identity time { display: block; font-size: 10px; color: var(--muted); }
+.heatmap-preview-quote { margin-left: auto; text-align: right; }
+.heatmap-preview-quote small { font-size: 10px; font-weight: 400; color: var(--muted); }
+.heatmap-preview-change { display: block; font-weight: 600; }
+.heatmap-preview-name { margin: 0; padding: 0 12px 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.heatmap-preview-news { padding: 8px 12px; border-top: 1px solid var(--border); }
+.heatmap-preview-news small { display: block; color: var(--muted); font-size: 10px; margin-bottom: 4px; }
+.heatmap-preview-news a { color: var(--text-secondary); text-decoration: none; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.heatmap-preview-columns, .heatmap-preview-peers button { display: grid; grid-template-columns: minmax(52px, 1fr) 72px minmax(60px, 1.2fr) minmax(52px, 1fr); align-items: center; gap: 4px; padding: 0 12px; }
+.heatmap-preview-columns { min-height: 28px; color: var(--muted); font-size: 10px; background: var(--bg-2); }
+.heatmap-preview-columns > :nth-child(n+3), .heatmap-preview-peers button > :nth-child(n+3) { text-align: right; }
+.heatmap-preview-peers button { width: 100%; min-height: 40px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text-secondary); font: inherit; font-family: 'IBM Plex Mono', monospace; font-size: 11px; cursor: pointer; text-align: left; }
+.heatmap-preview-peers button:nth-child(even) { background: var(--bg-2); }
+.heatmap-preview-peers button.is-current { background: color-mix(in srgb, var(--accent) 10%, var(--panel-elevated)); color: var(--text); }
+.heatmap-preview-peers strong { overflow-wrap: anywhere; }
+.heatmap-preview-peers svg { display: block; width: 72px; height: 36px; }
+.heatmap-preview-no-history { text-align: center; color: var(--muted); }
+.heatmap-preview .tone-good { color: var(--success); }
+.heatmap-preview .tone-danger { color: var(--danger); }
+.heatmap-preview .tone-neutral { color: var(--muted); }
+.heatmap-preview-count { margin: 8px 12px; color: var(--muted); font-size: 10px; }
+.heatmap-preview-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0; padding: 12px; }
+.heatmap-preview-metrics dt { color: var(--muted); font-size: 10px; }
+.heatmap-preview-metrics dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.heatmap-preview-metrics small { display: block; color: var(--muted); font-size: 10px; }
+.heatmap-preview footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--border); padding: 0 12px; }
+.heatmap-preview footer button { min-height: 44px; padding: 0; background: transparent; border: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.heatmap-preview footer > span { color: var(--muted); font-size: 10px; }
+.heatmap-preview button:hover, .heatmap-preview a:hover { color: var(--text); background: var(--bg-2); }
+.heatmap-preview button:focus-visible, .heatmap-preview a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.heatmap-group-highlight { position: absolute; z-index: 5; pointer-events: none; border: 2px solid var(--accent); box-sizing: border-box; }
+@media (max-width: 400px) {
+  .heatmap-preview-columns, .heatmap-preview-peers button { grid-template-columns: minmax(48px, 1fr) 48px minmax(54px, 1.2fr) minmax(48px, 1fr); padding-inline: 8px; }
+  .heatmap-preview-peers svg { width: 48px; }
+  .heatmap-preview-identity > div > strong { font-size: 16px; }
+}
