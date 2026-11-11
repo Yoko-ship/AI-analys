@@ -1,0 +1,81 @@
+{
+  "provenance": "Live Openinfo report 18989, CBSK 2026Q3; observed 2026-11-08. F2 net-profit arithmetic differs by 31,248 thousand UZS, while F1 debt and balance reconcile.",
+  "report": {
+    "issuer": {
+      "id": "633",
+      "ticker": "CBSK",
+      "name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati",
+      "organization_type": "non_financial",
+      "sector": "trade"
+    },
+    "status": "available",
+    "period": "2026Q3",
+    "financial_as_of": "2026-09-30",
+    "standard": "nsbu",
+    "scope": "separate",
+    "instrument": {
+      "issuer_id": "633",
+      "issuer_analysis_id": "55afbb629ef22f17fdae58da78612222b3ba1cdbf87b56b811fe702e69b21af1",
+      "security_id": "UZ7038380000",
+      "ticker": "CBSK",
+      "isin": "UZ7038380000",
+      "instrument_type": "ordinary_share",
+      "verdict": "insufficient_data",
+      "market_as_of": "2026-11-06",
+      "last_price": 4.06,
+      "freshness": {
+        "status": "fresh",
+        "days_since_trade": 2,
+        "quote_as_of": "2026-11-06"
+      },
+      "dividend_rights": null,
+      "share_class": "ordinary"
+    },
+    "verified_facts": [
+      {
+        "metric_code": "net_income",
+        "value": 33451374,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "profit_before_tax",
+        "value": 41782970,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "revenue",
+        "value": 74357988,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_assets",
+        "value": 225240792,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_equity",
+        "value": 185183885.97,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_liabilities",
+        "value": 40056906,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      }
+    ],
+    "public_ratios": []
+  },
+  "source_fixture": "financial_columns/reconciliation_reports.json"
+}

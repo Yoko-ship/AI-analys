@@ -12,7 +12,7 @@ import logging
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-2'
+VERSION = 'report-investor-metrics-3'
 NAMES = {
     'operating_margin': ('Операционная маржа', 'Operatsion marja', 'Operating margin'),
     'book_value': ('Балансовая стоимость капитала', 'Kapitalning balans qiymati', 'Book value of equity'),
@@ -61,8 +61,8 @@ def _load(report):
     return rows
 
 
-def _compatible(report, rows, facts):
-    """Require an exact context and a source revision matching the report balance."""
+def _compatible(report, rows, facts, *, income=False):
+    """Match a source revision using the statements needed by the indicator."""
     standard = 'NSBU' if report['standard'].lower() == 'nsbu' else 'MSFO'
     end = report['financial_as_of']
     groups = defaultdict(list)
@@ -75,7 +75,8 @@ def _compatible(report, rows, facts):
     for group in groups.values():
         # One thousand UZS is the source form's existing rounding tolerance.
         keys = ['total_assets', 'total_equity']
-        keys += [key for key in ('net_income', 'revenue') if key in facts and any(r.get('metric_id') == key for r in group)]
+        if income:
+            keys += [key for key in ('net_income', 'revenue') if key in facts and any(r.get('metric_id') == key for r in group)]
         anchors = [_pick(group, key, 'UZS_thousand', end,
                          end[:4] + '-01-01' if key in {'net_income', 'revenue'} else None) for key in keys]
         expected = [decimal(facts.get(key, {}).get('value')) for key in keys]
@@ -97,8 +98,12 @@ def _pick(rows, key, unit, end, start=None):
 def calculate(report, rows, share_basis=None):
     facts = _facts(report)
     end, start = report['financial_as_of'], report['financial_as_of'][:4] + '-01-01'
-    rows = _compatible(report, rows, facts)
-    pick = lambda key, unit='UZS_thousand', flow=False: _pick(rows, key, unit, end, start if flow else None)
+    balance_rows = _compatible(report, rows, facts)
+    income_rows = _compatible(report, rows, facts, income=True)
+    # A failed income check must not discard independently verified balance
+    # sheet inputs. EPS still requires the matching income revision as well.
+    pick = lambda key, unit='UZS_thousand', flow=False: _pick(
+        income_rows if flow else balance_rows, key, unit, end, start if flow else None)
     fact = lambda key: {'value': decimal(facts.get(key, {}).get('value')), 'components': [facts[key]] if key in facts else []}
     basis = share_basis or {}
     basis_ok = (basis.get('verification_status') == 'verified'

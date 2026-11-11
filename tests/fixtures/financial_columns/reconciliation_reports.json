@@ -1764,6 +1764,156 @@
             "sheet": "Квартальный отчет АО рус",
             "row": 158,
             "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "570",
+            "raw_label": "Долгосрочные банковские кредиты (7810)",
+            "metric_id": "bank_borrowings_long",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Долгосрочные банковские кредиты (7810)",
+              "570",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 105,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "580",
+            "raw_label": "Долгосрочные займы (7820, 7830, 7840)",
+            "metric_id": "other_borrowings_long",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Долгосрочные займы (7820, 7830, 7840)",
+              "580",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 106,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "730",
+            "raw_label": "Краткосрочные банковские кредиты (6810)",
+            "metric_id": "bank_borrowings_short",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 30000000,
+              "value": "30000000",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Краткосрочные банковские кредиты (6810)",
+              "730",
+              0,
+              30000000,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 123,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "740",
+            "raw_label": "Краткосрочные займы (6820, 6830, 6840)",
+            "metric_id": "other_borrowings_short",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 5200000,
+              "value": "5200000",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 3000000,
+              "value": "3000000",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Краткосрочные займы (6820, 6830, 6840)",
+              "740",
+              5200000,
+              3000000,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 124,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "750",
+            "raw_label": "Текущая часть долгосрочных обязательств (6950)",
+            "metric_id": "current_portion_long_term_debt",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущая часть долгосрочных обязательств (6950)",
+              "750",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 125,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989&lang=ru"
           }
         ]
       }
@@ -2945,6 +3095,156 @@
             ],
             "sheet": "Квартальный отчет АО рус",
             "row": 158,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "570",
+            "raw_label": "Долгосрочные банковские кредиты (7810)",
+            "metric_id": "bank_borrowings_long",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 87569977,
+              "value": "87569977",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Долгосрочные банковские кредиты (7810)",
+              "570",
+              87569977,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 105,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "580",
+            "raw_label": "Долгосрочные займы (7820, 7830, 7840)",
+            "metric_id": "other_borrowings_long",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Долгосрочные займы (7820, 7830, 7840)",
+              "580",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 106,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "730",
+            "raw_label": "Краткосрочные банковские кредиты (6810)",
+            "metric_id": "bank_borrowings_short",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 95397830.72,
+              "value": "95397830.72",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 122264743.67,
+              "value": "122264743.67",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Краткосрочные банковские кредиты (6810)",
+              "730",
+              95397830.72,
+              122264743.67,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 123,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "740",
+            "raw_label": "Краткосрочные займы (6820, 6830, 6840)",
+            "metric_id": "other_borrowings_short",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 309878.73,
+              "value": "309878.73",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 309878.73,
+              "value": "309878.73",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Краткосрочные займы (6820, 6830, 6840)",
+              "740",
+              309878.73,
+              309878.73,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 124,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F1",
+            "source_code": "750",
+            "raw_label": "Текущая часть долгосрочных обязательств (6950)",
+            "metric_id": "current_portion_long_term_debt",
+            "mapping_issue": null,
+            "kind": "stock",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": 0,
+              "value": "0",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Текущая часть долгосрочных обязательств (6950)",
+              "750",
+              0,
+              0,
+              null,
+              null
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 125,
             "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
           }
         ]

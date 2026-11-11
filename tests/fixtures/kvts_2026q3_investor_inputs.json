@@ -1,0 +1,81 @@
+{
+  "provenance": "Live Openinfo KVTS 2026Q3, observed 2026-11-08. Source rows retained to check whether an income or balance discrepancy should block debt.",
+  "report": {
+    "issuer": {
+      "id": "445",
+      "ticker": "KVTS",
+      "name": "Kvarts AJ",
+      "organization_type": "non_financial",
+      "sector": "industry"
+    },
+    "status": "available",
+    "period": "2026Q3",
+    "financial_as_of": "2026-09-30",
+    "standard": "nsbu",
+    "scope": "separate",
+    "instrument": {
+      "issuer_id": "445",
+      "issuer_analysis_id": "f418065eba42fb9a5f741f3a26068eea8a477a16189883ef7e5f839a205934d2",
+      "security_id": "UZ7025770007",
+      "ticker": "KVTS",
+      "isin": "UZ7025770007",
+      "instrument_type": "ordinary_share",
+      "verdict": "insufficient_data",
+      "market_as_of": "2026-11-06",
+      "last_price": 3339.9,
+      "freshness": {
+        "status": "fresh",
+        "days_since_trade": 2,
+        "quote_as_of": "2026-11-06"
+      },
+      "dividend_rights": null,
+      "share_class": "ordinary"
+    },
+    "verified_facts": [
+      {
+        "metric_code": "net_income",
+        "value": 28316614.94,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "profit_before_tax",
+        "value": 36931121.06,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "revenue",
+        "value": 519401371.4,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_assets",
+        "value": 517639225.5,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_equity",
+        "value": 265775925.36,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_liabilities",
+        "value": 251863300.14,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      }
+    ],
+    "public_ratios": []
+  },
+  "source_fixture": "financial_columns/reconciliation_reports.json"
+}

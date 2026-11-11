@@ -60,6 +60,47 @@ def test_uzmk_primary_ratios_use_operating_profit_and_equity_not_pretax_profit(r
     assert report == original
 
 
+@pytest.mark.parametrize('ticker,invalid_metric,reason,expected,debt_total', [
+    ('cbsk', 'net_income', 'SOURCE_NET_PROFIT_MISMATCH', 33000000 / 185183885.97, 33000000),
+    ('qatt', 'revenue', 'SOURCE_GROSS_PROFIT_MISMATCH', 3388285 / 36211138, 3388285),
+    ('kvts', 'total_assets', 'SOURCE_PASSIVE_TOTAL_MISMATCH', None, None),
+])
+def test_real_q3_debt_is_blocked_by_balance_discrepancies_but_not_unrelated_income(monkeypatch, ticker, invalid_metric, reason, expected, debt_total):
+    from financial_columns import nsbu
+    from financial_analysis.report_investor_metrics import _load
+    case = json.loads((Path(__file__).parent / f'fixtures/{ticker}_2026q3_investor_inputs.json').read_text())
+    report = case['report']
+    if case.get('source_fixture'):
+        sources = json.loads((Path(__file__).parent / 'fixtures' / case['source_fixture']).read_text())
+        doc = next(d for d in sources[ticker.upper()]['documents'] if d['period_end'] == report['financial_as_of'])
+    else:
+        doc = dict(issuer_id=report['issuer']['id'], scope='separate', period_end=report['financial_as_of'],
+                   unit_scale='1000', currency='UZS', quality='valid', source_version=case['source']['source_url'],
+                   rows=nsbu.rows(case['source'], template='general'))
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [deepcopy(doc)])
+    source = {r['metric_id']: r for r in _load(report) if r['role'] == 'PRIMARY'}
+    assert source[invalid_metric]['reason'] == reason
+    assert source['total_equity']['quality'] == 'valid'
+    debt = metrics(report)['interest_debt_to_equity']
+    assert debt['value'] == (pytest.approx(expected) if expected is not None else None)
+    if expected is not None:
+        assert debt['numerator_value'] == debt_total
+        assert {'570', '580', '730', '740', '750'} <= {c.get('source_code') for c in debt['components']}
+
+
+@pytest.mark.parametrize('bad_balance', [False, True])
+def test_balance_ratios_use_balance_anchors_while_eps_still_requires_matching_income(report, monkeypatch, bad_balance):
+    rows = source_rows(report, net_income=1, common_equity=500, ordinary_shares=100, eps_basic=42)
+    if bad_balance:
+        rows[0]['value'] = '123'
+    inject(monkeypatch, rows)
+    report['instrument'] = {'instrument_type': 'ordinary_share', 'last_price': 10000,
+                            'market_as_of': '2026-07-01', 'freshness': {'status': 'fresh'}}
+    out = metrics(report)
+    assert out['price_to_book']['value'] == (None if bad_balance else 2)
+    assert out['eps_basic']['value'] is None
+
+
 def source_rows(report, **values):
     facts = {r['metric_code']: r['value'] for r in report['verified_facts']}
     values = {'total_assets': facts['total_assets'], 'total_equity': facts['total_equity'], **values}

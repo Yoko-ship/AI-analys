@@ -1,0 +1,280 @@
+{
+  "provenance": "Live Openinfo QATT 2026Q3, observed 2026-11-08. Source rows retained to check whether an income or balance discrepancy should block debt.",
+  "report": {
+    "issuer": {
+      "id": "195",
+      "ticker": "QATT",
+      "name": "\"Qashqadaryo texnologik transport\" aksiyadorlik jamiyati",
+      "organization_type": "non_financial",
+      "sector": "transport"
+    },
+    "status": "available",
+    "period": "2026Q3",
+    "financial_as_of": "2026-09-30",
+    "standard": "nsbu",
+    "scope": "separate",
+    "instrument": {
+      "issuer_id": "195",
+      "issuer_analysis_id": "d55ce8be5005a1a9c7717e4faf53e2e511c82d014bef94752404e1c429dea7de",
+      "security_id": "UZ7034730000",
+      "ticker": "QATT",
+      "isin": "UZ7034730000",
+      "instrument_type": "ordinary_share",
+      "verdict": "insufficient_data",
+      "market_as_of": "2026-11-06",
+      "last_price": 281,
+      "freshness": {
+        "status": "fresh",
+        "days_since_trade": 2,
+        "quote_as_of": "2026-11-06"
+      },
+      "dividend_rights": null,
+      "share_class": "ordinary"
+    },
+    "verified_facts": [
+      {
+        "metric_code": "cost_of_sales",
+        "value": 31248477,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "gross_profit",
+        "value": -12052880,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "net_income",
+        "value": 1255272,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "profit_before_tax",
+        "value": 1594748,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "revenue",
+        "value": 43301357,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_assets",
+        "value": 48927188,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_equity",
+        "value": 36211138,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      },
+      {
+        "metric_code": "total_liabilities",
+        "value": 12716050,
+        "period": "2026Q3",
+        "unit_normalized": "thousand UZS",
+        "verification_status": "verified"
+      }
+    ],
+    "public_ratios": []
+  },
+  "source": {
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19207&lang=ru",
+    "sheets": [
+      {
+        "sheet": "Квартальный отчет АО рус",
+        "source_rows": [
+          {
+            "row": 84,
+            "cells": [
+              "Всего по активу баланса (стр.130+стр.390)",
+              "400",
+              42397712,
+              48927188,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 94,
+            "cells": [
+              "Итого по разделу I (стр.410+420+430-440+450+460+470)",
+              "480",
+              35632740,
+              36211138,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 105,
+            "cells": [
+              "Долгосрочные банковские кредиты (7810)",
+              "570",
+              0,
+              0,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 106,
+            "cells": [
+              "Долгосрочные займы (7820, 7830, 7840)",
+              "580",
+              0,
+              0,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 123,
+            "cells": [
+              "Краткосрочные банковские кредиты (6810)",
+              "730",
+              894667,
+              3388285,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 124,
+            "cells": [
+              "Краткосрочные займы (6820, 6830, 6840)",
+              "740",
+              0,
+              0,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 125,
+            "cells": [
+              "Текущая часть долгосрочных обязательств (6950)",
+              "750",
+              0,
+              0,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 127,
+            "cells": [
+              "Итого по разделу II (стр.490+600)",
+              "770",
+              6764972,
+              12716050,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 128,
+            "cells": [
+              "Всего по пассиву баланса (стр.480+770)",
+              "780",
+              42397712,
+              48927188,
+              null,
+              null
+            ]
+          },
+          {
+            "row": 133,
+            "cells": [
+              "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+              "010",
+              38817415,
+              0,
+              43301357,
+              0
+            ]
+          },
+          {
+            "row": 134,
+            "cells": [
+              "Себестоимость реализованной продукции (товаров, работ и услуг)",
+              "020",
+              0,
+              27336649,
+              0,
+              31248477
+            ]
+          },
+          {
+            "row": 135,
+            "cells": [
+              "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+              "030",
+              11480766,
+              0,
+              0,
+              12052880
+            ]
+          },
+          {
+            "row": 155,
+            "cells": [
+              "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+              "240",
+              1554002,
+              0,
+              1594748,
+              0
+            ]
+          },
+          {
+            "row": 156,
+            "cells": [
+              "Налог на прибыль",
+              "250",
+              0,
+              350751,
+              0,
+              339476
+            ]
+          },
+          {
+            "row": 157,
+            "cells": [
+              "Прочие налоги и другие обязательные платежи от прибыли",
+              "260",
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "row": 158,
+            "cells": [
+              "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+              "270",
+              1203251,
+              0,
+              1255272,
+              0
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
