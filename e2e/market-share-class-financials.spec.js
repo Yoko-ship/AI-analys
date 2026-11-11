@@ -2,18 +2,18 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-async function openBoard(page, columns, theme = 'light') {
-  const fixture = JSON.parse(readFileSync('tests/fixtures/uztl_share_classes.json', 'utf8'));
+async function openBoard(page, columns, theme = 'light', fixturePath = 'tests/fixtures/uztl_share_classes.json') {
+  const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
   // Exercise the real cache reader and API scaling; the browser receives their
   // output, not a fixture that already assumes the share classes agree.
   const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
   const financials = JSON.parse(execFileSync(python, ['-c', `
-import asyncio, dbx, json, os, tempfile
+import asyncio, dbx, json, os, sys, tempfile
 from pathlib import Path
 from unittest.mock import patch
 from catalogue import financial_store, read_batch
 from server.market.routes import api_market_financials, api_market_ratios
-fixture = json.loads(Path('tests/fixtures/uztl_share_classes.json').read_text())
+fixture = json.loads(Path(sys.argv[1]).read_text())
 with tempfile.TemporaryDirectory() as directory:
     os.environ['CATALOG_DB_PATH'] = directory + '/catalog.db'
     os.environ['FINANCIALS_ENRICH_ON_READ'] = '0'
@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as directory:
                           'ratios': asyncio.run(api_market_ratios())}))
     # Release pooled SQLite handles before Windows removes the temporary DB.
     dbx.reset_pools()
-`], { encoding: 'utf8' }));
+`, fixturePath], { encoding: 'utf8' }));
   const stocks = Object.entries(fixture.securities).map(([ticker, security]) => ({
     ...security, ticker, name: 'Uzbektelecom', last_price: ticker === 'UZTL' ? 20980 : 12680,
     close_price: 12000, volume: 1000000, quantity: 1000, trade_count: 4,
@@ -52,9 +52,30 @@ with tempfile.TemporaryDirectory() as directory:
   });
   await page.goto('/market');
   const rows = page.locator('.market-table tbody tr');
-  await expect(rows).toHaveCount(2);
+  await expect(rows).toHaveCount(stocks.length);
   return rows;
 }
+
+test('Q3 ROCE uses insurer filings and explains TGPG non-positive capital without stale Q2', async ({ page }) => {
+  const rows = await openBoard(page, ['roce'], 'light', 'tests/fixtures/roce_q3_filings.json');
+  for (const row of await rows.all()) {
+    await expect(row.locator('.fin-cell-period')).toContainText('2026Q3');
+    await expect(row).not.toContainText('2026Q2');
+  }
+  const tgpg = rows.filter({ has: page.getByText('TGPG', { exact: true }) });
+  await expect(tgpg).toContainText('Капитал ≤ 0');
+  await expect(tgpg.locator('[title*="ROCE"]')).toHaveAttribute('title', /Активы.*обязательств/i);
+  const insurer = rows.filter({ has: page.getByText('KFSK', { exact: true }) });
+  await expect(insurer).toContainText(/0[,.]04/);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'), page.getByRole('button', { name: /Экспорт CSV/ }).click(),
+  ]);
+  const csv = readFileSync(await download.path(), 'utf8');
+  expect(csv).toContain('Капитал ≤ 0');
+  expect(csv).not.toContain('2026Q2');
+  const tgpgExport = csv.split(/\r?\n/).find(line => line.startsWith('TGPG;'));
+  expect(tgpgExport?.split(';').at(-1)).toBe('');
+});
 
 test('ordinary and preferred shares show the latest issuer filing with their own prices', async ({ page }) => {
   const rows = await openBoard(page, ['finRevenue', 'finCash']);

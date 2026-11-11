@@ -41,15 +41,17 @@ def latest(conn):
                 return None
             return value
 
-        def add(field, operands, numerator, denominator, formula, flow=False, percent=False):
-            if any(number(key) is None for key in operands) or denominator is None or denominator <= 0:
+        def add(field, operands, numerator, denominator, formula, flow=False, percent=False,
+                unavailable_reason=None):
+            if (any(number(key) is None for key in operands) or denominator is None
+                    or (denominator <= 0 and unavailable_reason is None)):
                 return
-            value = numerator / denominator * (100 if percent else 1)
-            annualized = flow and months < 12
+            value = None if unavailable_reason else numerator / denominator * (100 if percent else 1)
+            annualized = flow and months < 12 and unavailable_reason is None
             if annualized:
                 value *= 12 / months
                 formula += f' * 12 / {months}'
-            if not isfinite(value):
+            if value is not None and not isfinite(value):
                 return
             if field in {'current_ratio', 'quick_ratio'}:
                 value = round(value, 2)
@@ -63,6 +65,9 @@ def latest(conn):
                 'source_url': row.get('excel_url') or row.get('pdf_url'),
                 'updated_at': row.get('updated_at'),
             }
+            if unavailable_reason:
+                evidence.update(status='not_applicable', reason_code=unavailable_reason,
+                                basis='not_applicable')
             slot = out.setdefault(ticker, {})
             if field not in slot or _rank(evidence) >= _rank(slot[field]):
                 slot[field] = evidence
@@ -83,9 +88,14 @@ def latest(conn):
             add('total_asset_turnover', ['revenue', 'total_assets'], revenue, assets,
                 'revenue / total_assets', flow=True)
         if (profit is not None and assets is not None and assets > 0 and cl is not None and cl >= 0
-                and row.get('org_type') in (None, '', 'jsc')):
+                and row.get('org_type') in (None, '', 'jsc', 'insurance')):
+            # Both commercial and insurance forms state operating profit and
+            # current liabilities. Banks use a different profit tier/balance.
+            # A known non-positive capital base supersedes older ROCE rather
+            # than silently leaving a valid Q2 result beside Q3 coefficients.
             add('return_to_capital_employed', ['operating_income', 'total_assets', 'current_liabilities'],
-                profit, assets - cl, 'operating_income / (total_assets - current_liabilities)', flow=True)
+                profit, assets - cl, 'operating_income / (total_assets - current_liabilities)', flow=True,
+                unavailable_reason='NON_POSITIVE_CAPITAL_EMPLOYED' if assets <= cl else None)
 
     # Match verified issuer codes, never a guessed P suffix or a stale org map.
     groups = {}

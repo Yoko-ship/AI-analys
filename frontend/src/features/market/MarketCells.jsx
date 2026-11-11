@@ -9,6 +9,7 @@ import { formatMarketNumber, formatRatio } from "../../shared/format.jsx";
 import { finFieldCoverage, finFieldPeriod, finPeriodCoverage } from "../../lib/valuation.js";
 import { marketVolumeShare } from "../../lib/marketVolume.js";
 import { MarketChangeBadge } from "../../shared/MarketChangeBadge.jsx";
+import { ratioCalculationDescription, ratioUnavailableLabel } from './ratioCalculation.js';
 export function createMarketCells({
   lang,
   finOf,
@@ -148,7 +149,16 @@ export function createMarketCells({
   } = {}) => {
     const r = ratioOf(row.ticker);
     const value = r?.[field];
+    const calculation = r?.calculations?.[field];
+    const period = r?.periods?.[field] || null;
     if (!Number.isFinite(value)) {
+      const unavailable = ratioUnavailableLabel(calculation, lang);
+      if (unavailable) {
+        return <td className="num" title={ratioCalculationDescription(field, calculation, lang)}>
+            <span className="cell-status">{unavailable}</span>
+            {period && <span className="fin-cell-period">{period}</span>}
+          </td>;
+      }
       const form = finOf(row.ticker)?.org_type;
       if (LIQUIDITY_FIELDS.has(field) && form === "bank") {
         return <td className="num">
@@ -159,8 +169,6 @@ export function createMarketCells({
       }
       return <td className="num">—</td>;
     }
-    const period = (r.periods || {})[field] || null;
-    const calculation = r.calculations?.[field];
     const annualized = lang === 'en' ? 'ann.' : lang === 'uz' ? 'yillik' : 'год.';
     return <td className="num">
         {formatRatio(value, digits, lang)}{suffix}

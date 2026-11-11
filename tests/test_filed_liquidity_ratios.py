@@ -182,13 +182,12 @@ def test_uztl_q3_calculations_replace_stale_annual_coefficients_for_both_classes
     assert result['UZTL']['calculations']['debt_ratio']['operands']['total_assets'] > 0
 
 
-@pytest.mark.parametrize('problem', ['missing_assets', 'zero_assets', 'negative_capital', 'mixed_period', 'future', 'invalid_quarter', 'bank'])
+@pytest.mark.parametrize('problem', ['missing_assets', 'zero_assets', 'mixed_period', 'future', 'invalid_quarter', 'bank'])
 def test_unusable_inputs_never_produce_current_roce(catalog, problem):
     _fact(catalog, 'return_to_capital_employed', '2024', .07)
     row = _filing(2025, 2, operating_income=90, revenue=500, total_assets=1000, current_liabilities=150)
     row.update({
         'missing_assets': {'total_assets': None}, 'zero_assets': {'total_assets': 0},
-        'negative_capital': {'current_liabilities': 1200},
         'mixed_period': {'field_periods': {'operating_income': '2024'}},
         'future': {'year': 2099}, 'invalid_quarter': {'quarter': 7},
         'bank': {'org_type': 'bank'},
@@ -198,6 +197,45 @@ def test_unusable_inputs_never_produce_current_roce(catalog, problem):
     assert got['return_to_capital_employed'] == .07
     assert got['periods']['return_to_capital_employed'] == '2024'
     assert 'return_to_capital_employed' not in got.get('calculations', {})
+
+
+@pytest.mark.parametrize('ticker', ['TGPG', 'ALSM', 'KASU', 'KFSK', 'TMYS', 'UZAS', 'UZINP'])
+def test_q3_roce_does_not_silently_fall_back_to_q2(catalog, monkeypatch, ticker):
+    fixture = json.loads(Path('tests/fixtures/roce_q3_filings.json').read_text())
+    rows = [r for r in fixture['rows'] if r['ticker'] == ticker]
+    monkeypatch.setattr(catalogue_ratios, 'ORG_OVERRIDES', {})
+    with catalog:
+        catalog.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES (?,?,?)',
+                        (ticker, ticker, '777'))
+    _fact(catalog, 'return_to_capital_employed', '2026Q2', .07)
+    catalogue_financial_store.bulk_upsert_financials(rows)
+    got = catalogue_ratios.get_all_ratios()[ticker]
+    field = 'return_to_capital_employed'
+    assert got['periods'][field] == '2026Q3'
+    calc = got['calculations'][field]
+    assert calc['period'] == '2026Q3'
+    q3 = next(r for r in rows if r['quarter'] == 3)
+    assert calc['operands'] == {k: q3[k] for k in (
+        'operating_income', 'total_assets', 'current_liabilities')}
+    capital = q3['total_assets'] - q3['current_liabilities']
+    if capital <= 0:
+        assert got[field] is None
+        assert calc['value'] is None
+        assert calc['reason_code'] == 'NON_POSITIVE_CAPITAL_EMPLOYED'
+    else:
+        assert got[field] == pytest.approx(q3['operating_income'] / capital * 12 / 9)
+        assert calc['annualized'] is True
+
+
+@pytest.mark.parametrize('capital', [0, -1, 1])
+def test_roce_capital_boundary_supersedes_older_valid_calculation(catalog, capital):
+    catalogue_financial_store.bulk_upsert_financials([
+        _filing(2025, 2, operating_income=90, total_assets=1000, current_liabilities=150),
+        _filing(2025, 3, operating_income=-90, total_assets=1000, current_liabilities=1000-capital),
+    ])
+    got = catalogue_ratios.get_all_ratios()['AAA']
+    assert got['periods']['return_to_capital_employed'] == '2025Q3'
+    assert got['return_to_capital_employed'] == (pytest.approx(-120) if capital > 0 else None)
 
 
 def test_financial_rows_need_no_indicator_feed_and_keep_zero_and_negative_results(catalog):

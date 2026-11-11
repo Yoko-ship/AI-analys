@@ -15,10 +15,24 @@ const LABELS = {
 const languageIndex = lang => lang === 'en' ? 2 : lang === 'uz' ? 1 : 0;
 export const ratioCalculationLabel = (field, lang) => LABELS[field]?.[languageIndex(lang)] || field;
 
+export function ratioUnavailableLabel(calculation, lang) {
+  if (calculation?.reason_code === 'NON_POSITIVE_CAPITAL_EMPLOYED') {
+    return ['Капитал ≤ 0', 'Kapital ≤ 0', 'Capital ≤ 0'][languageIndex(lang)];
+  }
+  return '';
+}
+
 export function ratioCalculationDescription(field, calculation, lang) {
   if (!calculation) return '';
   const i = languageIndex(lang);
   const pick = (ru, uz, en) => [ru, uz, en][i];
+  if (calculation.reason_code === 'NON_POSITIVE_CAPITAL_EMPLOYED') {
+    return [calculation.period, ratioUnavailableLabel(calculation, lang), pick(
+      'ROCE не рассчитывается: активы за вычетом текущих обязательств равны нулю или отрицательны.',
+      'ROCE hisoblanmaydi: aktivlardan joriy majburiyatlar ayirilganda nol yoki manfiy qiymat chiqadi.',
+      'ROCE is unavailable: assets minus current liabilities are zero or negative.',
+    )].join(' · ');
+  }
   const number = value => new Intl.NumberFormat(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU', {
     maximumFractionDigits: 6,
   }).format(value);

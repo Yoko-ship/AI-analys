@@ -203,7 +203,8 @@ def get_all_ratios() -> dict[str, dict[str, Any]]:
                 entry["debt_ratio"] = hit[1]
                 field_periods["debt_ratio"] = hit[0]
             # Calculated coefficients keep their own formula and exact inputs.
-            # A missing input leaves the older source visibly dated as before.
+            # Missing inputs leave the older source visibly dated. An explicit
+            # unavailable result (e.g. non-positive ROCE capital) supersedes it.
             for field, calculation in filed_ratios.get(ticker, {}).items():
                 period = calculation['period']
                 if (field not in field_periods

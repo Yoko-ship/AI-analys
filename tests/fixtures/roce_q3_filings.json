@@ -1,0 +1,245 @@
+{
+  "source": "Production catalog read on 2026-11-11; public NSBU Q2/Q3 filings. Amounts in thousand UZS.",
+  "securities": {
+    "TGPG": {
+      "type": "stock",
+      "name": "TGPG"
+    },
+    "ALSM": {
+      "type": "stock",
+      "name": "ALSM"
+    },
+    "KASU": {
+      "type": "stock",
+      "name": "KASU"
+    },
+    "KFSK": {
+      "type": "stock",
+      "name": "KFSK"
+    },
+    "TMYS": {
+      "type": "stock",
+      "name": "TMYS"
+    },
+    "UZAS": {
+      "type": "stock",
+      "name": "UZAS"
+    },
+    "UZINP": {
+      "type": "stock",
+      "name": "UZINP"
+    }
+  },
+  "rows": [
+    {
+      "ticker": "ALSM",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": -5937144.0,
+      "total_assets": 271433512.26,
+      "current_assets": 187407075.31,
+      "current_liabilities": 55560337.2,
+      "inventories": 356395.68,
+      "revenue": 159723712.96,
+      "total_liabilities": 200317190.73,
+      "report_id": 1752
+    },
+    {
+      "ticker": "ALSM",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": -4985474.14,
+      "total_assets": 265556632.02,
+      "current_assets": 181542225.84,
+      "current_liabilities": 54323988.81,
+      "inventories": 654850.36,
+      "revenue": 216992798.83,
+      "total_liabilities": 192027997.4,
+      "report_id": 3389
+    },
+    {
+      "ticker": "KASU",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": -790947.07,
+      "total_assets": 451851450.4,
+      "current_assets": 298372479.09,
+      "current_liabilities": 153317419.82,
+      "inventories": 1041369.13,
+      "revenue": 433994092.18,
+      "total_liabilities": 329921207.39,
+      "report_id": 1808
+    },
+    {
+      "ticker": "KASU",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": -2928932.97,
+      "total_assets": 547656300.01,
+      "current_assets": 164298515.22,
+      "current_liabilities": 75640904.57,
+      "inventories": 1030071.95,
+      "revenue": 361043938.27,
+      "total_liabilities": 425885205.28,
+      "report_id": 3393
+    },
+    {
+      "ticker": "KFSK",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": 6246238.1,
+      "total_assets": 757594824.28,
+      "current_assets": 412917583.5,
+      "current_liabilities": 118774075.58,
+      "inventories": 1202556.51,
+      "revenue": 272434084.4,
+      "total_liabilities": 484964849.11,
+      "report_id": 1737
+    },
+    {
+      "ticker": "KFSK",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": 22402903.7,
+      "total_assets": 907793455.99,
+      "current_assets": 524746334.68,
+      "current_liabilities": 202675597.42,
+      "inventories": 981187.33,
+      "revenue": 307772150.9,
+      "total_liabilities": 628576910.44,
+      "report_id": 3382
+    },
+    {
+      "ticker": "TGPG",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "jsc",
+      "operating_income": -5151519.37,
+      "total_assets": 4540923.5,
+      "current_assets": 3471511.17,
+      "current_liabilities": 3022267.7,
+      "inventories": 137285.91,
+      "revenue": 1696198.14,
+      "total_liabilities": 3022267.7,
+      "report_id": 1736
+    },
+    {
+      "ticker": "TGPG",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "jsc",
+      "operating_income": -7062158.85,
+      "total_assets": 4544259.92,
+      "current_assets": 3481707.5,
+      "current_liabilities": 5188771.13,
+      "inventories": 100303.38,
+      "revenue": 2937906.28,
+      "total_liabilities": 5188771.13,
+      "report_id": 3379
+    },
+    {
+      "ticker": "TMYS",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": 1713809.25,
+      "total_assets": 336219171.35,
+      "current_assets": 310783716.86,
+      "current_liabilities": 90155529.2,
+      "inventories": 68559.04,
+      "revenue": 72936895.37,
+      "total_liabilities": 206957712.46,
+      "report_id": 1817
+    },
+    {
+      "ticker": "TMYS",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": 4557419.55,
+      "total_assets": 336941260.26,
+      "current_assets": 314085569.36,
+      "current_liabilities": 76104460.18,
+      "inventories": 8025.73,
+      "revenue": 112967225.28,
+      "total_liabilities": 199098383.02,
+      "report_id": 3380
+    },
+    {
+      "ticker": "UZAS",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": -5547703.4,
+      "total_assets": 332548245.7,
+      "current_assets": 163982407.3,
+      "current_liabilities": 80360618.0,
+      "inventories": 2503764.9,
+      "revenue": 111891908.5,
+      "total_liabilities": 184886318.3,
+      "report_id": 1825
+    },
+    {
+      "ticker": "UZAS",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": -4228422.5,
+      "total_assets": 377534591.0,
+      "current_assets": 209831739.8,
+      "current_liabilities": 154583978.6,
+      "inventories": 2454790.1,
+      "revenue": 172601794.0,
+      "total_liabilities": 239616658.9,
+      "report_id": 3414
+    },
+    {
+      "ticker": "UZINP",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "insurance",
+      "operating_income": -28090841.0,
+      "total_assets": 2688216117.0,
+      "current_assets": 2062109781.0,
+      "current_liabilities": 851288962.0,
+      "inventories": 2760246.0,
+      "revenue": 559238167.0,
+      "total_liabilities": 1793937955.0,
+      "report_id": 1713
+    },
+    {
+      "ticker": "UZINP",
+      "form": "NSBU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "insurance",
+      "operating_income": -20900969.0,
+      "total_assets": 2623771516.0,
+      "current_assets": 1999040159.0,
+      "current_liabilities": 829052737.0,
+      "inventories": 2789563.0,
+      "revenue": 764945302.0,
+      "total_liabilities": 1746148694.0,
+      "report_id": 3370
+    }
+  ]
+}
