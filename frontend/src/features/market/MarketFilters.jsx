@@ -64,7 +64,7 @@ export function MarketFilters({
           })}
             </div>
           </div>
-          <ResponsiveDisclosure className="market-secondary" label={lang === 'en' ? 'Filters and tools' : lang === 'uz' ? 'Filtrlar va vositalar' : 'Фильтры и инструменты'}>
+          <ResponsiveDisclosure className="market-secondary" collapsible={viewMode !== 'heatmap'} label={lang === 'en' ? 'Filters and tools' : lang === 'uz' ? 'Filtrlar va vositalar' : 'Фильтры и инструменты'}>
           <div className="market-secondary-controls">
             {/* Level 2: share class — only meaningful inside stocks. */}
             {type !== "bond" && <div className="segmented-control market-subtype-control">

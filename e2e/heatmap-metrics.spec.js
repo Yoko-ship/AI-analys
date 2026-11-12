@@ -1,4 +1,4 @@
-import {chooseMapArea, chooseMapTicker} from './helpers/map-controls.js';
+import {chooseMapArea, chooseMapTicker, openMapFilters} from './helpers/map-controls.js';
 import {chooseIndustry} from './industry-control.js';
 import { selectLanguage, toggleTheme } from './language-control.js';
 import { test, expect } from "@playwright/test";
@@ -52,13 +52,17 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
   });
   await page.goto(path);
   if (path !== "/heatmap") return errors;
-  if (type === "bond") await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
+  if (type === "bond") {
+    await openMapFilters(page);
+    await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
+  }
   if (selectTicker) await chooseMapTicker(page, type === "bond" ? "BOND1" : "AGBA");
   return errors;
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
 async function chooseMapPeriod(page, code) {
+  await openMapFilters(page);
   const trigger=page.locator('.heatmap-performance-trigger');
   if(await trigger.count()) {
     await trigger.click();
@@ -72,6 +76,7 @@ async function chooseMapPeriod(page, code) {
 for (const width of [1280, 390]) test(`searchable heatmap performance periods at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 844});
   const errors = await openMap(page, "stock", "/heatmap", true, {id:1,admin_role:"administrator"});
+  await openMapFilters(page);
   const trigger = page.locator('.heatmap-performance-trigger');
   await expect(trigger).toContainText('За сессию');
   await trigger.click();
@@ -91,6 +96,7 @@ for (const width of [1280, 390]) test(`searchable heatmap performance periods at
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"] .htt-pct')).toContainText('+12');
   await expect(metric(page, 'volume')).toHaveText('10 000 000 UZS');
   await page.reload();
+  await openMapFilters(page);
   await expect(trigger).toContainText('За неделю');
   await trigger.click();
   await expect(search).toHaveValue('');
@@ -136,7 +142,7 @@ test('market map draws its tiles when market data arrives after mounting', async
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
 });
 for (const width of [1280, 390, 320]) {
-  test(`heatmap opens with the main movement and metrics above the map at ${width}px`, async ({ page }, testInfo) => {
+  test(`heatmap opens with the main movement first and metrics available at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
     const errors = await openMap(page, "stock", "/heatmap", false);
     const assertSummaryFirst = async () => {
@@ -148,15 +154,16 @@ for (const width of [1280, 390, 320]) {
         const details = document.querySelector('.heatmap-metric-details').getBoundingClientRect();
         return { atTop: scrollY === 0, focusFirst: wrap.firstElementChild.matches('.heatmap-focus-strip'),
           metricsAfterFocus: details.top >= focus.bottom,
-          detailsAboveMap: details.bottom <= tree.top,
+          metricsPlacementCorrect: innerWidth > 980 ? details.bottom <= tree.top : details.top >= document.querySelector('.heatmap-viewport').getBoundingClientRect().bottom,
           summaryBelowMap: document.querySelector('.market-stats-grid').getBoundingClientRect().top >= tree.bottom,
           noOverflow: document.documentElement.scrollWidth <= innerWidth };
-      })).toEqual({ atTop: true, focusFirst: true, metricsAfterFocus: true, detailsAboveMap: true, summaryBelowMap: true, noOverflow: true });
+      })).toEqual({ atTop: true, focusFirst: true, metricsAfterFocus: true, metricsPlacementCorrect: true, summaryBelowMap: true, noOverflow: true });
     };
     await assertSummaryFirst();
     await page.screenshot({ path: testInfo.outputPath('summary-on-arrival.png') });
     await page.reload();
     await assertSummaryFirst();
+    await openMapFilters(page);
     await page.locator('.market-view-toggle button[title="Таблица"]').click();
     await expect(page).toHaveURL(/\/market$/);
     await expect(page.locator('.market-hero-search')).toBeVisible();
@@ -295,6 +302,7 @@ test("metric choices persist on reload and apply to both instruments and languag
 test("turnover and change filters choose which tiles are drawn, not the market pulse", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const errors = await openMap(page);
+  await openMapFilters(page);
   await expect(page.locator(".fx-bar")).toHaveCount(0);
   const tiles = page.locator(".heatmap-tree-tile");
   await expect(tiles).toHaveCount(3);
@@ -321,6 +329,49 @@ test('area selector and legend describe the same measure',async({page})=>{
  await expect(page.locator('.heatmap-area-note')).toContainText('Оборот');
  await chooseMapArea(page, 'equal');
  await expect(page.locator('.heatmap-area-note')).toContainText('Равные плитки');
+});
+
+for (const width of [320, 390, 768]) test(`mobile map starts with compact filters at ${width}px`, async ({page}, testInfo) => {
+  const height = width === 320 ? 740 : 844;
+  await page.setViewportSize({width, height});
+  const errors = await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  const panel = page.locator('.heatmap-sidebar-panel');
+  const trigger = panel.locator(':scope > summary');
+  await expect(trigger).toBeVisible();
+  await expect(panel).not.toHaveAttribute('open', '');
+  expect((await panel.boundingBox()).height).toBeLessThanOrEqual(64);
+  await expect(page.locator('.heatmap-viewport')).toBeInViewport({ratio: .1});
+  await trigger.press('Enter');
+  await expect(panel).toHaveAttribute('open', '');
+  await expect(panel.locator('.market-type-control')).toBeVisible();
+  await expect(panel.locator('.market-subtype-control')).toBeVisible();
+  await expect(panel.locator('.market-secondary > summary')).toBeHidden();
+  await chooseMapPeriod(page, '1w');
+  await panel.getByRole('group', {name: 'Изменение', exact: true}).getByRole('button', {name: 'Рост', exact: true}).click();
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(2);
+  await panel.getByRole('button', {name: 'Показать карту', exact: true}).click();
+  await expect(panel).not.toHaveAttribute('open', '');
+  await expect(trigger).toBeFocused();
+  await expect(page.locator('.heatmap-viewport')).toBeInViewport({ratio: .1});
+  await trigger.click();
+  await panel.getByRole('searchbox', {name: 'Найти тикер'}).fill('KVTS');
+  await panel.locator('.heatmap-ticker-list [data-ticker="KVTS"]').click();
+  await expect(panel).not.toHaveAttribute('open', '');
+  await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => {document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme;}, theme);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({path: testInfo.outputPath(`compact-mobile-${theme}.png`)});
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.setViewportSize({width: 1280, height: 844});
+  await expect(panel).toHaveAttribute('open', '');
+  await expect(trigger).toBeHidden();
+  await expect(panel.getByRole('button', {name: 'Показать карту', exact: true})).toBeHidden();
+  await expect(panel.getByRole('group', {name: 'Изменение', exact: true}).getByRole('button', {name: 'Рост', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await page.setViewportSize({width, height});
+  await expect(panel).not.toHaveAttribute('open', '');
+  expect(errors).toEqual([]);
 });
 
 for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the November market at ${width}px`, async ({page}, testInfo) => {
@@ -376,6 +427,7 @@ for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the 
 for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker search at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  await openMapFilters(page);
   const sidebar = page.getByRole('complementary', {name: 'Фильтры карты'});
   await expect(sidebar.locator('.market-view-toggle')).toBeVisible();
   await expect(sidebar.locator('.heatmap-sidebar-label').first()).toHaveCSS('font-size', '9px');
@@ -391,8 +443,10 @@ for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker 
   await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
   await entries.first().focus();
   await page.keyboard.press('Enter');
+  await openMapFilters(page);
   await expect(entries.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
+  await openMapFilters(page);
   await sidebar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
   await expect(search).toBeFocused();
   await search.fill('issuer');
@@ -414,6 +468,7 @@ for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker 
 for (const width of [1920, 1280, 1024, 390, 320]) test(`map filters sit beside the map at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  await openMapFilters(page);
   const sidebar = page.getByRole('complementary', {name: 'Фильтры карты'});
   await expect(sidebar).toBeVisible();
   await expect(sidebar.locator('.market-type-control')).toBeVisible();
@@ -429,7 +484,8 @@ for (const width of [1920, 1280, 1024, 390, 320]) test(`map filters sit beside t
     expect(Math.abs(rail.y - map.y)).toBeLessThanOrEqual(1);
     expect(rail.width).toBeLessThanOrEqual(240);
   } else {
-    expect(rail.bottom - map.top).toBeLessThanOrEqual(.5);
+    const panelBounds = await page.locator('.heatmap-sidebar-panel').boundingBox();
+    expect(panelBounds.y + panelBounds.height - map.top).toBeLessThanOrEqual(.5);
   }
   await chooseMapPeriod(page, '1w');
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"] .htt-pct')).toContainText('+12');

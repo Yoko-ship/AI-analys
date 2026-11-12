@@ -1,5 +1,6 @@
 import {HeatmapSizeControl, HeatmapTickerSearch} from "./HeatmapSidebarControls.jsx";
 import {heatmapTileLabels} from './tileLabels.js';
+import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
@@ -656,8 +657,23 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
 }
 
 export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls, tickerControl, children}) {
+  const title = lang === 'ru' ? 'Фильтры карты' : lang === 'uz' ? 'Xarita filtrlari' : 'Map filters';
+  const closePanel = element => {
+    const panel = element.closest('.heatmap-sidebar-panel');
+    if (panel) {
+      panel.open = false;
+      panel.querySelector(':scope > summary')?.focus();
+    }
+  };
   return <div className="heatmap-layout">
-    <aside className="heatmap-sidebar" aria-label={lang === 'ru' ? 'Фильтры карты' : lang === 'uz' ? 'Xarita filtrlari' : 'Map filters'}>
+    <ResponsiveDisclosure className="heatmap-sidebar-panel" mediaQuery="(max-width: 980px)" label={<>
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/><path d="M7 3v4M13 8v4M8 13v4"/></svg>
+      <span>{title}</span>
+      <svg className="heatmap-sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+    </>}>
+    <aside className="heatmap-sidebar" aria-label={title} onClick={event => {
+      if (window.matchMedia('(max-width: 980px)').matches && event.target.closest('.heatmap-ticker-list button')) closePanel(event.currentTarget);
+    }}>
       {viewControl && <div className="heatmap-view-control">
         <span className="heatmap-sidebar-label">{lang === 'ru' ? 'Вид' : lang === 'uz' ? 'Ko‘rinish' : 'View as'}</span>
         {viewControl}
@@ -670,6 +686,10 @@ export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls
       {controls}
       {tickerControl}
     </aside>
+    <button type="button" className="heatmap-sidebar-apply" onClick={event => closePanel(event.currentTarget)}>
+      {lang === 'ru' ? 'Показать карту' : lang === 'uz' ? 'Xaritani ko‘rsatish' : 'Show map'}
+    </button>
+    </ResponsiveDisclosure>
     <div className="heatmap-wrap">{children}</div>
   </div>;
 }
