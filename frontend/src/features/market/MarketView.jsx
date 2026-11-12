@@ -333,29 +333,7 @@ function MarketView({
     setMarketSector(null); onQueryChange(''); onTypeChange('stock'); setDirection('all');
     setFavOnly(false); setInactiveOnly(false); setSortKeys([]);
   };
-  return <section className={`market-layout${viewMode === "heatmap" ? " is-heatmap" : ""}`}>
-      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} compact={viewMode === "heatmap"} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
-
-      <article className="panel market-board">
-        <div className="market-board-head">
-          <div>
-            {viewMode === "heatmap"
-              ? <h1>{lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}</h1>
-              : <><div className="panel-label">{mt(lang, "tableTitle")}</div><h2>{mt(lang, "tableTitle")}</h2></>}
-          </div>
-          <div className="market-board-head-right">
-            {(windowed || stats.boardDay) && <span className="market-session-date">
-                {windowed ? changePeriodLabel(changePeriod, lang, "label") : `${stats.boardDay.slice(6, 8)}.${stats.boardDay.slice(4, 6)}.${stats.boardDay.slice(0, 4)}`}
-              </span>}
-            <div className="market-view-toggle">
-              <button type="button" className={viewMode === "table" ? "active" : ""} data-track-control="market_view" data-track-value="table" onClick={() => setViewMode("table")} title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}>
-                <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
-                  <rect x="1" y="2" width="13" height="1.8" rx="0.9" />
-                  <rect x="1" y="6.6" width="13" height="1.8" rx="0.9" />
-                  <rect x="1" y="11.2" width="13" height="1.8" rx="0.9" />
-                </svg>
-                <span>{lang === "en" ? "Table" : lang === "uz" ? "Jadval" : "Таблица"}</span>
-              </button>
+  const viewControl = (<div className="market-view-toggle">
               <button type="button" className={viewMode === "heatmap" ? "active" : ""} data-track-control="market_view" data-track-value="heatmap" onClick={() => setViewMode("heatmap")} title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
                   <rect x="1" y="1" width="5.8" height="5.8" rx="1.2" />
@@ -365,16 +343,16 @@ function MarketView({
                 </svg>
                 <span>{lang === "en" ? "Map" : lang === "uz" ? "Xarita" : "Карта"}</span>
               </button>
-            </div>
-            {viewMode === "table" && <span className="status-badge muted">{mt(lang, "showing")}: {visibleRows.length}/{prepared.length}</span>}
-          </div>
-        </div>
-
-        {/* Every filter the board has — instrument class, share class, favourites,
-            search, the column picker and the sector chips — lives in one block so
-            it can stick under the topbar as a unit. Scrolling to row 300 must not
-            cost the reader the controls that put those rows on screen. */}
-        <MarketFilters
+              <button type="button" className={viewMode === "table" ? "active" : ""} data-track-control="market_view" data-track-value="table" onClick={() => setViewMode("table")} title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}>
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
+                  <rect x="1" y="2" width="13" height="1.8" rx="0.9" />
+                  <rect x="1" y="6.6" width="13" height="1.8" rx="0.9" />
+                  <rect x="1" y="11.2" width="13" height="1.8" rx="0.9" />
+                </svg>
+                <span>{lang === "en" ? "Table" : lang === "uz" ? "Jadval" : "Таблица"}</span>
+              </button>
+            </div>);
+  const filters = (<MarketFilters
           isAdmin={isAdmin}
           lang={lang}
           type={type}
@@ -429,9 +407,35 @@ function MarketView({
             setSortKeys(saved.sortKeys); setInactiveOnly(false);
           }}
         />}
-        </MarketFilters>
+        </MarketFilters>);
+  return <section className={`market-layout${viewMode === "heatmap" ? " is-heatmap" : ""}`}>
+      <MarketHeader lang={lang} isAdmin={isAdmin} meta={meta} onRefresh={onRefresh} loading={loading} rows={rows} compact={viewMode === "heatmap"} showSearch={viewMode === "table"} query={query} onQueryChange={onQueryChange} />
+
+      <article className="panel market-board">
+        <div className="market-board-head">
+          <div>
+            {viewMode === "heatmap"
+              ? <h1>{lang === "en" ? "Market Map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}</h1>
+              : <><div className="panel-label">{mt(lang, "tableTitle")}</div><h2>{mt(lang, "tableTitle")}</h2></>}
+          </div>
+          <div className="market-board-head-right">
+            {(windowed || stats.boardDay) && <span className="market-session-date">
+                {windowed ? changePeriodLabel(changePeriod, lang, "label") : `${stats.boardDay.slice(6, 8)}.${stats.boardDay.slice(4, 6)}.${stats.boardDay.slice(0, 4)}`}
+              </span>}
+            {viewMode === "table" && viewControl}
+            {viewMode === "table" && <span className="status-badge muted">{mt(lang, "showing")}: {visibleRows.length}/{prepared.length}</span>}
+          </div>
+        </div>
+
+        {/* Every filter the board has — instrument class, share class, favourites,
+            search, the column picker and the sector chips — lives in one block so
+            it can stick under the topbar as a unit. Scrolling to row 300 must not
+            cost the reader the controls that put those rows on screen. */}
+        {viewMode === "table" && filters}
         {technicalEnabled && technicalNeeded && <TechnicalStatus lang={lang} status={technical.status} asOf={technical.asOf} retry={technical.retry} />}
         <MarketTable
+          heatmapFilters={filters}
+          heatmapViewControl={viewControl}
           isAdmin={isAdmin}
           onResetFilters={resetFilters}
           filtered={Boolean(query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}

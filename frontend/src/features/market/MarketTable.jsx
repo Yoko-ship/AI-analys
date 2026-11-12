@@ -6,8 +6,10 @@ const EMPTY_SECURITY = {};
 import { MarketColMenu, MarketFloatScroll, MarketStickyHead } from "./TableOverlays.jsx";
 import { BondsView } from "../bonds/index.js";
 import { blocksMarketContent } from "../../lib/marketLoading.js";
-import { MarketHeatmap } from "./Heatmap.jsx";
+import { MarketHeatmap, HeatmapLayout } from "./Heatmap.jsx";
 export function MarketTable({
+  heatmapFilters,
+  heatmapViewControl,
   isAdmin = false,
   stats,
   windowed,
@@ -57,7 +59,9 @@ export function MarketTable({
   React.useLayoutEffect(() => {
     rowActions.current = {onOpenCompany, onAnalyze, onToggleFavorite, openPanel};
   }, [onOpenCompany, onAnalyze, onToggleFavorite, openPanel]);
-  return <CompanyPreviewProvider enabled={isAdmin} lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <p className="market-empty-cell">{mt(lang, "loading")}</p> : <MarketHeatmap
+  return <CompanyPreviewProvider enabled={isAdmin} lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <HeatmapLayout lang={lang} filters={heatmapFilters} viewControl={heatmapViewControl}><p className="market-empty-cell">{mt(lang, "loading")}</p></HeatmapLayout> : <MarketHeatmap
+    filters={heatmapFilters}
+    viewControl={heatmapViewControl}
     isAdmin={isAdmin}
     rows={sectorMapRows}
     emptyFiltered={filtered && rows.length > 0}

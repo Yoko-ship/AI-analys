@@ -1,3 +1,4 @@
+import {chooseMapArea} from './helpers/map-controls.js';
 import {test, expect} from '@playwright/test';
 import {selectLanguage, toggleTheme} from './language-control.js';
 import {openIndustryChooser, chooseIndustry} from './industry-control.js';
@@ -36,7 +37,7 @@ const tiles = page => page.locator('.heatmap-tree-tile');
 for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   const errors = await openMarket(page, '/heatmap', {id:1,is_admin:true});
-  await page.getByLabel('Площадь плитки').selectOption('equal');
+  await chooseMapArea(page, 'equal');
   const tile = page.locator('.heatmap-tree-tile[data-ticker="IPTB"]');
   await tile.hover();
   const card = page.getByRole('dialog', {name: 'Обзор компании IPTB', exact: true});
@@ -117,7 +118,7 @@ for (const width of [1440, 390]) test(`market classifications filter table, map 
   await page.locator('.heatmap-empty-state').getByRole('button', {name: 'Сбросить фильтры'}).click();
   await expect(tiles(page)).toHaveCount(tickers.length);
   await expect(select).toHaveAttribute('data-value', '');
-  await page.getByLabel('Площадь плитки').selectOption('equal');
+  await chooseMapArea(page, 'equal');
   for (const [ticker, sector, group] of [['DORI','trade','pharma-wholesale'], ['CBSK','trade','trading-complexes'], ['PLSTP','manufacturing','chemicals'], ['UZGF','professional','geophysics'], ['ORGS','construction','electrical-installation'], ['UVGT','manufacturing','rail-repair'], ['MIQE','mining','well-services'], ['NEW','other','']]) {
     const tile = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
     await expect(tile).toHaveAttribute('data-sector', sector);

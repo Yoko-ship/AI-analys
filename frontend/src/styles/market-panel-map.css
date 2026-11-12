@@ -201,9 +201,9 @@ body[data-theme="dark"] .market-view-toggle button.active {
 .heatmap-overview {
   display: grid;
   grid-template-columns: minmax(160px, 0.72fr) minmax(300px, 1.4fr) minmax(230px, 1fr);
-  gap: 24px;
+  gap: 16px;
   align-items: center;
-  padding: 4px 2px 14px;
+  padding: 0 0 8px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -227,7 +227,7 @@ body[data-theme="dark"] .market-view-toggle button.active {
 
 .heatmap-pulse-main strong {
   font-family: "Space Grotesk", sans-serif;
-  font-size: clamp(22px, 2vw, 29px);
+  font-size: 18px;
   font-weight: 750;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -247,7 +247,7 @@ body[data-theme="dark"] .market-view-toggle button.active {
 .heatmap-breadth-track {
   display: flex;
   width: 100%;
-  height: 8px;
+  height: 5px;
   gap: 2px;
   padding: 1px;
   overflow: hidden;
@@ -271,7 +271,7 @@ body[data-theme="dark"] .market-view-toggle button.active {
   display: flex;
   flex-wrap: wrap;
   gap: 5px 14px;
-  margin-top: 9px;
+  margin-top: 6px;
   color: var(--muted);
   font-size: 11px;
 }
@@ -310,7 +310,7 @@ body[data-theme="dark"] .market-view-toggle button.active {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 7px;
+  margin-bottom: 4px;
 }
 
 .heatmap-legend-head small {
@@ -334,9 +334,9 @@ body[data-theme="dark"] .market-view-toggle button.active {
 .heatmap-area-note b {
   display: inline-grid;
   place-items: center;
-  min-width: 27px;
-  height: 22px;
-  padding: 0 6px;
+  min-width: 24px;
+  height: 16px;
+  padding: 0 4px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: 6px;
   background: color-mix(in srgb, var(--accent) 9%, transparent);
@@ -349,26 +349,20 @@ body[data-theme="dark"] .market-view-toggle button.active {
   font-weight: 650;
 }
 
-.heatmap-legend-gradient {
-  height: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: linear-gradient(90deg,
-    hsl(7 72% 39%) 0%,
-    hsl(350 54% 26%) 34%,
-    #343a42 50%,
-    hsl(171 54% 25%) 66%,
-    hsl(158 68% 39%) 100%);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.26);
+.heatmap-legend-labels {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  color: #fff;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
-.heatmap-legend-labels {
-  display: flex;
-  justify-content: space-between;
-  gap: 5px;
-  margin-top: 5px;
-  color: var(--muted);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 9px;
-  font-variant-numeric: tabular-nums;
+.heatmap-legend-labels > span {
+  padding: 4px 2px;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+  line-height: 16px;
 }

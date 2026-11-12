@@ -1,7 +1,11 @@
+import {chooseMapArea, chooseMapTicker} from './helpers/map-controls.js';
 import {chooseIndustry} from './industry-control.js';
 import { selectLanguage, toggleTheme } from './language-control.js';
 import { test, expect } from "@playwright/test";
 import path from "node:path";
+import {readFileSync} from 'node:fs';
+
+const smallTileSnapshot = JSON.parse(readFileSync(new URL('./fixtures/heatmap-small-tiles-20261105.json', import.meta.url)));
 
 const day = "2026-09-25";
 const row = (ticker, type, price, prev, volume, quantity, count, industry) => ({
@@ -26,7 +30,10 @@ const changes = Object.fromEntries(all.filter((r) => r.volume).map((r) => [r.tic
   } },
 }]));
 
-async function openMap(page, type = "stock", path = "/heatmap", selectTicker = true, user = null) {
+async function openMap(page, type = "stock", path = "/heatmap", selectTicker = true, user = null, snapshot = null) {
+  const mapStocks = snapshot?.stocks || stocks;
+  const mapBonds = snapshot?.bonds || bonds;
+  const mapAll = [...mapStocks, ...mapBonds];
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => sessionStorage.setItem("uz_sponsor_seen", "1"));
@@ -34,19 +41,19 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-    if (url.pathname === "/api/companies") return json({ companies: all.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
-    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(all.map((r) => [r.ticker, { ...r, security_type: r.type,
+    if (url.pathname === "/api/companies") return json({ companies: mapAll.map((r) => ({ ticker: r.ticker, company_name: r.name, sector: r.industry })) });
+    if (url.pathname === "/api/securities") return json({ ok: true, securities: Object.fromEntries(mapAll.map((r) => [r.ticker, { ...r, security_type: r.type,
       logo_url: r.ticker === "AGBA" ? "/logos/AGBA.png" : r.ticker === "KVTS" ? "/logos/KVTS.png" : null }])) });
-    if (url.pathname === "/api/market/stocks") return json({ stocks: url.searchParams.get("type") === "bond" ? bonds : stocks });
+    if (url.pathname === "/api/market/stocks") return json({ stocks: url.searchParams.get("type") === "bond" ? mapBonds : mapStocks });
     if (url.pathname === "/api/market/trade-stats") return json({ ok: true, stats: tradeStats });
-    if (url.pathname === "/api/market/changes") return json({ ok: true, changes });
+    if (url.pathname === "/api/market/changes") return json({ ok: true, changes: snapshot?.changes || changes });
     if (url.pathname === "/api/auth/me") return json({ user }, user ? 200 : 401);
     return json({ ok: true });
   });
   await page.goto(path);
   if (path !== "/heatmap") return errors;
   if (type === "bond") await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
-  if (selectTicker) await page.getByLabel("Бумага на карте").selectOption(type === "bond" ? "BOND1" : "AGBA");
+  if (selectTicker) await chooseMapTicker(page, type === "bond" ? "BOND1" : "AGBA");
   return errors;
 }
 
@@ -119,7 +126,7 @@ for (const width of [1280, 390]) test(`searchable heatmap performance periods at
   await expect(metric(page, 'volume')).toHaveText('—');
   await chooseMapPeriod(page, '1d');
   await expect(metric(page, 'volume')).toHaveText('1,000,000 UZS');
-  await page.locator('.market-view-toggle button').first().click();
+  await page.locator('.market-view-toggle button[data-track-value="table"]').click();
   await expect(page).toHaveURL(/\/market$/);
   await expect(page.locator('.market-period-control')).toBeVisible();
   expect(errors).toEqual([]);
@@ -175,7 +182,7 @@ for (const width of [1280, 390]) {
     await expect(page.locator('.heatmap-tree-tile[data-ticker="KVTS"] .htt-logo .chip-logo-fallback')).toHaveText('KV');
     await expect(page.locator('.heatmap-tree-tile.is-micro .htt-logo')).toHaveCount(0);
     for (const theme of ['dark', 'light']) {
-      await page.evaluate(theme => document.body.dataset.theme = theme, theme);
+      await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
       const bounds = await agba.evaluate(tile => {
         const t = tile.getBoundingClientRect();
         const badge = tile.querySelector('.htt-logo').getBoundingClientRect();
@@ -243,9 +250,9 @@ test("metrics follow the selected period, sector and missing data on the one com
   await expect(page.locator('.heatmap-metric-details [data-metric="bigTrade"]')).toContainText("Детали по 3 из 5 сессий");
   await chooseIndustry(page, 'finance');
   await expect(metric(page, "volShare")).toHaveText("25%");
-  await page.getByLabel("Бумага на карте").selectOption("EMPTY");
+  await chooseMapTicker(page, "EMPTY");
   for (const key of ["volume", "volQty", "avgShare", "avgTrade", "bigTrade", "volShare"]) await expect(metric(page, key)).toHaveText("—");
-  await page.getByLabel("Бумага на карте").selectOption("AGBA");
+  await chooseMapTicker(page, "AGBA");
   // Main and negotiated boards were merged: no board switch, and the negotiated
   // deal never leaks into the session metrics.
   await expect(page.locator(".market-segment-control")).toHaveCount(0);
@@ -276,7 +283,7 @@ test("metric choices persist on reload and apply to both instruments and languag
   await expect(page.locator(".heatmap-metric-details [data-metric]")).toHaveCount(1);
   await expect(metric(page, "volQty")).toHaveText("1 000 шт");
   await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
-  await page.getByLabel("Бумага на карте").selectOption("BOND1");
+  await chooseMapTicker(page, "BOND1");
   await expect(metric(page, "volQty")).toHaveText("80 шт");
   await selectLanguage(page, 'uz');
   await expect(page.locator(".heatmap-metric-details")).toContainText("Hajm (dona)");
@@ -310,15 +317,184 @@ test("turnover and change filters choose which tiles are drawn, not the market p
 
 test('area selector and legend describe the same measure',async({page})=>{
  await openMap(page);
- await page.getByLabel('Площадь плитки').selectOption('turnover');
+ await chooseMapArea(page, 'turnover');
  await expect(page.locator('.heatmap-area-note')).toContainText('Оборот');
- await page.getByLabel('Площадь плитки').selectOption('equal');
+ await chooseMapArea(page, 'equal');
  await expect(page.locator('.heatmap-area-note')).toContainText('Равные плитки');
+});
+
+for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the November market at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  const errors = await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true}, smallTileSnapshot);
+  await chooseMapPeriod(page, 'ytd');
+  const zoom = page.getByRole('group', {name: 'Масштаб карты', exact: true});
+  await expect(zoom).toBeVisible();
+  await expect(page.locator('.heatmap-viewport')).toHaveCSS('overscroll-behavior-y', 'auto');
+  await expect(zoom.getByRole('button', {name: 'Уменьшить карту'})).toBeDisabled();
+  const clippedChanges = () => page.locator('.heatmap-tree-tile').evaluateAll(tiles => tiles.flatMap(tile => {
+    const label = tile.querySelector('.htt-pct');
+    if (!label) return [];
+    const l = label.getBoundingClientRect(), t = tile.getBoundingClientRect();
+    const fits = l.left >= t.left && l.right <= t.right && l.top >= t.top && l.bottom <= t.bottom && label.scrollWidth <= label.clientWidth + 1;
+    return fits && parseFloat(getComputedStyle(label).fontSize) >= 8 ? [] : [tile.dataset.ticker];
+  }));
+  await page.evaluate(() => document.fonts.ready);
+  await expect.poll(clippedChanges).toEqual([]);
+  const initial = await page.locator('.heatmap-tree-tile').evaluateAll(tiles => tiles
+    .filter(tile => !tile.querySelector('.htt-pct'))
+    .map(tile => ({ticker: tile.dataset.ticker, area: tile.clientWidth * tile.clientHeight}))
+    .sort((a, b) => b.area - a.area));
+  expect(initial.length).toBeGreaterThan(0);
+  const ticker = initial[0].ticker;
+  for (let i = 0; i < 3; i++) await zoom.getByRole('button', {name: 'Увеличить карту'}).click();
+  await expect(zoom.getByRole('status')).toHaveText('800%');
+  await expect(page.locator('.heatmap-viewport')).toHaveCSS('overscroll-behavior-y', 'contain');
+  await expect(zoom.getByRole('button', {name: 'Увеличить карту'})).toBeDisabled();
+  await expect.poll(clippedChanges).toEqual([]);
+  for (const reported of ['SANE', 'KSCM', 'BECM']) {
+    await expect(page.locator(`.heatmap-tree-tile[data-ticker="${reported}"] .htt-pct`)).toBeVisible();
+  }
+  const tile = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
+  const pct = tile.locator('.htt-pct');
+  await expect(pct).toBeVisible();
+  await expect(pct).toContainText('%');
+  await tile.scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.fonts.ready);
+  const fits = await pct.evaluate(label => {
+    const l = label.getBoundingClientRect(), t = label.closest('.heatmap-tree-tile').getBoundingClientRect();
+    return l.left >= t.left && l.right <= t.right && l.top >= t.top && l.bottom <= t.bottom && label.scrollWidth <= label.clientWidth + 1;
+  });
+  expect(fits).toBe(true);
+  await page.screenshot({path: testInfo.outputPath('enlarged-change.png')});
+  await zoom.getByRole('button', {name: 'Сбросить масштаб'}).click();
+  await expect(zoom.getByRole('status')).toHaveText('100%');
+  await expect.poll(() => page.locator('.heatmap-viewport').evaluate(el => ({left: el.scrollLeft, top: el.scrollTop}))).toEqual({left: 0, top: 0});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker search at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  const sidebar = page.getByRole('complementary', {name: 'Фильтры карты'});
+  await expect(sidebar.locator('.market-view-toggle')).toBeVisible();
+  await expect(sidebar.locator('.heatmap-sidebar-label').first()).toHaveCSS('font-size', '9px');
+  const sizes = sidebar.getByRole('group', {name: 'Площадь плитки', exact: true});
+  await expect(sizes.getByRole('button')).toHaveCount(4);
+  await chooseMapArea(page, 'equal');
+  await expect(sizes.locator('[data-area="equal"]')).toHaveAttribute('aria-pressed', 'true');
+  const search = sidebar.getByRole('searchbox', {name: 'Найти тикер'});
+  const entries = sidebar.locator('.heatmap-ticker-list button');
+  await search.fill('  kvTs  ');
+  await expect(entries).toHaveCount(1);
+  await expect(entries.first()).toContainText('KVTS issuer');
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
+  await entries.first().focus();
+  await page.keyboard.press('Enter');
+  await expect(entries.first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
+  await sidebar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
+  await expect(search).toBeFocused();
+  await search.fill('issuer');
+  await expect(entries).toHaveCount(3);
+  await search.fill('no-such-issuer');
+  await expect(sidebar.locator('.heatmap-ticker-empty')).toHaveText('Ничего не найдено');
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
+  await sidebar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
+  await search.blur();
+  await page.mouse.move(0, 0);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    await sidebar.scrollIntoViewIfNeeded();
+    await sidebar.screenshot({path: testInfo.outputPath(`reference-sidebar-${theme}.png`),
+      style: '.topbar { visibility: hidden !important; }'});
+  }
+});
+
+for (const width of [1920, 1280, 1024, 390, 320]) test(`map filters sit beside the map at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  const sidebar = page.getByRole('complementary', {name: 'Фильтры карты'});
+  await expect(sidebar).toBeVisible();
+  await expect(sidebar.locator('.market-type-control')).toBeVisible();
+  await expect(sidebar.locator('.heatmap-performance-trigger')).toBeVisible();
+  await expect(sidebar.getByRole('group', {name: 'Площадь плитки', exact: true})).toBeVisible();
+  await expect(sidebar.locator('.heatmap-filters')).toBeVisible();
+  const {rail, map} = await page.evaluate(() => ({
+    rail: document.querySelector('.heatmap-sidebar').getBoundingClientRect().toJSON(),
+    map: document.querySelector('.heatmap-wrap').getBoundingClientRect().toJSON(),
+  }));
+  if (width >= 981) {
+    expect(rail.x + rail.width).toBeLessThanOrEqual(map.x);
+    expect(Math.abs(rail.y - map.y)).toBeLessThanOrEqual(1);
+    expect(rail.width).toBeLessThanOrEqual(240);
+  } else {
+    expect(rail.bottom - map.top).toBeLessThanOrEqual(.5);
+  }
+  await chooseMapPeriod(page, '1w');
+  await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"] .htt-pct')).toContainText('+12');
+  await chooseMapArea(page, 'equal');
+  await sidebar.getByRole('group', {name: 'Изменение', exact: true}).getByRole('button', {name: 'Рост', exact: true}).click();
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(2);
+  await sidebar.getByRole('button', {name: 'Сбросить фильтры'}).click();
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    for (const control of await sidebar.locator('select:visible, .heatmap-performance-trigger:visible, .market-industry-trigger:visible').all()) {
+      const box = await control.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(rail.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({path: testInfo.outputPath(`map-sidebar-${theme}.png`)});
+  }
+  const secondary = sidebar.locator('.market-secondary');
+  if (await secondary.getAttribute('open') === null) await secondary.locator('summary').click();
+  await sidebar.locator('.market-subtype-control').getByRole('button', {name: 'Привилегированные', exact: true}).click();
+  await expect(page.locator('.heatmap-empty-state')).toBeVisible();
+  // Empty results must keep their filters available so the reader can recover.
+  await sidebar.locator('.market-subtype-control').getByRole('button', {name: 'Все', exact: true}).click();
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
+  await page.locator('.market-view-toggle button[data-track-value="table"]').click();
+  await expect(page).toHaveURL(/\/market$/);
+  await expect(sidebar).toHaveCount(0);
+  await expect(page.locator('.market-filterbar')).toBeVisible();
+});
+
+for (const width of [1920, 1280, 390, 320]) test(`compact map footer at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  await openMap(page, 'stock', '/heatmap', true, {id: 1, is_admin: true});
+  const overview = page.locator('.heatmap-overview');
+  const swatches = page.locator('.heatmap-legend-labels > span');
+  await page.evaluate(() => document.fonts.ready);
+  await expect(swatches).toHaveText(['≤ −5%', '−2%', '0', '+2%', '≥ +5%']);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    // Labels belong inside their coloured cells, like the reference's small key.
+    for (const swatch of await swatches.all()) {
+      await expect(swatch).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      expect((await swatch.boundingBox()).height).toBeLessThanOrEqual(26);
+    }
+    const bounds = await overview.boundingBox();
+    expect(bounds.height).toBeLessThanOrEqual(width >= 1280 ? 64 : 164);
+    for (const card of await page.locator('.market-stats-grid > article').all()) {
+      expect((await card.boundingBox()).height).toBeLessThanOrEqual(88);
+    }
+    for (const item of [overview, page.locator('.heatmap-legend'), page.locator('.heatmap-metrics-toolbar')]) {
+      const box = await item.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    await overview.scrollIntoViewIfNeeded();
+    await page.screenshot({path: testInfo.outputPath(`compact-footer-${theme}.png`)});
+  }
+  await chooseMapPeriod(page, '1w');
+  await expect(swatches).toHaveText(['≤ −10%', '−4%', '0', '+4%', '≥ +10%']);
 });
 
 test('heatmap hover keeps missing quotes empty and follows the selected period', async ({page}) => {
   await openMap(page, 'stock', '/heatmap', true, {id:1,is_admin:true});
-  await page.getByLabel('Площадь плитки').selectOption('equal');
+  await chooseMapArea(page, 'equal');
   await page.locator('.heatmap-tree-tile[data-ticker="EMPTY"]').hover();
   const card = page.locator('.heatmap-preview');
   await expect(card).toBeVisible();

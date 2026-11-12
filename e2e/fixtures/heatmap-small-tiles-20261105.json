@@ -1,0 +1,2137 @@
+{
+  "capture_date": "2026-11-05",
+  "source_endpoints": [
+    "/api/market/stocks",
+    "/api/market/changes"
+  ],
+  "stocks": [
+    {
+      "ticker": "AGMKP",
+      "type": "stock",
+      "isin": "UZ700055K015",
+      "name": "\"Olmaliq kon-metallurgiya kombinati\" aksiyadorlik jamiyati",
+      "last_price": 32900,
+      "close_price": 33996.01,
+      "volume": 22458177.62,
+      "quantity": 671,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZNGP",
+      "type": "stock",
+      "isin": "UZ7036271003",
+      "name": "\"O'zbekneftgaz\" Aksiyadorlik jamiyati",
+      "last_price": 5398.99,
+      "close_price": 5499.99,
+      "volume": 56758652.34,
+      "quantity": 11088,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "DRBK",
+      "type": "stock",
+      "isin": "UZ7050240009",
+      "name": "\"Davr-bank\" Xususiy aksiyadorlik tijorat banki",
+      "last_price": 5000,
+      "close_price": 5000,
+      "volume": 2550000000,
+      "quantity": 510000,
+      "trade_count": null,
+      "last_trade_date": "2019-10-31",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "ORGS",
+      "type": "stock",
+      "isin": "UZ7023070004",
+      "name": "\"Orgres\" aksiyadorlik jamiyati",
+      "last_price": 6191.71,
+      "close_price": 5159.76,
+      "volume": 6191.710000000001,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-11-04",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZMKP",
+      "type": "stock",
+      "isin": "UZ702172K016",
+      "name": "“O‘zbekiston metallurgiya kombinati” aksiyadorlik jamiyati",
+      "last_price": 4150,
+      "close_price": 4200,
+      "volume": 16932945.36,
+      "quantity": 4072,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZMT",
+      "type": "stock",
+      "isin": "UZ7003040001",
+      "name": "\"UzAuto Motors\" aksiyadorlik jamiyati",
+      "last_price": 53000,
+      "close_price": 51100,
+      "volume": 10058932,
+      "quantity": 188,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZTL",
+      "type": "stock",
+      "isin": "UZ7047110000",
+      "name": "\"O'zbektelekom\" aksiyadorlik kompaniyasi",
+      "last_price": 22150,
+      "close_price": 23101,
+      "volume": 621862093.45,
+      "quantity": 28018,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZTLP",
+      "type": "stock",
+      "isin": "UZ704711K019",
+      "name": "\"O'zbektelekom\" aksiyadorlik kompaniyasi",
+      "last_price": 12503,
+      "close_price": 12800,
+      "volume": 16000729.94,
+      "quantity": 1261,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "YRFS",
+      "type": "stock",
+      "isin": "UZ7051820007",
+      "name": "\"Yo'lreftrans\" aksiyadorlik jamiyati",
+      "last_price": 4200,
+      "close_price": 4100,
+      "volume": 224882,
+      "quantity": 55,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "KSCM",
+      "type": "stock",
+      "isin": "UZ7022100000",
+      "name": "\"Quvasoycement\" aksiyadorlik jamiyati",
+      "last_price": 135000,
+      "close_price": 135000,
+      "volume": 404999,
+      "quantity": 3,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "KSCMP",
+      "type": "stock",
+      "isin": "UZ702210K014",
+      "name": "\"Quvasoycement\" aksiyadorlik jamiyati",
+      "last_price": 106000.02,
+      "close_price": 105600,
+      "volume": 106000.02,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-10-06",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "YGSY",
+      "type": "stock",
+      "isin": "UZ7027990009",
+      "name": "\"Yuggazstroy\" aksiyadorlik jamiyati",
+      "last_price": 74649.6,
+      "close_price": 62208.00000000001,
+      "volume": 149299.2,
+      "quantity": 2,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "METQ",
+      "type": "stock",
+      "isin": "UZ7035230000",
+      "name": "\"Maxsuselektrtarmoqqurilish\" aksiyadorlik jamiyati",
+      "last_price": 49000,
+      "close_price": 42155,
+      "volume": 537499.93,
+      "quantity": 11,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "TGPG",
+      "type": "stock",
+      "isin": "UZ7036730008",
+      "name": "«TASHGIPROGOR» Aksiyadorlik jamiyati",
+      "last_price": 71012,
+      "close_price": 77999.98,
+      "volume": 304811,
+      "quantity": 4,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "GRBK",
+      "type": "stock",
+      "isin": "UZ7037610001",
+      "name": "“Garant bank” aksiyadorlik jamiyati",
+      "last_price": 4006,
+      "close_price": 4374.73,
+      "volume": 718334.74,
+      "quantity": 175,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "HMKB",
+      "type": "stock",
+      "isin": "UZ7011340005",
+      "name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+      "last_price": 116,
+      "close_price": 115,
+      "volume": 390929871.76,
+      "quantity": 3379411,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "HMKBP",
+      "type": "stock",
+      "isin": "UZ701134K017",
+      "name": "Chet el kapitali ishtirokidagi \"Hamkorbank\" aksiyadorlik tijorat banki",
+      "last_price": 139.96,
+      "close_price": 141,
+      "volume": 1953467.14,
+      "quantity": 14116,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "IPKY",
+      "type": "stock",
+      "isin": "UZ7039920002",
+      "name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+      "last_price": 323.99,
+      "close_price": 312.8,
+      "volume": 3595788.39,
+      "quantity": 11319,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "IPKYP",
+      "type": "stock",
+      "isin": "UZ703992K016",
+      "name": "\"Ipak Yo'li\" aksiyadorlik innovatsiya tijorat banki",
+      "last_price": 10.01,
+      "close_price": 10,
+      "volume": 20180.16,
+      "quantity": 2016,
+      "trade_count": null,
+      "last_trade_date": "2025-02-26",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "IPTB",
+      "type": "stock",
+      "isin": "UZ7054570005",
+      "name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+      "last_price": 6.5,
+      "close_price": 6.55,
+      "volume": 116324759.4,
+      "quantity": 17878141,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "IPTBP",
+      "type": "stock",
+      "isin": "UZ705457K018",
+      "name": "\"Ipoteka-bank\" aksiyadorlik tijorat ipoteka banki",
+      "last_price": 9,
+      "close_price": 9.17,
+      "volume": 1843494.78,
+      "quantity": 209483,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "KASU",
+      "type": "stock",
+      "isin": "UZ7028660007",
+      "name": "\"KAPITAL SUG’URTA\" aksiyadorlik jamiyati",
+      "last_price": 0.01,
+      "close_price": 0.01,
+      "volume": 1158112.54,
+      "quantity": 115811254,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "KASUP",
+      "type": "stock",
+      "isin": "UZ702866K013",
+      "name": "\"KAPITAL SUG’URTA\" aksiyadorlik jamiyati",
+      "last_price": 0.13,
+      "close_price": 0.14,
+      "volume": 2600918.78,
+      "quantity": 18360337,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "KVTS",
+      "type": "stock",
+      "isin": "UZ7025770007",
+      "name": "Акционерное общество   «Кварц»",
+      "last_price": 3290.1,
+      "close_price": 3329.9,
+      "volume": 14928581.95,
+      "quantity": 4480,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "MCBA",
+      "type": "stock",
+      "isin": "UZ7015230004",
+      "name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+      "last_price": 1017.1,
+      "close_price": 1068,
+      "volume": 11493.45,
+      "quantity": 11,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "MCBAP",
+      "type": "stock",
+      "isin": "UZ701523K011",
+      "name": "\"Mikrokreditbank\" aksiyadorlik-tijorat banki",
+      "last_price": 22010,
+      "close_price": 23498,
+      "volume": 268009.98,
+      "quantity": 12,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "PLST",
+      "type": "stock",
+      "isin": "UZ7011550009",
+      "name": "\"Portlatishsanoat\" aksiyadorlik jamiyati",
+      "last_price": 85000,
+      "close_price": 80050,
+      "volume": 595800,
+      "quantity": 7,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "PLSTP",
+      "type": "stock",
+      "isin": "UZ701155K012",
+      "name": "\"Portlatishsanoat\" aksiyadorlik jamiyati",
+      "last_price": 22000,
+      "close_price": 22000,
+      "volume": 11000000,
+      "quantity": 500,
+      "trade_count": null,
+      "last_trade_date": "2026-01-08",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "SANE",
+      "type": "stock",
+      "isin": "UZ7023760000",
+      "name": "\"Sarbon-Neftegaz\" aksiyadorlik jamiyati",
+      "last_price": 21043,
+      "close_price": 21043,
+      "volume": 21043,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-09-23",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UQEQ",
+      "type": "stock",
+      "isin": "UZ7042540003",
+      "name": "\"O'zqishloqelektrqurilish\" aksiyadorlik jamiyati",
+      "last_price": 80000,
+      "close_price": 79000,
+      "volume": 160000,
+      "quantity": 2,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "JASM",
+      "type": "stock",
+      "isin": "UZ7012450001",
+      "name": "\"Janubsanoatmontaj\" aksiyadorlik jamiyati",
+      "last_price": 29900,
+      "close_price": 28704,
+      "volume": 29900,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "MIQE",
+      "type": "stock",
+      "isin": "UZ7007440009",
+      "name": "\"Minora qurish ekspeditsiyasi\" aksiyadorlik jamiyati",
+      "last_price": 2401,
+      "close_price": 2550.05,
+      "volume": 1570020.69,
+      "quantity": 626,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "AGBA",
+      "type": "stock",
+      "isin": "UZ7001560000",
+      "name": "\"Agrobank\" aksiyadorlik tijorat banki",
+      "last_price": 569.01,
+      "close_price": 579,
+      "volume": 12980594.87,
+      "quantity": 22767,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "AGBAP",
+      "type": "stock",
+      "isin": "UZ700156K011",
+      "name": "\"Agrobank\" aksiyadorlik tijorat banki",
+      "last_price": 10000,
+      "close_price": 10500,
+      "volume": 4118402.73,
+      "quantity": 419,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "ALKB",
+      "type": "stock",
+      "isin": "UZ7044760005",
+      "name": "Аksiyadorlik tijorat \"Aloqabank\"",
+      "last_price": 1.06,
+      "close_price": 1.03,
+      "volume": 35261958.57,
+      "quantity": 33871491,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "ALKBP",
+      "type": "stock",
+      "isin": "UZ704476K019",
+      "name": "Аksiyadorlik tijorat \"Aloqabank\"",
+      "last_price": 4.29,
+      "close_price": 4.25,
+      "volume": 16877929.5,
+      "quantity": 3945001,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "ALSM",
+      "type": "stock",
+      "isin": "UZ7045320007",
+      "name": "\"Alskom sug'urta kompaniyasi\" aksiyadorlik jamiyati",
+      "last_price": 1252.38,
+      "close_price": 1255,
+      "volume": 566659.87,
+      "quantity": 439,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "ALSMP",
+      "type": "stock",
+      "isin": "UZ704532K019",
+      "name": "\"Alskom sug'urta kompaniyasi\" aksiyadorlik jamiyati",
+      "last_price": 24999,
+      "close_price": 24998.8,
+      "volume": 1206387.58,
+      "quantity": 49,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "BECM",
+      "type": "stock",
+      "isin": "UZ7028450003",
+      "name": "\"Bekobodsement\" Aksiyadorlik jamiyati",
+      "last_price": 14000,
+      "close_price": 14400,
+      "volume": 497516.98,
+      "quantity": 34,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "BECMP",
+      "type": "stock",
+      "isin": "UZ702845K017",
+      "name": "\"Bekobodsement\" Aksiyadorlik jamiyati",
+      "last_price": 37158.92,
+      "close_price": 46448.64,
+      "volume": 203476.76,
+      "quantity": 5,
+      "trade_count": null,
+      "last_trade_date": "2026-11-03",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "BIOK",
+      "type": "stock",
+      "isin": "UZ7025870005",
+      "name": "\"Andijon biokimyo zavodi\" aksiyadorlik jamiyati",
+      "last_price": 14159,
+      "close_price": 14080,
+      "volume": 2050379.13,
+      "quantity": 145,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "BRBN",
+      "type": "stock",
+      "isin": "UZ7018790004",
+      "name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+      "last_price": 81.2,
+      "close_price": 81.74000000000001,
+      "volume": 152318053.31,
+      "quantity": 1904388,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "BRBNP",
+      "type": "stock",
+      "isin": "UZ701879K017",
+      "name": "\"Biznesni rivojlantirish banki\" aksiyadorlik tijorat banki",
+      "last_price": 800,
+      "close_price": 820,
+      "volume": 1269007.95,
+      "quantity": 1561,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "BTRL",
+      "type": "stock",
+      "isin": "UZ7052610001",
+      "name": "«BOSHTRANSLOYIHA» Транспорт бўйича бош лойиҳа-қидирув институти акциядорлик жамияти",
+      "last_price": 12700.01,
+      "close_price": 12440,
+      "volume": 371799,
+      "quantity": 30,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "CBSK",
+      "type": "stock",
+      "isin": "UZ7038380000",
+      "name": "\"Chilonzor buyum savdo kompleksi\" aksiyadorlik jamiyati",
+      "last_price": 4.2,
+      "close_price": 4.21,
+      "volume": 39616333.43,
+      "quantity": 9648646,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "EQQU",
+      "type": "stock",
+      "isin": "UZ7007130006",
+      "name": "\"Elektrqishloqqurilish\" aksiyadorlik jamiyati",
+      "last_price": 313000,
+      "close_price": 310000,
+      "volume": 17175000,
+      "quantity": 55,
+      "trade_count": null,
+      "last_trade_date": "2026-10-06",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "NGQS",
+      "type": "stock",
+      "isin": "UZ7042650000",
+      "name": "\"Neft va gaz quduqlarini sinash\" aksiyadorlik jamiyati",
+      "last_price": 36000,
+      "close_price": 30000,
+      "volume": 4478999,
+      "quantity": 125,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "OHDN",
+      "type": "stock",
+      "isin": "UZ7023190000",
+      "name": "\"Ohangaron don\" aksiyadorlik jamiyati",
+      "last_price": 7200,
+      "close_price": 7100,
+      "volume": 394300.65,
+      "quantity": 54,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "QATT",
+      "type": "stock",
+      "isin": "UZ7034730000",
+      "name": "\"Qashqadaryo texnologik transport\" aksiyadorlik jamiyati",
+      "last_price": 279.99,
+      "close_price": 281.01,
+      "volume": 1282441.87,
+      "quantity": 4623,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "QZSM",
+      "type": "stock",
+      "isin": "UZ7029000005",
+      "name": "\"Qizilqumsement\" aksiyadorlik jamiyati",
+      "last_price": 1372,
+      "close_price": 1373.99,
+      "volume": 6628552.14,
+      "quantity": 4839,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "SQBN",
+      "type": "stock",
+      "isin": "UZ7037560008",
+      "name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+      "last_price": 62.95,
+      "close_price": 63.2,
+      "volume": 31364359.45,
+      "quantity": 503155,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "SQBNP",
+      "type": "stock",
+      "isin": "UZ703756K015",
+      "name": "\"O'zbekiston sanoat - qurilish banki\" aksiyadorlik tijorat banki",
+      "last_price": 89.99,
+      "close_price": 88.00999999999999,
+      "volume": 6801647.08,
+      "quantity": 76757,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "TKDM",
+      "type": "stock",
+      "isin": "UZ7026980001",
+      "name": "\"Toshkentdonmahsulotlari\" aksiyadorlik jamiyati",
+      "last_price": 2990,
+      "close_price": 2900,
+      "volume": 205100,
+      "quantity": 70,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "TKDMP",
+      "type": "stock",
+      "isin": "UZ702698K010",
+      "name": "\"Toshkentdonmahsulotlari\" aksiyadorlik jamiyati",
+      "last_price": 4500,
+      "close_price": 5500,
+      "volume": 4500,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "TMYS",
+      "type": "stock",
+      "isin": "UZ7057480012",
+      "name": "Акционерное общество \"TEMIRYO'L-SUG'URTA\"",
+      "last_price": 1500,
+      "close_price": 1471.5,
+      "volume": 2682762.5,
+      "quantity": 1794,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "TNBN",
+      "type": "stock",
+      "isin": "UZ7035530003",
+      "name": "\"Turonbank\" aksiyadorlik tijorat banki",
+      "last_price": 1598,
+      "close_price": 1598,
+      "volume": 1609505.05,
+      "quantity": 1047,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "TNBNP",
+      "type": "stock",
+      "isin": "UZ703553K016",
+      "name": "\"Turonbank\" aksiyadorlik tijorat banki",
+      "last_price": 4300,
+      "close_price": 4400,
+      "volume": 4689347.01,
+      "quantity": 1088,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "TRSB",
+      "type": "stock",
+      "isin": "UZ7033480003",
+      "name": "\"Trastbank\" xususiy aksiyadorlik banki",
+      "last_price": 9000,
+      "close_price": 8700,
+      "volume": 27157544.84,
+      "quantity": 2994,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "TRSBP",
+      "type": "stock",
+      "isin": "UZ703348K011",
+      "name": "\"Trastbank\" xususiy aksiyadorlik banki",
+      "last_price": 155500,
+      "close_price": 149762,
+      "volume": 455024,
+      "quantity": 3,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZASP",
+      "type": "stock",
+      "isin": "UZ704557K016",
+      "name": "\"O'zagrosug'urta\" aksiyadorlik jamiyati",
+      "last_price": 13000,
+      "close_price": 13000,
+      "volume": 26000,
+      "quantity": 2,
+      "trade_count": null,
+      "last_trade_date": "2026-09-02",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZHM",
+      "type": "stock",
+      "isin": "UZ7016400002",
+      "name": "\"O'zbekkimyomash zavodi\" Aksiyadorlik jamiyati",
+      "last_price": 10000,
+      "close_price": 10000,
+      "volume": 2381505.44,
+      "quantity": 244,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZIR",
+      "type": "stock",
+      "isin": "UZ7052260005",
+      "name": "\"O'zbekko'mir\" aksiyadorlik jamiyati",
+      "last_price": 11458,
+      "close_price": 11390,
+      "volume": 665413.19,
+      "quantity": 59,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZIRP",
+      "type": "stock",
+      "isin": "UZ705226K017",
+      "name": "\"O'zbekko'mir\" aksiyadorlik jamiyati",
+      "last_price": 12100,
+      "close_price": 11502,
+      "volume": 617993.07,
+      "quantity": 49,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZMK",
+      "type": "stock",
+      "isin": "UZ7021720006",
+      "name": "“O‘zbekiston metallurgiya kombinati” aksiyadorlik jamiyati",
+      "last_price": 8640,
+      "close_price": 8799,
+      "volume": 107598373.03,
+      "quantity": 12389,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZML",
+      "type": "stock",
+      "isin": "UZ7055630006",
+      "name": "\"UzMED-lizing\" aksiyadorlik jamiyati lizing kompaniyasi",
+      "last_price": 30000,
+      "close_price": 37000,
+      "volume": 30000,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-10-30",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "DORI",
+      "type": "stock",
+      "isin": "UZ7054590003",
+      "name": "\"DORI-DARMON\" aksiyadorlik kompaniyasi",
+      "last_price": 4450,
+      "close_price": 4450,
+      "volume": 10301983.46,
+      "quantity": 2364,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UNVB",
+      "type": "stock",
+      "isin": "UZ7046910004",
+      "name": "Aksiyadorlik-tijorat banki \"Universal bank\"",
+      "last_price": 11000.1,
+      "close_price": 11977,
+      "volume": 96478880.71,
+      "quantity": 8947,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UPOS",
+      "type": "stock",
+      "isin": "UZ7005280001",
+      "name": "\"O'zbekiston pochtasi\" aksiyadorlik jamiyati",
+      "last_price": 37799,
+      "close_price": 34101,
+      "volume": 11738308.98,
+      "quantity": 317,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UPOSP",
+      "type": "stock",
+      "isin": "UZ700528K011",
+      "name": "\"O'zbekiston pochtasi\" aksiyadorlik jamiyati",
+      "last_price": 62000,
+      "close_price": 60000,
+      "volume": 558000,
+      "quantity": 9,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "URTS",
+      "type": "stock",
+      "isin": "UZ7043200003",
+      "name": "\"O'zbekiston respublika tovar-xomashyo birjasi\" aksiyadorlik jamiyati",
+      "last_price": 12800,
+      "close_price": 13900,
+      "volume": 1949951648.88,
+      "quantity": 153004,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UTGA",
+      "type": "stock",
+      "isin": "UZ7043380003",
+      "name": "\"O'ztransgaz\" aksiyadorlik jamiyati",
+      "last_price": 566000,
+      "close_price": 599999,
+      "volume": 1216000,
+      "quantity": 2,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UTGAP",
+      "type": "stock",
+      "isin": "UZ704338K011",
+      "name": "\"O'ztransgaz\" aksiyadorlik jamiyati",
+      "last_price": 22200,
+      "close_price": 22950,
+      "volume": 8640845.45,
+      "quantity": 380,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UTYK",
+      "type": "stock",
+      "isin": "UZ7051720009",
+      "name": "\"O'ZTEMIRYOLKONTEYNER\" aksiyadorlik jamiyati",
+      "last_price": 428000,
+      "close_price": 439000,
+      "volume": 3267134,
+      "quantity": 8,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UVGT",
+      "type": "stock",
+      "isin": "UZ7051840005",
+      "name": "\"O'zvagonta'mir\" aksiyadorlik jamiyati",
+      "last_price": 80000,
+      "close_price": 78000,
+      "volume": 1270000,
+      "quantity": 16,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZAL",
+      "type": "stock",
+      "isin": "UZ7011500004",
+      "name": "\"O'zagrolizing\" aksiyadorlik jamiyati",
+      "last_price": 4730,
+      "close_price": 4260,
+      "volume": 224427.99,
+      "quantity": 51,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "UZAS",
+      "type": "stock",
+      "isin": "UZ7045570007",
+      "name": "\"O'zagrosug'urta\" aksiyadorlik jamiyati",
+      "last_price": 178000,
+      "close_price": 185000,
+      "volume": 538000,
+      "quantity": 3,
+      "trade_count": null,
+      "last_trade_date": "2026-09-11",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "BNGP",
+      "type": "stock",
+      "isin": "UZ7045550009",
+      "name": "\"Buxoroneftgazparmalash\" aksiyadorlik jamiyati",
+      "last_price": 22290,
+      "close_price": 22502,
+      "volume": 6186304.96,
+      "quantity": 285,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "BNGPP",
+      "type": "stock",
+      "isin": "UZ704555K010",
+      "name": "\"Buxoroneftgazparmalash\" aksiyadorlik jamiyati",
+      "last_price": 118400,
+      "close_price": 110000,
+      "volume": 6104467.02,
+      "quantity": 53,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "FRAZP",
+      "type": "stock",
+      "isin": "UZ705435K014",
+      "name": "\"Farg'onaazot\" aksiyadorlik jamiyati",
+      "last_price": 54000,
+      "close_price": 54000,
+      "volume": 54000,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-10-20",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZGFP",
+      "type": "stock",
+      "isin": "UZ700788K011",
+      "name": "\"O'zbekgeofizika\" aksiyadorlik jamiyati",
+      "last_price": 870.7,
+      "close_price": 885.01,
+      "volume": 1244450.59,
+      "quantity": 1416,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZINP",
+      "type": "stock",
+      "isin": "UZ7056921008",
+      "name": "\"O'zbekinvest\" eksport-import sug'urta kompanyasi\" Aksiyadorlik jamiyati",
+      "last_price": 3500.87,
+      "close_price": 3584,
+      "volume": 20286787.1,
+      "quantity": 5794,
+      "trade_count": null,
+      "last_trade_date": "2026-11-05",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "INFB",
+      "type": "stock",
+      "isin": "UZ7055560005",
+      "name": "\"Invest Finance Bank\" Aksiyadorlik jamiyati",
+      "last_price": 1000,
+      "close_price": 1000,
+      "volume": 146063100000,
+      "quantity": 146063100,
+      "trade_count": null,
+      "last_trade_date": "2026-08-28",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "ORFI",
+      "type": "stock",
+      "isin": "UZ7055870008",
+      "name": "\"Orient finans bank\" Xususiy aksiyadorlik tijorat banki",
+      "last_price": 573.95,
+      "close_price": 1250,
+      "volume": 53001266966.7,
+      "quantity": 92344746,
+      "trade_count": null,
+      "last_trade_date": "2021-07-27",
+      "share_type": "ordinary"
+    },
+    {
+      "ticker": "ORFIP",
+      "type": "stock",
+      "isin": "UZ7055871006",
+      "name": "\"Orient finans bank\" Xususiy aksiyadorlik tijorat banki",
+      "last_price": 2160.01,
+      "close_price": 1800.0100000000002,
+      "volume": 27000125,
+      "quantity": 12500,
+      "trade_count": null,
+      "last_trade_date": "2026-10-16",
+      "share_type": "preferred"
+    },
+    {
+      "ticker": "UZPN",
+      "type": "stock",
+      "isin": "UZ7005950009",
+      "name": "\"O'zpartamponaj\" aksiyadorlik jamiyati",
+      "last_price": 5654.44,
+      "close_price": 4712.04,
+      "volume": 5654.440000000001,
+      "quantity": 1,
+      "trade_count": null,
+      "last_trade_date": "2026-11-04",
+      "share_type": "ordinary"
+    }
+  ],
+  "bonds": [],
+  "changes": {
+    "AGMKP": {
+      "1w": {
+        "pct": 3.46,
+        "from": "20261029",
+        "base": 31800
+      },
+      "ytd": {
+        "pct": 287.06,
+        "from": "20251230",
+        "base": 8500
+      }
+    },
+    "UZNGP": {
+      "1w": {
+        "pct": 2.47,
+        "from": "20261029",
+        "base": 5268.99
+      },
+      "ytd": {
+        "pct": 257.55,
+        "from": "20251230",
+        "base": 1510
+      }
+    },
+    "DRBK": {
+      "1w": {
+        "pct": 0,
+        "from": "20191031",
+        "base": 5000
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20191031",
+        "base": 5000
+      }
+    },
+    "ORGS": {
+      "1w": {
+        "pct": 20,
+        "from": "20261021",
+        "base": 5159.76
+      },
+      "ytd": {
+        "pct": 519.17,
+        "from": "20240226",
+        "base": 1000
+      }
+    },
+    "UZMKP": {
+      "1w": {
+        "pct": -3.44,
+        "from": "20261029",
+        "base": 4298
+      },
+      "ytd": {
+        "pct": 104.43,
+        "from": "20251230",
+        "base": 2030
+      }
+    },
+    "UZMT": {
+      "1w": {
+        "pct": 0.95,
+        "from": "20261029",
+        "base": 52500
+      },
+      "ytd": {
+        "pct": 6.43,
+        "from": "20251230",
+        "base": 49800
+      }
+    },
+    "UZTL": {
+      "1w": {
+        "pct": -1.55,
+        "from": "20261029",
+        "base": 22499.2
+      },
+      "ytd": {
+        "pct": 280.2,
+        "from": "20251230",
+        "base": 5825.9
+      }
+    },
+    "UZTLP": {
+      "1w": {
+        "pct": -0.93,
+        "from": "20261029",
+        "base": 12620
+      },
+      "ytd": {
+        "pct": 177.84,
+        "from": "20251230",
+        "base": 4500
+      }
+    },
+    "YRFS": {
+      "1w": {
+        "pct": 6.54,
+        "from": "20261029",
+        "base": 3942
+      },
+      "ytd": {
+        "pct": 77.74,
+        "from": "20251229",
+        "base": 2363.02
+      }
+    },
+    "KSCM": {
+      "1w": {
+        "pct": 3.85,
+        "from": "20261029",
+        "base": 130000
+      },
+      "ytd": {
+        "pct": 58.82,
+        "from": "20251230",
+        "base": 85000
+      }
+    },
+    "KSCMP": {
+      "1w": {
+        "pct": 0,
+        "from": "20261006",
+        "base": 106000.02
+      },
+      "ytd": {
+        "pct": -3.64,
+        "from": "20250922",
+        "base": 110000
+      }
+    },
+    "YGSY": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 74649.6
+      },
+      "ytd": {
+        "pct": 107.36,
+        "from": "20251215",
+        "base": 36000
+      }
+    },
+    "METQ": {
+      "1w": {
+        "pct": 8.89,
+        "from": "20261029",
+        "base": 45000
+      },
+      "ytd": {
+        "pct": 145,
+        "from": "20251230",
+        "base": 20000
+      }
+    },
+    "TGPG": {
+      "1w": {
+        "pct": -16.46,
+        "from": "20261029",
+        "base": 85000
+      },
+      "ytd": {
+        "pct": 9.25,
+        "from": "20251203",
+        "base": 65000
+      }
+    },
+    "GRBK": {
+      "1w": {
+        "pct": -2.29,
+        "from": "20261029",
+        "base": 4100
+      },
+      "ytd": {
+        "pct": 701.2,
+        "from": "20251230",
+        "base": 500
+      }
+    },
+    "HMKB": {
+      "1w": {
+        "pct": 10.48,
+        "from": "20261029",
+        "base": 105
+      },
+      "ytd": {
+        "pct": 169.77,
+        "from": "20251230",
+        "base": 43
+      }
+    },
+    "HMKBP": {
+      "1w": {
+        "pct": 18.61,
+        "from": "20261029",
+        "base": 118
+      },
+      "ytd": {
+        "pct": 185.69,
+        "from": "20251230",
+        "base": 48.99
+      }
+    },
+    "IPKY": {
+      "1w": {
+        "pct": 5.5,
+        "from": "20261029",
+        "base": 307.11
+      },
+      "ytd": {
+        "pct": 232.33,
+        "from": "20251230",
+        "base": 97.49
+      }
+    },
+    "IPKYP": {
+      "1w": {
+        "pct": 0,
+        "from": "20250226",
+        "base": 10.01
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20250226",
+        "base": 10.01
+      }
+    },
+    "IPTB": {
+      "1w": {
+        "pct": 8.33,
+        "from": "20261029",
+        "base": 6
+      },
+      "ytd": {
+        "pct": 415.87,
+        "from": "20251230",
+        "base": 1.26
+      }
+    },
+    "IPTBP": {
+      "1w": {
+        "pct": 2.27,
+        "from": "20261029",
+        "base": 8.8
+      },
+      "ytd": {
+        "pct": 176.07,
+        "from": "20251230",
+        "base": 3.26
+      }
+    },
+    "KASU": {
+      "1w": {
+        "pct": 0,
+        "from": "20261029",
+        "base": 0.01
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20251230",
+        "base": 0.01
+      }
+    },
+    "KASUP": {
+      "1w": {
+        "pct": -7.14,
+        "from": "20261029",
+        "base": 0.14
+      },
+      "ytd": {
+        "pct": 333.33,
+        "from": "20251230",
+        "base": 0.03
+      }
+    },
+    "KVTS": {
+      "1w": {
+        "pct": 2.11,
+        "from": "20261029",
+        "base": 3222
+      },
+      "ytd": {
+        "pct": 232.33,
+        "from": "20251230",
+        "base": 990
+      }
+    },
+    "MCBA": {
+      "1w": {
+        "pct": -3.13,
+        "from": "20261029",
+        "base": 1050
+      },
+      "ytd": {
+        "pct": 25.57,
+        "from": "20251230",
+        "base": 810
+      }
+    },
+    "MCBAP": {
+      "1w": {
+        "pct": 4.81,
+        "from": "20261029",
+        "base": 21000
+      },
+      "ytd": {
+        "pct": 100.09,
+        "from": "20251229",
+        "base": 11000
+      }
+    },
+    "PLST": {
+      "1w": {
+        "pct": 28.79,
+        "from": "20261029",
+        "base": 66000.01
+      },
+      "ytd": {
+        "pct": 221.97,
+        "from": "20251230",
+        "base": 26400
+      }
+    },
+    "PLSTP": {
+      "1w": {
+        "pct": 0,
+        "from": "20260108",
+        "base": 22000
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20250728",
+        "base": 22000
+      }
+    },
+    "SANE": {
+      "1w": {
+        "pct": 0,
+        "from": "20260923",
+        "base": 21043
+      },
+      "ytd": {
+        "pct": 82.66,
+        "from": "20251229",
+        "base": 11520
+      }
+    },
+    "UQEQ": {
+      "1w": {
+        "pct": 0,
+        "from": "20261028",
+        "base": 80000
+      },
+      "ytd": {
+        "pct": 128.57,
+        "from": "20251225",
+        "base": 35000
+      }
+    },
+    "JASM": {
+      "1w": {
+        "pct": 25,
+        "from": "20261026",
+        "base": 23920
+      },
+      "ytd": {
+        "pct": 19.6,
+        "from": "20251219",
+        "base": 25000
+      }
+    },
+    "MIQE": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 2401
+      },
+      "ytd": {
+        "pct": 95.57,
+        "from": "20251229",
+        "base": 1227.72
+      }
+    },
+    "AGBA": {
+      "1w": {
+        "pct": -1.89,
+        "from": "20261029",
+        "base": 579.99
+      },
+      "ytd": {
+        "pct": -1.56,
+        "from": "20251230",
+        "base": 578
+      }
+    },
+    "AGBAP": {
+      "1w": {
+        "pct": 5.24,
+        "from": "20261029",
+        "base": 9502
+      },
+      "ytd": {
+        "pct": 4.2,
+        "from": "20251230",
+        "base": 9596.99
+      }
+    },
+    "ALKB": {
+      "1w": {
+        "pct": 10.42,
+        "from": "20261029",
+        "base": 0.96
+      },
+      "ytd": {
+        "pct": 140.91,
+        "from": "20251230",
+        "base": 0.44
+      }
+    },
+    "ALKBP": {
+      "1w": {
+        "pct": 2.14,
+        "from": "20261029",
+        "base": 4.2
+      },
+      "ytd": {
+        "pct": 45.92,
+        "from": "20251230",
+        "base": 2.94
+      }
+    },
+    "ALSM": {
+      "1w": {
+        "pct": 8.81,
+        "from": "20261029",
+        "base": 1151
+      },
+      "ytd": {
+        "pct": 58.73,
+        "from": "20251229",
+        "base": 789
+      }
+    },
+    "ALSMP": {
+      "1w": {
+        "pct": 4.16,
+        "from": "20261029",
+        "base": 24000
+      },
+      "ytd": {
+        "pct": 117.01,
+        "from": "20251211",
+        "base": 11520
+      }
+    },
+    "BECM": {
+      "1w": {
+        "pct": -3.45,
+        "from": "20261029",
+        "base": 14500
+      },
+      "ytd": {
+        "pct": 58.21,
+        "from": "20251229",
+        "base": 8849
+      }
+    },
+    "BECMP": {
+      "1w": {
+        "pct": -20,
+        "from": "20261029",
+        "base": 46448.64
+      },
+      "ytd": {
+        "pct": 96.61,
+        "from": "20251216",
+        "base": 18900
+      }
+    },
+    "BIOK": {
+      "1w": {
+        "pct": -1.7,
+        "from": "20261029",
+        "base": 14404.19
+      },
+      "ytd": {
+        "pct": -8.95,
+        "from": "20251230",
+        "base": 15550
+      }
+    },
+    "BRBN": {
+      "1w": {
+        "pct": -3.02,
+        "from": "20261029",
+        "base": 83.73
+      },
+      "ytd": {
+        "pct": -4.47,
+        "from": "20251230",
+        "base": 85
+      }
+    },
+    "BRBNP": {
+      "1w": {
+        "pct": -0.62,
+        "from": "20261029",
+        "base": 805
+      },
+      "ytd": {
+        "pct": 124.1,
+        "from": "20251230",
+        "base": 356.99
+      }
+    },
+    "BTRL": {
+      "1w": {
+        "pct": 15.48,
+        "from": "20261029",
+        "base": 10998
+      },
+      "ytd": {
+        "pct": 51.19,
+        "from": "20251230",
+        "base": 8400
+      }
+    },
+    "CBSK": {
+      "1w": {
+        "pct": 10.24,
+        "from": "20261029",
+        "base": 3.81
+      },
+      "ytd": {
+        "pct": 61.54,
+        "from": "20251230",
+        "base": 2.6
+      }
+    },
+    "EQQU": {
+      "1w": {
+        "pct": 0,
+        "from": "20261006",
+        "base": 313000
+      },
+      "ytd": {
+        "pct": 2.62,
+        "from": "20251203",
+        "base": 305000
+      }
+    },
+    "NGQS": {
+      "1w": {
+        "pct": 80,
+        "from": "20261029",
+        "base": 20000
+      },
+      "ytd": {
+        "pct": 275,
+        "from": "20251224",
+        "base": 9600
+      }
+    },
+    "OHDN": {
+      "1w": {
+        "pct": 3.14,
+        "from": "20261029",
+        "base": 6980.5
+      },
+      "ytd": {
+        "pct": 50,
+        "from": "20251230",
+        "base": 4800
+      }
+    },
+    "QATT": {
+      "1w": {
+        "pct": -1.06,
+        "from": "20261029",
+        "base": 283
+      },
+      "ytd": {
+        "pct": 14.75,
+        "from": "20251230",
+        "base": 244
+      }
+    },
+    "QZSM": {
+      "1w": {
+        "pct": -9.68,
+        "from": "20261029",
+        "base": 1519
+      },
+      "ytd": {
+        "pct": 80.53,
+        "from": "20251230",
+        "base": 760
+      }
+    },
+    "SQBN": {
+      "1w": {
+        "pct": 22.38,
+        "from": "20261029",
+        "base": 51.44
+      },
+      "ytd": {
+        "pct": 473.84,
+        "from": "20251230",
+        "base": 10.97
+      }
+    },
+    "SQBNP": {
+      "1w": {
+        "pct": 2.28,
+        "from": "20261029",
+        "base": 87.98
+      },
+      "ytd": {
+        "pct": 164.68,
+        "from": "20251230",
+        "base": 34
+      }
+    },
+    "TKDM": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 2990
+      },
+      "ytd": {
+        "pct": 3.1,
+        "from": "20251230",
+        "base": 2900
+      }
+    },
+    "TKDMP": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 4500
+      },
+      "ytd": {
+        "pct": 36.36,
+        "from": "20251230",
+        "base": 3300
+      }
+    },
+    "TMYS": {
+      "1w": {
+        "pct": 0,
+        "from": "20261029",
+        "base": 1500
+      },
+      "ytd": {
+        "pct": 0.13,
+        "from": "20251230",
+        "base": 1497.99
+      }
+    },
+    "TNBN": {
+      "1w": {
+        "pct": 1.72,
+        "from": "20261029",
+        "base": 1571
+      },
+      "ytd": {
+        "pct": 73.13,
+        "from": "20251230",
+        "base": 922.99
+      }
+    },
+    "TNBNP": {
+      "1w": {
+        "pct": 3.61,
+        "from": "20261029",
+        "base": 4150
+      },
+      "ytd": {
+        "pct": 78.79,
+        "from": "20251230",
+        "base": 2405.01
+      }
+    },
+    "TRSB": {
+      "1w": {
+        "pct": -1.63,
+        "from": "20261029",
+        "base": 9149
+      },
+      "ytd": {
+        "pct": 15.38,
+        "from": "20251230",
+        "base": 7800
+      }
+    },
+    "TRSBP": {
+      "1w": {
+        "pct": 19.62,
+        "from": "20261026",
+        "base": 130000
+      },
+      "ytd": {
+        "pct": -37.8,
+        "from": "20251021",
+        "base": 250000
+      }
+    },
+    "UZASP": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 13000
+      },
+      "ytd": {
+        "pct": -23.08,
+        "from": "20251114",
+        "base": 16900
+      }
+    },
+    "UZHM": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 10000
+      },
+      "ytd": {
+        "pct": 150,
+        "from": "20251229",
+        "base": 3999.99
+      }
+    },
+    "UZIR": {
+      "1w": {
+        "pct": 3.22,
+        "from": "20261029",
+        "base": 11101
+      },
+      "ytd": {
+        "pct": 82.02,
+        "from": "20251230",
+        "base": 6295
+      }
+    },
+    "UZIRP": {
+      "1w": {
+        "pct": -3.2,
+        "from": "20261029",
+        "base": 12500
+      },
+      "ytd": {
+        "pct": 32.68,
+        "from": "20251229",
+        "base": 9119.98
+      }
+    },
+    "UZMK": {
+      "1w": {
+        "pct": 0.99,
+        "from": "20261029",
+        "base": 8555
+      },
+      "ytd": {
+        "pct": 188,
+        "from": "20251230",
+        "base": 2999.99
+      }
+    },
+    "UZML": {
+      "1w": {
+        "pct": -18.92,
+        "from": "20261020",
+        "base": 37000
+      },
+      "ytd": {
+        "pct": 150,
+        "from": "20251226",
+        "base": 12000
+      }
+    },
+    "DORI": {
+      "1w": {
+        "pct": 0,
+        "from": "20261029",
+        "base": 4450
+      },
+      "ytd": {
+        "pct": -17.58,
+        "from": "20251230",
+        "base": 5399
+      }
+    },
+    "UNVB": {
+      "1w": {
+        "pct": 61.77,
+        "from": "20261029",
+        "base": 6800
+      },
+      "ytd": {
+        "pct": 59.89,
+        "from": "20251230",
+        "base": 6880
+      }
+    },
+    "UPOS": {
+      "1w": {
+        "pct": 2.16,
+        "from": "20261029",
+        "base": 37000
+      },
+      "ytd": {
+        "pct": 268.77,
+        "from": "20251230",
+        "base": 10250
+      }
+    },
+    "UPOSP": {
+      "1w": {
+        "pct": 34.78,
+        "from": "20261026",
+        "base": 46000
+      },
+      "ytd": {
+        "pct": 175.56,
+        "from": "20251226",
+        "base": 22500
+      }
+    },
+    "URTS": {
+      "1w": {
+        "pct": 3.23,
+        "from": "20261029",
+        "base": 12400
+      },
+      "ytd": {
+        "pct": 104.8,
+        "from": "20251230",
+        "base": 6249.99
+      }
+    },
+    "UTGA": {
+      "1w": {
+        "pct": -12.92,
+        "from": "20261029",
+        "base": 650000
+      },
+      "ytd": {
+        "pct": 812.9,
+        "from": "20251230",
+        "base": 62000
+      }
+    },
+    "UTGAP": {
+      "1w": {
+        "pct": 25.42,
+        "from": "20261029",
+        "base": 17700
+      },
+      "ytd": {
+        "pct": 198.23,
+        "from": "20251230",
+        "base": 7444
+      }
+    },
+    "UTYK": {
+      "1w": {
+        "pct": -4.89,
+        "from": "20261028",
+        "base": 450000
+      },
+      "ytd": {
+        "pct": 25.88,
+        "from": "20251229",
+        "base": 340000
+      }
+    },
+    "UVGT": {
+      "1w": {
+        "pct": -13.98,
+        "from": "20261029",
+        "base": 92999.99
+      },
+      "ytd": {
+        "pct": 679.22,
+        "from": "20251230",
+        "base": 10266.69
+      }
+    },
+    "UZAL": {
+      "1w": {
+        "pct": 0.64,
+        "from": "20261029",
+        "base": 4700
+      },
+      "ytd": {
+        "pct": 105.65,
+        "from": "20251230",
+        "base": 2300
+      }
+    },
+    "UZAS": {
+      "1w": {
+        "pct": 0,
+        "from": "20260911",
+        "base": 178000
+      },
+      "ytd": {
+        "pct": 1877.78,
+        "from": "20251230",
+        "base": 9000
+      }
+    },
+    "BNGP": {
+      "1w": {
+        "pct": 11.45,
+        "from": "20261029",
+        "base": 20000
+      },
+      "ytd": {
+        "pct": 848.11,
+        "from": "20251230",
+        "base": 2351
+      }
+    },
+    "BNGPP": {
+      "1w": {
+        "pct": 19.6,
+        "from": "20261029",
+        "base": 99000
+      },
+      "ytd": {
+        "pct": 1544.67,
+        "from": "20251230",
+        "base": 7199
+      }
+    },
+    "FRAZP": {
+      "1w": {
+        "pct": 0,
+        "from": "20261020",
+        "base": 54000
+      },
+      "ytd": {
+        "pct": 63.64,
+        "from": "20251106",
+        "base": 33000
+      }
+    },
+    "UZGFP": {
+      "1w": {
+        "pct": -1.06,
+        "from": "20261029",
+        "base": 880.01
+      },
+      "ytd": {
+        "pct": 87.25,
+        "from": "20251230",
+        "base": 465
+      }
+    },
+    "UZINP": {
+      "1w": {
+        "pct": 3.03,
+        "from": "20261029",
+        "base": 3398
+      },
+      "ytd": {
+        "pct": 133.55,
+        "from": "20251230",
+        "base": 1499
+      }
+    },
+    "INFB": {
+      "1w": {
+        "pct": 0,
+        "from": "20201224",
+        "base": 1000
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20201224",
+        "base": 1000
+      }
+    },
+    "ORFI": {
+      "1w": {
+        "pct": 0,
+        "from": "20210727",
+        "base": 573.95
+      },
+      "ytd": {
+        "pct": 0,
+        "from": "20210727",
+        "base": 573.95
+      }
+    },
+    "ORFIP": {
+      "1w": {
+        "pct": 0,
+        "from": "20261016",
+        "base": 2160.01
+      },
+      "ytd": {
+        "pct": 44,
+        "from": "20240513",
+        "base": 1500.01
+      }
+    },
+    "UZPN": {
+      "1w": {
+        "pct": 44,
+        "from": "20261028",
+        "base": 3926.7
+      },
+      "ytd": {
+        "pct": 1748.76,
+        "from": "20241126",
+        "base": 305.85
+      }
+    }
+  }
+}

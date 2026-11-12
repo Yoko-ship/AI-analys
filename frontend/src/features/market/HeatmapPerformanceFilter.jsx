@@ -1,4 +1,4 @@
-import {useId, useRef, useState} from 'react';
+import {useEffect, useId, useRef, useState} from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import {CHANGE_PERIODS, changePeriodLabel} from '../../shared/marketPeriods.jsx';
 import './heatmapPerformanceFilter.css';
@@ -13,8 +13,29 @@ export function HeatmapPerformanceFilter({lang, value, onChange}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef(null);
+  const triggerRef = useRef(null);
   const headingId = useId();
   const copy = labels[lang] || labels.ru;
+  useEffect(() => {
+    if (!open) return;
+    // A shorter viewport (including the phone keyboard) can leave a sidebar
+    // trigger below the screen. Keep the anchor visible so its menu can flip.
+    const keepAnchorVisible = () => {
+      const bounds = triggerRef.current?.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const top = viewport?.offsetTop || 0;
+      const bottom = top + (viewport?.height || window.innerHeight);
+      if (bounds && (bounds.top < top || bounds.bottom > bottom)) {
+        triggerRef.current.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+      }
+    };
+    window.addEventListener('resize', keepAnchorVisible);
+    window.visualViewport?.addEventListener('resize', keepAnchorVisible);
+    return () => {
+      window.removeEventListener('resize', keepAnchorVisible);
+      window.visualViewport?.removeEventListener('resize', keepAnchorVisible);
+    };
+  }, [open]);
   const needle = query.trim().toLocaleLowerCase();
   const title = code => changePeriodLabel(code, lang, 'performance');
   // Read the board's supported periods, so the menu cannot offer a timeframe
@@ -39,14 +60,14 @@ export function HeatmapPerformanceFilter({lang, value, onChange}) {
   };
   return <Popover.Root open={open} onOpenChange={changeOpen}>
     <Popover.Trigger asChild>
-      <button type="button" className="heatmap-performance-trigger" aria-label={`${copy.title}: ${title(value)}`}>
+      <button ref={triggerRef} type="button" className="heatmap-performance-trigger" aria-label={`${copy.title}: ${title(value)}`}>
         <span>{title(value)}</span>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
       </button>
     </Popover.Trigger>
     <Popover.Portal>
       <Popover.Content className="heatmap-performance-menu" aria-label={copy.title} align="start" side="bottom"
-        sideOffset={6} collisionPadding={8} onKeyDown={navigate}>
+        sideOffset={6} collisionPadding={10} onKeyDown={navigate}>
         <div className="heatmap-performance-search">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg>
           <input ref={searchRef} type="search" value={query} onChange={event => setQuery(event.target.value)}
