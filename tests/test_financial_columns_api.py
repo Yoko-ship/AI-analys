@@ -192,6 +192,15 @@ def test_real_leasing_form_exposes_calculated_debt_and_the_leasing_ratio(source)
                             data={'ok':True, 'balance':data, 'income':data}, urls={'excel_url':data.get('source_url', data.get('url'))})
     with TestClient(app) as client:
         result = client.get('/api/company/UZAL/financials/columns').json()
+        template = client.get('/api/company/UZAL/financials/columns?view=template').json()
+        balance = client.get('/api/company/UZAL/financials/columns?view=template&statement=balance').json()
+    assert 'income_flow_rows' not in balance
+    finance_cost = next(r for r in result['rows'] if r['id'] == 'F2:170')
+    chart_cost = next(r for r in template['income_flow_rows'] if r['id'] == 'F2:170')
+    assert chart_cost['cells']['2025'] == {
+        key: finance_cost['cells']['2025'][key] for key in ('value', 'quality')
+    }
+    assert all(r['id'] != 'F2:170' for r in template['rows'])
     assert result['template'] == 'leasing'
     debt = next(r for r in result['rows'] if r['metric_id'] == 'interest_bearing_debt')
     assert debt['cells']['2025']['value'] is not None

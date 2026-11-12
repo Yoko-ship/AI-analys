@@ -481,7 +481,7 @@ function CatalogCompareTable({ result, language }) {
 const CatalogFinancials = React.memo(function CatalogFinancials({ticker, lang, form, scope, func, fromYear, onForm, onScope, go, user, apiFetch}) {
   return <React.Suspense fallback={<div className="catalog-loading">{clg(lang, 'loading')}</div>}>
     <section className="terminal-screen" aria-label={functionLabel(func, lang)}>
-      <FinancialColumns statement={func === 'BS' ? 'balance' : 'income'} showContextControls={false}
+      <FinancialColumns statement={func === 'BS' ? 'balance' : 'income'} showIncomeFlow={func === 'PL'} showContextControls={false}
         isAdmin={Boolean(user?.is_admin || user?.admin_role === 'administrator')} apiFetch={apiFetch}
         ticker={ticker} lang={lang} standard={form} scope={scope} fromYear={fromYear}
         onStandardChange={onForm} onScopeChange={onScope}

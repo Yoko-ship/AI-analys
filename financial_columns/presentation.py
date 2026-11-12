@@ -48,6 +48,25 @@ def select_statement(payload, statement):
             'ratios': [], 'published_ratios': [], 'shareholders': []}
 
 
+_INCOME_FLOW_DETAILS = {
+    'finance_cost', 'lease_expense', 'fx_expense', 'other_finance_cost',
+    'extraordinary_profit', 'other_profit_payments',
+}
+
+
+def income_flow_details(rows, selected):
+    """Keep filed finance and tax details available to the chart."""
+    visible = {row['id'] for row in selected}
+    return [
+        {**{key: row[key] for key in ('id', 'source_form', 'metric_id', 'kind', 'unit', 'label')},
+         'cells': {period: {'value': cell['value'], 'quality': cell['quality']}
+                   for period, cell in row['cells'].items()}}
+        for row in rows
+        if row['source_form'] in {'F2', 'INSURANCE_PL'} and row['metric_id'] in _INCOME_FLOW_DETAILS
+        and row['id'] not in visible
+    ]
+
+
 def project(payload):
     template = template_for(payload['template'], payload.get('issuer_name'))
     standard = payload['standard']

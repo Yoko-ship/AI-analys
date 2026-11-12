@@ -113,8 +113,10 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         payload['ratios'] = calculate(source_rows, ratio_rows, table['columns'], template) if include_ratios else []
         return project(payload, source_rows)
     if view in {'template', 'overview'}:
-        from .presentation import project
+        from .presentation import income_flow_details, project
         payload = project(payload)
+        if view == 'template' and statement != 'balance':
+            payload['income_flow_rows'] = income_flow_details(table['rows'], payload['rows'])
         if view == 'overview':
             payload = {**payload, 'rows': payload['overview_rows'], 'ratios': [], 'published_ratios': [], 'shareholders': []}
     from .presentation import select_statement

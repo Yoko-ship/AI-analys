@@ -777,3 +777,89 @@ for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly 
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await chart.screenshot({path:info.outputPath('quarterly-chart.png')});
 });
+
+test('BIOK income breakdown follows the selected filing and keeps the history chart', async ({page}, testInfo) => {
+  const reports = JSON.parse(readFileSync('e2e/fixtures/biok-income-statement.json', 'utf8'));
+  await page.setViewportSize({width: 1440, height: 1050});
+  await setup(page, {ticker: 'BIOK', reports, theme: 'dark'});
+  const terminal = page.getByTestId('financial-columns');
+  const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
+  await expect(breakdown).toHaveCount(0);
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+
+  const period = breakdown.getByRole('combobox', {name: 'Reporting period'});
+  const diagram = breakdown.getByRole('img');
+  await expect(period).toHaveValue('2026-09-30');
+  await expect(diagram).toContainText('Net income');
+  await expect(diagram).toContainText('6.32');
+  await period.selectOption('2025');
+  await expect(diagram).toContainText('142.43');
+  await expect(diagram).toContainText('Cost of sales');
+  await expect(diagram).toContainText('114.08');
+  await expect(diagram).toContainText('Income tax');
+  await expect(diagram).toContainText('8.70');
+  await expect(diagram).toContainText('Foreign exchange expenses');
+  await expect(diagram).not.toContainText('Unreconciled difference');
+  const barHeight = async label => Number(await diagram.locator('g')
+    .filter({has: page.getByText(label, {exact: true})}).locator('rect').getAttribute('height'));
+  expect(await barHeight('Cost of sales') / await barHeight('Revenue')).toBeCloseTo(114078960 / 142434170, 6);
+  await expect(terminal.getByRole('img', {name: 'Financial history'})).toBeVisible();
+  await breakdown.screenshot({path: testInfo.outputPath('biok-income-breakdown-desktop.png')});
+
+  await page.setViewportSize({width: 390, height: 844});
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  const scroll = breakdown.getByRole('region', {name: 'Income flow diagram'});
+  await scroll.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => scroll.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+  await breakdown.locator('summary').click();
+  await expect(breakdown.getByText('8,704,704', {exact: true})).toBeVisible();
+  await breakdown.screenshot({path: testInfo.outputPath('biok-income-breakdown-mobile.png')});
+
+  await terminal.getByRole('tab', {name: 'Ratios', exact: true}).click();
+  await expect(breakdown).toHaveCount(0);
+
+  await page.setViewportSize({width: 1440, height: 1050});
+  await page.getByRole('button', {name: 'PNL · Panels', exact: true}).click();
+  const panel = page.locator('.terminal-work-panel').first();
+  await panel.getByLabel(/^Function/).selectOption('PL');
+  await panel.getByRole('button', {name: 'Chart', exact: true}).click();
+  await expect(panel.getByRole('region', {name: 'Revenue & expenses breakdown'}).getByRole('img')).toBeVisible();
+});
+
+test('income breakdown preserves a reported loss and explains unreconciled amounts', async ({page}) => {
+  const reports = JSON.parse(readFileSync('e2e/fixtures/biok-income-statement.json', 'utf8'));
+  const net = reports.rows.find(row => row.metric_id === 'net_income');
+  net.cells['2025'] = {value: '-3000000', quality: 'warn'};
+  net.cells['2026-09-30'] = {value: null, quality: 'blocked'};
+  await setup(page, {ticker: 'BIOK', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
+  const period = breakdown.getByRole('combobox', {name: 'Reporting period'});
+  await expect(period).toHaveValue('2025');
+  await expect(breakdown.getByRole('img')).toContainText('Net loss');
+  await expect(breakdown.getByRole('img')).toContainText('Unreconciled difference');
+  await period.selectOption('2026-09-30');
+  await expect(breakdown.getByRole('status')).toContainText('Not enough reported figures');
+  await expect(breakdown.getByRole('img')).toHaveCount(0);
+});
+
+test('bank income breakdown shows filed expense magnitudes as deductions', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 1440, height: 1050});
+  await setup(page, {ticker: 'HMKB', reports: recentReports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
+  await breakdown.getByRole('combobox', {name: 'Reporting period'}).selectOption('2025');
+  const diagram = breakdown.getByRole('img');
+  await expect(diagram).toContainText('Net interest income');
+  await expect(diagram).toContainText('Credit losses');
+  await expect(diagram).toContainText('1,704.97');
+  await breakdown.locator('summary').click();
+  await expect(breakdown.getByText('-2,735,582,868', {exact: true})).toBeVisible();
+  await expect(breakdown.getByText('-360,981,331', {exact: true})).toBeVisible();
+  await breakdown.screenshot({path: testInfo.outputPath('hmkb-income-breakdown-light.png')});
+  await page.getByRole('button', {name: /BS Balance/}).click();
+  await expect(breakdown).toHaveCount(0);
+});

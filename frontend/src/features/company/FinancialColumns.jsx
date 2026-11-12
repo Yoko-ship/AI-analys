@@ -5,6 +5,7 @@ import { safeHref } from '../../lib/safeHref.js';
 import { qualityReason, reconciliationIssues } from './financialColumnQuality.js';
 import { financialGroup } from './financialColumnGroups.js';
 import { BalanceHistoryCharts, FinancialHistoryChart } from './FinancialHistoryChart.jsx';
+import { IncomeSankey } from './IncomeSankey.jsx';
 import { RatioInfo } from '../../shared/RatioInfo.jsx';
 import { PublishedRatios } from './PublishedRatios.jsx';
 import { CompanyShareholders } from './CompanyShareholders.jsx';
@@ -103,7 +104,7 @@ function OriginalDocuments({ forms, t }) {
   </details>;
 }
 
-export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all', isAdmin = false, apiFetch = fetch }) {
+export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope = 'separate', onStandardChange, onScopeChange, fromYear = 2020, onLoad, fallback, showContextControls = true, statement = 'all', showIncomeFlow = false, isAdmin = false, apiFetch = fetch }) {
   const {read, peek, version} = useCatalogRequests();
   const t = (...labels) => words(lang, ...labels);
   const [freq, setFreq] = React.useState('annual'), [selectedView, setView] = React.useState('summary'), [representation, setRepresentation] = React.useState('table');
@@ -164,6 +165,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
       {!data.rows?.length && <p className="fc-empty">{t('Нет проверенных строк источника в этом периметре.', 'Ushbu qamrovda tekshirilgan manba qatorlari yo‘q.', 'No verified source rows in this accounting scope.')}</p>}
       {view === 'original' && data.presentation !== 'template' && <OriginalDocuments forms={data.source_forms || []} t={t}/>}
       {representation === 'chart' ? <>
+        {showIncomeFlow && view === 'summary' && <IncomeSankey key={url} rows={data.rows || []} details={data.income_flow_rows} columns={columns} format={format} lang={lang} t={t}/>}
         {isAdmin && statement === 'balance' && view !== 'ratios' && <BalanceHistoryCharts rows={data.rows || []} columns={columns} format={format} t={t}/>}
         <FinancialHistoryChart rows={rows} columns={columns} view={view} groupLabel={group => t(...(GROUPS[group] || [group,group,group]))} format={format} lang={lang} t={t}/></> : <div className="fc-scroll"><table className="fc-table" data-own-export><thead><tr><th>{t('Показатель', 'Ko‘rsatkich', 'Metric')}</th>{columns.map(column => <th key={column.key}>{column.label}<small>{column.basis === 'as_of' ? t('на дату', 'sana bo‘yicha', 'as of') : column.basis === 'ytd' ? 'YTD' : column.basis === 'quarter' ? t('отдельный квартал', 'alohida chorak', 'standalone quarter') : ''}</small></th>)}</tr></thead><tbody>{groups.map(group => <React.Fragment key={group}><tr className="fc-group"><th colSpan={columns.length+1}><button type="button" aria-expanded={!collapsed[group]} onClick={() => setCollapsed({...collapsed,[group]:!collapsed[group]})}>{collapsed[group] ? '▸' : '▾'} {t(...(GROUPS[group] || [group,group,group]))}</button></th></tr>{!collapsed[group] && rows.filter(r => financialGroup(r, view) === group).map(row => <tr key={row.id} data-metric={row.metric_id || ''}><th scope="row">{row.label}{view === 'ratios' && <RatioInfo metric={row.metric_id} label={row.label} lang={lang} meaning={row[`meaning_${lang}`] || row.meaning_ru} formula={[...new Set(Object.values(row.cells).map(cell => cell.formula).filter(Boolean))].join('\n')}/>}<small>{view === 'summary' && row.display_ref ? row.display_ref : `${row.source_form} ${row.source_code || ''}`}{row.unit === 'UZS_thousand' ? t(' · тыс.', ' · ming', ' · thous.') : row.unit === 'percent' ? ' · %' : row.unit === 'ratio' ? ' · ×' : row.unit === 'UZS_per_share' ? ' · UZS / share' : ''}</small></th>{columns.map(column => {const cell = row.cells[column.key] || {quality:'missing'};return <td key={column.key}><FinancialValue cell={cell} explainQuality={view === 'ratios'} open={part => setPassport({cell:part,row,end:column.end,standard,scope})} format={format} t={t}/></td>;})}</tr>)}</React.Fragment>)}</tbody></table></div>}
       {view === 'ratios' && data.published_ratios?.length > 0 && <PublishedRatios ratios={data.published_ratios} lang={lang} format={format} query={query} onClearSearch={() => setQuery('')}/>}

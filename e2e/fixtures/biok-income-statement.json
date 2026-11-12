@@ -1,0 +1,54 @@
+{
+  "ok": true,
+  "ticker": "BIOK",
+  "issuer_name": "\"Andijon biokimyo zavodi\" AJ",
+  "standard": "NSBU",
+  "scope": "separate",
+  "unit": "UZS_thousand",
+  "presentation": "template",
+  "columns": [
+    {
+      "key": "2024",
+      "label": "2024",
+      "end": "2024-12-31",
+      "basis": "annual"
+    },
+    {
+      "key": "2025",
+      "label": "2025",
+      "end": "2025-12-31",
+      "basis": "annual"
+    },
+    {
+      "key": "2026-09-30",
+      "label": "2026 · 9M",
+      "end": "2026-09-30",
+      "basis": "ytd"
+    }
+  ],
+  "rows": [
+    {"id":"F2:010","source_form":"F2","source_code":"010","metric_id":"revenue","kind":"flow","unit":"UZS_thousand","label":"Чистая выручка от реализации","cells":{"2024":{"value":"147678236","quality":"valid"},"2025":{"value":"142434170","quality":"valid"},"2026-09-30":{"value":"112957111","quality":"valid"}}},
+    {"id":"F2:020","source_form":"F2","source_code":"020","metric_id":"cost_of_sales","kind":"flow","unit":"UZS_thousand","label":"Себестоимость реализованной продукции","cells":{"2024":{"value":"-108794919","quality":"valid"},"2025":{"value":"-114078960","quality":"valid"},"2026-09-30":{"value":"-95130344","quality":"valid"}}},
+    {"id":"F2:030","source_form":"F2","source_code":"030","metric_id":"gross_profit","kind":"flow","unit":"UZS_thousand","label":"Валовая прибыль (убыток)","cells":{"2024":{"value":"38883316","quality":"valid"},"2025":{"value":"28355210","quality":"valid"},"2026-09-30":{"value":"17826767","quality":"warn"}}},
+    {"id":"F2:040","source_form":"F2","source_code":"040","metric_id":"operating_expenses","kind":"flow","unit":"UZS_thousand","label":"Расходы периода","cells":{"2024":{"value":"-20714060","quality":"valid"},"2025":{"value":"-18645393","quality":"valid"},"2026-09-30":{"value":"-11675525","quality":"warn"}}},
+    {"id":"F2:050","source_form":"F2","source_code":"050","metric_id":"selling_expense","kind":"flow","unit":"UZS_thousand","label":"Расходы по реализации","cells":{"2024":{"value":"-2093404","quality":"valid"},"2025":{"value":"-2705772","quality":"valid"},"2026-09-30":{"value":"-1494696","quality":"valid"}}},
+    {"id":"F2:060","source_form":"F2","source_code":"060","metric_id":"admin_expense","kind":"flow","unit":"UZS_thousand","label":"Административные расходы","cells":{"2024":{"value":"-3328685","quality":"valid"},"2025":{"value":"-3855129","quality":"valid"},"2026-09-30":{"value":"-2917104","quality":"valid"}}},
+    {"id":"F2:070","source_form":"F2","source_code":"070","metric_id":"other_operating_expense","kind":"flow","unit":"UZS_thousand","label":"Прочие операционные расходы","cells":{"2024":{"value":"-15291971","quality":"valid"},"2025":{"value":"-12084492","quality":"valid"},"2026-09-30":{"value":"-7203725","quality":"valid"}}},
+    {"id":"F2:090","source_form":"F2","source_code":"090","metric_id":"other_operating_income","kind":"flow","unit":"UZS_thousand","label":"Прочие доходы основной деятельности","cells":{"2024":{"value":"1055271","quality":"valid"},"2025":{"value":"2905596","quality":"valid"},"2026-09-30":{"value":"2456229","quality":"warn"}}},
+    {"id":"F2:100","source_form":"F2","source_code":"100","metric_id":"operating_income","kind":"flow","unit":"UZS_thousand","label":"Прибыль от основной деятельности","cells":{"2024":{"value":"19224527","quality":"valid"},"2025":{"value":"12615413","quality":"valid"},"2026-09-30":{"value":"8607795","quality":"warn"}}},
+    {"id":"F2:110","source_form":"F2","source_code":"110","metric_id":"finance_income","kind":"flow","unit":"UZS_thousand","label":"Доходы от финансовой деятельности","cells":{"2024":{"value":"58650","quality":"valid"},"2025":{"value":"409156","quality":"valid"},"2026-09-30":{"value":"272213","quality":"valid"}}},
+    {"id":"F2:130","source_form":"F2","source_code":"130","metric_id":"interest_income","kind":"flow","unit":"UZS_thousand","label":"Доходы в виде процентов","cells":{"2024":{"value":"0","quality":"valid"},"2025":{"value":"0","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}},
+    {"id":"F2:180","source_form":"F2","source_code":"180","metric_id":"interest_expense","kind":"flow","unit":"UZS_thousand","label":"Расходы в виде процентов","cells":{"2024":{"value":"-910078","quality":"valid"},"2025":{"value":"-1878529","quality":"valid"},"2026-09-30":{"value":"-1110029","quality":"valid"}}},
+    {"id":"F2:240","source_form":"F2","source_code":"240","metric_id":"profit_before_tax","kind":"flow","unit":"UZS_thousand","label":"Прибыль до налогообложения","cells":{"2024":{"value":"18085024","quality":"valid"},"2025":{"value":"10685976","quality":"valid"},"2026-09-30":{"value":"7603980","quality":"valid"}}},
+    {"id":"F2:250","source_form":"F2","source_code":"250","metric_id":"income_tax","kind":"flow","unit":"UZS_thousand","label":"Налог на прибыль","cells":{"2024":{"value":"-2979926","quality":"valid"},"2025":{"value":"-1981272","quality":"valid"},"2026-09-30":{"value":"-1286699","quality":"valid"}}},
+    {"id":"F2:270","source_form":"F2","source_code":"270","metric_id":"net_income","kind":"flow","unit":"UZS_thousand","label":"Чистая прибыль (убыток)","cells":{"2024":{"value":"15105098","quality":"valid"},"2025":{"value":"8704704","quality":"valid"},"2026-09-30":{"value":"6317281","quality":"valid"}}}
+  ],
+  "income_flow_rows": [
+    {"id":"F2:170","source_form":"F2","metric_id":"finance_cost","kind":"flow","unit":"UZS_thousand","label":"Расходы по финансовой деятельности (стр.180+190+200+210), в том числе:","cells":{"2024":{"value":"-1198153","quality":"valid"},"2025":{"value":"-2338593","quality":"valid"},"2026-09-30":{"value":"-1276029","quality":"valid"}}},
+    {"id":"F2:190","source_form":"F2","metric_id":"lease_expense","kind":"flow","unit":"UZS_thousand","label":"Расходы в виде процентов по финансовой аренде","cells":{"2024":{"value":"0","quality":"valid"},"2025":{"value":"0","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}},
+    {"id":"F2:200","source_form":"F2","metric_id":"fx_expense","kind":"flow","unit":"UZS_thousand","label":"Убытки от валютных курсовых разниц","cells":{"2024":{"value":"-288075","quality":"valid"},"2025":{"value":"-460064","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}},
+    {"id":"F2:210","source_form":"F2","metric_id":"other_finance_cost","kind":"flow","unit":"UZS_thousand","label":"Прочие расходы по финансовой деятельности","cells":{"2024":{"value":"0","quality":"valid"},"2025":{"value":"0","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}},
+    {"id":"F2:230","source_form":"F2","metric_id":"extraordinary_profit","kind":"flow","unit":"UZS_thousand","label":"Чрезвычайные прибыли и убытки","cells":{"2024":{"value":"0","quality":"valid"},"2025":{"value":"0","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}},
+    {"id":"F2:260","source_form":"F2","metric_id":"other_profit_payments","kind":"flow","unit":"UZS_thousand","label":"Прочие налоги и другие обязательные платежи от прибыли","cells":{"2024":{"value":"0","quality":"valid"},"2025":{"value":"0","quality":"valid"},"2026-09-30":{"value":"0","quality":"valid"}}}
+  ]
+}
