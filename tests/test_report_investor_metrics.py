@@ -360,3 +360,72 @@ def test_conflicting_share_disclosures_are_withheld_until_explicit_replacement(b
     assert share_disclosures.read('396', 'BIOK', '2024-12-31', 'separate')['ordinary_shares'] == '5713280'
     second = share_disclosures.record(changed, actor='reviewer', reason='Explicit correction', replace=True)
     assert first != second
+
+def test_biok_exchange_identity_matches_the_source_issuer():
+    from entity_resolver import resolve_security
+    assert resolve_security({'ticker': 'BIOK', 'isin': 'UZ7025870005'})['org_id'] == '396'
+    assert resolve_security({'ticker': 'ABKZ', 'isin': 'UZ7047650005'})['org_id'] == '78'
+
+
+@pytest.mark.parametrize('variant', ['ordinary_only', 'preferred', 'wrong_identity', 'wrong_date'])
+def test_real_biok_form5_supplies_dated_book_inputs_without_substituting_eps(report, variant):
+    from financial_analysis.report_investor_metrics import calculate
+    from financial_columns.share_disclosures import form5_basis
+
+    source = json.loads(Path('tests/fixtures/openinfo/biok_2026q3_equity.json').read_text(encoding='utf-8'))
+    if variant == 'preferred':
+        rows = source['sheets'][0]['source_rows']
+        for row in rows:
+            if row['row'] in (34, 39):
+                row['cells'][8] = 100
+            if row['row'] == 37:
+                row['cells'][8] = 5713380
+    basis = form5_basis(source, ticker='BIOK', issuer_id='396', tin='200240495' if variant == 'wrong_identity' else source['tin'],
+                        period_end='2026-06-30' if variant == 'wrong_date' else source['period_end'])
+    if variant in {'wrong_identity', 'wrong_date'}:
+        assert basis is None
+        return
+    assert basis['ordinary_shares'] == '5713280'
+    assert 'weighted_average_shares' not in basis
+    assert basis['ordinary_only_at_end'] == (variant == 'ordinary_only')
+    report['issuer'].update(id='396', ticker='BIOK')
+    report.update(standard='nsbu', period='2026Q3', financial_as_of='2026-09-30')
+    report['instrument'] = {'instrument_type': 'ordinary_share', 'last_price': 14301,
+                            'market_as_of': '2026-11-12', 'freshness': {'status': 'fresh'}}
+    report['verified_facts'] = [
+        {'metric_code': 'total_equity', 'value': 125370681, 'period': '2026Q3',
+         'unit_normalized': 'thousand UZS', 'verification_status': 'verified'},
+        {'metric_code': 'net_income', 'value': 12628226, 'period': '2026Q3',
+         'unit_normalized': 'thousand UZS', 'verification_status': 'verified'},
+    ]
+    result = {r['metric_code']: r for r in calculate(report, [], {**basis, 'verification_status': 'verified'})}
+    expected = pytest.approx(14301 * 5713280 / 125370681000) if variant == 'ordinary_only' else None
+    assert result['price_to_book']['value'] == expected
+    assert result['eps_basic']['value'] is None
+    assert result['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']
+
+@pytest.mark.parametrize('matching_issuer', [True, False])
+def test_openinfo_equity_attachment_is_imported_only_for_its_issuer(tmp_path, monkeypatch, matching_issuer):
+    from catalogue import history
+    from collectors.openinfo import transport
+    from financial_columns import share_disclosures
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
+    source = json.loads(Path('tests/fixtures/openinfo/biok_2026q3_equity.json').read_text(encoding='utf-8'))
+    calls = []
+    def detail(session, path):
+        assert path == '/reports/jsc/quarter/18938/'
+        return {'id': 18938, 'organization': {'id': 396 if matching_issuer else 78},
+                'organization_inn': 200468069, 'int_report': source['source_url']}
+    def workbook(session, url):
+        calls.append(url)
+        return source
+    monkeypatch.setattr(transport, '_json_get', detail)
+    monkeypatch.setattr(history, '_parse_workbook_uncached', workbook)
+    query = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18938'
+    args = dict(ticker='BIOK', issuer_id='396', period_end='2026-09-30', excel_url=query)
+    assert share_disclosures.collect_form5(None, **args) is matching_issuer
+    assert share_disclosures.collect_form5(None, **args) is False
+    assert calls == ([source['source_url']] if matching_issuer else [])
+    basis = share_disclosures.read('396', 'BIOK', '2026-09-30', 'separate')
+    assert (basis or {}).get('ordinary_shares') == ('5713280' if matching_issuer else None)

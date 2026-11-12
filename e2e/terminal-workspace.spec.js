@@ -811,3 +811,32 @@ for (const [role,user,admin] of [['guest',null,false],['member',{id:2},false],['
     await expect(rates).not.toContainText('Пересчёт в USD');
   }
 });
+
+test('BIOK P/BV uses Yangiyul’s filed shares and mobile EPS shows the missing basis', async ({page}, testInfo) => {
+  await page.setViewportSize({width: 390, height: 844});
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const report = JSON.parse(execFileSync(python, ['-c', `
+import json
+from pathlib import Path
+from financial_analysis.report_investor_metrics import calculate
+from financial_columns.share_disclosures import form5_basis
+source = json.loads(Path('tests/fixtures/openinfo/biok_2026q3_equity.json').read_text(encoding='utf8'))
+basis = form5_basis(source, ticker='BIOK', issuer_id=source['issuer_id'], tin=source['tin'], period_end=source['period_end'])
+report = {
+    'ok': True, 'status': 'available', 'period': '2026Q3', 'standard': 'nsbu', 'scope': 'separate',
+    'financial_as_of': source['period_end'], 'issuer': {'id': '396', 'ticker': 'BIOK', 'name': 'Biokimyo', 'organization_type': 'non_financial'},
+    'instrument': {'instrument_type': 'ordinary_share', 'last_price': 14301, 'market_as_of': '2026-11-12', 'freshness': {'status': 'fresh'}},
+    'verified_facts': [{'metric_code': metric, 'value': value, 'period': '2026Q3', 'unit_normalized': 'thousand UZS',
+                        'verification_status': 'verified'} for metric, value in [('total_equity', 125370681), ('net_income', 12628226)]]
+}
+print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verification_status': 'verified'})}))
+`], {encoding:'utf8'}));
+  await fixture(page, [{ticker:'BIOK',company_name:'Biokimyo',sector:'manufacturing'}]);
+  await page.route('**/api/v1/issuers/BIOK/ai-report?**', route => route.fulfill({json:report}));
+  await run(page, 'BIOK RAT');
+  const table = page.locator('.terminal-sector-metrics');
+  await expect(table.getByRole('row').filter({hasText:'P/BV'})).toContainText('0,65 ×');
+  await expect(table.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('средневзвешенное число обычных акций');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await table.screenshot({path:testInfo.outputPath('biok-share-ratios-mobile.png')});
+});

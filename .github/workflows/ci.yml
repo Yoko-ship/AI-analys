@@ -1722,7 +1722,7 @@ jobs:
     name: Restore detailed financial source tables
     environment: uzstock-production
     needs: deploy-production
-    if: github.event_name == 'workflow_dispatch' && inputs.backfill_column_sources
+    if: (github.event_name == 'workflow_dispatch' && inputs.backfill_column_sources) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[backfill-financial-sources]'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -1744,15 +1744,16 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
-            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" 'bash -s' <<'REMOTE'
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- $GITHUB_SHA" <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
           pwd -P
           git rev-parse HEAD
           docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
+          test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
           systemctl show uzstock-financial-ingestion.service -p FragmentPath -p ActiveState
           docker exec uzstock-web python -m financial_columns.backfill --inspect
-          docker exec uzstock-web python -u -m financial_columns.backfill --annual-periods 2 --max-periods 1000
+          docker exec -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web python -u -m financial_columns.backfill --annual-periods 2 --max-periods 1000 --repair-issuer-links --share-bases
           docker exec uzstock-web python -m financial_columns.backfill --inspect
           REMOTE
 

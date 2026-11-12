@@ -36,21 +36,27 @@ export function HeatmapTickerSearch({lang, rows, companyMap, securitiesMap, valu
   const t = copy[lang] || copy.ru;
   const needle = query.trim().toLocaleLowerCase();
   const nameOf = row => row.name || companyMap[row.ticker]?.company_name || row.ticker;
-  const matches = rows.filter(row => `${row.ticker} ${nameOf(row)}`.toLocaleLowerCase().includes(needle));
+  const matches = needle ? rows.filter(row => `${row.ticker} ${nameOf(row)}`.toLocaleLowerCase().includes(needle)) : [];
   return <section className="heatmap-ticker-search" aria-label={t.securities}>
     <div className="heatmap-ticker-input">
       <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
       <input ref={input} type="search" aria-label={t.search} placeholder={t.search} value={query}
-        onChange={event => setQuery(event.target.value)} autoComplete="off" />
+        onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+          if (event.key === 'Escape' && query) { event.preventDefault(); setQuery(''); }
+        }} autoComplete="off" />
       {query && <button type="button" aria-label={t.clear} onClick={() => {setQuery(''); input.current?.focus();}}>×</button>}
     </div>
-    <div className="heatmap-ticker-list" role="group" aria-label={t.securities}>
+    {needle && <div className="heatmap-ticker-list" role="group" aria-label={t.securities}>
       {matches.map(row => <button key={row.ticker} type="button" data-ticker={row.ticker}
-        aria-pressed={value === row.ticker} onClick={() => onChange(row.ticker)} title={`${row.ticker} · ${nameOf(row)}`}>
+        aria-pressed={value === row.ticker} onClick={() => {
+          onChange(row.ticker);
+          setQuery('');
+          input.current?.focus();
+        }} title={`${row.ticker} · ${nameOf(row)}`}>
         <span className="heatmap-ticker-logo" aria-hidden="true"><CompanyLogo ticker={row.ticker} name={nameOf(row)} logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}/></span>
         <strong>{row.ticker}</strong><span className="heatmap-ticker-name">{nameOf(row)}</span>
       </button>)}
       {!matches.length && <p className="heatmap-ticker-empty" role="status">{t.empty}</p>}
-    </div>
+    </div>}
   </section>;
 }

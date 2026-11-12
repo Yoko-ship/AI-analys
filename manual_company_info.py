@@ -777,25 +777,10 @@ MANUAL_INFO: dict[str, dict[str, Any]] = {
     },
     "BIOK": {
         "title": "Biokimyo",
-        "url": None,
-        "ru": (
-            "«Biokimyo» (Андижанский биохимический завод) — промышленное предприятие Узбекистана, "
-            "расположенное в Андижанской области. Завод специализируется на биохимическом "
-            "производстве, включая спирт, дрожжи, углекислоту и кормовые продукты. Акции "
-            "предприятия торгуются на Республиканской фондовой бирже «Тошкент»."
-        ),
-        "en": (
-            "Biokimyo (the Andijan Biochemistry Plant) is an Uzbek industrial enterprise "
-            "located in the Andijan region. The plant specialises in biochemical production, "
-            "including alcohol, yeast, carbon dioxide and feed products. Its shares trade on "
-            "the Republican Stock Exchange \"Toshkent\"."
-        ),
-        "uz": (
-            "«Biokimyo» (Andijon biokimyo zavodi) — Andijon viloyatida joylashgan "
-            "O'zbekistonning sanoat korxonasi. Zavod spirt, achitqi, karbonat angidrid va yem "
-            "mahsulotlarini o'z ichiga olgan biokimyoviy ishlab chiqarishga ixtisoslashgan. "
-            "Korxona aksiyalari «Toshkent» Respublika fond birjasida sotiladi."
-        ),
+        "url": "https://www.biokimyo.uz/",
+        "ru": "АО «Biokimyo» находится в Янгиюле, Ташкентская область.",
+        "en": "Biokimyo JSC is based in Yangiyul, Tashkent region.",
+        "uz": "«Biokimyo» AJ Toshkent viloyatining Yangiyo‘l shahrida joylashgan.",
     },
     "UZHM": {
         "title": "O'zbekkimyomash",

@@ -12,7 +12,7 @@ import logging
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-3'
+VERSION = 'report-investor-metrics-4'
 NAMES = {
     'operating_margin': ('Операционная маржа', 'Operatsion marja', 'Operating margin'),
     'book_value': ('Балансовая стоимость капитала', 'Kapitalning balans qiymati', 'Book value of equity'),
@@ -110,7 +110,9 @@ def calculate(report, rows, share_basis=None):
                 and str(basis.get('issuer_id')) == str(report['issuer']['id'])
                 and basis.get('ticker') == report['issuer']['ticker']
                 and basis.get('scope') == report['scope'] and basis.get('period_end') == end)
-    ordinary_only = basis_ok and basis.get('ordinary_only') is True and report['scope'] == 'separate'
+    separate_basis = basis_ok and report['scope'] == 'separate'
+    ordinary_only = separate_basis and basis.get('ordinary_only') is True
+    ordinary_at_close = separate_basis and basis.get('ordinary_only_at_end') is True
 
     def disclosed_count(part, key, *, flow=False):
         # A conflicting/blocked source cell is not a missing source cell.
@@ -122,11 +124,12 @@ def calculate(report, rows, share_basis=None):
         return {'value': value, 'components': [{**basis, 'metric_id': key, 'value': str(value)}]}
 
     def ordinary_fact(part, key, *, flow=False):
-        if part['components'] or not ordinary_only or (flow and basis.get('period_start') != start):
+        ordinary_context = ordinary_only and basis.get('period_start') == start if flow else ordinary_only or ordinary_at_close
+        if part['components'] or not ordinary_context:
             return part
         value = fact(key)
         if value['value'] is not None:
-            value['components'].append({**basis, 'metric_id': 'ordinary_only'})
+            value['components'].append({**basis, 'metric_id': 'ordinary_only' if ordinary_only else 'ordinary_only_at_end'})
         return value
     result = []
 

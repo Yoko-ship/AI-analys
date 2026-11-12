@@ -52,6 +52,7 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
   });
   await page.goto(path);
   if (path !== "/heatmap") return errors;
+  await page.locator('.heatmap-viewport').waitFor({state:'attached'});
   if (type === "bond") {
     await openMapFilters(page);
     await page.locator(".market-type-control").getByRole("button", { name: "Облигации", exact: true }).click();
@@ -353,9 +354,7 @@ for (const width of [320, 390, 768]) test(`mobile map starts with compact filter
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(trigger).toBeFocused();
   await expect(page.locator('.heatmap-viewport')).toBeInViewport({ratio: .1});
-  await trigger.click();
-  await panel.getByRole('searchbox', {name: 'Найти тикер'}).fill('KVTS');
-  await panel.locator('.heatmap-ticker-list [data-ticker="KVTS"]').click();
+  await chooseMapTicker(page, 'KVTS');
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
   for (const theme of ['light', 'dark']) {
@@ -435,26 +434,27 @@ for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker 
   await expect(sizes.getByRole('button')).toHaveCount(4);
   await chooseMapArea(page, 'equal');
   await expect(sizes.locator('[data-area="equal"]')).toHaveAttribute('aria-pressed', 'true');
-  const search = sidebar.getByRole('searchbox', {name: 'Найти тикер'});
-  const entries = sidebar.locator('.heatmap-ticker-list button');
+  const toolbar = page.getByRole('group', {name: 'Управление картой'});
+  const search = toolbar.getByRole('searchbox', {name: 'Найти тикер'});
+  const entries = toolbar.locator('.heatmap-ticker-list button');
   await search.fill('  kvTs  ');
   await expect(entries).toHaveCount(1);
   await expect(entries.first()).toContainText('KVTS issuer');
   await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
   await entries.first().focus();
   await page.keyboard.press('Enter');
-  await openMapFilters(page);
+  await expect(entries).toHaveCount(0);
+  await search.fill('KVTS');
   await expect(entries.first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
-  await openMapFilters(page);
-  await sidebar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
+  await toolbar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
   await expect(search).toBeFocused();
   await search.fill('issuer');
   await expect(entries).toHaveCount(3);
   await search.fill('no-such-issuer');
-  await expect(sidebar.locator('.heatmap-ticker-empty')).toHaveText('Ничего не найдено');
+  await expect(toolbar.locator('.heatmap-ticker-empty')).toHaveText('Ничего не найдено');
   await expect(page.locator('.heatmap-tree-tile')).toHaveCount(3);
-  await sidebar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
+  await toolbar.getByRole('button', {name: 'Очистить поиск тикера'}).click();
   await search.blur();
   await page.mouse.move(0, 0);
   for (const theme of ['light', 'dark']) {
@@ -475,17 +475,17 @@ for (const width of [1920, 1280, 1024, 390, 320]) test(`map filters sit beside t
   await expect(sidebar.locator('.heatmap-performance-trigger')).toBeVisible();
   await expect(sidebar.getByRole('group', {name: 'Площадь плитки', exact: true})).toBeVisible();
   await expect(sidebar.locator('.heatmap-filters')).toBeVisible();
-  const {rail, map} = await page.evaluate(() => ({
+  const {rail, map, panel} = await page.evaluate(() => ({
     rail: document.querySelector('.heatmap-sidebar').getBoundingClientRect().toJSON(),
     map: document.querySelector('.heatmap-wrap').getBoundingClientRect().toJSON(),
+    panel: document.querySelector('.heatmap-sidebar-panel').getBoundingClientRect().toJSON(),
   }));
   if (width >= 981) {
     expect(rail.x + rail.width).toBeLessThanOrEqual(map.x);
     expect(Math.abs(rail.y - map.y)).toBeLessThanOrEqual(1);
     expect(rail.width).toBeLessThanOrEqual(240);
   } else {
-    const panelBounds = await page.locator('.heatmap-sidebar-panel').boundingBox();
-    expect(panelBounds.y + panelBounds.height - map.top).toBeLessThanOrEqual(.5);
+    expect(panel.bottom - map.top).toBeLessThanOrEqual(.5);
   }
   await chooseMapPeriod(page, '1w');
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"] .htt-pct')).toContainText('+12');
@@ -566,4 +566,32 @@ test('heatmap hover keeps missing quotes empty and follows the selected period',
   await expect(card.locator('.heatmap-preview-change')).toContainText('нед.');
   await expect(card.locator('.heatmap-preview-metrics')).toContainText('10 000 000 UZS');
   await expect(card.locator('.heatmap-preview-metrics')).toContainText('Детали по 3 из 5 сессий');
+});
+
+for (const width of [1440, 390]) test(`heatmap search and metrics are above the map at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+  const toolbar = page.getByRole('group', {name: 'Управление картой'});
+  const search = toolbar.getByRole('searchbox', {name: 'Найти тикер'});
+  const metrics = toolbar.getByRole('button', {name: /Показатели/});
+  await expect(search).toBeVisible();
+  await expect(metrics).toBeVisible();
+  const viewport = page.locator('.heatmap-viewport');
+  expect((await toolbar.boundingBox()).y).toBeLessThan((await viewport.boundingBox()).y);
+  if (width < 981) await expect(page.locator('.heatmap-sidebar-panel')).not.toHaveAttribute('open', '');
+  await search.fill('KVTS');
+  const result = toolbar.locator('.heatmap-ticker-list [data-ticker="KVTS"]');
+  await expect(result).toBeVisible();
+  await result.click();
+  await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');
+  await expect(result).toHaveCount(0);
+  await metrics.click();
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  await menu.getByRole('checkbox', {name: 'Объём', exact: true}).uncheck();
+  await expect(metrics).toContainText('5');
+  await page.keyboard.press('Escape');
+  await expect(metrics).toBeFocused();
+  await toolbar.scrollIntoViewIfNeeded();
+  await page.screenshot({path: testInfo.outputPath('heatmap-top-controls.png')});
 });

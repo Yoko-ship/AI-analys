@@ -111,17 +111,14 @@ class TestWeakerEvidence:
         assert sorted(r["ticker"] for r in rows) == ["KASU", "KASUP"]
 
     def test_a_resolved_ticker_ignores_evidence_from_another_org(self):
-        """BIOK is pinned to org 78 (Andijon biokimyo) in ORG_OVERRIDES because
-        two other plants match it by name. openinfo's own ticker column claims
-        one of them. A ticker whose issuer is known takes that issuer's filings
-        and nothing else."""
-        universe = [entry("BIOK", org="78", names=['"Andijon biokimyo zavodi" AJ', "Biokimyo"])]
+        """Biokimyo (Yangiyul) must not inherit the Andijon or Qo‘qon payouts."""
+        universe = [entry("BIOK", org="396", names=['"Biokimyo" AJ'])]
         rows = dividends.map_rows([
-            filing(5, "78", '"Andijon biokimyo zavodi" AJ'),
+            filing(5, "78", '"Andijon biokimyo zavodi" AJ', ticker="BIOK"),
             filing(6, "433", '"QO\'QON BIOKIMYO" AJ'),
-            filing(7, "434", '"Biokimyo" AJ', ticker="BIOK"),
+            filing(7, "396", '"Biokimyo" AJ', ticker="BIOK"),
         ], universe)
-        assert [r["org_id"] for r in rows] == ["78"]
+        assert [r["org_id"] for r in rows] == ["396"]
 
 
 class TestNameMatching:

@@ -43,7 +43,8 @@ COMPANY_CATALOG = {
     '"UzAuto Motors" AJ': "UZMT",
     '"DORI-DARMON" AJ': "DORI",
     '"ORGRES" AJ': "ORGS",
-    '"Andijon biokimyo zavodi" AJ': "BIOK",
+    '"Biokimyo" AJ': "BIOK",
+    '"Andijon biokimyo zavodi" AJ': "ABKZ",
     '"O\'zbekkimyomash zavodi" AJ': "UZHM",
     # Mining & Extraction
     '"Olmaliq KMK" AJ (привилегированные)': "AGMKP",

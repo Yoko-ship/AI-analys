@@ -40,7 +40,8 @@ def _ensure_catalogued(ticker: str) -> None:
     if not name or not org_id:
         return
     try:
-        if catalogue_filings.get_company_reports(ticker):
+        index = catalogue_filings.get_company_index(ticker)
+        if str(index.get('org_id') or '') == org_id and catalogue_filings.get_company_reports(ticker):
             return
         result = catalogue_sync.sync_company(ticker, name, force=True, org_id=org_id)
         collectors_financials_settings.log.info("catalogued %s from openinfo org %s: %s reports",

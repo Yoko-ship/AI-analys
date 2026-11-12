@@ -388,6 +388,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
       tickerControl={<HeatmapTickerSearch key={type} lang={lang} rows={tradedRows} companyMap={companyMap}
         securitiesMap={securitiesMap} value={focusRow?.ticker || ''}
         onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>}
+      metricsControl={<HeatmapMetricPicker lang={lang} {...metricSelection} />}
       controls={<>
 
       <div className="heatmap-filters" role="group" aria-label={`${mapCopy.filterTurnover}, ${mapCopy.filterChange}`}>
@@ -646,17 +647,11 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
         </div>
       </div>
 
-      <div className="heatmap-metrics-toolbar">
-        <HeatmapMetricPicker lang={lang} {...metricSelection} />
-
-      </div>
-
-
     </HeatmapLayout>
   );
 }
 
-export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls, tickerControl, children}) {
+export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls, tickerControl, metricsControl, children}) {
   const title = lang === 'ru' ? 'Фильтры карты' : lang === 'uz' ? 'Xarita filtrlari' : 'Map filters';
   const closePanel = element => {
     const panel = element.closest('.heatmap-sidebar-panel');
@@ -665,15 +660,18 @@ export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls
       panel.querySelector(':scope > summary')?.focus();
     }
   };
+  const toolbarLabel = lang === 'ru' ? 'Управление картой' : lang === 'uz' ? 'Xarita boshqaruvi' : 'Map controls';
   return <div className="heatmap-layout">
+    {(tickerControl || metricsControl) && <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}>
+      {tickerControl}
+      {metricsControl}
+    </div>}
     <ResponsiveDisclosure className="heatmap-sidebar-panel" mediaQuery="(max-width: 980px)" label={<>
       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/><path d="M7 3v4M13 8v4M8 13v4"/></svg>
       <span>{title}</span>
       <svg className="heatmap-sidebar-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
     </>}>
-    <aside className="heatmap-sidebar" aria-label={title} onClick={event => {
-      if (window.matchMedia('(max-width: 980px)').matches && event.target.closest('.heatmap-ticker-list button')) closePanel(event.currentTarget);
-    }}>
+    <aside className="heatmap-sidebar" aria-label={title}>
       {viewControl && <div className="heatmap-view-control">
         <span className="heatmap-sidebar-label">{lang === 'ru' ? 'Вид' : lang === 'uz' ? 'Ko‘rinish' : 'View as'}</span>
         {viewControl}
@@ -684,7 +682,6 @@ export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls
         {filters}
       </div>}
       {controls}
-      {tickerControl}
     </aside>
     <button type="button" className="heatmap-sidebar-apply" onClick={event => closePanel(event.currentTarget)}>
       {lang === 'ru' ? 'Показать карту' : lang === 'uz' ? 'Xaritani ko‘rsatish' : 'Show map'}

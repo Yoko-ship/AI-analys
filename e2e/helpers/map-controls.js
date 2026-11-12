@@ -11,6 +11,6 @@ export async function chooseMapArea(page, value) {
 }
 
 export async function chooseMapTicker(page, ticker) {
-  await openMapFilters(page);
+  await page.locator('.heatmap-ticker-input input').fill(ticker);
   await page.locator(`.heatmap-ticker-list button[data-ticker="${ticker}"]`).click();
 }

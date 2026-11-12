@@ -1,5 +1,6 @@
 """Refresh financial snapshots from their catalogued source documents."""
 from __future__ import annotations
+from datetime import date
 import catalogue.filings as catalogue_filings
 from typing import Any
 import sqlite3
@@ -311,6 +312,17 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
             kind = organization_kind(ticker, name=issuer.get('company_name'), sector=issuer.get('sector'))
             record_nsbu(ticker=ticker, issuer_id=str(issuer.get('org_id') or f'ticker:{ticker}'),
                         year=year, quarter=quarter or 0, template=kind, data=data, urls=urls)
+            if year >= date.today().year - 1 and kind not in {'bank', 'insurance', 'microfinance'}:
+                from calendar import monthrange
+                from financial_columns.share_disclosures import collect_form5
+                month = quarter * 3 if quarter else 12
+                end = date(year, month, monthrange(year, month)[1]).isoformat()
+                try:
+                    with catalogue_sources._make_session() as session:
+                        collect_form5(session, ticker=ticker, issuer_id=issuer.get('org_id'),
+                                      period_end=end, excel_url=urls.get('excel_url'))
+                except Exception as exc:
+                    catalogue_settings.logger.info('%s %s share disclosure unavailable: %s', ticker, end, exc)
 
         usable = [k for k in _PROVENANCE_FIELDS if (values or {}).get(k) is not None]
 
