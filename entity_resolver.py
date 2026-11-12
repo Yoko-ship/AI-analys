@@ -24,7 +24,7 @@ from typing import Any
 
 import requests
 
-from company_catalog import COMPANY_CATALOG
+from company_catalog import COMPANY_CATALOG, VERIFIED_SECURITY_ISSUERS
 from db import APP_DATA_DIR
 from collectors.openinfo.transport import _json_get, _make_session
 from collectors.openinfo.issuers import resolve_company
@@ -45,9 +45,7 @@ ORG_OVERRIDES: dict[str, str] = {
     "UZMK": "383", "UZMKP": "383",
     "KVTS": "445",                      # Кварц (UZSE "Kvarts AJ" hits a payment processor 1001)
     "GRBK": "11",                       # Garant bank (catalog carried a stale org)
-    # Distinct securities in UZSE: BIOK UZ7025870005 (Yangiyul, TIN 200468069)
-    # and ABKZ UZ7047650005 (Andijon, TIN 200240495).
-    "BIOK": "396", "ABKZ": "78",
+    **{ticker: identity[0] for (ticker, _isin), identity in VERIFIED_SECURITY_ISSUERS.items()},
     # O'z-Tong Hong Kompani (org 80, INN 201832779): the screener TIN join
     # returns nothing for its ISIN UZ7044930004, so the deterministic index
     # never resolves it and its ratios/financials stayed blank.

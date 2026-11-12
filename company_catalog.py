@@ -1,3 +1,9 @@
+# UZSE security cards and OpenInfo filings agree on these issuer identities.
+VERIFIED_SECURITY_ISSUERS = {
+    ("BIOK", "UZ7025870005"): ("396", "Biokimyo"),
+    ("ABKZ", "UZ7047650005"): ("78", "Andijon biokimyo zavodi"),
+}
+
 COMPANY_CATALOG = {
     # Finance & Insurance
     '"Hamkorbank" ATB': "HMKB",

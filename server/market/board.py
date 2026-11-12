@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 
-from company_catalog import COMPANY_CATALOG
+from company_catalog import COMPANY_CATALOG, VERIFIED_SECURITY_ISSUERS
 from delisted import DELISTED_ISINS
 from delisted import is_delisted_isin
 from fastapi import HTTPException
@@ -169,7 +169,7 @@ def _retype_registered_bonds(rows: list[dict[str, Any]]) -> int:
 
 
 def _fill_names(rows: list[dict[str, Any]], names: dict[str, str]) -> int:
-    """Name every row the feed left unnamed, in place. Returns rows filled.
+    """Fill missing names and correct known ticker/ISIN identity conflicts.
 
     A preferred share with no entry of its own borrows its common sibling's name
     (UPOSP → UPOS): the same issuer, and the row's own type cell already says
@@ -177,10 +177,16 @@ def _fill_names(rows: list[dict[str, Any]], names: dict[str, str]) -> int:
     """
     filled = 0
     for row in rows:
-        if (row.get("name") or "").strip():
-            continue
         ticker = str(row.get("ticker") or "").upper().strip()
-        if not ticker:
+        isin = str(row.get("isin") or "").upper().strip()
+        verified = VERIFIED_SECURITY_ISSUERS.get((ticker, isin))
+        existing = (row.get("name") or "").strip()
+        if verified:
+            if existing != verified[1]:
+                row["name"] = verified[1]
+                filled += 1
+            continue
+        if existing or not ticker:
             continue
         name = names.get(ticker)
         if not name and ticker.endswith("P"):

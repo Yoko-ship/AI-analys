@@ -393,13 +393,13 @@ def test_real_biok_form5_supplies_dated_book_inputs_without_substituting_eps(rep
     report['instrument'] = {'instrument_type': 'ordinary_share', 'last_price': 14301,
                             'market_as_of': '2026-11-12', 'freshness': {'status': 'fresh'}}
     report['verified_facts'] = [
-        {'metric_code': 'total_equity', 'value': 125370681, 'period': '2026Q3',
+        {'metric_code': 'total_equity', 'value': 130595895, 'period': '2026Q3',
          'unit_normalized': 'thousand UZS', 'verification_status': 'verified'},
         {'metric_code': 'net_income', 'value': 12628226, 'period': '2026Q3',
          'unit_normalized': 'thousand UZS', 'verification_status': 'verified'},
     ]
     result = {r['metric_code']: r for r in calculate(report, [], {**basis, 'verification_status': 'verified'})}
-    expected = pytest.approx(14301 * 5713280 / 125370681000) if variant == 'ordinary_only' else None
+    expected = pytest.approx(14301 * 5713280 / 130595895000) if variant == 'ordinary_only' else None
     assert result['price_to_book']['value'] == expected
     assert result['eps_basic']['value'] is None
     assert result['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']

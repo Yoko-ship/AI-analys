@@ -827,7 +827,7 @@ report = {
     'financial_as_of': source['period_end'], 'issuer': {'id': '396', 'ticker': 'BIOK', 'name': 'Biokimyo', 'organization_type': 'non_financial'},
     'instrument': {'instrument_type': 'ordinary_share', 'last_price': 14301, 'market_as_of': '2026-11-12', 'freshness': {'status': 'fresh'}},
     'verified_facts': [{'metric_code': metric, 'value': value, 'period': '2026Q3', 'unit_normalized': 'thousand UZS',
-                        'verification_status': 'verified'} for metric, value in [('total_equity', 125370681), ('net_income', 12628226)]]
+                        'verification_status': 'verified'} for metric, value in [('total_equity', 130595895), ('net_income', 12628226)]]
 }
 print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verification_status': 'verified'})}))
 `], {encoding:'utf8'}));
@@ -835,7 +835,7 @@ print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verificat
   await page.route('**/api/v1/issuers/BIOK/ai-report?**', route => route.fulfill({json:report}));
   await run(page, 'BIOK RAT');
   const table = page.locator('.terminal-sector-metrics');
-  await expect(table.getByRole('row').filter({hasText:'P/BV'})).toContainText('0,65 ×');
+  await expect(table.getByRole('row').filter({hasText:'P/BV'})).toContainText('0,63 ×');
   await expect(table.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('средневзвешенное число обычных акций');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await table.screenshot({path:testInfo.outputPath('biok-share-ratios-mobile.png')});

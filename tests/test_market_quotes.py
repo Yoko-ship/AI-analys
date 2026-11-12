@@ -563,3 +563,12 @@ class TestThePreviousCloseIsDatedToItsOwnSession:
                "close_price": 100.0, "close_date": "2026-10-09"}
         subject_server_market_board._date_previous_closes([row], {})
         assert row["close_date"] == "2026-10-09"
+
+def test_market_quote_name_matches_verified_security_identity():
+    rows = [
+        {'ticker': 'BIOK', 'isin': 'UZ7025870005', 'name': 'Andijon biokimyo zavodi'},
+        {'ticker': 'ABKZ', 'isin': 'UZ7047650005', 'name': 'Biokimyo'},
+        {'ticker': 'BIOK', 'isin': 'UZ7047650005', 'name': 'Andijon biokimyo zavodi'},
+    ]
+    assert subject_server_market_board._fill_names(rows, {}) == 2
+    assert [row['name'] for row in rows] == ['Biokimyo', 'Andijon biokimyo zavodi', 'Andijon biokimyo zavodi']
