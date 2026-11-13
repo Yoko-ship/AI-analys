@@ -275,3 +275,38 @@ class TestFieldPeriodsRoundTrip:
     def test_encode_round_trips(self) -> None:
         encoded = catalogue_codecs._encode_field_periods({"revenue": "2024", "cash": "2023Q2"})
         assert catalogue_codecs._decode_field_periods(encoded) == {"revenue": "2024", "cash": "2023Q2"}
+
+
+@pytest.mark.parametrize('ticker,isin,parent,parent_isin,org,profit', [
+    ('IPYB2B6', 'UZ6039927AA7', 'IPKY', 'UZ7039920002', '28', 480465229),
+    ('UNVB1B2U', 'UZ6046917AA9', 'UNVB', 'UZ7046910004', '9', 138971193),
+    ('ACMT2B1U', 'UZ6058977AF7', 'ACMT1B2', 'UZ6058977AB6', '1058', 3523955),
+    ('BFMT3B6', 'UZ6057687AF3', 'BFMT3B4', 'UZ6057687AD8', '922', 35947229.26),
+])
+def test_new_bond_series_inherits_existing_issuer_quarter_history(
+        share_class_store, monkeypatch, ticker, isin, parent, parent_isin, org, profit):
+    import catalogue.filings as filings
+    import catalogue.storage as storage
+    monkeypatch.setattr(read_batch, 'securities', lambda: {ticker: {'isin': isin}, parent: {'isin': parent_isin}})
+    c = storage.get_catalog_conn()
+    with c:
+        c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)', (parent, parent, org))
+    c.close()
+    financial_store.upsert_financials_cache(parent, 'NSBU', 2026, 2, {'net_income': profit, 'revenue': 48779406})
+    series = catalogue_snapshots.get_financials_series_quarterly(ticker)
+    assert series.get('2026Q2', {}).get('net_income') == profit
+    assert filings.get_company_index(ticker)['org_id'] == org
+
+
+def test_ambiguous_exchange_issuer_code_cannot_choose_someone_elses_history(share_class_store, monkeypatch):
+    import catalogue.filings as filings
+    import catalogue.storage as storage
+    monkeypatch.setattr(read_batch, 'securities', lambda: {
+        'IPYB2B6': {'isin': 'UZ6039927AA7'}, 'IPKY': {'isin': 'UZ7039920002'},
+        'FOREIGN': {'isin': 'UZ703992K016'}})
+    c = storage.get_catalog_conn()
+    with c:
+        for ticker, org in [('IPKY','28'), ('FOREIGN','999')]:
+            c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)', (ticker,ticker,org))
+    assert filings._issuer_org(c,'IPYB2B6') == ''
+    c.close()

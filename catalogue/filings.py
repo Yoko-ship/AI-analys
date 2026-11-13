@@ -276,9 +276,9 @@ def _registered_org(conn, ticker: str) -> str:
     return str((row["org_id"] if row else "") or "").strip()
 
 
-# An Uzbek share ISIN is «UZ7» + the issuer's five-digit code + the class and
-# check digits: AGMK UZ7000550002 and AGMKP UZ700055K015 are one issuer, 00055.
-_ISIN_ISSUER = re.compile(r"^(UZ7\d{5})[0-9A-Z]{4}$")
+# Uzbek shares (UZ7) and corporate bonds (UZ6) carry the same five-digit
+# issuer code: IPKY UZ7039920002 and IPYB2B6 UZ6039927AA7 belong to 03992.
+_ISIN_ISSUER = re.compile(r"^UZ[67](\d{5})[0-9A-Z]{4}$")
 
 
 def _issuer_org(conn, ticker: str) -> str:
@@ -303,13 +303,14 @@ def _issuer_org(conn, ticker: str) -> str:
     match = _ISIN_ISSUER.match(str((securities.get(ticker) or {}).get("isin") or "").upper())
     if not match:
         return ""
-    for peer, info in sorted(securities.items()):
+    organizations = set()
+    for peer, info in securities.items():
         peer_match = _ISIN_ISSUER.match(str((info or {}).get("isin") or "").upper())
         if peer != ticker and peer_match and peer_match.group(1) == match.group(1):
             peer_org = _registered_org(conn, peer)
             if peer_org:
-                return peer_org
-    return ""
+                organizations.add(peer_org)
+    return organizations.pop() if len(organizations) == 1 else ""
 
 
 def _canonical_ticker(tickers: Iterable[str]) -> str:
