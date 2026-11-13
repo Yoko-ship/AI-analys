@@ -397,7 +397,9 @@ async def _financial_series(ticker: str, freq: str='annual', form: str='NSBU', s
                 missing = [field for field in ('net_revenue', 'net_profit', 'total_assets', 'total_equity', 'total_liabilities') if (series.get(field) or {}).get('values', {}).get(p) is None]
                 if missing:
                     data_gaps.append({'period': p, 'code': 'MISSING_FINANCIAL_FIELDS', 'fields': missing})
-            return {'ok': True, 'ticker': ticker, 'currency': 'UZS', 'standard': standard, 'freq': 'quarterly', 'periods': q_periods, 'series': series, 'availability': 'NO_PARSED_FINANCIALS' if not series else 'PARTIAL' if data_gaps else 'AVAILABLE', 'data_gaps': data_gaps}
+            comparative_sources = {p: fields['comparative_sources'] for p, fields in cumulative.items() if fields.get('comparative_sources')}
+            supplemental_sources = {p: fields['supplemental_sources'] for p, fields in cumulative.items() if fields.get('supplemental_sources')}
+            return {'ok': True, 'ticker': ticker, 'currency': 'UZS', 'standard': standard, 'freq': 'quarterly', 'periods': q_periods, 'series': series, 'availability': 'NO_PARSED_FINANCIALS' if not series else 'PARTIAL' if data_gaps else 'AVAILABLE', 'data_gaps': data_gaps, 'comparative_sources': comparative_sources, 'supplemental_sources': supplemental_sources}
         except Exception as exc:
             logger.exception('company quarterly financials failed for %s', ticker)
             raise FinancialDataUnavailable(str(exc)) from exc

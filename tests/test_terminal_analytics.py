@@ -101,3 +101,21 @@ def test_reviewed_bank_ifrs_expense_sign_cannot_inflate_net_interest_margin():
     assert expense<0
     average=(float(periods['2025']['total_assets'])+float(periods['2024']['total_assets']))/2
     assert row['nim']==pytest.approx((income+expense)/average*100)
+
+
+def test_uztl_quarterly_blanks_explain_losses_missing_inputs_and_incomplete_years():
+    # Actual discrete UZTL profits from filed cumulative statements, UZS.
+    data = series({'net_profit': {
+        '2023Q2': -9782449000, '2024Q2': 99630592000,
+        '2025Q2': -15718964000, '2026Q2': 483750314000,
+        '2026Q3': 483738227000,
+    }})
+    rows = {r['period']: r for r in analytics.quarters(data)['rows']}
+    assert rows['2024Q2']['yoy'] is None
+    assert rows['2024Q2']['metric_reasons']['yoy'] == {'code': 'NON_POSITIVE_BASE', 'required_period': '2023Q2'}
+    assert rows['2026Q3']['metric_reasons']['yoy'] == {'code': 'MISSING_COMPARATIVE_INPUT', 'required_period': '2025Q3'}
+    assert rows['2026Q2']['metric_reasons']['ltm']['periods'] == ['2025Q3', '2025Q4', '2026Q1']
+    assert rows['2026Q2']['metric_reasons']['seasonality']['code'] == 'INCOMPLETE_YEAR'
+    assert rows['2026Q2']['metric_reasons']['cg3']['code'] == 'NON_POSITIVE_ENDPOINT'
+    assert rows['2025Q2']['yoy'] == pytest.approx((-15718964000 / 99630592000 - 1) * 100)
+    assert 'yoy' not in rows['2025Q2']['metric_reasons']

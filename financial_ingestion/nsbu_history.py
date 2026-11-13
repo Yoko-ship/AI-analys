@@ -26,13 +26,14 @@ import collectors.openinfo.workbooks as collectors_openinfo_workbooks
 import financial_analysis.balance_subtotals as financial_analysis_balance_subtotals
 import financial_analysis.sector_inputs as financial_analysis_sector_inputs
 from financial_ingestion import comparative
+from financial_ingestion import quarterly_comparative
 from financial_columns import nsbu, registry, source_store
 from . import store
 
 log = logging.getLogger(__name__)
 _PARSE_MODULES = (catalogue_parsing, catalogue_periods, catalogue_sources, collectors_openinfo_workbooks,
                   financial_analysis_balance_subtotals, financial_analysis_sector_inputs,
-                  nsbu, registry, source_store)
+                  nsbu, registry, source_store, quarterly_comparative)
 _REQUIRED = ("revenue", "gross_profit", "net_income", "operating_income",
              "cash", "total_assets", "total_equity", "total_liabilities", "operating_expenses")
 
@@ -270,6 +271,10 @@ def run(tickers=None, force=False, max_periods=None):
             result["backfilled"] = result.get("backfilled", 0) + len(filled)
         except Exception as exc:  # noqa: BLE001
             result["errors"].append({"ticker": ticker, "stage": "comparative", "error": str(exc)})
+        recovered = quarterly_comparative.backfill(issuer, aliases, journal=_journal)
+        result["quarter_backfilled"] = result.get("quarter_backfilled", 0) + len(recovered["filled"])
+        result["structured_quarters"] = result.get("structured_quarters", 0) + len(recovered["structured"])
+        result["errors"].extend(recovered["errors"])
     return result
 
 

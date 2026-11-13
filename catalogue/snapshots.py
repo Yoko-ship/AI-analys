@@ -1264,6 +1264,21 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
 
         out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(_fin_row_fields(row))
 
+    if form == "NSBU":
+        from financial_ingestion import quarterly_comparative
+        for period, supplement in quarterly_comparative.read(siblings, structured=True).items():
+            target = out.setdefault(period, {})
+            for field, value in supplement["values"].items():
+                if target.get(field) is None and value is not None:
+                    target[field] = value
+                    target.setdefault("supplemental_sources", {})[field] = supplement["source"]
+        for period, comparison in quarterly_comparative.read(siblings).items():
+            target = out.setdefault(period, {})
+            for field, value in comparison["values"].items():
+                if target.get(field) is None and value is not None:
+                    target[field] = value
+                    target.setdefault("comparative_sources", {})[field] = comparison["source"]
+
     # As on the annual path, a correction-only quarter is still a real filed
 
     # quarter.  Q4 comes from the annual reader in derive_quarterly_series; add

@@ -144,11 +144,23 @@ def quarters(data, field="net_profit"):
         annual = [number(source.get(f"{year}Q{q}")) for q in range(1, 5)]
         total = sum(annual) if all(v is not None for v in annual) else None
         same_quarter = {k[:4]: v for k, v in source.items() if k.endswith(f"Q{quarter}")}
+        cagr = growth(same_quarter, str(year), 3)
+        reasons = {}
+        if current is None or prior is None or prior <= 0:
+            reasons["yoy"] = {"code": "NON_POSITIVE_BASE" if prior is not None and prior <= 0 else "MISSING_COMPARATIVE_INPUT",
+                              "required_period": f"{year-1}Q{quarter}"}
+        missing_trailing = [f"{i//4}Q{i%4+1}" for i, v in zip(range(index - 3, index + 1), trailing) if v is None]
+        if missing_trailing:
+            reasons["ltm"] = {"code": "MISSING_QUARTERS", "periods": missing_trailing}
+        if total is None or total <= 0:
+            reasons["seasonality"] = {"code": "INCOMPLETE_YEAR" if total is None else "NON_POSITIVE_YEAR"}
+        if cagr["reason"]:
+            reasons["cg3"] = {"code": cagr["reason"], "start": f"{year-3}Q{quarter}", "end": p}
         rows.append({"period": p, "value": current,
                      "yoy": (current / prior - 1) * 100 if current is not None and prior is not None and prior > 0 else None,
                      "ltm": sum(trailing) if all(v is not None for v in trailing) else None,
                      "seasonality": ratio(current, total, 100),
-                     "cg3": growth(same_quarter, str(year), 3)["nominal"]})
+                     "cg3": cagr["nominal"], "metric_reasons": reasons})
     return {"rows": rows, "reason": None}
 
 

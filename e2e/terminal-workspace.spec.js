@@ -840,3 +840,26 @@ print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verificat
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await table.screenshot({path:testInfo.outputPath('biok-share-ratios-mobile.png')});
 });
+
+test('quarterly blanks distinguish loss bases from missing reports', async ({page}) => {
+  await fixture(page);
+  await page.route('**/api/terminal/issuer/AGBA/analytics?*', route => route.fulfill({json:{
+    ok:true,snapshot:{period:'2025',kind:'bank'},growth:[],quarters:{rows:[
+      {period:'2024Q2',value:99630592000,yoy:null,ltm:null,seasonality:null,cg3:null,
+        metric_reasons:{yoy:{code:'NON_POSITIVE_BASE',required_period:'2023Q2'},
+          ltm:{code:'MISSING_QUARTERS',periods:['2023Q3']},seasonality:{code:'INCOMPLETE_YEAR'},cg3:{code:'NON_POSITIVE_ENDPOINT'}}},
+      {period:'2026Q3',value:483738227000,yoy:null,metric_reasons:{yoy:{code:'MISSING_COMPARATIVE_INPUT',required_period:'2025Q3'}}}
+    ]}
+  }}));
+  await run(page,'AGBA RAT');
+  const row=page.locator('.terminal-quarter-map tbody tr').filter({hasText:'2024Q2'});
+  await expect(row.getByRole('cell').nth(1)).toHaveAttribute('title',/2023Q2.*убыток|убыток.*2023Q2/);
+  await expect(row.getByRole('cell').nth(2)).toHaveAttribute('title',/2023Q3/);
+  const missing=page.locator('.terminal-quarter-map tbody tr').filter({hasText:'2026Q3'});
+  await expect(missing.getByRole('cell').nth(1)).toHaveAttribute('title',/2025Q3/);
+  const heatmap=page.locator('.terminal-heatmap tbody tr').filter({hasText:'2024'});
+  await expect(heatmap.getByRole('cell').nth(1)).toHaveAttribute('title',/2023Q2/);
+  await expect(page.locator('.terminal-quarterly-overview')).toContainText('Убыток или нулевая база');
+  await page.setViewportSize({width:390,height:844});
+  await expect(row.getByRole('cell').nth(1)).toHaveAttribute('aria-label',/2023Q2/);
+});

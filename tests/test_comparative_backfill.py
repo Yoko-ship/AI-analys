@@ -103,3 +103,91 @@ def test_restatement_threshold_is_strict_and_zero_base_is_explicit():
     assert restated_fields({'net_income':None},{'net_income':100})=={}
     assert restated_fields({'net_income':100},{'net_income':101.01})['net_income']['change_pct']>1
     assert restated_fields({'net_income':0},{'net_income':100})['net_income']['change_pct'] is None
+
+
+@pytest.mark.parametrize('corruption', [None, 'wrong_quarter', 'wrong_year'])
+def test_history_recovers_uztl_missing_half_year_from_filed_comparison(catalog, monkeypatch, corruption):
+    """Production 2026-11-13: no UZTL 2021Q2, though 2022Q2 states it."""
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.history as catalog_history
+    import catalogue.snapshots as snapshots
+    import catalogue.storage as storage
+    from financial_ingestion import nsbu_history
+    import openinfo_reconcile as oi
+
+    detail = json.loads(Path('tests/fixtures/uztl-2022q2-comparative.json').read_text())
+    if corruption == 'wrong_quarter':
+        detail['quarter_no'] = '2'
+    elif corruption == 'wrong_year':
+        detail['reporting_year'] = '2021-06-30'
+    c = storage.get_catalog_conn()
+    with c:
+        for ticker in ('UZTL', 'UZTLP'):
+            c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)',
+                      (ticker, 'Uztelecom', '666'))
+        filings._upsert_report(c, 'UZTL', report_form='NSBU', period_type='quarter', year=2022, quarter=2,
+            title='Half-year', published_at=detail['pub_date'], pdf_url=None,
+            excel_url='https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=12860&lang=ru',
+            excel_url_form1=None, openinfo_report_id='12860', object_id=None)
+    c.close()
+    catalogue_financial_store.upsert_financials_cache('UZTL', 'NSBU', 2022, 2,
+        {'revenue': 2995737539, 'net_income': 280500312})
+    monkeypatch.setattr(nsbu_history, '_periods', lambda aliases: {})
+    monkeypatch.setattr(catalog_history, 'harvest_historical_quarters', lambda *a, **kw: {'added': 0, 'errors': []})
+    monkeypatch.setattr(comparative, 'backfill_issuer', lambda *a, **kw: [])
+    monkeypatch.setattr(oi, 'fetch_detail', lambda cand: detail)
+    result = nsbu_history.run(['UZTL'])
+    if corruption:
+        assert 'does not match' in result['errors'][0]['error']
+        assert '2021Q2' not in snapshots.get_financials_series_quarterly('UZTL')
+        return
+    for ticker in ('UZTL', 'UZTLP'):
+        series = snapshots.get_financials_series_quarterly(ticker)
+        recovered = series.get('2021Q2', {})
+        assert recovered.get('net_income') == 333905938
+        assert recovered['revenue'] == 2561309007
+        assert 'total_assets' not in recovered  # opening balance is January, not H1
+        assert recovered['comparative_sources']['net_income']['source_url'] == 'https://openinfo.uz/reports/jsc/quarter/12860'
+    monkeypatch.setattr(oi, 'fetch_detail', lambda cand: pytest.fail('Unchanged sources must resume without downloading'))
+    assert nsbu_history.run(['UZTL'])['quarter_backfilled'] == 0
+    # A subsequently imported original takes precedence, including a real zero.
+    catalogue_financial_store.upsert_financials_cache('UZTL', 'NSBU', 2021, 2,
+        {'revenue': 2561309007, 'net_income': 0})
+    assert snapshots.get_financials_series_quarterly('UZTL')['2021Q2']['net_income'] == 0
+
+
+def test_broken_microfinance_excel_does_not_hide_published_structured_income(catalog, monkeypatch):
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.history as catalog_history
+    import catalogue.snapshots as snapshots
+    import catalogue.storage as storage
+    from financial_ingestion import nsbu_history
+    import openinfo_reconcile as oi
+
+    detail = json.loads(Path('tests/fixtures/acmt-2026q2-structured.json').read_text())
+    c = storage.get_catalog_conn()
+    with c:
+        c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)',
+                  ('ACMT1B2', 'AGAT Credit', '1058'))
+        filings._upsert_report(c, 'ACMT1B2', report_form='NSBU', period_type='quarter', year=2026, quarter=2,
+            title='Half-year', published_at=detail['pub_date'], pdf_url=None,
+            excel_url='https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=microfinance&report_id=56&lang=ru',
+            excel_url_form1=None, openinfo_report_id='56', object_id=None)
+    c.close()
+    monkeypatch.setattr(nsbu_history, '_periods', lambda aliases: {})
+    monkeypatch.setattr(catalog_history, 'harvest_historical_quarters', lambda *a, **kw: {'added': 0, 'errors': []})
+    monkeypatch.setattr(comparative, 'backfill_issuer', lambda *a, **kw: [])
+    monkeypatch.setattr(oi, 'fetch_detail', lambda cand: detail)
+    nsbu_history.run(['ACMT1B2'])
+    current = snapshots.get_financials_series_quarterly('ACMT1B2').get('2026Q2', {})
+    assert current.get('net_income') == 3523955
+    assert current['revenue'] == 48779406
+    assert current['supplemental_sources']['net_income']['source_url'].endswith('/microfinance/quarter/56')
+    # A bank-form single-column amount is never a prior-year comparison.
+    assert '2025Q2' not in snapshots.get_financials_series_quarterly('ACMT1B2')
+    monkeypatch.setattr(oi, 'fetch_detail', lambda cand: pytest.fail('Unchanged sources must resume without downloading'))
+    assert nsbu_history.run(['ACMT1B2'])['structured_quarters'] == 0

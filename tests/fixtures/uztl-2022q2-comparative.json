@@ -1,0 +1,66 @@
+{
+  "id": 12860,
+  "org_type": "jsc",
+  "quarter_no": "5",
+  "pub_date": "2022-07-27T10:01:16",
+  "reporting_year": "2022-07-27",
+  "organization_ticket_name": "UZTL, UZTLP",
+  "quarter_financial_results_report": [
+    {
+      "id": 312917,
+      "title_id": 120,
+      "title": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+      "tnum": "010",
+      "value1": "2561309007.00",
+      "value2": "0.00",
+      "value3": "2995737539.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 12860
+    },
+    {
+      "id": 312919,
+      "title_id": 122,
+      "title": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+      "tnum": "030",
+      "value1": "1153282488.00",
+      "value2": "0.00",
+      "value3": "1149445954.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 12860
+    },
+    {
+      "id": 312926,
+      "title_id": 129,
+      "title": "Прибыль (убыток) от основной деятельности (стр.0З0-040+090)",
+      "tnum": "100",
+      "value1": "539355482.00",
+      "value2": "0.00",
+      "value3": "584899241.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 12860
+    },
+    {
+      "id": 312943,
+      "title_id": 146,
+      "title": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+      "tnum": "270",
+      "value1": "333905938.00",
+      "value2": "0.00",
+      "value3": "280500312.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": true,
+      "is_automated": false,
+      "main_report": 12860
+    }
+  ]
+}
