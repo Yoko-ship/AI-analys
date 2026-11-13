@@ -1,5 +1,6 @@
 import {HeatmapSizeControl, HeatmapTickerSearch} from "./HeatmapSidebarControls.jsx";
 import {heatmapTileLabels} from './tileLabels.js';
+import {useHeatmapZoom} from './useHeatmapZoom.js';
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
@@ -167,24 +168,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   const selectedMetrics = metricSelection.selected;
   const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
-  const [zoom, setZoom] = useState(1);
-  const viewportRef = React.useRef(null);
-  const zoomScroll = React.useRef(null);
-  const changeZoom = next => {
-    const viewport = viewportRef.current;
-    if (viewport) zoomScroll.current = next === 1 ? {left: 0, top: 0} : {
-      left: (viewport.scrollLeft + viewport.clientWidth / 2) * next / zoom - viewport.clientWidth / 2,
-      top: (viewport.scrollTop + viewport.clientHeight / 2) * next / zoom - viewport.clientHeight / 2,
-    };
-    setZoom(next);
-    closePreview();
-  };
-  React.useLayoutEffect(() => {
-    if (zoomScroll.current && viewportRef.current) {
-      viewportRef.current.scrollTo({...zoomScroll.current, behavior: 'instant'});
-      zoomScroll.current = null;
-    }
-  }, [zoom]);
+  const {zoom, changeZoom, viewportRef, onClickCapture, onPointerDownCapture} = useHeatmapZoom(closePreview);
 
   useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, changeFilter, closePreview]);
 
@@ -454,13 +438,14 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
       <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
         <span>{zoomCopy.short}</span>
         <button type="button" aria-label={zoomCopy.out} title={zoomCopy.out} disabled={zoom === 1} onClick={() => changeZoom(zoom / 2)}>−</button>
-        <output role="status" aria-live="polite">{zoom * 100}%</output>
+        <output role="status" aria-live="polite">{formatRatio(zoom * 100, 0, lang)}%</output>
         <button type="button" aria-label={zoomCopy.in} title={zoomCopy.in} disabled={zoom === 8} onClick={() => changeZoom(zoom * 2)}>+</button>
         <button type="button" aria-label={zoomCopy.reset} title={zoomCopy.reset} disabled={zoom === 1} onClick={() => changeZoom(1)}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6a5 5 0 1 1 0 5M3 2v4h4"/></svg>
         </button>
       </div>
-      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}>
+      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
+        onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
       <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}
         style={{width: `${zoom * 100}%`, height: `calc(var(--heatmap-base-height) * ${zoom})`}}>
         {isAdmin && hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"

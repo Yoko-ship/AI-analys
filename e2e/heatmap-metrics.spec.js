@@ -423,6 +423,73 @@ for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the 
   expect(errors).toEqual([]);
 });
 
+test.describe('mobile heatmap gestures', () => {
+  test.use({hasTouch: true, isMobile: true, viewport: {width: 390, height: 844}});
+
+  test('pinch reveals small-tile percentages and keeps touch scrolling and taps usable', async ({page,context}, testInfo) => {
+    const errors = await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true}, smallTileSnapshot);
+    await chooseMapPeriod(page, 'ytd');
+    const viewport = page.locator('.heatmap-viewport');
+    const zoom = page.getByRole('group', {name: 'Масштаб карты', exact: true});
+    await viewport.evaluate(el => el.scrollIntoView({block:'start'}));
+    const box = await viewport.boundingBox();
+    const center = {x: box.x + box.width / 2, y: Math.max(box.y + 60, Math.min(box.y + box.height / 2, 650))};
+    const cdp = await context.newCDPSession(page);
+    const points = spread => [
+      {id: 1, x: center.x - spread / 2, y: center.y},
+      {id: 2, x: center.x + spread / 2, y: center.y},
+    ];
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:points(24)});
+    for (const spread of [48, 72, 96, 120, 144, 168, 192]) {
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove',touchPoints:points(spread)});
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+    }
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]});
+    await expect(zoom.getByRole('status')).toHaveText('800%');
+    expect(await page.evaluate(() => visualViewport.scale)).toBe(1);
+    const anchor = await viewport.evaluate(el => ({left:el.scrollLeft,top:el.scrollTop}));
+    expect(Math.abs(anchor.left - (center.x - box.x) * 7)).toBeLessThanOrEqual(1);
+    expect(Math.abs(anchor.top - (center.y - box.y) * 7)).toBeLessThanOrEqual(1);
+    await expect(page).toHaveURL(/\/heatmap$/);
+    for (const ticker of ['SANE','KSCM','BECM']) {
+      const label = page.locator(`.heatmap-tree-tile[data-ticker="${ticker}"] .htt-pct`);
+      await expect(label).toBeVisible();
+      expect(await label.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    }
+    const left = await viewport.evaluate(el => el.scrollLeft);
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[{id:1,...center}]});
+    for (const delta of [20,40,60,80]) {
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove',touchPoints:[{id:1,x:center.x-delta,y:center.y}]});
+    }
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]});
+    await expect.poll(() => viewport.evaluate(el => el.scrollLeft)).toBeGreaterThan(left);
+    await expect(page).toHaveURL(/\/heatmap$/);
+    const reportedChange = page.locator('.heatmap-tree-tile[data-ticker="SANE"] .htt-pct');
+    await reportedChange.scrollIntoViewIfNeeded();
+    await expect(reportedChange).toBeInViewport();
+    await page.screenshot({path:testInfo.outputPath('pinch-zoom-mobile.png')});
+    await zoom.getByRole('button', {name:'Сбросить масштаб'}).click();
+    await expect(zoom.getByRole('status')).toHaveText('100%');
+    await expect.poll(() => viewport.evaluate(el => [el.scrollLeft,el.scrollTop])).toEqual([0,0]);
+    await viewport.evaluate(el => el.scrollIntoView({block:'start'}));
+    const pageTop = await page.evaluate(() => scrollY);
+    const resetBox = await viewport.boundingBox();
+    const scrollPoint = {x:resetBox.x+resetBox.width/2,y:Math.max(resetBox.y+60,Math.min(resetBox.y+200,500))};
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchStart',touchPoints:[{id:1,...scrollPoint}]});
+    for (const delta of [20,40,60,80]) {
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove',touchPoints:[{id:1,x:scrollPoint.x,y:scrollPoint.y+delta}]});
+    }
+    await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd',touchPoints:[]});
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeLessThan(pageTop);
+    const tile = page.locator('.heatmap-tree-tile').first();
+    const ticker = await tile.getAttribute('data-ticker');
+    await tile.tap();
+    await expect(page).toHaveURL(new RegExp(`/company/${ticker}$`));
+    expect(errors).toEqual([]);
+    await cdp.detach();
+  });
+});
+
 for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker search at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});

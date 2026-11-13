@@ -158,6 +158,9 @@
   height: var(--heatmap-base-height);
   overflow: auto;
   border-radius: 14px;
+  /* One finger keeps native scrolling; two fingers resize the map so its
+     labels are recalculated instead of magnifying an unchanged page. */
+  touch-action: pan-x pan-y;
 }
 .heatmap-viewport.is-zoomed { overscroll-behavior: contain; }
 .heatmap-zoom { display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--muted); font-size: 10px; }
