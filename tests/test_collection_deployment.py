@@ -39,3 +39,11 @@ def test_monitor_connects_to_the_published_host_port_not_the_container_port():
                               if line.startswith("ExecStart=")))
     assert "--api-url" in command
     assert command[command.index("--api-url") + 1] == f"http://{address}:{port}"
+
+
+def test_openinfo_filings_watcher_runs_at_1620_tashkent_monday_to_saturday():
+    installed, _ = units()
+    timer = installed["/etc/systemd/system/uzstock-reports-watch.timer"]
+    assert re.findall(r"^OnCalendar=(.+)$", timer, re.MULTILINE) == [
+        "Mon..Sat *-*-* 16:20:00 Asia/Tashkent"
+    ]
