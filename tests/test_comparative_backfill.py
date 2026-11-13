@@ -221,3 +221,28 @@ def test_quarter_discovery_uses_structured_period_when_excel_export_fails(catalo
     from financial_ingestion.quarterly_comparative import backfill
     assert backfill('1058',['ACMT1B2'])['structured']==['2026Q2']
     assert snapshots.get_financials_series_quarterly('ACMT1B2')['2026Q2']['net_income']==3523955
+
+
+def test_commercial_llc_filings_share_the_jsc_endpoint_without_losing_comparisons(catalog, monkeypatch):
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.snapshots as snapshots
+    import catalogue.storage as storage
+    from financial_ingestion import quarterly_comparative as recovery
+    import openinfo_reconcile as oi
+    detail=json.loads(Path('tests/fixtures/bfmt-2022q1-comparative.json').read_text())
+    c=storage.get_catalog_conn()
+    with c:
+        c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)', ('BFMT3B4','Biznes Finans','922'))
+        filings._upsert_report(c,'BFMT3B4',report_form='NSBU',period_type='quarter',year=2022,quarter=1,
+            title='Quarterly report',published_at=detail['pub_date'],pdf_url=None,excel_url='https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=16658&lang=ru',
+            excel_url_form1=None,openinfo_report_id='16658',object_id=None)
+    c.close()
+    monkeypatch.setattr(oi,'fetch_detail',lambda *a:detail)
+    result=recovery.backfill('922',['BFMT3B4'])
+    assert result['errors']==[]
+    quarters=snapshots.get_financials_series_quarterly('BFMT3B4')
+    assert quarters['2022Q1']['net_income']==3371321
+    assert quarters['2021Q1']['net_income']==2105964
+    assert 'total_assets' not in quarters['2021Q1']

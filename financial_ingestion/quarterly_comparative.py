@@ -18,6 +18,12 @@ import dbx
 INCOME = ("revenue", "gross_profit", "net_income", "operating_income")
 
 
+def _form_type(value):
+    # OpenInfo serves LLC commercial statements through /reports/jsc/, while
+    # their JSON names the legal entity type rather than the statement family.
+    return "jsc" if str(value).lower() == "llc" else value
+
+
 def _schema(c):
     c.execute("""CREATE TABLE IF NOT EXISTS catalog_comparative_quarters (
         ticker TEXT NOT NULL, year INTEGER NOT NULL, quarter INTEGER NOT NULL,
@@ -86,11 +92,11 @@ def discover_record(ticker, org_id, record, *, publish=False):
     import catalogue.filings as filings
     import catalogue.periods as periods
 
-    org_type, object_id = record.get("org_type"), str(record["accounting_id"])
+    org_type, object_id = _form_type(record.get("org_type")), str(record["accounting_id"])
     if org_type not in oi.ORG_TYPES or not object_id.isdigit():
         raise ValueError("Unsupported structured filing")
     detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
-    if str(detail.get("id")) != object_id or detail.get("org_type") != org_type:
+    if str(detail.get("id")) != object_id or _form_type(detail.get("org_type")) != org_type:
         raise ValueError("Structured filing identity does not match discovery")
     year, quarter = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
         pub_date=record["pub_date"], quarter_no=detail.get("quarter_no"))
@@ -154,7 +160,7 @@ def backfill(org_id, aliases, journal=None):
         current = originals.get((year + 1, quarter), {})
         need_current = any(current.get(k) is None for k in ("revenue", "net_income"))
         params = parse_qs(urlparse(report.get("excel_url") or report.get("excel_url_form1") or "").query)
-        org_type = (params.get("org_type") or [None])[0]
+        org_type = _form_type((params.get("org_type") or [None])[0])
         object_id = report.get("object_id") or report.get("openinfo_report_id")
         if org_type not in oi.ORG_TYPES or not str(object_id or "").isdigit():
             continue
@@ -172,7 +178,7 @@ def backfill(org_id, aliases, journal=None):
             detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
             source_period = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
                 pub_date=detail.get("pub_date"), quarter_no=detail.get("quarter_no"))
-            if (source_period != (report["year"], quarter) or detail.get("org_type") != org_type
+            if (source_period != (report["year"], quarter) or _form_type(detail.get("org_type")) != org_type
                     or str(detail.get("id")) != str(object_id)):
                 raise ValueError("Comparison source period or form does not match the catalog")
             metrics = oi.extract_metrics(detail)

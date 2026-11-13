@@ -1,0 +1,66 @@
+{
+  "id": 16658,
+  "org_type": "LLC",
+  "quarter_no": "2",
+  "pub_date": "2024-11-20T20:34:58",
+  "reporting_year": "2022-03-31",
+  "organization_ticket_name": "BFMT3, BFMT3V2, BFMT3V3",
+  "quarter_financial_results_report": [
+    {
+      "id": 413185,
+      "title_id": 120,
+      "title": "Чистая выручка от реализации продукции (товаров, работ и услуг)",
+      "tnum": "010",
+      "value1": "2590837.00",
+      "value2": "0.00",
+      "value3": "5153163.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 16658
+    },
+    {
+      "id": 413187,
+      "title_id": 122,
+      "title": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+      "tnum": "030",
+      "value1": "2590837.00",
+      "value2": "0.00",
+      "value3": "5153163.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 16658
+    },
+    {
+      "id": 413194,
+      "title_id": 129,
+      "title": "Прибыль (убыток) от основной деятельности (стр.0З0-040+090)",
+      "tnum": "100",
+      "value1": "2660212.00",
+      "value2": "0.00",
+      "value3": "4617959.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": false,
+      "is_automated": false,
+      "main_report": 16658
+    },
+    {
+      "id": 413211,
+      "title_id": 146,
+      "title": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+      "tnum": "270",
+      "value1": "2105964.00",
+      "value2": "0.00",
+      "value3": "3371321.00",
+      "value4": "0.00",
+      "is_title": false,
+      "is_highlight": true,
+      "is_automated": false,
+      "main_report": 16658
+    }
+  ]
+}
