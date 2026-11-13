@@ -43,6 +43,7 @@ import json
 from pathlib import Path
 from financial_columns import nsbu, observations
 from financial_analysis.report_investor_metrics import calculate
+from financial_analysis.sector_calculations import enterprise_ratios
 case = json.loads(Path('tests/fixtures/${ticker.toLowerCase()}_2026q3_investor_inputs.json').read_text(encoding='utf8'))
 report = case['report']
 if case.get('source_fixture'):
@@ -54,7 +55,14 @@ else:
                rows=nsbu.rows(case['source'], template='general'))
 rows = observations.nsbu([doc])
 observations.check(rows)
-print(json.dumps({**report, 'ratios': calculate(report, rows)}))
+lines = {
+    'form2:c' + row['source_code']: {'raw_current': row['current']['value']}
+    for row in doc['rows']
+    if row['source_form'] == 'F2' and row['source_code'] in {'010', '020', '030', '040'}
+}
+statutory = [row for row in enterprise_ratios(lines, 'non_financial', 'nsbu', report['period'])
+             if row['metric_code'] == 'P5' and lines]
+print(json.dumps({**report, 'ratios': calculate(report, rows) + statutory}))
 `], {encoding: 'utf8'}));
   await fixture(page,[{ticker,company_name:report.issuer.name,sector:'trade'}]);
   await page.route(`**/api/v1/issuers/${ticker}/ai-report?**`,r=>r.fulfill({json:report}));
@@ -67,6 +75,11 @@ print(json.dumps({**report, 'ratios': calculate(report, rows)}))
   await expect(pb).toContainText('2026-11-06');
   await expect(pb).not.toContainText('актуальной котировки');
   await expect(table.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('средневзвешенное число обычных акций');
+  if (ticker === 'CBSK') {
+    const gross = table.getByRole('row').filter({hasText:'Валовая маржа'});
+    await expect(gross).toContainText('Себестоимость продаж не выделена в отчёте');
+    await expect(gross).not.toContainText('100%');
+  }
   expect(await table.locator('.terminal-table-wrap').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await table.screenshot({path:testInfo.outputPath(`${ticker.toLowerCase()}-ratios-${width}.png`)});
@@ -835,8 +848,12 @@ print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verificat
   await page.route('**/api/v1/issuers/BIOK/ai-report?**', route => route.fulfill({json:report}));
   await run(page, 'BIOK RAT');
   const table = page.locator('.terminal-sector-metrics');
-  await expect(table.getByRole('row').filter({hasText:'P/BV'})).toContainText('0,63 ×');
-  await expect(table.getByRole('row').filter({hasText:'Базовая прибыль'})).toContainText('средневзвешенное число обычных акций');
+  const book = table.getByRole('row').filter({hasText:'P/BV'});
+  await expect(book).toContainText('0,63 ×');
+  await expect(book.getByRole('link', {name:'Раскрытие об акциях'})).toHaveAttribute('href', /openinfo\.uz\/media\/int_report/);
+  const eps = table.getByRole('row').filter({hasText:'Базовая прибыль'});
+  await expect(eps).toContainText('средневзвешенное число обычных акций');
+  await expect(eps).toContainText('Число акций на отчётную дату подтверждено');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await table.screenshot({path:testInfo.outputPath('biok-share-ratios-mobile.png')});
 });

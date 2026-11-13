@@ -3,13 +3,16 @@ import {chartWindow, chartScale, defaultChartMetrics} from './financialChartView
 import { financialChartRows } from './financialColumnChart.js';
 import { financialGroup } from './financialColumnGroups.js';
 
-// Shared theme colours identify series, never whether a financial value is good.
+// Violet and slate shades identify series without borrowing status colors.
 const COLORS = [
-  'var(--chart-primary)', 'var(--chart-secondary)', 'var(--chart-tertiary)', 'var(--danger)',
-  'color-mix(in srgb, var(--chart-primary), var(--chart-secondary) 50%)',
-  'color-mix(in srgb, var(--chart-primary), var(--danger) 50%)',
-  'color-mix(in srgb, var(--chart-secondary), var(--chart-tertiary) 50%)',
-  'color-mix(in srgb, var(--chart-tertiary), var(--danger) 50%)',
+  'var(--chart-primary)',
+  'var(--muted)',
+  'color-mix(in srgb, var(--chart-primary) 72%, var(--panel))',
+  'color-mix(in srgb, var(--muted) 74%, var(--panel))',
+  'color-mix(in srgb, var(--chart-primary) 72%, var(--text))',
+  'color-mix(in srgb, var(--muted) 76%, var(--text))',
+  'color-mix(in srgb, var(--chart-primary) 54%, var(--muted))',
+  'color-mix(in srgb, var(--chart-primary) 48%, var(--text))',
 ];
 const valueOf = cell => cell?.value != null && cell.value !== '' &&
   ['valid', 'warn'].includes(cell.quality) && Number.isFinite(Number(cell.value)) ? Number(cell.value) : null;

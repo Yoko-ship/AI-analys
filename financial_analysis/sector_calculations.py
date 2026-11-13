@@ -48,6 +48,17 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
         values = {key: (lines.get(key) or {}).get("raw_current", (lines.get(key) or {}).get("current")) for key in components}
         numerator, denominator = financial_analysis_sector_numbers.total(*(values[k] for k in numerators)), financial_analysis_sector_numbers.total(*(values[k] for k in denominators))
         value = financial_analysis_sector_numbers.ratio(numerator, denominator, percent)
+        reason = None
+        if code == "P5" and value == 100:
+            cost = lines.get("form2:c020") or {}
+            expenses = lines.get("form2:c040") or {}
+            cost_value = financial_analysis_sector_numbers.decimal(cost.get("raw_current", cost.get("current")))
+            period_cost = financial_analysis_sector_numbers.decimal(expenses.get("raw_current", expenses.get("current")))
+            if cost_value is None or (cost_value == 0 and period_cost):
+                # A form that carries all costs below gross profit does not
+                # establish a comparable sales margin.
+                value = None
+                reason = "GROSS_MARGIN_NO_COST_OF_SALES"
         # Balance opening values are comparable for liquidity, not for a
         # prior-year flow divided by this year's opening balance.
         opening = None
@@ -66,6 +77,7 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
                         "benchmark_min": {"current_ratio": 1.5, "quick_ratio": 1, "absolute_liquidity": .2}.get(code),
                         "benchmark_max": {"current_ratio": 2, "absolute_liquidity": .5}.get(code),
                         "calculation_status": "verified" if value is not None else "missing_or_invalid_components",
+                        **({"reason_code": reason} if reason else {}),
                         "verification_status": "verified" if value is not None else "unavailable"})
     return results
 

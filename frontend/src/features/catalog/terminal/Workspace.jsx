@@ -251,7 +251,10 @@ function SectorMetrics({ticker,form,scope,lang,summary}) {
   const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.metric_code||i}>
     <th><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></span></th>
     <td>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
-      {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}</td>
+      {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}
+      {safeHref(r.share_disclosure_url)&&<div><a href={safeHref(r.share_disclosure_url)} target="_blank" rel="noreferrer">
+        {words(lang,'Раскрытие об акциях','Aksiyalar haqidagi ma’lumot','Share disclosure')}
+      </a></div>}</td>
   </tr>)}</tbody></table></div>;
   return <section className="terminal-sector-metrics"><State data={data} error={error} lang={lang}>
     <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||scope,lang)}</p>

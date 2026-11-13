@@ -27,7 +27,7 @@ export function summaryKpis(report,snapshot={}) {
     roe:ratios.roe??null,roa:ratios.roa??null,earned_premiums:facts.revenue??null,
     combined_ratio:ratios.combined_ratio??null,loss_ratio:ratios.loss_ratio??null,
     equity_to_assets:divide(facts.total_equity,facts.total_assets),
-    gross_margin:divide(facts.gross_profit,facts.revenue),net_margin:divide(facts.net_income,facts.revenue),
+    gross_margin:Object.hasOwn(ratios,'P5')?ratios.P5:divide(facts.gross_profit,facts.revenue),net_margin:divide(facts.net_income,facts.revenue),
     loans_to_deposits:ratios.loans_to_deposits??null,
     nav:finite(report.nav?.value_mln_uzs)==null?facts.total_equity:finite(report.nav.value_mln_uzs)*1e6,
     nav_per_share:finite(report.nav?.per_exchange_share_uzs),price_to_nav:finite(report.valuation?.price_to_nav),

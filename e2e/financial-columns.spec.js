@@ -242,6 +242,20 @@ for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with i
   await expect(metrics).toHaveCount(16);
   await chart.getByRole('button',{name:'Show all',exact:true}).click();
   await expect(chart.locator('[data-chart-series]')).toHaveCount(16);
+  const palette = await terminal.locator('[data-chart-series]').evaluateAll(series => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d');
+    return series.map(node => {
+      context.fillStyle = getComputedStyle(node).fill;
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
+    });
+  });
+  expect(new Set(palette.map(rgb => rgb.join(','))).size).toBe(8);
+  for (const [red, green, blue] of palette) {
+    expect(blue).toBeGreaterThanOrEqual(Math.max(red, green));
+  }
   const loans=chart.getByRole('button',{name:'Кредиты и лизинговые операции, брутто · 7а',exact:true});
   const leases=chart.getByRole('button',{name:'Кредиты и лизинговые операции, брутто · 7б',exact:true});
   const loanSeries=chart.locator('[data-chart-series]').filter({hasText:'Кредиты и лизинговые операции, брутто · 7а'});
@@ -706,9 +720,6 @@ test('source columns preserve units, periods and passports at desktop and mobile
   await expect(passport).toContainText('separate');
   await expect(passport.getByRole('link', { name: 'Open source' })).toHaveAttribute('href', /openinfo/);
   await passport.getByRole('button', { name: 'Close', exact: true }).click();
-  await terminal.getByRole('button', { name: 'Chart', exact: true }).click();
-  await expect(terminal.getByRole('img', { name: 'Financial history' })).toBeVisible();
-  await terminal.getByRole('button', { name: 'Table', exact: true }).click();
   await terminal.getByRole('tab', { name: 'Original forms', exact: true }).click();
   await expect(terminal.locator('tr[data-metric="staff_expense"]')).toHaveCount(0);
   await terminal.getByRole('searchbox').fill('1л');
@@ -748,6 +759,7 @@ for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly 
   await setup(page,{ticker:'HMKB',func:'PL',reports,theme});
   const terminal=page.getByTestId('financial-columns');
   await terminal.getByRole('button',{name:'Quarters',exact:true}).click();
+  await terminal.getByRole('tab',{name:'Original forms',exact:true}).click();
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
   const chart=terminal.locator('.fc-chart'),plot=chart.locator('.fc-chart-plot');
   await expect(chart.locator('[data-chart-series]')).toHaveCount(3);
@@ -778,7 +790,7 @@ for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly 
   await chart.screenshot({path:info.outputPath('quarterly-chart.png')});
 });
 
-test('ABKZ income breakdown follows the selected filing and keeps the history chart', async ({page}, testInfo) => {
+test('ABKZ overview shows only the income breakdown in chart mode', async ({page}, testInfo) => {
   const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
   await page.setViewportSize({width: 1440, height: 1050});
   await setup(page, {ticker: 'ABKZ', reports, theme: 'dark'});
@@ -787,13 +799,28 @@ test('ABKZ income breakdown follows the selected filing and keeps the history ch
   await expect(breakdown).toHaveCount(0);
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
 
-  const period = breakdown.getByRole('combobox', {name: 'Reporting period'});
+  const period = breakdown.getByRole('group', {name: 'Reporting period'});
   const diagram = breakdown.getByRole('img');
-  await expect(period).toHaveValue('2026-09-30');
+  await expect(period.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(diagram).toContainText('Net income');
   await expect(diagram).toContainText('6.32');
-  await period.selectOption('2025');
+  const grossProfit = diagram.locator('.fc-sankey-node').filter({has: page.getByText('Gross profit', {exact: true})});
+  await grossProfit.locator('rect').hover();
+  const tooltip = breakdown.getByRole('tooltip');
+  await expect(tooltip).toContainText('2026 · 9M');
+  await expect(tooltip).toContainText('17,826,767');
+  await expect(tooltip).toContainText('15.78%');
+  await diagram.locator('.fc-sankey-ribbon.is-inspected').first().hover();
+  await expect(tooltip).toContainText('Gross profit');
+  await period.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(tooltip).toHaveCount(0);
   await expect(diagram).toContainText('142.43');
+  await grossProfit.focus();
+  await expect(tooltip).toContainText('2025');
+  await expect(tooltip).toContainText('28,355,210');
+  await expect(tooltip).toContainText('19.91%');
+  await page.keyboard.press('Escape');
+  await expect(tooltip).toHaveCount(0);
   await expect(diagram).toContainText('Cost of sales');
   await expect(diagram).toContainText('114.08');
   await expect(diagram).toContainText('Income tax');
@@ -803,7 +830,7 @@ test('ABKZ income breakdown follows the selected filing and keeps the history ch
   const barHeight = async label => Number(await diagram.locator('g')
     .filter({has: page.getByText(label, {exact: true})}).locator('rect').getAttribute('height'));
   expect(await barHeight('Cost of sales') / await barHeight('Revenue')).toBeCloseTo(114078960 / 142434170, 6);
-  await expect(terminal.getByRole('img', {name: 'Financial history'})).toBeVisible();
+  await expect(terminal.locator('.fc-chart')).toHaveCount(0);
   await breakdown.screenshot({path: testInfo.outputPath('abkz-income-breakdown-desktop.png')});
 
   await page.setViewportSize({width: 390, height: 844});
@@ -825,9 +852,105 @@ test('ABKZ income breakdown follows the selected filing and keeps the history ch
   await panel.getByLabel(/^Function/).selectOption('PL');
   await panel.getByRole('button', {name: 'Chart', exact: true}).click();
   await expect(panel.getByRole('region', {name: 'Revenue & expenses breakdown'}).getByRole('img')).toBeVisible();
+  await expect(panel.locator('.fc-chart')).toHaveCount(0);
 });
 
-test('income breakdown preserves a reported loss and explains unreconciled amounts', async ({page}) => {
+for (const width of [1440, 390]) test(`AGMKP chart labels stay readable and missing annual data keeps the layout stable at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 844});
+  // OpenInfo filing 19164 contains the 2026 nine-month results. The annual
+  // columns in the reported case have balance data but no income statement.
+  const reports = {
+    ok: true, presentation: 'template',
+    columns: [
+      {key: '2024', label: '2024', end: '2024-12-31', basis: 'annual'},
+      {key: '2025', label: '2025', end: '2025-12-31', basis: 'annual'},
+      {key: '2026-09-30', label: '2026 · 9M', end: '2026-09-30', basis: 'ytd'},
+    ],
+    rows: [
+      ['010', 'revenue', '47110374792'], ['020', 'cost_of_sales', '-14967467124'],
+      ['030', 'gross_profit', '32142907668'], ['050', 'selling_expense', '-88256073'],
+      ['060', 'admin_expense', '-448680613'], ['070', 'other_operating_expense', '-7467730773'],
+      ['090', 'other_operating_income', '159658840'], ['100', 'operating_income', '24297899049'],
+      ['110', 'finance_income', '3643895287'], ['170', 'finance_cost', '-4118496303'],
+      ['180', 'interest_expense', '-914007329'], ['200', 'fx_expense', '-2892131781'],
+      ['210', 'other_finance_cost', '-312357193'], ['240', 'profit_before_tax', '23823298033'],
+      ['250', 'income_tax', '-10116235222'], ['270', 'net_income', '13707062811.24'],
+    ].map(([source_code, metric_id, value]) => ({
+      id: `F2:${source_code}`, source_form: 'F2', source_code, metric_id,
+      label: metric_id, kind: 'flow', unit: 'UZS_thousand',
+      cells: {'2026-09-30': {value, quality: 'valid'}},
+    })),
+  };
+  await setup(page, {ticker: 'AGMKP', reports, lang: 'ru'});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'График', exact: true}).click();
+  const breakdown = terminal.getByRole('region', {name: 'Выручка и расходы'});
+  const period = breakdown.getByRole('group', {name: 'Отчётный период'});
+  const diagram = breakdown.getByRole('img');
+  const recent = period.getByRole('button', {name: '2026 · 9M', exact: true});
+  await expect(recent).toHaveAttribute('aria-pressed', 'true');
+  await expect(diagram).toContainText(/13\s707,06/);
+  await page.evaluate(() => document.fonts.ready.then(() => true));
+  const collisions = await diagram.evaluate(svg => {
+    const bounds = svg.getBoundingClientRect();
+    const labels = [...svg.querySelectorAll('.fc-sankey-node text, .fc-sankey-label')].map(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const container = el.closest('foreignObject')?.getBoundingClientRect() || bounds;
+      return {name: el.textContent, box: range.getBoundingClientRect(), container};
+    });
+    const problems = [];
+    for (const [i, {name, box, container}] of labels.entries()) {
+      if (box.left < container.left - 1 || box.right > container.right + 1 ||
+          box.top < container.top - 1 || box.bottom > container.bottom + 1) {
+        problems.push(`Clipped label: ${name}`);
+      }
+      for (const other of labels.slice(i + 1)) {
+        const horizontalGap = Math.max(box.left, other.box.left) - Math.min(box.right, other.box.right);
+        const verticalGap = Math.max(box.top, other.box.top) - Math.min(box.bottom, other.box.bottom);
+        if (horizontalGap < 8 && verticalGap < 4) problems.push(`${name} / ${other.name}`);
+      }
+    }
+    return problems;
+  });
+  expect(collisions).toEqual([]);
+  const coveredLabels = await diagram.evaluate(svg => {
+    const toSvg = svg.getScreenCTM().inverse();
+    const ribbons = [...svg.querySelectorAll('.fc-sankey-ribbon')];
+    return [...svg.querySelectorAll('.fc-sankey-label')].filter(label => {
+      const range = document.createRange();
+      range.selectNodeContents(label);
+      return [...range.getClientRects()].some(rect => {
+        for (let x = rect.left + 1; x < rect.right; x += 2) {
+          for (let y = rect.top + 1; y < rect.bottom; y += 2) {
+            const point = new DOMPoint(x, y).matrixTransform(toSvg);
+            if (ribbons.some(ribbon => ribbon.isPointInFill(point))) return true;
+          }
+        }
+        return false;
+      });
+    }).map(label => label.innerText);
+  });
+  expect(coveredLabels).toEqual([]);
+  await breakdown.screenshot({path: testInfo.outputPath('agmkp-chart-labels.png')});
+  await expect(terminal.locator('.fc-chart')).toHaveCount(0);
+  const height = () => breakdown.evaluate(el => el.getBoundingClientRect().height);
+  const initialHeight = await height();
+  const annual = period.getByRole('button', {name: '2025', exact: true});
+  await annual.click();
+  await expect(annual).toBeFocused();
+  await expect(breakdown.getByRole('status')).toContainText('не хватает отчётных данных');
+  await expect(diagram).toHaveCount(0);
+  expect(Math.abs(await height() - initialHeight)).toBeLessThanOrEqual(1);
+  await expect(terminal.locator('.fc-chart')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await breakdown.screenshot({path: testInfo.outputPath('agmkp-missing-annual.png')});
+  await recent.click();
+  await expect(diagram).toContainText(/13\s707,06/);
+  expect(Math.abs(await height() - initialHeight)).toBeLessThanOrEqual(1);
+});
+
+test('income breakdown preserves a reported loss and shows unreconciled amounts to admins', async ({page}) => {
   const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
   const net = reports.rows.find(row => row.metric_id === 'net_income');
   net.cells['2025'] = {value: '-3000000', quality: 'warn'};
@@ -836,11 +959,14 @@ test('income breakdown preserves a reported loss and explains unreconciled amoun
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
-  const period = breakdown.getByRole('combobox', {name: 'Reporting period'});
-  await expect(period).toHaveValue('2025');
+  const period = breakdown.getByRole('group', {name: 'Reporting period'});
+  await expect(period.getByRole('button', {name: '2025', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(breakdown.getByRole('img')).toContainText('Net loss');
   await expect(breakdown.getByRole('img')).toContainText('Unreconciled difference');
-  await period.selectOption('2026-09-30');
+  await expect(breakdown.locator('.fc-sankey-note')).toContainText('An unreconciled difference');
+  await breakdown.locator('summary').click();
+  await expect(breakdown.locator('dt').filter({hasText: 'Unreconciled difference'}).first()).toBeVisible();
+  await period.getByRole('button', {name: '2026 · 9M', exact: true}).click();
   await expect(breakdown.getByRole('status')).toContainText('Not enough reported figures');
   await expect(breakdown.getByRole('img')).toHaveCount(0);
 });
@@ -851,7 +977,7 @@ test('bank income breakdown shows filed expense magnitudes as deductions', async
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
-  await breakdown.getByRole('combobox', {name: 'Reporting period'}).selectOption('2025');
+  await breakdown.getByRole('group', {name: 'Reporting period'}).getByRole('button', {name: '2025', exact: true}).click();
   const diagram = breakdown.getByRole('img');
   await expect(diagram).toContainText('Net interest income');
   await expect(diagram).toContainText('Credit losses');

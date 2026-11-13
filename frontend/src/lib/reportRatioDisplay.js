@@ -17,8 +17,18 @@ export function reportRatioReason(item,lang){
     reported_eps_conflict:['согласованная опубликованная EPS','bir-biriga mos e’lon qilingan EPS','consistent reported EPS'],
   };
   const missing=Array.isArray(item.missing_inputs)?[...new Set(item.missing_inputs)].filter(key=>inputs[key]):[];
-  if(missing.length)return pick(lang,'Отсутствуют или не подтверждены: ','Yetishmaydi yoki tasdiqlanmagan: ','Missing or unverified: ')+missing.map(key=>pick(lang,...inputs[key])).join('; ');
+  if(missing.length){
+    const explanation=pick(lang,'Отсутствуют или не подтверждены: ','Yetishmaydi yoki tasdiqlanmagan: ','Missing or unverified: ')+missing.map(key=>pick(lang,...inputs[key])).join('; ');
+    if(item.metric_code==='eps_basic'&&item.closing_share_count_verified&&missing.includes('weighted_average_shares')){
+      return explanation+'. '+pick(lang,
+        'Число акций на отчётную дату подтверждено, но для EPS нужен средний показатель за весь период.',
+        'Hisobot sanasidagi aksiyalar soni tasdiqlangan, EPS uchun esa butun davr bo‘yicha o‘rtacha son kerak.',
+        'The closing share count is verified. EPS requires a weighted average over the full period.');
+    }
+    return explanation;
+  }
   const reasons={
+    GROSS_MARGIN_NO_COST_OF_SALES:['Себестоимость продаж не выделена в отчёте','Sotish tannarxi hisobotda alohida ko‘rsatilmagan','Cost of sales is not shown separately in the filing'],
     EPS_INPUTS_MISSING:['Нет подтверждённой EPS или данных для её расчёта','Tasdiqlangan EPS yoki hisoblash ma’lumotlari yo‘q','Verified EPS or the inputs needed to calculate it are unavailable'],
     DEBT_INPUTS_MISSING:['Не подтверждён полный состав долга или положительный капитал','Qarz tarkibi yoki musbat kapital tasdiqlanmagan','Complete debt components or positive equity are unverified'],
     BOOK_OR_QUOTE_INPUTS_MISSING:['Нет подтверждённой базы обычных акций или актуальной котировки','Oddiy aksiyalar bazasi yoki dolzarb kotirovka tasdiqlanmagan','Verified ordinary-share inputs or a current quote are unavailable'],

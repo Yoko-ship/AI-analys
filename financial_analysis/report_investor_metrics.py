@@ -176,6 +176,7 @@ def calculate(report, rows, share_basis=None):
          'ordinary_share_price / (common_equity × 1000 / ordinary_shares)',
          [{'value': price, 'components': [instrument]}, {'value': bvps, 'components': common['components'] + shares['components']}],
           reason='BOOK_OR_QUOTE_INPUTS_MISSING', market_as_of=quoted,
+          share_disclosure_url=basis.get('source_url') if basis_ok and shares['value'] is not None else None,
           missing_inputs=([key for key, part in [('common_equity',common),('ordinary_shares',shares)]
                            if part['value'] is None or part['value'] <= 0] + ([] if usable else ['usable_quote'])))
 
@@ -191,6 +192,7 @@ def calculate(report, rows, share_basis=None):
             value = None
         emit('eps_basic', value, 'profit_ordinary × 1000 / weighted_average_shares',
               [profit, weighted], 'UZS_per_share', reason='EPS_INPUTS_MISSING',
+              closing_share_count_verified=basis_ok and shares['value'] is not None,
               missing_inputs=(['reported_eps_conflict'] if disclosed['components'] else
                   (['profit_ordinary'] if profit['value'] is None else []) +
                   (['weighted_average_shares'] if weighted['value'] is None or weighted['value'] <= 0 else [])),

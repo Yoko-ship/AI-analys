@@ -72,28 +72,33 @@ function ribbon(x1, y1, x2, y2, height) {
     v${height} C${middle},${y2 + height} ${middle},${y1 + height} ${x1},${y1 + height} Z`;
 }
 
+const LABEL_WIDTH = 208;
+const TOTAL_LABEL_WIDTH = 168;
+const LABEL_HEIGHT = 64;
+const LABEL_GAP = 12;
+const BRANCH_OFFSET = 42;
+
 function layout({totals, bridges}) {
-  const step = 236;
-  const left = 32;
-  const lastX = left + step * (totals.length - 1);
-  const width = Math.max(680, lastX + 48);
-  const stepWidth = (width - left - 48) / bridges.length;
+  const margin = TOTAL_LABEL_WIDTH / 2 + LABEL_GAP;
+  const stepWidth = Math.max(280, (680 - 2 * margin) / bridges.length);
+  const width = 2 * margin + stepWidth * bridges.length;
   const volume = Math.max(1, ...bridges.map((lines, i) =>
     Math.max(0, totals[i].value) - Math.min(0, totals[i + 1].value) +
     lines.reduce((sum, line) => sum + Math.max(0, line.value), 0)));
   const band = value => 114 * Math.abs(value) / volume;
-  const heightWithLabel = line => Math.max(42, band(line.value) + 34);
+  const branchHeight = line => Math.max(LABEL_HEIGHT, band(line.value)) + LABEL_GAP;
   const gainsHeight = Math.max(0, ...bridges.map(lines => lines
-    .filter(line => line.value > 0).reduce((sum, line) => sum + heightWithLabel(line), 0)));
-  const center = 122 + gainsHeight;
+    .filter(line => line.value > 0).reduce((sum, line) => sum + branchHeight(line), 0)));
+  const center = 152 + gainsHeight;
   const nodes = totals.map((line, i) => ({
-    ...line, key: line.id, x: left + i * stepWidth, y: center - band(line.value) / 2,
-    h: band(line.value), labelY: center - 78, align: i === totals.length - 1 ? 'end' : 'start',
+    ...line, key: line.id, x: margin + i * stepWidth, y: center - band(line.value) / 2,
+    h: band(line.value), labelX: margin + i * stepWidth - TOTAL_LABEL_WIDTH / 2,
+    labelY: center - 64 - LABEL_HEIGHT, labelWidth: TOTAL_LABEL_WIDTH, align: 'center',
     color: colorOf(line, i === 0),
   }));
   const links = [];
-  const addLink = (key, a, b, h, color) => {
-    if (h > 0) links.push({key, color, path: ribbon(a.x + 5, a.y, b.x - 5, b.y, h)});
+  const addLink = (key, a, b, node) => {
+    if (node.h > 0) links.push({key, node, path: ribbon(a.x + 5, a.y, b.x - 5, b.y, node.h)});
   };
   let bottom = center + 68;
   bridges.forEach((lines, i) => {
@@ -103,48 +108,73 @@ function layout({totals, bridges}) {
     const inputs = band(Math.max(0, start.value)) + band(Math.min(0, end.value)) +
       gains.reduce((sum, line) => sum + band(line.value), 0);
     let inY = center - inputs / 2, outY = inY;
-    addLink(`start-${i}`, start, {x: junction + 5, y: start.value >= 0 ? inY : outY}, start.h, start.color);
+    addLink(`start-${i}`, start, {x: junction + 5, y: start.value >= 0 ? inY : outY}, start);
     if (start.value >= 0) inY += start.h;
     else outY += start.h;
-    addLink(`end-${i}`, {x: junction - 5, y: end.value < 0 ? inY : outY}, end, end.h, end.color);
+    addLink(`end-${i}`, {x: junction - 5, y: end.value < 0 ? inY : outY}, end, end);
     if (end.value < 0) inY += end.h;
     else outY += end.h;
 
-    let gainY = center - 91;
+    // Route each branch on the side of its endpoint opposite the text.
+    // Keeping the ribbons near the junction also clears the centered totals.
+    let gainBottom = center - 64 - LABEL_HEIGHT;
     for (const line of gains) {
       const h = band(line.value), key = `${i}-${line.id}`;
-      const node = {...line, key, x: start.x + 18, y: gainY - h, h, labelY: gainY - h - 21, align: 'start', color: colorOf(line)};
+      const height = branchHeight(line);
+      const mid = gainBottom - (height + LABEL_GAP) / 2;
+      const x = junction - BRANCH_OFFSET;
+      const node = {...line, key, x, y: mid - h / 2, h, labelX: x - LABEL_GAP - LABEL_WIDTH,
+        labelY: mid - LABEL_HEIGHT / 2, labelWidth: LABEL_WIDTH, align: 'right', color: colorOf(line)};
       nodes.push(node);
-      addLink(key, node, {x: junction + 5, y: inY}, h, node.color);
-      gainY -= heightWithLabel(line);
+      addLink(key, node, {x: junction + 5, y: inY}, node);
+      gainBottom -= height;
       inY += h;
     }
-    let expenseY = center + 108;
+    let expenseTop = center + 104;
     for (const line of expenses) {
       const h = band(line.value), key = `${i}-${line.id}`;
-      const node = {...line, key, x: end.x - 18, y: expenseY, h, labelY: expenseY - 21, align: 'end', color: colorOf(line)};
+      const height = branchHeight(line);
+      const mid = expenseTop + (height - LABEL_GAP) / 2;
+      const x = junction + BRANCH_OFFSET;
+      const node = {...line, key, x, y: mid - h / 2, h, labelX: x + LABEL_GAP,
+        labelY: mid - LABEL_HEIGHT / 2, labelWidth: LABEL_WIDTH, align: 'left', color: colorOf(line)};
       nodes.push(node);
-      addLink(key, {x: junction - 5, y: outY}, node, h, node.color);
-      expenseY += heightWithLabel(line);
+      addLink(key, {x: junction - 5, y: outY}, node, node);
+      expenseTop += height;
       outY += h;
-      bottom = Math.max(bottom, node.y + h + 12);
+      bottom = Math.max(bottom, expenseTop);
     }
   });
-  return {nodes, links, width, height: bottom};
+  const left = Math.min(0, ...nodes.map(node => node.labelX - LABEL_GAP));
+  const right = Math.max(width, ...nodes.map(node => node.labelX + node.labelWidth + LABEL_GAP));
+  return {nodes, links, left, width: right - left, height: bottom};
 }
 
-export function IncomeSankey({rows, details, columns, format, lang, t}) {
+export function IncomeSankey({rows, details, columns, format, lang, t, showDifference = false}) {
   const heading = React.useId(), note = React.useId();
   const [selected, setSelected] = React.useState('');
+  const [inspection, setInspection] = React.useState(null);
   const periods = React.useMemo(() => {
     const source = details?.length ? [...rows, ...details] : rows;
-    return columns.filter(column => column.basis !== 'as_of').map(column =>
-      ({...column, flow: incomeFlow(source, column.key)}));
-  }, [rows, details, columns]);
-  const active = periods.find(period => period.key === selected) || periods.findLast(period => period.flow) || periods.at(-1);
-  const graph = active?.flow && layout(active.flow);
+    return columns.filter(column => column.basis !== 'as_of').map(column => {
+      const flow = incomeFlow(source, column.key);
+      if (!flow) return {...column, graph: null};
+      const bridges = showDifference ? flow.bridges : flow.bridges.map(lines =>
+        lines.filter(line => line.id !== 'difference'));
+      return {...column, graph: layout({...flow, bridges})};
+    });
+  }, [rows, details, columns, showDifference]);
+  const graphs = periods.map(period => period.graph).filter(Boolean);
+  const active = periods.find(period => period.key === selected) || periods.findLast(period => period.graph) || periods.at(-1);
+  const graph = active?.graph;
+  const inspected = inspection?.period === active?.key ? inspection?.node : null;
   const title = t('Выручка и расходы', 'Tushum va xarajatlar', 'Revenue & expenses breakdown');
-  const hasDifference = graph?.nodes.some(node => node.id === 'difference');
+  const showsDifference = chart => chart?.nodes.some(node => node.id === 'difference');
+  const hasDifference = showsDifference(graph);
+  const hasCharts = graphs.length > 0;
+  const empty = <p role="status" className="fc-empty fc-sankey-empty">
+    {t('Для схемы не хватает отчётных данных за этот период.', 'Bu davr uchun hisobot ma’lumotlari yetarli emas.', 'Not enough reported figures for this period.')}
+  </p>;
   const exactUnit = t('тыс. UZS', 'ming UZS', 'thousand UZS');
   const label = node => {
     const labels = (node.value < 0 && LOSS_LABELS[node.id]) || TOTAL_LABELS[node.id] || LINE_LABELS[node.id];
@@ -155,44 +185,83 @@ export function IncomeSankey({rows, details, columns, format, lang, t}) {
     maximum >= 1e3 ? [1e3, t('млн UZS', 'mln UZS', 'million UZS')] : [1, exactUnit];
   const compact = new Intl.NumberFormat({ru: 'ru-RU', uz: 'uz-UZ', en: 'en-US'}[lang] || 'ru-RU',
     {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const revenue = graph?.nodes.find(node => node.id === 'revenue')?.value;
+  const grossMarginApplicable = graph?.nodes.some(node => node.id === 'cost_of_sales') ||
+    !graph?.nodes.some(node => ['operating_expenses', 'selling_expense', 'admin_expense', 'other_operating_expense'].includes(node.id));
+  const marginLabel = inspected && ({
+    gross_profit: t('Валовая маржа', 'Yalpi marja', 'Gross margin'),
+    operating_income: t('Операционная маржа', 'Operatsion marja', 'Operating margin'),
+    profit_before_tax: t('Маржа до налога', 'Soliqqacha marja', 'Pre-tax margin'),
+    net_income: t('Чистая маржа', 'Sof marja', 'Net margin'),
+  })[inspected.id];
+  const inspect = (event, node, pointer = false) => {
+    const bounds = event.currentTarget.closest('.fc-sankey-plot').getBoundingClientRect();
+    const target = event.currentTarget.getBoundingClientRect();
+    setInspection({node, period: active.key,
+      x: (pointer ? event.clientX : target.left + target.width / 2) - bounds.left,
+      y: (pointer ? event.clientY : target.top + target.height / 2) - bounds.top});
+  };
+  const clear = () => setInspection(null);
+  const periodLabel = t('Отчётный период', 'Hisobot davri', 'Reporting period');
   return <section className="fc-income-sankey" aria-labelledby={heading}>
     <header className="fc-sankey-header">
-      <div><h3 id={heading}>{title}</h3>{graph && <span>{unit}</span>}</div>
-      {active && <label>
-        {t('Отчётный период', 'Hisobot davri', 'Reporting period')}
-        <select value={active.key} onChange={event => setSelected(event.target.value)}>
-          {[...periods].reverse().map(period => <option key={period.key} value={period.key}>{period.label}</option>)}
-        </select>
-      </label>}
+      <div><h3 id={heading}>{title}</h3>{hasCharts && <span className={!graph ? 'fc-sankey-hidden' : undefined}>{unit}</span>}</div>
+      {active && <div className="fc-sankey-periods">
+        <span>{periodLabel}</span>
+        <div className="fc-segment" role="group" aria-label={periodLabel}>
+          {periods.map(period => <button key={period.key} type="button" aria-pressed={period.key === active.key}
+            onClick={() => { clear(); setSelected(period.key); }}>{period.label}</button>)}
+        </div>
+      </div>}
     </header>
-    {graph ? <>
-      <p className="fc-sankey-scroll-hint">{t('Прокрутите схему вправо', 'Sxemani o‘ngga suring', 'Scroll right to see the full diagram')}</p>
-      <div className="fc-sankey-scroll" role="region" tabIndex={0}
-        aria-label={t('Схема доходов и расходов', 'Daromad va xarajatlar sxemasi', 'Income flow diagram')}>
-        <svg role="img" aria-label={`${title} · ${active.label} · ${unit}`} aria-describedby={hasDifference ? note : undefined}
-          viewBox={`0 0 ${graph.width} ${graph.height}`} style={{'--sankey-width': `${graph.width}px`}}>
-          {graph.links.map(link => <path key={link.key} d={link.path} className={`fc-sankey-ribbon is-${link.color}`}/>)}
-          {graph.nodes.map(node => <g key={node.key} className={`fc-sankey-node is-${node.color}`}>
-            <title>{label(node)} · {format(node.value)} {exactUnit}</title>
-            <rect x={node.x - 5} y={node.y} width="10" height={Math.max(2, node.h)} rx="2"/>
-            <text x={node.x} y={node.labelY} textAnchor={node.align}>
-              <tspan>{label(node)}</tspan>
-              <tspan className="fc-sankey-amount" x={node.x} dy="16">{compact.format(node.value / divisor)}</tspan>
-            </text>
-          </g>)}
-        </svg>
+    {hasCharts ? <>
+      <p className={`fc-sankey-scroll-hint${graph ? '' : ' fc-sankey-hidden'}`}>{t('Прокрутите схему вправо', 'Sxemani o‘ngga suring', 'Scroll right to see the full diagram')}</p>
+      <div className="fc-sankey-plot" style={{
+        '--sankey-aspect': Math.min(...graphs.map(chart => chart.width / chart.height)),
+        '--sankey-min-height': `${Math.max(...graphs.map(chart => Math.min(chart.width, 940) * chart.height / chart.width))}px`,
+      }}>
+        {graph ? <div className="fc-sankey-scroll" role="region" tabIndex={0} onScroll={clear}
+          onKeyDown={event => { if (event.key === 'Escape') clear(); }}
+          aria-label={t('Схема доходов и расходов', 'Daromad va xarajatlar sxemasi', 'Income flow diagram')}>
+          <svg role="img" aria-label={`${title} · ${active.label} · ${unit}`} aria-describedby={hasDifference ? note : undefined}
+            viewBox={`${graph.left} 0 ${graph.width} ${graph.height}`} style={{'--sankey-width': `${graph.width}px`}}>
+            {graph.links.map(({key, node, path}) => <path key={key} d={path}
+              className={`fc-sankey-ribbon is-${node.color}${inspected?.key === node.key ? ' is-inspected' : ''}`}
+              onPointerEnter={event => inspect(event, node, true)} onPointerLeave={clear}
+              onClick={event => inspect(event, node, true)}/>)}
+            {graph.nodes.map(node => <g key={node.key} tabIndex={0}
+              aria-label={`${label(node)} · ${format(node.value)} ${exactUnit}`}
+              className={`fc-sankey-node is-${node.color}`}
+              onPointerEnter={event => inspect(event, node, true)} onPointerLeave={clear}
+              onFocus={event => inspect(event, node)} onBlur={clear} onClick={event => inspect(event, node, true)}>
+              <rect x={node.x - 5} y={node.y} width="10" height={Math.max(2, node.h)} rx="2"/>
+              <foreignObject x={node.labelX} y={node.labelY} width={node.labelWidth} height={LABEL_HEIGHT}>
+                <div className={`fc-sankey-label align-${node.align}`}>
+                  <span>{label(node)}</span>
+                  <span className="fc-sankey-amount">{compact.format(node.value / divisor)}</span>
+                </div>
+              </foreignObject>
+            </g>)}
+          </svg>
+        </div> : empty}
+        {inspected && <div className="fc-sankey-tooltip" role="tooltip"
+          style={{'--tooltip-x': `${inspection.x}px`, '--tooltip-y': `${inspection.y}px`}}>
+          <span>{active.label}</span>
+          <strong>{label(inspected)}</strong>
+          <strong>{format(inspected.value)} {exactUnit}</strong>
+          {marginLabel && revenue > 0 && (inspected.id !== 'gross_profit' || grossMarginApplicable || inspected.value !== revenue)
+            && <span>{marginLabel} · {compact.format(inspected.value / revenue * 100)}%</span>}
+        </div>}
       </div>
-      {hasDifference && <p id={note} className="fc-sankey-note">
+      {graphs.some(showsDifference) && <p id={note} className={`fc-sankey-note${hasDifference ? '' : ' fc-sankey-hidden'}`}>
         {t('Несверенная разница — часть отчётного итога, которую не объясняют доступные строки.',
           'Solishtirilmagan tafovut — mavjud satrlar izohlamaydigan hisobot summasi.',
           'An unreconciled difference is the part of a reported total the available lines do not explain.')}
       </p>}
-      <details className="fc-sankey-amounts">
+      <details className={`fc-sankey-amounts${graph ? '' : ' fc-sankey-hidden'}`}>
         <summary>{t('Точные значения', 'Aniq summalar', 'View exact amounts')} <small>· {exactUnit}</small></summary>
-        <dl>{graph.nodes.map(node => <div key={node.key}><dt>{label(node)}</dt><dd>{format(node.value)}</dd></div>)}</dl>
+        {graph && <dl>{graph.nodes.map(node => <div key={node.key}><dt>{label(node)}</dt><dd>{format(node.value)}</dd></div>)}</dl>}
       </details>
-    </> : <p role="status" className="fc-empty">
-      {t('Для схемы не хватает отчётных данных за этот период.', 'Bu davr uchun hisobot ma’lumotlari yetarli emas.', 'Not enough reported figures for this period.')}
-    </p>}
+    </> : empty}
   </section>;
 }

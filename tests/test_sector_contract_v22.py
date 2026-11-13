@@ -120,11 +120,26 @@ def test_exact_nsbu_methods_and_sector_exclusions():
     assert ratios["quick_ratio"]["value"] == 1.01
     assert ratios["absolute_liquidity"]["value"] == .375
     assert ratios["P6"]["raw_result"].startswith("66.666666666666")
+    assert ratios["P5"]["value"] == 40
     del lines["form1:c580"]
     assert next(r for r in financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q2") if r["metric"] == "P3")["value"] is None
     for organization in ("bank", "insurance", "microfinance", "microfinance_bank"):
         assert financial_analysis_sector_calculations.enterprise_ratios(lines, organization, "nsbu", "2026Q2") == []
     assert financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "ifrs", "2025") == []
+
+
+@pytest.mark.parametrize("period_expenses, expected", [("33420351", None), ("0", 100)])
+def test_cbsk_gross_margin_distinguishes_costs_reported_below_gross_profit(period_expenses, expected):
+    lines = {
+        "form2:c010": {"raw_current": "74357988"},
+        "form2:c020": {"raw_current": "0"},
+        "form2:c030": {"raw_current": "74357988"},
+        "form2:c040": {"raw_current": period_expenses},
+    }
+    rows = financial_analysis_sector_calculations.enterprise_ratios(lines, "non_financial", "nsbu", "2026Q3")
+    margin = next(row for row in rows if row["metric_code"] == "P5")
+    assert margin["value"] == expected
+    assert margin.get("reason_code") == ("GROSS_MARGIN_NO_COST_OF_SALES" if expected is None else None)
 
 
 def test_balance_requires_both_tolerances_and_percentage_reconciliation():
