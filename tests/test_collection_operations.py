@@ -183,8 +183,10 @@ def test_manual_verification_waits_for_one_real_request(isolated_store, monkeypa
             store.report([observation(job=job, invocation="manual-bank-fx", receipts=[
                 {"stage": "/api/admin/bank-fx", "ok": True, "counts": {"upserted": 12}}])])
 
-    monkeypatch.setattr(verify.time, "sleep", advance)
-    monkeypatch.setattr(verify.time, "monotonic", lambda: sum(delays))
+    # Keep the fake clock local to the verifier: patching the global time
+    # module also advances psycopg's pool threads during PostgreSQL CI runs.
+    from types import SimpleNamespace
+    monkeypatch.setattr(verify, "time", SimpleNamespace(sleep=advance, monotonic=lambda: sum(delays)))
     if completes:
         result = verify.exercise_manual_run(store, job, timeout=10)
         assert result["status"] == "completed"
