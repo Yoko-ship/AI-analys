@@ -219,17 +219,23 @@ def harvest_historical_quarters(ticker: str, *, limit: int = 40,
         try:
 
             parsed = _parse_workbook_uncached(session, rec["excel_url"])
+            if not parsed.get("ok"):
+                raise ValueError(parsed.get("error") or "Workbook export failed")
 
         except Exception as exc:  # noqa: BLE001 — one bad workbook is not the sweep
 
-            errors.append(f"{rec['accounting_id']}: {exc}")
-
-            continue
-
-        if not parsed.get("ok"):
-
-            errors.append(f"{rec['accounting_id']}: {parsed.get('error')}")
-
+            try:
+                from financial_ingestion.quarterly_comparative import discover_record
+                recovered = discover_record(t, org_id, rec, publish=publish)
+                if recovered:
+                    rows.append(recovered)
+                    held[(recovered['year'], recovered['quarter'])] = rec['pub_date']
+                else:
+                    superseded += 1
+            except Exception as fallback_error:
+                errors.append(f"{rec['accounting_id']}: {exc}; structured fallback: {fallback_error}")
+            if pace:
+                time.sleep(pace)
             continue
 
         quarter = catalogue_periods._stated_quarter(parsed) or catalogue_periods._PUB_MONTH_QUARTER[pub.month]

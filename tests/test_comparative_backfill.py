@@ -191,3 +191,33 @@ def test_broken_microfinance_excel_does_not_hide_published_structured_income(cat
     assert '2025Q2' not in snapshots.get_financials_series_quarterly('ACMT1B2')
     monkeypatch.setattr(oi, 'fetch_detail', lambda cand: pytest.fail('Unchanged sources must resume without downloading'))
     assert nsbu_history.run(['ACMT1B2'])['structured_quarters'] == 0
+
+
+def test_quarter_discovery_uses_structured_period_when_excel_export_fails(catalog, monkeypatch):
+    import json
+    from pathlib import Path
+    import catalogue.history as history
+    import catalogue.storage as storage
+    import catalogue.snapshots as snapshots
+    import openinfo_reconcile as oi
+    detail = json.loads(Path('tests/fixtures/acmt-2026q2-structured.json').read_text())
+    c = storage.get_catalog_conn()
+    with c:
+        c.execute('INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)', ('ACMT1B2','AGAT Credit','1058'))
+    c.close()
+    monkeypatch.setattr(history,'unified_quarterly_records',lambda *a:[{
+        'accounting_id':'56','org_type':'microfinance','pub_date':detail['pub_date'],'pdf_id':None,
+        'excel_url':'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=microfinance&report_id=56&lang=ru',
+        'title':'Quarterly report'}])
+    def broken(*a):
+        raise RuntimeError('500 Server Error')
+    monkeypatch.setattr(history,'_parse_workbook_uncached',broken)
+    monkeypatch.setattr(oi,'fetch_detail',lambda *a:detail)
+    discovered=history.harvest_historical_quarters('ACMT1B2',pace=0,publish=False)
+    assert discovered['added']==1
+    assert discovered['errors']==[]
+    assert discovered['rows'][0]['year']==2026 and discovered['rows'][0]['quarter']==2
+    assert snapshots.get_financials_series_quarterly('ACMT1B2').get('2026Q2',{}).get('net_income') is None
+    from financial_ingestion.quarterly_comparative import backfill
+    assert backfill('1058',['ACMT1B2'])['structured']==['2026Q2']
+    assert snapshots.get_financials_series_quarterly('ACMT1B2')['2026Q2']['net_income']==3523955

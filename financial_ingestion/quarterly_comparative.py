@@ -71,6 +71,56 @@ def _valid_values(values):
     return values if not problem or problem["code"] == "no_balance" else {}
 
 
+def _structured_values(metrics):
+    values = {k: v for k, v in metrics.items() if k in fields.FIN_MONEY_FIELDS and v is not None}
+    balance = metrics.get("balance") or {}
+    for k, b in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
+        if balance.get(b) is not None:
+            values[k] = balance[b]
+    return _valid_values(values)
+
+
+def discover_record(ticker, org_id, record, *, publish=False):
+    """A failed export still has a structured filing with an explicit period."""
+    import openinfo_reconcile as oi
+    import catalogue.filings as filings
+    import catalogue.periods as periods
+
+    org_type, object_id = record.get("org_type"), str(record["accounting_id"])
+    if org_type not in oi.ORG_TYPES or not object_id.isdigit():
+        raise ValueError("Unsupported structured filing")
+    detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
+    if str(detail.get("id")) != object_id or detail.get("org_type") != org_type:
+        raise ValueError("Structured filing identity does not match discovery")
+    year, quarter = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
+        pub_date=record["pub_date"], quarter_no=detail.get("quarter_no"))
+    if not year or not quarter or periods._is_future_period(year, quarter):
+        raise ValueError("Structured filing has no completed reporting period")
+    values = _structured_values(oi.extract_metrics(detail))
+    if not values:
+        raise ValueError("Structured filing has no usable financial figures")
+    c = _connect()
+    try:
+        held = c.execute("SELECT published_at FROM catalog_reports WHERE ticker=? AND report_form='NSBU' AND year=? AND quarter=?",
+                         (ticker, year, quarter)).fetchone()
+        if held and str(held["published_at"] or "") >= record["pub_date"]:
+            return None
+        with c:
+            filings._upsert_report(c, ticker, report_form="NSBU", period_type="quarter", year=year, quarter=quarter,
+                title=record.get("title"), published_at=record["pub_date"],
+                pdf_url=f"https://openinfo.uz/ru/reports/to_pdf{record['pdf_id']}/" if record.get("pdf_id") else None,
+                excel_url=record["excel_url"], excel_url_form1=record["excel_url"],
+                openinfo_report_id=object_id, object_id=object_id)
+    finally:
+        c.close()
+    if publish:
+        source = {"kind": "structured", "source_period": f"{year}Q{quarter}", "org_id": str(org_id),
+                  "source_url": f"https://openinfo.uz/reports/{org_type}/quarter/{object_id}", "pub_date": record["pub_date"],
+                  "parser_version": hashlib.sha256(Path(__file__).read_bytes() + Path(oi.__file__).read_bytes()).hexdigest()}
+        _save([ticker], year, quarter, values, source, structured=True)
+    return {"ticker": ticker, "year": year, "quarter": quarter, **values}
+
+
 def backfill(org_id, aliases, journal=None):
     import openinfo_reconcile as oi
 
@@ -127,12 +177,7 @@ def backfill(org_id, aliases, journal=None):
                 raise ValueError("Comparison source period or form does not match the catalog")
             metrics = oi.extract_metrics(detail)
             if need_current:
-                values = {k: v for k, v in metrics.items() if k in fields.FIN_MONEY_FIELDS and v is not None}
-                balance = metrics.get("balance") or {}
-                for k, b in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
-                    if balance.get(b) is not None:
-                        values[k] = balance[b]
-                values = _valid_values(values)
+                values = _structured_values(metrics)
                 if values:
                     source = {"kind": "structured", "source_period": current_period,
                               "source_url": source_url, "pub_date": report["published_at"], "org_id": str(org_id), "parser_version": parser_version}
@@ -161,6 +206,34 @@ def backfill(org_id, aliases, journal=None):
     return {"filled": filled, "structured": recovered, "errors": errors}
 
 
+def discover(org_id, aliases):
+    from catalogue.history import unified_quarterly_records
+    from catalogue.sources import _make_session
+    from catalogue.filings import _canonical_ticker
+
+    c = _connect()
+    try:
+        placeholders = ",".join("?" for _ in aliases)
+        known = {str(r[0]) for r in c.execute(f"SELECT openinfo_report_id FROM catalog_reports "
+            f"WHERE ticker IN ({placeholders}) AND report_form='NSBU' AND quarter!=0", aliases)}
+    finally:
+        c.close()
+    added, errors = 0, []
+    ticker = _canonical_ticker(aliases)
+    try:
+        records = unified_quarterly_records(_make_session(), org_id)
+        for record in records:
+            if record["accounting_id"] in known:
+                continue
+            try:
+                added += bool(discover_record(ticker, org_id, record))
+            except Exception as exc:
+                errors.append({"ticker": ticker, "source_id": record["accounting_id"], "error": str(exc)})
+    except Exception as exc:
+        errors.append({"ticker": ticker, "stage": "discovery", "error": str(exc)})
+    return {"added": added, "errors": errors}
+
+
 def main(argv=None):
     """Run gap recovery for all catalog issuers without re-downloading workbooks."""
     import argparse
@@ -169,11 +242,14 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ticker", action="append")
+    parser.add_argument("--discover", action="store_true", help="Recover unindexed quarters from the complete official feed")
     parser.add_argument("--report", default="data/quarterly-recovery-report.json")
     args = parser.parse_args(argv)
     results = []
     for org_id, aliases in _issuers(args.ticker):
-        outcome = {"issuer": org_id, "tickers": aliases, **backfill(org_id, aliases, journal=_journal)}
+        discovery = discover(org_id, aliases) if args.discover else {}
+        outcome = {"issuer": org_id, "tickers": aliases, "discovery": discovery, **backfill(org_id, aliases, journal=_journal)}
+        outcome["errors"].extend(discovery.get("errors", []))
         results.append(outcome)
         write_report(args.report, {"issuers": results})
         print(json.dumps(outcome), flush=True)
