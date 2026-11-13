@@ -354,6 +354,22 @@ class TestSeveralPeriodsPerTicker:
 
         assert catalogue_snapshots.get_all_financials()["AAA"]["annual"] is None
 
+    @pytest.mark.parametrize('section', [
+        {'current_assets': 300.0, 'current_liabilities': 150.0, 'inventories': 0.0},
+        {'current_assets': None, 'current_liabilities': None, 'inventories': None},
+    ])
+    def test_collector_preserves_current_section_in_latest_and_annual_rows(self, catalog, section):
+        from collectors.financials.refresh import collect_rows
+        last_fy = catalogue_periods._latest_complete_fiscal_year()
+        annual = {key: value + 100 if value is not None else None for key, value in section.items()}
+        catalogue_financial_store.bulk_upsert_financials([
+            {'ticker': 'AAA', 'year': last_fy, 'quarter': 0, 'net_income': 400.0, **annual},
+            {'ticker': 'AAA', 'year': last_fy + 1, 'quarter': 3, 'net_income': 500.0, **section},
+        ])
+        rows = {row['quarter']: row for row in collect_rows() if row['ticker'] == 'AAA'}
+        for quarter, expected in ((3, section), (0, annual)):
+            assert {key: rows[quarter].get(key) for key in expected} == expected
+
     def test_the_period_length_travels_with_the_row(self, catalog) -> None:
         last_fy = catalogue_periods._latest_complete_fiscal_year()
         catalogue_financial_store.bulk_replace_financials([{"ticker": "AAA", "year": last_fy, "quarter": 2, "net_income": 50.0}])

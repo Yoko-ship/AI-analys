@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
-async function openBoard(page, columns, theme = 'light', fixturePath = 'tests/fixtures/uztl_share_classes.json') {
+async function openBoard(page, columns, theme = 'light', fixturePath = 'tests/fixtures/uztl_share_classes.json', mirror = false) {
   const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
   // Exercise the real cache reader and API scaling; the browser receives their
   // output, not a fixture that already assumes the share classes agree.
@@ -18,6 +18,12 @@ with tempfile.TemporaryDirectory() as directory:
     os.environ['CATALOG_DB_PATH'] = directory + '/catalog.db'
     os.environ['FINANCIALS_ENRICH_ON_READ'] = '0'
     financial_store.bulk_upsert_financials(fixture['rows'])
+    if sys.argv[2] == 'mirror':
+        from collectors.financials.refresh import collect_rows
+        pushed = collect_rows()
+        os.environ['CATALOG_DB_PATH'] = directory + '/deployment.db'
+        financial_store.bulk_upsert_financials([r for r in fixture['rows'] if r.get('quarter') == 2])
+        financial_store.bulk_upsert_financials(pushed)
     with patch.object(read_batch, 'securities', return_value=fixture['securities']), \\
          patch.object(financial_store, '_maybe_seed_financials'), \\
          patch('catalogue.refresh.refresh_financials_cache'):
@@ -25,7 +31,7 @@ with tempfile.TemporaryDirectory() as directory:
                           'ratios': asyncio.run(api_market_ratios())}))
     # Release pooled SQLite handles before Windows removes the temporary DB.
     dbx.reset_pools()
-`, fixturePath], { encoding: 'utf8' }));
+`, fixturePath, mirror ? 'mirror' : 'direct'], { encoding: 'utf8' }));
   const stocks = Object.entries(fixture.securities).map(([ticker, security]) => ({
     ...security, ticker, name: 'Uzbektelecom', last_price: ticker === 'UZTL' ? 20980 : 12680,
     close_price: 12000, volume: 1000000, quantity: 1000, trade_count: 4,
@@ -86,6 +92,27 @@ test('ordinary and preferred shares show the latest issuer filing with their own
     await expect(row).toContainText(/8[,.]8\s*трлн/);
     await expect(row).toContainText(/4[,.]5\s*млрд/);
     await expect(row).toContainText(ticker === 'UZTL' ? /20\s*980/ : /12\s*680/);
+  }
+});
+
+test('EQQU ROCE and liquidity keep Q3 after daily collector delivery, including CSV', async ({ page }) => {
+  const rows = await openBoard(page, ['assetTurnover', 'roce', 'currentRatio', 'quickRatio'], 'light',
+    'tests/fixtures/roce_q3_filings.json', true);
+  const eqqu = rows.filter({ has: page.getByText('EQQU', { exact: true }) });
+  await expect(eqqu.locator('.fin-cell-period')).toHaveText(Array(4).fill(/2026Q3/));
+  await expect(eqqu).not.toContainText('2026Q2');
+  await expect(eqqu).toContainText(/0[,.]25/);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'), page.getByRole('button', { name: /Экспорт CSV/ }).click(),
+  ]);
+  const csv = readFileSync(await download.path(), 'utf8');
+  const line = csv.split(/\r?\n/).find(line => line.startsWith('EQQU;'));
+  expect(line).toContain('0,25');
+  const calculations = csv.split(/\r?\n/).filter(line => line.startsWith('EQQU ·'));
+  expect(calculations).toHaveLength(4);
+  for (const basis of calculations) {
+    expect(basis).toContain('2026Q3');
+    expect(basis).not.toContain('2026Q2');
   }
 });
 

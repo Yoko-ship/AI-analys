@@ -255,6 +255,7 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
                f.noninterest_income, f.org_type, f.balance_period,
 
                f.total_assets, f.total_equity,
+               f.current_assets, f.current_liabilities, f.inventories,
 
                f.field_periods, f.prior_period, f.report_id, f.updated_at
 
@@ -315,6 +316,10 @@ def get_all_financials(form: str = "NSBU") -> dict[str, dict[str, Any]]:
             "operating_income": r["operating_income"],
 
             "operating_expenses": r["operating_expenses"],
+
+            # Carry the same-period balance inputs through the daily collector;
+            # dropping them here leaves ROCE and liquidity on an older filing.
+            **{key: r[key] for key in catalogue_fields._FIN_CURRENT_FIELDS},
 
             # Bank total income's second half; None on every other form.
 
@@ -540,7 +545,8 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
 
                f.noninterest_income, f.org_type, f.balance_period, f.field_periods,
 
-               f.total_assets, f.total_equity
+               f.total_assets, f.total_equity,
+               f.current_assets, f.current_liabilities, f.inventories
 
         FROM catalog_financials f
 
@@ -593,6 +599,7 @@ def _attach_annual_companion(conn: sqlite3.Connection, out: dict[str, dict[str, 
             "field_periods": catalogue_codecs._decode_field_periods(r["field_periods"]),
 
             "total_assets": r["total_assets"], "total_equity": r["total_equity"],
+            **{key: r[key] for key in catalogue_fields._FIN_CURRENT_FIELDS},
 
         }
 

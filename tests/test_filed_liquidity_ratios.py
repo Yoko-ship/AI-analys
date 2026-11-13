@@ -199,7 +199,7 @@ def test_unusable_inputs_never_produce_current_roce(catalog, problem):
     assert 'return_to_capital_employed' not in got.get('calculations', {})
 
 
-@pytest.mark.parametrize('ticker', ['TGPG', 'ALSM', 'KASU', 'KFSK', 'TMYS', 'UZAS', 'UZINP'])
+@pytest.mark.parametrize('ticker', ['TGPG', 'ALSM', 'KASU', 'KFSK', 'TMYS', 'UZAS', 'UZINP', 'EQQU'])
 def test_q3_roce_does_not_silently_fall_back_to_q2(catalog, monkeypatch, ticker):
     fixture = json.loads(Path('tests/fixtures/roce_q3_filings.json').read_text())
     rows = [r for r in fixture['rows'] if r['ticker'] == ticker]
@@ -225,6 +225,26 @@ def test_q3_roce_does_not_silently_fall_back_to_q2(catalog, monkeypatch, ticker)
     else:
         assert got[field] == pytest.approx(q3['operating_income'] / capital * 12 / 9)
         assert calc['annualized'] is True
+
+
+def test_eqqu_q3_current_section_survives_daily_collector_delivery(catalog, monkeypatch, tmp_path):
+    from catalogue import read_batch
+    from collectors.financials.refresh import collect_rows
+    fixture = json.loads(Path('tests/fixtures/roce_q3_filings.json').read_text())
+    rows = [r for r in fixture['rows'] if r['ticker'] == 'EQQU']
+    monkeypatch.setattr(read_batch, 'securities', lambda: fixture['securities'])
+    catalogue_financial_store.bulk_upsert_financials(rows)
+    payload = collect_rows()
+    monkeypatch.setattr(catalogue_storage, '_catalog_db_path', lambda: str(tmp_path / 'deployment.db'))
+    # Production already has the Q2 current section from an older backfill.
+    catalogue_financial_store.bulk_upsert_financials([r for r in rows if r['quarter'] == 2])
+    catalogue_financial_store.bulk_upsert_financials(payload)
+    got = catalogue_ratios.get_all_ratios()['EQQU']
+    assert got['periods']['return_to_capital_employed'] == '2026Q3'
+    q3 = next(r for r in rows if r['quarter'] == 3)
+    calc = got['calculations']['return_to_capital_employed']
+    assert calc['operands']['current_liabilities'] == q3['current_liabilities']
+    assert got['periods']['current_ratio'] == got['periods']['quick_ratio'] == '2026Q3'
 
 
 @pytest.mark.parametrize('capital', [0, -1, 1])

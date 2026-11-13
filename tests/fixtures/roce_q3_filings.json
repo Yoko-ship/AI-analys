@@ -1,5 +1,5 @@
 {
-  "source": "Production catalog read on 2026-11-11; public NSBU Q2/Q3 filings. Amounts in thousand UZS.",
+  "source": "Production catalog read on 2026-11-11; public NSBU Q2/Q3 filings. Amounts in thousand UZS. EQQU Q2 cache and Q3 workbook report 19107 verified on 2026-11-13; Q3 current section comes from the original workbook.",
   "securities": {
     "TGPG": {
       "type": "stock",
@@ -28,6 +28,11 @@
     "UZINP": {
       "type": "stock",
       "name": "UZINP"
+    },
+    "EQQU": {
+      "type": "stock",
+      "name": "Elektrqishloqqurilish",
+      "isin": "UZ7007130006"
     }
   },
   "rows": [
@@ -240,6 +245,45 @@
       "revenue": 764945302.0,
       "total_liabilities": 1746148694.0,
       "report_id": 3370
+    },
+    {
+      "ticker": "EQQU",
+      "year": 2026,
+      "quarter": 2,
+      "org_type": "jsc",
+      "operating_income": 6026572.0,
+      "total_assets": 421995769.0,
+      "current_assets": 366464754.0,
+      "current_liabilities": 285715174.0,
+      "inventories": 194341665.0,
+      "revenue": 169256320.0,
+      "total_liabilities": 291512704.0,
+      "total_equity": 130483065.0,
+      "gross_profit": 25738009.0,
+      "net_income": 6041215.0,
+      "cash": 1218046.0,
+      "operating_expenses": -28328789.0,
+      "field_periods": null
+    },
+    {
+      "ticker": "EQQU",
+      "year": 2026,
+      "quarter": 3,
+      "org_type": "jsc",
+      "operating_income": 27272068.79,
+      "total_assets": 514944889.0,
+      "current_assets": 456189196.0,
+      "current_liabilities": 371838033.0,
+      "inventories": 240321659.0,
+      "revenue": 273563795.78,
+      "total_liabilities": 379256172.0,
+      "total_equity": 135688717.0,
+      "gross_profit": 66277824.15,
+      "net_income": 23388158.38,
+      "cash": 3788764.0,
+      "operating_expenses": -43245903.4,
+      "field_periods": null,
+      "source_url": "https://openinfo.uz/ru/reports/jsc/quarter/19107"
     }
   ]
 }
