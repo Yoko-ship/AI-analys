@@ -449,10 +449,12 @@ def test_real_biok_form5_supplies_dated_book_inputs_without_substituting_eps(rep
 
 @pytest.mark.parametrize('variant', [
     'new', 'wrong_issuer', 'corroborates', 'count_conflict', 'rights_conflict', 'different_period_rights',
+    'complete_reviewed_basis',
 ])
-def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, monkeypatch, variant):
+def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, monkeypatch, report, variant):
     from catalogue import history
     from collectors.openinfo import transport
+    from financial_analysis.report_investor_metrics import calculate
     from financial_columns import share_disclosures
 
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
@@ -468,6 +470,10 @@ def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, 
         if variant == 'different_period_rights':
             del reviewed['ordinary_only_at_end']
             reviewed['ordinary_only'] = False
+        if variant == 'complete_reviewed_basis':
+            reviewed.update(weighted_average_shares='5700000', ordinary_only=True)
+            reviewed['source_lines'].update(weighted_average_shares='Test-only audited period average',
+                                            ordinary_only='Test-only period-wide rights evidence')
         path = tmp_path / 'reviewed.json'
         path.write_text(json.dumps([reviewed]), encoding='utf-8')
         monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
@@ -484,12 +490,28 @@ def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, 
     query = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18938'
     args = dict(ticker='BIOK', issuer_id='396', period_end='2026-09-30', excel_url=query)
     key = ('396', 'BIOK', '2026-09-30', 'separate')
+    if variant == 'complete_reviewed_basis':
+        report['issuer'].update(id='396', ticker='BIOK')
+        report.update(standard='nsbu', period='2026Q3', financial_as_of=key[2], scope=key[3])
+        report['verified_facts'] = [dict(metric_code='net_income', value=12628226, period='2026Q3',
+                                         unit_normalized='thousand UZS', verification_status='verified')]
+
+        def eps():
+            rows = calculate(report, [], share_disclosures.read(*key))
+            return next(row for row in rows if row['metric_code'] == 'eps_basic')
+
+        assert eps()['value'] == pytest.approx(12628226000 / 5700000)
     assert share_disclosures.collect_form5(None, **args) is (
-        variant in {'new', 'corroborates', 'different_period_rights'}
+        variant in {'new', 'corroborates', 'different_period_rights', 'complete_reviewed_basis'}
     )
     assert calls == ([] if variant == 'wrong_issuer' else [source['source_url']])
     assert share_disclosures.collect_form5(None, **args) is False
     basis = share_disclosures.read(*key)
+    if variant == 'complete_reviewed_basis':
+        assert eps()['value'] == pytest.approx(12628226000 / 5700000)
+        assert {part['source_url'] for part in eps()['components'] if part.get('unit') == 'shares'} == {
+            reviewed['source_url'],
+        }
     if variant in {'count_conflict', 'rights_conflict'}:
         assert basis is None
         corrected = share_disclosures.form5_basis(source, ticker='BIOK', issuer_id='396',

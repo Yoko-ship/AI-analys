@@ -144,6 +144,12 @@ def _conflicts(stored, reviewed):
                 and stored['ordinary_only'] != reviewed['ordinary_only']))
 
 
+def _has_eps_basis(data):
+    # Quarterly and annual income in this pipeline is year-to-date.
+    return (data.get('ordinary_only') is True and 'weighted_average_shares' in data
+            and data['period_start'] == f"{data['period_end'][:4]}-01-01")
+
+
 def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
     key = (str(issuer_id), ticker.upper(), end, scope)
     reviewed = _reviewed(REVIEWED).get(key) if include_reviewed else None
@@ -158,12 +164,18 @@ def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
             data, version = _validate(json.loads(row['payload_json'])), row['id']
             if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != key:
                 return None
-            if reviewed and _conflicts(data, reviewed[0]):
-                if 'share_disclosure_resolutions' not in tables or not c.execute(
+            if reviewed:
+                resolved = 'share_disclosure_resolutions' in tables and c.execute(
                     'SELECT 1 FROM share_disclosure_resolutions WHERE version_id=? AND reviewed_version_id=?',
                     (version, reviewed[1]),
-                ).fetchone():
-                    return None
+                ).fetchone()
+                if not resolved:
+                    if _conflicts(data, reviewed[0]):
+                        return None
+                    # Keep a complete EPS basis and its source intact when an
+                    # attachment can only corroborate point-in-time shares.
+                    if _has_eps_basis(reviewed[0]) and not _has_eps_basis(data):
+                        data, version = deepcopy(reviewed)
         elif reviewed:
             data, version = deepcopy(reviewed)
         else:
