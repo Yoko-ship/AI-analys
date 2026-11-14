@@ -15,6 +15,8 @@ import {
   apiQuery, comparisonMatches, periodLabel,
 } from './model.js';
 import './comparison.css';
+import {ReturnsComparison} from './ReturnsComparison.jsx';
+import {returnsText} from './returnsCopy.js';
 
 function Icon({ name, size = 18 }) {
   const paths = {
@@ -58,7 +60,7 @@ function Dialog({ title, language, onClose, children, className = '' }) {
   </dialog>;
 }
 
-function CompanyPicker({ selected, replacing, language, onSelect, onClose, availableCompanies }) {
+function CompanyPicker({ selected, replacing, language, onSelect, onClose, availableCompanies, description }) {
   const [query, setQuery] = useState('');
   const tx = key => comparisonText(language, key);
   const matches = availableCompanies.filter(company =>
@@ -87,7 +89,7 @@ function CompanyPicker({ selected, replacing, language, onSelect, onClose, avail
       })}
       {matches.length === 0 && <p className="cc-picker-empty">{tx('noCompanies')}</p>}
     </div>
-    <p className="cc-dialog-foot">{tx('reported')}</p>
+    <p className="cc-dialog-foot">{description || tx('reported')}</p>
   </Dialog>;
 }
 
@@ -167,7 +169,7 @@ function MetricTable({ state, companies, metrics, changes, language, onAdd, onRe
   </div>;
 }
 
-export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onSignIn }) {
+function FinancialComparison({ language = 'ru', apiFetch = fetch, user, onSignIn }) {
   const tx = key => comparisonText(language, key);
   const [state, setState] = useState(() => readComparison(window.location.search));
   const [category, setCategory] = useState('all');
@@ -335,4 +337,27 @@ export function CompanyComparison({ language = 'ru', apiFetch = fetch, user, onS
         <button type="button" className="cc-button" onClick={() => setSourcesOpen(false)}>{tx('close')}</button></div>
     </Dialog>}
   </section>;
+}
+
+export function CompanyComparison(props) {
+  const readView = () => new URLSearchParams(window.location.search).get('view') === 'returns' ? 'returns' : 'fundamentals';
+  const [view,setView] = useState(readView);
+  useEffect(() => {
+    const restore = () => setView(readView());
+    window.addEventListener('popstate',restore);
+    return () => window.removeEventListener('popstate',restore);
+  },[]);
+  const changeView = next => {
+    if(next===view)return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('view',next);
+    window.history.pushState(window.history.state,'',window.location.pathname+'?'+params);
+    setView(next);
+  };
+  return <div className="cc-workspace">
+    <div className="cc-view-switch">
+      {['fundamentals','returns'].map(key=><button type="button" key={key} aria-pressed={view===key} onClick={()=>changeView(key)}>{returnsText(props.language,key)}</button>)}
+    </div>
+    {view==='returns' ? <ReturnsComparison {...props} Picker={CompanyPicker} /> : <FinancialComparison {...props} />}
+  </div>;
 }
