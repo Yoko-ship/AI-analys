@@ -287,6 +287,16 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     assert recovered["ok"] and recovered["points"][-1]["date"] == "2026-02-27"
     assert recovered["points"][-1]["close"] == 60
 
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260130", "close_price": 57.8, "quantity": 10, "turnover": 578},
+        {"trade_date": "20260226", "close_price": 58, "quantity": 10, "turnover": 580},
+    ]})
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get",
+                        lambda *args: {"ticker": "HMKB", "results": [{"date": "2026-02-27", "close": None}]})
+    subject_server_market_history._HISTORY_CACHE.clear()
+    unknown = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert unknown["points"][-1]["date"] == "2026-02-27" and unknown["points"][-1]["close"] is None
+
 
 def test_returns_refresh_the_cached_snapshot_when_the_market_anchor_advances(monkeypatch):
     import pytest
@@ -325,10 +335,12 @@ def test_returns_refresh_the_cached_snapshot_when_the_market_anchor_advances(mon
     assert (newer["points"][-1]["close"] / newer["points"][0]["close"] - 1) * 100 == pytest.approx(20)
     assert len(calls) == 2
 
-    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
-        {"trade_date": "20260331", "close_price": 100, "quantity": 10, "turnover": 1000},
-        {"trade_date": "unresolved", "close_price": 120, "quantity": 10, "turnover": 1200},
-    ]})
-    subject_server_market_history._HISTORY_CACHE.clear()
-    invalid = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
-    assert invalid["ok"] is False and invalid["points"] == []
+    for stamp in ["unresolved", "00000000", "20260231"]:
+        monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+            {"trade_date": "20260331", "close_price": 100, "quantity": 10, "turnover": 1000},
+            {"trade_date": stamp, "close_price": 120, "quantity": 10, "turnover": 1200},
+        ]})
+        subject_server_market_history._HISTORY_CACHE.clear()
+        invalid = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+        assert invalid["ok"] is False and invalid["points"] == []
+        assert f"{isin}:240" not in subject_server_market_history._HISTORY_CACHE

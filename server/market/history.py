@@ -270,6 +270,17 @@ async def _full_history(isin: str, months: int = 60, as_of: date | None = None) 
         return data
 
 
+def _valid_session_date(value: Any) -> bool:
+    stamp = str(value or "")
+    if len(stamp) != 8 or not stamp.isdigit():
+        return False
+    try:
+        date.fromisoformat(stamp)
+        return True
+    except ValueError:
+        return False
+
+
 def _with_stored_sessions(isin: str, data: dict[str, Any],
                           months: int | None = None) -> dict[str, Any]:
     """The card's daily history: the board's store, and the archive only where the
@@ -306,13 +317,13 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
         return {**data, "store_unavailable": True}
     unresolved_dates = any(
-        ((r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0)
-        and (len(str(r.get("trade_date") or "")) != 8 or not str(r["trade_date"]).isdigit())
+        not (r.get("turnover") == 0 and r.get("quantity") == 0)
+        and not _valid_session_date(r.get("trade_date"))
         for r in stored)
     start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
              if months else "")
     rows = [r for r in stored
-            if len(str(r.get("trade_date") or "")) == 8 and str(r["trade_date"]).isdigit()
+            if _valid_session_date(r.get("trade_date"))
             and str(r["trade_date"]) >= start]
     if not rows:
         return {**data, "unresolved_dates": True} if unresolved_dates else data
@@ -325,10 +336,10 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     for r in rows:
         close = formulas.to_number(r.get("close_price"))
         traded = (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0
-        if not traded:
+        if r.get("turnover") == 0 and r.get("quantity") == 0:
             continue
         stamp = str(r["trade_date"])
-        if close is None or close <= 0:
+        if close is None or close <= 0 or not traded:
             # Keep an actually traded session with an unknown price separately
             # for returns. Legacy charts retain their existing valid-price list.
             unknown_points.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}", "close": None})
@@ -351,8 +362,9 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
         traded = ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)
         gap = covered_from <= stamp <= covered_through and stamp.replace("-", "") not in stored_dates
-        unknown_newer = stamp > covered_through and (formulas.to_number(p.get("close")) or 0) <= 0
-        if traded and (gap or unknown_newer):
+        unknown_newer = stamp > covered_through and ((formulas.to_number(p.get("close")) or 0) <= 0 or not traded)
+        known_nontraded = p.get("trading_volume") == 0 and p.get("trading_value") == 0
+        if not known_nontraded and (gap or unknown_newer):
             # Store precedence cannot turn an unresolved archive trade into an
             # absent session and silently select an older return endpoint.
             unknown_points.append({"date": stamp, "close": None})
