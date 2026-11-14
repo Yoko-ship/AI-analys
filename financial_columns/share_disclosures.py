@@ -7,8 +7,10 @@ one ordinary instrument was found on today's exchange board.
 """
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 import hashlib
 import json
+from pathlib import Path
 import re
 from urllib.parse import urlparse
 
@@ -19,6 +21,7 @@ from catalogue.storage import get_catalog_conn
 FIELDS = {'issuer_id', 'ticker', 'period_start', 'period_end', 'scope', 'source_url',
           'source_standard', 'ordinary_shares', 'weighted_average_shares',
           'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit'}
+REVIEWED = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_share_disclosures.json'
 
 
 def _validate(value):
@@ -91,22 +94,41 @@ def record(disclosure, *, actor, reason, replace=False):
         c.close()
 
 
+@lru_cache(maxsize=1)
+def _reviewed():
+    records = {}
+    for value in json.loads(REVIEWED.read_text(encoding='utf-8')):
+        data = _validate(value)
+        key = (data['issuer_id'], data['ticker'], data['period_end'], data['scope'])
+        if key in records:
+            raise ValueError('Duplicate reviewed share disclosure')
+        digest = hashlib.sha256(json.dumps(data, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        records[key] = (data, digest)
+    return records
+
+
 def read(issuer_id, ticker, end, scope):
+    from copy import deepcopy
+
+    key = (str(issuer_id), ticker.upper(), end, scope)
     c = get_catalog_conn()
     try:
-        if 'share_disclosure_heads' not in dbx.tables(c):
-            return None
-        row = c.execute('SELECT v.* FROM share_disclosure_heads h JOIN share_disclosure_versions v ON v.id=h.version_id '
-                        'WHERE h.issuer_id=? AND h.ticker=? AND h.period_end=? AND h.scope=?',
-                        (str(issuer_id), ticker.upper(), end, scope)).fetchone()
-        if not row:
-            return None
-        data = _validate(json.loads(row['payload_json']))
-        if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != (str(issuer_id), ticker.upper(), end, scope):
-            return None
-        return {**data, 'source_version': row['id'], 'verification_status': 'verified'}
+        row = None
+        if 'share_disclosure_heads' in dbx.tables(c):
+            row = c.execute('SELECT v.* FROM share_disclosure_heads h JOIN share_disclosure_versions v ON v.id=h.version_id '
+                            'WHERE h.issuer_id=? AND h.ticker=? AND h.period_end=? AND h.scope=?', key).fetchone()
     finally:
         c.close()
+    if row:
+        data, version = _validate(json.loads(row['payload_json'])), row['id']
+        if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != key:
+            return None
+    else:
+        reviewed = _reviewed().get(key)
+        if not reviewed:
+            return None
+        data, version = deepcopy(reviewed)
+    return {**data, 'source_version': version, 'verification_status': 'verified'}
 
 def form5_basis(workbook, *, ticker, issuer_id, tin, period_end):
     """Extract point-in-time share counts from a dated NSBU equity statement."""

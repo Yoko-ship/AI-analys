@@ -1,0 +1,18 @@
+[
+  {
+    "issuer_id": "633",
+    "ticker": "CBSK",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_url": "https://www.chbsk.uz/docs/2026/ustav-21.04.2026.pdf",
+    "source_standard": "NSBU",
+    "unit": "shares",
+    "ordinary_shares": "87879167190",
+    "ordinary_only_at_end": true,
+    "source_lines": {
+      "ordinary_shares": "Charter dated 21 April 2026, section 5.2: 87,879,167,190 fully placed ordinary shares at 1 UZS each. Reconciled to OpenInfo Q3 filing 18989, Form 1 line 410: 87,879,167 thousand UZS of closing charter capital.",
+      "ordinary_only_at_end": "Charter section 5.2 identifies all charter capital as ordinary shares. OpenInfo Q3 filing 18989 reports the same closing charter capital and zero treasury shares on Form 1 line 440. UZSE lists the matching ordinary issue UZ7038380000."
+    }
+  }
+]

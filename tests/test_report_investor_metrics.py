@@ -60,6 +60,34 @@ def test_uzmk_primary_ratios_use_operating_profit_and_equity_not_pretax_profit(r
     assert report == original
 
 
+def test_cbsk_q3_uses_reviewed_closing_shares_but_keeps_unverified_eps_blank(tmp_path, monkeypatch):
+    from financial_columns import share_disclosures
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
+    fixtures = Path(__file__).parent / 'fixtures'
+    case = json.loads((fixtures / 'cbsk_2026q3_investor_inputs.json').read_text())
+    report = case['report']
+    documents = json.loads((fixtures / case['source_fixture']).read_text())['CBSK']['documents']
+    document = next(d for d in documents if d['period_end'] == report['financial_as_of'])
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [deepcopy(document)])
+
+    out = metrics(report)
+    assert out['price_to_book']['value'] == pytest.approx(4.06 * 87879167190 / 185183885970)
+    assert out['price_to_book']['missing_inputs'] == []
+    assert out['eps_basic']['value'] is None
+    assert out['eps_basic']['closing_share_count_verified'] is True
+    assert out['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']
+    assert share_disclosures.read('633', 'CBSK', '2026-06-30', 'separate') is None
+    assert share_disclosures.read('633', 'CBSK', '2026-09-30', 'consolidated') is None
+
+    reviewed = share_disclosures.read('633', 'CBSK', '2026-09-30', 'separate')
+    assert 'weighted_average_shares' not in reviewed
+    correction = {key: value for key, value in reviewed.items() if key in share_disclosures.FIELDS}
+    share_disclosures.record({**correction, 'source_url': 'https://example.org/reviewed-correction'},
+                             actor='test-reviewer', reason='Verify stored source precedence')
+    assert metrics(report)['price_to_book']['share_disclosure_url'] == 'https://example.org/reviewed-correction'
+
+
 @pytest.mark.parametrize('ticker,invalid_metric,reason,expected,debt_total', [
     ('cbsk', 'net_income', 'SOURCE_NET_PROFIT_MISMATCH', 33000000 / 185183885.97, 33000000),
     ('qatt', 'revenue', 'SOURCE_GROSS_PROFIT_MISMATCH', 3388285 / 36211138, 3388285),
