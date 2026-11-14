@@ -134,7 +134,6 @@ test('a partial first year shows its selected month immediately on a phone',asyn
 
 for(const [index,invalid] of [
   {ticker:undefined}, {ticker:'HMKBP'}, {as_of:undefined}, {as_of:'2026-02-31'},
-  {points:[...histories.HMKB,['2026-01-30',125]].map(([date,close])=>({date,close}))},
 ].entries()) test(`unverified history is retryable and cannot truncate another company (${index})`,async({page})=>{
   await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{
     ok:true,ticker:'HMKB',as_of:'2026-05-12',points:[{date:'2026-01-30',close:120}],...invalid,
@@ -143,4 +142,16 @@ for(const [index,invalid] of [
   await expect(page.getByRole('alert')).toContainText('HMKB');
   await expect(page.getByTestId('return-IPKY-2026-05')).toContainText('+4.17%');
   await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('—');
+});
+
+test('ambiguous prices withhold only dependent cells and explain the missing value',async({page})=>{
+  await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{ok:true,ticker:'HMKB',as_of:'2026-05-12',
+    points:[...histories.HMKB,['2026-01-30',125]].map(([date,close])=>({date,close})),
+  }}));
+  await page.goto(url);
+  await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('—');
+  await expect(page.getByTestId('return-HMKB-2026-02')).toContainText('—');
+  await expect(page.getByTestId('return-HMKB-2026-05')).toContainText('+10%');
+  await page.getByTestId('return-HMKB-2026-01').click();
+  await expect(page.getByTestId('return-detail')).toContainText('Conflicting prices');
 });

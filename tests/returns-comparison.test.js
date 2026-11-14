@@ -59,10 +59,23 @@ test('returns URLs round trip and validate dates, duplicate tickers and display 
   assert.equal(readReturns('?layout=evil').layout,'heatmap');
 });
 
-test('conflicting same-day prices reject the series in either order, while identical duplicates are safe', () => {
+test('conflicting same-day prices withhold affected returns in either order, while identical duplicates are safe', () => {
   const conflict=[...points,{date:'20260130',close:125}];
   for(const rows of [conflict,[...conflict].reverse()]) {
-    assert.throws(()=>normalizeHistory(rows),/Conflicting close/);
+    const normalized=normalizeHistory(rows);
+    assert.equal(normalized.find(p=>p.date==='2026-01-30').close,null);
+    assert.equal(periodReturn(normalized,'2026-01','2026-01','2026-05-12').status,'ambiguous');
+    assert.equal(periodReturn(normalized,'2026-02','2026-02','2026-05-12').value,null);
+    assert.ok(Math.abs(periodReturn(normalized,'2026-05','2026-05','2026-05-12').value-10)<1e-9);
   }
   assert.deepEqual(normalizeHistory([...points,{date:'20260130',close:120}]),points);
+});
+
+test('HMKB conflicting March 17 archive entries cannot hide clear recent returns',()=>{
+  const archive=[30.49,30.83,30.9,29.21,30.5,31.19].map(close=>({date:'2024-03-17',close}));
+  for(const rows of [archive,[...archive].reverse()]) {
+    const normalized=normalizeHistory([...rows,...points]);
+    assert.equal(normalized[0].close,null);
+    assert.ok(Math.abs(periodReturn(normalized,'2026-01','2026-01','2026-05-12').value-20)<1e-9);
+  }
 });

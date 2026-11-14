@@ -32,9 +32,12 @@ export function normalizeHistory(points, asOf = '2099-12-31') {
     if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || date > asOf) continue;
     const parsed = new Date(date + 'T00:00:00Z');
     if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) continue;
-    if (typeof p.close !== 'number' || !Number.isFinite(p.close) || p.close <= 0) continue;
-    if (dates.has(date) && dates.get(date).close !== p.close) throw new Error('Conflicting close for '+date);
-    dates.set(date, {date,close:p.close});
+    if (!p.ambiguous && (typeof p.close !== 'number' || !Number.isFinite(p.close) || p.close <= 0)) continue;
+    // Preserve an unknown price at the disputed date: dropping it would let an
+    // older quote silently become the baseline or endpoint. Repeated identical
+    // quotes are harmless; conflicts remain unknown regardless of input order.
+    const ambiguous=p.ambiguous || (dates.has(date) && dates.get(date).close !== p.close);
+    dates.set(date, ambiguous ? {date,close:null,ambiguous:true} : {date,close:p.close});
   }
   return [...dates.values()].sort((a,b) => a.date.localeCompare(b.date));
 }
@@ -47,7 +50,7 @@ function calculate(points, from, to, asOf) {
   const endExclusive = shiftMonth(to,1) + '-01';
   const base = points.findLast(p => p.date < start) || null;
   const end = points.findLast(p => p.date >= start && p.date < endExclusive && p.date <= asOf) || null;
-  const status = start > asOf ? 'future' : !end ? 'no_trades' : !base ? 'no_base' : 'available';
+  const status = start > asOf ? 'future' : !end ? 'no_trades' : base?.ambiguous || end.ambiguous ? 'ambiguous' : !base ? 'no_base' : 'available';
   const value = status === 'available' ? (end.close/base.close - 1)*100 : null;
   return {value:Number.isFinite(value) ? value : null,status,base,end,
     stale:Boolean(base && base.date.slice(0,7) < shiftMonth(from,-1)),
