@@ -1,4 +1,4 @@
-import {TECHNICAL_KEYS, TECHNICAL_PERCENT, technicalValue} from './technicalColumns.js';
+import {TECHNICAL_KEYS, TECHNICAL_PERCENT, isTechnical, technicalValue} from './technicalColumns.js';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/marketModel.jsx";
@@ -133,6 +133,7 @@ export function createMarketExport({
     // so the unit moves to the heading.
     const PCT_COLS = new Set([...TECHNICAL_PERCENT, "change", "change1w", "change1m", "volShare", "roe", "roa", "netMargin", "eqAssets", "debtAssets"]);
     const cols = visibleOrder.filter(k => EXPORT_OF[k]);
+    const includeTechnicalDate = cols.some(isTechnical);
     const ratioFields = { currentRatio: 'current_ratio', quickRatio: 'quick_ratio', debtAssets: 'debt_ratio',
       assetTurnover: 'total_asset_turnover', roce: 'return_to_capital_employed' };
     // Preserve the period and calculation basis without changing numeric table columns.
@@ -147,9 +148,12 @@ export function createMarketExport({
     }
     const label = k => LABEL_OF[k] || k;
     const header = [mt(lang, "ticker"), mt(lang, "company"), ...cols.map(k => PCT_COLS.has(k) && !label(k).includes("%") ? `${label(k)}, %` : label(k))];
+    if (includeTechnicalDate) header.push(mt(lang, "csvTechnicalDate"));
     lines.push(header.map(cell).join(sep));
     for (const row of visibleRows) {
-      lines.push([row.ticker, row.name || smap[row.ticker]?.name || "", ...cols.map(k => EXPORT_OF[k](row))].map(cell).join(sep));
+      const values = [row.ticker, row.name || smap[row.ticker]?.name || "", ...cols.map(k => EXPORT_OF[k](row))];
+      if (includeTechnicalDate) values.push(day(technical[row.ticker]?.as_of?.replaceAll("-", "")));
+      lines.push(values.map(cell).join(sep));
     }
 
     // CRLF and the BOM: what Excel expects of a CSV on Windows, which is where these open.

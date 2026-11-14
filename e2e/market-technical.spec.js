@@ -85,7 +85,16 @@ test('admin Technical columns support exact values, sorting and unfiltered CSV',
   expect(csv).toContain('SMA20');
   expect(csv).toContain('RSI (14)');
   expect(csv).not.toMatch(/· Technical|Daily sessions \/ split-adjusted/);
-  expect(csv).toContain('SQBNP;');
+  const table=csv.split(/\r?\n/).map(line=>line.split(';'));
+  const header=table.find(line=>line.includes('SMA20') || line.some(title=>title.startsWith('SMA20')));
+  const date=header.indexOf('Дата индикаторов (дневные сессии, с учётом дроблений)');
+  expect(date).toBeGreaterThan(1);
+  const atr=header.indexOf('ATR (14), UZS');
+  expect(atr).toBeGreaterThan(1);
+  const hm=table.find(line=>line[0]==='HMKB');
+  const sq=table.find(line=>line[0]==='SQBNP');
+  expect([hm[date],sq[date]]).toEqual(['06.11.2026','05.11.2026']);
+  expect([hm[atr],sq[atr]]).toEqual(['3,5','']);
   expect(requests).toEqual(['Bearer technical-session']);
   await page.screenshot({path:testInfo.outputPath('technical-table.png')});
   expect(errors).toEqual([]);
