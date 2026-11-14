@@ -32,11 +32,11 @@ export function normalizeHistory(points, asOf = '2099-12-31') {
     if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || date > asOf) continue;
     const parsed = new Date(date + 'T00:00:00Z');
     if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) continue;
-    if (!p.ambiguous && (typeof p.close !== 'number' || !Number.isFinite(p.close) || p.close <= 0)) continue;
     // Preserve an unknown price at the disputed date: dropping it would let an
     // older quote silently become the baseline or endpoint. Repeated identical
     // quotes are harmless; conflicts remain unknown regardless of input order.
-    const ambiguous=p.ambiguous || (dates.has(date) && dates.get(date).close !== p.close);
+    const valid=typeof p.close==='number' && Number.isFinite(p.close) && p.close>0;
+    const ambiguous=p.ambiguous || !valid || (dates.has(date) && dates.get(date).close !== p.close);
     dates.set(date, ambiguous ? {date,close:null,ambiguous:true} : {date,close:p.close});
   }
   return [...dates.values()].sort((a,b) => a.date.localeCompare(b.date));

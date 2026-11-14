@@ -32,8 +32,8 @@ test('unsorted histories normalize dates, discard invalid prices and ignore data
   const messy = [...points].reverse().concat([{date:'2026-02-31',close:1},{date:'20260601',close:500},
     {date:'2026-01-31',close:0},{date:'2026-02-28',close:null},{date:'2026-02-26',close:Infinity}]);
   const normalized = normalizeHistory(messy,'2026-05-12');
-  assert.deepEqual(normalized,points);
-  assert.equal(periodReturn(normalized,'2026-02','2026-02','2026-05-12').value,-25);
+  assert.deepEqual(normalized.filter(p=>p.close!==null),points);
+  assert.equal(periodReturn(normalized,'2026-02','2026-02','2026-05-12').value,null);
 });
 test('MIQE real archive cannot imply a monthly return without a prior-month baseline', () => {
   const miqe=JSON.parse(readFileSync(new URL('./fixtures/miqe_price_history.json',import.meta.url),'utf8')).results;
@@ -77,5 +77,16 @@ test('HMKB conflicting March 17 archive entries cannot hide clear recent returns
     const normalized=normalizeHistory([...rows,...points]);
     assert.equal(normalized[0].close,null);
     assert.ok(Math.abs(periodReturn(normalized,'2026-01','2026-01','2026-05-12').value-20)<1e-9);
+  }
+});
+
+test('dated invalid closes remain unknown endpoints and baselines instead of using an older quote',()=>{
+  for(const close of [null,0,-1,NaN,Infinity,'120']) {
+    const rows=[...points,{date:'2026-01-31',close}];
+    for(const month of ['2026-01','2026-02']) {
+      const result=periodReturn(rows,month,month,'2026-05-12');
+      assert.equal(result.value,null);
+      assert.equal(result.status,'ambiguous');
+    }
   }
 });

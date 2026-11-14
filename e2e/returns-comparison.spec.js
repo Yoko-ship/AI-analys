@@ -153,5 +153,24 @@ test('ambiguous prices withhold only dependent cells and explain the missing val
   await expect(page.getByTestId('return-HMKB-2026-02')).toContainText('—');
   await expect(page.getByTestId('return-HMKB-2026-05')).toContainText('+10%');
   await page.getByTestId('return-HMKB-2026-01').click();
-  await expect(page.getByTestId('return-detail')).toContainText('Conflicting prices');
+  await expect(page.getByTestId('return-detail')).toContainText('Unverified or conflicting');
+});
+
+test('each comparison view retains its nondefault settings on a round trip',async({page})=>{
+  await page.goto('/compare?companies=HMKB,IPKY&period=2025&standard=IFRS&scope=consolidated&unit=million');
+  await expect(page.getByRole('heading',{name:'Compare companies'})).toBeVisible();
+  await page.getByRole('button',{name:'Returns',exact:true}).click();
+  await page.getByLabel('From month').fill('2026-02');
+  await page.getByLabel('To month').fill('2026-04');
+  await page.getByRole('button',{name:'Annual',exact:true}).click();
+  await page.getByRole('button',{name:'Relative',exact:true}).click();
+  await page.getByRole('button',{name:'Fundamentals',exact:true}).click();
+  for(const [key,value] of Object.entries({period:'2025',standard:'IFRS',scope:'consolidated',unit:'million'})) {
+    await expect.poll(()=>new URL(page.url()).searchParams.get(key)).toBe(value);
+  }
+  await page.getByRole('button',{name:'Returns',exact:true}).click();
+  await expect(page.getByLabel('From month')).toHaveValue('2026-02');
+  await expect(page.getByLabel('To month')).toHaveValue('2026-04');
+  await expect(page.getByRole('button',{name:'Annual',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('button',{name:'Relative',exact:true})).toHaveAttribute('aria-pressed','true');
 });

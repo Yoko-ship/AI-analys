@@ -342,6 +342,7 @@ function FinancialComparison({ language = 'ru', apiFetch = fetch, user, onSignIn
 export function CompanyComparison(props) {
   const readView = () => new URLSearchParams(window.location.search).get('view') === 'returns' ? 'returns' : 'fundamentals';
   const [view,setView] = useState(readView);
+  const viewQueries = useRef({});
   useEffect(() => {
     const restore = () => setView(readView());
     window.addEventListener('popstate',restore);
@@ -349,7 +350,8 @@ export function CompanyComparison(props) {
   },[]);
   const changeView = next => {
     if(next===view)return;
-    const params = new URLSearchParams(window.location.search);
+    viewQueries.current[view] = window.location.search;
+    const params = new URLSearchParams(viewQueries.current[next] || window.location.search);
     params.set('view',next);
     window.history.pushState(window.history.state,'',window.location.pathname+'?'+params);
     setView(next);

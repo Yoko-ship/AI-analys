@@ -147,3 +147,25 @@ def test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anc
 
     monkeypatch.setattr(subject_server_market_history, "_market_as_of", missing_anchor)
     assert asyncio.run(routes.api_price_history("ALSM", months=240))["as_of"] is None
+
+
+def test_returns_endpoint_retains_a_dated_unknown_close(monkeypatch):
+    import server.company.history_routes as routes
+    from datetime import date
+
+    async def resolve(ticker):
+        return "UZ7011340005"
+
+    async def history(isin, months):
+        return {"points": [{"date": "2026-01-30", "close": 57.8},
+                           {"date": "2026-01-31", "close": None}], "adjustments": []}
+
+    async def anchor():
+        return date(2026, 2, 27)
+
+    monkeypatch.setattr(subject_server_market_history, "_resolve_isin", resolve)
+    monkeypatch.setattr(subject_server_market_history, "_full_history", history)
+    monkeypatch.setattr(subject_server_market_history, "_market_as_of", anchor)
+    got = asyncio.run(routes.api_price_history("HMKB", months=240))
+    assert [(p["date"], p["close"]) for p in got["points"]] == [
+        ("2026-01-30", 57.8), ("2026-01-31", None)]

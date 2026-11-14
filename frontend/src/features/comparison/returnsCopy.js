@@ -28,7 +28,7 @@ const copy = {
   partial:['Неполный период: выбран не весь год или период ещё не завершён.','To‘liq bo‘lmagan davr: butun yil tanlanmagan yoki davr hali tugamagan.','Partial period: the selection covers part of a year or the period is still in progress.'],
   no_trades:['Нет сделок за период.','Davrda savdolar yo‘q.','No trades in this period.'],
   no_base:['Нет цены до начала периода для расчёта.','Hisoblash uchun davrdan oldingi narx yo‘q.','No price before the period to calculate a return.'],
-  ambiguous:['Противоречивые цены на одну дату: доходность недоступна.','Bir sana uchun qarama-qarshi narxlar: daromadlilik mavjud emas.','Conflicting prices for the same date: return unavailable.'],
+  ambiguous:['Неподтверждённые или противоречивые цены: доходность недоступна.','Tasdiqlanmagan yoki qarama-qarshi narxlar: daromadlilik mavjud emas.','Unverified or conflicting closing prices: return unavailable.'],
   future:['Период ещё не начался по дате торговых данных.','Savdo ma’lumotlari sanasiga ko‘ra davr hali boshlanmagan.','This period is after the latest market session.'],
   select:['Выберите ячейку, чтобы увидеть цены и даты расчёта.','Hisob narxlari va sanalarini ko‘rish uchun katakni tanlang.','Select a cell to see the prices and dates behind its return.'],
 };
