@@ -226,7 +226,7 @@ _HISTORY_CACHE_TTL = 600.0
 _HISTORY_CACHE_MAX = 256
 
 
-async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
+async def _full_history(isin: str, months: int = 60, as_of: date | None = None) -> dict[str, Any]:
     """Full price history for an ISIN, memoised for _HISTORY_CACHE_TTL seconds."""
     from collectors.openinfo.market import fetch_price_history
 
@@ -234,14 +234,15 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
     # metrics do this on first paint). Let the first fetch populate the cache
     # while the others wait for and reuse that result.
     key = f"{isin}:{months}"
+    anchor = as_of.isoformat() if as_of else None
     now = time.time()
     hit = _HISTORY_CACHE.get(key)
-    if hit and now - hit[0] < _HISTORY_CACHE_TTL:
+    if hit and now - hit[0] < _HISTORY_CACHE_TTL and (anchor is None or hit[1].get("snapshot_as_of") == anchor):
         return hit[1]
     lock = _HISTORY_LOCKS.setdefault(key, asyncio.Lock())
     async with lock:
         hit = _HISTORY_CACHE.get(key)
-        if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL:
+        if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL and (anchor is None or hit[1].get("snapshot_as_of") == anchor):
             return hit[1]
         loop = asyncio.get_running_loop()
         try:
@@ -257,11 +258,11 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
                           months))
         if data is None and not merged.get("points"):
             raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
-        if data is None or merged.get("store_unavailable"):
+        if data is None or merged.get("store_unavailable") or merged.get("unresolved_dates"):
             # Legacy charts can display available stored quotes. Returns need
             # both sources; don't cache this fallback as a complete archive.
             return {**merged, "archive_unavailable": data is None}
-        data = merged
+        data = {**merged, "snapshot_as_of": anchor} if anchor else merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
             _HISTORY_CACHE.pop(oldest, None)
@@ -304,13 +305,17 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
         stored = catalogue_market_store.get_quote_history([isin], 3650).get(str(isin).upper()) or []
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
         return {**data, "store_unavailable": True}
+    unresolved_dates = any(
+        ((r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0)
+        and (len(str(r.get("trade_date") or "")) != 8 or not str(r["trade_date"]).isdigit())
+        for r in stored)
     start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
              if months else "")
     rows = [r for r in stored
             if len(str(r.get("trade_date") or "")) == 8 and str(r["trade_date"]).isdigit()
             and str(r["trade_date"]) >= start]
     if not rows:
-        return data
+        return {**data, "unresolved_dates": True} if unresolved_dates else data
     covered_from = min(str(r["trade_date"]) for r in rows)
     covered_from = f"{covered_from[:4]}-{covered_from[4:6]}-{covered_from[6:]}"
     covered_through = max(str(r["trade_date"]) for r in rows)
@@ -356,6 +361,7 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     known = {a.get("ex_date") for a in adjustments}
     adjustments.extend(a for a in applied if a.get("ex_date") not in known)
     return {**data, "points": merged, "unknown_points": unknown_points, "adjustments": adjustments,
+            "unresolved_dates": unresolved_dates,
             "store_from": covered_from, "store_through": covered_through}
 
 

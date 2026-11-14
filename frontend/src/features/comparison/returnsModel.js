@@ -30,9 +30,10 @@ export function normalizeHistory(points, asOf = '2099-12-31') {
     if (p.volume === 0 && p.value === 0) continue;
     let date = String(p.date || '');
     if (/^\d{8}$/.test(date)) date = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
-    if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || date > asOf) continue;
+    if (!/^20\d{2}-\d{2}-\d{2}$/.test(date)) throw new Error('Unverified trade date');
     const parsed = new Date(date + 'T00:00:00Z');
-    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) continue;
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) throw new Error('Unverified trade date');
+    if (date > asOf) continue;
     // Preserve an unknown price at the disputed date: dropping it would let an
     // older quote silently become the baseline or endpoint. Repeated identical
     // quotes are harmless; conflicts remain unknown regardless of input order.

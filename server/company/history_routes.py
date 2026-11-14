@@ -124,8 +124,10 @@ async def api_price_history(ticker: str, months: int = 12, include_unknown: bool
             # could tell a fault from a normal answer.
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "points": []}, status_code=404)
-        data = await market_history._full_history(isin, months=months)
-        if include_unknown and (data.get("archive_unavailable") or data.get("store_unavailable")):
+        market_as_of = await market_history._market_as_of()
+        data = (await market_history._full_history(isin, months=months, as_of=market_as_of) if include_unknown
+                else await market_history._full_history(isin, months=months))
+        if include_unknown and (data.get("archive_unavailable") or data.get("store_unavailable") or data.get("unresolved_dates")):
             return {"ok": False, "ticker": ticker, "error": "Complete price history unavailable", "points": []}
         points = [
             {
@@ -141,12 +143,11 @@ async def api_price_history(ticker: str, months: int = 12, include_unknown: bool
             for p in [*(data.get("points") or []), *(data.get("unknown_points") or [] if include_unknown else [])]
             # A dated unknown close must reach consumers as unknown. Removing
             # it would silently substitute an older quote for period returns.
-            if p.get("date") and (include_unknown or p.get("close") is not None)
+            if (include_unknown or p.get("date")) and (include_unknown or p.get("close") is not None)
             and not (include_unknown and p.get("trading_volume") == 0 and p.get("trading_value") == 0)
         ]
         if include_unknown:
             points.sort(key=lambda point: str(point["date"]))
-        market_as_of = await market_history._market_as_of()
         # Non-empty only when the series spans a split or a bonus issue: the older prices
         # have been restated onto today's share, so the chart says so rather than let a
         # reader reconcile it against uzse.uz and conclude we are wrong.

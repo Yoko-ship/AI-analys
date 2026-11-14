@@ -29,7 +29,7 @@ test('missing months stay missing, stale bases are disclosed, partial years resp
   assert.equal(periodReturn(points,'2026-06','2026-06','2026-05-12').status,'future');
 });
 test('unsorted histories normalize dates, discard invalid prices and ignore data after the market anchor', () => {
-  const messy = [...points].reverse().concat([{date:'2026-02-31',close:1},{date:'20260601',close:500},
+  const messy = [...points].reverse().concat([{date:'20260601',close:500},
     {date:'2026-01-31',close:0},{date:'2026-02-28',close:null},{date:'2026-02-26',close:Infinity}]);
   const normalized = normalizeHistory(messy,'2026-05-12');
   assert.deepEqual(normalized.filter(p=>p.close!==null),points);
@@ -111,5 +111,12 @@ test('monthly and annual periods are complete on their final calendar date',()=>
     const rows=[{date:from.slice(0,4)+'-01-01',close:100},{date:prior,close:110},{date:last,close:120}];
     assert.equal(periodReturn(rows,from,to,last).partial,false);
     assert.equal(periodReturn(rows,from,to,prior).partial,true);
+  }
+});
+
+test('unresolvable trade dates reject the series rather than substitute clean endpoints',()=>{
+  for(const date of ['',null,'not-a-date','2026-02-31']) {
+    assert.throws(()=>periodReturn([...points,{date,close:125,volume:10,value:1250}],
+      '2026-02','2026-02','2026-05-12'),/date/i);
   }
 });

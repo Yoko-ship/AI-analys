@@ -176,7 +176,7 @@ def test_returns_endpoint_retains_a_dated_unknown_close(monkeypatch):
     async def resolve(ticker):
         return "UZ7011340005"
 
-    async def history(isin, months):
+    async def history(isin, months, as_of=None):
         return {"points": [{"date": "2026-01-30", "close": 57.8},
                            {"date": "2026-01-31", "close": None}], "adjustments": []}
 
@@ -286,3 +286,49 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     recovered = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
     assert recovered["ok"] and recovered["points"][-1]["date"] == "2026-02-27"
     assert recovered["points"][-1]["close"] == 60
+
+
+def test_returns_refresh_the_cached_snapshot_when_the_market_anchor_advances(monkeypatch):
+    import pytest
+    from datetime import date
+    import server.company.history_routes as routes
+    import securities_catalog
+    import catalogue.market_store as store
+
+    state = {"day": date(2026, 4, 29), "price": 110}
+    calls = []
+    isin = "UZ7011340005"
+    monkeypatch.setattr(securities_catalog, "get_securities_map", lambda: {"HMKB": {"isin": isin}})
+
+    def stored(isins, days=30):
+        calls.append(state["day"])
+        return {isin: [{"trade_date": "20260331", "close_price": 100, "quantity": 10, "turnover": 1000},
+                       {"trade_date": state["day"].strftime("%Y%m%d"), "close_price": state["price"],
+                        "quantity": 10, "turnover": 10 * state["price"]}]}
+
+    async def anchor():
+        return state["day"]
+
+    monkeypatch.setattr(store, "get_quote_history", stored)
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get",
+                        lambda *args: {"ticker": "HMKB", "results": []})
+    monkeypatch.setattr(subject_server_market_history, "_market_as_of", anchor)
+    subject_server_market_history._HISTORY_CACHE.clear()
+    subject_server_market_history._HISTORY_LOCKS.clear()
+    first = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert first["as_of"] == "2026-04-29" and first["points"][-1]["close"] == 110
+    asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert len(calls) == 1
+    state.update(day=date(2026, 4, 30), price=120)
+    newer = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert newer["as_of"] == "2026-04-30" and newer["points"][-1]["close"] == 120
+    assert (newer["points"][-1]["close"] / newer["points"][0]["close"] - 1) * 100 == pytest.approx(20)
+    assert len(calls) == 2
+
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260331", "close_price": 100, "quantity": 10, "turnover": 1000},
+        {"trade_date": "unresolved", "close_price": 120, "quantity": 10, "turnover": 1200},
+    ]})
+    subject_server_market_history._HISTORY_CACHE.clear()
+    invalid = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert invalid["ok"] is False and invalid["points"] == []

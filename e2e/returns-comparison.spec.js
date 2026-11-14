@@ -134,6 +134,7 @@ test('a partial first year shows its selected month immediately on a phone',asyn
 
 for(const [index,invalid] of [
   {ticker:undefined}, {ticker:'HMKBP'}, {as_of:undefined}, {as_of:'2026-02-31'},
+  {points:[...histories.HMKB.map(([date,close])=>({date,close})),{date:'2026-02-31',close:125}]},
 ].entries()) test(`unverified history is retryable and cannot truncate another company (${index})`,async({page})=>{
   await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{
     ok:true,ticker:'HMKB',as_of:'2026-05-12',points:[{date:'2026-01-30',close:120}],...invalid,
