@@ -136,6 +136,16 @@ test('decimal statement values do not create false reconciliation errors', () =>
   assert.equal(assets.rows.length, 2);
 });
 
+test('finite balance readings cannot produce an overflowing aggregate', () => {
+  const total = row('total_assets', 1e308);
+  const {assets, funding} = balanceComposition([total, row('total_liabilities', 1e308), row('total_equity', 1e308),
+    row('noncurrent_assets', 1e308), row('current_assets', 1e308)], period);
+  for (const panel of [assets, funding]) {
+    assert.equal(panel.total, null);
+    assert.ok(panel.reason);
+  }
+});
+
 test('invalid source readings stay hidden alongside missing inputs or incompatible units', () => {
   const total = row('total_assets', '100');
   const stale = row('total_equity', '20');

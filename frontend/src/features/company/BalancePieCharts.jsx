@@ -24,6 +24,7 @@ const REASONS = {
   unreconciled: ['Обязательства и капитал не сходятся с итогом активов.', 'Majburiyatlar va kapital aktivlar jamiga mos kelmaydi.', 'Liabilities and equity do not reconcile to total assets.'],
   asset_sections: ['Разделы активов не сходятся с итогом активов.', 'Aktivlar bo‘limlari aktivlar jamiga mos kelmaydi.', 'The asset sections do not reconcile to total assets.'],
   source: ['Не удалось подтвердить единый источник для этих значений.', 'Bu qiymatlar uchun umumiy manba tasdiqlanmadi.', 'A common reporting source could not be verified for these values.'],
+  overflow: ['Значения слишком велики для расчёта долей.', 'Qiymatlar ulushlarni hisoblash uchun juda katta.', 'The amounts are too large to calculate shares.'],
 };
 const unitLabel = (unit, t) => unit === 'UZS_thousand' ? t('тыс. UZS', 'ming UZS', 'thousands UZS') : unit;
 

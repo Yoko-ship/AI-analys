@@ -51,7 +51,8 @@ function composition(rows, {value: total, unit, source, sourceError, unitError},
     const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
     const difference = sum - total;
     const roundingError = Number.EPSILON * Math.max(Math.abs(total), Math.abs(sum)) * rows.length;
-    if (mismatch && Math.abs(difference) > roundingError) reason = mismatch;
+    if (!Number.isFinite(sum)) reason = 'overflow';
+    else if (mismatch && Math.abs(difference) > roundingError) reason = mismatch;
     else if (total === 0) reason = 'zero';
     else if (difference > roundingError) reason = 'inconsistent';
   }
