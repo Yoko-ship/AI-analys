@@ -203,11 +203,11 @@ test('balance rows belong to BS while SUM and PL retain income rows',async({page
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
   await expect(terminal.getByRole('link',{name:'CSV',exact:true})).toHaveAttribute('href',/statement=balance/);
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  await expect(terminal.locator('.fc-balance-history')).toHaveCount(1);
+  await expect(terminal.locator('.fc-balance-pies')).toHaveCount(1);
   await expect(terminal.locator('[data-balance-chart="assets"]')).toContainText('Assets');
   await expect(terminal.locator('[data-balance-chart="funding"]')).toContainText('Liabilities and equity');
   await expect(terminal.locator('.fc-chart-metric').filter({hasText:'Итого процентных доходов'})).toHaveCount(0);
-  await expect(terminal.locator('.fc-chart-metric').filter({hasText:'Кассовая наличность'})).toHaveCount(1);
+  await expect(terminal.locator('.fc-chart')).toHaveCount(0);
   await terminal.getByRole('button',{name:'Table',exact:true}).click();
   await terminal.getByRole('tab',{name:'Original forms',exact:true}).click();
   await expect(terminal.locator('tr[data-metric="interest_income"]')).toHaveCount(0);
@@ -219,23 +219,81 @@ test('balance rows belong to BS while SUM and PL retain income rows',async({page
   await expect(terminal.getByRole('link',{name:'XLSX',exact:true})).toHaveAttribute('href',/statement=income/);
 });
 
+for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance overview uses period-selectable pies at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 950});
+  await setup(page, {ticker: 'HMKB', func: 'BS', reports: recentReports, theme});
+  const terminal = page.getByTestId('financial-columns');
+  const sourceHint = terminal.getByText('Select an amount to inspect its source.', {exact: true});
+  await expect(sourceHint).toBeVisible();
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  await expect(sourceHint).toHaveCount(0);
+  const periods = balance.getByRole('group', {name: 'Reporting period'});
+  await expect(periods.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(balance.getByRole('img')).toHaveCount(2);
+  await expect(terminal.locator('.fc-chart')).toHaveCount(0);
+  const assets = balance.locator('[data-balance-chart="assets"]');
+  const funding = balance.locator('[data-balance-chart="funding"]');
+  const loan = assets.locator('[data-pie-slice="loans_leases_net"]');
+  await expect(loan).toHaveAttribute('aria-label', /30,908,613,408/);
+  await expect(assets.locator('[data-pie-slice="loans_gross"]')).toHaveCount(0);
+  await expect(funding.locator('[data-pie-slice="total_equity"]')).toHaveAttribute('aria-label', /8,185,132,247/);
+  await loan.focus();
+  await expect(assets.getByRole('status')).toContainText('30,908,613,408');
+  await loan.click();
+  await expect(assets.getByRole('status')).toContainText('%');
+  await periods.getByRole('button', {name: '2024', exact: true}).click();
+  await expect(assets).toContainText('28,708,226,712');
+  await expect(assets.getByRole('status')).toContainText('2024');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  const boxes = await balance.locator('[data-balance-chart]').evaluateAll(nodes => nodes.map(node => {
+    const box = node.getBoundingClientRect();
+    return {left: box.left, right: box.right, top: box.top, bottom: box.bottom};
+  }));
+  expect(boxes.every(box => box.left >= 0 && box.right <= width)).toBe(true);
+  if (width === 390) expect(boxes[1].top).toBeGreaterThanOrEqual(boxes[0].bottom);
+  await balance.screenshot({path: testInfo.outputPath('balance-pies.png')});
+  await terminal.getByRole('button', {name: 'Table', exact: true}).click();
+  await expect(balance).toHaveCount(0);
+  await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  await terminal.getByRole('tab', {name: 'Original forms', exact: true}).click();
+  await expect(balance).toHaveCount(0);
+  await expect(terminal.locator('.fc-chart')).toBeVisible();
+  await terminal.getByRole('tab', {name: 'Ratios', exact: true}).click();
+  await expect(balance).toHaveCount(0);
+});
+
+test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {
+  const reports = structuredClone(recentReports);
+  const equity = reports.rows.find(row => row.metric_id === 'total_equity');
+  equity.cells['2024'] = {value: '0', quality: 'valid'};
+  equity.cells['2025'] = {value: '-6704709904', quality: 'warn'};
+  equity.cells['2026-09-30'] = {value: '8185132247', quality: 'blocked'};
+  await setup(page, {ticker: 'HMKB', func: 'BS', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  const funding = balance.locator('[data-balance-chart="funding"]');
+  const periods = balance.getByRole('group', {name: 'Reporting period'});
+  await expect(funding.getByRole('img')).toHaveCount(0);
+  await expect(funding.getByRole('status')).toContainText('Not enough verified');
+  await expect(funding.locator('[data-balance-value="total_equity"]')).toContainText('—');
+  await periods.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(funding.getByRole('img')).toHaveCount(0);
+  await expect(funding.getByRole('status')).toContainText('negative');
+  await expect(funding.locator('[data-balance-value="total_equity"]')).toContainText('-6,704,709,904');
+  await periods.getByRole('button', {name: '2024', exact: true}).click();
+  await expect(funding.getByRole('img')).toBeVisible();
+  await expect(funding.locator('[data-pie-slice="total_equity"]')).toHaveCount(0);
+  await expect(funding.locator('[data-balance-value="total_equity"]')).toContainText('0');
+});
+
 for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with individual and group toggles (${theme})`, async ({page}, testInfo) => {
-  await setup(page, {ticker:'HMKB', func:'BS', reports:recentReports, theme});
+  await setup(page, {ticker:'HMKB', func:'BS', reports:{...recentReports, rows: recentReports.overview_rows}, theme});
   const terminal=page.getByTestId('financial-columns');
+  await terminal.getByRole('tab',{name:'Original forms',exact:true}).click();
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  const balance = terminal.locator('.fc-balance-history');
-  await expect(balance.getByRole('heading', {name:'Assets', exact:true})).toBeVisible();
-  await expect(balance.getByRole('heading', {name:'Liabilities and equity', exact:true})).toBeVisible();
-  for (const metric of ['total_assets','total_liabilities','total_equity']) {
-    const row = recentReports.rows.find(row => row.metric_id === metric);
-    const bars = balance.locator(`[data-chart-series="${row.id}"] rect`);
-    await expect(bars).toHaveCount(3);
-    const value = Number(row.cells['2026-09-30'].value).toLocaleString('en-US');
-    await expect(bars.last()).toHaveAttribute('aria-label', new RegExp(value));
-  }
-  await balance.locator('[data-balance-chart="assets"] [data-period-hit]').first().focus();
-  await expect(balance.locator('[data-balance-chart="assets"] .fc-chart-reading')).toContainText('28,708,226,712');
-  await balance.screenshot({path:testInfo.outputPath(`balance-bars-${theme}.png`)});
   const chart=terminal.locator('.fc-chart');
   await expect(chart.locator('select')).toHaveCount(0);
   const metrics=chart.locator('.fc-chart-metric');
@@ -296,42 +354,12 @@ for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with i
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:testInfo.outputPath(`hmkb-grouped-chart-${theme}.png`), fullPage:true, animations:'disabled'});
   await page.setViewportSize({width:390,height:844});
-  await expect(balance.getByRole('img')).toHaveCount(2);
-  const panelBounds=await balance.locator('[data-balance-chart]').evaluateAll(nodes=>nodes.map(node=>{
-    const box=node.getBoundingClientRect();return {left:box.left,right:box.right,top:box.top,bottom:box.bottom};
-  }));
-  expect(panelBounds.every(box=>box.left>=0&&box.right<=390)).toBe(true);
-  expect(panelBounds[1].top).toBeGreaterThanOrEqual(panelBounds[0].bottom);
-  await balance.screenshot({path:testInfo.outputPath(`balance-bars-${theme}-mobile.png`)});
   await expect(metrics).toHaveCount(16);
   const bounds=await metrics.evaluateAll(nodes=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right})));
   expect(bounds.every(b=>b.left>=0&&b.right<=390)).toBe(true);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:testInfo.outputPath(`hmkb-grouped-chart-${theme}-mobile.png`), fullPage:true, animations:'disabled'});
-});
-
-test('BS bar charts keep missing totals and blocked observations empty and retain negative equity', async ({page}) => {
-  const reports=structuredClone(recentReports);
-  reports.rows=reports.rows.filter(row=>row.metric_id!=='total_liabilities');
-  const equity=reports.rows.find(row=>row.metric_id==='total_equity');
-  equity.cells['2024']={value:'0',quality:'valid'};
-  equity.cells['2025']={value:'-6704709904',quality:'warn'};
-  equity.cells['2026-09-30']={value:'8185132247',quality:'blocked'};
-  await setup(page,{ticker:'HMKB',func:'BS',reports});
-  const terminal=page.getByTestId('financial-columns');
-  await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  const funding=terminal.locator('[data-balance-chart="funding"]');
-  await expect(funding).toBeVisible();
-  await expect(funding.locator('[data-chart-series="total_liabilities"] rect')).toHaveCount(0);
-  const equityBars=funding.locator(`[data-chart-series="${equity.id}"] rect`);
-  await expect(equityBars).toHaveCount(2);
-  await expect(equityBars.first()).toHaveAttribute('aria-label', /: 0 /);
-  await expect(equityBars.last()).toHaveAttribute('aria-label', /-6,704,709,904/);
-  expect(Number(await funding.getByRole('img').getAttribute('data-scale-min'))).toBeLessThan(0);
-  await expect(funding.locator('.fc-chart-values > div strong')).toHaveText(['— thousands UZS','— thousands UZS']);
-  await terminal.getByRole('tab',{name:'Ratios',exact:true}).click();
-  await expect(terminal.locator('.fc-balance-history')).toHaveCount(0);
 });
 
 test('chart keeps units separate and never draws missing or blocked values as zero', async ({page}) => {
@@ -581,7 +609,10 @@ for (const theme of ['light','dark']) test(`financial statements share the catal
   await page.screenshot({path:testInfo.outputPath(`financial-integrated-${theme}.png`),fullPage:true,animations:'disabled'});
   await page.setViewportSize({width:390,height:844});
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
-  await expect(terminal.getByRole('img',{name:'Financial history'})).toBeVisible();
+  const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  await expect(balance.getByRole('img')).toHaveCount(2);
+  await expect(balance.getByRole('button', {name: '2026-09-30', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(balance.getByRole('button', {name: /TTM/})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   await page.screenshot({path:testInfo.outputPath(`financial-integrated-${theme}-mobile.png`),fullPage:true,animations:'disabled'});
 });

@@ -105,34 +105,6 @@ function HistoryBars({ rows, columns, colors, unit, rawUnit, format, t, title })
   </div>;
 }
 
-export function BalanceHistoryCharts({ rows, columns, format, t }) {
-  const definitions = [
-    ['total_assets', t('Всего активов', 'Jami aktivlar', 'Total assets')],
-    ['total_liabilities', t('Всего обязательств', 'Jami majburiyatlar', 'Total liabilities')],
-    ['total_equity', t('Всего капитала', 'Jami kapital', 'Total equity')],
-  ];
-  // Published totals come from the original rows, even when the compact overview omits them.
-  // Never reconstruct a missing total by adding potentially overlapping statement lines.
-  const published = definitions.map(([metric]) => rows.find(row => row.metric_id === metric && row.kind === 'stock'));
-  const fallbackUnit = published.find(Boolean)?.unit || 'UZS_thousand';
-  const totals = definitions.map(([metric, label], index) => ({
-    id: metric, cells: {}, unit: fallbackUnit, ...published[index], label,
-  }));
-  const colors = new Map(totals.map((row, index) => [row.id, COLORS[index]]));
-  const panels = [
-    { id: 'assets', title: t('Активы', 'Aktivlar', 'Assets'), rows: totals.slice(0, 1) },
-    { id: 'funding', title: t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity'), rows: totals.slice(1) },
-  ];
-  return <section className="fc-balance-history fc-chart-visuals">
-    <p className="fc-balance-caption">{t('Баланс на конец каждого отчётного периода', 'Har bir hisobot davri oxiridagi balans', 'Balance at the end of each reporting period')}</p>
-    <div className="fc-balance-panels">{panels.map(panel => <div key={panel.id} data-balance-chart={panel.id}>
-      {[...new Set(panel.rows.map(unitOf))].map(unit => <HistoryBars key={unit} title={panel.title}
-        rows={panel.rows.filter(row => unitOf(row) === unit)} columns={columns} colors={colors}
-        rawUnit={unit} unit={unitLabel(unit, t)} format={format} t={t}/>) }
-    </div>)}</div>
-  </section>;
-}
-
 export function FinancialHistoryChart({ rows, columns, view, groupLabel, format, lang, t }) {
   const [hiddenChoice, setHidden] = React.useState(null);
   const [grouped, setGrouped] = React.useState(true);
