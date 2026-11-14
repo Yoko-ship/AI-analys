@@ -5,9 +5,12 @@ import {balanceComposition as compose} from '../frontend/src/features/company/fi
 
 const reports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 const period = '2026-09-30';
+const fxEvidence = {currency: 'USD', as_of: period, effective_date: period, basis: 'period_end_presentation',
+  source_url: `https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${period}/`};
 const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) => compose(rows, key, end, context);
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
+  source_code: {ppe: '012', inventory: '140', cash: '320', receivables: '210'}[metric_id],
   cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000',
     ...(unit === 'UZS' && {raw_value: Number(value) / 1000})}},
 });
@@ -135,13 +138,17 @@ test('source currency and scale must substantiate the displayed amount', () => {
   assert.equal(funding(value => ({unit_scale: '1', raw_value: value})).reason, 'source');
   assert.equal(funding(value => ({unit_scale: '1000000', raw_value: value / 1000})).reason, null);
   assert.equal(funding(value => ({currency: 'USD', raw_value: value / 10000,
-    fx: {currency: 'USD', as_of: period, rate: 10000}})).reason, null);
+    fx: {currency: 'USD', as_of: period, rate: 10000}})).reason, 'source');
+  assert.equal(funding(value => ({currency: 'USD', raw_value: value / 10000,
+    fx: {...fxEvidence, rate: 10000}})).reason, null);
+  assert.equal(funding(value => ({currency: 'USD', raw_value: value / 10000,
+    fx: {...fxEvidence, rate: 10000, source_url: 'https://example.test/rate'}})).reason, 'source');
 });
 
 test('matching totals cannot hide different FX rates or filing versions', () => {
   const converted = (metric, raw, rate) => {
     const reading = row(metric, raw * rate);
-    Object.assign(reading.cells[period], {raw_value: raw, currency: 'USD', fx: {currency: 'USD', as_of: period, rate}});
+    Object.assign(reading.cells[period], {raw_value: raw, currency: 'USD', fx: {...fxEvidence, rate}});
     return reading;
   };
   const mixedRates = balanceComposition([
@@ -157,6 +164,25 @@ test('matching totals cannot hide different FX rates or filing versions', () => 
   for (const liabilities of [[], [row('total_liabilities', 80, 'valid', 'UZS')]]) {
     const funding = balanceComposition([total, ...liabilities, equity], period).funding;
     assert.equal(funding.reason, 'source');
+    assert.equal(funding.rows[1].value, null);
+  }
+});
+
+test('asset components follow the selected source form and omit overlapping sublines', () => {
+  const {assets} = balanceComposition([row('total_assets', 100), row('cash', 20), row('bank_balances', 15),
+    row('receivables', 30), row('interest_receivables', 10)], period);
+  assert.equal(assets.reason, null);
+  assert.deepEqual(assets.rows.map(row => [row.metric_id, row.value]), [['receivables',30],['cash',20],['other_assets_difference',50]]);
+  const incorrect = {...row('cash', 20), source_code: '340'};
+  assert.equal(balanceComposition([row('total_assets', 100), incorrect], period).assets.reason, 'source');
+});
+
+test('blank and nonnumeric amounts do not become zero equity', () => {
+  for (const invalid of [' ', true, []]) {
+    const equity = row('total_equity', invalid);
+    equity.cells[period].raw_value = invalid;
+    const {funding} = balanceComposition([row('total_assets', 100), row('total_liabilities', 100), equity], period);
+    assert.equal(funding.reason, 'missing');
     assert.equal(funding.rows[1].value, null);
   }
 });

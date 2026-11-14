@@ -1,27 +1,39 @@
-const valueOf = cell => cell?.value != null && cell.value !== '' &&
-  ['valid', 'warn'].includes(cell.quality) && Number.isFinite(Number(cell.value)) ? Number(cell.value) : null;
+const numeric = input => {
+  if (typeof input !== 'number' && (typeof input !== 'string' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(input.trim()))) return null;
+  const value = Number(input);
+  return Number.isFinite(value) ? value : null;
+};
+const valueOf = cell => ['valid', 'warn'].includes(cell?.quality) ? numeric(cell.value) : null;
 const DISPLAY_SCALES = new Map([['UZS', 1], ['UZS_thousand', 1000]]);
 
 function conversionFor(cell, unit, value, periodEnd) {
   const displayScale = DISPLAY_SCALES.get(unit);
-  const sourceScale = Number(cell.unit_scale);
+  const sourceScale = numeric(cell.unit_scale);
   const fx = cell.fx;
-  const rate = cell.currency === 'UZS' ? 1 : fx?.currency === cell.currency && fx?.as_of === periodEnd ? Number(fx.rate) : 0;
-  if (!displayScale || !Number.isFinite(sourceScale) || sourceScale <= 0 || !Number.isFinite(rate) || rate <= 0) return null;
-  if (cell.raw_value == null || cell.raw_value === '') return sourceScale === displayScale && cell.currency === 'UZS' ? [sourceScale, 1] : null;
-  const normalized = Number(cell.raw_value) * sourceScale * rate / displayScale;
+  const foreign = cell.currency !== 'UZS';
+  const end = Date.parse(periodEnd);
+  const effective = Date.parse(fx?.effective_date);
+  const fxAge = (end - effective) / 86400000;
+  const verifiedFx = fx?.currency === cell.currency && fx?.as_of === periodEnd && fx?.basis === 'period_end_presentation' &&
+    fxAge >= 0 && fxAge <= 7 && fx?.source_url === `https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${periodEnd}/`;
+  const rate = foreign ? (verifiedFx ? numeric(fx.rate) : null) : 1;
+  if (!displayScale || sourceScale == null || sourceScale <= 0 || rate == null || rate <= 0) return null;
+  if (cell.raw_value == null) return sourceScale === displayScale && !foreign ? [sourceScale, 1] : null;
+  const raw = numeric(cell.raw_value);
+  if (raw == null) return null;
+  const normalized = raw * sourceScale * rate / displayScale;
   if (!Number.isFinite(normalized) || Math.abs(normalized - value) > Number.EPSILON * 4 * Math.max(Math.abs(value), Math.abs(normalized))) return null;
-  return cell.currency === 'UZS' ? [sourceScale, 1] : [sourceScale, rate, fx.as_of, fx.source, fx.source_url];
+  return foreign ? [sourceScale, rate, fx.effective_date, fx.source_url] : [sourceScale, 1];
 }
 
-// These are disjoint net asset categories. Gross amounts, allowances and
-// nested statement lines must never become additional slices.
-const ASSET_COMPONENTS = [
-  ['ppe'], ['intangibles_goodwill', 'intangibles'], ['inventory'],
-  ['trade_other_receivables', 'receivables', 'trade_receivables'], ['cash'],
-  ['central_bank_balances'], ['bank_balances'], ['trading_assets_net'],
-  ['investments_net'], ['loans_leases_net', 'loans_net'], ['interest_receivables'],
-];
+// financial_columns/registry.py maps these official balance-sheet lines.
+// F1 line 320 includes bank accounts. BANK_BS lines 1, 2 and 3 are separate.
+// Bank net amounts replace their gross lines and allowances.
+const ASSET_LINES = {
+  F1: {ppe: '012', intangibles: '022', inventory: '140', receivables: '210', cash: '320'},
+  BANK_BS: {cash: '1', central_bank_balances: '2', bank_balances: '3', trading_assets_net: '4г',
+    investments_net: '5в', loans_leases_net: '7г', ppe: '10', interest_receivables: '11'},
+};
 
 function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
   let reason = null;
@@ -60,14 +72,15 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard} = 
     const source = conversion ? JSON.stringify([form, version, cell.currency, ...conversion]) : null;
     const unitError = value != null && !DISPLAY_SCALES.has(row?.unit);
     const sourceError = candidates.length > 1 || (value != null && !unitError && !source);
-    return {...row, metric_id: metric, value: sourceError || unitError ? null : value, source, sourceError, unitError};
+    return {...row, metric_id: metric, value: sourceError || unitError ? null : value, source, sourceError, unitError,
+      form, code: cell?.source_code ?? row?.source_code};
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
-  const components = ASSET_COMPONENTS.map(aliases => {
-    const readings = aliases.map(reading);
-    return readings.find(row => row.id);
-  }).filter(Boolean);
+  const components = Object.entries(ASSET_LINES[totalAssets.form] ?? {}).map(([metric, code]) => {
+    const row = reading(metric);
+    return {...row, sourceError: row.sourceError || (row.value != null && row.code !== code)};
+  }).filter(row => row.id);
   const hasSections = sections.every(row => row.id);
   const assetRows = hasSections ? sections : components;
   const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);
