@@ -34,6 +34,10 @@ const ASSET_LINES = {
   BANK_BS: {cash: '1', central_bank_balances: '2', bank_balances: '3', trading_assets_net: '4г',
     investments_net: '5в', loans_leases_net: '7г', ppe: '10', interest_receivables: '11'},
 };
+const BALANCE_LINES = {
+  F1: {total_assets: '400', noncurrent_assets: '130', current_assets: '390', total_liabilities: '770', total_equity: '480'},
+  BANK_BS: {total_assets: '14', total_liabilities: '25', total_equity: '30'},
+};
 
 function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
   let reason = null;
@@ -55,8 +59,8 @@ function composition(rows, {value: total, unit, source, sourceError, unitError},
   return {rows: readings, total: reason ? null : total, unit, reason};
 }
 
-export function balanceComposition(rows, period, periodEnd, {scope, standard} = {}) {
-  const knownContext = ['separate', 'consolidated'].includes(scope) && ['NSBU', 'MSFO'].includes(standard);
+export function balanceComposition(rows, period, periodEnd, {scope, standard, ticker, issuerId} = {}) {
+  const knownContext = ticker && issuerId && ['separate', 'consolidated'].includes(scope) && standard === 'NSBU';
   const stocks = rows.filter(row => row.kind === 'stock');
   const reading = metric => {
     const candidates = stocks.filter(row => row.metric_id === metric);
@@ -65,22 +69,25 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard} = 
     const value = valueOf(cell);
     const form = cell?.source_form || row?.source_form;
     const version = cell?.source_version || cell?.source_url;
+    const url = cell?.source_url ?? row?.source_url ?? null;
+    const code = cell?.source_code ?? row?.source_code;
+    const expectedCode = BALANCE_LINES[form]?.[metric] ?? ASSET_LINES[form]?.[metric];
+    const issuersMatch = [cell?.issuer_id, row?.issuer_id].every(id => id == null || String(id) === String(issuerId)) &&
+      [cell?.ticker, row?.ticker].every(symbol => symbol == null || symbol === ticker);
     const cellScope = cell?.scope ?? row?.scope ?? scope;
     const cellStandard = cell?.standard ?? row?.standard ?? standard;
-    const conversion = value != null && knownContext && cellScope === scope && cellStandard === standard && form && version &&
+    const conversion = value != null && knownContext && issuersMatch && expectedCode && code === expectedCode &&
+      cellScope === scope && cellStandard === standard && version &&
       cell?.period_end === periodEnd && cell?.currency && conversionFor(cell, row.unit, value, periodEnd);
-    const source = conversion ? JSON.stringify([form, version, cell.currency, ...conversion]) : null;
+    const source = conversion ? JSON.stringify([ticker, issuerId, form, version, url, cell.currency, ...conversion]) : null;
     const unitError = value != null && !DISPLAY_SCALES.has(row?.unit);
     const sourceError = candidates.length > 1 || (value != null && !unitError && !source);
     return {...row, metric_id: metric, value: sourceError || unitError ? null : value, source, sourceError, unitError,
-      form, code: cell?.source_code ?? row?.source_code};
+      form};
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
-  const components = Object.entries(ASSET_LINES[totalAssets.form] ?? {}).map(([metric, code]) => {
-    const row = reading(metric);
-    return {...row, sourceError: row.sourceError || (row.value != null && row.code !== code)};
-  }).filter(row => row.id);
+  const components = Object.keys(ASSET_LINES[totalAssets.form] ?? {}).map(reading).filter(row => row.id);
   const hasSections = sections.every(row => row.id);
   const assetRows = hasSections ? sections : components;
   const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);

@@ -331,6 +331,17 @@ test('balance legends withhold duplicate amounts and readings from another perio
   await expect(reading).toHaveText('—');
 });
 
+test('a non-admin cannot open balance charts through the catalog', async ({page}) => {
+  const requests = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.endsWith('/financials/columns')) requests.push(request.url());
+  });
+  await setup(page, {ticker: 'HMKB', func: 'BS', reports: recentReports, isAdmin: false});
+  await expect(page.getByRole('heading', {name: 'Administrators only'})).toBeVisible();
+  await expect(page.getByTestId('financial-columns')).toHaveCount(0);
+  expect(requests).toEqual([]);
+});
+
 for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with individual and group toggles (${theme})`, async ({page}, testInfo) => {
   await setup(page, {ticker:'HMKB', func:'BS', reports:{...recentReports, rows: recentReports.overview_rows}, theme});
   const terminal=page.getByTestId('financial-columns');
@@ -457,7 +468,7 @@ test('annual income gaps explain why a comparative balance can still be populate
   await expect(terminal.locator('.fc-period-notice')).toHaveCount(0);
 });
 
-async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 'PL', ticker = 'IPTB', reports } = {}) {
+async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 'PL', ticker = 'IPTB', reports, isAdmin = true } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);
   await page.addInitScript(lang => {
     sessionStorage.setItem('uz_sponsor_seen', '1');
@@ -467,7 +478,7 @@ async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname;
     const json = value => route.fulfill({ json: value });
-    if (path === '/api/auth/me') return json({ user: { id: 1, is_admin: true } });
+    if (path === '/api/auth/me') return json({ user: { id: 1, is_admin: isAdmin } });
     if (path === '/api/catalog/companies') return json({ ok: true, total: 1, companies: [{ ticker, company_name: ticker === 'HMKB' ? 'Hamkorbank' : 'Ipoteka bank', sector: 'finance' }] });
     if (path === `/api/catalog/index/${ticker}`) return json({ ok: true, company_name: ticker === 'HMKB' ? 'Hamkorbank' : 'Ipoteka bank', availability: { NSBU: { annual: [{ year: 2025 }], quarter: [{ year: 2026, quarter: 3 }] } } });
     if (path.endsWith('/financials/columns')) {

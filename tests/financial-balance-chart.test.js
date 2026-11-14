@@ -7,12 +7,27 @@ const reports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json',
 const period = '2026-09-30';
 const fxEvidence = {currency: 'USD', as_of: period, effective_date: period, basis: 'period_end_presentation',
   source_url: `https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${period}/`};
-const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) => compose(rows, key, end, context);
+const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) =>
+  compose(rows, key, end, {ticker: 'HMKB', issuerId: '8', ...context});
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
-  source_code: {ppe: '012', inventory: '140', cash: '320', receivables: '210'}[metric_id],
+  source_code: {ppe: '012', inventory: '140', cash: '320', receivables: '210', total_assets: '400',
+    noncurrent_assets: '130', current_assets: '390', total_liabilities: '770', total_equity: '480'}[metric_id],
   cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000',
     ...(unit === 'UZS' && {raw_value: Number(value) / 1000})}},
+});
+
+test('balances reject other issuers, conflicting filing URLs and misidentified totals', () => {
+  const rows = [row('total_assets', 100), row('total_liabilities', 80), row('total_equity', 20)];
+  for (const conflict of [{issuer_id: '9'}, {ticker: 'OTHER'}, {source_url: 'https://example.test/another'}, {source_code: '470'}]) {
+    const inputs = structuredClone(rows);
+    for (const input of inputs) input.cells[period].source_url = 'https://example.test/report';
+    Object.assign(inputs[2].cells[period], conflict);
+    assert.equal(balanceComposition(inputs, period).funding.reason, 'source');
+  }
+  const sections = [rows[0], row('noncurrent_assets', 60), row('current_assets', 40)];
+  sections[1].source_code = '120';
+  assert.equal(balanceComposition(sections, period).assets.reason, 'source');
 });
 
 test('HMKB balance pies use net loans once and published funding totals', () => {

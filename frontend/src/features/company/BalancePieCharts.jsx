@@ -70,12 +70,12 @@ function PiePanel({id, title, data, period, format, t}) {
   </div>;
 }
 
-export function BalancePieCharts({rows, columns, scope, standard, format, t}) {
+export function BalancePieCharts({rows, columns, reportContext, format, t}) {
   const [selected, setSelected] = React.useState(null);
   const periods = columns.filter(column => column.basis !== 'ttm');
   const period = periods.find(column => column.key === selected) || periods.at(-1);
   if (!period) return <p className="fc-empty" role="status">{t(...REASONS.missing)}</p>;
-  const {assets, funding} = balanceComposition(rows, period.key, period.end, {scope, standard});
+  const {assets, funding} = balanceComposition(rows, period.key, period.end, reportContext ?? undefined);
   return <section className="fc-balance-pies fc-chart-visuals" aria-label={t('Структура баланса', 'Balans tarkibi', 'Balance composition')}>
     <div className="fc-balance-periods" role="group" aria-label={t('Отчётный период', 'Hisobot davri', 'Reporting period')}>
       {periods.map(column => <button key={column.key} type="button" aria-pressed={column.key === period.key}
