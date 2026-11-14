@@ -245,3 +245,24 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", feed)
     recovered = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
     assert recovered["ok"] is True
+
+    def lagging_archive(client, path, params):
+        return {"ticker": "HMKB", "results": [
+            {"date": "2026-01-30", "close": 57.8, "trading_volume": 10, "trading_value": 578},
+            {"date": "2026-02-26", "close": 58, "trading_volume": 10, "trading_value": 580},
+        ]}
+
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", lagging_archive)
+    monkeypatch.setattr(store, "get_quote_history", unavailable)
+    subject_server_market_history._HISTORY_CACHE.clear()
+    legacy = asyncio.run(routes.api_price_history("HMKB", months=240))
+    assert legacy["ok"] and legacy["points"][-1]["date"] == "2026-02-26"
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert got["ok"] is False and got["points"] == []
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260130", "close_price": 57.8, "quantity": 10, "turnover": 578},
+        {"trade_date": "20260227", "close_price": 60, "quantity": 10, "turnover": 600},
+    ]})
+    recovered = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert recovered["ok"] and recovered["points"][-1]["date"] == "2026-02-27"
+    assert recovered["points"][-1]["close"] == 60

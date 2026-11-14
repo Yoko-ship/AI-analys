@@ -257,10 +257,10 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
                           months))
         if data is None and not merged.get("points"):
             raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
-        if data is None:
+        if data is None or merged.get("store_unavailable"):
             # Legacy charts can display available stored quotes. Returns need
             # both sources; don't cache this fallback as a complete archive.
-            return {**merged, "archive_unavailable": True}
+            return {**merged, "archive_unavailable": data is None}
         data = merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
@@ -303,7 +303,7 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     try:
         stored = catalogue_market_store.get_quote_history([isin], 3650).get(str(isin).upper()) or []
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
-        return data
+        return {**data, "store_unavailable": True}
     start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
              if months else "")
     rows = [r for r in stored

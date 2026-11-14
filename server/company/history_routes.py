@@ -125,7 +125,7 @@ async def api_price_history(ticker: str, months: int = 12, include_unknown: bool
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "points": []}, status_code=404)
         data = await market_history._full_history(isin, months=months)
-        if include_unknown and data.get("archive_unavailable"):
+        if include_unknown and (data.get("archive_unavailable") or data.get("store_unavailable")):
             return {"ok": False, "ticker": ticker, "error": "Complete price history unavailable", "points": []}
         points = [
             {
