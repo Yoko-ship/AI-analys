@@ -23,6 +23,7 @@ FIELDS = {'issuer_id', 'ticker', 'period_start', 'period_end', 'scope', 'source_
           'source_standard', 'ordinary_shares', 'weighted_average_shares',
           'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit'}
 REVIEWED = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_share_disclosures.json'
+KEY_COLUMNS = 'issuer_id,ticker,period_end,scope'
 
 
 def _validate(value):
@@ -72,6 +73,7 @@ def record(disclosure, *, actor, reason, replace=False):
     payload = json.dumps(data, ensure_ascii=False, sort_keys=True)
     version = hashlib.sha256(payload.encode()).hexdigest()
     key = (data['issuer_id'], data['ticker'], data['period_end'], data['scope'])
+    reviewed = _reviewed(REVIEWED).get(key) if replace else None
     c = get_catalog_conn()
     try:
         c.executescript('''
@@ -82,23 +84,36 @@ def record(disclosure, *, actor, reason, replace=False):
                 issuer_id TEXT NOT NULL, ticker TEXT NOT NULL, period_end TEXT NOT NULL,
                 scope TEXT NOT NULL, version_id TEXT NOT NULL,
                 PRIMARY KEY (issuer_id,ticker,period_end,scope));
+            CREATE TABLE IF NOT EXISTS share_disclosure_resolutions (
+                version_id TEXT NOT NULL, reviewed_version_id TEXT NOT NULL,
+                actor TEXT NOT NULL, reason TEXT NOT NULL, reviewed_at TEXT NOT NULL,
+                PRIMARY KEY (version_id,reviewed_version_id));
         ''')
         with c:
-            old = c.execute('SELECT version_id FROM share_disclosure_heads WHERE issuer_id=? AND ticker=? AND period_end=? AND scope=?', key).fetchone()
-            if old and old['version_id'] != version and not replace:
-                raise ValueError('Conflicting share disclosure: explicit replace is required')
+            stamp = datetime.now(timezone.utc).isoformat()
             c.execute('INSERT INTO share_disclosure_versions VALUES (?,?,?,?,?) ON CONFLICT(id) DO NOTHING',
-                      (version, payload, actor, reason, datetime.now(timezone.utc).isoformat()))
-            c.execute('INSERT INTO share_disclosure_heads VALUES (?,?,?,?,?) ON CONFLICT(issuer_id,ticker,period_end,scope) DO UPDATE SET version_id=excluded.version_id', (*key, version))
+                      (version, payload, actor, reason, stamp))
+            updated = c.execute(
+                f'INSERT INTO share_disclosure_heads ({KEY_COLUMNS},version_id) VALUES (?,?,?,?,?) '
+                f'ON CONFLICT({KEY_COLUMNS}) DO UPDATE SET version_id=excluded.version_id '
+                'WHERE share_disclosure_heads.version_id=excluded.version_id OR ?=1',
+                (*key, version, int(replace)),
+            )
+            if not updated.rowcount:
+                raise ValueError('Conflicting share disclosure: explicit replace is required')
+            if reviewed:
+                c.execute('INSERT INTO share_disclosure_resolutions VALUES (?,?,?,?,?) '
+                          'ON CONFLICT(version_id,reviewed_version_id) DO NOTHING',
+                          (version, reviewed[1], actor, reason, stamp))
         return version
     finally:
         c.close()
 
 
 @lru_cache(maxsize=1)
-def _reviewed():
+def _reviewed(path):
     records = {}
-    for value in json.loads(REVIEWED.read_text(encoding='utf-8')):
+    for value in json.loads(path.read_text(encoding='utf-8')):
         data = _validate(value)
         key = (data['issuer_id'], data['ticker'], data['period_end'], data['scope'])
         if key in records:
@@ -108,27 +123,53 @@ def _reviewed():
     return records
 
 
+def _conflicts(stored, reviewed):
+    def closing_rights(data):
+        if 'ordinary_only_at_end' in data:
+            return data['ordinary_only_at_end']
+        if data.get('ordinary_only') is True:
+            return True
+
+    closing = (closing_rights(stored), closing_rights(reviewed))
+    if None not in closing and closing[0] != closing[1]:
+        return True
+    if all('ordinary_shares' in data for data in (stored, reviewed)):
+        if Decimal(stored['ordinary_shares']) != Decimal(reviewed['ordinary_shares']):
+            return True
+    if stored['period_start'] != reviewed['period_start']:
+        return False
+    return ((all('weighted_average_shares' in data for data in (stored, reviewed))
+             and Decimal(stored['weighted_average_shares']) != Decimal(reviewed['weighted_average_shares']))
+            or (all('ordinary_only' in data for data in (stored, reviewed))
+                and stored['ordinary_only'] != reviewed['ordinary_only']))
+
+
 def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
     key = (str(issuer_id), ticker.upper(), end, scope)
+    reviewed = _reviewed(REVIEWED).get(key) if include_reviewed else None
     c = get_catalog_conn()
     try:
         row = None
-        if 'share_disclosure_heads' in dbx.tables(c):
+        tables = dbx.tables(c)
+        if 'share_disclosure_heads' in tables:
             row = c.execute('SELECT v.* FROM share_disclosure_heads h JOIN share_disclosure_versions v ON v.id=h.version_id '
                             'WHERE h.issuer_id=? AND h.ticker=? AND h.period_end=? AND h.scope=?', key).fetchone()
+        if row:
+            data, version = _validate(json.loads(row['payload_json'])), row['id']
+            if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != key:
+                return None
+            if reviewed and _conflicts(data, reviewed[0]):
+                if 'share_disclosure_resolutions' not in tables or not c.execute(
+                    'SELECT 1 FROM share_disclosure_resolutions WHERE version_id=? AND reviewed_version_id=?',
+                    (version, reviewed[1]),
+                ).fetchone():
+                    return None
+        elif reviewed:
+            data, version = deepcopy(reviewed)
+        else:
+            return None
     finally:
         c.close()
-    if row:
-        data, version = _validate(json.loads(row['payload_json'])), row['id']
-        if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != key:
-            return None
-    elif include_reviewed:
-        reviewed = _reviewed().get(key)
-        if not reviewed:
-            return None
-        data, version = deepcopy(reviewed)
-    else:
-        return None
     return {**data, 'source_version': version, 'verification_status': 'verified'}
 
 def form5_basis(workbook, *, ticker, issuer_id, tin, period_end):
@@ -223,4 +264,4 @@ def collect_form5(session, *, ticker, issuer_id, period_end, excel_url):
         if not read(issuer_id, ticker, period_end, 'separate', include_reviewed=False):
             raise
         return False
-    return True
+    return read(issuer_id, ticker, period_end, 'separate') is not None

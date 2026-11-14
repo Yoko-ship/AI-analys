@@ -1,5 +1,11 @@
 {
-  "provenance": "Live Openinfo report 18989, CBSK 2026Q3; observed 2026-11-08. F2 net-profit arithmetic differs by 31,248 thousand UZS, while F1 debt and balance reconcile.",
+  "provenance": "CBSK (OpenInfo issuer 633, TIN 200797009), nine months ended 2026-09-30. OpenInfo report 18989 and its Excel export have no Form 5 attachment or weighted-average ordinary shares. Form 1 closes with charter capital of 87,879,167 thousand UZS and zero repurchased own shares; the rounded money amount does not establish an exact, class-specific share count on 2026-09-30. Form 2 reports net profit of 33,451,374 thousand UZS, 31,248 above the value implied by lines 240, 250 and 260. The issuer's Form 2 separately includes the missing financial income in lines 220 and 240 and reconciles to the same net profit, but still does not supply weighted-average shares.",
+  "sources": {
+    "openinfo": "https://openinfo.uz/uz/reports/jsc/quarter/18989",
+    "openinfo_detail": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18989/",
+    "issuer_form_2": "https://www.chbsk.uz/docs/2026/balans-2-9-2026.xlsx",
+    "exchange_issue": "https://uzse.uz/isu_infos/UZ7038380000/detail?locale=en"
+  },
   "report": {
     "issuer": {
       "id": "633",

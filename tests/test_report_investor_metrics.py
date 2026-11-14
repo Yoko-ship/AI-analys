@@ -60,7 +60,7 @@ def test_uzmk_primary_ratios_use_operating_profit_and_equity_not_pretax_profit(r
     assert report == original
 
 
-def test_cbsk_q3_uses_reviewed_closing_shares_but_keeps_unverified_eps_blank(tmp_path, monkeypatch):
+def test_cbsk_q3_withholds_ratios_without_dated_share_counts(tmp_path, monkeypatch):
     from financial_columns import share_disclosures
 
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
@@ -72,23 +72,18 @@ def test_cbsk_q3_uses_reviewed_closing_shares_but_keeps_unverified_eps_blank(tmp
     monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [deepcopy(document)])
 
     out = metrics(report)
-    assert out['price_to_book']['value'] == pytest.approx(4.06 * 87879167190 / 185183885970)
-    assert out['price_to_book']['missing_inputs'] == []
+    assert out['price_to_book']['value'] is None
+    assert out['price_to_book']['missing_inputs'] == ['common_equity', 'ordinary_shares']
     assert out['eps_basic']['value'] is None
-    assert out['eps_basic']['closing_share_count_verified'] is True
+    assert out['eps_basic']['closing_share_count_verified'] is False
     assert out['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']
     assert share_disclosures.read('633', 'CBSK', '2026-06-30', 'separate') is None
     assert share_disclosures.read('633', 'CBSK', '2026-09-30', 'consolidated') is None
 
-    reviewed = share_disclosures.read('633', 'CBSK', '2026-09-30', 'separate')
-    assert 'weighted_average_shares' not in reviewed
-    correction = {key: value for key, value in reviewed.items() if key in share_disclosures.FIELDS}
-    share_disclosures.record({**correction, 'source_url': 'https://example.org/reviewed-correction'},
-                             actor='test-reviewer', reason='Verify stored source precedence')
-    assert metrics(report)['price_to_book']['share_disclosure_url'] == 'https://example.org/reviewed-correction'
+    assert share_disclosures.read('633', 'CBSK', '2026-09-30', 'separate') is None
 
 
-def test_reviewed_cbsk_fallback_does_not_skip_form5_discovery(tmp_path, monkeypatch):
+def test_cbsk_openinfo_quarter_has_no_equity_attachment(tmp_path, monkeypatch):
     from collectors.openinfo import transport
     from financial_columns import share_disclosures
 
@@ -452,18 +447,34 @@ def test_real_biok_form5_supplies_dated_book_inputs_without_substituting_eps(rep
     assert result['eps_basic']['closing_share_count_verified'] is True
     assert result['eps_basic']['missing_inputs'] == ['profit_ordinary', 'weighted_average_shares']
 
-@pytest.mark.parametrize('matching_issuer', [True, False])
-def test_openinfo_equity_attachment_is_imported_only_for_its_issuer(tmp_path, monkeypatch, matching_issuer):
+@pytest.mark.parametrize('variant', [
+    'new', 'wrong_issuer', 'corroborates', 'count_conflict', 'rights_conflict', 'different_period_rights',
+])
+def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, monkeypatch, variant):
     from catalogue import history
     from collectors.openinfo import transport
     from financial_columns import share_disclosures
 
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
     source = json.loads(Path('tests/fixtures/openinfo/biok_2026q3_equity.json').read_text(encoding='utf-8'))
+    reviewed = share_disclosures.form5_basis(source, ticker='BIOK', issuer_id='396',
+                                             tin='200468069', period_end='2026-09-30')
+    reviewed['source_url'] = 'https://openinfo.uz/uz/reports/jsc/quarter/18938'
+    if variant not in {'new', 'wrong_issuer'}:
+        if variant == 'count_conflict':
+            reviewed['ordinary_shares'] = '5713281'
+        if variant == 'rights_conflict':
+            reviewed['ordinary_only_at_end'] = False
+        if variant == 'different_period_rights':
+            del reviewed['ordinary_only_at_end']
+            reviewed['ordinary_only'] = False
+        path = tmp_path / 'reviewed.json'
+        path.write_text(json.dumps([reviewed]), encoding='utf-8')
+        monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
     calls = []
     def detail(session, path):
         assert path == '/reports/jsc/quarter/18938/'
-        return {'id': 18938, 'organization': {'id': 396 if matching_issuer else 78},
+        return {'id': 18938, 'organization': {'id': 78 if variant == 'wrong_issuer' else 396},
                 'organization_inn': 200468069, 'int_report': source['source_url']}
     def workbook(session, url):
         calls.append(url)
@@ -472,8 +483,22 @@ def test_openinfo_equity_attachment_is_imported_only_for_its_issuer(tmp_path, mo
     monkeypatch.setattr(history, '_parse_workbook_uncached', workbook)
     query = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18938'
     args = dict(ticker='BIOK', issuer_id='396', period_end='2026-09-30', excel_url=query)
-    assert share_disclosures.collect_form5(None, **args) is matching_issuer
+    key = ('396', 'BIOK', '2026-09-30', 'separate')
+    assert share_disclosures.collect_form5(None, **args) is (
+        variant in {'new', 'corroborates', 'different_period_rights'}
+    )
+    assert calls == ([] if variant == 'wrong_issuer' else [source['source_url']])
     assert share_disclosures.collect_form5(None, **args) is False
-    assert calls == ([source['source_url']] if matching_issuer else [])
-    basis = share_disclosures.read('396', 'BIOK', '2026-09-30', 'separate')
-    assert (basis or {}).get('ordinary_shares') == ('5713280' if matching_issuer else None)
+    basis = share_disclosures.read(*key)
+    if variant in {'count_conflict', 'rights_conflict'}:
+        assert basis is None
+        corrected = share_disclosures.form5_basis(source, ticker='BIOK', issuer_id='396',
+                                                   tin='200468069', period_end='2026-09-30')
+        share_disclosures.record(corrected, actor='reviewer', reason='Compared the filed share classes', replace=True)
+        basis = share_disclosures.read(*key)
+        assert basis['source_url'] == source['source_url']
+        changed_path = tmp_path / 'updated-reviewed.json'
+        changed_path.write_text(json.dumps([{**reviewed, 'ordinary_shares': '5713282'}]), encoding='utf-8')
+        monkeypatch.setattr(share_disclosures, 'REVIEWED', changed_path)
+        assert share_disclosures.read(*key) is None
+    assert (basis or {}).get('ordinary_shares') == (None if variant == 'wrong_issuer' else '5713280')
