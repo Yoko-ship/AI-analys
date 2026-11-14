@@ -36,6 +36,7 @@ def _validate(value):
     start, end = date.fromisoformat(data['period_start']), date.fromisoformat(data['period_end'])
     if start > end or data.get('scope') not in {'separate', 'consolidated'}:
         raise ValueError('Invalid disclosure period or scope')
+    data['period_start'], data['period_end'] = start.isoformat(), end.isoformat()
     source = urlparse(data.get('source_url') or '')
     if source.scheme != 'https' or not source.hostname or source.username or source.password:
         raise ValueError('A public source URL is required')

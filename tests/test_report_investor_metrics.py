@@ -422,6 +422,19 @@ def test_nested_period_rights_conflict_blocks_eps(biok_report, tmp_path, monkeyp
     share_disclosures.record(full_period, actor='reviewer', reason='Reconciled nested period rights', replace=True)
     assert metrics(biok_report)['eps_basic']['value'] == pytest.approx(26037647 * 1000 / 5713280)
 
+
+def test_equivalent_date_formats_cannot_hide_conflicting_averages(biok_report, tmp_path, monkeypatch):
+    from financial_columns import share_disclosures
+
+    path = tmp_path / 'reviewed.json'
+    reviewed = {**share_basis(), 'period_start': '20240101', 'weighted_average_shares': '5713281'}
+    path.write_text(json.dumps([reviewed]), encoding='utf-8')
+    monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
+    import_basis(share_basis())
+
+    assert share_disclosures.read('396', 'BIOK', '2024-12-31', 'separate') is None
+    assert metrics(biok_report)['eps_basic']['value'] is None
+
 def test_biok_exchange_identity_matches_the_source_issuer():
     from entity_resolver import resolve_security
     assert resolve_security({'ticker': 'BIOK', 'isin': 'UZ7025870005'})['org_id'] == '396'
