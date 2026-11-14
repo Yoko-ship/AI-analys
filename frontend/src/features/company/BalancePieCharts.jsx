@@ -22,6 +22,8 @@ const REASONS = {
   zero: ['Итог равен нулю. Доли не определены.', 'Jami nolga teng. Ulushlar aniqlanmagan.', 'The total is zero. Shares are undefined.'],
   inconsistent: ['Составляющие превышают итог баланса.', 'Tarkibiy qismlar balans jamidan oshib ketgan.', 'Components exceed the balance total.'],
   unreconciled: ['Обязательства и капитал не сходятся с итогом активов.', 'Majburiyatlar va kapital aktivlar jamiga mos kelmaydi.', 'Liabilities and equity do not reconcile to total assets.'],
+  asset_sections: ['Разделы активов не сходятся с итогом активов.', 'Aktivlar bo‘limlari aktivlar jamiga mos kelmaydi.', 'The asset sections do not reconcile to total assets.'],
+  source: ['Не удалось подтвердить единый источник для этих значений.', 'Bu qiymatlar uchun umumiy manba tasdiqlanmadi.', 'A common reporting source could not be verified for these values.'],
 };
 const unitLabel = (unit, t) => unit === 'UZS_thousand' ? t('тыс. UZS', 'ming UZS', 'thousands UZS') : unit;
 
@@ -73,7 +75,7 @@ export function BalancePieCharts({rows, columns, format, t}) {
   const periods = columns.filter(column => column.basis !== 'ttm');
   const period = periods.find(column => column.key === selected) || periods.at(-1);
   if (!period) return <p className="fc-empty" role="status">{t(...REASONS.missing)}</p>;
-  const {assets, funding} = balanceComposition(rows, period.key);
+  const {assets, funding} = balanceComposition(rows, period.key, period.end);
   return <section className="fc-balance-pies fc-chart-visuals" aria-label={t('Структура баланса', 'Balans tarkibi', 'Balance composition')}>
     <div className="fc-balance-periods" role="group" aria-label={t('Отчётный период', 'Hisobot davri', 'Reporting period')}>
       {periods.map(column => <button key={column.key} type="button" aria-pressed={column.key === period.key}

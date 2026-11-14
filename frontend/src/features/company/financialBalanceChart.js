@@ -11,35 +11,43 @@ const ASSET_COMPONENTS = [
   ['investments_net'], ['loans_leases_net', 'loans_net'], ['interest_receivables'],
 ];
 
-function composition(rows, {value: total, unit}, {reconcile = false} = {}) {
+function composition(rows, {value: total, unit, source, ambiguous}, mismatch = null) {
   let reason = null;
-  if (total == null || !rows.length || rows.some(row => row.value == null)) reason = 'missing';
+  if (ambiguous || rows.some(row => row.ambiguous)) reason = 'source';
+  else if (total == null || !rows.length || rows.some(row => row.value == null)) reason = 'missing';
   else if (!MONEY_UNITS.has(unit) || rows.some(row => row.unit !== unit)) reason = 'units';
+  else if (!source || rows.some(row => row.source !== source)) reason = 'source';
   else if (total < 0 || rows.some(row => row.value < 0)) reason = 'negative';
   else {
     const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
     const difference = sum - total;
     const roundingError = Number.EPSILON * Math.max(Math.abs(total), Math.abs(sum)) * rows.length;
-    if (reconcile && Math.abs(difference) > roundingError) reason = 'unreconciled';
+    if (mismatch && Math.abs(difference) > roundingError) reason = mismatch;
     else if (total === 0) reason = 'zero';
     else if (difference > roundingError) reason = 'inconsistent';
   }
   return {rows, total: reason ? null : total, unit, reason};
 }
 
-export function balanceComposition(rows, period) {
+export function balanceComposition(rows, period, periodEnd = period) {
   const stocks = rows.filter(row => row.kind === 'stock');
-  const find = metric => stocks.find(row => row.metric_id === metric);
   const reading = metric => {
-    const row = find(metric);
-    return {...row, metric_id: metric, unit: row?.unit, value: valueOf(row?.cells?.[period])};
+    const candidates = stocks.filter(row => row.metric_id === metric && valueOf(row.cells?.[period]) != null);
+    const [row] = candidates;
+    const cell = row?.cells?.[period];
+    const form = cell?.source_form || row?.source_form;
+    const version = cell?.source_version || cell?.source_url;
+    const hasSource = form && version && cell.period_end === periodEnd && cell.currency && cell.unit_scale;
+    const source = hasSource ? JSON.stringify([form, version, cell.period_end, cell.scope ?? row.scope,
+      cell.standard ?? row.standard, cell.currency, String(cell.unit_scale)]) : null;
+    return {...row, metric_id: metric, value: valueOf(cell), source, ambiguous: candidates.length > 1};
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
-  const components = ASSET_COMPONENTS.map(aliases => aliases.map(reading).find(row => row.value != null))
-    .filter(row => row && find(row.metric_id)?.source_form === find('total_assets')?.source_form);
-  const assetRows = sections.every(row => row.value != null) ? sections : components;
-  const assets = composition(assetRows, totalAssets);
+  const components = ASSET_COMPONENTS.map(aliases => aliases.map(reading).find(row => row.value != null)).filter(Boolean);
+  const hasSections = sections.every(row => row.value != null);
+  const assetRows = hasSections ? sections : components;
+  const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);
   if (!assets.reason) {
     const difference = totalAssets.value - assetRows.reduce((sum, row) => sum + row.value, 0);
     const roundingError = Number.EPSILON * Math.abs(totalAssets.value) * assetRows.length;
@@ -48,5 +56,5 @@ export function balanceComposition(rows, period) {
     }];
   }
   const fundingRows = ['total_liabilities', 'total_equity'].map(reading);
-  return {assets, funding: composition(fundingRows, totalAssets, {reconcile: true})};
+  return {assets, funding: composition(fundingRows, totalAssets, 'unreconciled')};
 }

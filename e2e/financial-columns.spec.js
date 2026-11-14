@@ -267,11 +267,11 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
 test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {
   const reports = structuredClone(recentReports);
   const equity = reports.rows.find(row => row.metric_id === 'total_equity');
-  equity.cells['2024'] = {value: '0', quality: 'valid'};
+  equity.cells['2024'] = {...equity.cells['2024'], value: '0', quality: 'valid'};
   reports.rows.find(row => row.metric_id === 'total_liabilities').cells['2024'].value =
     reports.rows.find(row => row.metric_id === 'total_assets').cells['2024'].value;
-  equity.cells['2025'] = {value: '-6704709904', quality: 'warn'};
-  equity.cells['2026-09-30'] = {value: '8185132247', quality: 'blocked'};
+  equity.cells['2025'] = {...equity.cells['2025'], value: '-6704709904', quality: 'warn'};
+  equity.cells['2026-09-30'] = {...equity.cells['2026-09-30'], value: '8185132247', quality: 'blocked'};
   await setup(page, {ticker: 'HMKB', func: 'BS', reports});
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();

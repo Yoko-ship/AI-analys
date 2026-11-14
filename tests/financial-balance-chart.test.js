@@ -7,7 +7,7 @@ const reports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json',
 const period = '2026-09-30';
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
-  cells: {[period]: {value, quality}},
+  cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000'}},
 });
 
 test('HMKB balance pies use net loans once and published funding totals', () => {
@@ -29,7 +29,21 @@ test('asset sections take precedence over their nested detail rows', () => {
   assert.equal(assets.reason, null);
   assert.deepEqual(assets.rows.map(row => row.metric_id), ['noncurrent_assets', 'current_assets']);
   rows[1].cells[period].value = '80';
-  assert.equal(balanceComposition(rows, period).assets.reason, 'inconsistent');
+  assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
+  rows[1].cells[period].value = '50';
+  assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
+});
+
+test('balance pies reject duplicate readings and conflicting source contexts', () => {
+  const assets = row('total_assets', '100');
+  const liabilities = row('total_liabilities', '80');
+  const equity = row('total_equity', '20');
+  for (const [key, value] of Object.entries({source_form: 'F2', source_version: 'other', period_end: '2025-12-31', scope: 'consolidated', currency: 'USD', unit_scale: '1'})) {
+    const other = {...equity, cells: {[period]: {...equity.cells[period], [key]: value}}};
+    assert.equal(balanceComposition([assets, liabilities, other], period).funding.reason, 'source', key);
+  }
+  assert.equal(balanceComposition([assets, liabilities, equity, row('total_equity', '21')], period).funding.reason, 'source');
+  assert.equal(balanceComposition([assets, row('ppe', '20'), row('ppe', '21')], period).assets.reason, 'source');
 });
 
 test('unavailable, negative and incompatible funding values keep their reported readings without pie slices', () => {
