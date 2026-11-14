@@ -257,6 +257,10 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
                           months))
         if data is None and not merged.get("points"):
             raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
+        if data is None or merged.get("store_unavailable"):
+            # Legacy charts can display available stored quotes. Returns need
+            # both sources; don't cache this fallback as a complete archive.
+            return {**merged, "archive_unavailable": data is None}
         data = merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
@@ -299,7 +303,7 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     try:
         stored = catalogue_market_store.get_quote_history([isin], 3650).get(str(isin).upper()) or []
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
-        return data
+        return {**data, "store_unavailable": True}
     start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
              if months else "")
     rows = [r for r in stored
@@ -312,12 +316,18 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     covered_through = max(str(r["trade_date"]) for r in rows)
     covered_through = f"{covered_through[:4]}-{covered_through[4:6]}-{covered_through[6:]}"
     sessions = []
+    unknown_points = []
     for r in rows:
         close = formulas.to_number(r.get("close_price"))
         traded = (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0
-        if close is None or close <= 0 or not traded:
+        if not traded:
             continue
         stamp = str(r["trade_date"])
+        if close is None or close <= 0:
+            # Keep an actually traded session with an unknown price separately
+            # for returns. Legacy charts retain their existing valid-price list.
+            unknown_points.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}", "close": None})
+            continue
         sessions.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}",
                          "open": r.get("open_price"), "high": r.get("high_price"),
                          "low": r.get("low_price"), "close": close,
@@ -329,11 +339,23 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
              and (formulas.to_number(p.get("close")) or 0) > 0
              and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
+    stored_dates = {str(r["trade_date"]) for r in rows
+                    if (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0}
+    for p in points:
+        stamp = str(p.get("date") or "")[:10]
+        traded = ((formulas.to_number(p.get("trading_volume")) or 0) > 0
+                  or (formulas.to_number(p.get("trading_value")) or 0) > 0)
+        gap = covered_from <= stamp <= covered_through and stamp.replace("-", "") not in stored_dates
+        unknown_newer = stamp > covered_through and (formulas.to_number(p.get("close")) or 0) <= 0
+        if traded and (gap or unknown_newer):
+            # Store precedence cannot turn an unresolved archive trade into an
+            # absent session and silently select an older return endpoint.
+            unknown_points.append({"date": stamp, "close": None})
     merged = sorted([*older, *sessions, *newer], key=lambda p: str(p.get("date") or ""))
     adjustments = list(data.get("adjustments") or [])
     known = {a.get("ex_date") for a in adjustments}
     adjustments.extend(a for a in applied if a.get("ex_date") not in known)
-    return {**data, "points": merged, "adjustments": adjustments,
+    return {**data, "points": merged, "unknown_points": unknown_points, "adjustments": adjustments,
             "store_from": covered_from, "store_through": covered_through}
 
 
