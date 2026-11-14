@@ -33,7 +33,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard} = 
   const knownContext = ['separate', 'consolidated'].includes(scope) && ['NSBU', 'MSFO'].includes(standard);
   const stocks = rows.filter(row => row.kind === 'stock');
   const reading = metric => {
-    const candidates = stocks.filter(row => row.metric_id === metric && row.cells?.[period]);
+    const candidates = stocks.filter(row => row.metric_id === metric);
     const [row] = candidates;
     const cell = row?.cells?.[period];
     const form = cell?.source_form || row?.source_form;
@@ -41,7 +41,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard} = 
     const cellScope = cell?.scope ?? row?.scope ?? scope;
     const cellStandard = cell?.standard ?? row?.standard ?? standard;
     const hasSource = knownContext && cellScope === scope && cellStandard === standard && form && version &&
-      cell.period_end === periodEnd && cell.currency && cell.unit_scale;
+      cell?.period_end === periodEnd && cell?.currency && cell.unit_scale;
     const source = hasSource ? JSON.stringify([form, version, cell.currency, String(cell.unit_scale)]) : null;
     return {...row, metric_id: metric, value: valueOf(cell), source, ambiguous: candidates.length > 1};
   };

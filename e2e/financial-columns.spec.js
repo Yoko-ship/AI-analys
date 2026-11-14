@@ -225,8 +225,13 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   const terminal = page.getByTestId('financial-columns');
   const sourceHint = terminal.getByText('Select an amount to inspect its source.', {exact: true});
   await expect(sourceHint).toBeVisible();
+  const search = terminal.getByRole('searchbox', {name: 'Search metrics'});
+  await search.fill('unmatched metric');
+  await expect(terminal.getByRole('link', {name: 'CSV'})).toHaveAttribute('href', /query=unmatched\+metric/);
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  await expect(search).toHaveCount(0);
+  await expect(terminal.getByRole('link', {name: 'CSV'})).not.toHaveAttribute('href', /query=unmatched/);
   await expect(sourceHint).toHaveCount(0);
   const periods = balance.getByRole('group', {name: 'Reporting period'});
   await expect(periods.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
@@ -255,6 +260,8 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await balance.screenshot({path: testInfo.outputPath('balance-pies.png')});
   await terminal.getByRole('button', {name: 'Table', exact: true}).click();
   await expect(balance).toHaveCount(0);
+  await expect(search).toHaveValue('unmatched metric');
+  await search.clear();
   await expect(terminal.locator('tr[data-metric="cash"]')).toBeVisible();
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   await terminal.getByRole('tab', {name: 'Original forms', exact: true}).click();

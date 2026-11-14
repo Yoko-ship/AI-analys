@@ -90,6 +90,10 @@ test('asset pies require a published total and reject invalid components without
   assert.equal(assets.reason, 'missing');
   assert.equal(assets.total, null);
   assert.ok(!assets.rows.some(row => row.metric_id === 'other_assets_difference'));
+  const absent = balanceComposition([row('total_assets', '100'), row('ppe', '20'), {...row('cash', '60'), cells: {}}], period).assets;
+  assert.equal(absent.reason, 'missing');
+  assert.equal(absent.total, null);
+  assert.ok(!absent.rows.some(row => row.metric_id === 'other_assets_difference'));
 });
 
 test('balance breakdown rejects blocked duplicates and unverified report context', () => {
