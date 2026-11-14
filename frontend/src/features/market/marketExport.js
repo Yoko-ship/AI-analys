@@ -1,4 +1,4 @@
-import {TECHNICAL_KEYS, TECHNICAL_PERCENT, isTechnical, technicalValue} from './technicalColumns.js';
+import {TECHNICAL_KEYS, TECHNICAL_PERCENT, technicalValue} from './technicalColumns.js';
 import { roundedDisplayValue } from "../../lib/format.js";
 import { changePeriodLabel } from "../../shared/marketPeriods.jsx";
 import { avgSharePrice, avgTradeValue, marketDisplayPrice } from "../../shared/marketModel.jsx";
@@ -145,9 +145,6 @@ export function createMarketExport({
         ].map(cell).join(sep));
       }
     }
-    if (cols.some(isTechnical)) {
-      for (const row of visibleRows) lines.push([`${row.ticker} · Technical`, technical[row.ticker]?.as_of || '', 'Daily sessions / split-adjusted'].map(cell).join(sep));
-    }
     const label = k => LABEL_OF[k] || k;
     const header = [mt(lang, "ticker"), mt(lang, "company"), ...cols.map(k => PCT_COLS.has(k) && !label(k).includes("%") ? `${label(k)}, %` : label(k))];
     lines.push(header.map(cell).join(sep));
@@ -162,7 +159,7 @@ export function createMarketExport({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `uzse_${type || "all"}_${windowed ? changePeriod : (stats.boardDay || "").slice(0, 8) || "latest"}.csv`;
+    a.download = `uzstock_${type || "all"}_${windowed ? changePeriod : (stats.boardDay || "").slice(0, 8) || "latest"}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();

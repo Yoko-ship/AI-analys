@@ -80,9 +80,11 @@ test('admin Technical columns support exact values, sorting and unfiltered CSV',
   await expect(page.getByTestId('technical-status')).toContainText('2026-11-06');
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:/Экспорт CSV/}).click()]);
   const csv=(await(await download.createReadStream()).toArray()).join('');
+  expect(download.suggestedFilename()).toMatch(/^uzstock_stock_.*\.csv$/);
+  expect(csv.split(/\r?\n/)[0]).toMatch(/^\uFEFF?UZStock /);
   expect(csv).toContain('SMA20');
   expect(csv).toContain('RSI (14)');
-  expect(csv).toContain('2026-11-06');
+  expect(csv).not.toMatch(/· Technical|Daily sessions \/ split-adjusted/);
   expect(csv).toContain('SQBNP;');
   expect(requests).toEqual(['Bearer technical-session']);
   await page.screenshot({path:testInfo.outputPath('technical-table.png')});
