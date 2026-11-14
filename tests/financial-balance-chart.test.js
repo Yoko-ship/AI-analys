@@ -41,9 +41,13 @@ test('balance pies reject duplicate readings and conflicting source contexts', (
   const equity = row('total_equity', '20');
   for (const [key, value] of Object.entries({source_form: 'F2', source_version: 'other', period_end: '2025-12-31', scope: 'consolidated', currency: 'USD', unit_scale: '1'})) {
     const other = {...equity, cells: {[period]: {...equity.cells[period], [key]: value}}};
-    assert.equal(balanceComposition([assets, liabilities, other], period).funding.reason, 'source', key);
+    const {funding} = balanceComposition([assets, liabilities, other], period);
+    assert.equal(funding.reason, 'source', key);
+    assert.equal(funding.rows[1].value, null, key);
   }
-  assert.equal(balanceComposition([assets, liabilities, equity, row('total_equity', '21')], period).funding.reason, 'source');
+  const duplicate = balanceComposition([assets, liabilities, equity, row('total_equity', '21')], period).funding;
+  assert.equal(duplicate.reason, 'source');
+  assert.equal(duplicate.rows[1].value, null);
   assert.equal(balanceComposition([assets, row('ppe', '20'), row('ppe', '21')], period).assets.reason, 'source');
 });
 

@@ -37,7 +37,7 @@ function piePath(start, share) {
 function PiePanel({id, title, data, period, format, t}) {
   const [inspected, setInspected] = React.useState(null);
   const label = row => LABELS[row.metric_id] ? t(...LABELS[row.metric_id]) : row.label;
-  const amount = row => row.unit ? `${format(row.value)} ${unitLabel(row.unit, t)}` : format(row.value);
+  const amount = row => row.value == null || !row.unit ? format(row.value) : `${format(row.value)} ${unitLabel(row.unit, t)}`;
   const describe = row => `${label(row)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
   const active = data.rows.find(row => row.metric_id === inspected);
   let angle = -Math.PI / 2;

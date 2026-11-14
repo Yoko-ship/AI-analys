@@ -26,7 +26,8 @@ function composition(rows, {value: total, unit, source, ambiguous}, mismatch = n
     else if (total === 0) reason = 'zero';
     else if (difference > roundingError) reason = 'inconsistent';
   }
-  return {rows, total: reason ? null : total, unit, reason};
+  const readings = reason === 'source' ? rows.map(row => ({...row, value: null, unit: null})) : rows;
+  return {rows: readings, total: reason ? null : total, unit, reason};
 }
 
 export function balanceComposition(rows, period, periodEnd, {scope, standard} = {}) {

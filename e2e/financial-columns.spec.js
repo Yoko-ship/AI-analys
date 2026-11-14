@@ -310,6 +310,24 @@ test('balance funding shows no aggregate when units differ', async ({page}) => {
   await expect(funding.getByRole('img')).toHaveCount(0);
 });
 
+test('balance legends withhold duplicate amounts and readings from another period', async ({page}) => {
+  const reports = structuredClone(recentReports);
+  const equity = reports.rows.find(row => row.metric_id === 'total_equity');
+  const duplicate = structuredClone(equity);
+  duplicate.id += '-duplicate';
+  duplicate.cells = {'2026-09-30': {...equity.cells['2026-09-30'], value: '999'}};
+  equity.cells['2025'].period_end = '2024-12-31';
+  reports.rows.push(duplicate);
+  await setup(page, {ticker: 'HMKB', func: 'BS', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const funding = terminal.locator('[data-balance-chart="funding"]');
+  const reading = funding.locator('[data-balance-value="total_equity"] strong');
+  await expect(reading).toHaveText('—');
+  await terminal.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(reading).toHaveText('—');
+});
+
 for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with individual and group toggles (${theme})`, async ({page}, testInfo) => {
   await setup(page, {ticker:'HMKB', func:'BS', reports:{...recentReports, rows: recentReports.overview_rows}, theme});
   const terminal=page.getByTestId('financial-columns');
