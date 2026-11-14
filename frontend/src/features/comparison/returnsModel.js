@@ -49,6 +49,8 @@ export function normalizeHistory(points, asOf = '2099-12-31') {
 function calculate(points, from, to, asOf) {
   const start = from + '-01';
   const endExclusive = shiftMonth(to,1) + '-01';
+  const lastDay = new Date(endExclusive+'T00:00:00Z');
+  lastDay.setUTCDate(0);
   const base = points.findLast(p => p.date < start) || null;
   const end = points.findLast(p => p.date >= start && p.date < endExclusive && p.date <= asOf) || null;
   const status = start > asOf ? 'future' : !end ? 'no_trades' : base?.ambiguous || end.ambiguous ? 'ambiguous' : !base ? 'no_base' : 'available';
@@ -56,7 +58,7 @@ function calculate(points, from, to, asOf) {
   return {value:Number.isFinite(value) ? value : null,status,base,end,
     stale:Boolean(base && base.date.slice(0,7) < shiftMonth(from,-1)),
     staleEnd:Boolean(end && end.date.slice(0,7) < (to < asOf.slice(0,7) ? to : asOf.slice(0,7))),
-    partial:asOf < endExclusive && asOf >= start,from,to};
+    partial:asOf < lastDay.toISOString().slice(0,10) && asOf >= start,from,to};
 }
 
 export function periodReturn(points, from, to, asOf) {

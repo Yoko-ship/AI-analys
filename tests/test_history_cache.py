@@ -142,6 +142,26 @@ def test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anc
         assert {a["kind"] for a in got["adjustments"]} == {"split", "bonus"}
     assert requests == list(instruments.values())
 
+    # Join the adjusted archive to nonempty stored history across ALSKOM's
+    # 2:1 split and 1:2 bonus. Both halves must be in today's UZS/share units.
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isins[0]: [
+        {"trade_date": "20250404", "close_price": 3000 if isins[0] == instruments["ALSM"] else 3300,
+         "quantity": 10, "turnover": 30000},
+        {"trade_date": "20251007", "close_price": 897 if isins[0] == instruments["ALSM"] else 1100,
+         "quantity": 20, "turnover": 22000},
+    ]})
+    subject_server_market_history._HISTORY_CACHE.clear()
+    for ticker in instruments:
+        got = asyncio.run(routes.api_price_history(ticker, months=240, include_unknown=True))
+        prices = {p["date"]: p["close"] for p in got["points"]}
+        before, after = (1495.0, 897.0) if ticker == "ALSM" else (3000.0, 1100.0)
+        assert got["isin"] == instruments[ticker]
+        assert prices["2025-04-03"] == pytest.approx(before / 3)  # archive half, once
+        assert prices["2025-04-04"] == (1000 if ticker == "ALSM" else 1100)  # store half, once
+        assert prices["2025-10-07"] == after  # post-action price is untouched
+        expected = 80.0 if ticker == "ALSM" else 10.0
+        assert (prices["2025-10-07"] / prices["2025-04-03"] - 1) * 100 == pytest.approx(expected)
+
     async def missing_anchor():
         return None
 

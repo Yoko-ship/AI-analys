@@ -202,3 +202,12 @@ test('a carry-forward-only month remains missing and exposes the actual baseline
   await expect(page.getByTestId('return-detail')).toContainText('2026-02-27');
   await expect(page.getByTestId('return-detail')).toContainText('Older baseline');
 });
+
+test('the last calendar day completes a monthly return',async({page})=>{
+  await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{ok:true,ticker:'HMKB',as_of:'2026-04-30',
+    points:histories.HMKB.map(([date,close])=>({date,close})),
+  }}));
+  await page.goto(url.replace('to=2026-05','to=2026-04'));
+  await expect(page.getByTestId('return-HMKB-2026-04')).toContainText('+10%');
+  await expect(page.getByTestId('return-HMKB-2026-04')).not.toContainText('*');
+});

@@ -100,3 +100,16 @@ test('a carry-forward-only month is missing and cannot refresh the baseline age'
   assert.equal(april.base.date,'2026-02-27');
   assert.equal(april.stale,true);
 });
+
+test('monthly and annual periods are complete on their final calendar date',()=>{
+  for(const [from,to,last,prior] of [
+    ['2026-04','2026-04','2026-04-30','2026-04-29'],
+    ['2026-01','2026-12','2026-12-31','2026-12-30'],
+    ['2024-02','2024-02','2024-02-29','2024-02-28'],
+    ['2025-02','2025-02','2025-02-28','2025-02-27'],
+  ]) {
+    const rows=[{date:from.slice(0,4)+'-01-01',close:100},{date:prior,close:110},{date:last,close:120}];
+    assert.equal(periodReturn(rows,from,to,last).partial,false);
+    assert.equal(periodReturn(rows,from,to,prior).partial,true);
+  }
+});
