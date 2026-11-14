@@ -402,6 +402,26 @@ def test_conflicting_share_disclosures_are_withheld_until_explicit_replacement(b
     second = share_disclosures.record(changed, actor='reviewer', reason='Explicit correction', replace=True)
     assert first != second
 
+
+@pytest.mark.parametrize('full_period_is_stored', [True, False])
+def test_nested_period_rights_conflict_blocks_eps(biok_report, tmp_path, monkeypatch, full_period_is_stored):
+    from financial_columns import share_disclosures
+
+    full_period = share_basis()
+    short_period = {**full_period, 'period_start': '2024-07-01', 'ordinary_only': False,
+                    'source_url': 'https://example.org/test-only-conflicting-rights'}
+    stored, reviewed = (full_period, short_period) if full_period_is_stored else (short_period, full_period)
+    path = tmp_path / 'reviewed.json'
+    path.write_text(json.dumps([reviewed]), encoding='utf-8')
+    monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
+    import_basis(stored)
+
+    assert share_disclosures.read('396', 'BIOK', '2024-12-31', 'separate') is None
+    assert metrics(biok_report)['eps_basic']['value'] is None
+
+    share_disclosures.record(full_period, actor='reviewer', reason='Reconciled nested period rights', replace=True)
+    assert metrics(biok_report)['eps_basic']['value'] == pytest.approx(26037647 * 1000 / 5713280)
+
 def test_biok_exchange_identity_matches_the_source_issuer():
     from entity_resolver import resolve_security
     assert resolve_security({'ticker': 'BIOK', 'isin': 'UZ7025870005'})['org_id'] == '396'

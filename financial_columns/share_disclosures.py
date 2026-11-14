@@ -136,12 +136,15 @@ def _conflicts(stored, reviewed):
     if all('ordinary_shares' in data for data in (stored, reviewed)):
         if Decimal(stored['ordinary_shares']) != Decimal(reviewed['ordinary_shares']):
             return True
-    if stored['period_start'] != reviewed['period_start']:
-        return False
-    return ((all('weighted_average_shares' in data for data in (stored, reviewed))
-             and Decimal(stored['weighted_average_shares']) != Decimal(reviewed['weighted_average_shares']))
-            or (all('ordinary_only' in data for data in (stored, reviewed))
-                and stored['ordinary_only'] != reviewed['ordinary_only']))
+    # Records share an end date. A true assertion covers shorter periods;
+    # a false one only states that the rights differed somewhere in its period.
+    for wider, shorter in ((stored, reviewed), (reviewed, stored)):
+        if (wider['period_start'] <= shorter['period_start']
+                and wider.get('ordinary_only') is True and shorter.get('ordinary_only') is False):
+            return True
+    return (stored['period_start'] == reviewed['period_start']
+            and all('weighted_average_shares' in data for data in (stored, reviewed))
+            and Decimal(stored['weighted_average_shares']) != Decimal(reviewed['weighted_average_shares']))
 
 
 def _has_eps_basis(data):
