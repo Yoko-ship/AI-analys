@@ -21,6 +21,7 @@ const REASONS = {
   units: ['Единицы измерения не совпадают.', 'O‘lchov birliklari mos kelmaydi.', 'The measurement units do not match.'],
   zero: ['Итог равен нулю. Доли не определены.', 'Jami nolga teng. Ulushlar aniqlanmagan.', 'The total is zero. Shares are undefined.'],
   inconsistent: ['Составляющие превышают итог баланса.', 'Tarkibiy qismlar balans jamidan oshib ketgan.', 'Components exceed the balance total.'],
+  unreconciled: ['Обязательства и капитал не сходятся с итогом активов.', 'Majburiyatlar va kapital aktivlar jamiga mos kelmaydi.', 'Liabilities and equity do not reconcile to total assets.'],
 };
 const unitLabel = (unit, t) => unit === 'UZS_thousand' ? t('тыс. UZS', 'ming UZS', 'thousands UZS') : unit;
 
@@ -34,13 +35,13 @@ function piePath(start, share) {
 function PiePanel({id, title, data, period, format, t}) {
   const [inspected, setInspected] = React.useState(null);
   const label = row => LABELS[row.metric_id] ? t(...LABELS[row.metric_id]) : row.label;
-  const amount = row => `${format(row.value)} ${unitLabel(row.unit, t)}`;
+  const amount = row => row.unit ? `${format(row.value)} ${unitLabel(row.unit, t)}` : format(row.value);
   const describe = row => `${label(row)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
   const active = data.rows.find(row => row.metric_id === inspected);
   let angle = -Math.PI / 2;
   return <div className="fc-chart-plot fc-balance-pie" data-balance-chart={id}>
     <h3 className="fc-balance-title">{title}</h3>
-    <p className="fc-balance-total">{format(data.total)} <small>{unitLabel(data.unit, t)}</small></p>
+    <p className="fc-balance-total">{data.total == null ? '—' : <>{format(data.total)} <small>{unitLabel(data.unit, t)}</small></>}</p>
     {data.reason ? <p className="fc-balance-unavailable" role="status">{t(...REASONS[data.reason])}</p> : <>
       <svg viewBox="0 0 280 280" role="img" aria-label={`${title} · ${period.label} · Pie chart`}>
         {data.rows.map((row, index) => {

@@ -39,14 +39,32 @@ test('unavailable, negative and incompatible funding values keep their reported 
     ['-20', 'warn', 'UZS_thousand', 'negative'],
     ['20', 'valid', 'UZS', 'units'],
   ]) {
-    const {funding} = balanceComposition([row('total_liabilities', '80'), row('total_equity', value, quality, unit)], period);
+    const {funding} = balanceComposition([row('total_assets', '80'), row('total_liabilities', '80'), row('total_equity', value, quality, unit)], period);
     assert.equal(funding.reason, reason);
+    assert.equal(funding.total, null);
     assert.equal(funding.rows[1].value, quality === 'blocked' ? null : value == null ? null : Number(value));
   }
-  const {funding} = balanceComposition([row('total_liabilities', '80'), row('total_equity', '0')], period);
+  const {funding} = balanceComposition([row('total_assets', '80'), row('total_liabilities', '80'), row('total_equity', '0')], period);
   assert.equal(funding.reason, null);
   assert.equal(funding.rows[1].value, 0);
-  assert.equal(balanceComposition([row('total_liabilities', '0'), row('total_equity', '0')], period).funding.reason, 'zero');
+  assert.equal(balanceComposition([row('total_assets', '0'), row('total_liabilities', '0'), row('total_equity', '0')], period).funding.reason, 'zero');
+});
+
+test('funding needs a published assets total and reconciles in the same known unit', () => {
+  const liabilities = row('total_liabilities', '80');
+  const equity = row('total_equity', '30');
+  for (const [rows, reason] of [
+    [[liabilities, equity], 'missing'],
+    [[row('total_assets', '100'), liabilities, equity], 'unreconciled'],
+    [[row('total_assets', '120'), liabilities, equity], 'unreconciled'],
+    [[row('total_assets', '110'), liabilities, {...equity, unit: undefined}], 'units'],
+    [[row('total_assets', '110', 'valid', 'shares'), {...liabilities, unit: 'shares'}, {...equity, unit: 'shares'}], 'units'],
+  ]) {
+    const {funding} = balanceComposition(rows, period);
+    assert.equal(funding.reason, reason);
+    assert.equal(funding.total, null);
+  }
+  assert.equal(balanceComposition([row('total_assets', '100'), {...row('ppe', '20'), unit: undefined}], period).assets.reason, 'units');
 });
 
 test('asset pies require a published total and reject invalid components without inventing totals', () => {

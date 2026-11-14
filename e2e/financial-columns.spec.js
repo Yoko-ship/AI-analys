@@ -268,6 +268,8 @@ test('balance pies explain blocked totals, preserve negative equity and allow ze
   const reports = structuredClone(recentReports);
   const equity = reports.rows.find(row => row.metric_id === 'total_equity');
   equity.cells['2024'] = {value: '0', quality: 'valid'};
+  reports.rows.find(row => row.metric_id === 'total_liabilities').cells['2024'].value =
+    reports.rows.find(row => row.metric_id === 'total_assets').cells['2024'].value;
   equity.cells['2025'] = {value: '-6704709904', quality: 'warn'};
   equity.cells['2026-09-30'] = {value: '8185132247', quality: 'blocked'};
   await setup(page, {ticker: 'HMKB', func: 'BS', reports});
@@ -287,6 +289,18 @@ test('balance pies explain blocked totals, preserve negative equity and allow ze
   await expect(funding.getByRole('img')).toBeVisible();
   await expect(funding.locator('[data-pie-slice="total_equity"]')).toHaveCount(0);
   await expect(funding.locator('[data-balance-value="total_equity"]')).toContainText('0');
+});
+
+test('balance funding shows no aggregate when units differ', async ({page}) => {
+  const reports = structuredClone(recentReports);
+  reports.rows.find(row => row.metric_id === 'total_equity').unit = 'UZS';
+  await setup(page, {ticker: 'HMKB', func: 'BS', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const funding = terminal.locator('[data-balance-chart="funding"]');
+  await expect(funding.getByRole('status')).toContainText('units do not match');
+  await expect(funding.locator('.fc-balance-total')).toHaveText('—');
+  await expect(funding.getByRole('img')).toHaveCount(0);
 });
 
 for (const theme of ['light', 'dark']) test(`HMKB chart shows all metrics with individual and group toggles (${theme})`, async ({page}, testInfo) => {
