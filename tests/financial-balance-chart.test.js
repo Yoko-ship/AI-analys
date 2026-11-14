@@ -8,7 +8,7 @@ const period = '2026-09-30';
 const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) => compose(rows, key, end, context);
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
-  cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000'}},
+  cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: unit === 'UZS' ? '1' : '1000'}},
 });
 
 test('HMKB balance pies use net loans once and published funding totals', () => {
@@ -115,4 +115,24 @@ test('decimal statement values do not create false reconciliation errors', () =>
   const {assets} = balanceComposition([row('total_assets', '0.3'), row('noncurrent_assets', '0.1'), row('current_assets', '0.2')], period);
   assert.equal(assets.reason, null);
   assert.equal(assets.rows.length, 2);
+});
+
+test('invalid source readings stay hidden alongside missing inputs or incompatible units', () => {
+  const total = row('total_assets', '100');
+  const stale = row('total_equity', '20');
+  stale.cells[period].period_end = '2024-12-31';
+  for (const liabilities of [[], [row('total_liabilities', '80', 'valid', 'UZS')]]) {
+    assert.equal(balanceComposition([total, ...liabilities, stale], period).funding.rows[1].value, null);
+  }
+});
+
+test('source currency and scale must substantiate the displayed amount', () => {
+  const funding = metadata => balanceComposition([
+    row('total_assets', '100'), row('total_liabilities', '80'), row('total_equity', '20'),
+  ].map(row => ({...row, cells: {[period]: {...row.cells[period], ...metadata(Number(row.cells[period].value))}}})), period).funding;
+  assert.equal(funding(() => ({currency: 'USD'})).reason, 'source');
+  assert.equal(funding(value => ({unit_scale: '1', raw_value: value})).reason, 'source');
+  assert.equal(funding(value => ({unit_scale: '1000000', raw_value: value / 1000})).reason, null);
+  assert.equal(funding(value => ({currency: 'USD', raw_value: value / 10000,
+    fx: {currency: 'USD', as_of: period, rate: 10000}})).reason, null);
 });

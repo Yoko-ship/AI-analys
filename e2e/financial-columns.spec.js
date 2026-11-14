@@ -274,10 +274,11 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
 test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {
   const reports = structuredClone(recentReports);
   const equity = reports.rows.find(row => row.metric_id === 'total_equity');
-  equity.cells['2024'] = {...equity.cells['2024'], value: '0', quality: 'valid'};
-  reports.rows.find(row => row.metric_id === 'total_liabilities').cells['2024'].value =
-    reports.rows.find(row => row.metric_id === 'total_assets').cells['2024'].value;
-  equity.cells['2025'] = {...equity.cells['2025'], value: '-6704709904', quality: 'warn'};
+  equity.cells['2024'] = {...equity.cells['2024'], value: '0', raw_value: '0', quality: 'valid'};
+  const liabilities = reports.rows.find(row => row.metric_id === 'total_liabilities').cells['2024'];
+  const assets = reports.rows.find(row => row.metric_id === 'total_assets').cells['2024'];
+  Object.assign(liabilities, {value: assets.value, raw_value: assets.raw_value});
+  equity.cells['2025'] = {...equity.cells['2025'], value: '-6704709904', raw_value: '-6704709904', quality: 'warn'};
   equity.cells['2026-09-30'] = {...equity.cells['2026-09-30'], value: '8185132247', quality: 'blocked'};
   await setup(page, {ticker: 'HMKB', func: 'BS', reports});
   const terminal = page.getByTestId('financial-columns');
@@ -300,7 +301,9 @@ test('balance pies explain blocked totals, preserve negative equity and allow ze
 
 test('balance funding shows no aggregate when units differ', async ({page}) => {
   const reports = structuredClone(recentReports);
-  reports.rows.find(row => row.metric_id === 'total_equity').unit = 'UZS';
+  const equity = reports.rows.find(row => row.metric_id === 'total_equity');
+  equity.unit = 'UZS';
+  equity.cells['2026-09-30'].value = String(Number(equity.cells['2026-09-30'].raw_value) * 1000);
   await setup(page, {ticker: 'HMKB', func: 'BS', reports});
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
