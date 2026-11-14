@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {balanceComposition} from '../frontend/src/features/company/financialBalanceChart.js';
+import {balanceComposition as compose} from '../frontend/src/features/company/financialBalanceChart.js';
 
 const reports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 const period = '2026-09-30';
+const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) => compose(rows, key, end, context);
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
   cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000'}},
@@ -86,8 +87,20 @@ test('asset pies require a published total and reject invalid components without
   assert.equal(balanceComposition([row('total_assets', '100'), row('ppe', '-1')], period).assets.reason, 'negative');
   assert.equal(balanceComposition([row('total_assets', '100'), row('ppe', '101')], period).assets.reason, 'inconsistent');
   const {assets} = balanceComposition([row('total_assets', '100'), row('ppe', '20'), row('cash', '60', 'blocked')], period);
-  assert.equal(assets.rows.find(row => row.metric_id === 'other_assets_difference').value, 80);
-  assert.ok(!assets.rows.some(row => row.metric_id === 'cash'));
+  assert.equal(assets.reason, 'missing');
+  assert.equal(assets.total, null);
+  assert.ok(!assets.rows.some(row => row.metric_id === 'other_assets_difference'));
+});
+
+test('balance breakdown rejects blocked duplicates and unverified report context', () => {
+  const assets = row('total_assets', '100');
+  const equity = row('total_equity', '20');
+  const rows = [assets, row('total_liabilities', '80'), equity];
+  assert.equal(balanceComposition([...rows, row('total_assets', '90', 'blocked')], period).funding.reason, 'source');
+  assert.equal(balanceComposition([assets, row('ppe', '20'), row('ppe', '30', 'blocked')], period).assets.reason, 'source');
+  for (const context of [{}, {scope:'unknown',standard:'NSBU'}, {scope:'separate',standard:'IFRS'}, {scope:'consolidated',standard:'NSBU'}]) {
+    assert.equal(balanceComposition(rows, period, period, context).funding.reason, 'source');
+  }
 });
 
 test('decimal statement values do not create false reconciliation errors', () => {

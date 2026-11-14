@@ -29,23 +29,29 @@ function composition(rows, {value: total, unit, source, ambiguous}, mismatch = n
   return {rows, total: reason ? null : total, unit, reason};
 }
 
-export function balanceComposition(rows, period, periodEnd = period) {
+export function balanceComposition(rows, period, periodEnd, {scope, standard} = {}) {
+  const knownContext = ['separate', 'consolidated'].includes(scope) && ['NSBU', 'MSFO'].includes(standard);
   const stocks = rows.filter(row => row.kind === 'stock');
   const reading = metric => {
-    const candidates = stocks.filter(row => row.metric_id === metric && valueOf(row.cells?.[period]) != null);
+    const candidates = stocks.filter(row => row.metric_id === metric && row.cells?.[period]);
     const [row] = candidates;
     const cell = row?.cells?.[period];
     const form = cell?.source_form || row?.source_form;
     const version = cell?.source_version || cell?.source_url;
-    const hasSource = form && version && cell.period_end === periodEnd && cell.currency && cell.unit_scale;
-    const source = hasSource ? JSON.stringify([form, version, cell.period_end, cell.scope ?? row.scope,
-      cell.standard ?? row.standard, cell.currency, String(cell.unit_scale)]) : null;
+    const cellScope = cell?.scope ?? row?.scope ?? scope;
+    const cellStandard = cell?.standard ?? row?.standard ?? standard;
+    const hasSource = knownContext && cellScope === scope && cellStandard === standard && form && version &&
+      cell.period_end === periodEnd && cell.currency && cell.unit_scale;
+    const source = hasSource ? JSON.stringify([form, version, cell.currency, String(cell.unit_scale)]) : null;
     return {...row, metric_id: metric, value: valueOf(cell), source, ambiguous: candidates.length > 1};
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
-  const components = ASSET_COMPONENTS.map(aliases => aliases.map(reading).find(row => row.value != null)).filter(Boolean);
-  const hasSections = sections.every(row => row.value != null);
+  const components = ASSET_COMPONENTS.map(aliases => {
+    const readings = aliases.map(reading);
+    return readings.find(row => row.id);
+  }).filter(Boolean);
+  const hasSections = sections.every(row => row.id);
   const assetRows = hasSections ? sections : components;
   const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);
   if (!assets.reason) {
