@@ -257,6 +257,10 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
                           months))
         if data is None and not merged.get("points"):
             raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
+        if data is None:
+            # Legacy charts can display available stored quotes. Returns need
+            # both sources; don't cache this fallback as a complete archive.
+            return {**merged, "archive_unavailable": True}
         data = merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
@@ -335,7 +339,8 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
              and (formulas.to_number(p.get("close")) or 0) > 0
              and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
-    stored_dates = {str(r["trade_date"]) for r in rows}
+    stored_dates = {str(r["trade_date"]) for r in rows
+                    if (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0}
     for p in points:
         stamp = str(p.get("date") or "")[:10]
         traded = ((formulas.to_number(p.get("trading_volume")) or 0) > 0

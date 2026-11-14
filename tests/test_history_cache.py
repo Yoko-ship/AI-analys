@@ -218,3 +218,30 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     subject_server_market_history._HISTORY_CACHE.clear()
     got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
     assert ("2026-02-27", None) in [(p["date"], p["close"]) for p in got["points"]]
+
+    # A stored carry-forward is not evidence that the archive's trade did not
+    # happen. A conflicting no-trade row must preserve the same uncertainty.
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260130", "close_price": 57.8, "quantity": 10, "turnover": 578},
+        {"trade_date": "20260227", "close_price": 57.8, "quantity": 0, "turnover": 0},
+        {"trade_date": "20260302", "close_price": 60, "quantity": 10, "turnover": 600},
+    ]})
+    subject_server_market_history._HISTORY_CACHE.clear()
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert ("2026-02-27", None) in [(p["date"], p["close"]) for p in got["points"]]
+
+    # Store-only fallback remains useful to legacy charts, but cannot establish
+    # complete return endpoints when the archive is unavailable. Recovery must
+    # retry the source rather than cache a partial series as a successful one.
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("archive unavailable")
+
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", unavailable)
+    subject_server_market_history._HISTORY_CACHE.clear()
+    legacy = asyncio.run(routes.api_price_history("HMKB", months=240))
+    assert legacy["ok"] and legacy["points"]
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert got["ok"] is False and got["points"] == []
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", feed)
+    recovered = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert recovered["ok"] is True
