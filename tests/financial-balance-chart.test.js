@@ -8,7 +8,8 @@ const period = '2026-09-30';
 const balanceComposition = (rows, key, end = key, context = {scope: 'separate', standard: 'NSBU'}) => compose(rows, key, end, context);
 const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
   id: metric_id, metric_id, label: metric_id, kind: 'stock', source_form: 'F1', unit,
-  cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: unit === 'UZS' ? '1' : '1000'}},
+  cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000',
+    ...(unit === 'UZS' && {raw_value: Number(value) / 1000})}},
 });
 
 test('HMKB balance pies use net loans once and published funding totals', () => {
@@ -135,4 +136,27 @@ test('source currency and scale must substantiate the displayed amount', () => {
   assert.equal(funding(value => ({unit_scale: '1000000', raw_value: value / 1000})).reason, null);
   assert.equal(funding(value => ({currency: 'USD', raw_value: value / 10000,
     fx: {currency: 'USD', as_of: period, rate: 10000}})).reason, null);
+});
+
+test('matching totals cannot hide different FX rates or filing versions', () => {
+  const converted = (metric, raw, rate) => {
+    const reading = row(metric, raw * rate);
+    Object.assign(reading.cells[period], {raw_value: raw, currency: 'USD', fx: {currency: 'USD', as_of: period, rate}});
+    return reading;
+  };
+  const mixedRates = balanceComposition([
+    converted('total_assets', 100, 10), converted('total_liabilities', 80, 9), converted('total_equity', 20, 14),
+  ], period).funding;
+  assert.equal(mixedRates.reason, 'source');
+  assert.equal(mixedRates.total, null);
+  assert.ok(mixedRates.rows.every(reading => reading.value == null));
+
+  const total = row('total_assets', 100);
+  const equity = row('total_equity', 20);
+  equity.cells[period].source_version = 'another-filing';
+  for (const liabilities of [[], [row('total_liabilities', 80, 'valid', 'UZS')]]) {
+    const funding = balanceComposition([total, ...liabilities, equity], period).funding;
+    assert.equal(funding.reason, 'source');
+    assert.equal(funding.rows[1].value, null);
+  }
 });

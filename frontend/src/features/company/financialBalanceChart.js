@@ -2,15 +2,16 @@ const valueOf = cell => cell?.value != null && cell.value !== '' &&
   ['valid', 'warn'].includes(cell.quality) && Number.isFinite(Number(cell.value)) ? Number(cell.value) : null;
 const DISPLAY_SCALES = new Map([['UZS', 1], ['UZS_thousand', 1000]]);
 
-function matchesDisplayAmount(cell, unit, value, periodEnd) {
+function conversionFor(cell, unit, value, periodEnd) {
   const displayScale = DISPLAY_SCALES.get(unit);
   const sourceScale = Number(cell.unit_scale);
   const fx = cell.fx;
   const rate = cell.currency === 'UZS' ? 1 : fx?.currency === cell.currency && fx?.as_of === periodEnd ? Number(fx.rate) : 0;
-  if (!displayScale || !Number.isFinite(sourceScale) || sourceScale <= 0 || !Number.isFinite(rate) || rate <= 0) return false;
-  if (cell.raw_value == null || cell.raw_value === '') return sourceScale === displayScale && rate === 1 && cell.currency === 'UZS';
+  if (!displayScale || !Number.isFinite(sourceScale) || sourceScale <= 0 || !Number.isFinite(rate) || rate <= 0) return null;
+  if (cell.raw_value == null || cell.raw_value === '') return sourceScale === displayScale && cell.currency === 'UZS' ? [sourceScale, 1] : null;
   const normalized = Number(cell.raw_value) * sourceScale * rate / displayScale;
-  return Number.isFinite(normalized) && Math.abs(normalized - value) <= Number.EPSILON * 4 * Math.max(Math.abs(value), Math.abs(normalized));
+  if (!Number.isFinite(normalized) || Math.abs(normalized - value) > Number.EPSILON * 4 * Math.max(Math.abs(value), Math.abs(normalized))) return null;
+  return cell.currency === 'UZS' ? [sourceScale, 1] : [sourceScale, rate, fx.as_of, fx.source, fx.source_url];
 }
 
 // These are disjoint net asset categories. Gross amounts, allowances and
@@ -24,11 +25,11 @@ const ASSET_COMPONENTS = [
 
 function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
   let reason = null;
-  if (sourceError || rows.some(row => row.sourceError)) reason = 'source';
+  const sources = new Set([source, ...rows.map(row => row.source)].filter(Boolean));
+  if (sourceError || rows.some(row => row.sourceError) || sources.size > 1) reason = 'source';
   else if (unitError || rows.some(row => row.unitError)) reason = 'units';
   else if (total == null || !rows.length || rows.some(row => row.value == null)) reason = 'missing';
   else if (rows.some(row => row.unit !== unit)) reason = 'units';
-  else if (!source || rows.some(row => row.source !== source)) reason = 'source';
   else if (total < 0 || rows.some(row => row.value < 0)) reason = 'negative';
   else {
     const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
@@ -54,11 +55,11 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard} = 
     const version = cell?.source_version || cell?.source_url;
     const cellScope = cell?.scope ?? row?.scope ?? scope;
     const cellStandard = cell?.standard ?? row?.standard ?? standard;
-    const hasSource = knownContext && cellScope === scope && cellStandard === standard && form && version &&
-      cell?.period_end === periodEnd && cell?.currency && matchesDisplayAmount(cell, row.unit, value, periodEnd);
-    const source = hasSource ? JSON.stringify([form, version, cell.currency, String(cell.unit_scale)]) : null;
+    const conversion = value != null && knownContext && cellScope === scope && cellStandard === standard && form && version &&
+      cell?.period_end === periodEnd && cell?.currency && conversionFor(cell, row.unit, value, periodEnd);
+    const source = conversion ? JSON.stringify([form, version, cell.currency, ...conversion]) : null;
     const unitError = value != null && !DISPLAY_SCALES.has(row?.unit);
-    const sourceError = candidates.length > 1 || (value != null && !unitError && !hasSource);
+    const sourceError = candidates.length > 1 || (value != null && !unitError && !source);
     return {...row, metric_id: metric, value: sourceError || unitError ? null : value, source, sourceError, unitError};
   };
   const totalAssets = reading('total_assets');
