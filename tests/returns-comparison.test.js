@@ -58,3 +58,11 @@ test('returns URLs round trip and validate dates, duplicate tickers and display 
   assert.equal(readReturns('?from=2026-13&to=garbage').from,'');
   assert.equal(readReturns('?layout=evil').layout,'heatmap');
 });
+
+test('conflicting same-day prices reject the series in either order, while identical duplicates are safe', () => {
+  const conflict=[...points,{date:'20260130',close:125}];
+  for(const rows of [conflict,[...conflict].reverse()]) {
+    assert.throws(()=>normalizeHistory(rows),/Conflicting close/);
+  }
+  assert.deepEqual(normalizeHistory([...points,{date:'20260130',close:120}]),points);
+});

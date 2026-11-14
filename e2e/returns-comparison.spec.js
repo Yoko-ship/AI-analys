@@ -58,7 +58,7 @@ test('selection, empty histories, date validation, keyboard details and phone la
 });
 test('history errors can be retried without hiding the other instrument',async({page})=>{
   let failed=true;
-  await page.route('**/api/price-history/HMKB?**',route=>failed?route.fulfill({status:502,json:{ok:false}}):route.fulfill({json:{ok:true,as_of:'2026-05-12',points:histories.HMKB.map(([date,close])=>({date,close}))}}));
+  await page.route('**/api/price-history/HMKB?**',route=>failed?route.fulfill({status:502,json:{ok:false}}):route.fulfill({json:{ok:true,ticker:'HMKB',as_of:'2026-05-12',points:histories.HMKB.map(([date,close])=>({date,close}))}}));
   await page.goto(url);
   await expect(page.getByRole('alert')).toContainText('HMKB');
   await expect(page.getByTestId('return-IPKY-2026-01')).toContainText('+10%');
@@ -130,4 +130,17 @@ test('a partial first year shows its selected month immediately on a phone',asyn
   const box=await december.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x+box.width).toBeLessThanOrEqual(390);
+});
+
+for(const [index,invalid] of [
+  {ticker:undefined}, {ticker:'HMKBP'}, {as_of:undefined}, {as_of:'2026-02-31'},
+  {points:[...histories.HMKB,['2026-01-30',125]].map(([date,close])=>({date,close}))},
+].entries()) test(`unverified history is retryable and cannot truncate another company (${index})`,async({page})=>{
+  await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{
+    ok:true,ticker:'HMKB',as_of:'2026-05-12',points:[{date:'2026-01-30',close:120}],...invalid,
+  }}));
+  await page.goto(url);
+  await expect(page.getByRole('alert')).toContainText('HMKB');
+  await expect(page.getByTestId('return-IPKY-2026-05')).toContainText('+4.17%');
+  await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('—');
 });

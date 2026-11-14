@@ -33,6 +33,7 @@ export function normalizeHistory(points, asOf = '2099-12-31') {
     const parsed = new Date(date + 'T00:00:00Z');
     if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) continue;
     if (typeof p.close !== 'number' || !Number.isFinite(p.close) || p.close <= 0) continue;
+    if (dates.has(date) && dates.get(date).close !== p.close) throw new Error('Conflicting close for '+date);
     dates.set(date, {date,close:p.close});
   }
   return [...dates.values()].sort((a,b) => a.date.localeCompare(b.date));

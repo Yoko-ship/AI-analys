@@ -92,3 +92,58 @@ def test_the_card_history_carries_the_session_openinfo_has_not_published(monkeyp
     assert (last["close"], last["trading_volume"], last["trading_value"]) == (
         5656.33, 1717.0, 9683773.54)
     assert archive["points"][-1]["date"] == "2026-10-09", "the archive itself is not rewritten"
+
+
+def test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anchor(monkeypatch):
+    """Exercise the real resolver, collector, adjustment and response mapping.
+
+    ALSM's real pre-recapitalisation 1,495 UZS becomes 1,495 / 3 UZS
+    per current share. The preferred-class sample deliberately uses different
+    prices so an issuer-level lookup or cache collision cannot pass this test.
+    """
+    from datetime import date
+    import pytest
+    import server.company.history_routes as routes
+    import securities_catalog
+    import catalogue.market_store as store
+
+    instruments = {"ALSM": "UZ7045320007", "ALSMP": "UZ704532K019"}
+    requests = []
+    monkeypatch.setattr(securities_catalog, "get_securities_map",
+                        lambda: {t: {"isin": i} for t, i in instruments.items()})
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {})
+
+    def feed(client, path, params):
+        assert path == "/iuzse/conclusions/"
+        requests.append(params["isu_cd"])
+        ticker = next(t for t, i in instruments.items() if i == params["isu_cd"])
+        before, after = (1495.0, 897.0) if ticker == "ALSM" else (3000.0, 1100.0)
+        return {"ticker": ticker, "results": [
+            {"date": "2025-04-03", "close": before, "trading_volume": 10, "trading_value": before * 10},
+            {"date": "2025-10-07", "close": after, "trading_volume": 20, "trading_value": after * 20},
+        ]}
+
+    async def anchor():
+        return date(2026, 11, 13)  # Market session, not this instrument's last trade.
+
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", feed)
+    monkeypatch.setattr(subject_server_market_history, "_market_as_of", anchor)
+    subject_server_market_history._HISTORY_CACHE.clear()
+    subject_server_market_history._HISTORY_LOCKS.clear()
+    for ticker, isin in instruments.items():
+        got = asyncio.run(routes.api_price_history(ticker.lower(), months=240))
+        before, after = (1495.0, 897.0) if ticker == "ALSM" else (3000.0, 1100.0)
+        assert got["ok"] and got["ticker"] == ticker and got["isin"] == isin
+        assert got["as_of"] == "2026-11-13"
+        assert got["points"][0]["close"] == pytest.approx(before / 3)
+        assert got["points"][1]["close"] == after
+        assert got["points"][0]["value"] == before * 10  # UZS turnover never rescales.
+        assert got["points"][0]["volume"] == 10
+        assert {a["kind"] for a in got["adjustments"]} == {"split", "bonus"}
+    assert requests == list(instruments.values())
+
+    async def missing_anchor():
+        return None
+
+    monkeypatch.setattr(subject_server_market_history, "_market_as_of", missing_anchor)
+    assert asyncio.run(routes.api_price_history("ALSM", months=240))["as_of"] is None

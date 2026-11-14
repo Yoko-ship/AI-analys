@@ -102,6 +102,15 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     record, and a 60-month clamp would quietly serve five years under that label
     the moment an issuer's history grew past it. The archive answers with what
     exists, so asking for more than a security has costs nothing.
+
+    Stock-return contract: ticker resolves to its exact share-class ISIN, never
+    an issuer aggregate. Closes are UZS per share, with recorded split/bonus
+    actions already applied once by the archive collector and stored-session
+    merger; cash dividends are excluded. No currency conversion or presentation
+    scaling is applied here. `as_of` is the authoritative market session, and
+    remains null when unavailable: consumers must not substitute a stale last
+    trade. See test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anchor
+    for an integration check through the actual resolver, collector and mapper.
     """
     ticker = ticker.upper()
     months = max(1, min(months, 240))

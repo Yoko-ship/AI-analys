@@ -28,10 +28,15 @@ export function useReturnsData(tickers, apiFetch) {
       apiFetch(`/api/price-history/${encodeURIComponent(ticker)}?months=240`,{signal:controller.signal})
         .then(async r => {
           const body=await r.json();
-          if(!r.ok || !body.ok || !Array.isArray(body.points) || (body.ticker && body.ticker!==ticker))throw new Error('history');
-          const marketDate=/^20\d{2}-\d{2}-\d{2}$/.test(body.as_of) ? body.as_of : undefined;
+          if(!r.ok || !body.ok || !Array.isArray(body.points) || body.ticker!==ticker)throw new Error('history');
+          // The endpoint contract is exercised through the real resolver and
+          // collector in test_history_cache.py. Never replace a market anchor
+          // with an illiquid instrument's older last-trade date.
+          const marketDate=body.as_of;
+          const date=new Date(marketDate+'T00:00:00Z');
+          if(!/^20\d{2}-\d{2}-\d{2}$/.test(marketDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10)!==marketDate)throw new Error('market date');
           const points=normalizeHistory(body.points,marketDate);
-          return {status:'ready',points,asOf:marketDate || points.at(-1)?.date,adjustments:body.adjustments || []};
+          return {status:'ready',points,asOf:marketDate};
         })
         .then(data => {
           if(controller.signal.aborted)return;
