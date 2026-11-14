@@ -174,3 +174,20 @@ test('each comparison view retains its nondefault settings on a round trip',asyn
   await expect(page.getByRole('button',{name:'Annual',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(page.getByRole('button',{name:'Relative',exact:true})).toHaveAttribute('aria-pressed','true');
 });
+
+test('a late market anchor invalidates a previously selected calculation',async({page})=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/price-history/IPKY?**',async route=>{
+    await gate;
+    await route.fulfill({json:{ok:true,ticker:'IPKY',as_of:'2026-04-30',
+      points:histories.IPKY.map(([date,close])=>({date,close})),adjustments:[]}});
+  });
+  await page.goto(url);
+  await page.getByTestId('return-HMKB-2026-05').click();
+  await expect(page.getByTestId('return-detail')).toContainText('108.9');
+  release();
+  await expect(page.getByTestId('return-HMKB-2026-05')).toContainText('—');
+  await expect(page.getByTestId('return-detail')).not.toContainText('108.9');
+  await expect(page.getByTestId('return-detail')).toContainText('Select a cell');
+});

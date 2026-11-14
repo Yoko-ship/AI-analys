@@ -31,6 +31,7 @@ export function ReturnsComparison({language='ru',apiFetch=fetch,Picker}) {
     return () => window.removeEventListener('popstate',restore);
   },[]);
   const results = useMemo(()=>Object.fromEntries(state.tickers.map(t=>[t,asOf && !invalid && !tooLong ? buildReturns(histories[t]?.points,from,to,asOf) : {months:{},years:{},total:null}])),[state.tickers,histories,from,to,asOf,invalid,tooLong]);
+  useEffect(()=>setDetail(null),[results]);
   const years = Object.keys(results[state.tickers[0]]?.years || {});
   const percent = value => formatChangePercent(value,language,2);
   const monthFormatter = useMemo(()=>new Intl.DateTimeFormat(language==='en'?'en':language==='uz'?'uz-Latn':'ru',{month:'short',timeZone:'UTC'}),[language]);

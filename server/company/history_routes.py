@@ -95,7 +95,7 @@ async def api_company_metrics(ticker: str, months: int = 12,
 
 
 @router.get("/api/price-history/{ticker}")
-async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
+async def api_price_history(ticker: str, months: int = 12, include_unknown: bool = False) -> dict[str, Any]:
     """Close price history for a ticker via UZSE ISIN lookup.
 
     The ceiling is 20 years, not 5: the chart's «Макс» button means the whole
@@ -109,7 +109,9 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
     merger; cash dividends are excluded. No currency conversion or presentation
     scaling is applied here. `as_of` is the authoritative market session, and
     remains null when unavailable: consumers must not substitute a stale last
-    trade. See test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anchor
+    trade. Returns request include_unknown=true to retain unknown closing prices;
+    existing charts keep their established filtered response by default.
+    See test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anchor
     for an integration check through the actual resolver, collector and mapper.
     """
     ticker = ticker.upper()
@@ -134,10 +136,10 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
                 "volume": p.get("trading_volume"),
                 "value": p.get("trading_value"),
             }
-            for p in (data.get("points") or [])
+            for p in [*(data.get("points") or []), *(data.get("unknown_points") or [] if include_unknown else [])]
             # A dated unknown close must reach consumers as unknown. Removing
             # it would silently substitute an older quote for period returns.
-            if p.get("date")
+            if p.get("date") and (include_unknown or p.get("close") is not None)
         ]
         market_as_of = await market_history._market_as_of()
         # Non-empty only when the series spans a split or a bonus issue: the older prices

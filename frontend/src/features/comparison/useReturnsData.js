@@ -25,7 +25,7 @@ export function useReturnsData(tickers, apiFetch) {
         continue;
       }
       setHistories(previous => ({...previous,[ticker]:{status:'loading',points:[]}}));
-      apiFetch(`/api/price-history/${encodeURIComponent(ticker)}?months=240`,{signal:controller.signal})
+      apiFetch(`/api/price-history/${encodeURIComponent(ticker)}?months=240&include_unknown=true`,{signal:controller.signal})
         .then(async r => {
           const body=await r.json();
           if(!r.ok || !body.ok || !Array.isArray(body.points) || body.ticker!==ticker)throw new Error('history');

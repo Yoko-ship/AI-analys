@@ -166,6 +166,42 @@ def test_returns_endpoint_retains_a_dated_unknown_close(monkeypatch):
     monkeypatch.setattr(subject_server_market_history, "_resolve_isin", resolve)
     monkeypatch.setattr(subject_server_market_history, "_full_history", history)
     monkeypatch.setattr(subject_server_market_history, "_market_as_of", anchor)
-    got = asyncio.run(routes.api_price_history("HMKB", months=240))
+    legacy = asyncio.run(routes.api_price_history("HMKB", months=240))
+    assert [(p["date"], p["close"]) for p in legacy["points"]] == [("2026-01-30", 57.8)]
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
     assert [(p["date"], p["close"]) for p in got["points"]] == [
         ("2026-01-30", 57.8), ("2026-01-31", None)]
+
+
+def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger(monkeypatch):
+    from datetime import date
+    import server.company.history_routes as routes
+    import securities_catalog
+    import catalogue.market_store as store
+
+    isin = "UZ7011340005"
+    monkeypatch.setattr(securities_catalog, "get_securities_map", lambda: {"HMKB": {"isin": isin}})
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260130", "close_price": 57.8, "quantity": 10, "turnover": 578},
+        {"trade_date": "20260131", "close_price": None, "quantity": 5, "turnover": 290},
+    ]})
+
+    def feed(client, path, params):
+        assert params["isu_cd"] == isin
+        return {"ticker": "HMKB", "results": [
+            {"date": "2026-02-27", "close": None, "trading_volume": 5, "trading_value": 300},
+            {"date": "2026-02-28", "close": None, "trading_volume": 0, "trading_value": 0},
+        ]}
+
+    async def anchor():
+        return date(2026, 2, 27)
+
+    monkeypatch.setattr(collectors_openinfo_market.collectors_openinfo_transport, "_json_get", feed)
+    monkeypatch.setattr(subject_server_market_history, "_market_as_of", anchor)
+    subject_server_market_history._HISTORY_CACHE.clear()
+    subject_server_market_history._HISTORY_LOCKS.clear()
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert sorted((p["date"], p["close"]) for p in got["points"]) == [
+        ("2026-01-30", 57.8), ("2026-01-31", None), ("2026-02-27", None)]
+    legacy = asyncio.run(routes.api_price_history("HMKB", months=240))
+    assert [(p["date"], p["close"]) for p in legacy["points"]] == [("2026-01-30", 57.8)]

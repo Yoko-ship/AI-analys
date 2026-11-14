@@ -312,12 +312,18 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     covered_through = max(str(r["trade_date"]) for r in rows)
     covered_through = f"{covered_through[:4]}-{covered_through[4:6]}-{covered_through[6:]}"
     sessions = []
+    unknown_points = []
     for r in rows:
         close = formulas.to_number(r.get("close_price"))
         traded = (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0
-        if close is None or close <= 0 or not traded:
+        if not traded:
             continue
         stamp = str(r["trade_date"])
+        if close is None or close <= 0:
+            # Keep an actually traded session with an unknown price separately
+            # for returns. Legacy charts retain their existing valid-price list.
+            unknown_points.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}", "close": None})
+            continue
         sessions.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}",
                          "open": r.get("open_price"), "high": r.get("high_price"),
                          "low": r.get("low_price"), "close": close,
@@ -329,11 +335,16 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
              and (formulas.to_number(p.get("close")) or 0) > 0
              and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
+    unknown_points.extend({"date": p["date"], "close": None} for p in points
+                          if str(p.get("date") or "")[:10] > covered_through
+                          and (formulas.to_number(p.get("close")) or 0) <= 0
+                          and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
+                               or (formulas.to_number(p.get("trading_value")) or 0) > 0))
     merged = sorted([*older, *sessions, *newer], key=lambda p: str(p.get("date") or ""))
     adjustments = list(data.get("adjustments") or [])
     known = {a.get("ex_date") for a in adjustments}
     adjustments.extend(a for a in applied if a.get("ex_date") not in known)
-    return {**data, "points": merged, "adjustments": adjustments,
+    return {**data, "points": merged, "unknown_points": unknown_points, "adjustments": adjustments,
             "store_from": covered_from, "store_through": covered_through}
 
 
