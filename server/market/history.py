@@ -335,11 +335,17 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
              and (formulas.to_number(p.get("close")) or 0) > 0
              and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
-    unknown_points.extend({"date": p["date"], "close": None} for p in points
-                          if str(p.get("date") or "")[:10] > covered_through
-                          and (formulas.to_number(p.get("close")) or 0) <= 0
-                          and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
-                               or (formulas.to_number(p.get("trading_value")) or 0) > 0))
+    stored_dates = {str(r["trade_date"]) for r in rows}
+    for p in points:
+        stamp = str(p.get("date") or "")[:10]
+        traded = ((formulas.to_number(p.get("trading_volume")) or 0) > 0
+                  or (formulas.to_number(p.get("trading_value")) or 0) > 0)
+        gap = covered_from <= stamp <= covered_through and stamp.replace("-", "") not in stored_dates
+        unknown_newer = stamp > covered_through and (formulas.to_number(p.get("close")) or 0) <= 0
+        if traded and (gap or unknown_newer):
+            # Store precedence cannot turn an unresolved archive trade into an
+            # absent session and silently select an older return endpoint.
+            unknown_points.append({"date": stamp, "close": None})
     merged = sorted([*older, *sessions, *newer], key=lambda p: str(p.get("date") or ""))
     adjustments = list(data.get("adjustments") or [])
     known = {a.get("ex_date") for a in adjustments}

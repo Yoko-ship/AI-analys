@@ -191,3 +191,14 @@ test('a late market anchor invalidates a previously selected calculation',async(
   await expect(page.getByTestId('return-detail')).not.toContainText('108.9');
   await expect(page.getByTestId('return-detail')).toContainText('Select a cell');
 });
+
+test('a carry-forward-only month remains missing and exposes the actual baseline age',async({page})=>{
+  await page.route('**/api/price-history/HMKB?**',route=>route.fulfill({json:{ok:true,ticker:'HMKB',as_of:'2026-05-12',
+    points:[...histories.HMKB.map(([date,close])=>({date,close})),{date:'2026-03-31',close:90,volume:0,value:0}],
+  }}));
+  await page.goto(url);
+  await expect(page.getByTestId('return-HMKB-2026-03')).toContainText('—');
+  await page.getByTestId('return-HMKB-2026-04').click();
+  await expect(page.getByTestId('return-detail')).toContainText('2026-02-27');
+  await expect(page.getByTestId('return-detail')).toContainText('Older baseline');
+});

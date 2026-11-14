@@ -189,6 +189,8 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     def feed(client, path, params):
         assert params["isu_cd"] == isin
         return {"ticker": "HMKB", "results": [
+            {"date": "2025-12-31", "close": 40, "trading_volume": 0, "trading_value": 0},
+            {"date": "2026-01-29", "close": 55, "trading_volume": 0, "trading_value": 0},
             {"date": "2026-02-27", "close": None, "trading_volume": 5, "trading_value": 300},
             {"date": "2026-02-28", "close": None, "trading_volume": 0, "trading_value": 0},
         ]}
@@ -204,4 +206,15 @@ def test_returns_unknown_traded_prices_survive_the_real_archive_and_store_merger
     assert sorted((p["date"], p["close"]) for p in got["points"]) == [
         ("2026-01-30", 57.8), ("2026-01-31", None), ("2026-02-27", None)]
     legacy = asyncio.run(routes.api_price_history("HMKB", months=240))
-    assert [(p["date"], p["close"]) for p in legacy["points"]] == [("2026-01-30", 57.8)]
+    assert [(p["date"], p["close"]) for p in legacy["points"]] == [
+        ("2025-12-31", 40), ("2026-01-29", 55), ("2026-01-30", 57.8)]
+
+    # The archive may know an actual trade missing between two stored dates.
+    # An unknown price in that gap must not disappear with source precedence.
+    monkeypatch.setattr(store, "get_quote_history", lambda isins, days=30: {isin: [
+        {"trade_date": "20260130", "close_price": 57.8, "quantity": 10, "turnover": 578},
+        {"trade_date": "20260302", "close_price": 60, "quantity": 10, "turnover": 600},
+    ]})
+    subject_server_market_history._HISTORY_CACHE.clear()
+    got = asyncio.run(routes.api_price_history("HMKB", months=240, include_unknown=True))
+    assert ("2026-02-27", None) in [(p["date"], p["close"]) for p in got["points"]]

@@ -140,6 +140,7 @@ async def api_price_history(ticker: str, months: int = 12, include_unknown: bool
             # A dated unknown close must reach consumers as unknown. Removing
             # it would silently substitute an older quote for period returns.
             if p.get("date") and (include_unknown or p.get("close") is not None)
+            and not (include_unknown and p.get("trading_volume") == 0 and p.get("trading_value") == 0)
         ]
         market_as_of = await market_history._market_as_of()
         # Non-empty only when the series spans a split or a bonus issue: the older prices

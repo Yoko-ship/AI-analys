@@ -27,6 +27,7 @@ export function shiftMonth(month, delta) {
 export function normalizeHistory(points, asOf = '2099-12-31') {
   const dates = new Map();
   for (const p of Array.isArray(points) ? points : []) {
+    if (p.volume === 0 && p.value === 0) continue;
     let date = String(p.date || '');
     if (/^\d{8}$/.test(date)) date = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
     if (!/^20\d{2}-\d{2}-\d{2}$/.test(date) || date > asOf) continue;

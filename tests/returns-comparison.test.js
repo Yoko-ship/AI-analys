@@ -90,3 +90,13 @@ test('dated invalid closes remain unknown endpoints and baselines instead of usi
     }
   }
 });
+
+test('a carry-forward-only month is missing and cannot refresh the baseline age',()=>{
+  const rows=[{date:'2026-02-27',close:90,volume:10,value:900},
+    {date:'2026-03-31',close:90,volume:0,value:0},
+    {date:'2026-04-30',close:99,volume:10,value:990}];
+  assert.equal(periodReturn(rows,'2026-03','2026-03','2026-04-30').status,'no_trades');
+  const april=periodReturn(rows,'2026-04','2026-04','2026-04-30');
+  assert.equal(april.base.date,'2026-02-27');
+  assert.equal(april.stale,true);
+});
