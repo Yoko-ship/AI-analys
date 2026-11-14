@@ -88,6 +88,24 @@ def test_cbsk_q3_uses_reviewed_closing_shares_but_keeps_unverified_eps_blank(tmp
     assert metrics(report)['price_to_book']['share_disclosure_url'] == 'https://example.org/reviewed-correction'
 
 
+def test_reviewed_cbsk_fallback_does_not_skip_form5_discovery(tmp_path, monkeypatch):
+    from collectors.openinfo import transport
+    from financial_columns import share_disclosures
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
+    inspected = []
+
+    def detail(session, path):
+        inspected.append(path)
+        return {'id': 18989, 'organization': {'id': 633}, 'int_report': None}
+
+    monkeypatch.setattr(transport, '_json_get', detail)
+    query = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=18989'
+    assert not share_disclosures.collect_form5(None, ticker='CBSK', issuer_id='633',
+                                              period_end='2026-09-30', excel_url=query)
+    assert inspected == ['/reports/jsc/quarter/18989/']
+
+
 @pytest.mark.parametrize('ticker,invalid_metric,reason,expected,debt_total', [
     ('cbsk', 'net_income', 'SOURCE_NET_PROFIT_MISMATCH', 33000000 / 185183885.97, 33000000),
     ('qatt', 'revenue', 'SOURCE_GROSS_PROFIT_MISMATCH', 3388285 / 36211138, 3388285),

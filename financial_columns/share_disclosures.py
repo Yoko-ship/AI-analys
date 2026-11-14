@@ -5,6 +5,7 @@ does not establish a weighted average. ``ordinary_only`` certifies that all
 participating equity was ordinary throughout the stated period, not merely that
 one ordinary instrument was found on today's exchange board.
 """
+from copy import deepcopy
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
@@ -107,9 +108,7 @@ def _reviewed():
     return records
 
 
-def read(issuer_id, ticker, end, scope):
-    from copy import deepcopy
-
+def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
     key = (str(issuer_id), ticker.upper(), end, scope)
     c = get_catalog_conn()
     try:
@@ -123,11 +122,13 @@ def read(issuer_id, ticker, end, scope):
         data, version = _validate(json.loads(row['payload_json'])), row['id']
         if (data['issuer_id'], data['ticker'], data['period_end'], data['scope']) != key:
             return None
-    else:
+    elif include_reviewed:
         reviewed = _reviewed().get(key)
         if not reviewed:
             return None
         data, version = deepcopy(reviewed)
+    else:
+        return None
     return {**data, 'source_version': version, 'verification_status': 'verified'}
 
 def form5_basis(workbook, *, ticker, issuer_id, tin, period_end):
@@ -200,7 +201,7 @@ def collect_form5(session, *, ticker, issuer_id, period_end, excel_url):
     report_id = (query.get('report_id') or [''])[0]
     if report_type not in {'annual', 'quarter'} or not re.fullmatch(r'[a-z_]+', org_type) or not report_id.isdigit():
         return False
-    if read(issuer_id, ticker, period_end, 'separate'):
+    if read(issuer_id, ticker, period_end, 'separate', include_reviewed=False):
         return False
     detail = _json_get(session, f'/reports/{org_type}/{report_type}/{report_id}/')
     if str((detail.get('organization') or {}).get('id')) != str(issuer_id) or str(detail.get('id')) != report_id:
@@ -219,7 +220,7 @@ def collect_form5(session, *, ticker, issuer_id, period_end, excel_url):
         record(basis, actor='openinfo-form5', reason='Matched issuer, reporting date and issued share classes')
     except ValueError:
         # A concurrently reviewed source keeps its precedence over this import.
-        if not read(issuer_id, ticker, period_end, 'separate'):
+        if not read(issuer_id, ticker, period_end, 'separate', include_reviewed=False):
             raise
         return False
     return True
