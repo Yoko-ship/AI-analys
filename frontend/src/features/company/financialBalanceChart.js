@@ -64,8 +64,9 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   const knownContext = ticker && issuerId && ['separate', 'consolidated'].includes(scope) && standard === 'NSBU';
   const stocks = rows.filter(row => row.kind === 'stock');
   const reading = metric => {
-    const candidates = stocks.filter(row => row.metric_id === metric);
-    const [row] = candidates;
+    const matchingRows = stocks.filter(row => row.metric_id === metric);
+    const candidates = matchingRows.filter(row => Object.hasOwn(row.cells ?? {}, period));
+    const row = candidates[0] ?? matchingRows[0];
     const cell = row?.cells?.[period];
     const value = valueOf(cell);
     const form = cell?.source_form || row?.source_form;

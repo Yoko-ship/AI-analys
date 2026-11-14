@@ -31,6 +31,23 @@ test('balances reject other issuers, conflicting filing URLs and misidentified t
 });
 
 test('HMKB balance pies use net loans once and published funding totals', () => {
+  // OpenInfo bank report 1306, 2026-09-30, HMKB (issuer 8), separate NSBU, UZS thousands.
+  // Registry BANK_BS lines 1 (cash), 2 (due from CBU), 3 (due from other banks),
+  // 5в (net investments), 7г (net loans/leases), 10 (net PPE), 11 (accrued interest).
+  // Lines 7а, 7б and 7в are gross loans, gross leases and the allowance within 7г.
+  const filedAssets = [['cash', '1', 2256418896], ['central_bank_balances', '2', 1288812892],
+    ['bank_balances', '3', 2259057543], ['investments_net', '5в', 352450377],
+    ['loans_leases_net', '7г', 30908613408], ['ppe', '10', 1236365217], ['interest_receivables', '11', 458105227]];
+  assert.equal(reports.issuer_id, '8');
+  assert.equal(reports.scope, 'separate');
+  assert.equal(reports.standard, 'NSBU');
+  for (const [metric, code, value] of [...filedAssets, ['total_assets', '14', 44389278550],
+    ['total_liabilities', '25', 36204146303], ['total_equity', '30', 8185132247]]) {
+    const cell = reports.rows.find(row => row.metric_id === metric).cells[period];
+    assert.deepEqual([cell.source_form, cell.source_code, cell.period_end, cell.currency, cell.unit_scale, Number(cell.value)],
+      ['BANK_BS', code, period, 'UZS', '1000', value]);
+    assert.match(cell.source_url, /report_id=1306(?:&|$)/);
+  }
   const {assets, funding} = balanceComposition(reports.rows, period);
   assert.equal(assets.reason, null);
   assert.equal(assets.total, 44389278550);
@@ -68,6 +85,36 @@ test('balance pies reject duplicate readings and conflicting source contexts', (
   assert.equal(duplicate.reason, 'source');
   assert.equal(duplicate.rows[1].value, null);
   assert.equal(balanceComposition([assets, row('ppe', '20'), row('ppe', '21')], period).assets.reason, 'source');
+});
+
+test('duplicate detection applies only to observations for the selected period', () => {
+  const older = row('total_equity', 15);
+  older.cells = {'2025': {...older.cells[period], period_end: '2025-12-31'}};
+  const current = [row('total_assets', 100), row('total_liabilities', 80), row('total_equity', 20)];
+  const {funding} = balanceComposition([...current, older], period);
+  assert.equal(funding.reason, null);
+  assert.equal(funding.rows[1].value, 20);
+});
+
+test('UZAL 2025 Form 1 uses the filed section and funding totals', () => {
+  const filing = JSON.parse(readFileSync('tests/fixtures/openinfo/uzal_2025_complete_rows.json', 'utf8'));
+  // financial_columns/registry.py, F1: sections 130+390=400, funding 770+480=400.
+  const readings = [
+    ['noncurrent_assets', '130', 6572615509], ['current_assets', '390', 927967315],
+    ['total_assets', '400', 7500582824], ['total_liabilities', '770', 6401242501.7],
+    ['total_equity', '480', 1099340322.3],
+  ];
+  const form = filing.sheets.find(sheet => sheet.source_rows.some(({cells}) => cells[1] === '400' && cells[3] === 7500582824));
+  const rows = readings.map(([metric, code, amount]) => {
+    assert.ok(form.source_rows.some(({cells}) => cells[1] === code && cells[3] === amount), code);
+    return {...row(metric, amount), source_code: code, ticker: 'UZAL', cells: {'2025': {
+      ...row(metric, amount).cells[period], raw_value: amount, period_end: filing.reporting_date, source_url: filing.source_url, source_version: undefined,
+    }}};
+  });
+  const {assets, funding} = compose(rows, '2025', '2025-12-31', {scope: 'separate', standard: 'NSBU', ticker: 'UZAL', issuerId: 'UZAL'});
+  assert.equal(assets.total, 7500582824);
+  assert.equal(funding.total, assets.total);
+  assert.equal(assets.rows.length, 2);
 });
 
 test('unavailable, negative and incompatible funding values keep their reported readings without pie slices', () => {
