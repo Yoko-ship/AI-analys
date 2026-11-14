@@ -226,7 +226,7 @@ _HISTORY_CACHE_TTL = 600.0
 _HISTORY_CACHE_MAX = 256
 
 
-async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
+async def _full_history(isin: str, months: int = 60, as_of: date | None = None) -> dict[str, Any]:
     """Full price history for an ISIN, memoised for _HISTORY_CACHE_TTL seconds."""
     from collectors.openinfo.market import fetch_price_history
 
@@ -234,14 +234,15 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
     # metrics do this on first paint). Let the first fetch populate the cache
     # while the others wait for and reuse that result.
     key = f"{isin}:{months}"
+    anchor = as_of.isoformat() if as_of else None
     now = time.time()
     hit = _HISTORY_CACHE.get(key)
-    if hit and now - hit[0] < _HISTORY_CACHE_TTL:
+    if hit and now - hit[0] < _HISTORY_CACHE_TTL and (anchor is None or hit[1].get("snapshot_as_of") == anchor):
         return hit[1]
     lock = _HISTORY_LOCKS.setdefault(key, asyncio.Lock())
     async with lock:
         hit = _HISTORY_CACHE.get(key)
-        if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL:
+        if hit and time.time() - hit[0] < _HISTORY_CACHE_TTL and (anchor is None or hit[1].get("snapshot_as_of") == anchor):
             return hit[1]
         loop = asyncio.get_running_loop()
         try:
@@ -257,12 +258,27 @@ async def _full_history(isin: str, months: int = 60) -> dict[str, Any]:
                           months))
         if data is None and not merged.get("points"):
             raise RuntimeError(f"no price history for {isin}: archive unreadable, store empty")
-        data = merged
+        if data is None or merged.get("store_unavailable") or merged.get("unresolved_dates"):
+            # Legacy charts can display available stored quotes. Returns need
+            # both sources; don't cache this fallback as a complete archive.
+            return {**merged, "archive_unavailable": data is None}
+        data = {**merged, "snapshot_as_of": anchor} if anchor else merged
         if len(_HISTORY_CACHE) >= _HISTORY_CACHE_MAX:
             oldest = min(_HISTORY_CACHE, key=lambda k: _HISTORY_CACHE[k][0])
             _HISTORY_CACHE.pop(oldest, None)
         _HISTORY_CACHE[key] = (time.time(), data)
         return data
+
+
+def _valid_session_date(value: Any) -> bool:
+    stamp = str(value or "")
+    if len(stamp) != 8 or not stamp.isdigit():
+        return False
+    try:
+        date.fromisoformat(stamp)
+        return True
+    except ValueError:
+        return False
 
 
 def _with_stored_sessions(isin: str, data: dict[str, Any],
@@ -299,25 +315,35 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
     try:
         stored = catalogue_market_store.get_quote_history([isin], 3650).get(str(isin).upper()) or []
     except Exception:  # noqa: BLE001 — the archive alone is still an answer
-        return data
+        return {**data, "store_unavailable": True}
+    unresolved_dates = any(
+        not (r.get("turnover") == 0 and r.get("quantity") == 0)
+        and not _valid_session_date(r.get("trade_date"))
+        for r in stored)
     start = (formulas.months_before(date.today(), max(1, int(months))).strftime("%Y%m%d")
              if months else "")
     rows = [r for r in stored
-            if len(str(r.get("trade_date") or "")) == 8 and str(r["trade_date"]).isdigit()
+            if _valid_session_date(r.get("trade_date"))
             and str(r["trade_date"]) >= start]
     if not rows:
-        return data
+        return {**data, "unresolved_dates": True} if unresolved_dates else data
     covered_from = min(str(r["trade_date"]) for r in rows)
     covered_from = f"{covered_from[:4]}-{covered_from[4:6]}-{covered_from[6:]}"
     covered_through = max(str(r["trade_date"]) for r in rows)
     covered_through = f"{covered_through[:4]}-{covered_through[4:6]}-{covered_through[6:]}"
     sessions = []
+    unknown_points = []
     for r in rows:
         close = formulas.to_number(r.get("close_price"))
         traded = (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0
-        if close is None or close <= 0 or not traded:
+        if r.get("turnover") == 0 and r.get("quantity") == 0:
             continue
         stamp = str(r["trade_date"])
+        if close is None or close <= 0 or not traded:
+            # Keep an actually traded session with an unknown price separately
+            # for returns. Legacy charts retain their existing valid-price list.
+            unknown_points.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}", "close": None})
+            continue
         sessions.append({"date": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}",
                          "open": r.get("open_price"), "high": r.get("high_price"),
                          "low": r.get("low_price"), "close": close,
@@ -329,11 +355,25 @@ def _with_stored_sessions(isin: str, data: dict[str, Any],
              and (formulas.to_number(p.get("close")) or 0) > 0
              and ((formulas.to_number(p.get("trading_volume")) or 0) > 0
                   or (formulas.to_number(p.get("trading_value")) or 0) > 0)]
+    stored_dates = {str(r["trade_date"]) for r in rows
+                    if (r.get("turnover") or 0) > 0 or (r.get("quantity") or 0) > 0}
+    for p in points:
+        stamp = str(p.get("date") or "")[:10]
+        traded = ((formulas.to_number(p.get("trading_volume")) or 0) > 0
+                  or (formulas.to_number(p.get("trading_value")) or 0) > 0)
+        gap = covered_from <= stamp <= covered_through and stamp.replace("-", "") not in stored_dates
+        unknown_newer = stamp > covered_through and ((formulas.to_number(p.get("close")) or 0) <= 0 or not traded)
+        known_nontraded = p.get("trading_volume") == 0 and p.get("trading_value") == 0
+        if not known_nontraded and (gap or unknown_newer):
+            # Store precedence cannot turn an unresolved archive trade into an
+            # absent session and silently select an older return endpoint.
+            unknown_points.append({"date": stamp, "close": None})
     merged = sorted([*older, *sessions, *newer], key=lambda p: str(p.get("date") or ""))
     adjustments = list(data.get("adjustments") or [])
     known = {a.get("ex_date") for a in adjustments}
     adjustments.extend(a for a in applied if a.get("ex_date") not in known)
-    return {**data, "points": merged, "adjustments": adjustments,
+    return {**data, "points": merged, "unknown_points": unknown_points, "adjustments": adjustments,
+            "unresolved_dates": unresolved_dates,
             "store_from": covered_from, "store_through": covered_through}
 
 

@@ -10,6 +10,7 @@ import { sectorLabel } from "../../shared/marketCopy.jsx";
 import {industryOf} from '../../lib/companyIndustries.js';
 import { formatMarketChange } from "../../shared/format.jsx";
 import {issuerDisplayName} from '../../lib/issuerDisplayName.js';
+import {localizedPath} from '../../lib/languagePath.js';
 import { CompanyInsightCard, CompanyInsightDialog } from "./Insights.jsx";
 import { CompanyOverviewTab, CompanyReportsTab } from "./Overview.jsx";
 import { CompanyPriceChart } from "../../shared/CompanyPriceChart.jsx";
@@ -495,6 +496,10 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               {t.label}
             </button>
           ))}
+          {securityType !== 'bond' && <a className="company-tab-btn" style={{textDecoration:'none'}}
+            href={localizedPath('/compare',lang)+'?view=returns&companies='+encodeURIComponent(ticker)}>
+            {lang==='ru'?'Сравнить доходность':lang==='uz'?'Daromadlilikni solishtirish':'Compare returns'}
+          </a>}
         </div>
       </div>
       <div className="company-page-body">

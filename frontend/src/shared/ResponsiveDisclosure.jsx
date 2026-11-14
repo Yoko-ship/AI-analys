@@ -8,8 +8,10 @@ export function ResponsiveDisclosure({label, className = '', mediaQuery = '(max-
   const phone = compact && collapsible;
   const [open, setOpen] = useState(!phone);
   useEffect(() => setOpen(!phone), [phone]);
-  return <details className={`responsive-disclosure ${className}${collapsible ? '' : ' is-static'}`} open={open}
-    onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details className={`responsive-disclosure ${className}${collapsible ? '' : ' is-static'}`} open={!phone || open}
+    onToggle={event => {
+      if (phone && event.target === event.currentTarget) setOpen(event.currentTarget.open);
+    }}>
     <summary>{label}</summary>
     <div className="responsive-disclosure-body">{children}</div>
   </details>;

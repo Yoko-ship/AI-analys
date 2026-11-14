@@ -95,13 +95,24 @@ async def api_company_metrics(ticker: str, months: int = 12,
 
 
 @router.get("/api/price-history/{ticker}")
-async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
+async def api_price_history(ticker: str, months: int = 12, include_unknown: bool = False) -> dict[str, Any]:
     """Close price history for a ticker via UZSE ISIN lookup.
 
     The ceiling is 20 years, not 5: the chart's «Макс» button means the whole
     record, and a 60-month clamp would quietly serve five years under that label
     the moment an issuer's history grew past it. The archive answers with what
     exists, so asking for more than a security has costs nothing.
+
+    Stock-return contract: ticker resolves to its exact share-class ISIN, never
+    an issuer aggregate. Closes are UZS per share, with recorded split/bonus
+    actions already applied once by the archive collector and stored-session
+    merger; cash dividends are excluded. No currency conversion or presentation
+    scaling is applied here. `as_of` is the authoritative market session, and
+    remains null when unavailable: consumers must not substitute a stale last
+    trade. Returns request include_unknown=true to retain unknown closing prices;
+    existing charts keep their established filtered response by default.
+    See test_returns_endpoint_preserves_share_class_units_adjustments_and_market_anchor
+    for an integration check through the actual resolver, collector and mapper.
     """
     ticker = ticker.upper()
     months = max(1, min(months, 240))
@@ -113,7 +124,11 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
             # could tell a fault from a normal answer.
             return JSONResponse({"ok": False, "ticker": ticker, "error": "ISIN not found",
                                  "points": []}, status_code=404)
-        data = await market_history._full_history(isin, months=months)
+        market_as_of = await market_history._market_as_of()
+        data = (await market_history._full_history(isin, months=months, as_of=market_as_of) if include_unknown
+                else await market_history._full_history(isin, months=months))
+        if include_unknown and (data.get("archive_unavailable") or data.get("store_unavailable") or data.get("unresolved_dates")):
+            return {"ok": False, "ticker": ticker, "error": "Complete price history unavailable", "points": []}
         points = [
             {
                 "date": p.get("date"),
@@ -125,10 +140,14 @@ async def api_price_history(ticker: str, months: int = 12) -> dict[str, Any]:
                 "volume": p.get("trading_volume"),
                 "value": p.get("trading_value"),
             }
-            for p in (data.get("points") or [])
-            if p.get("date") and p.get("close") is not None
+            for p in [*(data.get("points") or []), *(data.get("unknown_points") or [] if include_unknown else [])]
+            # A dated unknown close must reach consumers as unknown. Removing
+            # it would silently substitute an older quote for period returns.
+            if (include_unknown or p.get("date")) and (include_unknown or p.get("close") is not None)
+            and not (include_unknown and p.get("trading_volume") == 0 and p.get("trading_value") == 0)
         ]
-        market_as_of = await market_history._market_as_of()
+        if include_unknown:
+            points.sort(key=lambda point: str(point["date"]))
         # Non-empty only when the series spans a split or a bonus issue: the older prices
         # have been restated onto today's share, so the chart says so rather than let a
         # reader reconcile it against uzse.uz and conclude we are wrong.
