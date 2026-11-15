@@ -109,7 +109,6 @@ export function ReturnsComparison({language='ru',apiFetch=fetch,Picker}) {
         </>}
       </section>
     </>}
-    <details className="rc-method"><summary>{tx('method')}</summary><p>{tx('explanation')}</p></details>
     {picker && <Picker availableCompanies={options} selected={state.tickers} language={language} description={tx('note')} onClose={()=>setPicker(false)}
       onSelect={ticker=>{update({tickers:[...new Set([...state.tickers,ticker])].slice(0,RETURN_LIMIT)});setPicker(false);}} />}
   </section>;

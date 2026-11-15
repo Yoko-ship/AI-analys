@@ -95,13 +95,15 @@ for(const theme of ['dark','light']) test(`heatmap is readable on desktop and ph
 });
 
 for(const locale of [
-  {lang:'ru',path:'/compare',heading:'Сравнение доходности',value:'+20%'},
-  {lang:'uz',path:'/uz/compare',heading:'Daromadlilikni solishtirish',value:'+20%'},
+  {lang:'ru',path:'/compare',heading:'Сравнение доходности',value:'+20%',method:'Как считается'},
+  {lang:'uz',path:'/uz/compare',heading:'Daromadlilikni solishtirish',value:'+20%',method:'Hisoblash usuli'},
+  {lang:'en',path:'/compare',heading:'Compare returns',value:'+20%',method:'How returns are calculated'},
 ]) test(`returns localizes labels and preserves its link (${locale.lang})`,async({page})=>{
   await page.addInitScript(lang=>localStorage.setItem('uz_stock_analyzer_language',lang),locale.lang);
   await page.goto(locale.path+url.slice(url.indexOf('?')));
   await expect(page.getByRole('heading',{name:locale.heading,exact:true})).toBeVisible();
   await expect(page.getByTestId('return-HMKB-2026-01')).toContainText(locale.value);
+  await expect(page.getByText(locale.method,{exact:true})).toHaveCount(0);
   await page.reload();await expect(page.getByRole('heading',{name:locale.heading,exact:true})).toBeVisible();
 });
 
