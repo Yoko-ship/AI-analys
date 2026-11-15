@@ -1,4 +1,5 @@
 const copy = {
+  restricted:['Этот раздел доступен только администраторам.','Bu bo‘lim faqat administratorlar uchun.','This view is available to administrators only.'],
   title:['Сравнение доходности','Daromadlilikni solishtirish','Compare returns'],
   returns:['Доходность','Daromadlilik','Returns'], fundamentals:['Финансовые показатели','Moliyaviy ko‘rsatkichlar','Fundamentals'],
   subtitle:['Изменение цены акций по месяцам и годам. Выберите компании и период.','Aksiya narxining oylar va yillar bo‘yicha o‘zgarishi. Kompaniyalar va davrni tanlang.','Share price changes by month and year. Choose companies and a date range.'],
