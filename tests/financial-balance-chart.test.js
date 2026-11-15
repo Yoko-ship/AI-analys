@@ -159,22 +159,35 @@ test('asset pies require a published total and reject invalid components without
   const {assets} = balanceComposition([row('total_assets', '100'), row('ppe', '20'), row('cash', '60', 'blocked')], period);
   assert.equal(assets.reason, 'missing');
   assert.equal(assets.total, null);
-  assert.ok(!assets.rows.some(row => row.metric_id === 'other_assets_difference'));
+  assert.ok(!assets.rows.some(row => row.metric_id === 'unclassified_assets'));
   const absent = balanceComposition([row('total_assets', '100'), row('ppe', '20'), {...row('cash', '60'), cells: {}}], period).assets;
   assert.equal(absent.reason, 'missing');
   assert.equal(absent.total, null);
-  assert.ok(!absent.rows.some(row => row.metric_id === 'other_assets_difference'));
+  assert.ok(!absent.rows.some(row => row.metric_id === 'unclassified_assets'));
 });
 
 test('balance breakdown rejects blocked duplicates and unverified report context', () => {
   const assets = row('total_assets', '100');
   const equity = row('total_equity', '20');
   const rows = [assets, row('total_liabilities', '80'), equity];
+  for (const conflict of [{scope: 'consolidated'}, {standard: 'MSFO'}]) {
+    const funding = balanceComposition([assets, rows[1], {...equity, ...conflict}], period).funding;
+    assert.equal(funding.reason, 'source');
+    assert.equal(funding.rows[1].value, null);
+  }
   assert.equal(balanceComposition([...rows, row('total_assets', '90', 'blocked')], period).funding.reason, 'source');
   assert.equal(balanceComposition([assets, row('ppe', '20'), row('ppe', '30', 'blocked')], period).assets.reason, 'source');
   for (const context of [{}, {scope:'unknown',standard:'NSBU'}, {scope:'separate',standard:'IFRS'}, {scope:'consolidated',standard:'NSBU'}]) {
     assert.equal(balanceComposition(rows, period, period, context).funding.reason, 'source');
   }
+});
+
+test('a bank balance without its filed net-loan line withholds the asset pie', () => {
+  const rows = reports.rows.filter(row => row.metric_id !== 'loans_leases_net');
+  const {assets, funding} = balanceComposition(rows, period);
+  assert.equal(assets.reason, 'missing');
+  assert.equal(assets.total, null);
+  assert.equal(funding.reason, null);
 });
 
 test('decimal statement values do not create false reconciliation errors', () => {
@@ -244,7 +257,7 @@ test('asset components follow the selected source form and omit overlapping subl
   const {assets} = balanceComposition([row('total_assets', 100), row('cash', 20), row('bank_balances', 15),
     row('receivables', 30), row('interest_receivables', 10)], period);
   assert.equal(assets.reason, null);
-  assert.deepEqual(assets.rows.map(row => [row.metric_id, row.value]), [['receivables',30],['cash',20],['other_assets_difference',50]]);
+  assert.deepEqual(assets.rows.map(row => [row.metric_id, row.value]), [['receivables',30],['cash',20],['unclassified_assets',50]]);
   const incorrect = {...row('cash', 20), source_code: '340'};
   assert.equal(balanceComposition([row('total_assets', 100), incorrect], period).assets.reason, 'source');
 });

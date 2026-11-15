@@ -13,7 +13,7 @@ const COLORS = [
 const LABELS = {
   total_liabilities: ['Обязательства', 'Majburiyatlar', 'Liabilities'],
   total_equity: ['Капитал', 'Kapital', 'Equity'],
-  other_assets_difference: ['Прочие активы (разница)', 'Boshqa aktivlar (farq)', 'Other assets (difference)'],
+  unclassified_assets: ['Нераспределённый остаток (состав не подтверждён)', 'Taqsimlanmagan qoldiq (tarkibi tasdiqlanmagan)', 'Unclassified remainder (breakdown unverified)'],
 };
 const REASONS = {
   missing: ['Недостаточно проверенных данных для Pie chart.', 'Pie chart uchun tekshirilgan ma’lumot yetarli emas.', 'Not enough verified data for a pie chart.'],

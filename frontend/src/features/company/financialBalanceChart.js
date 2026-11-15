@@ -76,10 +76,11 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const expectedCode = BALANCE_LINES[form]?.[metric] ?? ASSET_LINES[form]?.[metric];
     const issuersMatch = [cell?.issuer_id, row?.issuer_id].every(id => id == null || String(id) === String(issuerId)) &&
       [cell?.ticker, row?.ticker].every(symbol => symbol == null || symbol === ticker);
-    const cellScope = cell?.scope ?? row?.scope ?? scope;
-    const cellStandard = cell?.standard ?? row?.standard ?? standard;
-    const conversion = value != null && knownContext && issuersMatch && expectedCode && code === expectedCode &&
-      cellScope === scope && cellStandard === standard && version &&
+    const dimensionsMatch = [cell?.scope, row?.scope].every(value => value == null || value === scope) &&
+      [cell?.standard, row?.standard].every(value => value == null || value === standard) &&
+      [cell?.source_form, row?.source_form].every(value => value == null || value === form) &&
+      [cell?.source_code, row?.source_code].every(value => value == null || value === code);
+    const conversion = value != null && knownContext && issuersMatch && dimensionsMatch && expectedCode && code === expectedCode && version &&
       cell?.period_end === periodEnd && cell?.currency && conversionFor(cell, row.unit, value, periodEnd);
     const source = conversion ? JSON.stringify([ticker, issuerId, form, version, url, cell.currency, ...conversion]) : null;
     const unitError = value != null && !DISPLAY_SCALES.has(row?.unit);
@@ -89,7 +90,8 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
-  const components = Object.keys(ASSET_LINES[totalAssets.form] ?? {}).map(reading).filter(row => row.id);
+  const components = Object.keys(ASSET_LINES[totalAssets.form] ?? {}).map(reading)
+    .filter(row => row.id || (totalAssets.form === 'BANK_BS' && row.metric_id === 'loans_leases_net'));
   const hasSections = sections.every(row => row.id);
   const assetRows = hasSections ? sections : components;
   const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);
@@ -97,7 +99,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const difference = totalAssets.value - assetRows.reduce((sum, row) => sum + row.value, 0);
     const roundingError = Number.EPSILON * Math.abs(totalAssets.value) * assetRows.length;
     if (difference > roundingError) assets.rows = [...assetRows, {
-      metric_id: 'other_assets_difference', value: difference, unit: assets.unit, derived: true,
+      metric_id: 'unclassified_assets', value: difference, unit: assets.unit, derived: true,
     }];
   }
   const fundingRows = ['total_liabilities', 'total_equity'].map(reading);

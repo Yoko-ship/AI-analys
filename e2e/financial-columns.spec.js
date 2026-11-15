@@ -663,7 +663,8 @@ for (const theme of ['light','dark']) test(`financial statements share the catal
   await page.setViewportSize({width:390,height:844});
   await terminal.getByRole('button',{name:'Chart',exact:true}).click();
   const balance = terminal.getByRole('region', {name: 'Balance composition'});
-  await expect(balance.getByRole('img')).toHaveCount(2);
+  await expect(balance.locator('[data-balance-chart="funding"]').getByRole('img')).toBeVisible();
+  await expect(balance.locator('[data-balance-chart="assets"]').getByText('Not enough verified data for a pie chart.')).toBeVisible();
   await expect(balance.getByRole('button', {name: '2026-09-30', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(balance.getByRole('button', {name: /TTM/})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
