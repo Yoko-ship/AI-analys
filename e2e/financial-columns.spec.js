@@ -929,6 +929,49 @@ for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly 
   await chart.screenshot({path:info.outputPath('quarterly-chart.png')});
 });
 
+test('Form 2 detail rows verify reporting intervals, currency and numeric amounts', async ({page}) => {
+  const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
+  const end = '2026-09-30';
+  const base = {quality: 'valid', period_start: '2026-01-01', period_end: end, currency: 'UZS', unit_scale: 1000};
+  const fx = {currency: 'USD', as_of: end, effective_date: end, basis: 'period_end_presentation',
+    source_url: 'https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/2026-09-30/', rate: 12000};
+  const cases = {
+    unconverted: {...base, value: 11, raw_value: 11, currency: 'USD', unit_scale: 1},
+    converted: {...base, value: 24, raw_value: 2, currency: 'USD', unit_scale: 1, fx},
+    'wrong-scale': {...base, value: 52, raw_value: 52, unit_scale: 1},
+    'filed-income-pair': {...base, value: '112957111', raw_value: [112957111, 0], source_form: 'F2', standard: 'NSBU'},
+    'invalid-income-pair': {...base, value: 6, raw_value: [6, false], source_form: 'F2', standard: 'NSBU'},
+    boolean: {...base, value: true}, array: {...base, value: []},
+    blank: {...base, value: '  '}, zero: {...base, value: '0', raw_value: '0'},
+    'missing-start': {...base, value: 15, period_start: undefined},
+    'same-end-ytd': {...base, value: 120, raw_value: 120},
+    'reported-quarter': {...base, value: 40, raw_value: 40, period_start: '2026-07-01', basis: 'reported_quarter'},
+    'derived-quarter': {...base, value: 40, raw_value: 120, period_start: '2026-07-01', basis: 'quarter',
+      components: [{...base, value: 120, raw_value: 120, coefficient: 1},
+        {...base, value: 80, raw_value: 80, period_end: '2026-06-30', coefficient: -1}]},
+  };
+  reports.columns = [reports.columns.at(-1), {key: 'standalone', label: '2026 Q3', basis: 'quarter', end}];
+  reports.chart_rows = Object.entries(cases).map(([id, cell]) => ({id, label: id, kind: 'flow', source_form: 'F2',
+    unit: 'UZS_thousand', cells: {[end]: cell, standalone: cell}}));
+  await setup(page, {ticker: 'ABKZ', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const table = terminal.getByRole('table', {name: 'All statement rows'});
+  const amount = id => table.locator('[data-statement-row="' + id + '"]').getByRole('button');
+  for (const id of ['unconverted','wrong-scale','invalid-income-pair','boolean','array','blank','missing-start',
+    'reported-quarter','derived-quarter']) {
+    await expect(amount(id)).toContainText('—');
+  }
+  await expect(amount('converted')).toHaveText('24');
+  await expect(amount('zero')).toHaveText('0');
+  await expect(amount('same-end-ytd')).toHaveText('120');
+  await expect(amount('filed-income-pair')).toHaveText('112,957,111');
+  await terminal.getByRole('button', {name: '2026 Q3', exact: true}).click();
+  await expect(amount('same-end-ytd')).toContainText('—');
+  await expect(amount('reported-quarter')).toHaveText('40');
+  await expect(amount('derived-quarter')).toHaveText('40');
+});
+
 test('ABKZ overview shows only the income breakdown in chart mode', async ({page}, testInfo) => {
   const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
   reports.chart_rows = structuredClone([...reports.rows, ...reports.income_flow_rows]);

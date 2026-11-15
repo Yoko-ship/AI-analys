@@ -1,4 +1,6 @@
 import React from 'react';
+import {valueOf} from './financialSourceAmount.js';
+import {statementAmountReason} from './statementReportingPeriod.js';
 
 const sameDimension = (first, second) => first == null || second == null || String(first) === String(second);
 const lineIdentity = row => JSON.stringify([row.source_form, row.source_code || row.metric_id || row.id]);
@@ -6,16 +8,19 @@ const lineIdentity = row => JSON.stringify([row.source_form, row.source_code || 
 function statementCell(row, period, context, duplicate) {
   const cell = row.cells?.[period.key];
   if (!cell) return {quality: 'missing'};
-  const matchesContext = Object.entries(context ?? {}).every(([key, expected]) =>
-    sameDimension(row[key], expected) && sameDimension(cell[key], expected));
-  const matchesRow = ['source_form', 'source_code', 'source_version', 'source_url'].every(key =>
-    sameDimension(row[key], cell[key]));
-  if (!matchesContext || !matchesRow || !sameDimension(cell.period_end, period.end) || duplicate) {
-    return {...cell, display_parts: undefined, value: null, quality: 'blocked', reason: duplicate
-      ? 'CONFLICTING_SOURCE_VALUES' : 'SOURCE_REPORTING_DIMENSIONS_MISMATCH'};
+  const matchesSource = source => Object.entries(context ?? {}).every(([key, expected]) =>
+    sameDimension(row[key], expected) && sameDimension(source[key], expected)) &&
+    ['source_form', 'source_code', 'source_version', 'source_url'].every(key => sameDimension(row[key], source[key]));
+  const value = valueOf(cell);
+  let reason = null;
+  if (duplicate) reason = 'CONFLICTING_SOURCE_VALUES';
+  else if (!matchesSource(cell)) reason = 'SOURCE_REPORTING_DIMENSIONS_MISMATCH';
+  else if (['valid', 'warn'].includes(cell.quality)) {
+    reason = value == null ? 'SOURCE_VALUE_MISSING' : statementAmountReason(cell, row, period, value, matchesSource);
   }
-  const numeric = cell.value != null && String(cell.value).trim() !== '' && Number.isFinite(Number(cell.value));
-  return {...cell, display_parts: undefined, value: numeric && ['valid', 'warn'].includes(cell.quality) ? Number(cell.value) : null};
+  return reason
+    ? {...cell, display_parts: undefined, value: null, quality: 'blocked', reason}
+    : {...cell, display_parts: undefined, value};
 }
 
 export function StatementChartRows({rows, period, kind, context, matches, renderValue, t}) {

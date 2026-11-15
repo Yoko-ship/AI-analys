@@ -1,30 +1,4 @@
-const numeric = input => {
-  if (typeof input !== 'number' && (typeof input !== 'string' || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(input.trim()))) return null;
-  const value = Number(input);
-  return Number.isFinite(value) ? value : null;
-};
-const valueOf = cell => ['valid', 'warn'].includes(cell?.quality) ? numeric(cell.value) : null;
-const DISPLAY_SCALES = new Map([['UZS', 1], ['UZS_thousand', 1000]]);
-
-function conversionFor(cell, unit, value, periodEnd) {
-  const displayScale = DISPLAY_SCALES.get(unit);
-  const sourceScale = numeric(cell.unit_scale);
-  const fx = cell.fx;
-  const foreign = cell.currency !== 'UZS';
-  const end = Date.parse(periodEnd);
-  const effective = Date.parse(fx?.effective_date);
-  const fxAge = (end - effective) / 86400000;
-  const verifiedFx = fx?.currency === cell.currency && fx?.as_of === periodEnd && fx?.basis === 'period_end_presentation' &&
-    fxAge >= 0 && fxAge <= 7 && fx?.source_url === `https://cbu.uz/ru/arkhiv-kursov-valyut/json/all/${periodEnd}/`;
-  const rate = foreign ? (verifiedFx ? numeric(fx.rate) : null) : 1;
-  if (!displayScale || sourceScale == null || sourceScale <= 0 || rate == null || rate <= 0) return null;
-  if (cell.raw_value == null) return sourceScale === displayScale && !foreign ? [sourceScale, 1] : null;
-  const raw = numeric(cell.raw_value);
-  if (raw == null) return null;
-  const normalized = raw * sourceScale * rate / displayScale;
-  if (!Number.isFinite(normalized) || Math.abs(normalized - value) > Number.EPSILON * 4 * Math.max(Math.abs(value), Math.abs(normalized))) return null;
-  return foreign ? [sourceScale, rate, fx.effective_date, fx.source_url] : [sourceScale, 1];
-}
+import {conversionFor, DISPLAY_SCALES, valueOf} from './financialSourceAmount.js';
 
 // financial_columns/registry.py maps these official balance-sheet lines.
 // F1 line 320 includes bank accounts. BANK_BS lines 1, 2 and 3 are separate.
