@@ -3,6 +3,7 @@ import {conversionFor, DISPLAY_SCALES, valueOf} from './financialSourceAmount.js
 // financial_columns/registry.py maps these official balance-sheet lines.
 // F1 line 320 includes bank accounts. BANK_BS lines 1, 2 and 3 are separate.
 // Bank net amounts replace their gross lines and allowances.
+// INSURANCE_BS line 140 includes 150 and 160; use that subtotal only once.
 const ASSET_LINES = {
   F1: {ppe: '012', intangibles: '022', long_term_investments: '030', equipment_installation: '090',
     construction_in_progress: '100', long_term_receivables: '110', long_term_deferred_expenses: '120',
@@ -10,10 +11,16 @@ const ASSET_LINES = {
     short_term_investments: '370', other_current_assets: '380'},
   BANK_BS: {cash: '1', central_bank_balances: '2', bank_balances: '3', trading_assets_net: '4г',
     investments_net: '5в', loans_leases_net: '7г', ppe: '10', interest_receivables: '11'},
+  INSURANCE_BS: {ppe: '012', intangibles: '022', long_term_investments: '030', equipment_installation: '090',
+    construction_in_progress: '100', long_term_receivables: '110', long_term_deferred_expenses: '120',
+    materials: '140', prepaid_expenses: '170', deferred_expenses: '180', receivables: '190', cash: '410',
+    short_term_investments: '460', other_current_assets: '470'},
 };
 const BALANCE_LINES = {
   F1: {total_assets: '400', noncurrent_assets: '130', current_assets: '390', total_liabilities: '770', total_equity: '480'},
   BANK_BS: {total_assets: '14', total_liabilities: '25', total_equity: '30'},
+  INSURANCE_BS: {total_assets: '490', noncurrent_assets: '130', current_assets: '480',
+    nonreserve_liabilities: '1190', insurance_reserves_net: '720', total_equity: '570'},
 };
 
 function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
@@ -75,10 +82,10 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   const sectionCheck = hasSections ? composition(sections, totalAssets, 'asset_sections') : null;
   const assetRows = components.length ? components : sections.filter(row => row.id);
   const assets = sectionCheck?.reason ? sectionCheck : composition(assetRows, totalAssets);
-  if (!assets.reason && hasSections && totalAssets.form === 'F1' && components.length) {
-    const boundary = BALANCE_LINES.F1.noncurrent_assets;
-    const noncurrent = components.filter(row => ASSET_LINES.F1[row.metric_id] < boundary);
-    const current = components.filter(row => ASSET_LINES.F1[row.metric_id] > boundary);
+  if (!assets.reason && hasSections && components.length) {
+    const boundary = BALANCE_LINES[totalAssets.form].noncurrent_assets;
+    const noncurrent = components.filter(row => ASSET_LINES[totalAssets.form][row.metric_id] < boundary);
+    const current = components.filter(row => ASSET_LINES[totalAssets.form][row.metric_id] > boundary);
     const exceedsSection = [noncurrent, current].some((items, i) => {
       const sum = items.reduce((subtotal, item) => subtotal + item.value, 0);
       const cap = sections[i].value;
@@ -97,6 +104,10 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
       metric_id: 'unclassified_assets', value: difference, unit: assets.unit, derived: true,
     }];
   }
-  const fundingRows = ['total_liabilities', 'total_equity'].map(reading);
+  // Insurer liabilities exclude reserves. Add the filed net reserve subtotal,
+  // never the overlapping gross reserve or reinsurer-share lines.
+  const fundingRows = (totalAssets.form === 'INSURANCE_BS'
+    ? ['nonreserve_liabilities', 'insurance_reserves_net', 'total_equity']
+    : ['total_liabilities', 'total_equity']).map(reading);
   return {assets, funding: composition(fundingRows, totalAssets, 'unreconciled')};
 }

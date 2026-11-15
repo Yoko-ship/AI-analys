@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {balanceComposition as compose} from '../frontend/src/features/company/financialBalanceChart.js';
+import {filedBalance} from './fixtures/financial_columns/nsbu-balance.js';
 
 const reports = JSON.parse(readFileSync('e2e/fixtures/hmkb-recent-reports.json', 'utf8'));
 const period = '2026-09-30';
@@ -15,6 +16,45 @@ const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
     noncurrent_assets: '130', current_assets: '390', total_liabilities: '770', total_equity: '480'}[metric_id],
   cells: {[period]: {value, quality, source_form: 'F1', source_version: 'report-1', period_end: period, scope: 'separate', currency: 'UZS', unit_scale: '1000',
     ...(unit === 'UZS' && {raw_value: Number(value) / 1000})}},
+});
+
+for (const [ticker, total] of [['UZTL', 13530348888], ['KFSK', 642485365.03]]) {
+  test(`${ticker} uses the shared balance chart with its own filed form and totals`, () => {
+    const report = filedBalance(ticker);
+    const {assets, funding} = compose(report.chart_rows, '2025', '2025-12-31', {
+      ticker, issuerId: report.issuer_id, scope: report.scope, standard: report.standard,
+    });
+    for (const panel of [assets, funding]) {
+      assert.equal(panel.reason, null);
+      assert.equal(panel.total, total);
+      assert.ok(Math.abs(panel.rows.reduce((sum, row) => sum + row.value, 0) - total) < 0.00001);
+    }
+    if (ticker === 'KFSK') {
+      assert.deepEqual(funding.rows.map(row => [row.metric_id, row.value]), [
+        ['nonreserve_liabilities', 126355416.5], ['insurance_reserves_net', 259436970.5], ['total_equity', 256692978.03],
+      ]);
+      assert.ok(assets.rows.some(row => row.metric_id === 'materials' && row.value === 447602.15));
+      assert.ok(!assets.rows.some(row => ['work_in_progress', 'finished_goods', 'noncurrent_assets', 'current_assets'].includes(row.metric_id)));
+    }
+  });
+}
+
+test('insurance pies withhold missing, conflicting and unreconciled reserve readings', () => {
+  for (const [update, reason] of [
+    [{value: null, raw_value: null, quality: 'missing'}, 'missing'],
+    [{value: -1, raw_value: -1}, 'negative'],
+    [{source_code: '580'}, 'source'],
+    [{source_version: 'another-filing'}, 'source'],
+    [{value: 0, raw_value: 0}, 'unreconciled'],
+  ]) {
+    const report = filedBalance('KFSK');
+    Object.assign(report.rows.find(row => row.metric_id === 'insurance_reserves_net').cells['2025'], update);
+    const {funding} = compose(report.rows, '2025', '2025-12-31', {
+      ticker: 'KFSK', issuerId: report.issuer_id, scope: 'separate', standard: 'NSBU',
+    });
+    assert.equal(funding.reason, reason);
+    assert.equal(funding.total, null);
+  }
 });
 
 test('balances reject other issuers, conflicting filing URLs and misidentified totals', () => {
@@ -80,6 +120,18 @@ test('asset components cannot exceed their own filed subtotals', () => {
     assert.equal(assets.reason, 'asset_sections');
     assert.equal(assets.total, null);
   }
+  const insurance = filedBalance('KFSK');
+  // Preserve the grand total while moving current assets into noncurrent assets.
+  for (const [metric, delta] of [['ppe', 1], ['cash', -1]]) {
+    const cell = insurance.rows.find(row => row.metric_id === metric).cells['2025'];
+    cell.value += delta;
+    cell.raw_value += delta;
+  }
+  const {assets} = compose(insurance.rows, '2025', '2025-12-31', {
+    ticker: 'KFSK', issuerId: insurance.issuer_id, scope: insurance.scope, standard: insurance.standard,
+  });
+  assert.equal(assets.reason, 'asset_sections');
+  assert.equal(assets.total, null);
 });
 
 test('balance pies reject duplicate readings and conflicting source contexts', () => {

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import {filedBalance} from '../tests/fixtures/financial_columns/nsbu-balance.js';
 
 const fixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns.json', 'utf8'));
 const templateFixture = JSON.parse(readFileSync('e2e/fixtures/financial-columns-template.json', 'utf8'));
@@ -312,6 +313,30 @@ test('Form 1 shows asset components above every filed row on mobile', async ({pa
   await expect(table.locator('[data-statement-row="F1:022"] td')).toContainText('0');
   await expect(table.locator('[data-statement-row="F1:381"] td')).toContainText('—');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} shows balance pies and every filed row on mobile`, async ({page}, testInfo) => {
+  const reports = filedBalance(ticker);
+  await page.setViewportSize({width: 390, height: 844});
+  await setup(page, {ticker, func: 'BS', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  await expect(balance.getByRole('img')).toHaveCount(2);
+  const table = balance.getByRole('table', {name: 'All statement rows'});
+  await expect(table.locator('tbody tr')).toHaveCount(reports.chart_rows.length);
+  for (const row of reports.chart_rows) {
+    await expect(table.locator(`[data-statement-row="${row.id}"] th`)).toContainText(row.label);
+  }
+  if (ticker === 'KFSK') {
+    const funding = balance.locator('[data-balance-chart="funding"]');
+    await expect(funding.locator('[data-pie-slice="insurance_reserves_net"]')).toHaveAttribute('aria-label', /259,436,970.5/);
+    await expect(funding.locator('[data-pie-slice="nonreserve_liabilities"]')).toHaveAttribute('aria-label', /126,355,416.5/);
+    await expect(funding.locator('[data-pie-slice="insurance_reserves_gross"]')).toHaveCount(0);
+    await expect(table.locator('[data-statement-row="INSURANCE_BS:580"] td')).toContainText('728,597,206.3');
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await balance.screenshot({path: testInfo.outputPath('issuer-balance.png')});
 });
 
 test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {
