@@ -1,6 +1,7 @@
 import React from 'react';
 import { incomeFlow } from './incomeFlow.js';
 import './incomeSankey.css';
+import {StatementChartRows} from './StatementChartRows.jsx';
 
 const TOTAL_LABELS = {
   revenue: ['Выручка', 'Tushum', 'Revenue'],
@@ -150,7 +151,7 @@ function layout({totals, bridges}) {
   return {nodes, links, left, width: right - left, height: bottom};
 }
 
-export function IncomeSankey({rows, details, columns, format, lang, t, showDifference = false}) {
+export function IncomeSankey({rows, details, statementRows = rows, columns, format, lang, t, showDifference = false}) {
   const heading = React.useId(), note = React.useId();
   const [selected, setSelected] = React.useState('');
   const [inspection, setInspection] = React.useState(null);
@@ -263,5 +264,6 @@ export function IncomeSankey({rows, details, columns, format, lang, t, showDiffe
         {graph && <dl>{graph.nodes.map(node => <div key={node.key}><dt>{label(node)}</dt><dd>{format(node.value)}</dd></div>)}</dl>}
       </details>
     </> : empty}
+    <StatementChartRows rows={statementRows} period={active} kind="flow" format={format} t={t}/>
   </section>;
 }

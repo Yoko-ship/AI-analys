@@ -45,6 +45,7 @@ def select_statement(payload, statement):
         return [r for r in rows if (r.get('kind') == 'stock') == (statement == 'balance')]
     return {**payload, 'rows': selected(payload['rows']),
             **({'overview_rows': selected(payload['overview_rows'])} if 'overview_rows' in payload else {}),
+            **({'chart_rows': selected(payload['chart_rows'])} if 'chart_rows' in payload else {}),
             'ratios': [], 'published_ratios': [], 'shareholders': []}
 
 
@@ -86,6 +87,8 @@ def project(payload):
                         used.add(row['id'])
     allowed_ratios = set(RATIOS[template][standard].split())
     return {**payload, 'presentation': 'template', 'display_template': template,
+            **({'chart_rows': [r for r in payload['rows'] if r['kind'] in {'stock', 'flow'}
+                              and r['source_form'] != 'DERIVED']} if standard == 'NSBU' else {}),
             'overview_rows': compact_rows(groups, selected, payload['columns']),
             'rows': selected, 'ratios': [r for r in payload.get('ratios', []) if r['metric_id'] in allowed_ratios],
             'published_ratios': [r for r in payload.get('published_ratios', []) if r['field'] in allowed_ratios]}

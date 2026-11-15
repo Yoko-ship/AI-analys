@@ -70,6 +70,11 @@ def test_reference_projection_keeps_source_order_independent_and_missing_rows_em
     assert result['rows'][0]['display_group'] != result['rows'][1]['display_group']
     assert project(payload([]))['rows'] == []
     assert len(source) == 3
+    assert result['chart_rows'] == source
+
+    from financial_columns.presentation import select_statement
+    balance = select_statement(result, 'balance')
+    assert [r['source_form'] for r in balance['chart_rows']] == ['BANK_BS']
 
 
 @pytest.mark.parametrize('standard,form,code,metric,expected', [
@@ -106,11 +111,13 @@ def test_real_annual_filings_follow_the_reference_lists(ticker,source_template,d
     document=json.loads(Path(f'tests/fixtures/openinfo/{ticker}_2025_complete_rows.json').read_text(encoding='utf-8'))
     original=rows(document,template=source_template)
     source=[{**r,'id':r['source_form']+':'+r['source_code'],'cells':{'2025':r['current']}} for r in original]
-    selected=project(payload(source,display_template))['rows']
+    result=project(payload(source,display_template))
+    selected=result['rows']
     codes={(r['source_form'],r['source_code']) for r in selected}
     assert kept in codes and rejected not in codes
     assert rejected in {(r['source_form'],r['source_code']) for r in original}
     assert all(r['cells']==next(s for s in source if s['id']==r['id'])['cells'] for r in selected)
+    assert result['chart_rows'] == [r for r in source if r['kind'] in {'stock', 'flow'} and r['source_form'] != 'DERIVED']
 
 
 def test_all_twelve_reference_lists_are_explicit():

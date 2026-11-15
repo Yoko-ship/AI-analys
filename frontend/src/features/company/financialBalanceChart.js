@@ -30,7 +30,10 @@ function conversionFor(cell, unit, value, periodEnd) {
 // F1 line 320 includes bank accounts. BANK_BS lines 1, 2 and 3 are separate.
 // Bank net amounts replace their gross lines and allowances.
 const ASSET_LINES = {
-  F1: {ppe: '012', intangibles: '022', inventory: '140', receivables: '210', cash: '320'},
+  F1: {ppe: '012', intangibles: '022', long_term_investments: '030', equipment_installation: '090',
+    construction_in_progress: '100', long_term_receivables: '110', long_term_deferred_expenses: '120',
+    inventory: '140', prepaid_expenses: '190', deferred_expenses: '200', receivables: '210', cash: '320',
+    short_term_investments: '370', other_current_assets: '380'},
   BANK_BS: {cash: '1', central_bank_balances: '2', bank_balances: '3', trading_assets_net: '4г',
     investments_net: '5в', loans_leases_net: '7г', ppe: '10', interest_receivables: '11'},
 };
@@ -93,8 +96,11 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   const components = Object.keys(ASSET_LINES[totalAssets.form] ?? {}).map(reading)
     .filter(row => row.id || (totalAssets.form === 'BANK_BS' && row.metric_id === 'loans_leases_net'));
   const hasSections = sections.every(row => row.id);
-  const assetRows = hasSections ? sections : components;
-  const assets = composition(assetRows, totalAssets, hasSections ? 'asset_sections' : null);
+  // Sections validate the balance, but their nested details form the slices.
+  // Never add a subtotal and its children to the same pie.
+  const sectionCheck = hasSections ? composition(sections, totalAssets, 'asset_sections') : null;
+  const assetRows = components.length ? components : sections.filter(row => row.id);
+  const assets = sectionCheck?.reason ? sectionCheck : composition(assetRows, totalAssets);
   if (!assets.reason) {
     const difference = totalAssets.value - assetRows.reduce((sum, row) => sum + row.value, 0);
     const roundingError = Number.EPSILON * Math.abs(totalAssets.value) * assetRows.length;

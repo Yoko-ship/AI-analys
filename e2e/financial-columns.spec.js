@@ -236,6 +236,12 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   const periods = balance.getByRole('group', {name: 'Reporting period'});
   await expect(periods.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(balance.getByRole('img')).toHaveCount(2);
+  const detailRows = balance.getByRole('table', {name: 'All statement rows'});
+  await expect(detailRows).toBeVisible();
+  await expect(detailRows.locator('tbody tr')).toHaveCount(recentReports.rows.filter(row => row.kind === 'stock' && row.source_form !== 'DERIVED').length);
+  const grossLoans = detailRows.locator('tr[data-statement-row="BANK_BS:7а"]');
+  await expect(grossLoans).toContainText(new Intl.NumberFormat('en-US', {maximumFractionDigits: 2}).format(
+    Number(recentReports.rows.find(row => row.metric_id === 'loans_gross').cells['2026-09-30'].value)));
   await expect(terminal.locator('.fc-chart')).toHaveCount(0);
   const assets = balance.locator('[data-balance-chart="assets"]');
   const funding = balance.locator('[data-balance-chart="funding"]');
@@ -248,6 +254,7 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await loan.click();
   await expect(assets.getByRole('status')).toContainText('%');
   await periods.getByRole('button', {name: '2024', exact: true}).click();
+  await expect(detailRows.getByRole('columnheader').last()).toHaveText('2024');
   await expect(assets).toContainText('28,708,226,712');
   await expect(assets.getByRole('status')).toContainText('2024');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -269,6 +276,42 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await expect(terminal.locator('.fc-chart')).toBeVisible();
   await terminal.getByRole('tab', {name: 'Ratios', exact: true}).click();
   await expect(balance).toHaveCount(0);
+});
+
+test('Form 1 shows asset components above every filed row on mobile', async ({page}) => {
+  const definitions = [
+    ['012', 'ppe', 30], ['022', 'intangibles', 0], ['030', 'long_term_investments', 30],
+    ['050', 'investments_subsidiaries', 20], ['130', 'noncurrent_assets', 60],
+    ['140', 'inventory', 35], ['320', 'cash', 5], ['381', null, null],
+    ['390', 'current_assets', 40], ['400', 'total_assets', 100],
+    ['480', 'total_equity', 20], ['770', 'total_liabilities', 80],
+  ];
+  const chart_rows = definitions.map(([source_code, metric_id, value]) => ({
+    id: `F1:${source_code}`, source_form: 'F1', source_code, metric_id, label: metric_id || 'Unmapped filed row',
+    kind: 'stock', unit: 'UZS_thousand', cells: {
+      '2025': {value, quality: value == null ? 'missing' : 'valid', period_end: '2025-12-31',
+        currency: 'UZS', unit_scale: '1000', source_version: 'filed-form-1'},
+    },
+  }));
+  const reports = {ok: true, presentation: 'template', ticker: 'TEST', issuer_id: 'test-issuer',
+    scope: 'separate', standard: 'NSBU', chart_rows,
+    rows: chart_rows.filter(row => ['total_assets', 'ppe', 'cash'].includes(row.metric_id)),
+    columns: [{key: '2025', label: '2025', end: '2025-12-31', basis: 'annual'}]};
+  await page.setViewportSize({width: 390, height: 844});
+  await setup(page, {ticker: 'TEST', func: 'BS', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
+  const balance = terminal.getByRole('region', {name: 'Balance composition'});
+  const assets = balance.locator('[data-balance-chart="assets"]');
+  await expect(assets.locator('[data-pie-slice="long_term_investments"]')).toHaveAttribute('aria-label', /30%/);
+  await expect(assets.locator('[data-pie-slice="inventory"]')).toHaveAttribute('aria-label', /35%/);
+  await expect(assets.locator('[data-pie-slice="noncurrent_assets"], [data-pie-slice="investments_subsidiaries"]')).toHaveCount(0);
+  const table = balance.getByRole('table', {name: 'All statement rows'});
+  await expect(table.locator('tbody tr')).toHaveCount(chart_rows.length);
+  await expect(table.locator('[data-statement-row="F1:050"] td')).toContainText('20');
+  await expect(table.locator('[data-statement-row="F1:022"] td')).toContainText('0');
+  await expect(table.locator('[data-statement-row="F1:381"] td')).toContainText('—');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
 test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {
@@ -877,6 +920,8 @@ for (const [width,theme] of [[1440,'dark'],[390,'light']]) test(`HMKB quarterly 
 
 test('ABKZ overview shows only the income breakdown in chart mode', async ({page}, testInfo) => {
   const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
+  reports.chart_rows = structuredClone([...reports.rows, ...reports.income_flow_rows]);
+  // The table's reference projection omits filed finance details.
   await page.setViewportSize({width: 1440, height: 1050});
   await setup(page, {ticker: 'ABKZ', reports, theme: 'dark'});
   const terminal = page.getByTestId('financial-columns');
@@ -889,6 +934,20 @@ test('ABKZ overview shows only the income breakdown in chart mode', async ({page
   await expect(period.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(diagram).toContainText('Net income');
   await expect(diagram).toContainText('6.32');
+  const statementRows = breakdown.getByRole('table', {name: 'All statement rows'});
+  await expect(statementRows).toBeVisible();
+  await expect(statementRows.locator('tbody tr')).toHaveCount(reports.chart_rows.filter(row => row.kind === 'flow' && row.source_form !== 'DERIVED').length);
+  await expect(statementRows.locator('[data-statement-row="F2:200"]')).toBeVisible();
+  await expect(statementRows.getByRole('columnheader').last()).toHaveText('2026 · 9M');
+  const search = terminal.getByRole('searchbox', {name: 'Search metrics'});
+  await search.fill('QA_NO_MATCH_9472');
+  await expect(statementRows.locator('[data-statement-row]')).toHaveCount(0);
+  await expect(statementRows).toContainText('No matching rows');
+  await expect(diagram).toBeVisible();
+  await search.fill('валютных курсовых');
+  await expect(statementRows.locator('[data-statement-row="F2:200"]')).toBeVisible();
+  await expect(statementRows.locator('[data-statement-row]')).not.toHaveCount(reports.chart_rows.length);
+  await search.clear();
   const grossProfit = diagram.locator('.fc-sankey-node').filter({has: page.getByText('Gross profit', {exact: true})});
   await grossProfit.locator('rect').hover();
   const tooltip = breakdown.getByRole('tooltip');
@@ -898,6 +957,7 @@ test('ABKZ overview shows only the income breakdown in chart mode', async ({page
   await diagram.locator('.fc-sankey-ribbon.is-inspected').first().hover();
   await expect(tooltip).toContainText('Gross profit');
   await period.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(statementRows.getByRole('columnheader').last()).toHaveText('2025');
   await expect(tooltip).toHaveCount(0);
   await expect(diagram).toContainText('142.43');
   await grossProfit.focus();

@@ -176,6 +176,18 @@
 }
 
 .fc-balance-pies { padding: 12px 0 4px; }
+.fc-statement-rows { margin-top: 24px; min-width: 0; }
+.fc-statement-rows h3 { font-size: 16px; margin: 0 0 12px; }
+.fc-statement-rows table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.fc-statement-rows th, .fc-statement-rows td { padding: 12px 8px; border-bottom: 1px solid var(--fc-line); overflow-wrap: anywhere; vertical-align: top; }
+.fc-statement-rows th { text-align: left; font-weight: 400; width: 62%; }
+.fc-statement-rows thead th { font-weight: 600; }
+.fc-statement-rows td, .fc-statement-rows thead th:last-child { text-align: right; width: 38%; font-variant-numeric: tabular-nums; }
+.fc-statement-rows small { display: block; margin-top: 4px; color: var(--fc-muted); font-size: 12px; }
+@media (max-width: 600px) {
+  .fc-statement-rows th { width: 58%; }
+  .fc-statement-rows td, .fc-statement-rows thead th:last-child { width: 42%; font-size: 12px; }
+}
 .fc-balance-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .fc-balance-panels > div { min-width: 0; }
 .fc-balance-title { margin: 0 0 16px; font-size: 16px; font-weight: 600; color: var(--fc-ink); }

@@ -59,12 +59,13 @@ test('HMKB balance pies use net loans once and published funding totals', () => 
   assert.equal(funding.total, 44389278550);
 });
 
-test('asset sections take precedence over their nested detail rows', () => {
+test('asset details replace section slices while section totals still reconcile', () => {
   const rows = [row('total_assets', '100'), row('noncurrent_assets', '60'), row('current_assets', '40'),
     row('ppe', '50'), row('inventory', '30'), row('cash', '10')];
   const {assets} = balanceComposition(rows, period);
   assert.equal(assets.reason, null);
-  assert.deepEqual(assets.rows.map(row => row.metric_id), ['noncurrent_assets', 'current_assets']);
+  assert.deepEqual(assets.rows.map(row => row.metric_id), ['ppe', 'inventory', 'cash', 'unclassified_assets']);
+  assert.equal(assets.rows.at(-1).value, 10);
   rows[1].cells[period].value = '80';
   assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
   rows[1].cells[period].value = '50';
@@ -115,6 +116,22 @@ test('UZAL 2025 Form 1 uses the filed section and funding totals', () => {
   assert.equal(assets.total, 7500582824);
   assert.equal(funding.total, assets.total);
   assert.equal(assets.rows.length, 2);
+
+  const assetMetrics = { '012': 'ppe', '022': 'intangibles', '030': 'long_term_investments',
+    '090': 'equipment_installation', '100': 'construction_in_progress', '110': 'long_term_receivables',
+    '120': 'long_term_deferred_expenses', '140': 'inventory', '190': 'prepaid_expenses',
+    '200': 'deferred_expenses', '210': 'receivables', '320': 'cash',
+    '370': 'short_term_investments', '380': 'other_current_assets'};
+  const assetSource = form.source_rows.slice(0, form.source_rows.findIndex(({cells}) => cells[1] === '400'));
+  const details = assetSource.filter(({cells}) => assetMetrics[cells[1]]).map(({cells}) => ({
+    ...structuredClone(rows[0]), id: `F1:${cells[1]}`, metric_id: assetMetrics[cells[1]], source_code: cells[1],
+    cells: {'2025': {...rows[0].cells['2025'], value: cells[3], raw_value: cells[3]}},
+  }));
+  const detailed = compose([...rows, ...details], '2025', '2025-12-31', {scope: 'separate', standard: 'NSBU', ticker: 'UZAL', issuerId: 'UZAL'}).assets;
+  assert.equal(detailed.reason, null);
+  assert.equal(detailed.rows.length, 14);
+  assert.equal(detailed.rows.find(row => row.metric_id === 'long_term_investments').value, 511475.7);
+  assert.ok(!detailed.rows.some(row => ['noncurrent_assets', 'current_assets', 'unclassified_assets'].includes(row.metric_id)));
 });
 
 test('unavailable, negative and incompatible funding values keep their reported readings without pie slices', () => {

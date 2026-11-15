@@ -1,5 +1,6 @@
 import React from 'react';
 import {balanceComposition} from './financialBalanceChart.js';
+import {StatementChartRows} from './StatementChartRows.jsx';
 
 const COLORS = [
   'var(--chart-primary)', 'var(--muted)',
@@ -86,5 +87,6 @@ export function BalancePieCharts({rows, columns, reportContext, format, t}) {
       <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} format={format} t={t}/>
       <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} format={format} t={t}/>
     </div>
+    <StatementChartRows rows={rows} period={period} kind="stock" format={format} t={t}/>
   </section>;
 }
