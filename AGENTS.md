@@ -14,11 +14,12 @@ Never write the host address, port, user, passwords or keys into tracked files.
 Before a production deployment, inspect the active application directory and
 service manager on this host. Do not use Railway deployment or recovery tools.
 
-Application pushes to `API` start the production release without a pull request
-or required test jobs. The release builds one image in GitHub Actions, publishes
-it to GHCR, and pulls it by immutable digest on the server. Do not add a second
-server-side build. The image revision and server checkout must match the
-released commit. Registry credentials are short-lived and removed after the pull.
+Application pushes to `API` start the production release without a pull request.
+GitHub Actions builds one image and runs the focused Chromium UI checks against
+that image's frontend assets before deploying it. The server pulls the image by
+its immutable GHCR digest. Do not add a second server-side build. The image
+revision and server checkout must match the released commit. Registry
+credentials are short-lived and removed after the pull.
 
 Compare changes with the revision of the running image, not merely the previous
 push: an earlier failed application release may still need deployment. Tests,
@@ -26,6 +27,7 @@ documentation, and CI testing-rule changes alone do not restart production.
 Manual workflow runs force a release, including operational backfill requests.
 
 Keep Docker base-image digests pinned and update them deliberately for maintenance.
+When updating Playwright, match the release browser container to `package-lock.json`.
 
 # Tests first
 
@@ -66,7 +68,7 @@ with `npx playwright install chromium` once if it is missing (on Linux, use
 
 Report which feature specs ran and their results when finishing the work. The
 full browser suite remains available manually with `npm run test:e2e` after a
-build. Browser checks are available on demand for development.
+build. Only the focused release browser specs run as a deployment gate.
 
 # Fix the cause, not the case
 

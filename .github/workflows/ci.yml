@@ -145,12 +145,49 @@ jobs:
           IMAGE_TAG: ${{ steps.image.outputs.tag }}
         run: bash scripts/publish_release_image.sh
 
+      - name: Extract the browser assets from the release image
+        env:
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          container="$(docker create "$IMAGE_TAG")"
+          trap 'docker rm "$container" >/dev/null' EXIT
+          mkdir -p "$RUNNER_TEMP/release-browser-assets"
+          docker cp "$container:/app/web/dist/." "$RUNNER_TEMP/release-browser-assets"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-browser-assets
+          path: ${{ runner.temp }}/release-browser-assets
+          if-no-files-found: error
+          retention-days: 1
+
+  ui-browser:
+    name: Browser UI review
+    needs: docker
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-browser-assets
+          path: web/dist
+      - run: npm ci
+      - name: Open and exercise the release in Chromium
+        run: npm run test:e2e -- e2e/catalog-performance.spec.js e2e/market-performance.spec.js e2e/financial-columns.spec.js --workers=2
+
   deploy-production:
     # Production secrets live in this environment, which only the API
     # branch may use: a pushed branch editing this file cannot reach them.
     environment: uzstock-production
     name: Deploy production
-    needs: [docker, release-plan]
+    needs: [docker, release-plan, ui-browser]
     permissions:
       contents: read
       packages: read
