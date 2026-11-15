@@ -105,6 +105,17 @@ def test_release_build_is_cached_and_published_once_then_pulled_by_digest():
     assert workflow['concurrency']['cancel-in-progress'] is False
 
 
+def test_release_cannot_publish_before_quality_checks_and_image_smoke():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
+    jobs = workflow['jobs']
+    assert {'secret-scan', 'backend', 'frontend'} <= set(jobs['docker']['needs'])
+    assert {'secret-scan', 'backend', 'frontend', 'docker', 'release-plan'} <= set(jobs['deploy-production']['needs'])
+    steps = jobs['docker']['steps']
+    smoke = next(i for i, step in enumerate(steps) if 'Smoke-check the runtime dependencies' in step.get('name', ''))
+    publish = next(i for i, step in enumerate(steps) if step.get('id') == 'publish')
+    assert smoke < publish
+
+
 def test_release_decision_uses_running_image_revision_not_previous_push():
     workflow = yaml.safe_load((ROOT / '.github/workflows/ci.yml').read_text())
     plan = workflow['jobs']['release-plan']

@@ -3,7 +3,8 @@ name: CI
 on:
   push:
     branches:
-      - API
+      - "**"
+  pull_request:
   workflow_dispatch:
     inputs:
       refresh_market_now:
@@ -54,8 +55,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan the working tree and the pushed commits for secrets
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          BEFORE: ${{ github.event.before }}
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks dir --redact --no-banner .
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "$BEFORE" 2>/dev/null; then
+            ./gitleaks git --redact --no-banner --log-opts="$BEFORE..HEAD" .
+          fi
+
   release-plan:
     name: Compare with the running production release
+    needs: secret-scan
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/API'
     environment: uzstock-production
     runs-on: ubuntu-latest
@@ -99,8 +120,113 @@ jobs:
           python scripts/release_plan.py --running "$(cat "$RUNNER_TEMP/running-revision")" \
             --head "$EXPECTED_SHA" --output "$GITHUB_OUTPUT" "${options[@]}"
 
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.14"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: qa
+          POSTGRES_PASSWORD: qa-local-test
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements-server.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-server.txt -r requirements-dev.txt
+
+      - name: Compile every module
+        # Not a hand-maintained list: a new module must not be able to join the
+        # repo already broken because nobody added it here.
+        run: python -m compileall -q .
+
+      - name: Audit server dependencies for known vulnerabilities
+        # Nothing used to look: requests, lxml and python-dotenv sat on versions
+        # with published advisories until a manual audit on 2026-10-15. A new
+        # advisory now fails the build; bump the pin, or for one with no fix yet,
+        # add --ignore-vuln <ID> here with the reason.
+        run: |
+          pip install pip-audit==2.10.1
+          pip-audit -r requirements-server.txt --progress-spinner off
+
+      - name: Verify the server image declares every import it uses
+        # The failure this catches: feedparser and pdfplumber were imported by
+        # collector code but absent from requirements-server.txt, so the Railway
+        # cron jobs exited 0 having silently collected nothing for weeks.
+        run: python scripts/check_server_requirements.py
+
+      # Includes reporting regressions and bank ingestion safety tests; run each
+      # case once per Python version instead of repeating subsets around it.
+      - name: Required full backend suite and architecture boundaries
+        env:
+          TEST_POSTGRES_URL: postgresql://qa:qa-local-test@127.0.0.1:5432/postgres
+          TEST_DATABASE_URL: postgresql://qa:qa-local-test@127.0.0.1:5432/postgres
+          PYTHON_DOTENV_DISABLED: "1"
+          DATABASE_BACKEND: sqlite
+          DATABASE_URL: ""
+          DATABASE_PUBLIC_URL: ""
+          APP_DATA_DIR: ${{ runner.temp }}/uzstock-full-tests
+          CATALOG_WATCH: "0"
+          NEWS_CALENDAR_WATCH: "0"
+          SECTOR_ANALYSIS_WORKER: "0"
+          ADMIN_CONTROL_WORKER: "0"
+        run: python -m pytest tests -q
+
+  # ---------------------------------------------------------------------------
+  # Frontend. Lint is load-bearing here, not cosmetic: react-hooks/rules-of-hooks
+  # is the only mechanical guard against the CompareTable class of crash (a hook
+  # after an early return) in a 10k-line, ~60-component file.
+  # ---------------------------------------------------------------------------
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit shipped npm dependencies for known vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Lint (Rules of Hooks is an error)
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+      # Run feature-specific browser tests during implementation (see AGENTS.md).
+      # Push/PR CI stops at the build; targeted live smoke checks follow deployment.
+
+  # ---------------------------------------------------------------------------
+  # The image both cron collectors and the API actually run.
+  # ---------------------------------------------------------------------------
   docker:
-    needs: release-plan
+    needs: [release-plan, secret-scan, backend, frontend]
     if: needs.release-plan.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -131,6 +257,88 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=uzstock-runtime
           cache-to: type=gha,scope=uzstock-runtime,mode=max
+      - name: Smoke-check the runtime dependencies inside the image
+        # Import every package the collectors need, in the built image — the only
+        # place that answers "will tonight's cron actually work".
+        run: |
+          docker run --rm --entrypoint python uz-stock-bot -c "
+          import importlib, sys
+          import scripts.publish_reviewed_bank_ifrs
+          from runtime_preflight import COLLECTOR_REQUIREMENTS, NEWS_REQUIREMENTS
+          missing = [n for n in {**COLLECTOR_REQUIREMENTS, **NEWS_REQUIREMENTS}
+                     if importlib.util.find_spec(n) is None]
+          print('checked', len({**COLLECTOR_REQUIREMENTS, **NEWS_REQUIREMENTS}), 'packages')
+          if missing:
+              sys.exit('MISSING in the server image: ' + ', '.join(missing))
+          print('all collector dependencies present')
+          "
+      - name: Run the nginx edge configuration in a real nginx
+        # The deploy writes this into the live nginx; prove here that nginx
+        # accepts it and that it limits per visitor, not per proxy. Requests
+        # from this runner reach the container from the Docker gateway, a
+        # trusted private address, exactly as the provider's proxy reaches the VPS.
+        run: |
+          edge="$RUNNER_TEMP/edge"
+          mkdir -p "$edge/conf.d" "$edge/snippets"
+          PROBE_TOKEN=citoken python3 scripts/nginx_edge.py render "$edge/conf.d"
+          mv "$edge/conf.d/uzstock-monitor.conf" "$edge/snippets/"
+          # The site location serves a file, as production proxies: a `return`
+          # answers in the rewrite phase, before limit_req ever runs.
+          printf 'server {\n    listen 8080;\n    include /etc/nginx/snippets/uzstock-monitor.conf;\n    location / { root /usr/share/nginx/html; try_files /index.html =404; }\n}\n' > "$edge/conf.d/site.conf"
+          docker run -d --name edge -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:80 \
+            -v "$edge/conf.d:/etc/nginx/conf.d:ro" -v "$edge/snippets:/etc/nginx/snippets:ro" nginx:1.24.0
+          for attempt in $(seq 1 20); do curl -fsS -o /dev/null http://127.0.0.1:8080/ && break; sleep 1; done
+          docker logs edge
+          # The public proxy forwards www to this HTTP origin. Preserve the
+          # full URL while consolidating it onto the primary HTTPS domain.
+          [ "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -H 'Host: www.uzstock.uz' 'http://127.0.0.1:8081/company/UZTL?report=ai&source=search')" = '301 https://uzstock.uz/company/UZTL?report=ai&source=search' ] \
+            || { echo "www canonical redirect lost its status, path or query"; exit 1; }
+          probe="$(curl -fsS -H 'X-UZStock-Edge-Probe: citoken' -H 'X-Forwarded-For: 203.0.113.9' http://127.0.0.1:8080/__uzstock/edge-probe)"
+          echo "probe answered: $probe"
+          [ "$(echo "$probe" | awk '{print $2}')" = "203.0.113.9" ] || { echo "realip did not resolve the visitor"; exit 1; }
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/__uzstock/edge-probe)" = "404" ] || { echo "the probe answers without its token"; exit 1; }
+          # 700 requests at once against a burst of 400: a fresh bucket admits
+          # at least 400, a spent one only what refills while they run.
+          admitted() { curl -s -o /dev/null -w '%{http_code}\n' -H "X-Forwarded-For: $1" $(seq -f 'http://127.0.0.1:8080/?%g' 1 700) | grep -c '^200$' || true; }
+          first="$(admitted 203.0.113.9)"; echo "one visitor, 700 at once: $first admitted"
+          [ "$first" -ge 400 ] && [ "$first" -lt 700 ] || { echo "a flood from one visitor was not limited at the burst"; exit 1; }
+          spoofed="$(admitted '1.2.3.4, 203.0.113.9')"; echo "same visitor, forged left-hand entry: $spoofed admitted"
+          [ "$spoofed" -lt 200 ] || { echo "a forged X-Forwarded-For entry bought a fresh bucket"; exit 1; }
+          [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 198.51.100.7' http://127.0.0.1:8080/)" = "200" ] \
+            || { echo "a second visitor was limited by the first one's flood"; exit 1; }
+          docker rm -f edge
+      - name: Back up off-site and restore, end to end
+        # scripts/offsite_backup.sh against a local target instead of a bucket:
+        # only ciphertext may land there, and the password must bring back the
+        # dumps, the documents and a working copy of a live SQLite database.
+        run: |
+          work="$RUNNER_TEMP/offsite"
+          mkdir -p "$work/pg" "$work/bucket" "$work/restore"
+          docker volume create offsite-test-data >/dev/null
+          docker run --rm --user root -v offsite-test-data:/app/data --entrypoint python uz-stock-bot -c "
+          import os, sqlite3
+          db = sqlite3.connect('/app/data/admin_control.sqlite3')
+          db.execute('PRAGMA journal_mode=WAL'); db.execute('CREATE TABLE t (x)'); db.execute(\"INSERT INTO t VALUES ('plain-marker-7c1')\"); db.commit()
+          os.makedirs('/app/data/admin_documents', exist_ok=True)
+          open('/app/data/admin_documents/original.pdf', 'w').write('document-marker-7c1')
+          "
+          echo "dump-marker-7c1" > "$work/pg/uzstock-20261016T000000Z.dump"
+          password="$(docker run --rm rclone/rclone:1.68.2 obscure ci-only-password-long-enough)"
+          printf 'RCLONE_CONFIG_OFFSITE_TYPE=local\nRCLONE_CONFIG_SECURE_TYPE=crypt\nRCLONE_CONFIG_SECURE_REMOTE=offsite:/bucket\nRCLONE_CONFIG_SECURE_PASSWORD=%s\n' "$password" > "$work/rclone.env"
+          DOCKER=docker ENV_FILE="$work/rclone.env" APP_IMAGE=uz-stock-bot DATA_VOLUME=offsite-test-data \
+            PG_DIR="$work/pg" SCRIPTS="$PWD/scripts" RCLONE_DOCKER_ARGS="-v $work/bucket:/bucket" sh scripts/offsite_backup.sh
+          if sudo grep -rq "marker-7c1" "$work/bucket"; then echo "plaintext reached the backup target"; exit 1; fi
+          docker run --rm --env-file "$work/rclone.env" -v "$work/bucket:/bucket" -v "$work/restore:/restore" \
+            rclone/rclone:1.68.2 copy secure: /restore
+          sudo chmod -R a+rX "$work/restore"
+          grep -q dump-marker-7c1 "$work/restore/postgres/uzstock-20261016T000000Z.dump"
+          grep -q document-marker-7c1 "$work/restore/data/admin_documents/original.pdf"
+          snapshot="$(ls "$work"/restore/sqlite/*/admin_control.sqlite3)"
+          python3 -c "import sqlite3, sys; assert sqlite3.connect(sys.argv[1]).execute('SELECT x FROM t').fetchone()[0] == 'plain-marker-7c1'" "$snapshot"
+          if [ -e "$work/restore/data/admin_control.sqlite3" ]; then echo "a live database file was uploaded raw"; exit 1; fi
+          docker volume rm offsite-test-data >/dev/null
+
+
       - name: Log in to the release registry
         if: github.ref == 'refs/heads/API' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         uses: docker/login-action@v3
@@ -138,7 +346,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish the image and record its immutable digest
+      - name: Publish the tested image and record its immutable digest
         id: publish
         if: github.ref == 'refs/heads/API' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
@@ -187,7 +395,7 @@ jobs:
     # branch may use: a pushed branch editing this file cannot reach them.
     environment: uzstock-production
     name: Deploy production
-    needs: [docker, release-plan, ui-browser]
+    needs: [docker, release-plan, ui-browser, secret-scan, backend, frontend]
     permissions:
       contents: read
       packages: read
@@ -1216,6 +1424,108 @@ jobs:
             docker exec uzstock-web python -m collection_ops.verify --since "$monitor_check_started" --exercise bank-fx
           fi
           REMOTE
+
+  verify-production-market:
+    # Production secrets live in this environment, which only the API
+    # branch may use: a pushed branch editing this file cannot reach them.
+    environment: uzstock-production
+    name: Verify market on the production server
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      options: --ipc=host
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Open a tunnel to the server's nginx
+        # The key opens a root shell on the server, and the next step runs code
+        # from node_modules. So the key exists only for this step: `ssh -f`
+        # backgrounds after it has authenticated, the key file is shredded
+        # straight after, and the tunnel lives on without it.
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_HOST: ${{ secrets.PROD_HOST }}
+          PROD_PORT: ${{ secrets.PROD_PORT }}
+          PROD_USER: ${{ secrets.PROD_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          key="$(mktemp)"
+          trap 'shred -u "$key" 2>/dev/null || rm -f "$key"' EXIT
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$key"
+          ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 \
+            -f -N -L 127.0.0.1:8443:127.0.0.1:443 \
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST"
+          shred -u "$key"
+          for attempt in $(seq 1 30); do
+            if curl -ksS --max-time 5 --resolve uzstock.uz:8443:127.0.0.1 -o /dev/null https://uzstock.uz:8443/market; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The server's nginx did not answer /market through the tunnel."
+          exit 1
+      - name: Load the market with real assets and real data
+        env:
+          E2E_BASE_URL: https://uzstock.uz
+          E2E_ORIGIN: 127.0.0.1:8443
+          E2E_PRODUCTION_SMOKE: "1"
+        run: npx playwright test e2e/production-market.spec.js --workers=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-market-verification
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  check-public-market:
+    name: Check market through the public address
+    needs: deploy-production
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      options: --ipc=host
+    timeout-minutes: 8
+    # A failure here is the route to the site, not the site: it warns and
+    # never fails the run. The warning lands on the run page and its summary.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Load the public market from outside Uzbekistan
+        id: public
+        env:
+          E2E_BASE_URL: https://uzstock.uz
+          E2E_PRODUCTION_SMOKE: "1"
+        run: npx playwright test e2e/production-market.spec.js --workers=1 --retries=2
+      - name: Report an unreachable public route
+        if: failure() && steps.public.outcome == 'failure'
+        run: |
+          message="uzstock.uz/market did not load through the public address from GitHub's runner (3 tries). The site itself is judged by «Verify market on the production server»; this points at the route through the hosting provider's front proxy."
+          echo "::warning title=Public route to uzstock.uz::$message"
+          { echo "### ⚠️ Public route to uzstock.uz"; echo; echo "$message"; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-market-check
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   repair-financial-balances:
     environment: uzstock-production
