@@ -496,7 +496,7 @@ function CompanyPage({ ticker, securitiesMap, language, onBack, onOpenCompany, o
               {t.label}
             </button>
           ))}
-          {securityType !== 'bond' && <a className="company-tab-btn" style={{textDecoration:'none'}}
+          {isAdmin && securityType !== 'bond' && <a className="company-tab-btn" style={{textDecoration:'none'}}
             href={localizedPath('/compare',lang)+'?view=returns&companies='+encodeURIComponent(ticker)}>
             {lang==='ru'?'Сравнить доходность':lang==='uz'?'Daromadlilikni solishtirish':'Compare returns'}
           </a>}
