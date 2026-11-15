@@ -7,8 +7,6 @@ const copy = {
   monthly:['По месяцам','Oylik','Monthly'], annual:['По годам','Yillik','Annual'],
   add:['Добавить компанию','Kompaniya qo‘shish','Add company'], remove:['Удалить','Olib tashlash','Remove'],
   total:['За весь период','Jami davr','Selected period'], year:['Год','Yil','Year'],
-  method:['Как считается','Hisoblash usuli','How returns are calculated'],
-  explanation:['Доходность = (последняя цена периода / последняя цена до начала периода − 1) × 100. Итоги рассчитываются по начальной и конечной цене, а не суммой процентов. Цены в сумах, с учётом зарегистрированных дроблений и бонусных выпусков. Дивиденды и комиссии не включены.','Daromadlilik = (davrning oxirgi narxi / davr boshlanishidan oldingi oxirgi narx − 1) × 100. Jami natija foizlar yig‘indisi emas, boshlang‘ich va oxirgi narxdan hisoblanadi. Narxlar so‘mda, qayd etilgan bo‘linishlar va bonus emissiyalari hisobga olingan. Dividend va komissiyalar kiritilmagan.','Return = (last price in the period / last price before the period − 1) × 100. Totals use the starting and ending prices, not a sum of percentages. Prices are in UZS and include recorded split and bonus-issue adjustments. Dividends and fees are excluded.'],
   note:['Без дивидендов · * неполный период · † устаревшая цена · — нет данных','Dividendlarsiz · * to‘liq bo‘lmagan davr · † eski narx · — ma’lumot yo‘q','Excludes dividends · * partial period · † older price · — unavailable'],
   ranking:['В каждом столбце акции расположены по доходности: от большей к меньшей.','Har bir ustunda aksiyalar daromadlilik bo‘yicha yuqoridan pastga tartiblangan.','Each column ranks shares from highest to lowest return.'],
   asOf:['Торговые данные на','Savdo ma’lumotlari sanasi','Market data through'],
