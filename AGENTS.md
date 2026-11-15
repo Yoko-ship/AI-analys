@@ -14,19 +14,18 @@ Never write the host address, port, user, passwords or keys into tracked files.
 Before a production deployment, inspect the active application directory and
 service manager on this host. Do not use Railway deployment or recovery tools.
 
-Production releases build and smoke-test one image in CI, publish it to GHCR,
-and pull it by immutable digest on the server. Do not add a second server-side
-build. The image's revision label and the server checkout must match the tested
-commit. Registry credentials are short-lived and removed after the pull.
+Application pushes to `API` start the production release without a pull request
+or required test jobs. The release builds one image in GitHub Actions, publishes
+it to GHCR, and pulls it by immutable digest on the server. Do not add a second
+server-side build. The image revision and server checkout must match the
+released commit. Registry credentials are short-lived and removed after the pull.
 
 Compare changes with the revision of the running image, not merely the previous
 push: an earlier failed application release may still need deployment. Tests,
 documentation, and CI testing-rule changes alone do not restart production.
 Manual workflow runs force a release, including operational backfill requests.
 
-Keep Docker base-image digests pinned; update them deliberately for maintenance.
-When updating Playwright, update both production smoke-job container versions
-to match package-lock.json. Keep browser installation out of those jobs.
+Keep Docker base-image digests pinned and update them deliberately for maintenance.
 
 # Tests first
 
@@ -43,8 +42,8 @@ Before adding a test, look for existing coverage of the same behavior and extend
 it where appropriate. Keep distinct real regressions and boundary cases, but do
 not copy the same inputs and assertions into another module. For mocked I/O,
 simulate pacing and retry clocks instead of sleeping in real time, and assert
-the requested delays. CI should run each backend case once per Python version;
-targeted development runs need not be repeated alongside the full suite in CI.
+the requested delays. Run targeted development checks before a full suite when
+tests are part of the task.
 
 # Browser checks during feature implementation
 
@@ -67,9 +66,7 @@ with `npx playwright install chromium` once if it is missing (on Linux, use
 
 Report which feature specs ran and their results when finishing the work. The
 full browser suite remains available manually with `npm run test:e2e` after a
-build, but is not a push or deployment prerequisite. CI still runs backend tests,
-frontend unit tests, lint and builds, and the targeted live market smoke checks
-still run after production deployment.
+build. Browser checks are available on demand for development.
 
 # Fix the cause, not the case
 
