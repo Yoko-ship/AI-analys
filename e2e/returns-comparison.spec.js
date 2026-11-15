@@ -7,9 +7,10 @@ const histories={
   SQBN:[],
 };
 test.beforeEach(async({page})=>{
-  await page.addInitScript(()=>{localStorage.setItem('uz_stock_analyzer_language','en');sessionStorage.setItem('uz_sponsor_seen','1');});
+  await page.addInitScript(()=>{localStorage.setItem('uz_stock_analyzer_language','en');localStorage.setItem('uz_stock_analyzer_token','returns-admin-session');sessionStorage.setItem('uz_sponsor_seen','1');});
   await page.route('**/api/**',route=>{
     const url=new URL(route.request().url());
+    if(url.pathname==='/api/auth/me')return route.fulfill({json:{user:{id:1,email:'returns@example.test',is_admin:true}}});
     if(url.pathname==='/api/company-comparison/options')return route.fulfill({json:{ok:true,companies,periods:[]}});
     if(url.pathname.startsWith('/api/price-history/')) {
       const ticker=url.pathname.split('/').pop();
@@ -19,6 +20,49 @@ test.beforeEach(async({page})=>{
   });
 });
 const url='/compare?view=returns&companies=HMKB,IPKY&from=2026-01&to=2026-05';
+
+for(const role of ['guest','member','editor']) test(`returns are hidden from ${role}, including direct links`,async({page},info)=>{
+  await page.addInitScript(role=>{
+    if(role==='guest')localStorage.removeItem('uz_stock_analyzer_token');
+  },role);
+  await page.route('**/api/auth/me',route=>route.fulfill({json:{user:role==='guest'?null:{id:2,email:'member@example.test',is_admin:false,admin_role:role==='editor'?'editor':null}}}));
+  const requests=[];
+  page.on('request',request=>{if(request.url().includes('include_unknown=true'))requests.push(request.url());});
+  await page.goto(url);
+  await expect(page.getByRole('status')).toHaveText('This view is available to administrators only.');
+  if(role!=='guest')await expect(page.locator('.account-button')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Compare returns',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Returns',exact:true})).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('status')).toHaveText('This view is available to administrators only.');
+  await expect(page.getByRole('heading',{name:'Compare returns',exact:true})).toHaveCount(0);
+  expect(requests).toEqual([]);
+  await page.screenshot({path:info.outputPath(`comparison-${role}.png`),fullPage:true});
+  await page.getByRole('button',{name:'Fundamentals',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Compare companies',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Returns',exact:true})).toHaveCount(0);
+  await page.goto('/company/HMKB');
+  await expect(page.locator('.company-page-tabs')).toBeVisible();
+  await expect(page.getByRole('link',{name:'Compare returns',exact:true})).toHaveCount(0);
+});
+
+test('returns wait for verified admin access and preserve the direct link',async({page})=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/api/auth/me',async route=>{
+    await gate;
+    await route.fulfill({json:{user:{id:1,email:'admin@example.test',is_admin:false,admin_role:'administrator'}}});
+  });
+  const requests=[];
+  page.on('request',request=>{if(request.url().includes('include_unknown=true'))requests.push(request.url());});
+  await page.goto(url);
+  await expect(page.getByRole('status')).toHaveText('This view is available to administrators only.');
+  await expect(page.getByRole('heading',{name:'Compare returns',exact:true})).toHaveCount(0);
+  expect(requests).toEqual([]);
+  release();
+  await expect(page.getByRole('heading',{name:'Compare returns',exact:true})).toBeVisible();
+  await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('+20%');
+});
 test('returns heatmap calculates calendar returns and preserves dates in annual and relative views',async({page},info)=>{
   await page.goto(url);
   await expect(page.getByRole('heading',{name:'Compare returns'})).toBeVisible();

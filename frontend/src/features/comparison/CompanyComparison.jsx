@@ -356,10 +356,14 @@ export function CompanyComparison(props) {
     window.history.pushState(window.history.state,'',window.location.pathname+'?'+params);
     setView(next);
   };
+  if(view==='returns' && !props.isAdmin) return <div className="cc-workspace">
+    <p role="status">{returnsText(props.language,'restricted')}</p>
+    <button type="button" className="cc-button" onClick={()=>changeView('fundamentals')}>{returnsText(props.language,'fundamentals')}</button>
+  </div>;
   return <div className="cc-workspace">
-    <div className="cc-view-switch">
+    {props.isAdmin && <div className="cc-view-switch">
       {['fundamentals','returns'].map(key=><button type="button" key={key} aria-pressed={view===key} onClick={()=>changeView(key)}>{returnsText(props.language,key)}</button>)}
-    </div>
+    </div>}
     {view==='returns' ? <ReturnsComparison {...props} Picker={CompanyPicker} /> : <FinancialComparison {...props} />}
   </div>;
 }

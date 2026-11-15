@@ -71,6 +71,7 @@ function App() {
           )}
 
           {activeView === "companyCompare" && <CompanyComparison key={user?.id || 'guest'} language={language} apiFetch={apiFetch}
+            isAdmin={Boolean(token && (user?.is_admin || user?.admin_role === 'administrator'))}
             user={user} onSignIn={() => setActiveView('auth')} />}
 
           {activeView === "catalog" && (
