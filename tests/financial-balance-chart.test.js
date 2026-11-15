@@ -72,6 +72,16 @@ test('asset details replace section slices while section totals still reconcile'
   assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
 });
 
+test('asset components cannot exceed their own filed subtotals', () => {
+  for (const [noncurrent, current] of [[70,30], [50,50], [100,0]]) {
+    const rows = [row('total_assets', 100), row('noncurrent_assets', 60), row('current_assets', 40),
+      row('ppe', noncurrent), row('inventory', current)];
+    const {assets} = balanceComposition(rows, period);
+    assert.equal(assets.reason, 'asset_sections');
+    assert.equal(assets.total, null);
+  }
+});
+
 test('balance pies reject duplicate readings and conflicting source contexts', () => {
   const assets = row('total_assets', '100');
   const liabilities = row('total_liabilities', '80');

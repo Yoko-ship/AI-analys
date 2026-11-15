@@ -151,7 +151,7 @@ function layout({totals, bridges}) {
   return {nodes, links, left, width: right - left, height: bottom};
 }
 
-export function IncomeSankey({rows, details, statementRows = rows, columns, format, lang, t, showDifference = false}) {
+export function IncomeSankey({rows, details, statementRows = rows, matchesStatementRow, statementContext, renderStatementValue, columns, format, lang, t, showDifference = false}) {
   const heading = React.useId(), note = React.useId();
   const [selected, setSelected] = React.useState('');
   const [inspection, setInspection] = React.useState(null);
@@ -222,7 +222,7 @@ export function IncomeSankey({rows, details, statementRows = rows, columns, form
         '--sankey-min-height': `${Math.max(...graphs.map(chart => Math.min(chart.width, 940) * chart.height / chart.width))}px`,
       }}>
         {graph ? <div className="fc-sankey-scroll" role="region" tabIndex={0} onScroll={clear}
-          onKeyDown={event => { if (event.key === 'Escape') clear(); }}
+          onKeyDown={event => { if (event.key === 'Escape' && inspected) { event.preventDefault(); clear(); } }}
           aria-label={t('Схема доходов и расходов', 'Daromad va xarajatlar sxemasi', 'Income flow diagram')}>
           <svg role="img" aria-label={`${title} · ${active.label} · ${unit}`} aria-describedby={hasDifference ? note : undefined}
             viewBox={`${graph.left} 0 ${graph.width} ${graph.height}`} style={{'--sankey-width': `${graph.width}px`}}>
@@ -264,6 +264,7 @@ export function IncomeSankey({rows, details, statementRows = rows, columns, form
         {graph && <dl>{graph.nodes.map(node => <div key={node.key}><dt>{label(node)}</dt><dd>{format(node.value)}</dd></div>)}</dl>}
       </details>
     </> : empty}
-    <StatementChartRows rows={statementRows} period={active} kind="flow" format={format} t={t}/>
+    <StatementChartRows rows={statementRows} period={active} kind="flow" context={statementContext}
+      matches={matchesStatementRow} renderValue={renderStatementValue} t={t}/>
   </section>;
 }

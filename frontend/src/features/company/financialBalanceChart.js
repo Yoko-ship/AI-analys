@@ -101,6 +101,21 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   const sectionCheck = hasSections ? composition(sections, totalAssets, 'asset_sections') : null;
   const assetRows = components.length ? components : sections.filter(row => row.id);
   const assets = sectionCheck?.reason ? sectionCheck : composition(assetRows, totalAssets);
+  if (!assets.reason && hasSections && totalAssets.form === 'F1' && components.length) {
+    const boundary = BALANCE_LINES.F1.noncurrent_assets;
+    const noncurrent = components.filter(row => ASSET_LINES.F1[row.metric_id] < boundary);
+    const current = components.filter(row => ASSET_LINES.F1[row.metric_id] > boundary);
+    const exceedsSection = [noncurrent, current].some((items, i) => {
+      const sum = items.reduce((subtotal, item) => subtotal + item.value, 0);
+      const cap = sections[i].value;
+      const roundingError = Number.EPSILON * Math.max(sum, cap) * items.length;
+      return sum - cap > roundingError;
+    });
+    if (exceedsSection) {
+      assets.reason = 'asset_sections';
+      assets.total = null;
+    }
+  }
   if (!assets.reason) {
     const difference = totalAssets.value - assetRows.reduce((sum, row) => sum + row.value, 0);
     const roundingError = Number.EPSILON * Math.abs(totalAssets.value) * assetRows.length;

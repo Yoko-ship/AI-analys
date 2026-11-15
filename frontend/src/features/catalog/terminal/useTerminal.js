@@ -175,7 +175,8 @@ export function useTerminal({ companies, ticker, setTicker, lang }) {
 
   React.useEffect(() => {
     const onKey = (event) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const inDialog = event.target instanceof Element && event.target.closest("dialog[open]");
+      if (event.defaultPrevented || inDialog || event.ctrlKey || event.metaKey || event.altKey) return;
       const typing = isTyping(event.target);
       if (event.key === "/" && !typing) {
         event.preventDefault();

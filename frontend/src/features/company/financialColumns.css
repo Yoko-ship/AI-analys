@@ -183,6 +183,7 @@
 .fc-statement-rows th { text-align: left; font-weight: 400; width: 62%; }
 .fc-statement-rows thead th { font-weight: 600; }
 .fc-statement-rows td, .fc-statement-rows thead th:last-child { text-align: right; width: 38%; font-variant-numeric: tabular-nums; }
+.fc-statement-rows .fc-value { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .fc-statement-rows small { display: block; margin-top: 4px; color: var(--fc-muted); font-size: 12px; }
 @media (max-width: 600px) {
   .fc-statement-rows th { width: 58%; }

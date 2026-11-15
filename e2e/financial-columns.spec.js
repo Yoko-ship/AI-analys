@@ -363,6 +363,8 @@ test('balance legends withhold duplicate amounts and readings from another perio
   duplicate.id += '-duplicate';
   duplicate.cells = {'2026-09-30': {...equity.cells['2026-09-30'], value: '999'}};
   equity.cells['2025'].period_end = '2024-12-31';
+  const loans = reports.rows.find(row => row.metric_id === 'loans_gross');
+  Object.assign(loans.cells['2025'], {quality: 'warn', reason: 'CONFLICTING_SOURCE_VALUES'});
   reports.rows.push(duplicate);
   await setup(page, {ticker: 'HMKB', func: 'BS', reports});
   const terminal = page.getByTestId('financial-columns');
@@ -370,8 +372,17 @@ test('balance legends withhold duplicate amounts and readings from another perio
   const funding = terminal.locator('[data-balance-chart="funding"]');
   const reading = funding.locator('[data-balance-value="total_equity"] strong');
   await expect(reading).toHaveText('—');
+  const details = terminal.getByRole('table', {name: 'All statement rows'});
+  const equityValues = details.locator('[data-statement-row^="BANK_BS:30"] td');
+  for (const value of await equityValues.all()) await expect(value).toContainText('\u2014');
   await terminal.getByRole('button', {name: '2025', exact: true}).click();
-  await expect(reading).toHaveText('—');
+  await expect(reading).toHaveText('\u2014');
+  await expect(equityValues.first()).toContainText('\u2014');
+  const warned = details.locator('[data-statement-row="BANK_BS:7а"] td button');
+  await expect(warned).toHaveAttribute('title', 'Review');
+  await warned.click();
+  const passport = page.getByRole('dialog', {name: 'Source passport'});
+  await expect(passport).toContainText('Source amounts disagree and need review.');
 });
 
 test('a non-admin cannot open balance charts through the catalog', async ({page}) => {
@@ -923,7 +934,8 @@ test('ABKZ overview shows only the income breakdown in chart mode', async ({page
   reports.chart_rows = structuredClone([...reports.rows, ...reports.income_flow_rows]);
   // The table's reference projection omits filed finance details.
   await page.setViewportSize({width: 1440, height: 1050});
-  await setup(page, {ticker: 'ABKZ', reports, theme: 'dark'});
+  await setup(page, {ticker: 'ABKZ', func: 'BS', reports, theme: 'dark'});
+  await page.getByRole('button', {name: /PL Profit/}).click();
   const terminal = page.getByTestId('financial-columns');
   const breakdown = terminal.getByRole('region', {name: 'Revenue & expenses breakdown'});
   await expect(breakdown).toHaveCount(0);
@@ -947,6 +959,14 @@ test('ABKZ overview shows only the income breakdown in chart mode', async ({page
   await search.fill('валютных курсовых');
   await expect(statementRows.locator('[data-statement-row="F2:200"]')).toBeVisible();
   await expect(statementRows.locator('[data-statement-row]')).not.toHaveCount(reports.chart_rows.length);
+  await period.getByRole('button', {name: '2024', exact: true}).click();
+  await statementRows.locator('[data-statement-row="F2:200"] td button').click();
+  await expect(page.getByRole('dialog', {name: 'Source passport'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', {name: 'Source passport'})).toHaveCount(0);
+  await expect(search).toHaveValue('валютных курсовых');
+  await expect(statementRows.getByRole('columnheader').last()).toHaveText('2024');
+  await period.getByRole('button', {name: '2026 · 9M', exact: true}).click();
   await search.clear();
   const grossProfit = diagram.locator('.fc-sankey-node').filter({has: page.getByText('Gross profit', {exact: true})});
   await grossProfit.locator('rect').hover();
@@ -985,7 +1005,7 @@ test('ABKZ overview shows only the income breakdown in chart mode', async ({page
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => scroll.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
   await breakdown.locator('summary').click();
-  await expect(breakdown.getByText('8,704,704', {exact: true})).toBeVisible();
+  await expect(breakdown.locator('.fc-sankey-amounts').getByText('8,704,704', {exact: true})).toBeVisible();
   await breakdown.screenshot({path: testInfo.outputPath('abkz-income-breakdown-mobile.png')});
 
   await terminal.getByRole('tab', {name: 'Ratios', exact: true}).click();

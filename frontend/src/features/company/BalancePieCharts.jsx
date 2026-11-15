@@ -72,7 +72,7 @@ function PiePanel({id, title, data, period, format, t}) {
   </div>;
 }
 
-export function BalancePieCharts({rows, columns, reportContext, format, t}) {
+export function BalancePieCharts({rows, columns, reportContext, statementContext, renderStatementValue, format, t}) {
   const [selected, setSelected] = React.useState(null);
   const periods = columns.filter(column => column.basis !== 'ttm');
   const period = periods.find(column => column.key === selected) || periods.at(-1);
@@ -87,6 +87,7 @@ export function BalancePieCharts({rows, columns, reportContext, format, t}) {
       <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} format={format} t={t}/>
       <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} format={format} t={t}/>
     </div>
-    <StatementChartRows rows={rows} period={period} kind="stock" format={format} t={t}/>
+    <StatementChartRows rows={rows} period={period} kind="stock" context={statementContext}
+      renderValue={renderStatementValue} t={t}/>
   </section>;
 }
