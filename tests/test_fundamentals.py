@@ -278,6 +278,56 @@ class TestMultiples:
         assert got["pe"]["status"] == fundamentals.STATUS_LOSS
         assert got["pe"]["computed"] == pytest.approx(-20.0)
 
+    def test_zero_profit_does_not_interrupt_the_other_multiples(self):
+        got = self._issuer(fin={"net_income": 0.0})
+        assert got["pe"]["value"] is None
+        assert got["pe"]["status"] == fundamentals.STATUS_LOSS
+        assert got["pe"].get("computed") is None
+        assert got["pb"]["value"] == 1.0
+        assert got["ps"]["value"] == 1.0
+        assert got["net_margin"]["value"] == 0.0
+
+    def test_partial_comparatives_do_not_mix_ttm_profit_and_annual_sales(self):
+        got = self._issuer(fin={
+            "year": 2026, "quarter": 2, "period_months": 6,
+            "net_income": 120.0, "revenue": 600.0, "gross_profit": 250.0,
+            "prior": {"year": 2025, "quarter": 2, "net_income": 40.0},
+            "annual": {"year": 2025, "net_income": 100.0, "revenue": 900.0},
+        })
+        assert got["pe"]["value"] == pytest.approx(1000 / 180)
+        assert got["ps"]["value"] == pytest.approx(1000 / 900)
+        assert got["ps"]["base_period"] == "2025A"
+        # Margin can use the complete annual, not TTM profit / annual sales.
+        assert got["net_margin"]["value"] == pytest.approx(100 / 900 * 100)
+        assert got["net_margin"]["base_period"] == "2025A"
+        assert got["checks"]["results"]["v12_ps_pe_margin"] is None
+
+    def test_bank_margin_requires_all_income_components_from_one_period(self):
+        got = self._issuer(fin={
+            "org_type": "bank", "year": 2026, "quarter": 2, "period_months": 6,
+            "net_income": 120.0, "revenue": 600.0, "noninterest_income": 100.0,
+            "gross_profit": None,
+            "prior": {"year": 2025, "quarter": 2, "net_income": 40.0, "revenue": 300.0},
+            "annual": {"year": 2025, "net_income": 100.0, "revenue": 900.0,
+                       "noninterest_income": 200.0},
+        })
+        assert got["net_margin"]["value"] == pytest.approx(100 / 1100 * 100)
+        assert got["net_margin"]["base_period"] == "2025A"
+
+    def test_margin_uses_current_period_when_no_complete_common_annual_exists(self):
+        got = self._issuer(fin={
+            "year": 2026, "quarter": 2, "period_months": 6,
+            "net_income": 120.0, "revenue": 600.0, "gross_profit": 250.0,
+            "annual": {"year": 2025, "net_income": 100.0},
+        })
+        assert got["pe"]["base_period"] == "2025A"
+        assert got["pe"].get("estimate") is None
+        assert got["ps"]["base_period"] == "6М2026"
+        assert got["ps"]["estimate"] is True
+        assert got["net_margin"]["value"] == 20
+        assert got["net_margin"]["base_period"] == "6М2026"
+        assert got["net_margin"]["estimate"] is True
+
     def test_pe_outside_the_range_is_published_with_the_check_flag(self):
         """V15 (ТЗ мультипликаторов): out of range the value is SHOWN, flagged
         «проверить» — hiding it is how KFSK's real P/B 73,86 became a dash."""

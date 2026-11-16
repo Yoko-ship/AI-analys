@@ -249,6 +249,72 @@ def test_multiplier_contract_discloses_formula_inputs_and_stable_snapshot():
     assert len(first["calculation_snapshot"]["id"]) == 64
 
 
+def test_zero_profit_issuer_does_not_break_the_market_payload(monkeypatch):
+    monkeypatch.setattr(subject_server_market_valuations, '_apply_audit_blocks', lambda rows: 0)
+    rows = [_class("ZERO", traded=date.today().isoformat()),
+            _class("ACME", traded=date.today().isoformat())]
+    payload = subject_server_market_valuations._multiples_payload({
+        "board": rows, "securities": {},
+        "financials": {"ZERO": {**_statement(net_income=0), "total_liabilities": 1000},
+                       "ACME": _statement()},
+        "ratios": {},
+    })
+    by_ticker = {r["ticker"]: r for r in payload["items"]}
+    assert set(by_ticker) == {"ZERO", "ACME"}
+    assert by_ticker["ZERO"]["pe"]["display_value"] is None
+    assert by_ticker["ZERO"]["pb"]["value"] == 1
+    assert by_ticker["ACME"]["pe"]["value"] == 5
+
+
+def test_real_bank_margin_formula_reproduces_its_disclosed_inputs():
+    import json
+    from pathlib import Path
+    from catalogue.parsing import compute_filing_values
+
+    filing = json.loads((Path(__file__).parent / "fixtures/sector_v22_filings.json").read_text())["HMKB"]
+    wb = filing["workbook"]
+    fin = {**compute_filing_values(wb["income"], wb["balance"])["source_values"],
+           "year": 2026, "quarter": 2, "org_type": "bank"}
+    base = fundamentals.issuer_multiples([], fin, {}, today=TODAY)
+    result = contract.multiplier_contract(base, [], fin, {})
+    margin = result["net_margin"]
+    assert margin["formula"] == "ttm_net_income / ttm_total_income * 100"
+    assert margin["inputs"]["ttm_total_income"] == pytest.approx(
+        (fin["revenue"] + fin["noninterest_income"]) * 2)
+    assert margin["value"] == pytest.approx(
+        margin["inputs"]["ttm_net_income"] / margin["inputs"]["ttm_total_income"] * 100)
+
+
+def test_bank_margin_missing_total_income_stays_blank_in_public_contract():
+    fin = {**_statement(), "org_type": "bank", "noninterest_income": None}
+    base = fundamentals.issuer_multiples([], fin, {}, today=TODAY)
+    margin = contract.multiplier_contract(base, [], fin, {})["net_margin"]
+    assert margin["value"] is None
+    assert margin["display_value"] is None
+
+
+def test_bank_margin_keeps_its_formula_and_inputs_when_under_review():
+    fin = {**_statement(net_income=2000), "org_type": "bank", "noninterest_income": 300}
+    base = fundamentals.issuer_multiples([], fin, {}, today=TODAY)
+    margin = contract.multiplier_contract(base, [], fin, {})["net_margin"]
+    assert margin["status"] == fundamentals.STATUS_UNVERIFIED
+    assert margin["formula"] == "ttm_net_income / ttm_total_income * 100"
+    assert margin["display_value"] == pytest.approx(2000 / 1300 * 100)
+    assert margin["inputs"]["ttm_total_income"] == 1300
+
+
+def test_partial_comparatives_disclose_the_actual_margin_inputs():
+    fin = {**_statement(), "year": 2026, "quarter": 2, "period_months": 6,
+           "net_income": 120, "revenue": 600,
+           "annual": {"year": 2025, "net_income": 100, "revenue": 900},
+           "prior": {"year": 2025, "quarter": 2, "net_income": 40}}
+    base = fundamentals.issuer_multiples([], fin, {}, today=TODAY)
+    margin = contract.multiplier_contract(base, [], fin, {})["net_margin"]
+    assert margin["inputs"] == {"ttm_net_income": 100, "ttm_revenue": 900}
+    assert margin["financial_period"] == "2025A"
+    assert margin["display_value"] == pytest.approx(100 / 900 * 100)
+
+
 def test_cache_input_version_changes_when_a_same_day_statement_is_corrected():
     base = {
         "board": [{"ticker": "ACME", "last_price": 10.0,

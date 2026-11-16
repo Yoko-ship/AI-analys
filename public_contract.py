@@ -79,7 +79,8 @@ def _display_value(metric_name: str, metric: dict[str, Any],
         "pe": ("issuer_market_cap", "ttm_net_income", False),
         "pb": ("issuer_market_cap", "ending_equity", False),
         "ps": ("issuer_market_cap", "ttm_revenue", False),
-        "net_margin": ("ttm_net_income", "ttm_revenue", True),
+        "net_margin": ("ttm_net_income", "ttm_total_income"
+                       if metric.get("denominator") == "total_income" else "ttm_revenue", True),
         "equity_assets": ("ending_equity", "ending_assets", True),
         "bvps": ("ending_equity", "total_issuer_shares_outstanding", False),
     }.get(metric_name)
@@ -411,6 +412,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
         "financial_scope": financial_scope,
         "market_date": market_date,
         "financial_inputs": inputs,
+        "metric_inputs": {name: result.get(name, {}).get("inputs") for name in metric_inputs},
         "market_inputs": class_inputs,
         "formula_version": CONTRACT_VERSION,
     }
@@ -429,7 +431,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
             "market_date": market_date,
             "basis": cap_basis if name in _CAP_METRICS else "issuer",
             "formula": metric.get("formula", _METRIC_FORMULAS[name]),
-            "inputs": {key: inputs.get(key) for key in keys},
+            "inputs": metric.get("inputs", {key: inputs.get(key) for key in keys}),
             "calculation_snapshot": snapshot_id,
         })
         if name in returns:
@@ -443,7 +445,7 @@ def multiplier_contract(multiples: dict[str, Any], classes: Sequence[dict[str, A
         if name in _CAP_METRICS and deal_note and metric.get("value") is not None:
             metric["note"] = "; ".join(filter(None, [metric.get("note"), deal_note]))
             metric["estimate"] = True
-        display_value = _display_value(name, metric, inputs, status)
+        display_value = _display_value(name, metric, metric["inputs"], status)
         metric["display_value"] = display_value
         metric["display_warning"] = bool(
             display_value is not None

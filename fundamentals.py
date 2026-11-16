@@ -138,7 +138,8 @@ def _interim_label(year: Any, quarter: Any) -> str:
 
 
 def twelve_month_flows(fin: dict[str, Any] | None,
-                       keys: Sequence[str] = TTM_KEYS) -> dict[str, Any]:
+                       keys: Sequence[str] = TTM_KEYS, *,
+                       same_period: bool = False) -> dict[str, Any]:
     """Twelve months of each P&L flow, assembled the way the ТЗ orders it.
 
     ``TTM = годовая величина + YTD текущего года − YTD того же периода прошлого
@@ -154,11 +155,15 @@ def twelve_month_flows(fin: dict[str, Any] | None,
                       kept when the filing carries no comparative — the bank
                       form prints a single column);
       ``annualized``  the cumulative interim scaled ×12/months — ONLY when no
-                      annual exists at all, and always flagged ``estimate``
+                      annual value exists for that flow, and always flagged ``estimate``
                       («оценка»), as the ТЗ demands (6 мес × 2, 9 мес × 4/3).
 
     A Q4 quarterly (or the row being an annual) is already twelve months —
     NSBU interims accumulate from 1 January — and is served as ``annual``.
+
+    ``same_period`` requires a common basis for every requested flow, for
+    margins and sums of income components. Independent price multiples may
+    instead resolve their own single flow and disclose its own period.
 
     Returns ``{"values": {key: float|None}, "methods": {key: str|None},
     "period": str|None, "months": 12|None, "estimate": bool, "status": str}``.
@@ -207,7 +212,7 @@ def twelve_month_flows(fin: dict[str, Any] | None,
         elif annual_v is not None:
             values[k] = annual_v
             methods[k] = "annual"
-        elif current is not None and not annual_ok:
+        elif current is not None:
             values[k] = annualise(current, months)
             methods[k] = "annualized"
             estimate = True
@@ -215,7 +220,24 @@ def twelve_month_flows(fin: dict[str, Any] | None,
             values[k] = None
             methods[k] = None
 
-    lead = methods.get("net_income") or methods.get("revenue")
+    if same_period and len(set(methods.values())) > 1:
+        # Ratios must not divide TTM profit by annual sales (or sum bank
+        # income components covering different periods). Prefer a complete
+        # common annual, then a clearly marked current-period estimate.
+        if annual_ok and all(_num(annual.get(k)) is not None for k in keys):
+            values = {k: _num(annual.get(k)) for k in keys}
+            methods = {k: "annual" for k in keys}
+            estimate = False
+        elif all(_num(fin.get(k)) is not None for k in keys):
+            values = {k: annualise(_num(fin.get(k)), months) for k in keys}
+            methods = {k: "annualized" for k in keys}
+            estimate = True
+        else:
+            values = {k: None for k in keys}
+            methods = {k: None for k in keys}
+            estimate = False
+
+    lead = next((methods[k] for k in keys if methods[k]), None)
     if lead == "ttm":
         # The label IS the arithmetic. «2025A + 6М2026» read as eighteen months
         # of profit — the subtracted comparative was assembled but never named,
@@ -806,7 +828,9 @@ def _regression_checks(pe: dict[str, Any], pb: dict[str, Any], ps: dict[str, Any
                           if None not in (pe_v, roe_v, pb_v)
                           and pe.get("base_period") == roe.get("base_period") else None),
         "v12_ps_pe_margin": (close(ps_v, pe_v * nm_v / 100.0, tight)
-                             if None not in (ps_v, pe_v, nm_v) else None),
+                             if None not in (ps_v, pe_v, nm_v)
+                             and pe.get("base_period") == ps.get("base_period")
+                             == net_margin.get("base_period") else None),
         "v13_leverage": (close(roe_v / roa_v, 100.0 / ea_v, loose)
                          if None not in (roe_v, roa_v, ea_v)
                          and roa_v != 0 and ea_v > 0 else None),
@@ -875,7 +899,8 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     validation = validate_statement(fin, ratio)
 
     cap = market_cap_issuer(classes)
-    flows = twelve_month_flows(fin)
+    flows = twelve_month_flows(fin, ("net_income",))
+    sales = twelve_month_flows(fin, ("revenue",))
     snap = balance_snapshot(fin, ratio, today)
     shares_check = share_count_consistency(classes)
 
@@ -900,7 +925,7 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
                          or (org_type is None and sector == "finance"))
 
     ni = flows["values"].get("net_income")
-    revenue = flows["values"].get("revenue")
+    revenue = sales["values"].get("revenue")
     base_period = flows["period"] or period_label(fin)
     base_months = flows["months"] or period_months(fin)
     estimate = True if flows["estimate"] else None
@@ -948,7 +973,7 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
         # Keep the arithmetic available for display while preserving the loss
         # status: a negative P/E is not a cheap-company signal, but the user can
         # still inspect the actual ratio instead of seeing only a word.
-        pe = _metric(None, STATUS_LOSS, computed=cap_value / ni,
+        pe = _metric(None, STATUS_LOSS, computed=cap_value / ni if ni < 0 else None,
                      base_period=base_period)
     else:
         pe = _flag_range(cap_value / ni, pe_lo, pe_hi,
@@ -984,7 +1009,7 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
                      note=None if revenue is None else "выручка TTM не положительна")
     else:
         ps = _flag_range(cap_value / revenue, ps_lo, ps_hi,
-                         base_period=base_period, estimate=estimate,
+                         base_period=sales["period"], estimate=sales["estimate"] or None,
                          note=("знаменатель — чистая выручка от страховых услуг "
                                "OpenInfo (строка 060)"
                                if org_type == "insurance" else None))
@@ -1007,26 +1032,35 @@ def issuer_multiples(classes: Sequence[dict[str, Any]],
     roe, roa = _return_metric("roe"), _return_metric("roa")
 
     # --- Net margin: one period, one unit (percent) --------------------------
+    margin_keys = (("net_income", "revenue", "noninterest_income") if is_bank
+                   else ("net_income", "revenue"))
+    margin_flows = twelve_month_flows(fin, margin_keys, same_period=True)
+    margin_values = margin_flows["values"]
+    margin_profit, margin_sales = margin_values["net_income"], margin_values["revenue"]
+    denominator_key = "ttm_total_income" if is_bank else "ttm_revenue"
     if is_bank:
-        nonint = flows["values"].get("noninterest_income")
-        total_income = (revenue + nonint
-                        if revenue is not None and nonint is not None else None)
-        if ni is not None and total_income is not None and total_income > 0:
-            net_margin = _flag_range(ni / total_income * 100.0, -margin_max, margin_max,
-                                     base_period=base_period, estimate=estimate,
+        nonint = margin_values["noninterest_income"]
+        total_income = (margin_sales + nonint
+                        if margin_sales is not None and nonint is not None else None)
+        if margin_profit is not None and total_income is not None and total_income > 0:
+            net_margin = _flag_range(margin_profit / total_income * 100.0, -margin_max, margin_max,
+                                     base_period=margin_flows["period"], estimate=margin_flows["estimate"] or None,
                                      denominator="total_income",
                                      note="для банков — от совокупного дохода")
         else:
             net_margin = _metric(None, STATUS_NO_FINANCIALS,
-                                 note="совокупный доход банка недоступен")
-    elif ni is not None and revenue is not None and revenue > 0:
-        net_margin = _flag_range(ni / revenue * 100.0, -margin_max, margin_max,
-                                 base_period=base_period, estimate=estimate)
+                                 denominator="total_income", note="совокупный доход банка недоступен")
+    elif margin_profit is not None and margin_sales is not None and margin_sales > 0:
+        net_margin = _flag_range(margin_profit / margin_sales * 100.0, -margin_max, margin_max,
+                                 base_period=margin_flows["period"], estimate=margin_flows["estimate"] or None)
     elif ratio.get("net_profit_margin") is not None:
         net_margin = _metric(_num(ratio.get("net_profit_margin")), STATUS_OK,
                              source="indicators", base_period=ratio.get("period"))
     else:
         net_margin = _metric(None, STATUS_NO_FINANCIALS)
+    net_margin["formula"] = f"ttm_net_income / {denominator_key} * 100"
+    net_margin["inputs"] = {"ttm_net_income": margin_profit,
+                            denominator_key: total_income if is_bank else margin_sales}
 
     # --- Капитал/Активы: the Долг/Капитал replacement (лист 08) --------------
     if bal_stale:
@@ -1128,9 +1162,8 @@ def _suppress_unverified(result: dict[str, Any],
         # review, so retain the more precise original status.
         if computed is None:
             continue
-        result[metric] = _metric(None, STATUS_UNVERIFIED,
-                                 computed=computed, reasons=reasons,
-                                 base_period=current.get("base_period"))
+        result[metric] = {**current, **_metric(None, STATUS_UNVERIFIED,
+                                             computed=computed, reasons=reasons)}
     return result
 
 
