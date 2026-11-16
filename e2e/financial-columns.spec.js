@@ -237,6 +237,29 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   const periods = balance.getByRole('group', {name: 'Reporting period'});
   await expect(periods.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
   await expect(balance.getByRole('img')).toHaveCount(2);
+  await expect(balance.locator('details')).toHaveCount(4);
+  await expect(balance.locator('details[open]')).toHaveCount(0);
+  await expect(balance.locator('.fc-balance-legend').first()).toBeHidden();
+  await expect(balance.getByRole('table', {name: 'All statement rows', includeHidden: true})).toBeHidden();
+  const compactBoxes = await balance.locator('[data-balance-chart]').evaluateAll(nodes => nodes.map(node => {
+    const box = node.getBoundingClientRect();
+    return {top: box.top, bottom: box.bottom, left: box.left, right: box.right};
+  }));
+  if (width === 1440) {
+    expect(Math.max(...compactBoxes.map(box => box.top)) - Math.min(...compactBoxes.map(box => box.top))).toBeLessThan(1);
+    expect(compactBoxes[0].right).toBeLessThanOrEqual(compactBoxes[1].left);
+    expect(compactBoxes[1].right).toBeLessThanOrEqual(compactBoxes[2].left);
+    expect(Math.max(...compactBoxes.map(box => box.bottom)) - compactBoxes[0].top).toBeLessThan(550);
+  }
+  const assetDetails = balance.locator('[data-balance-chart="assets"] summary');
+  await assetDetails.focus();
+  await page.keyboard.press('Enter');
+  await expect(balance.locator('details[open]')).toHaveCount(1);
+  await expect(balance.locator('[data-balance-chart="assets"] .fc-balance-legend')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(balance.locator('details[open]')).toHaveCount(0);
+  await balance.screenshot({path: testInfo.outputPath('balance-compact.png')});
+  await revealBalanceDetails(balance);
   const detailRows = balance.getByRole('table', {name: 'All statement rows'});
   await expect(detailRows).toBeVisible();
   await expect(detailRows.locator('tbody tr')).toHaveCount(recentReports.rows.filter(row => row.kind === 'stock' && row.source_form !== 'DERIVED').length);
@@ -266,6 +289,11 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await expect(assets).toContainText('28,708,226,712');
   await expect(assets.getByRole('status')).toContainText('2024');
   await expect(equityCapital).toContainText(capitalReading('2024'));
+  const allRowsToggle = balance.locator('.fc-balance-statement-details > summary');
+  await allRowsToggle.click();
+  await expect(detailRows).toBeHidden();
+  await allRowsToggle.click();
+  await expect(detailRows).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   const boxes = await balance.locator('[data-balance-chart]').evaluateAll(nodes => nodes.map(node => {
     const box = node.getBoundingClientRect();
@@ -315,6 +343,7 @@ test('Form 1 shows asset components above every filed row on mobile', async ({pa
   await expect(assets.locator('[data-pie-slice="long_term_investments"]')).toHaveAttribute('aria-label', /30%/);
   await expect(assets.locator('[data-pie-slice="inventory"]')).toHaveAttribute('aria-label', /35%/);
   await expect(assets.locator('[data-pie-slice="noncurrent_assets"], [data-pie-slice="investments_subsidiaries"]')).toHaveCount(0);
+  await revealBalanceDetails(balance);
   const table = balance.getByRole('table', {name: 'All statement rows'});
   await expect(table.locator('tbody tr')).toHaveCount(chart_rows.length);
   await expect(table.locator('[data-statement-row="F1:050"] td')).toContainText('20');
@@ -331,6 +360,7 @@ for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} shows balance pie
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const balance = terminal.getByRole('region', {name: 'Balance composition'});
   await expect(balance.getByRole('img')).toHaveCount(3);
+  await revealBalanceDetails(balance);
   const table = balance.getByRole('table', {name: 'All statement rows'});
   await expect(table.locator('tbody tr')).toHaveCount(reports.chart_rows.length);
   for (const row of reports.chart_rows) {
@@ -361,6 +391,11 @@ for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} shows balance pie
   if (ticker === 'KFSK') {
     await page.setViewportSize({width: 1440, height: 1000});
     await equity.screenshot({path: testInfo.outputPath('equity-desktop.png')});
+    for (const details of await balance.locator('details').all()) await details.locator(':scope > summary').click();
+    await expect(balance.locator('details[open]')).toHaveCount(0);
+    const tops = await balance.getByRole('img').evaluateAll(images => images.map(image => image.getBoundingClientRect().top));
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(1);
+    await balance.screenshot({path: testInfo.outputPath('balance-desktop-compact.png')});
   }
 });
 
@@ -379,6 +414,7 @@ test('balance pies explain blocked totals, preserve negative equity and allow ze
   const balance = terminal.getByRole('region', {name: 'Balance composition'});
   const funding = balance.locator('[data-balance-chart="funding"]');
   const periods = balance.getByRole('group', {name: 'Reporting period'});
+  await revealBalanceDetails(balance);
   await expect(funding.getByRole('img')).toHaveCount(0);
   await expect(funding.getByRole('status')).toContainText('Not enough verified');
   await expect(funding.locator('[data-balance-value="total_equity"]')).toContainText('—');
@@ -421,11 +457,13 @@ test('balance legends withhold duplicate amounts and readings from another perio
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const funding = terminal.locator('[data-balance-chart="funding"]');
   const reading = funding.locator('[data-balance-value="total_equity"] strong');
+  await revealBalanceDetails(terminal.locator('.fc-balance-pies'));
   await expect(reading).toHaveText('—');
   const details = terminal.getByRole('table', {name: 'All statement rows'});
   const equityValues = details.locator('[data-statement-row^="BANK_BS:30"] td');
   for (const value of await equityValues.all()) await expect(value).toContainText('\u2014');
   await terminal.getByRole('button', {name: '2025', exact: true}).click();
+  await revealBalanceDetails(terminal.locator('.fc-balance-pies'));
   await expect(reading).toHaveText('\u2014');
   await expect(equityValues.first()).toContainText('\u2014');
   const warned = details.locator('[data-statement-row="BANK_BS:7а"] td button');
@@ -571,6 +609,12 @@ test('annual income gaps explain why a comparative balance can still be populate
   await expect(terminal.locator('tr[data-metric="ppe"] td').nth(1)).toHaveText('13,358,866,945');
   await expect(terminal.locator('.fc-period-notice')).toHaveCount(0);
 });
+
+async function revealBalanceDetails(balance) {
+  for (const details of await balance.locator('details').all()) {
+    if (await details.getAttribute('open') === null) await details.locator(':scope > summary').click();
+  }
+}
 
 async function setup(page, { fail = false, theme = 'light', lang = 'en', func = 'PL', ticker = 'IPTB', reports, isAdmin = true } = {}) {
   await page.addInitScript(theme => localStorage.setItem('uz_stock_analyzer_theme', theme), theme);

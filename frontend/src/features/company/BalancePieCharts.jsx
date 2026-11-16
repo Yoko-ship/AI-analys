@@ -46,7 +46,9 @@ function piePath(start, share) {
 }
 
 function PiePanel({id, title, data, period, format, t}) {
-  const [inspected, setInspected] = React.useState(null);
+  const [selection, setSelection] = React.useState(null);
+  const inspected = selection?.period === period.key ? selection.metric : null;
+  const setInspected = metric => setSelection({period: period.key, metric});
   const label = row => LABELS[row.metric_id] ? t(...LABELS[row.metric_id]) : row.label;
   const amount = row => row.value == null || !row.unit ? format(row.value) : `${format(row.value)} ${unitLabel(row.unit, t)}`;
   const describe = row => `${label(row)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
@@ -71,13 +73,16 @@ function PiePanel({id, title, data, period, format, t}) {
       </svg>
       <p className="fc-balance-reading" role="status">{active ? describe(active) : `${period.label} · ${format(data.total)} ${unitLabel(data.unit, t)}`}</p>
     </>}
-    <ul className="fc-balance-legend">{data.rows.map((row, index) => <li key={row.metric_id}
-      data-balance-value={row.metric_id} style={{'--series-color': COLORS[index % COLORS.length]}}>
-      <button type="button" aria-pressed={inspected === row.metric_id} onClick={() => setInspected(row.metric_id)}
-        onFocus={() => setInspected(row.metric_id)} disabled={Boolean(data.reason) || row.value === 0}>
-        <span>{label(row)}</span><strong>{amount(row)}{!data.reason && <small>{format(row.value / data.total * 100)}%</small>}</strong>
-      </button>
-    </li>)}</ul>
+    <details className="fc-balance-details">
+      <summary aria-label={`${t('Подробнее', 'Batafsil', 'Details')} · ${title}`}>{t('Подробнее', 'Batafsil', 'Details')}</summary>
+      <ul className="fc-balance-legend">{data.rows.map((row, index) => <li key={row.metric_id}
+        data-balance-value={row.metric_id} style={{'--series-color': COLORS[index % COLORS.length]}}>
+        <button type="button" aria-pressed={inspected === row.metric_id} onClick={() => setInspected(row.metric_id)}
+          onFocus={() => setInspected(row.metric_id)} disabled={Boolean(data.reason) || row.value === 0}>
+          <span>{label(row)}</span><strong>{amount(row)}{!data.reason && <small>{format(row.value / data.total * 100)}%</small>}</strong>
+        </button>
+      </li>)}</ul>
+    </details>
   </div>;
 }
 
@@ -92,12 +97,15 @@ export function BalancePieCharts({rows, columns, reportContext, statementContext
       {periods.map(column => <button key={column.key} type="button" aria-pressed={column.key === period.key}
         onClick={() => setSelected(column.key)}>{column.label}</button>)}
     </div>
-    <div className="fc-balance-panels" key={period.key}>
+    <div className="fc-balance-panels">
       <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} format={format} t={t}/>
       <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} format={format} t={t}/>
       <PiePanel id="equity" title={t('Источники собственных средств', 'O‘z mablag‘lari manbalari', 'Sources of equity')} data={equity} period={period} format={format} t={t}/>
     </div>
-    <StatementChartRows rows={rows} period={period} kind="stock" context={statementContext}
-      renderValue={renderStatementValue} t={t}/>
+    <details className="fc-balance-details fc-balance-statement-details">
+      <summary>{t('Подробнее · Все строки отчёта', 'Batafsil · Hisobotning barcha qatorlari', 'Details · All statement rows')}</summary>
+      <StatementChartRows rows={rows} period={period} kind="stock" context={statementContext}
+        renderValue={renderStatementValue} t={t}/>
+    </details>
   </section>;
 }

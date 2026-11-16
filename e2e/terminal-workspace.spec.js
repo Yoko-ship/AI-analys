@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import {expectFullWidth} from './helpers/full-width.js';
+import {readDownload} from './helpers/download.js';
 
 async function fixture(page, companies = [{ticker:"AGBA",company_name:"Агробанк",sector:"finance",total_count:6}, {ticker:"QZSM",company_name:"Кызылкумцемент",sector:"manufacturing",total_count:5}], user = {id:1,is_admin:true,email:"admin@example.test"}, start = "/catalog?f=CF") {
   await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_token', 'admin-token'));
@@ -114,8 +115,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual rati
   await page.keyboard.press('Escape');
   const download=page.waitForEvent('download');
   await table.locator('..').getByRole('button',{name:'CSV',exact:true}).click();
-  const {readFile}=await import('node:fs/promises');
-  const csv=await readFile(await (await download).path(),'utf8');
+  const csv=await readDownload(download);
   expect(csv).toContain('7,55');
   expect(csv).toContain('—');
   expect(csv).not.toContain('что это значит');
@@ -156,8 +156,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`credit metrics a
   await screen.screenshot({path:testInfo.outputPath('credit-metrics-industry.png')});
   const download=page.waitForEvent('download');
   await screen.getByRole('button',{name:'CSV',exact:true}).click();
-  const {readFile}=await import('node:fs/promises');
-  const csv=await readFile(await (await download).path(),'utf8');
+  const csv=await readDownload(download);
   expect(csv).not.toMatch(/NPL|NIM|CoR/);
   await screen.getByRole('combobox',{name:'Тип',exact:true}).selectOption('financial');
   await expect(table.getByRole('columnheader').filter({hasText:creditHeaders})).toHaveCount(3);
@@ -266,8 +265,7 @@ for(const theme of ['light','dark']) test(`RV comparison stays readable with sti
   await csv.focus();
   expect(await csv.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
   const download=page.waitForEvent('download');await csv.press('Enter');
-  const {readFile}=await import('node:fs/promises');
-  const content=await readFile(await (await download).path(),'utf8');
+  const content=await readDownload(download);
   expect(content).toContain('BIOK,"13,24","11,31","6,21","16,09","0,69","0,08",—,"10,43"');
   expect(content).not.toMatch(/NPL|NIM|CoR|что это значит/);
   await table.getByRole('button',{name:'BTRL',exact:true}).click();
@@ -464,8 +462,7 @@ for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
     await expect(table.locator('tbody tr').first().getByRole('cell').nth(2)).toHaveText('—');
     const download=page.waitForEvent('download');
     await screen.getByRole('button',{name:'CSV',exact:true}).click();
-    const {readFile}=await import('node:fs/promises');
-    const csv=await readFile(await (await download).path(),'utf8');
+    const csv=await readDownload(download);
     expect(csv.split(/\r?\n/).filter(line=>/^(UZAL|URTS|UZML),/.test(line)).map(line=>line.split(',')[0])).toEqual(['UZAL','URTS','UZML']);
     await screen.screenshot({path:testInfo.outputPath('rv-selected-issuer.png')});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
@@ -516,8 +513,7 @@ test("PL converts each year at its own CBU closing rate with a brief summary and
   const pendingDownload=page.waitForEvent('download');
   await page.locator('[data-currency=USD]').getByRole('button',{name:'CSV',exact:true}).click();
   const downloaded=await pendingDownload;
-  const {readFile}=await import('node:fs/promises');
-  expect(await readFile(await downloaded.path(),'utf8')).toContain('Currency,USD');
+  expect(await readDownload(downloaded)).toContain('Currency,USD');
   await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:testInfo.outputPath('fx-summary-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -588,8 +584,7 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   await page.keyboard.press('Escape');
   const download=page.waitForEvent('download');
   await section.getByRole('button',{name:'CSV',exact:true}).click();
-  const {readFile}=await import('node:fs/promises');
-  const csv=await readFile(await (await download).path(),'utf8');
+  const csv=await readDownload(download);
   expect(csv).toContain('2,14%');
   expect(csv).not.toMatch(/Метод \/ причина пропуска|nsbu-enterprise-|period-returns-/);
   expect(await table.locator('tbody td').evaluateAll(cells=>cells.every(cell=>{
@@ -629,7 +624,7 @@ for(const [theme,width] of [['light',2260],['dark',1440],['light',390],['dark',3
   await expect(growthCard).toContainText('10,43');
   const annualDownload=page.waitForEvent('download');
   await annualCard.getByRole('button',{name:'CSV',exact:true}).click();
-  expect(await readFile(await (await annualDownload).path(),'utf8')).toContain('"ROE, %","13,24"');
+  expect(await readDownload(annualDownload)).toContain('"ROE, %","13,24"');
   await page.locator('.terminal-ratio-overview').screenshot({path:testInfo.outputPath('annual-ratios-layout.png'),style:'.topbar {visibility:hidden}'});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
@@ -689,8 +684,7 @@ for(const theme of ['light','dark']) test(`quarterly profit and LTM stay readabl
   expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
   const pendingDownload = page.waitForEvent('download');
   await wrapper.getByRole('button', {name: 'CSV', exact: true}).click();
-  const {readFile} = await import('node:fs/promises');
-  const csv = await readFile(await (await pendingDownload).path(), 'utf8');
+  const csv = await readDownload(pendingDownload);
   expect(csv).toContain('Квартал,млрд UZS,"YoY, %","LTM, млрд UZS"');
   expect(csv).toMatch(/2026Q3,"510,46","10,73","1\s917,59",—,"10,75"/);
   const overview=page.locator('.terminal-quarterly-overview');
@@ -787,8 +781,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep 
   await checkFigures('eqs');
   const pendingDownload=page.waitForEvent('download');
   await comparison.getByRole('button',{name:'CSV',exact:true}).click();
-  const {readFile}=await import('node:fs/promises');
-  const csv=await readFile(await (await pendingDownload).path(),'utf8');
+  const csv=await readDownload(pendingDownload);
   expect(csv).not.toMatch(/дата \/ источник|2026-09-01/);
   expect(csv).toContain('AGBA,"12,5",0,—,"8,91",200,300,90,150');
   await page.getByLabel('Доля активов ЦБ ≥').fill('10');

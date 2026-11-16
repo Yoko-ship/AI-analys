@@ -175,7 +175,7 @@
   .fc-chart-values small { display: block; }
 }
 
-.fc-balance-pies { padding: 12px 0 4px; }
+.fc-balance-pies { padding: 12px 0 4px; container: balance-composition / inline-size; }
 .fc-statement-rows { margin-top: 24px; min-width: 0; }
 .fc-statement-rows h3 { font-size: 16px; margin: 0 0 12px; }
 .fc-statement-rows table { width: 100%; table-layout: fixed; border-collapse: collapse; }
@@ -189,18 +189,25 @@
   .fc-statement-rows th { width: 58%; }
   .fc-statement-rows td, .fc-statement-rows thead th:last-child { width: 42%; font-size: 12px; }
 }
-.fc-balance-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.fc-balance-panels { display: grid; grid-template-columns: 1fr; gap: 16px; }
 .fc-balance-panels > div { min-width: 0; }
 .fc-balance-title { margin: 0 0 16px; font-size: 16px; font-weight: 600; color: var(--fc-ink); }
+.fc-balance-pie .fc-balance-title { margin-bottom: 12px; min-height: 2.8em; line-height: 1.4; }
 .fc-balance-periods { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .fc-balance-periods button[aria-pressed=true] { background: var(--accent-light); border-color: var(--accent); }
-.fc-balance-pie { align-self: start; }
+.fc-balance-pie { display: flex; flex-direction: column; }
 .fc-balance-total { margin: 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .fc-balance-total small { display: block; font-size: 12px; font-weight: 400; color: var(--fc-muted); }
-.fc-balance-pies svg { width: 100%; max-width: 320px; height: auto; margin: 0 auto; }
+.fc-balance-pies svg { display: block; width: 100%; max-width: 280px; height: auto; margin: 0 auto; }
 .fc-balance-pies svg path { stroke: var(--panel); stroke-width: 2px; cursor: pointer; }
 .fc-balance-pies svg path:is(:hover, :focus-visible, .is-inspected) { stroke: var(--fc-ink); stroke-width: 3px; outline: none; }
 .fc-balance-reading, .fc-balance-unavailable { min-height: 54px; margin: 8px 0 16px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
+.fc-balance-unavailable { flex: 1; display: grid; align-content: center; }
+.fc-balance-details { margin-top: auto; border-top: 1px solid var(--fc-line); }
+.fc-balance-details > summary { padding: 12px 0; min-height: 44px; box-sizing: border-box; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--fc-ink); }
+.fc-balance-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fc-balance-statement-details { margin-top: 16px; }
+.fc-balance-statement-details .fc-statement-rows { margin-top: 12px; }
 .fc-balance-legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .fc-balance-legend li { min-width: 0; border-left: 3px solid var(--series-color); }
 .fc-balance-legend button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; width: 100%; text-align: left; border-color: transparent; background: transparent; }
@@ -209,6 +216,6 @@
 .fc-balance-legend strong { text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .fc-balance-legend small { display: block; margin-top: 4px; color: var(--fc-muted); font-weight: 400; }
 .fc-balance-pies button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 1000px) {
-  .fc-balance-panels { grid-template-columns: 1fr; }
+@container balance-composition (min-width: 840px) {
+  .fc-balance-panels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
