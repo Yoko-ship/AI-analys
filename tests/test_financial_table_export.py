@@ -46,7 +46,7 @@ def test_real_sector_filings_export_period_columns(ticker, source_template, disp
         item = next(r for r in book.active.iter_rows(min_row=6) if (r[0].value, r[1].value) == (label, code))
         assert item[2].value == 'тыс. UZS'
         assert item[3].value == value and item[3].data_type == 'n'
-        assert 'Источники' in book.sheetnames
+        assert book.sheetnames == ['Финансы']
 
 
 def test_odmp_fund_preserves_fractional_amounts_in_csv_and_excel():
@@ -63,28 +63,33 @@ def test_odmp_fund_preserves_fractional_amounts_in_csv_and_excel():
     assert sheet['F7'].data_type == 'n'
 
 
-def test_biok_table_download_has_period_columns_numeric_amounts_and_source_sheet(biok, monkeypatch):
+@pytest.mark.parametrize('tab', ['summary', 'original'])
+@pytest.mark.parametrize('lang,title,headers,unit,source_title', [
+    ('ru', 'Финансы', ['Показатель', 'Код', 'Единица'], 'тыс. UZS', 'Источники'),
+    ('uz', 'Moliya', ['Ko‘rsatkich', 'Kod', 'Birlik'], 'ming UZS', 'Manbalar'),
+    ('en', 'Financials', ['Metric', 'Code', 'Unit'], 'thousands UZS', 'Sources'),
+])
+def test_biok_table_download_has_only_financials_with_periods_and_numeric_amounts(
+        biok, monkeypatch, tab, lang, title, headers, unit, source_title):
     from financial_columns import service
     from financial_columns.presentation import select_statement
     monkeypatch.setattr(service, 'load', lambda ticker, **kwargs: select_statement(biok, kwargs['statement']))
     app = FastAPI()
     app.include_router(router)
-    response = TestClient(app).get('/api/company/BIOK/financials/columns.xlsx?layout=table&tab=summary&statement=income&lang=ru')
+    response = TestClient(app).get(
+        f'/api/company/BIOK/financials/columns.xlsx?layout=table&tab={tab}&statement=income&lang={lang}')
     assert response.status_code == 200
     book = load_workbook(io.BytesIO(response.content))
     sheet = book.active
-    assert sheet.title == 'Финансы'
-    assert [c.value for c in sheet[5]] == ['Показатель', 'Код', 'Единица', '2024', '2025', '2026 · 9M']
-    assert [c.value for c in sheet[6]] == ['Чистая выручка от реализации', '010', 'тыс. UZS', 147678236, 142434170, 112957111]
+    assert book.sheetnames == [title]
+    assert source_title not in sheet['A3'].value
+    assert [c.value for c in sheet[5]] == [*headers, '2024', '2025', '2026 · 9M']
+    assert [c.value for c in sheet[6]] == ['Чистая выручка от реализации', '010', unit, 147678236, 142434170, 112957111]
     assert [c.value for c in sheet[7]][3:] == [-20714060, -18645393, -11675525]
     assert sheet['D7'].data_type == 'n'
     assert sheet.freeze_panes == 'D6'
-    assert sheet.auto_filter.ref == 'A5:F7'
-    evidence = list(book['Источники'].values)
-    headers = evidence[0]
-    item = next(r for r in evidence[1:] if r[headers.index('source_code')] == '040')
-    assert item[headers.index('value')] == '-20714060'
-    assert 'report_id=5302' in item[headers.index('source_url')]
+    assert sheet.auto_filter.ref == ('A5:F7' if tab == 'summary' else 'A5:F8')
+    assert 'report_id=5302' in sheet['D7'].comment.text
 
 
 def test_biok_csv_matches_russian_excel_separator_and_preserves_cyrillic(biok):
@@ -156,14 +161,16 @@ def test_numeric_cells_do_not_lose_precision_or_export_nonfinite_numbers(biok, v
         assert '.' not in cell.number_format  # Excel must not show a dangling decimal separator on integers.
 
 
-def test_company_reported_ratios_have_their_own_period_table_and_evidence(biok):
+def test_company_reported_ratios_keep_their_period_table_without_a_source_sheet(biok):
     biok['published_ratios'] = [{'field':'roe', 'period':'2025', 'value':'12.5', 'unit':'%',
                                 'source_url':'https://openinfo.uz/reports/5302'}]
     content, _ = export(biok, 'xlsx', layout='table', tab='ratios', lang='en')
     book = load_workbook(io.BytesIO(content))
     assert book['Reported ratios']['D5'].value == '2025'
     assert book['Reported ratios']['D6'].value == 12.5
-    assert any('PUBLISHED_RAT' in row for row in book['Sources'].values)
+    assert book.sheetnames == ['Financials', 'Reported ratios']
+    assert 'Sources' not in book['Reported ratios']['A3'].value
+    assert 'https://openinfo.uz/reports/5302' in book['Reported ratios']['D6'].comment.text
 
 
 @pytest.mark.parametrize('parameter', ['layout=wrong', 'tab=owners', 'lang=xx', 'from_year=abc'])

@@ -4,9 +4,9 @@ import io
 from decimal import Decimal, InvalidOperation
 
 COPY = {
-    'ru': ('Финансы', 'Источники', 'Показатель', 'Код', 'Единица', 'тыс. UZS', 'Нет данных — пустая ячейка. Выделенные значения требуют проверки. Подробности — в примечаниях и на листе «Источники».', 'Из отчётов'),
-    'uz': ('Moliya', 'Manbalar', 'Ko‘rsatkich', 'Kod', 'Birlik', 'ming UZS', 'Ma’lumot yo‘q bo‘lsa, katak bo‘sh. Ajratilgan qiymatlarni tekshiring. Tafsilotlar izohlarda va Manbalar varag‘ida.', 'Hisobotlardan'),
-    'en': ('Financials', 'Sources', 'Metric', 'Code', 'Unit', 'thousands UZS', 'Missing values are blank. Highlighted values need review. Details are in cell comments and the Sources sheet.', 'Reported ratios'),
+    'ru': ('Финансы', 'Показатель', 'Код', 'Единица', 'тыс. UZS', 'Нет данных — пустая ячейка. Выделенные значения требуют проверки. Подробности — в примечаниях к ячейкам.', 'Из отчётов'),
+    'uz': ('Moliya', 'Ko‘rsatkich', 'Kod', 'Birlik', 'ming UZS', 'Ma’lumot yo‘q bo‘lsa, katak bo‘sh. Ajratilgan qiymatlarni tekshiring. Tafsilotlar katak izohlarida.', 'Hisobotlardan'),
+    'en': ('Financials', 'Metric', 'Code', 'Unit', 'thousands UZS', 'Missing values are blank. Highlighted values need review. Details are in cell comments.', 'Reported ratios'),
 }
 CONTEXT = {
     'ru': {'separate': 'Отдельная отчётность', 'consolidated': 'Консолидированная отчётность', 'unknown': 'Периметр не подтверждён', 'annual': 'Годовые данные', 'quarter': 'Квартальные данные', 'interim': 'Промежуточные данные'},
@@ -46,7 +46,7 @@ def numeric(cell):
 
 
 def table_rows(payload, lang):
-    units = {'UZS_thousand': COPY[lang][5], 'percent': '%', 'ratio': '×', 'UZS_per_share': 'UZS / share'}
+    units = {'UZS_thousand': COPY[lang][4], 'percent': '%', 'ratio': '×', 'UZS_per_share': 'UZS / share'}
     for row in payload['rows']:
         cells = [row['cells'].get(c['key'], {}) for c in payload['columns']]
         if any(c.get('display_parts') for c in cells):
@@ -106,14 +106,14 @@ def write_financial_sheet(sheet, payload, lang):
     columns = payload['columns']
     context = ' · '.join(CONTEXT[lang].get(payload.get(k), payload.get(k, '')) for k in ('standard', 'scope', 'freq'))
     for number, text in enumerate((f"{payload['ticker']} · {payload.get('issuer_name', '')}",
-                                   context, COPY[lang][6]), 1):
+                                   context, COPY[lang][5]), 1):
         sheet.merge_cells(start_row=number, start_column=1, end_row=number, end_column=3 + len(columns))
         write_text(sheet.cell(number, 1), text)
         sheet.cell(number, 1).font = Font(name='Calibri', size=16 if number == 1 else 11, bold=number == 1, color='172A46')
         sheet.row_dimensions[number].height = 25 if number == 1 else 21
     sheet['A3'].alignment = Alignment(wrap_text=True, vertical='center')
     sheet.row_dimensions[3].height = 32
-    for col, label in enumerate([*COPY[lang][2:5], *[c['label'] for c in columns]], 1):
+    for col, label in enumerate([*COPY[lang][1:4], *[c['label'] for c in columns]], 1):
         write_text(sheet.cell(5, col), label)
     flagged = []
     for index, (values, cells) in enumerate(table_rows(payload, lang), 6):
@@ -137,7 +137,7 @@ def write_financial_sheet(sheet, payload, lang):
 
 
 def export_table(payload, extension, *, lang, tab, from_year, query):
-    from .exports import FIELDS, literal, records
+    from .exports import literal
     if lang not in COPY or tab not in {'summary', 'original', 'ratios'}:
         raise ValueError('Unknown table presentation')
     selected = selected_table(payload, tab, from_year, query)
@@ -147,7 +147,7 @@ def export_table(payload, extension, *, lang, tab, from_year, query):
         # Excel's sep= directive: it disables UTF-8 BOM detection in Excel.
         decimal_comma = lang in {'ru', 'uz'}
         writer = csv.writer(stream, delimiter=';' if decimal_comma else ',')
-        writer.writerow([*COPY[lang][2:5], *[c['label'] for c in selected['columns']]])
+        writer.writerow([*COPY[lang][1:4], *[c['label'] for c in selected['columns']]])
         for row, _ in table_rows(selected, lang):
             writer.writerow([str(v).replace('.', ',') if isinstance(v, Decimal) and decimal_comma else literal(v) for v in row])
         return stream.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8'
@@ -166,14 +166,7 @@ def export_table(payload, extension, *, lang, tab, from_year, query):
                   'rows': [{'label': field, 'unit': next(r.get('unit', '') for r in published if r['field'] == field),
                             'cells': {str(r['period']): {**r, 'quality': 'warn'} for r in published if r['field'] == field}}
                            for field in fields]}
-        write_financial_sheet(workbook.create_sheet(COPY[lang][7]), report, lang)
-    evidence = workbook.create_sheet(COPY[lang][1])
-    evidence.append(FIELDS)
-    for index, row in enumerate(records(selected), 2):
-        for col, field in enumerate(FIELDS, 1):
-            write_text(evidence.cell(index, col), row[field])
-    style_table(evidence, 1, [14, 14, 14, 18, 26, 56])
-    evidence.freeze_panes = 'A2'
+        write_financial_sheet(workbook.create_sheet(COPY[lang][6]), report, lang)
     stream = io.BytesIO()
     workbook.save(stream)
     return stream.getvalue(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
