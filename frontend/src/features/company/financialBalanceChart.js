@@ -22,6 +22,15 @@ const BALANCE_LINES = {
   INSURANCE_BS: {total_assets: '490', noncurrent_assets: '130', current_assets: '480',
     nonreserve_liabilities: '1190', insurance_reserves_net: '720', total_equity: '570'},
 };
+// Only top-level equity lines belong in these slices. Bank share classes and
+// reserve subrows are already included in their parent capital/reserve lines.
+const EQUITY_LINES = {
+  F1: {share_capital: '410', share_premium: '420', reserve_capital: '430', treasury_shares: '440',
+    retained_earnings: '450', target_receipts: '460', future_expense_reserves: '470'},
+  BANK_BS: {share_capital: '26', share_premium: '27', reserve_capital: '28', retained_earnings: '29'},
+  INSURANCE_BS: {share_capital: '500', share_premium: '510', reserve_capital: '520', treasury_shares: '530',
+    retained_earnings: '540', target_receipts: '550', future_expense_reserves: '560'},
+};
 
 function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
   let reason = null;
@@ -57,7 +66,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const version = cell?.source_version || cell?.source_url;
     const url = cell?.source_url ?? row?.source_url ?? null;
     const code = cell?.source_code ?? row?.source_code;
-    const expectedCode = BALANCE_LINES[form]?.[metric] ?? ASSET_LINES[form]?.[metric];
+    const expectedCode = BALANCE_LINES[form]?.[metric] ?? ASSET_LINES[form]?.[metric] ?? EQUITY_LINES[form]?.[metric];
     const issuersMatch = [cell?.issuer_id, row?.issuer_id].every(id => id == null || String(id) === String(issuerId)) &&
       [cell?.ticker, row?.ticker].every(symbol => symbol == null || symbol === ticker);
     const dimensionsMatch = [cell?.scope, row?.scope].every(value => value == null || value === scope) &&
@@ -109,5 +118,15 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
   const fundingRows = (totalAssets.form === 'INSURANCE_BS'
     ? ['nonreserve_liabilities', 'insurance_reserves_net', 'total_equity']
     : ['total_liabilities', 'total_equity']).map(reading);
-  return {assets, funding: composition(fundingRows, totalAssets, 'unreconciled')};
+  const totalEquity = reading('total_equity');
+  const equityRows = Object.keys(EQUITY_LINES[totalEquity.form] ?? {}).map(reading);
+  const equity = composition(equityRows, totalEquity, 'equity_unreconciled');
+  // A positive filed treasury-share balance is a deduction, not a positive
+  // ownership slice. Preserve the filed amount in the list and withhold the pie.
+  if ([null, 'equity_unreconciled'].includes(equity.reason) &&
+    equityRows.some(row => row.metric_id === 'treasury_shares' && row.value > 0)) {
+    equity.reason = 'deductions';
+    equity.total = null;
+  }
+  return {assets, funding: composition(fundingRows, totalAssets, 'unreconciled'), equity};
 }

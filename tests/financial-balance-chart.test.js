@@ -18,6 +18,87 @@ const row = (metric_id, value, quality = 'valid', unit = 'UZS_thousand') => ({
     ...(unit === 'UZS' && {raw_value: Number(value) / 1000})}},
 });
 
+for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} equity composition uses the full filed capital section`, () => {
+  const report = filedBalance(ticker);
+  const {equity} = compose(report.chart_rows, '2025', '2025-12-31', {
+    ticker, issuerId: report.issuer_id, scope: report.scope, standard: report.standard,
+  });
+  assert.equal(equity.reason, null);
+  assert.equal(equity.total, report.rows.find(row => row.metric_id === 'total_equity').cells['2025'].value);
+  assert.deepEqual(equity.rows.map(row => row.metric_id), [
+    'share_capital', 'share_premium', 'reserve_capital', 'treasury_shares',
+    'retained_earnings', 'target_receipts', 'future_expense_reserves',
+  ]);
+  assert.ok(Math.abs(equity.rows.reduce((sum, row) => sum + row.value, 0) - equity.total) < 0.000001);
+});
+
+test('equity composition validates source, units, complete rows and total independently of assets', () => {
+  for (const [update, reason] of [
+    [{value: null, raw_value: null, quality: 'missing'}, 'missing'],
+    [{source_version: 'another-filing'}, 'source'],
+    [{source_code: '580'}, 'source'],
+    [{period_end: '2024-12-31'}, 'source'],
+    [{value: -1, raw_value: -1}, 'negative'],
+    [{value: 1, raw_value: 1}, 'equity_unreconciled'],
+  ]) {
+    const report = filedBalance('KFSK');
+    Object.assign(report.rows.find(row => row.metric_id === 'retained_earnings').cells['2025'], update);
+    const {equity, assets} = compose(report.rows, '2025', '2025-12-31', {
+      ticker: 'KFSK', issuerId: report.issuer_id, scope: report.scope, standard: report.standard,
+    });
+    assert.equal(equity.reason, reason);
+    assert.equal(equity.total, null);
+    assert.equal(assets.reason, null);
+  }
+  for (const mutation of ['absent', 'duplicate', 'units', 'deduction', 'zero']) {
+    const report = filedBalance('UZTL');
+    const capital = report.rows.find(row => row.metric_id === 'share_capital');
+    if (mutation === 'absent') report.rows.splice(report.rows.indexOf(capital), 1);
+    if (mutation === 'duplicate') report.rows.push(structuredClone(capital));
+    if (mutation === 'units') {
+      capital.unit = 'UZS';
+      capital.cells['2025'].value *= 1000;
+    }
+    if (mutation === 'deduction') {
+      const treasury = report.rows.find(row => row.metric_id === 'treasury_shares').cells['2025'];
+      const total = report.rows.find(row => row.metric_id === 'total_equity').cells['2025'];
+      treasury.value = treasury.raw_value = 100;
+      total.value = total.raw_value = total.value - 100;
+    }
+    if (mutation === 'zero') for (const row of report.rows) {
+      if (Number(row.source_code) >= 410 && Number(row.source_code) <= 480)
+        row.cells['2025'].value = row.cells['2025'].raw_value = 0;
+    }
+    const {equity} = compose(report.rows, '2025', '2025-12-31', {
+      ticker: 'UZTL', issuerId: report.issuer_id, scope: report.scope, standard: report.standard,
+    });
+    assert.equal(equity.reason, {absent: 'missing', duplicate: 'source', units: 'units', deduction: 'deductions', zero: 'zero'}[mutation]);
+    assert.equal(equity.total, null);
+  }
+});
+
+test('bank equity uses top-level capital and reserves without double-counting subrows', () => {
+  const bank = structuredClone(reports);
+  const capital = bank.rows.find(row => row.metric_id === 'share_capital');
+  const premium = structuredClone(capital);
+  Object.assign(premium, {id: 'BANK_BS:27', metric_id: 'share_premium', source_code: '27'});
+  // Reconcile this boundary fixture without pretending the absent source row was zero.
+  const total = Number(bank.rows.find(row => row.metric_id === 'total_equity').cells[period].value);
+  const subtotal = bank.rows.filter(row => ['share_capital', 'reserve_capital', 'retained_earnings'].includes(row.metric_id))
+    .reduce((sum, row) => sum + Number(row.cells[period].value), 0);
+  premium.cells = {[period]: {...capital.cells[period], source_code: '27', value: total - subtotal, raw_value: total - subtotal}};
+  bank.rows.push(premium);
+  const nested = structuredClone(capital);
+  Object.assign(nested, {id: 'BANK_BS:26а', metric_id: 'ordinary_share_capital', source_code: '26а'});
+  nested.cells[period].source_code = '26а';
+  bank.rows.push(nested);
+  const {equity} = balanceComposition(bank.rows, period);
+  assert.equal(equity.reason, null);
+  assert.equal(equity.total, total);
+  assert.deepEqual(equity.rows.map(row => row.metric_id), ['share_capital', 'share_premium', 'reserve_capital', 'retained_earnings']);
+  assert.equal(balanceComposition(reports.rows, period).equity.reason, 'missing');
+});
+
 for (const [ticker, total] of [['UZTL', 13530348888], ['KFSK', 642485365.03]]) {
   test(`${ticker} uses the shared balance chart with its own filed form and totals`, () => {
     const report = filedBalance(ticker);

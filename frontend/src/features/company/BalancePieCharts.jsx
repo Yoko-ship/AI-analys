@@ -14,6 +14,13 @@ const COLORS = [
 const LABELS = {
   total_liabilities: ['Обязательства', 'Majburiyatlar', 'Liabilities'],
   total_equity: ['Капитал', 'Kapital', 'Equity'],
+  share_capital: ['Уставный капитал', 'Ustav kapitali', 'Share capital'],
+  share_premium: ['Добавленный капитал', 'Qo‘shilgan kapital', 'Additional capital'],
+  reserve_capital: ['Резервный капитал', 'Rezerv kapitali', 'Reserve capital'],
+  treasury_shares: ['Выкупленные собственные акции', 'Sotib olingan o‘z aksiyalari', 'Treasury shares'],
+  retained_earnings: ['Нераспределенная прибыль (непокрытый убыток)', 'Taqsimlanmagan foyda (qoplanmagan zarar)', 'Retained earnings (uncovered loss)'],
+  target_receipts: ['Целевые поступления', 'Maqsadli tushumlar', 'Target receipts'],
+  future_expense_reserves: ['Резервы предстоящих расходов и платежей', 'Kelgusi xarajatlar va to‘lovlar rezervlari', 'Reserves for future expenses and payments'],
   unclassified_assets: ['Нераспределённый остаток (состав не подтверждён)', 'Taqsimlanmagan qoldiq (tarkibi tasdiqlanmagan)', 'Unclassified remainder (breakdown unverified)'],
 };
 const REASONS = {
@@ -23,6 +30,8 @@ const REASONS = {
   zero: ['Итог равен нулю. Доли не определены.', 'Jami nolga teng. Ulushlar aniqlanmagan.', 'The total is zero. Shares are undefined.'],
   inconsistent: ['Составляющие превышают итог баланса.', 'Tarkibiy qismlar balans jamidan oshib ketgan.', 'Components exceed the balance total.'],
   unreconciled: ['Обязательства и капитал не сходятся с итогом активов.', 'Majburiyatlar va kapital aktivlar jamiga mos kelmaydi.', 'Liabilities and equity do not reconcile to total assets.'],
+  equity_unreconciled: ['Составляющие капитала не сходятся с итогом раздела.', 'Kapital tarkibi bo‘lim jamiga mos kelmaydi.', 'Equity components do not reconcile to the section total.'],
+  deductions: ['Выкупленные акции уменьшают капитал. Pie chart недоступен.', 'Sotib olingan aksiyalar kapitalni kamaytiradi. Pie chart mavjud emas.', 'Treasury shares reduce equity. A pie chart is unavailable.'],
   asset_sections: ['Разделы активов не сходятся с итогом активов.', 'Aktivlar bo‘limlari aktivlar jamiga mos kelmaydi.', 'The asset sections do not reconcile to total assets.'],
   source: ['Не удалось подтвердить единый источник для этих значений.', 'Bu qiymatlar uchun umumiy manba tasdiqlanmadi.', 'A common reporting source could not be verified for these values.'],
   overflow: ['Значения слишком велики для расчёта долей.', 'Qiymatlar ulushlarni hisoblash uchun juda katta.', 'The amounts are too large to calculate shares.'],
@@ -77,7 +86,7 @@ export function BalancePieCharts({rows, columns, reportContext, statementContext
   const periods = columns.filter(column => column.basis !== 'ttm');
   const period = periods.find(column => column.key === selected) || periods.at(-1);
   if (!period) return <p className="fc-empty" role="status">{t(...REASONS.missing)}</p>;
-  const {assets, funding} = balanceComposition(rows, period.key, period.end, reportContext ?? undefined);
+  const {assets, funding, equity} = balanceComposition(rows, period.key, period.end, reportContext ?? undefined);
   return <section className="fc-balance-pies fc-chart-visuals" aria-label={t('Структура баланса', 'Balans tarkibi', 'Balance composition')}>
     <div className="fc-balance-periods" role="group" aria-label={t('Отчётный период', 'Hisobot davri', 'Reporting period')}>
       {periods.map(column => <button key={column.key} type="button" aria-pressed={column.key === period.key}
@@ -86,6 +95,7 @@ export function BalancePieCharts({rows, columns, reportContext, statementContext
     <div className="fc-balance-panels" key={period.key}>
       <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} format={format} t={t}/>
       <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} format={format} t={t}/>
+      <PiePanel id="equity" title={t('Источники собственных средств', 'O‘z mablag‘lari manbalari', 'Sources of equity')} data={equity} period={period} format={format} t={t}/>
     </div>
     <StatementChartRows rows={rows} period={period} kind="stock" context={statementContext}
       renderValue={renderStatementValue} t={t}/>

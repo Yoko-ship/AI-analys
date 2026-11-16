@@ -246,6 +246,13 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await expect(terminal.locator('.fc-chart')).toHaveCount(0);
   const assets = balance.locator('[data-balance-chart="assets"]');
   const funding = balance.locator('[data-balance-chart="funding"]');
+  const equity = balance.locator('[data-balance-chart="equity"]');
+  await expect(equity.getByRole('status')).toContainText('Not enough verified');
+  await expect(equity.getByRole('img')).toHaveCount(0);
+  const equityCapital = equity.locator('[data-balance-value="share_capital"] strong');
+  const capitalReading = key => new Intl.NumberFormat('en-US', {maximumFractionDigits: 2}).format(
+    Number(recentReports.rows.find(row => row.metric_id === 'share_capital').cells[key].value));
+  await expect(equityCapital).toContainText(capitalReading('2026-09-30'));
   const loan = assets.locator('[data-pie-slice="loans_leases_net"]');
   await expect(loan).toHaveAttribute('aria-label', /30,908,613,408/);
   await expect(assets.locator('[data-pie-slice="loans_gross"]')).toHaveCount(0);
@@ -258,6 +265,7 @@ for (const [width, theme] of [[1440, 'dark'], [390, 'light']]) test(`balance ove
   await expect(detailRows.getByRole('columnheader').last()).toHaveText('2024');
   await expect(assets).toContainText('28,708,226,712');
   await expect(assets.getByRole('status')).toContainText('2024');
+  await expect(equityCapital).toContainText(capitalReading('2024'));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   const boxes = await balance.locator('[data-balance-chart]').evaluateAll(nodes => nodes.map(node => {
     const box = node.getBoundingClientRect();
@@ -322,12 +330,25 @@ for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} shows balance pie
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('button', {name: 'Chart', exact: true}).click();
   const balance = terminal.getByRole('region', {name: 'Balance composition'});
-  await expect(balance.getByRole('img')).toHaveCount(2);
+  await expect(balance.getByRole('img')).toHaveCount(3);
   const table = balance.getByRole('table', {name: 'All statement rows'});
   await expect(table.locator('tbody tr')).toHaveCount(reports.chart_rows.length);
   for (const row of reports.chart_rows) {
     await expect(table.locator(`[data-statement-row="${row.id}"] th`)).toContainText(row.label);
   }
+  const equity = balance.locator('[data-balance-chart="equity"]');
+  await expect(equity.getByRole('heading', {name: 'Sources of equity', exact: true})).toBeVisible();
+  await expect(equity.locator('[data-balance-value]')).toHaveCount(7);
+  const shareCapital = reports.rows.find(row => row.metric_id === 'share_capital').cells['2025'].value;
+  await expect(equity.locator('[data-pie-slice="share_capital"]')).toHaveAttribute('aria-label',
+    new RegExp(new Intl.NumberFormat('en-US', {maximumFractionDigits: 2}).format(shareCapital)));
+  await expect(equity.locator('[data-pie-slice="total_equity"]')).toHaveCount(0);
+  await expect(equity.locator('[data-balance-value="treasury_shares"]')).toContainText('0');
+  await equity.locator('[data-pie-slice="share_capital"]').focus();
+  await expect(equity.getByRole('status')).toContainText('%');
+  await equity.locator('[data-balance-value="reserve_capital"] button').click();
+  await expect(equity.getByRole('status')).toContainText('Reserve capital');
+  await equity.screenshot({path: testInfo.outputPath('equity-mobile.png')});
   if (ticker === 'KFSK') {
     const funding = balance.locator('[data-balance-chart="funding"]');
     await expect(funding.locator('[data-pie-slice="insurance_reserves_net"]')).toHaveAttribute('aria-label', /259,436,970.5/);
@@ -337,6 +358,10 @@ for (const ticker of ['UZAL', 'UZTL', 'KFSK']) test(`${ticker} shows balance pie
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await balance.screenshot({path: testInfo.outputPath('issuer-balance.png')});
+  if (ticker === 'KFSK') {
+    await page.setViewportSize({width: 1440, height: 1000});
+    await equity.screenshot({path: testInfo.outputPath('equity-desktop.png')});
+  }
 });
 
 test('balance pies explain blocked totals, preserve negative equity and allow zero equity', async ({page}) => {

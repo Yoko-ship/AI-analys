@@ -15,6 +15,9 @@ export function filedBalance(ticker) {
       '170': 'prepaid_expenses', '180': 'deferred_expenses', '190': 'receivables',
       '410': 'cash', '460': 'short_term_investments', '470': 'other_current_assets',
       '480': 'current_assets', '490': 'total_assets', '570': 'total_equity',
+      '500': 'share_capital', '510': 'share_premium', '520': 'reserve_capital',
+      '530': 'treasury_shares', '540': 'retained_earnings',
+      '550': 'target_receipts', '560': 'future_expense_reserves',
       '580': 'insurance_reserves_gross', '670': 'reinsurer_share_reserves',
       '720': 'insurance_reserves_net', '1190': 'nonreserve_liabilities',
     } : {
@@ -22,6 +25,9 @@ export function filedBalance(ticker) {
       '210': 'receivables', '320': 'cash', '370': 'short_term_investments',
       '380': 'other_current_assets', '390': 'current_assets', '400': 'total_assets',
       '480': 'total_equity', '770': 'total_liabilities',
+      '410': 'share_capital', '420': 'share_premium', '430': 'reserve_capital',
+      '440': 'treasury_shares', '450': 'retained_earnings',
+      '460': 'target_receipts', '470': 'future_expense_reserves',
     }),
   };
   const source = filing.sheets.flatMap(sheet => sheet.source_rows);
