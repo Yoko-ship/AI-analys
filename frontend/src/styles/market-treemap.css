@@ -163,6 +163,31 @@
   touch-action: pan-x pan-y;
 }
 .heatmap-viewport.is-zoomed { overscroll-behavior: contain; }
+.heatmap-canvas { display: contents; }
+.heatmap-canvas.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100dvh;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+.heatmap-canvas.is-fullscreen .heatmap-zoom { flex: none; }
+.heatmap-canvas.is-fullscreen .heatmap-viewport { flex: 1; min-height: 0; height: auto; }
+.heatmap-zoom .heatmap-fullscreen-toggle {
+  width: auto;
+  min-height: 40px;
+  margin-right: auto;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+}
 .heatmap-zoom { display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--muted); font-size: 10px; }
 .heatmap-zoom > span { margin-right: 4px; }
 .heatmap-zoom button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--panel); font-size: 18px; cursor: pointer; }

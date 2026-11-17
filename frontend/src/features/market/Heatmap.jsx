@@ -1,6 +1,7 @@
 import {HeatmapSizeControl, HeatmapTickerSearch} from "./HeatmapSidebarControls.jsx";
 import {heatmapTileLabels} from './tileLabels.js';
 import {useHeatmapZoom} from './useHeatmapZoom.js';
+import {useHeatmapFullscreen} from './useHeatmapFullscreen.js';
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
@@ -169,6 +170,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
   const {zoom, changeZoom, viewportRef, onClickCapture, onPointerDownCapture} = useHeatmapZoom(closePreview);
+  const fullscreen = useHeatmapFullscreen();
 
   useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, changeFilter, closePreview]);
 
@@ -435,7 +437,13 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
       </div>}
 
 
+      <div ref={fullscreen.element} className={`heatmap-canvas${fullscreen.expanded ? ' is-fullscreen' : ''}`}>
       <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
+        <button ref={fullscreen.button} type="button" className="heatmap-fullscreen-toggle" aria-pressed={fullscreen.expanded} onClick={fullscreen.toggle}>
+          {fullscreen.expanded
+            ? lang === 'ru' ? 'Свернуть' : lang === 'uz' ? 'Kichraytirish' : 'Restore'
+            : lang === 'ru' ? 'На весь экран' : lang === 'uz' ? 'To‘liq ekran' : 'Full screen'}
+        </button>
         <span>{zoomCopy.short}</span>
         <button type="button" aria-label={zoomCopy.out} title={zoomCopy.out} disabled={zoom === 1} onClick={() => changeZoom(zoom / 2)}>−</button>
         <output role="status" aria-live="polite">{formatRatio(zoom * 100, 0, lang)}%</output>
@@ -572,11 +580,14 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
 
       </div>
 
+      </div>
+
       {isAdmin && hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
         industry={[marketIndustryLabel(lang, hoverSector.sector), hoverGroup.id && marketIndustryLabel(lang, `group:${hoverGroup.id}`)].filter(Boolean).join(' · ')}
         name={hoverRow.name || companyMap[hoverRow.ticker]?.company_name || hoverRow.ticker}
         security={securitiesMap?.[hoverRow.ticker]} lang={lang} period={period} type={type}
-        statusOf={tileStatus} formatPct={formatPct} metrics={selectedMetrics} values={marketVolumeMetrics(hoverRow, stats)} onOpen={openCompany} />}
+        statusOf={tileStatus} formatPct={formatPct} metrics={selectedMetrics} values={marketVolumeMetrics(hoverRow, stats)} onOpen={openCompany}
+        portalContainer={fullscreen.expanded ? fullscreen.element.current : undefined} />}
 
       {sectorItems.length === 0 && filtersActive && (
         <p className="market-empty-cell heatmap-empty-state" role="status">

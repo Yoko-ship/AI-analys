@@ -62,6 +62,48 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+for (const width of [1280, 390]) for (const native of [true, false]) {
+  test(`market map fullscreen at ${width}px with native API ${native}`, async ({page}, testInfo) => {
+    await page.setViewportSize({width, height: 844});
+    if (!native) await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = () => Promise.reject(new Error('Unavailable'));
+    });
+    const errors = await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true});
+    const canvas = page.locator('.heatmap-canvas');
+    const expand = page.getByRole('button', {name: 'На весь экран', exact: true});
+    await expand.click();
+    const restore = page.getByRole('button', {name: 'Свернуть', exact: true});
+    await expect(restore).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => canvas.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      const viewport = node.querySelector('.heatmap-viewport').getBoundingClientRect();
+      return box.x === 0 && box.y === 0 && box.width === innerWidth && box.height === innerHeight
+        && viewport.bottom <= innerHeight && viewport.height > innerHeight * .7;
+    })).toBe(true);
+    if (native) await expect.poll(() => page.evaluate(() => document.fullscreenElement?.classList.contains('heatmap-canvas'))).toBe(true);
+    await page.getByRole('button', {name: 'Увеличить карту', exact: true}).click();
+    await expect(page.locator('.heatmap-zoom output')).toHaveText('200%');
+    await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+    await page.locator('.heatmap-tree-tile[data-ticker="AGBA"]').hover();
+    await expect(canvas.getByRole('dialog', {name: 'Обзор компании AGBA'})).toBeVisible();
+    await page.screenshot({path: testInfo.outputPath('map-fullscreen.png')});
+    await restore.click();
+    await expect(expand).toBeFocused();
+    await expect(canvas).not.toHaveClass(/is-fullscreen/);
+    if (native) await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+    await expect(page.locator('.heatmap-zoom output')).toHaveText('200%');
+    await expand.click();
+    if (native) {
+      await expect.poll(() => page.evaluate(() => document.fullscreenElement?.classList.contains('heatmap-canvas'))).toBe(true);
+      await page.evaluate(() => document.exitFullscreen());
+    }
+    else await page.keyboard.press('Escape');
+    await expect(expand).toBeFocused();
+    await expect(canvas).not.toHaveClass(/is-fullscreen/);
+    expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+    expect(errors).toEqual([]);
+  });
+}
 async function chooseMapPeriod(page, code) {
   await openMapFilters(page);
   const trigger=page.locator('.heatmap-performance-trigger');
@@ -108,11 +150,11 @@ for (const width of [1280, 390]) test(`searchable heatmap performance periods at
   await expect(search).toBeFocused();
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
-    const bounds = await menu.boundingBox();
-    expect(bounds.x).toBeGreaterThanOrEqual(8);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 8);
-    expect(bounds.y).toBeGreaterThanOrEqual(8);
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(836);
+    await expect.poll(async () => {
+      const bounds = await menu.boundingBox();
+      return bounds.x >= 8 && bounds.x + bounds.width <= width - 8
+        && bounds.y >= 8 && bounds.y + bounds.height <= 836;
+    }).toBe(true);
     await page.screenshot({path: testInfo.outputPath(`performance-${theme}.png`)});
   }
   // A phone keyboard reduces the space available to the open menu.
@@ -257,6 +299,8 @@ test("metrics follow the selected period, sector and missing data on the one com
   await expect(metric(page, "bigTrade")).toHaveText("4 000 000 UZS");
   await expect(page.locator('.heatmap-metric-details [data-metric="bigTrade"]')).toContainText("Детали по 3 из 5 сессий");
   await chooseIndustry(page, 'finance');
+  // Wait for the popover to restore focus before opening another picker.
+  await expect(page.locator('.market-industry-trigger')).toBeFocused();
   await expect(metric(page, "volShare")).toHaveText("25%");
   await chooseMapTicker(page, "EMPTY");
   for (const key of ["volume", "volQty", "avgShare", "avgTrade", "bigTrade", "volShare"]) await expect(metric(page, key)).toHaveText("—");

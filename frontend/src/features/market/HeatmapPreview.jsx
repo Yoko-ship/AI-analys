@@ -90,7 +90,7 @@ function LatestNews({ ticker, cache, lang }) {
 }
 
 export function HeatmapPreview({ interaction, row, peers, industry, name, security, lang, period, type,
-  statusOf, formatPct, metrics, values, onOpen }) {
+  statusOf, formatPct, metrics, values, onOpen, portalContainer }) {
   const { hover, close, keep, leave, panel, cache, id } = interaction;
   const t = (ru, uz, en) => lang === 'en' ? en : lang === 'uz' ? uz : ru;
   const price = marketDisplayPrice(row);
@@ -101,7 +101,7 @@ export function HeatmapPreview({ interaction, row, peers, industry, name, securi
   const shown = [row, ...peers.filter(peer => peer.ticker !== row.ticker)].slice(0, 12);
   return <Popover.Root open onOpenChange={open => { if (!open) close(panel.current?.contains(document.activeElement)); }}>
     <Popover.Anchor virtualRef={{ current: hover.anchor }} />
-    <Popover.Portal>
+    <Popover.Portal container={portalContainer}>
       <Popover.Content ref={panel} id={id} className="heatmap-preview" side={window.innerWidth < 768 ? 'bottom' : 'right'} align="start" sideOffset={12}
         collisionPadding={8} sticky="always" aria-label={`${t('Обзор компании', 'Kompaniya haqida', 'Company preview')} ${row.ticker}`}
         onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()}
