@@ -195,10 +195,6 @@ html[data-theme="dark"] body .heatmap-ticker-input input {
     z-index: 2;
   }
   .market-layout.is-heatmap .heatmap-sidebar-panel .heatmap-sidebar { border-bottom: 0; }
-  .market-layout.is-heatmap .heatmap-zoom { order: 1; }
-  .market-layout.is-heatmap .heatmap-viewport { order: 2; }
-  .market-layout.is-heatmap .heatmap-metric-details { order: 3; }
-  .market-layout.is-heatmap .heatmap-overview { order: 4; }
   .market-layout.is-heatmap .heatmap-sidebar .heatmap-map-filters { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {

@@ -184,28 +184,44 @@ test('market map draws its tiles when market data arrives after mounting', async
   await openMap(page, 'stock', '/heatmap', false);
   await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
 });
-for (const width of [1280, 390, 320]) {
-  test(`heatmap opens with the main movement first and metrics available at ${width}px`, async ({ page }, testInfo) => {
+for (const width of [1920, 1280, 1024, 390, 320]) {
+  test(`heatmap opens with compact controls and the map before details at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 844 });
     const errors = await openMap(page, "stock", "/heatmap", false);
-    const assertSummaryFirst = async () => {
+    const assertMapFirst = async () => {
       await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+      const toolbar = page.getByRole('group', {name: 'Управление картой', exact: true});
+      await expect(toolbar.getByRole('button', {name: 'На весь экран', exact: true})).toBeVisible();
+      await expect(toolbar.getByRole('group', {name: 'Масштаб карты', exact: true})).toBeVisible();
       await expect.poll(() => page.evaluate(() => {
         const tree = document.querySelector('.heatmap-tree').getBoundingClientRect();
         const wrap = document.querySelector('.heatmap-wrap');
+        const toolbar = document.querySelector('.heatmap-metrics-toolbar').getBoundingClientRect();
+        const expand = document.querySelector('.heatmap-fullscreen-toggle').getBoundingClientRect();
+        const zoomOut = document.querySelector('.heatmap-zoom button[title="Уменьшить карту"]').getBoundingClientRect();
         const focus = document.querySelector('.heatmap-focus-strip').getBoundingClientRect();
         const details = document.querySelector('.heatmap-metric-details').getBoundingClientRect();
-        return { atTop: scrollY === 0, focusFirst: wrap.firstElementChild.matches('.heatmap-focus-strip'),
+        const boardHead = document.querySelector('.market-board-head').getBoundingClientRect();
+        return { atTop: scrollY === 0, mapFirst: wrap.firstElementChild.matches('.heatmap-canvas'),
+          controlsTogether: Math.abs(expand.top - zoomOut.top) <= 1 && zoomOut.left - expand.right <= 8,
+          compactToolbar: toolbar.height <= (innerWidth > 980 ? 48 : 96),
+          mapAfterToolbar: tree.top >= toolbar.bottom && tree.top - toolbar.bottom <= 12,
+          mapNearHeader: tree.top - boardHead.bottom <= (innerWidth > 980 ? 110 : 200),
           metricsAfterFocus: details.top >= focus.bottom,
-          metricsPlacementCorrect: innerWidth > 980 ? details.bottom <= tree.top : details.top >= document.querySelector('.heatmap-viewport').getBoundingClientRect().bottom,
+          detailsBelowMap: focus.top >= document.querySelector('.heatmap-viewport').getBoundingClientRect().bottom,
           summaryBelowMap: document.querySelector('.market-stats-grid').getBoundingClientRect().top >= tree.bottom,
           noOverflow: document.documentElement.scrollWidth <= innerWidth };
-      })).toEqual({ atTop: true, focusFirst: true, metricsAfterFocus: true, metricsPlacementCorrect: true, summaryBelowMap: true, noOverflow: true });
+      })).toEqual({ atTop: true, mapFirst: true, controlsTogether: true, compactToolbar: true, mapAfterToolbar: true, mapNearHeader: true,
+        metricsAfterFocus: true, detailsBelowMap: true, summaryBelowMap: true, noOverflow: true });
     };
-    await assertSummaryFirst();
-    await page.screenshot({ path: testInfo.outputPath('summary-on-arrival.png') });
+    await assertMapFirst();
+    await page.evaluate(() => document.fonts.ready);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+      await page.screenshot({ path: testInfo.outputPath(`map-on-arrival-${theme}.png`), animations: 'disabled' });
+    }
     await page.reload();
-    await assertSummaryFirst();
+    await assertMapFirst();
     await openMapFilters(page);
     await page.locator('.market-view-toggle button[title="Таблица"]').click();
     await expect(page).toHaveURL(/\/market$/);
@@ -213,7 +229,7 @@ for (const width of [1280, 390, 320]) {
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.locator('.market-view-toggle button[title="Карта рынка"]').click();
     await expect(page).toHaveURL(/\/heatmap$/);
-    await assertSummaryFirst();
+    await assertMapFirst();
     expect(errors).toEqual([]);
   });
 }

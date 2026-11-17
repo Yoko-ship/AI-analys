@@ -365,16 +365,16 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
       : `≥ ±${formatRatio(key === "full" ? fullScale : fullScale * 0.4, 0, lang)}%`;
 
   const areaTitle=areaMode==='movement'?mapCopy.movement:areaMode==='turnover'?mapCopy.turnover:areaMode==='capitalization'?(lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'):(lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки');
-  const zoomCopy = lang === 'ru' ? {label: 'Масштаб карты', short: 'Масштаб', in: 'Увеличить карту', out: 'Уменьшить карту', reset: 'Сбросить масштаб'}
-    : lang === 'uz' ? {label: 'Xarita masshtabi', short: 'Masshtab', in: 'Xaritani kattalashtirish', out: 'Xaritani kichraytirish', reset: 'Masshtabni tiklash'}
-      : {label: 'Map zoom', short: 'Zoom', in: 'Zoom in', out: 'Zoom out', reset: 'Reset zoom'};
+  const zoomCopy = lang === 'ru' ? {label: 'Масштаб карты', in: 'Увеличить карту', out: 'Уменьшить карту', reset: 'Сбросить масштаб'}
+    : lang === 'uz' ? {label: 'Xarita masshtabi', in: 'Xaritani kattalashtirish', out: 'Xaritani kichraytirish', reset: 'Masshtabni tiklash'}
+      : {label: 'Map zoom', in: 'Zoom in', out: 'Zoom out', reset: 'Reset zoom'};
+  const fullscreenLabel = fullscreen.expanded
+    ? lang === 'ru' ? 'Свернуть' : lang === 'uz' ? 'Kichraytirish' : 'Restore'
+    : lang === 'ru' ? 'На весь экран' : lang === 'uz' ? 'To‘liq ekran' : 'Full screen';
+  const toolbarLabel = lang === 'ru' ? 'Управление картой' : lang === 'uz' ? 'Xarita boshqaruvi' : 'Map controls';
   return (
     <HeatmapLayout lang={lang} filters={filters} viewControl={viewControl}
       sizeControl={<HeatmapSizeControl lang={lang} value={areaMode} onChange={setAreaMode}/>}
-      tickerControl={<HeatmapTickerSearch key={type} lang={lang} rows={tradedRows} companyMap={companyMap}
-        securitiesMap={securitiesMap} value={focusRow?.ticker || ''}
-        onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>}
-      metricsControl={<HeatmapMetricPicker lang={lang} {...metricSelection} />}
       controls={<>
 
       <div className="heatmap-filters" role="group" aria-label={`${mapCopy.filterTurnover}, ${mapCopy.filterChange}`}>
@@ -399,59 +399,26 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
       </div>
     </>}>
 
-      {focusRow && (
-        <button
-          className="heatmap-focus-strip"
-          type="button"
-          onClick={() => (onOpenCompany ? onOpenCompany(focusRow.ticker) : onAnalyze(focusRow.ticker))}
-          aria-live="polite"
-        >
-          <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
-          <span className="heatmap-focus-identity">
-            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
-            <span>
-              <strong>{focusRow.ticker}</strong>
-              <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
-                {focusStatus === "ok" ? formatPct(focusRow.changePercent) : "—"}
-              </b>
-            </span>
-            <em>{focusName}</em>
-          </span>
-          <span className="heatmap-focus-facts">
-            <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
-            <span><small>{mapCopy.sectors}</small><strong>{marketIndustryLabel(lang, sectorKeyOf(focusRow.ticker))}
-              {industryOf(focusRow.ticker)?.group && <small>{marketIndustryLabel(lang, `group:${industryOf(focusRow.ticker).group}`)}</small>}
-            </strong></span>
-          </span>
-          <span className="heatmap-focus-open">{type === "bond"
-            ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
-            : mapCopy.open}<b>↗</b></span>
-        </button>
-      )}
-
-      {focusRow && selectedMetrics.length > 0 && <div className="heatmap-metric-details" aria-live="polite" data-ticker={focusRow.ticker}>
-        {selectedMetrics.map(({ key, label }) => <div key={key} data-metric={key}>
-          <small>{label}</small><strong>{formatMapMetric(key, focusMetrics[key], lang)}</strong>
-          {windowed && mapMetricCoverage(focusRow, key, lang) && <small className="heatmap-metric-note">{mapMetricCoverage(focusRow, key, lang)}</small>}
-        </div>)}
-      </div>}
-
-
       <div ref={fullscreen.element} className={`heatmap-canvas${fullscreen.expanded ? ' is-fullscreen' : ''}`}>
-      <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
-        <button ref={fullscreen.button} type="button" className="heatmap-fullscreen-toggle" aria-pressed={fullscreen.expanded} onClick={fullscreen.toggle}>
-          {fullscreen.expanded
-            ? lang === 'ru' ? 'Свернуть' : lang === 'uz' ? 'Kichraytirish' : 'Restore'
-            : lang === 'ru' ? 'На весь экран' : lang === 'uz' ? 'To‘liq ekran' : 'Full screen'}
-        </button>
-        <span>{zoomCopy.short}</span>
-        <button type="button" aria-label={zoomCopy.out} title={zoomCopy.out} disabled={zoom === 1} onClick={() => changeZoom(zoom / 2)}>−</button>
-        <output role="status" aria-live="polite">{formatRatio(zoom * 100, 0, lang)}%</output>
-        <button type="button" aria-label={zoomCopy.in} title={zoomCopy.in} disabled={zoom === 8} onClick={() => changeZoom(zoom * 2)}>+</button>
-        <button type="button" aria-label={zoomCopy.reset} title={zoomCopy.reset} disabled={zoom === 1} onClick={() => changeZoom(1)}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6a5 5 0 1 1 0 5M3 2v4h4"/></svg>
-        </button>
-      </div>
+        <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}>
+          <HeatmapTickerSearch key={type} lang={lang} rows={tradedRows} companyMap={companyMap}
+            securitiesMap={securitiesMap} value={focusRow?.ticker || ''}
+            onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>
+          <HeatmapMetricPicker lang={lang} {...metricSelection} />
+          <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
+            <button ref={fullscreen.button} type="button" className="heatmap-fullscreen-toggle" aria-label={fullscreenLabel} title={fullscreenLabel} aria-pressed={fullscreen.expanded} onClick={fullscreen.toggle}>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <path d={fullscreen.expanded ? 'M3 7h4V3m6 0v4h4M17 13h-4v4M7 17v-4H3' : 'M7 3H3v4m10-4h4v4m0 6v4h-4M7 17H3v-4'}/>
+              </svg>
+            </button>
+            <button type="button" aria-label={zoomCopy.out} title={zoomCopy.out} disabled={zoom === 1} onClick={() => changeZoom(zoom / 2)}>−</button>
+            <output role="status" aria-live="polite">{formatRatio(zoom * 100, 0, lang)}%</output>
+            <button type="button" aria-label={zoomCopy.in} title={zoomCopy.in} disabled={zoom === 8} onClick={() => changeZoom(zoom * 2)}>+</button>
+            <button type="button" aria-label={zoomCopy.reset} title={zoomCopy.reset} disabled={zoom === 1} onClick={() => changeZoom(1)}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6a5 5 0 1 1 0 5M3 2v4h4"/></svg>
+            </button>
+          </div>
+        </div>
       <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
       <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}
@@ -582,6 +549,43 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
 
       </div>
 
+      {focusRow && (
+        <button
+          className="heatmap-focus-strip"
+          type="button"
+          onClick={() => (onOpenCompany ? onOpenCompany(focusRow.ticker) : onAnalyze(focusRow.ticker))}
+          aria-live="polite"
+        >
+          <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
+          <span className="heatmap-focus-identity">
+            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
+            <span>
+              <strong>{focusRow.ticker}</strong>
+              <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
+                {focusStatus === "ok" ? formatPct(focusRow.changePercent) : "—"}
+              </b>
+            </span>
+            <em>{focusName}</em>
+          </span>
+          <span className="heatmap-focus-facts">
+            <span><small>{mapCopy.price}</small><strong>{focusPrice != null ? `${formatMarketNumber(focusPrice, lang)} UZS` : "—"}</strong></span>
+            <span><small>{mapCopy.sectors}</small><strong>{marketIndustryLabel(lang, sectorKeyOf(focusRow.ticker))}
+              {industryOf(focusRow.ticker)?.group && <small>{marketIndustryLabel(lang, `group:${industryOf(focusRow.ticker).group}`)}</small>}
+            </strong></span>
+          </span>
+          <span className="heatmap-focus-open">{type === "bond"
+            ? lang === "ru" ? "Нажмите, чтобы открыть выпуск" : lang === "uz" ? "Chiqarilishni ochish uchun bosing" : "Click to open bond"
+            : mapCopy.open}<b>↗</b></span>
+        </button>
+      )}
+
+      {focusRow && selectedMetrics.length > 0 && <div className="heatmap-metric-details" aria-live="polite" data-ticker={focusRow.ticker}>
+        {selectedMetrics.map(({ key, label }) => <div key={key} data-metric={key}>
+          <small>{label}</small><strong>{formatMapMetric(key, focusMetrics[key], lang)}</strong>
+          {windowed && mapMetricCoverage(focusRow, key, lang) && <small className="heatmap-metric-note">{mapMetricCoverage(focusRow, key, lang)}</small>}
+        </div>)}
+      </div>}
+
       {isAdmin && hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
         industry={[marketIndustryLabel(lang, hoverSector.sector), hoverGroup.id && marketIndustryLabel(lang, `group:${hoverGroup.id}`)].filter(Boolean).join(' · ')}
         name={hoverRow.name || companyMap[hoverRow.ticker]?.company_name || hoverRow.ticker}
@@ -647,7 +651,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   );
 }
 
-export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls, tickerControl, metricsControl, children}) {
+export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls, children}) {
   const title = lang === 'ru' ? 'Фильтры карты' : lang === 'uz' ? 'Xarita filtrlari' : 'Map filters';
   const closePanel = element => {
     const panel = element.closest('.heatmap-sidebar-panel');
@@ -656,12 +660,7 @@ export function HeatmapLayout({lang, viewControl, sizeControl, filters, controls
       panel.querySelector(':scope > summary')?.focus();
     }
   };
-  const toolbarLabel = lang === 'ru' ? 'Управление картой' : lang === 'uz' ? 'Xarita boshqaruvi' : 'Map controls';
   return <div className="heatmap-layout">
-    {(tickerControl || metricsControl) && <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}>
-      {tickerControl}
-      {metricsControl}
-    </div>}
     <ResponsiveDisclosure className="heatmap-sidebar-panel" mediaQuery="(max-width: 980px)" label={<>
       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/><path d="M7 3v4M13 8v4M8 13v4"/></svg>
       <span>{title}</span>
