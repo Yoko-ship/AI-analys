@@ -62,6 +62,65 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+for (const width of [1280, 320]) for (const native of [true, false]) test(`market map sharing beside fullscreen and zoom at ${width}px with native API ${native}`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 844});
+  if (!native) await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () => Promise.reject(new Error('Unavailable'));
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {
+      writeText: async value => { window.copiedMapLink = value; },
+    }});
+    Object.defineProperty(navigator, 'share', {configurable: true, value: async value => { window.sharedMapLink = value; }});
+  });
+  const errors = await openMap(page, 'stock', '/heatmap', false);
+  const share = page.getByRole('button', {name: 'Поделиться', exact: true});
+  await expect(share).toBeVisible();
+  const canvas = page.locator('.heatmap-canvas');
+  for (const fullscreen of [false, true]) {
+    if (fullscreen) await page.getByRole('button', {name: 'На весь экран', exact: true}).click();
+    await share.click();
+    const dialog = page.getByRole('dialog', {name: 'Поделиться', exact: true});
+    await expect(dialog).toBeVisible();
+    const url = `${new URL(page.url()).origin}/heatmap`;
+    const telegram = new URL(await dialog.getByRole('link', {name: 'Telegram', exact: true}).getAttribute('href'));
+    expect(telegram.searchParams.get('url')).toBe(url);
+    await dialog.getByRole('button', {name: 'Копировать ссылку', exact: true}).click();
+    await expect.poll(() => page.evaluate(() => window.copiedMapLink)).toBe(url);
+    await expect(dialog.getByRole('button', {name: 'Ссылка скопирована', exact: true})).toBeVisible();
+    await dialog.getByRole('button', {name: 'Другие приложения', exact: true}).click();
+    await expect.poll(() => page.evaluate(() => window.sharedMapLink)).toEqual({
+      url, title: 'Карта рынка | UZStock', text: 'Карта рынка',
+    });
+    await page.keyboard.press('Tab');
+    await expect(dialog.getByRole('link', {name: 'Telegram', exact: true})).toBeFocused();
+    await expect.poll(() => dialog.evaluate(node => {
+      const box = node.getBoundingClientRect();
+      return box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight;
+    })).toBe(true);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+      await page.screenshot({path: testInfo.outputPath(`share-${fullscreen}-${theme}.png`)});
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(share).toBeFocused();
+    if (fullscreen) await expect(canvas).toHaveClass(/is-fullscreen/);
+  }
+  await page.getByRole('button', {name: 'Свернуть', exact: true}).click();
+  for (const [lang, label, copy, suffix] of [['en', 'Share', 'Copy link', '/heatmap'], ['uz', 'Ulashish', 'Havolani nusxalash', '/uz/heatmap']]) {
+    await selectLanguage(page, lang);
+    if (await page.locator('.account-preferences').isVisible()) await page.locator('.topbar .account-button').click();
+    await expect(page.locator('.account-preferences')).not.toBeVisible();
+    await page.getByRole('button', {name: label, exact: true}).click();
+    const dialog = page.getByRole('dialog', {name: label, exact: true});
+    await dialog.getByRole('button', {name: copy, exact: true}).click();
+    await expect.poll(() => page.evaluate(() => window.copiedMapLink)).toBe(`${new URL(page.url()).origin}${suffix}`);
+    await page.keyboard.press('Escape');
+  }
+  expect(errors).toEqual([]);
+});
+
 for (const width of [1280, 390]) for (const native of [true, false]) {
   test(`market map fullscreen at ${width}px with native API ${native}`, async ({page}, testInfo) => {
     await page.setViewportSize({width, height: 844});
@@ -191,6 +250,7 @@ for (const width of [1920, 1280, 1024, 390, 320]) {
     const assertMapFirst = async () => {
       await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
       const toolbar = page.getByRole('group', {name: 'Управление картой', exact: true});
+      await expect(toolbar.getByRole('button', {name: 'Поделиться', exact: true})).toBeVisible();
       await expect(toolbar.getByRole('button', {name: 'На весь экран', exact: true})).toBeVisible();
       await expect(toolbar.getByRole('group', {name: 'Масштаб карты', exact: true})).toBeVisible();
       await expect.poll(() => page.evaluate(() => {
@@ -198,12 +258,14 @@ for (const width of [1920, 1280, 1024, 390, 320]) {
         const wrap = document.querySelector('.heatmap-wrap');
         const toolbar = document.querySelector('.heatmap-metrics-toolbar').getBoundingClientRect();
         const expand = document.querySelector('.heatmap-fullscreen-toggle').getBoundingClientRect();
+        const share = document.querySelector('.heatmap-share-toggle').getBoundingClientRect();
         const zoomOut = document.querySelector('.heatmap-zoom button[title="Уменьшить карту"]').getBoundingClientRect();
         const focus = document.querySelector('.heatmap-focus-strip').getBoundingClientRect();
         const details = document.querySelector('.heatmap-metric-details').getBoundingClientRect();
         const boardHead = document.querySelector('.market-board-head').getBoundingClientRect();
         return { atTop: scrollY === 0, mapFirst: wrap.firstElementChild.matches('.heatmap-canvas'),
-          controlsTogether: Math.abs(expand.top - zoomOut.top) <= 1 && zoomOut.left - expand.right <= 8,
+          controlsTogether: Math.abs(share.top - expand.top) <= 1 && expand.left - share.right <= 8
+            && Math.abs(expand.top - zoomOut.top) <= 1 && zoomOut.left - expand.right <= 8,
           compactToolbar: toolbar.height <= (innerWidth > 980 ? 48 : 96),
           mapAfterToolbar: tree.top >= toolbar.bottom && tree.top - toolbar.bottom <= 12,
           mapNearHeader: tree.top - boardHead.bottom <= (innerWidth > 980 ? 110 : 200),

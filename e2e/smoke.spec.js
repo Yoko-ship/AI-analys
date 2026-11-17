@@ -186,10 +186,10 @@ async function mockApi(page) {
     if (p === "/api/analyze") return j(ANALYZE);
     if (p === "/api/analyze/export/pdf") return route.fulfill({ status: 200, headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF" });
     if (p.startsWith("/api/periods")) return j(PERIODS);
-    // refreshed_at is what OUR collector wrote, in UTC with an explicit Z.
+    // Quote collection and trade-statistics collection have separate UTC stamps.
     // Production stores the session as compacted YYYYMMDD, so that is what the
     // badge tooltip has to render.
-    if (p === "/api/market/trade-stats") return j({ ok: true, stats: {}, refreshed_at: "2026-07-31T11:10:04Z", trade_date: "20260731" });
+    if (p === "/api/market/trade-stats") return j({ ok: true, stats: {}, refreshed_at: "2026-07-31T12:00:00Z", quotes_refreshed_at: "2026-07-31T11:10:04Z", trade_date: "20260731" });
     if (p === "/api/market/stocks") return j(STOCKS);
     if (p === "/api/market/trades") return j({ total_volume: 7.8e6, total_trade_count: 73 });
     if (p === "/api/auth/me") return j({ user: null }, 401);
@@ -292,7 +292,7 @@ test("boots to the landing view without uncaught errors", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.locator("header.topbar")).toBeVisible();
-  await expect(page.getByRole("heading", { name: /За каждой\s*акцией —\s*компания\./, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Большая картина\.\s*За каждой\s*компанией\./, level: 1 })).toBeVisible();
   await expect(page.locator(".topbar-nav-btn").first()).toBeVisible();
   expect(errors, errors.join("\n")).toHaveLength(0);
 });
@@ -383,7 +383,7 @@ test("module routing preserves hidden workspace redirects and the bonds alias", 
   for (const path of ["/analysis"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: /За каждой\s*акцией —\s*компания\./, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Большая картина\.\s*За каждой\s*компанией\./, level: 1 })).toBeVisible();
   }
   await page.goto("/bonds");
   await expect(page).toHaveURL(/\/market$/);
@@ -1471,9 +1471,12 @@ test.describe("the market timestamp", () => {
       body: JSON.stringify({ user: { id: 1, email: "admin@example.test", is_admin: true } }) }));
     await page.goto("/");
     await page.getByRole("button", { name: "Рынок", exact: true }).click();
-    const badge = page.locator(".market-hero-panel .status-badge").first();
+    const badge = page.getByTestId("market-last-update");
     // 11:10:04Z is the 16:10 Tashkent quotes run.
+    await expect(badge).toContainText("Последнее обновление котировок");
+    await expect(badge.locator("time")).toHaveAttribute("datetime", "2026-07-31T11:10:04Z");
     await expect(badge).toContainText("16:10");
+    await expect(badge).not.toContainText("17:00");
     await expect(badge).toContainText("31");
     // The exchange feed's stamp and the session it describes move to the tooltip.
     await expect(badge).toHaveAttribute("title", /Биржевая лента/);

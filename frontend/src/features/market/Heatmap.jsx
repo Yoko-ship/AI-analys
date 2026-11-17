@@ -2,6 +2,7 @@ import {HeatmapSizeControl, HeatmapTickerSearch} from "./HeatmapSidebarControls.
 import {heatmapTileLabels} from './tileLabels.js';
 import {useHeatmapZoom} from './useHeatmapZoom.js';
 import {useHeatmapFullscreen} from './useHeatmapFullscreen.js';
+import {HeatmapShare} from './HeatmapShare.jsx';
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 import {mapAreaValue} from "./mapArea.js";
 import React, { useEffect, useState } from "react";
@@ -406,6 +407,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
             onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>
           <HeatmapMetricPicker lang={lang} {...metricSelection} />
           <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
+            <HeatmapShare lang={lang} portalContainer={fullscreen.expanded ? fullscreen.element.current : undefined} />
             <button ref={fullscreen.button} type="button" className="heatmap-fullscreen-toggle" aria-label={fullscreenLabel} title={fullscreenLabel} aria-pressed={fullscreen.expanded} onClick={fullscreen.toggle}>
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                 <path d={fullscreen.expanded ? 'M3 7h4V3m6 0v4h4M17 13h-4v4M7 17v-4H3' : 'M7 3H3v4m10-4h4v4m0 6v4h-4M7 17H3v-4'}/>

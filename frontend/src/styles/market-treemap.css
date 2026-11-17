@@ -187,6 +187,10 @@
 .heatmap-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .heatmap-zoom button:disabled { opacity: .4; cursor: default; }
 .heatmap-zoom output { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.heatmap-share-toggle svg { width: 16px; height: 16px; }
+.heatmap-share-menu { z-index: 10000; width: min(320px, calc(100vw - 16px)); max-height: var(--radix-popover-content-available-height); overflow-y: auto; border-radius: 12px; box-shadow: 0 8px 28px #0003; }
+.heatmap-share-menu .share-panel { margin: 0; }
+.heatmap-share-menu :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 980px) { .heatmap-zoom { margin-left: auto; } }
 .heatmap-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .heatmap-tree {

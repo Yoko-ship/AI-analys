@@ -33,6 +33,8 @@ export function useHeatmapFullscreen() {
     document.body.style.overflow = 'hidden';
     trigger?.focus({preventScroll: true});
     const keydown = event => {
+      // A map dialog owns its keys (including Escape and Tab) until dismissed.
+      if (event.target.closest?.('[role="dialog"]')) return;
       if (event.key === 'Escape') { event.preventDefault(); restore(); }
       if (event.key !== 'Tab') return;
       const controls = [...node.querySelectorAll('button, [tabindex]')]

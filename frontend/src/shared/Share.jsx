@@ -57,7 +57,7 @@ function shareChannels({ url, title, text }) {
   ];
 }
 
-// The links a page can be passed on through: copy, the messengers and
+// Shared links a page can be passed on through: copy, the messengers and
 // networks by their web share URLs, and the system sheet where there is one.
 function SharePanel({ url, title, text, lang, id }) {
   const tx = SHARE_TX[lang] || SHARE_TX.ru;

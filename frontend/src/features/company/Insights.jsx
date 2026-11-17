@@ -2,7 +2,7 @@ import { safeHref } from "../../lib/safeHref.js";
 import React, { Suspense } from "react";
 import { ReportAvailability, VerifiedReport } from "../../shared/VerifiedReport.jsx";
 import { createPortal } from "react-dom";
-import { SharePanel, ShareIcon, canShareNatively, shareNatively } from "./Share.jsx";
+import { SharePanel, ShareIcon, canShareNatively, shareNatively } from "../../shared/Share.jsx";
 import { localizedPath } from "../../lib/languagePath.js";
 
 const COMPANY_INSIGHT_TX = {
