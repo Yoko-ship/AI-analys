@@ -2,6 +2,9 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
+MAX_PITCHES = 5
+
+
 class PostCopy(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     headline: str = Field(min_length=1, max_length=200)
@@ -19,4 +22,4 @@ class Pitch(BaseModel):
 
 class Pitches(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    items: list[Pitch] = Field(max_length=3)
+    items: list[Pitch] = Field(max_length=MAX_PITCHES)

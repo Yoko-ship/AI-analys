@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 import api
 import news_store
@@ -70,6 +72,30 @@ def test_generator_can_decline_all_candidates(monkeypatch):
 
     monkeypatch.setattr(marketing, "get_classifier_client", lambda: Model())
     assert marketing.generate([{"id": 1, "title": "Only a meeting notice"}], None) == []
+
+
+def test_collector_and_desk_accept_five_bilingual_stories(monkeypatch):
+    from collectors.news import marketing
+    from server.news.marketing_routes import Submission
+
+    stories = [{"id": n, "title": f"Сообщение эмитента {n}"} for n in range(1, 7)]
+
+    class Model:
+        def complete_json(self, system, user, *, response_schema, **kwargs):
+            assert response_schema["properties"]["items"]["maxItems"] == 5
+            return {"items": [
+                {"id": story["id"], "excerpt": story["title"],
+                 "ru": {"headline": story["title"], "body": "Опубликован отчёт.", "reason": "Для акционеров."},
+                 "uz": {"headline": "Hisobot", "body": "Hisobot e’lon qilindi.", "reason": "Aksiyadorlar uchun."}}
+                for story in stories[:5]
+            ]}
+
+    monkeypatch.setattr(marketing, "get_classifier_client", lambda: Model())
+    items = marketing.generate(stories, None)
+    submission = Submission(revision="a" * 64, items=items)
+    assert [p.id for p in submission.items] == [1, 2, 3, 4, 5]
+    with pytest.raises(ValidationError, match="at most 5"):
+        Submission(revision=submission.revision, items=[*items, {**items[-1], "id": 6}])
 
 
 def test_mixed_script_word_in_uzbek_edition_is_rejected():
