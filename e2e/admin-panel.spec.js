@@ -397,3 +397,31 @@ test('return rate shows waiting instead of zero and clears stale data on failure
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(report).toContainText('Waiting for complete return windows');
 });
+
+for (const width of [1440, 390]) test(`editor copies a complete edited Telegram post at ${width}px`, async ({ page, context }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await mockAdmin(page);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const link = "https://uzstock.uz/uz/news/42?utm_source=telegram&utm_campaign=news-42";
+  const text = "Dividend taklif qilindi\n\nKengash qarori.\n\nUZStock’da o‘qing\n" + link;
+  await page.route("**/api/admin/marketing", route => route.fulfill({ json: { items: [{
+    id: 42, source: "OpenInfo", url: "https://openinfo.uz/fact/42", excerpt: "Предложено 100 сумов.",
+    ru: { text: "Предложение совета", reason: "Для акционеров" }, uz: { text, reason: "Aksiyadorlar uchun" }
+  }] } }));
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "AI marketer" }).click();
+  await expect(page).toHaveURL(/\/admin\/marketing$/);
+  await page.getByRole("button", { name: "O‘zbekcha" }).click();
+  const draft = page.getByRole("textbox", { name: "Telegram post" });
+  await expect(draft).toHaveValue(text);
+  await expect(page.getByRole("link", { name: "OpenInfo" })).toHaveAttribute("href", "https://openinfo.uz/fact/42");
+  await expect(page.getByText("Предложено 100 сумов.")).toBeVisible();
+  await draft.fill(text.replace("Kengash qarori.", "Kengash taklifi."));
+  await page.getByRole("button", { name: "Русский" }).click();
+  await expect(draft).toHaveValue("Предложение совета");
+  await page.getByRole("button", { name: "O‘zbekcha" }).click();
+  await page.getByRole("button", { name: "Copy for Telegram" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text.replace("Kengash qarori.", "Kengash taklifi."));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.locator(".marketing-desk").screenshot({ path: info.outputPath(`marketing-${width}.png`), animations: "disabled" });
+});

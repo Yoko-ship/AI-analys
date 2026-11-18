@@ -13,6 +13,7 @@ import collectors.news.backfill as collectors_news_backfill
 import collectors.news.delivery as collectors_news_delivery
 import collectors.news.enrichment as collectors_news_enrichment
 import collectors.news.filings as collectors_news_filings
+import collectors.news.marketing as marketing
 import collectors.news.images as collectors_news_images
 import collectors.news.issuers as collectors_news_issuers
 import collectors.news.settings as collectors_news_settings
@@ -313,7 +314,14 @@ def run(*, only: str | None = None, limit: int = 40, push: bool = True, dry_run:
                                         usage=usage).get("written", 0)
         except Exception:  # noqa: BLE001 — the story page still works without it
             collectors_news_settings.logger.exception("detail pass failed")
+    marketing_drafts = None
+    if push and not push_failed and not only:
+        try:
+            marketing_drafts = marketing.refresh(usage)
+        except Exception:
+            collectors_news_settings.logger.exception("marketing drafts unavailable; retry on the next collection")
     return {
+        "marketing_drafts": marketing_drafts,
         "fetched": len(raw), "new": len(fresh), "prefiltered": len(fresh) - len(kept),
         "classified": len(records), "triaged_out": triaged_out,
         "classify_failed": failed, "with_image": sum(1 for r in relevant if r.get("image_url")),

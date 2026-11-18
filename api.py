@@ -41,6 +41,7 @@ import server.ingestion.routes as ingestion_routes
 import server.hardening as hardening
 import server.lifecycle as lifecycle
 import server.market.routes as market_routes
+import server.news.marketing_routes as news_marketing
 import server.news.routes as news_routes
 import server.research.routes as research_routes
 import server.seo.routes as seo
@@ -232,6 +233,7 @@ app.include_router(accounts_routes.router)
 app.include_router(catalog_routes.router)
 app.include_router(comparison_routes.router)
 app.include_router(ingestion_routes.router)
+app.include_router(news_marketing.router)
 app.include_router(news_routes.router)
 app.include_router(market_routes.router)
 app.include_router(currency_routes.router)

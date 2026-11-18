@@ -717,6 +717,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_news_published ON news(published_at);
 
+        CREATE TABLE IF NOT EXISTS news_marketing (
+            slot INTEGER PRIMARY KEY,
+            revision TEXT NOT NULL,
+            drafts TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_news_source    ON news(source_id);
 
 

@@ -280,7 +280,7 @@
   font-size: 0.84rem;
   cursor: pointer;
 }
-.admin-seg button[aria-selected="true"] {
+.admin-seg button[aria-selected="true"], .marketing-desk .admin-seg button[aria-pressed="true"] {
   background: var(--panel);
   color: var(--text);
   font-weight: 600;
@@ -756,3 +756,27 @@
 .retention-report .admin-scroll { max-height: 340px; overflow: auto; }
 .retention-report table { min-width: 480px; }
 .retention-footnote { margin-bottom: 0; }
+
+.marketing-toolbar, .marketing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.marketing-toolbar { justify-content: space-between; }
+.marketing-toolbar h2, .marketing-evidence h3 { margin: 0; }
+.marketing-pitch { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; padding: 20px; }
+.marketing-copy label { display: grid; gap: 10px; }
+.marketing-copy textarea {
+  width: 100%; box-sizing: border-box; padding: 14px; resize: vertical; min-height: 180px;
+  font: inherit; line-height: 1.55; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.marketing-copy textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.marketing-actions { margin-top: 12px; }
+.marketing-actions span, .marketing-evidence time { color: var(--muted); font-size: .85rem; }
+.marketing-evidence { border-inline-start: 1px solid var(--border); padding-inline-start: 20px; overflow-wrap: anywhere; }
+.marketing-evidence h3 { font-size: .9rem; }
+.marketing-evidence p, .marketing-evidence blockquote { margin: 6px 0 18px; line-height: 1.5; }
+.marketing-evidence blockquote { margin-bottom: 6px; color: var(--text-secondary); }
+.marketing-evidence time { display: block; margin-top: 4px; }
+@media (max-width: 700px) {
+  .marketing-pitch { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
+  .marketing-evidence { border-inline-start: 0; border-top: 1px solid var(--border); padding: 16px 0 0; }
+  .marketing-copy textarea { font-size: 16px; }
+}
