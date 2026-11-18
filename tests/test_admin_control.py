@@ -292,7 +292,7 @@ def test_source_failure_is_persisted_as_a_document_stage(monkeypatch):
         "DOWNLOADING", "SOURCE_UNAVAILABLE"]
 
 
-def test_api_access_validation_and_export(monkeypatch):
+def test_api_access_validation_and_export():
     from fastapi import FastAPI, Depends
     from fastapi.testclient import TestClient
     from admin_control.api import router
@@ -313,10 +313,10 @@ def test_api_access_validation_and_export(monkeypatch):
     assert exported.status_code == 200 and "'=CMD()" in exported.text
     assert client.get("/api/admin/control/documents/export?ticker=NOPE").json() == []
     person.update(ADMIN)
-    from web_auth import web_auth_store
-    monkeypatch.setattr(web_auth_store.security, "verify_admin_two_factor", lambda *a: False)
-    denied = client.post("/api/admin/control/catalog/catalog/sync", json={"reason": "test"}, headers={"Idempotency-Key": "test-command"})
-    assert denied.status_code == 403 and denied.json()["error"]["code"] == "MFA_REQUIRED"
+    assert client.get("/api/admin/control/session").json()["mfa_required_for_mutations"] is False
+    queued = client.post("/api/admin/control/catalog/catalog/sync", json={"reason": "test"},
+                         headers={"Idempotency-Key": "admin-sync-command"})
+    assert queued.status_code == 202 and queued.json()["job_id"]
 
 
 def test_http_document_job_persists_revisions_and_original(monkeypatch):
@@ -326,7 +326,6 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
     user = type("User", (), {"id": 77, "email": "operator@example.test"})()
     monkeypatch.setenv("ADMIN_ROLES", json.dumps({user.email: "administrator"}))
     monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda token: user if token == "session-fixture" else None)
-    monkeypatch.setattr(subject_web_auth.web_auth_store.security, "verify_admin_two_factor", lambda user_id, code: user_id == 77 and code == "123456")
     monkeypatch.setattr(documents, "fetch_original", lambda url: workbook_bytes())
     doc = put("documents", {"id": "http-doc", "ticker": "UZNF", "standard": "IFRS", "period": "2026", "period_end": "2026-12-31",
                           "duration_months": 12, "published_at": "2026-08-01", "source_url": "https://openinfo.uz/test", "source": "openinfo.uz"})
@@ -336,8 +335,6 @@ def test_http_document_job_persists_revisions_and_original(monkeypatch):
     assert client.get(base + "/session", headers={"X-Admin-Secret": "machine-only"}).status_code == 401
     headers = {"Authorization": "Bearer session-fixture", "Idempotency-Key": "real-persisted-command"}
     payload = {"version": doc["version"], "reason": "Check the actual source header"}
-    assert client.post(base + "/documents/http-doc/reprocess", headers=headers, json=payload).json()["error"]["code"] == "MFA_REQUIRED"
-    headers["X-Admin-OTP"] = "123456"
     queued = client.post(base + "/documents/http-doc/reprocess", headers=headers, json=payload)
     assert queued.status_code == 202
     assert client.post(base + "/documents/http-doc/reprocess", headers=headers, json=payload).json()["job_id"] == queued.json()["job_id"]

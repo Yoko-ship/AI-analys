@@ -215,6 +215,7 @@ test("terminal admin exposes versioned templates and private valuation scenarios
   await page.getByRole('button',{name:'Templates',exact:true}).click();
   await expect(page.getByText('AGBA',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Create draft',exact:true})).toBeVisible();
+  await expect(page.getByLabel('Verification code, if required')).toHaveCount(0);
   await page.getByRole('button',{name:'FV',exact:true}).click();
   await expect(page.getByLabel('Policy rate, %')).toHaveValue('14');
 });

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timedelta, timezone
 import io
 import json
 import logging
@@ -75,7 +74,7 @@ def session(request: Request):
     person = actor(request)
     return reply(request, {"actor": person, "environment": s.environment(),
               "capabilities": sorted(service.CAPABILITIES[person["role"]]),
-              "mfa_required_for_mutations": person["role"] in {"administrator", "rule_editor"}})
+              "mfa_required_for_mutations": False})
 
 
 @router.get("/overview")
@@ -198,34 +197,17 @@ class Command(BaseModel):
     role: str | None = None
 
 
-def verify_mfa(request, person):
-    if person["role"] not in {"administrator", "rule_editor"}:
-        return
-    since =(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
-    with s.connection() as c:
-        n = c.execute("SELECT COUNT(*) AS n FROM control_audit WHERE environment=? AND actor=? AND action='mfa.denied' AND created_at>?",
-                      (s.environment(), person["email"], since)).fetchone()["n"]
-    if n >= 5:
-        raise s.ControlError("RATE_LIMITED", "Too many verification attempts. Try again in a minute.", 429)
-    # The same proof every admin gate accepts: a recent step-up of this session,
-    # or a valid X-Admin-OTP on the request itself.
-    import server.auth.access as auth_access
-    if not auth_access._step_up_satisfied(request, person["id"]):
-        raise s.ControlError("MFA_REQUIRED", auth_access.MFA_REQUIRED_MESSAGE, 403)
-
-
 @router.post("/{collection}/{entity_id}/{action}")
 def mutate(request: Request, collection: str, entity_id: str, action: str, payload: Command):
     person = actor(request)
     data = payload.model_dump(exclude_none=True)
     try:
-        verify_mfa(request, person)
         result = s.command(person, request.headers.get("Idempotency-Key"), [collection, entity_id, action, data],
                            request.state.control_request_id,
                            lambda c: service.execute(c, person, collection, entity_id, action, data, request.state.control_request_id))
     except s.ControlError as exc:
         with s.connection(write=True) as c:
-            s.audit(c, person, "mfa.denied" if exc.code == "MFA_REQUIRED" else collection + "." + action,
+            s.audit(c, person, collection + "." + action,
                     entity_id, payload.reason, request.state.control_request_id, new={"error_code": exc.code}, result="denied")
         raise
     return JSONResponse(result, status_code=202 if result.get("job_id") else 200)

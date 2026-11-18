@@ -101,26 +101,6 @@ async def api_oauth_exchange(payload: OAuthExchangeRequest, request: Request) ->
     return {"ok": True, "provider": entry.provider, "token": entry.token}
 
 
-class AdminStepUpRequest(BaseModel):
-    code: str = Field(..., min_length=6, max_length=12)
-
-
-@router.post("/api/auth/admin/step-up")
-async def api_admin_step_up(payload: AdminStepUpRequest, request: Request,
-                            current_user: identity_users.WebUser = Depends(auth_access._require_user)) -> dict[str, Any]:
-    """Prove the authenticator once; admin changes from this session are then
-    allowed for ADMIN_STEP_UP_SECONDS (see server/auth/access.py)."""
-    if not auth_access._step_up_attempt_allowed(current_user.id):
-        raise auth_limits._rate_limited("window", auth_limits._rate_limiter.retry_after(
-            f"step-up:{current_user.id}", 60.0), auth_limits.request_language(request))
-    loop = asyncio.get_running_loop()
-    verified = await loop.run_in_executor(
-        None, auth_access._verify_step_up_code, request, current_user.id, payload.code)
-    if not verified:
-        raise HTTPException(status_code=400, detail="Invalid two-factor code")
-    return {"ok": True, "expires_in": auth_access.ADMIN_STEP_UP_SECONDS}
-
-
 @router.post("/api/auth/register")
 async def api_register(payload: RegisterRequest, request: Request) -> dict[str, Any]:
     auth_limits._enforce_auth_rate_limit(request, "register")

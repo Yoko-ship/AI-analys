@@ -218,7 +218,7 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
     {key:'calendar',label:navDdLabel('Календарь событий','Voqealar taqvimi','Events calendar')},
   ];
 
-  const render = (children, overlay = null) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2" data-ui={["main", "market"].includes(activeView) ? undefined : "purple"}>
+  const render = (children) => (<div className={`app-shell-wrap view-${activeView}`} data-build="2026-09-11.2" data-ui={["main", "market"].includes(activeView) ? undefined : "purple"}>
       <div className="bg-glow bg-glow-a" />
       <div className="bg-glow bg-glow-b" />
 
@@ -462,7 +462,6 @@ export function useShell({ session: sessionModule, preferences: preferencesModul
 
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((item) => item.id !== id))} language={language} />
       <RatingPrompt language={language} token={token} blocked={['admin', 'auth', 'profile', 'feedback'].includes(activeView) || mobileNavOpen || accountMenuOpen || notifOpen} />
-      {overlay}
     </div>);
   return { render };
 }

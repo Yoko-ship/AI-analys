@@ -41,7 +41,7 @@ class Security:
 
         Setup must never replace an active secret: a stolen session could
         otherwise swap in its own authenticator without knowing the current
-        code, and so pass the admin step-up. Re-enrolling goes through
+        code. Re-enrolling goes through
         ``disable_two_factor``, which demands the current code.
         """
         secret = base64.b32encode(secrets.token_bytes(20)).decode("ascii").rstrip("=")
@@ -69,7 +69,7 @@ class Security:
 
 
     def verify_admin_two_factor(self, user_id: int, code: str) -> bool:
-        """Step-up verification without disclosing or changing the MFA secret."""
+        """Verify and consume an enrolled account's authenticator code."""
         if not re.fullmatch(r"\d{6}", str(code or "")):
             return False
         with self.database.connect() as conn:

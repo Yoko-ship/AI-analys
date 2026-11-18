@@ -6,7 +6,6 @@ export function TerminalRules({apiFetch,lang,data}) {
   const [category,setCategory]=React.useState('formula');
   const [config,setConfig]=React.useState(JSON.stringify(samples.formula,null,2));
   const [reason,setReason]=React.useState('');
-  const [otp,setOtp]=React.useState('');
   const [rules,setRules]=React.useState([]);
   const [error,setError]=React.useState('');
   const [notice,setNotice]=React.useState('');
@@ -16,10 +15,10 @@ export function TerminalRules({apiFetch,lang,data}) {
   const command=async(action,row)=>{
     setBusy(true);setError('');setNotice('');try{
       const body={reason,...(row?{version:row.version}:{category,config:JSON.parse(config)})};
-      const headers={'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID(),...(otp?{'X-Admin-OTP':otp}:{})};
+      const headers={'Content-Type':'application/json','Idempotency-Key':crypto.randomUUID()};
       const response=await apiFetch(`/api/admin/control/rules/${row?.id||'new'}/${action}`,{method:'POST',headers,body:JSON.stringify(body)});
       const result=await response.json();if(!response.ok)throw new Error(result.error?.message||`HTTP ${response.status}`);
-      setOtp('');setNotice(t('Запрос принят. Фоновые проверки можно увидеть после обновления.','So‘rov qabul qilindi. Yangilang.','Request accepted. Refresh to see background checks.'));await refresh();
+      setNotice(t('Запрос принят. Фоновые проверки можно увидеть после обновления.','So‘rov qabul qilindi. Yangilang.','Request accepted. Refresh to see background checks.'));await refresh();
     }catch(e){setError(e.message);}finally{setBusy(false);}
   };
   const actionLabel=action=>({test:t('Проверить','Tekshirish','Test'), 'impact-analysis':t('Оценить влияние','Ta’sirni baholash','Assess impact'), 'shadow-run':t('Пробный запуск','Sinov ishga tushirish','Trial run'), approve:t('Утвердить','Tasdiqlash','Approve'), activate:t('Активировать','Faollashtirish','Activate')})[action]||action;
@@ -27,7 +26,7 @@ export function TerminalRules({apiFetch,lang,data}) {
     <div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{t('Эмитент','Emitent','Issuer')}</th><th>{t('Шаблон','Andoza','Template')}</th><th>{t('Причина / версия','Sabab / versiya','Reason / version')}</th></tr></thead><tbody>{data?.assignments?.map(r=><tr key={r.ticker}><th>{r.ticker}</th><td>{r.selected_template}</td><td>{r.reason_code} · {r.rule_version}</td></tr>)}</tbody></table></div>
     <details><summary>{t('Формулы расчёта','Hisoblash formulalari','Calculation formulas')}</summary><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{t('Показатель','Ko‘rsatkich','Metric')}</th><th>{t('Числитель','Surat','Numerator')}</th><th>{t('Знаменатель','Maxraj','Denominator')}</th></tr></thead><tbody>{data?.formulas?.map(r=><tr key={r.code}><th>{r.code} · {r[`name_${lang}`]||r.name_ru}</th><td>{r.numerators.join(' + ')}</td><td>{r.denominators.join(' + ')}</td></tr>)}</tbody></table></div></details>
     <h3>{t('Версионный черновик','Versiyali qoralama','Versioned draft')}</h3><p className="muted">{t('Изменения проходят тесты и проверку влияния. Утверждает другой редактор. Действующая версия сохраняется до завершения проверок.','O‘zgarishlar test va ta’sir tekshiruvidan o‘tadi; boshqa muharrir tasdiqlaydi.','Changes require tests and impact checks, then a second reviewer. The active version stays in use until checks pass.')}</p>
-    <div className="terminal-controls"><label>{t('Тип','Tur','Type')}<select value={category} onChange={e=>{setCategory(e.target.value);setConfig(JSON.stringify(samples[e.target.value],null,2));}}>{Object.keys(samples).map(k=><option key={k}>{k}</option>)}</select></label><label>{t('Причина изменения','O‘zgartirish sababi','Reason for change')}<input value={reason} minLength={3} onChange={e=>setReason(e.target.value)}/></label><label>{t('Код подтверждения, если требуется','Zarur bo‘lsa tasdiq kodi','Verification code, if required')}<input type="password" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={e=>setOtp(e.target.value)}/></label></div>
+    <div className="terminal-controls"><label>{t('Тип','Tur','Type')}<select value={category} onChange={e=>{setCategory(e.target.value);setConfig(JSON.stringify(samples[e.target.value],null,2));}}>{Object.keys(samples).map(k=><option key={k}>{k}</option>)}</select></label><label>{t('Причина изменения','O‘zgartirish sababi','Reason for change')}<input value={reason} minLength={3} onChange={e=>setReason(e.target.value)}/></label></div>
     <label className="terminal-rule-config">{t('Параметры и проверочные примеры (JSON)','Parametrlar va testlar (JSON)','Parameters and test cases (JSON)')}<textarea rows={12} value={config} onChange={e=>setConfig(e.target.value)}/></label>
     <div className="terminal-controls"><button className="primary-btn" disabled={busy||reason.trim().length<3} onClick={()=>command('draft')}>{t('Создать черновик','Qoralama yaratish','Create draft')}</button><button className="ghost-btn" onClick={()=>refresh().catch(e=>setError(e.message))}>{t('Обновить версии','Versiyalarni yangilash','Refresh versions')}</button></div>
     {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}

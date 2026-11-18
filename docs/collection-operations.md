@@ -9,7 +9,7 @@ The data freshness table is separate: an old data row does not prove a failed ru
 
 ## Run a collector by hand
 
-Press **Run now**. The existing administrator authenticator check applies.
+Sign in as an administrator and press **Run now**.
 The request first appears as **Queued**, then **Start accepted**; completion is
 reported separately. The server checks for requests about every 30 seconds.
 Refreshing this page or clicking twice does not submit a duplicate active request.
@@ -166,8 +166,8 @@ For an explicit end-to-end dispatch check, manually run CI on API with
 `verify_collection_run` enabled (or use `[verify-collections]` in a release commit).
 It queues exactly one bank FX collection, waits up to ten minutes for the monitor
 to dispatch it and record its completion, and requires a publication receipt.
-This server-operator request is recorded with actor ID 0; browser requests still
-require the signed-in administrator and authenticator. Ordinary releases only
+The server records this request with actor ID 0. Browser requests record the
+signed-in administrator’s ID. Ordinary releases only
 check monitoring and do not submit an extra collection.
 CI still builds and tests one image, publishes it by digest and uses the matching
 server checkout; no second server build is introduced.
@@ -176,8 +176,7 @@ The host keeps a private, fsynced dispatch outbox in
 `/var/lib/uzstock-collections`. Replaying an outbox entry only acknowledges the
 existing dispatch; it never executes it again. API requests and observations are
 durable in the catalog database. Machine observation endpoints use the existing
-administrator push secret; browser mutations require a signed-in administrator
-and the existing two-factor step-up.
+administrator push secret. Browser mutations require a signed-in administrator.
 
 If monitoring is offline, inspect its own service before restarting it:
 

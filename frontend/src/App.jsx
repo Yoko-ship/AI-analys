@@ -15,7 +15,6 @@ import { MarketView, IssuerDirectory } from "./features/market/index.js";
 import { BankFxPage } from "./features/currency/index.js";
 import { FeedbackPage } from "./features/feedback/index.js";
 import { useSession } from "./session/useSession.js";
-import { StepUpDialog } from "./session/StepUpDialog.jsx";
 import { usePreferences } from "./app/usePreferences.jsx";
 import { useNavigation } from "./app/useNavigation.jsx";
 import { useToasts } from "./app/useToasts.jsx";
@@ -274,7 +273,7 @@ function App() {
 
 
 
-        {auth.view}{account.view}{research.view}</FeatureBoundary>, <StepUpDialog language={language} />);
+        {auth.view}{account.view}{research.view}</FeatureBoundary>);
 }
 
 export default App;

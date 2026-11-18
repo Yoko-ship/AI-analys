@@ -522,7 +522,7 @@ def test_worker_retries_then_deduplicates_incident(monkeypatch, tmp_path):
     assert len(report_store.overview()["jobs"]) == 1
 
 
-def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp_path, admin_authenticator):
+def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp_path):
     import api
     from fastapi.testclient import TestClient
     monkeypatch.setenv("SECTOR_ANALYSIS_DB", str(tmp_path / "admin.sqlite3"))
@@ -535,7 +535,7 @@ def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp
     path = "/api/admin/sector-analysis"
     assert client.get(path).status_code == 401
     assert client.get(path, headers={"X-Admin-Secret": "collector-test-secret"}).status_code == 401
-    headers = {"Authorization": "Bearer test-token", **admin_authenticator}
+    headers = {"Authorization": "Bearer test-token"}
     assert client.get(path, headers=headers).status_code == 200
     user.email = "not-admin@example.org"
     assert client.get(path, headers=headers).status_code == 403
@@ -546,7 +546,7 @@ def test_sector_admin_requires_human_admin_and_audits_mutations(monkeypatch, tmp
     assert report_store.overview()["audit"][0]["actor"] == user.email
 
 
-def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_path, admin_authenticator):
+def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_path):
     import api
     import issuer_financials
     from fastapi.testclient import TestClient
@@ -557,7 +557,7 @@ def test_sector_admin_role_capabilities_cannot_be_escalated(monkeypatch, tmp_pat
     monkeypatch.setattr(subject_web_auth.web_auth_store.sessions, "get_user_by_token", lambda _: user)
     monkeypatch.setattr(issuer_financials, "resolve_issuer", lambda _: ISSUER)
     client = TestClient(api.app)
-    headers = {"Authorization": "Bearer role-test", **admin_authenticator}
+    headers = {"Authorization": "Bearer role-test"}
     path = "/api/admin/sector-analysis"
     job = report_store.enqueue("FACT", "role-test")
     payload = {"ticker": "FACT", "override_template": "metallurgy", "evidence_source": "https://example.org/activity",

@@ -20,31 +20,29 @@ def test_observations_are_admin_only_and_machine_posts_need_the_secret(client):
     assert client.post("/api/admin/collections/report", json={"items": []}).status_code == 401
     assert client.get("/api/admin/collections", headers={"Authorization": "Bearer admin"}).status_code == 200
 
-def test_manual_run_requires_human_admin_step_up_and_records_actor(client, admin_authenticator):
+def test_manual_run_requires_a_signed_in_admin_and_records_actor(client):
     store.report([observation()])
     path = f"/api/admin/collections/{JOB}/run"
     assert client.post(path, headers={"X-Admin-Secret": "machine-test-secret"}, json={}).status_code == 401
+    assert client.post(path, headers={"Authorization": "Bearer reader"}, json={}).status_code == 403
     response = client.post(path, headers={"Authorization": "Bearer admin"}, json={})
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "MFA_REQUIRED"
-    response = client.post(path, headers={"Authorization": "Bearer admin", **admin_authenticator}, json={})
     assert response.status_code == 200
     assert response.json()["actor_id"] == 41
 
-def test_machine_can_report_claim_and_ack_but_browser_cannot_forge_a_result(client, admin_authenticator):
+def test_machine_can_report_claim_and_ack_but_browser_cannot_forge_a_result(client):
     auth = {"X-Admin-Secret": "machine-test-secret"}
     assert client.post("/api/admin/collections/report", headers=auth, json={"items": [observation()]}).status_code == 200
     request = store.enqueue(JOB, actor_id=41)
-    assert client.post("/api/admin/collections/claim", headers={"Authorization": "Bearer admin", **admin_authenticator}, json={}).status_code == 401
+    assert client.post("/api/admin/collections/claim", headers={"Authorization": "Bearer admin"}, json={}).status_code == 401
     response = client.post("/api/admin/collections/claim", headers=auth, json={})
     assert response.json()["request"]["id"] == request["id"]
     assert client.post("/api/admin/collections/ack", headers=auth, json={
         "id": request["id"], "status": "failed", "detail": "systemctl refused the start"}).status_code == 200
 
-def test_admin_request_reaches_host_and_completion_reaches_the_panel(client, admin_authenticator, monkeypatch, tmp_path):
+def test_admin_request_reaches_host_and_completion_reaches_the_panel(client, monkeypatch, tmp_path):
     from collection_ops import host
     machine = {"X-Admin-Secret": "machine-test-secret"}
-    admin = {"Authorization": "Bearer admin", **admin_authenticator}
+    admin = {"Authorization": "Bearer admin"}
     store.report([observation()])
     response = client.post(f"/api/admin/collections/{JOB}/run", headers=admin, json={})
     assert response.status_code == 200

@@ -1,12 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-// A session token alone no longer changes anything as an admin, and a Google
-// sign-in no longer skips two-factor. The API is mocked; the requests the page
-// sends are captured so the test pins what the browser proves and when.
-
-test("an admin change asks for the authenticator code once, then goes through", async ({ page }) => {
+test("admin feedback reports a refused edit and saves an authorized edit without asking for a code", async ({ page }) => {
   const calls = [];
-  let proved = false;
+  let status = "open";
   await page.addInitScript(() => {
     localStorage.setItem("uz_stock_analyzer_token", "admin-token");
     localStorage.setItem("uz_stock_analyzer_language", "en");
@@ -18,34 +14,24 @@ test("an admin change asks for the authenticator code once, then goes through", 
     if (request.method() !== "GET") calls.push({ method: request.method(), path, body: request.postData() });
     if (path === "/api/auth/me") return send({ user: { id: 1, email: "admin@example.com", full_name: "Admin", is_admin: true } });
     if (path === "/api/admin/overview") return send({ ok: true, catalog: {}, audit: { open: {}, history: [], queue: [], latest: null }, news: {}, streams: [] });
-    if (path === "/api/admin/feedback") return send({ ok: true, items: [{ id: 5, status: "open", subject: "Chart", message: "Broken", email: "r@example.com", created_at: "2026-10-15T10:00:00Z" }] });
-    if (path === "/api/auth/admin/step-up") {
-      proved = JSON.parse(request.postData()).code === "123456";
-      return proved ? send({ ok: true, expires_in: 900 }) : send({ detail: "Invalid two-factor code" }, 400);
-    }
+    if (path === "/api/admin/feedback") return send({ ok: true, items: [{ id: 5, status, subject: "Chart", message: "Broken", email: "r@example.com", created_at: "2026-10-15T10:00:00Z" }] });
     if (path === "/api/admin/feedback/5") {
-      return proved ? send({ ok: true }) : send({ detail: { code: "MFA_REQUIRED", message: "Enter a current authenticator code." } }, 403);
+      // An older server can still refuse the write during a rollout.
+      if (calls.length === 1) return send({ detail: { code: "MFA_REQUIRED" } }, 403);
+      expect(request.headers().authorization).toBe("Bearer admin-token");
+      status = request.postDataJSON().status;
+      return send({ ok: true });
     }
     return send({ ok: true, items: [] });
   });
   await page.goto("/admin/feedback");
-  await page.getByLabel("Change status").selectOption("resolved");
-
-  const dialog = page.getByRole("dialog", { name: "Confirm this action" });
-  await expect(dialog).toBeVisible();
-  await dialog.locator("input").fill("000000");
-  await dialog.getByRole("button", { name: "Confirm" }).click();
-  await expect(dialog.getByRole("alert")).toHaveText("Invalid code. Try again.");
-  await dialog.locator("input").fill("123456");
-  await dialog.getByRole("button", { name: "Confirm" }).click();
-  await expect(dialog).toHaveCount(0);
-
-  await expect.poll(() => calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-    "PATCH /api/admin/feedback/5",
-    "POST /api/auth/admin/step-up",
-    "POST /api/auth/admin/step-up",
-    "PATCH /api/admin/feedback/5",
-  ]);
+  const edit = page.getByLabel("Change status");
+  await edit.selectOption("resolved");
+  await expect(page.getByText("Admin access required", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Confirm this action" })).toHaveCount(0);
+  await edit.selectOption("resolved");
+  await expect(edit).toHaveValue("resolved");
+  expect(calls.map(c => `${c.method} ${c.path}`)).toEqual(["PATCH /api/admin/feedback/5", "PATCH /api/admin/feedback/5"]);
 });
 
 test("Google sign-in to an account with two-factor waits for the code", async ({ page }) => {

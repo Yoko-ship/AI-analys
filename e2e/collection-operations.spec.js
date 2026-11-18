@@ -89,30 +89,6 @@ test("light theme keeps a confirmed publication and its history readable", async
   await page.screenshot({ path: info.outputPath("collectors-light-history.png"), fullPage: true });
 });
 
-test("manual collection uses the administrator authenticator flow", async ({ page }) => {
-  await mock(page);
-  let proved = false;
-  let launches = 0;
-  await page.route("**/api/admin/collections/quotes-catchup/run", route => {
-    if (!proved) return route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ detail: { code: "MFA_REQUIRED", message: "Enter a current authenticator code." } }) });
-    launches += 1;
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ id: "accepted", status: "queued" }) });
-  });
-  await page.route("**/api/auth/admin/step-up", route => {
-    proved = JSON.parse(route.request().postData()).code === "123456";
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: proved, expires_in: 900 }) });
-  });
-  await page.goto("/admin/streams");
-  await page.getByRole("button", { name: "Run now", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Confirm this action" });
-  await expect(dialog).toBeVisible();
-  expect(launches).toBe(0);
-  await dialog.locator("input").fill("123456");
-  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect.poll(() => launches).toBe(1);
-});
-
 for (const width of [1440, 390]) test(`collector failure and manual retry at ${width}px`, async ({ page }, info) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -126,6 +102,7 @@ for (const width of [1440, 390]) test(`collector failure and manual retry at ${w
   await expect(page.getByText("openinfo refused the request: HTTP 429", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Run now", exact: true }).click();
   await expect(page.getByText("Queued", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Confirm this action" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Run now", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: info.outputPath(`collectors-${width}.png`), fullPage: true });

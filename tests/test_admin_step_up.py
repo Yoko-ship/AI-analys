@@ -1,13 +1,4 @@
-"""A session token is not enough to change anything as an admin, or to sign in
-past two-factor through Google.
-
-Two gaps closed here:
-  * the authenticator step-up guarded only admin_control's own mutations; user
-    deletion, PRO grants, data corrections and rollbacks ran on the 30-day
-    Bearer token alone, so a copied token was the whole panel.
-  * a Google sign-in issued a full session to an account with two-factor on
-    without ever asking for the code.
-"""
+"""Admin mutations require an authorized session. Google sign-in honors account two-factor settings."""
 from __future__ import annotations
 
 import re
@@ -18,14 +9,14 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 import api
-import server.auth.access as access
 import server.auth.oauth as oauth
 import web_auth
-from tests.conftest import ADMIN_OTP
+
 
 HUMAN_ADMIN_GATES = {"_admin_gate", "_admin_panel_gate", "_control_gate",
                      "_sector_analysis_gate", "_require_admin_user"}
 ADMIN = "owner@example.test"
+LOGIN_OTP = "123456"
 
 
 class _User:
@@ -38,7 +29,7 @@ class _User:
 @pytest.fixture
 def admin(monkeypatch):
     monkeypatch.setenv("ADMIN_EMAILS", ADMIN)
-    users = {"tok-a": _User(41), "tok-b": _User(41)}
+    users = {"reader": _User(41, "reader@example.test")}
     monkeypatch.setattr(web_auth.web_auth_store.sessions, "get_user_by_token", users.get)
     return TestClient(api.app)
 
@@ -61,75 +52,21 @@ def _human_admin_changes() -> list[tuple[str, str]]:
     return routes
 
 
-def _refusal_code(response) -> str | None:
-    body = response.json()
-    detail = body.get("detail")
-    if isinstance(detail, dict):
-        return detail.get("code")
-    return (body.get("error") or {}).get("code")
-
-
 def test_every_human_admin_change_is_found() -> None:
     # The sweep below proves nothing if it finds nothing.
     assert len(_human_admin_changes()) >= 40
 
 
 @pytest.mark.parametrize("method,path", _human_admin_changes())
-def test_a_bearer_token_alone_changes_nothing(admin, admin_authenticator, method, path) -> None:
-    response = admin.request(method, path, headers={"Authorization": "Bearer tok-a"}, json={})
-    assert response.status_code == 403 and _refusal_code(response) == "MFA_REQUIRED", response.text
-
-
-def test_reads_need_no_step_up(admin, monkeypatch) -> None:
-    import admin_overview
-    monkeypatch.setattr(admin_overview, "build_overview", lambda **kw: {"ok": True})
-    assert admin.get("/api/admin/users", headers={"Authorization": "Bearer tok-a"}).status_code != 403
-
-
-def test_a_code_on_the_request_passes_the_gate(admin, admin_authenticator) -> None:
-    response = admin.post("/api/admin/users/77/action", json={"action": "nope"},
-                          headers={"Authorization": "Bearer tok-a", **admin_authenticator})
-    assert response.status_code == 400  # past the gate, refused by the handler
-
-
-def test_step_up_covers_this_session_only_and_expires(admin, admin_authenticator, monkeypatch) -> None:
-    change = lambda token: admin.post("/api/admin/users/77/action", json={"action": "nope"},
-                                      headers={"Authorization": f"Bearer {token}"})
-    proved = admin.post("/api/auth/admin/step-up", json={"code": ADMIN_OTP},
-                        headers={"Authorization": "Bearer tok-a"})
-    assert proved.status_code == 200 and proved.json()["expires_in"] == access.ADMIN_STEP_UP_SECONDS
-    assert change("tok-a").status_code == 400
-    # The same person's other session (another browser, or a copied token) did not prove anything.
-    assert _refusal_code(change("tok-b")) == "MFA_REQUIRED"
-    key = next(iter(access._step_ups))
-    access._step_ups[key] = (41, time.monotonic() - 1)
-    assert _refusal_code(change("tok-a")) == "MFA_REQUIRED"
-
-
-def test_wrong_codes_are_refused_and_then_throttled(admin, admin_authenticator) -> None:
-    attempt = lambda: admin.post("/api/auth/admin/step-up", json={"code": "000000"},
-                                 headers={"Authorization": "Bearer tok-a"})
-    assert [attempt().status_code for _ in range(access.STEP_UP_ATTEMPTS_PER_MINUTE)] == [400] * 5
-    assert attempt().status_code == 429
-    # The throttle covers codes sent on admin requests too, not just the endpoint.
-    response = admin.post("/api/admin/users/77/action", json={"action": "nope"},
-                          headers={"Authorization": "Bearer tok-a", **admin_authenticator})
-    assert _refusal_code(response) == "MFA_REQUIRED"
-
-
-def test_step_up_needs_a_session(admin) -> None:
-    assert admin.post("/api/auth/admin/step-up", json={"code": ADMIN_OTP}).status_code == 401
-
-
-def test_the_machine_secret_is_not_asked(admin, monkeypatch) -> None:
-    monkeypatch.setenv("ADMIN_API_SECRET", "collector-secret")
-    response = admin.post("/api/audit/run", headers={"X-Admin-Secret": "collector-secret"}, json={})
-    assert _refusal_code(response) != "MFA_REQUIRED"
+def test_admin_writes_require_a_session_and_an_administrative_role(admin, method, path) -> None:
+    for headers, expected in [({}, 401), ({"Authorization": "Bearer reader"}, 403)]:
+        response = admin.request(method, path, headers=headers, json={})
+        assert response.status_code == expected, response.text
 
 
 class TestGoogleSignInTwoFactor:
     @pytest.fixture
-    def google(self, monkeypatch, admin_authenticator):
+    def google(self, monkeypatch):
         import server.auth.limits as limits
         for key in [k for k in limits._rate_limiter._events if k.startswith("oauth-exchange:")]:
             limits._rate_limiter._events.pop(key, None)  # the per-IP sign-in limit is not under test
@@ -137,6 +74,7 @@ class TestGoogleSignInTwoFactor:
         user = _User(7, "person@example.test")
         state = {"two_factor": True}
         store = web_auth.web_auth_store
+        monkeypatch.setattr(store.security, "verify_admin_two_factor", lambda user_id, code: code == LOGIN_OTP)
         monkeypatch.setattr(store.sessions, "get_user_by_token", lambda token: user if token == "sess" else None)
         monkeypatch.setattr(store.sessions, "revoke_token", lambda token: revoked.append(token) or True)
         monkeypatch.setattr(store.security, "two_factor_enabled", lambda user_id: state["two_factor"])
@@ -158,8 +96,8 @@ class TestGoogleSignInTwoFactor:
         assert "token" not in asked.json()
         wrong = exchange(code, "000000")
         assert wrong.status_code == 401 and wrong.json()["detail"] == "Invalid two-factor code"
-        assert exchange(code, ADMIN_OTP).json()["token"] == "sess"
-        assert exchange(code, ADMIN_OTP).status_code == 400  # spent
+        assert exchange(code, LOGIN_OTP).json()["token"] == "sess"
+        assert exchange(code, LOGIN_OTP).status_code == 400  # spent
 
     def test_repeated_wrong_codes_revoke_the_session(self, google) -> None:
         exchange, revoked, _ = google
@@ -167,7 +105,7 @@ class TestGoogleSignInTwoFactor:
         for _ in range(5):
             assert exchange(code, "000000").status_code == 401
         assert revoked == ["sess"]
-        assert exchange(code, ADMIN_OTP).status_code == 400
+        assert exchange(code, LOGIN_OTP).status_code == 400
 
     def test_asking_again_never_extends_the_wait(self, google) -> None:
         exchange, _, _ = google
