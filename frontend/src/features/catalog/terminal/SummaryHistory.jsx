@@ -1,18 +1,19 @@
 import React from 'react';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {historyRows,HISTORY_FIELDS} from '../../../lib/terminalSummary.js';
+import {formatBillionAmount,formatRatio} from '../../../lib/numberFormat.js';
 import {periodEnd} from '../../../lib/terminalCurrency.js';
 import {useScreenData} from './TerminalPanels.jsx';
 import {financialsUrl} from '../../../lib/financialHistoryRequest.js';
 import {reportPeriodLabel,reportDateLabel,reportScopeLabel} from '../../../lib/reportingLabels.js';
 import {CurrencySelect} from '../../../shared/CurrencySelect.jsx';
 
-function AnnualChart({rows,fields,stacked=false,title,fmt,divisor,unit,missingLabel}) {
+function AnnualChart({rows,fields,stacked=false,title,fmt,unit,missingLabel}) {
   const host=React.useRef(null),tooltipId=React.useId();
   const [activePeriod,setActivePeriod]=React.useState(null);
   const active=rows.find(row=>row.period===activePeriod);
   const valueOf=(row,field)=>stacked&&!row.balance_complete?null:row[field.key];
-  const valueText=(row,field)=>valueOf(row,field)==null?missingLabel:`${fmt(valueOf(row,field)/divisor)} ${unit}`;
+  const valueText=(row,field)=>valueOf(row,field)==null?missingLabel:`${fmt(valueOf(row,field))} ${unit}`;
   React.useEffect(()=>{
     if(!activePeriod)return undefined;
     const dismissOutside=event=>{if(!host.current?.contains(event.target))setActivePeriod(null);};
@@ -37,7 +38,7 @@ function AnnualChart({rows,fields,stacked=false,title,fmt,divisor,unit,missingLa
     <div className="terminal-history-scroll"><div className="terminal-history-plot">
     <svg className="terminal-history-chart" viewBox="0 0 600 220" role="img" aria-label={title}>
     <title>{title}</title>
-    {ticks.map(value=><g key={value}><line x1="60" x2="580" y1={y(value)} y2={y(value)} className="terminal-chart-grid"/>{(value!==0||zeroLabelFits)&&<text x="52" y={y(value)+4} textAnchor="end">{fmt(value/divisor)}</text>}</g>)}
+    {ticks.map(value=><g key={value}><line x1="60" x2="580" y1={y(value)} y2={y(value)} className="terminal-chart-grid"/>{(value!==0||zeroLabelFits)&&<text x="52" y={y(value)+4} textAnchor="end">{fmt(value)}</text>}</g>)}
     {rows.map((row,i)=>{
       const x=60+slot*i+(slot-width)/2;
       let positive=0,negative=0;
@@ -50,7 +51,7 @@ function AnnualChart({rows,fields,stacked=false,title,fmt,divisor,unit,missingLa
           const top=y(Math.max(from,from+value)),bottom=y(Math.min(from,from+value));
           const barWidth=stacked?width:width/fields.length;
           return <rect key={field.key} x={x+(stacked?0:n*barWidth)} y={value===0?y(0)-1:top} width={Math.max(1,barWidth-1)} height={Math.max(2,bottom-top)} fill={value<0?'var(--negative)':field.color}>
-            <title>{row.label||row.period} · {field.label}: {fmt(value/divisor)}</title>
+            <title>{row.label||row.period} · {field.label}: {fmt(value)}</title>
           </rect>;
         })}
       </g>;
@@ -109,9 +110,8 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
   ]))});
   const current=rawRows.find(row=>row.current);
   const t=(ru,uz,en)=>words(lang,ru,uz,en);
-  const fmt=value=>value==null?'—':Number(value).toLocaleString(lang==='en'?'en-US':'ru-RU',{maximumFractionDigits:2});
-  const divisor=currency==='UZS'?1e9:1e6;
-  const unit=currency==='UZS'?t('млрд сумов','mlrd so‘m','billion som'):t('млн долларов','mln dollar','million US dollars');
+  const formatAmount = value => formatBillionAmount(value == null ? null : value / 1e9, lang);
+  const unit=currency==='UZS'?t('млрд сумов','mlrd so‘m','billion som'):t('млрд долларов','mlrd dollar','billion US dollars');
   const incomeKey=kind==='bank'&&form==='MSFO'?'interest_income':'net_revenue';
   const incomeLabel=kind==='bank'?t(form==='MSFO'?'Процентные доходы':'Совокупные доходы',form==='MSFO'?'Foiz daromadi':'Jami daromad',form==='MSFO'?'Interest income':'Total income'):kind==='insurance'?t('Заработанные премии','Ishlab topilgan mukofotlar','Earned premiums'):t('Выручка','Tushum','Revenue');
   const incomeFields=[...(kind==='fund'?[]:[{key:incomeKey,label:incomeLabel,color:'var(--terminal-chart,#4bb8e8)'}]),{key:'net_profit',label:t('Чистая прибыль','Sof foyda','Net profit'),color:'var(--positive,#3fbf6a)'}];
@@ -126,11 +126,11 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
     </div>
     {current&&<p className="terminal-report-context">{t('Последние данные','So‘nggi ma’lumotlar','Latest figures')}: {reportPeriodLabel(current.period,lang)}. {t('Баланс на','Balans sanasi','Balance as of')} {reportDateLabel(periodEnd(current.period),lang).replace(/\.$/,'')}.</p>}
     {currentError&&<p role="alert">{t('Не удалось загрузить текущий отчёт.','Joriy hisobot yuklanmadi.','Could not load the current report.')}</p>}
-    {currency==='USD'&&<details className="terminal-fx-rates"><summary>{t('Курсы ЦБ на конец каждого периода','Har davr oxiridagi MB kursi','CBU rates at each period end')}</summary>{rates.loading?<p role="status">{t('Загрузка курсов…','Kurslar yuklanmoqda…','Loading rates…')}</p>:<ul>{periods.map(period=><li key={period}>{periodEnd(period)} · {fx[period]?`1 USD = ${fmt(fx[period].per_unit)} UZS (${fx[period].effective_date})`:t('Курс отсутствует — суммы скрыты','Kurs yo‘q — summalar yashirildi','Rate missing — amounts unavailable')}</li>)}</ul>}</details>}
+    {currency==='USD'&&<details className="terminal-fx-rates"><summary>{t('Курсы ЦБ на конец каждого периода','Har davr oxiridagi MB kursi','CBU rates at each period end')}</summary>{rates.loading?<p role="status">{t('Загрузка курсов…','Kurslar yuklanmoqda…','Loading rates…')}</p>:<ul>{periods.map(period=><li key={period}>{periodEnd(period)} · {fx[period]?`1 USD = ${formatRatio(fx[period].per_unit,2,lang)} UZS (${fx[period].effective_date})`:t('Курс отсутствует — суммы скрыты','Kurs yo‘q — summalar yashirildi','Rate missing — amounts unavailable')}</li>)}</ul>}</details>}
     {error?<p role="alert">{t('Не удалось загрузить историю.','Tarix yuklanmadi.','Could not load financial history.')}</p>:!data?<p role="status">{t('Загрузка истории…','Tarix yuklanmoqda…','Loading history…')}</p>:!rows.length?<p className="muted">{t('Нет опубликованной годовой истории.','E’lon qilingan yillik tarix yo‘q.','No published annual history.')}</p>:<>
       {gaps.length>0&&<p className="terminal-warning terminal-history-gap">{t('Нет годового отчёта за','Yillik hisobot yo‘q','Annual report unavailable for')}: {gaps.join(', ')}.</p>}
-      <div className="terminal-summary-charts">{[[title,incomeFields,false],[balanceTitle,balanceFields,true]].map(([name,fields,stacked])=><section key={name} className="terminal-summary-card"><h3>{name}</h3><p className="muted">{unit}</p><AnnualChart rows={rows} fields={fields} stacked={stacked} title={name} fmt={fmt} divisor={divisor} unit={unit} missingLabel={t('Нет данных','Ma’lumot yo‘q','No data')}/><div className="terminal-chart-legend">{fields.map(field=><span key={field.key}><i style={{background:field.color}}/>{field.label}</span>)}</div></section>)}</div>
-      <details className="terminal-history-data"><summary>{t('Таблица истории','Tarix jadvali','History table')}</summary><div className="terminal-table-wrap"><table className="terminal-table terminal-history-table"><thead><tr><th>{t('Период','Davr','Period')}</th>{[...incomeFields,...balanceFields].map(field=><th key={field.key}>{field.label}, {unit}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.period}><th>{row.label||row.period}</th>{[...incomeFields,...balanceFields].map(field=><td key={field.key}>{row[field.key]==null?'—':fmt(row[field.key]/divisor)}</td>)}</tr>)}</tbody></table></div></details>
+      <div className="terminal-summary-charts">{[[title,incomeFields,false],[balanceTitle,balanceFields,true]].map(([name,fields,stacked])=><section key={name} className="terminal-summary-card"><h3>{name}</h3><p className="muted">{unit}</p><AnnualChart rows={rows} fields={fields} stacked={stacked} title={name} fmt={formatAmount} unit={unit} missingLabel={t('Нет данных','Ma’lumot yo‘q','No data')}/><div className="terminal-chart-legend">{fields.map(field=><span key={field.key}><i style={{background:field.color}}/>{field.label}</span>)}</div></section>)}</div>
+      <details className="terminal-history-data"><summary>{t('Таблица истории','Tarix jadvali','History table')}</summary><div className="terminal-table-wrap"><table className="terminal-table terminal-history-table"><thead><tr><th>{t('Период','Davr','Period')}</th>{[...incomeFields,...balanceFields].map(field=><th key={field.key}>{field.label}, {unit}</th>)}</tr></thead><tbody>{rows.map(row=><tr key={row.period}><th>{row.label||row.period}</th>{[...incomeFields,...balanceFields].map(field=><td key={field.key}>{formatAmount(row[field.key])}</td>)}</tr>)}</tbody></table></div></details>
     </>}
   </section>;
 }

@@ -2,8 +2,8 @@
 // source passports, per-share values, percentages and coefficients stay intact.
 export function financialDisplaySeries(series) {
   return Object.fromEntries(Object.entries(series || {}).map(([field, row]) => [field,
-    row.money && row.unit === 'UZS' ? {
-      ...row, unit: 'UZS_billion',
+    row.money && (row.unit === 'UZS' || row.unit === 'USD') ? {
+      ...row, unit: `${row.unit}_billion`,
       values: Object.fromEntries(Object.entries(row.values || {}).map(([period, value]) =>
         [period, Number.isFinite(value) ? value / 1e9 : null])),
     } : row,

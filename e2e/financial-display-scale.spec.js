@@ -42,3 +42,34 @@ test('UZTL financial tables and charts use billions while source passports keep 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('uztl-thousands-mobile.png'), fullPage: true });
 });
+
+test('AGBA 2025 balance keeps the same scale when switching from UZS to USD and back', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('uz_stock_analyzer_language', 'en'));
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/company/AGBA/financials') return route.fulfill({json: {
+      ok: true, periods: ['2025'], series: {
+        total_assets: { money: true, unit: 'UZS', values: {2025: 103596612644000} },
+      },
+    }});
+    if (url.pathname === '/api/currency/rates' && url.searchParams.get('as_of') === '2025-12-31') {
+      return route.fulfill({json: {as_of: '2025-12-31', rates: [{ccy: 'USD', per_unit: 12025.33, effective_date: '2025-12-30'}]}});
+    }
+    return route.fulfill({json: {ok: true, items: [], companies: [], securities: {}}});
+  });
+  await page.goto('/company/AGBA?tab=financials');
+  await page.getByRole('button', {name: 'Table', exact: true}).click();
+  const table = page.locator('.fin-table');
+  const unit = table.locator('thead th').first();
+  const amount = table.locator('tbody td').first();
+  const currency = page.getByRole('combobox', {name: 'Currency', exact: true});
+  await expect(unit).toContainText('billion UZS');
+  await expect(amount).toHaveText('103,596.61');
+  await currency.click();
+  await page.getByRole('option', {name: 'US dollar'}).click();
+  await expect(unit).toContainText('billion USD');
+  await expect(amount).toHaveText('8.61');
+  await currency.click();
+  await page.getByRole('option', {name: 'Uzbek som'}).click();
+  await expect(amount).toHaveText('103,596.61');
+});

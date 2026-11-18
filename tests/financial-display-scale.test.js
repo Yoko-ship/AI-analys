@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { convertSeries } from '../frontend/src/lib/terminalCurrency.js';
 import assert from 'node:assert/strict';
 import { financialDisplaySeries } from '../frontend/src/lib/financialDisplayScale.js';
 
@@ -22,6 +23,17 @@ test('UZTL monetary history displays billions without changing ratios, source da
   for (const key of ['roa', 'debt_to_equity', 'eps']) assert.deepEqual(shown[key], source[key]);
   assert.deepEqual(source, original);
   assert.deepEqual(financialDisplaySeries(shown), shown); // Already scaled values stay scaled once.
-  assert.deepEqual(financialDisplaySeries({ revenue: { money: true, unit: 'USD', values: { 2025: 5000 } } }),
-    { revenue: { money: true, unit: 'USD', values: { 2025: 5000 } } });
+});
+
+test('USD totals use billions after conversion and per-share values retain their denominator', () => {
+  const translated = convertSeries({
+    total_assets: { money: true, unit: 'UZS', values: { 2025: 103596612644000, 2024: 100 } },
+    eps: { money: true, unit: 'UZS_per_share', values: { 2025: 12025.33 } },
+  }, { 2025: { per_unit: 12025.33 } }, 'USD');
+  const shown = financialDisplaySeries(translated);
+  assert.equal(shown.total_assets.unit, 'USD_billion');
+  assert.equal(shown.total_assets.values[2025], 103596612644000 / 12025.33 / 1e9);
+  assert.equal(shown.total_assets.values[2024], null);
+  assert.deepEqual(shown.eps, { money: true, unit: 'USD_per_share', values: { 2025: 1 } });
+  assert.deepEqual(financialDisplaySeries(shown), shown);
 });

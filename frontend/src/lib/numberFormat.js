@@ -42,6 +42,14 @@ export function formatRatio(value, digits = 2, language = "ru") {
   return numberFormatter(language, { maximumFractionDigits: digits }).format(number);
 }
 
+/** The input is already in billions. Keep two significant digits below one billion. */
+export function formatBillionAmount(value, language) {
+  const number = safeNumber(value);
+  if (number === null) return "—";
+  const precision = Math.abs(number) < 1 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 };
+  return numberFormatter(language, precision).format(number);
+}
+
 export function formatMarketNumber(value, language, digits = 2) {
   const number = safeNumber(value);
   if (number === null) return "—";

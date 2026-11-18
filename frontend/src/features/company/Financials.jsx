@@ -1,4 +1,5 @@
 import { safeHref } from "../../lib/safeHref.js";
+import { formatBillionAmount } from "../../lib/numberFormat.js";
 import { roundedDisplayValue } from "../../lib/format.js";
 import { nearestPointIndex } from "../../lib/geometry.js";
 import { continuousPoints } from "../../lib/financialHistory.js";
@@ -147,6 +148,10 @@ function finLabelStep(count, plotWidth) {
   return Math.max(1, Math.ceil(count / Math.min(13, Math.max(2, Math.floor(plotWidth / 40)))));
 }
 
+function moneyAxisLabel(value, lang) {
+  return Math.abs(value) >= 1000 ? formatCompactVolume(value, lang) : formatBillionAmount(value, lang);
+}
+
 function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // A chart nobody can interrogate is a picture. This one had no hover at all:
   // pointing at a year gave nothing, which is what «no info» meant.
@@ -171,7 +176,7 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
   // ROE beside Долг/Капитал shares a numeric scale, not a unit, and the
   // per-row unit lives in the tooltip.
   const pct = drawn.every((d) => d.s.unit === "%");
-  const axis = (v) => (money ? formatCompactVolume(v, lang)
+  const axis = (v) => (money ? moneyAxisLabel(v, lang)
     : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
   const onMove = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -241,7 +246,7 @@ function FinancialsChart({ fields, series, periods, lang, colorOf, onToggle }) {
               <div className="cpc-tt-row" key={d.f}>
                 <span><i className="fin-tt-dot" style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}</span>
                 <b>{!Number.isFinite(v) ? "—"
-                  : d.s.money ? formatCompactVolume(v, lang)
+                  : d.s.money ? formatBillionAmount(v, lang)
                   : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
               </div>
             );
@@ -293,7 +298,7 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
   const zero = y(0);
   const money = drawn[0].s.money;
   const pct = drawn.every((d) => d.s.unit === "%");
-  const axis = (v) => (money ? formatCompactVolume(v, lang)
+  const axis = (v) => (money ? moneyAxisLabel(v, lang)
     : `${formatRatio(v, 1, lang)}${pct ? "%" : ""}`);
   // One slot per period, the bars of a period sharing it. A tenth of the slot
   // stays empty on each side so neighbouring periods do not touch.
@@ -368,7 +373,7 @@ function FinancialsBars({ fields, series, periods, lang, colorOf, onToggle }) {
               <div className="cpc-tt-row" key={d.f}>
                 <span><i className="fin-tt-dot" style={{ background: d.color }} />{seriesLabel(d.f, series, lang)}</span>
                 <b>{!Number.isFinite(v) ? "—"
-                  : d.s.money ? formatCompactVolume(v, lang)
+                  : d.s.money ? formatBillionAmount(v, lang)
                   : `${formatRatio(v, 2, lang)}${d.s.unit === "%" ? "%" : ""}`}</b>
               </div>
             );
@@ -826,15 +831,10 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
     if (!Number.isFinite(v) || !Number.isFinite(prev) || prev === 0) return null;
     return { value: ((v - prev) / Math.abs(prev)) * 100 };
   };
-  // IssuerFinancials supplies UZS amounts in billions for both table and
-  // chart. Margins and coefficients retain their published scale; passports
-  // are fetched independently and retain the source amount and unit.
-  const fmtFull = new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU",
-                                        { maximumFractionDigits: currency === "UZS" ? 2 : 0 });
   const cell = (f, p) => {
     const v = series[f].values[p];
     if (!Number.isFinite(v)) return "—";
-    if (series[f].money) return fmtFull.format(v);
+    if (series[f].money) return formatBillionAmount(v, lang);
     const suffix = series[f].unit === "%" ? "%" : "";
     return `${formatRatio(v, 2, lang)}${suffix}`;
   };
@@ -1011,7 +1011,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
                 <th scope="col">{quarterly
                   ? t("Квартальные данные", "Choraklik malumotlar", "Fiscal quarter")
                   : t("Годовые данные", "Yillik malumotlar", "Fiscal year")}
-                  {(active.rows || []).some(f => series[f]?.money) && <small> · {currency === "UZS" ? t("млрд UZS", "mlrd UZS", "billion UZS") : currency}</small>}
+                  {(active.rows || []).some(f => series[f]?.money) && <small> · {t("млрд", "mlrd", "billion")} {currency}</small>}
                 </th>
                 {cols.map((p) => <th key={p} scope="col" className="num">{finPeriodLabel(p)}</th>)}
               </tr>
@@ -1032,7 +1032,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
         )}
 
         <p className="fin-note muted">
-          {currency === "USD" ? t("Суммы в USD по курсу ЦБ на конец каждого периода. Коэффициенты рассчитаны в UZS. Паспорт показывает исходные данные в UZS.", "Summalar davr oxiridagi MB kursida USDda. Koeffitsiyentlar UZSda hisoblangan.", "Amounts in USD at each period-end CBU rate. Ratios are calculated in UZS. Source passports show original UZS data.") : periodBasis === "cumulative_ytd"
+          {currency === "USD" ? t("Суммы в млрд USD по курсу ЦБ на конец каждого периода. Коэффициенты рассчитаны в UZS. Паспорт показывает исходные данные в UZS.", "Summalar davr oxiridagi MB kursida mlrd USDda. Koeffitsiyentlar UZSda hisoblangan.", "Amounts in billions of USD at each period-end CBU rate. Ratios are calculated in UZS. Source passports show original UZS data.") : periodBasis === "cumulative_ytd"
             ? t("Суммы в млрд UZS по промежуточной отчётности МСФО. Доходы и расходы — с начала года; активы, обязательства и капитал — на отчётную дату. Рост г/г сравнивает одинаковую длительность периода.",
                 "Summalar mlrd UZSda, MHXS oraliq hisobotlaridan. Daromad va xarajatlar yil boshidan jamlangan; aktivlar, majburiyatlar va kapital hisobot sanasiga. Yillik o‘sish bir xil davomiylikdagi davrlarni taqqoslaydi.",
                 "Sums in billions of UZS from interim IFRS filings. Income and expenses are year-to-date; assets, liabilities and equity are at the reporting date. YoY growth compares periods of equal duration.")

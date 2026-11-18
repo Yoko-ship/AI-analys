@@ -532,9 +532,9 @@ test("PL converts each year at its own CBU closing rate with a brief summary and
   const summary = page.locator('.terminal-fx-rates');
   await expect(summary).toHaveText('Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.');
   await expect(summary.locator('a, ul, li, summary')).toHaveCount(0);
-  await expect(page.locator('.fin-note').filter({hasText:'Суммы в USD'})).toBeVisible();
+  await expect(page.locator('.fin-note').filter({hasText:'Суммы в млрд USD'})).toBeVisible();
   await page.locator('[data-currency=USD]').getByRole('button',{name:'Таблица',exact:true}).click();
-  await expect(page.locator('.fin-table')).toContainText(/2[\s\u00a0]000[\s\u00a0]000/);
+  await expect(page.locator('.fin-table tbody tr').first().locator('td').last()).toHaveText('0,002');
   const pendingDownload=page.waitForEvent('download');
   await page.locator('[data-currency=USD]').getByRole('button',{name:'CSV',exact:true}).click();
   const downloaded=await pendingDownload;

@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  safeNumber, formatCompactNumber, formatSignedPercent, formatRatio,
+  formatBillionAmount, safeNumber, formatCompactNumber, formatSignedPercent, formatRatio,
   formatMarketNumber, signedFixed,
 } from "../frontend/src/lib/numberFormat.js";
 
 test("numeric formatting distinguishes missing values from real zero", () => {
   for (const value of [null, undefined, "", "  ", NaN, Infinity, "invalid"]) {
     assert.equal(safeNumber(value), null);
-    for (const format of [formatCompactNumber, formatSignedPercent, formatRatio, formatMarketNumber, signedFixed]) {
+    for (const format of [formatBillionAmount, formatCompactNumber, formatSignedPercent, formatRatio, formatMarketNumber, signedFixed]) {
       assert.equal(format(value), "—", `${format.name}: ${String(value)}`);
     }
   }
@@ -18,6 +18,13 @@ test("numeric formatting distinguishes missing values from real zero", () => {
   assert.equal(formatSignedPercent(0), "0%");
   assert.equal(signedFixed(0), "0.00");
   assert.equal(formatMarketNumber(0, "en"), "0.00");
+});
+
+test("amounts in billions keep small profits and losses distinct from zero", () => {
+  assert.equal(formatBillionAmount(8.614866506, "en"), "8.61");
+  assert.equal(formatBillionAmount(0.019, "ru"), "0,019");
+  assert.equal(formatBillionAmount(-0.000000000364, "en"), "-0.00000000036");
+  assert.equal(formatBillionAmount(0, "ru"), "0");
 });
 
 test("display precision, signs and locales are preserved", () => {
