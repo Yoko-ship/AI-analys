@@ -422,7 +422,8 @@ for (const width of [1440, 390]) test(`editor copies a complete edited Telegram 
   await expect(draft).toHaveValue("Предложение совета");
   await page.getByRole("button", { name: "O‘zbekcha" }).click();
   await page.getByRole("button", { name: "Copy for Telegram" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text.replace("Kengash qarori.", "Kengash taklifi."));
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied.replace(/\r\n/g, "\n")).toBe(text.replace("Kengash qarori.", "Kengash taklifi."));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.locator(".marketing-desk").screenshot({ path: info.outputPath(`marketing-${width}.png`), animations: "disabled" });
 });

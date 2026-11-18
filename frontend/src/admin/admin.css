@@ -802,3 +802,25 @@
 .marketing-movers { display: flex; gap: 8px; flex-wrap: wrap; }
 .marketing-movers button { font-variant-numeric: tabular-nums; }
 .marketing-movers [aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
+.feature-campaigns { padding: clamp(16px, 2.5vw, 30px); }
+.feature-campaigns h2 { margin: 0 0 6px; }
+.feature-campaigns > p { margin: 0 0 18px; max-width: 70ch; }
+.feature-campaigns .campaign-brief { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.campaign-brief label { flex: 1 1 135px; min-width: 0; }
+.campaign-brief select, .campaign-library select { text-overflow: ellipsis; }
+.campaign-brief button { min-height: 38px; }
+.campaign-library { border-top: 1px solid var(--border); margin-top: 20px; padding-top: 16px; }
+.campaign-editor { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(16px, 3vw, 36px); margin-top: 18px; }
+.campaign-fields, .campaign-output { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.campaign-editor textarea { resize: vertical; }
+.campaign-output canvas { width: 100%; height: auto; display: block; border-radius: 8px; }
+.campaign-output a { text-decoration: underline; text-underline-offset: 3px; }
+.campaign-output .marketing-actions, .campaign-fields .marketing-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0; }
+.campaign-suggestion, .campaign-publish, .campaign-results { border-top: 1px solid var(--border); padding-top: 12px; }
+.campaign-suggestion button + button { margin-inline-start: 8px; }
+.campaign-results p, .campaign-publish p { margin: 4px 0 10px; }
+@media (max-width: 760px) {
+  .campaign-editor { grid-template-columns: minmax(0, 1fr); }
+  .campaign-brief button { width: 100%; }
+}

@@ -102,6 +102,7 @@ export function MarketingSection({ apiFetch, language, t }) {
   }, [apiFetch, attempt]);
   const active = data?.find(item=>item.id===selected) ?? data?.[0];
   return <section className="admin-section marketing-desk">
+    <MarketingWorkspace {...{t,apiFetch,language,refresh}}>
     <header className="marketing-toolbar">
       <h2>{t("Движение акций", "Aksiyalar narxidagi o‘zgarishlar", "Stock movers")}</h2>
       <div className="admin-seg" role="group" aria-label={t("Язык поста", "Post tili", "Post language")}>
@@ -126,6 +127,6 @@ export function MarketingSection({ apiFetch, language, t }) {
       : <p className="admin-muted">{t("За последнюю сессию нет подтверждённых изменений цены акций.",
         "So‘nggi sessiya uchun tasdiqlangan aksiya narxi o‘zgarishlari yo‘q.",
         "No verified stock price moves are available for the latest trading session.")}</p>}
-    <MarketingWorkspace {...{t,apiFetch,language,refresh}}/>
+    </MarketingWorkspace>
   </section>;
 }

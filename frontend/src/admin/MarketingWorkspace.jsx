@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { FeatureCampaigns } from "./FeatureCampaigns.jsx";
 
 const root = "/api/admin/marketing";
 const destinations = ["/market", "/heatmap", "/issuers", "/news"].flatMap(path => [path, "/uz"+path]);
@@ -51,7 +52,7 @@ function PlanEditor({plan, t, run, busy}) {
   </article>;
 }
 
-function Weekly({report, t}) {
+function Weekly({report, campaignNames = {}, t}) {
   const weekly = Object.entries(report?.weekly || {}).sort((a,b)=>b[1].visits-a[1].visits);
   const leak = weekly.filter(([,m])=>m.visits>m.continued)
     .sort((a,b)=>(b[1].visits-b[1].continued)-(a[1].visits-a[1].continued))[0];
@@ -66,8 +67,8 @@ function Weekly({report, t}) {
           "Tashrif kirish havolasiga bog‘lanadi. Har sahifa tashrifda bir marta sanaladi. Qaytish — davr oxirigacha shu brauzerdagi keyingi tashrif.",
           "Credit goes to the landing link. Pages count once per visit. Returns count readers who visited again before the end of the period.")}</p>
         <div className="marketing-table"><table><thead><tr>{metricNames.map(label=><th key={label}>{label}</th>)}</tr></thead>
-          <tbody>{weekly.map(([tag,m])=><tr key={tag}><td>{tag}</td>{["visits","readers","pages","continued","returned"].map(k=><td key={k}>{m[k]}</td>)}</tr>)}</tbody></table></div>
-        {leak && <aside><strong>{leak[0]}</strong><p>{t(
+          <tbody>{weekly.map(([tag,m])=><tr key={tag}><td title={tag}>{campaignNames[tag] || tag}</td>{["visits","readers","pages","continued","returned"].map(k=><td key={k}>{m[k]}</td>)}</tr>)}</tbody></table></div>
+        {leak && <aside><strong>{campaignNames[leak[0]] || leak[0]}</strong><p>{t(
           `${leak[1].visits-leak[1].continued} из ${leak[1].visits} визитов завершились на первой странице. Проверьте, помогает ли другая целевая страница продолжить чтение.`,
           `${leak[1].visits} tashrifdan ${leak[1].visits-leak[1].continued} tasi birinchi sahifada tugadi. Boshqa kirish sahifasi o‘qishni davom ettirishga yordam berishini sinang.`,
           `${leak[1].visits-leak[1].continued} of ${leak[1].visits} visits ended on the landing page. Test a different landing page and compare how often readers open a second page.`)}</p></aside>}
@@ -121,7 +122,7 @@ function WeeklyPromotion({apiFetch, language, t, onApproval}) {
   </section>;
 }
 
-export function MarketingWorkspace({t, apiFetch, language, refresh}) {
+export function MarketingWorkspace({t, apiFetch, language, refresh, children}) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -146,11 +147,13 @@ export function MarketingWorkspace({t, apiFetch, language, refresh}) {
     finally {setLoading(false);}
   }
   return <div className="marketing-workspace">
+    <FeatureCampaigns {...{t,apiFetch,language}} plans={data?.plans || []} report={data?.report} onPublish={()=>retry(n=>n+1)}/>
+    {children}
     <WeeklyPromotion {...{apiFetch,language,t}} onApproval={()=>retry(n=>n+1)}/>
     {error && <div role="alert">{t("Не удалось выполнить запрос. Проверьте данные и повторите.","So‘rov bajarilmadi. Ma’lumotni tekshiring va qayta urining.","Request failed. Check your entries and try again.")}
       <button className="admin-btn" onClick={()=>retry(v=>v+1)}>{t("Обновить","Yangilash","Refresh")}</button></div>}
     {data && <>
-      <Weekly report={data.report} t={t}/>
+      <Weekly report={data.report} campaignNames={data.campaign_names} t={t}/>
       <section className="panel marketing-module"><h3>{t("План кампании","Kampaniya rejasi","Campaign planner")}</h3>
         <form onSubmit={e=>{e.preventDefault();run("/plans","POST",{goal,language});}}>
           <label>{t("Цель кампании","Kampaniya maqsadi","Campaign goal")}<textarea rows={2} minLength={5} required maxLength={700} value={goal} onChange={e=>setGoal(e.target.value)}/></label>

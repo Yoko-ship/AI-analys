@@ -10,6 +10,10 @@ def campaign_tag(story_id, edition):
     return f"{kind}-{abs(story_id)}-{edition}"
 
 
+def feature_campaign_tag(post_id):
+    return f"feature-{post_id}"
+
+
 class PostCopy(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     headline: str = Field(min_length=1, max_length=200)

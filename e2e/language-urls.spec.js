@@ -4,6 +4,12 @@
 import { test, expect } from "@playwright/test";
 import { openAccountMenu, selectLanguage } from './language-control.js';
 
+test("an English campaign opens its public destination in English for a new reader", async ({page}) => {
+  await open(page, "/market?utm_source=telegram&utm_campaign=feature-example&lang=en");
+  await expect(page.locator("html")).toHaveAttribute("lang","en");
+  await expect(page).toHaveURL(/\/market\?/);
+});
+
 const UZ_TITLE = "UZStock — O‘zbekiston fond bozori";
 
 async function open(page, path, { saved } = {}) {
@@ -157,6 +163,7 @@ test('language menu supports keyboard selection, cancellation and outside dismis
   await trigger.click();
   await page.mouse.click(20, 400);
   await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
   await expect(page.locator('html')).toHaveAttribute('lang','en');
   await page.keyboard.press('Escape');
   await expect(page.locator('.account-preferences')).toHaveCount(0);

@@ -14,7 +14,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from catalogue.storage import get_catalog_conn
-from news_marketing import campaign_tag
+from news_marketing import campaign_tag, feature_campaign_tag
 from news_classifier import get_classifier_client
 from server.auth.access import _admin_panel_gate
 from server.news.marketing_metrics import measurements, promotion_signal
@@ -185,16 +185,19 @@ def workspace_report():
     with closing(get_catalog_conn()) as conn:
         plans = [_plan_record(r) for r in conn.execute("SELECT * FROM marketing_plans ORDER BY created DESC")]
         trials = [trial_record(r) for r in conn.execute("SELECT * FROM marketing_experiments ORDER BY created DESC")]
+        campaign_names = {feature_campaign_tag(row["id"]): row["headline"] for row in conn.execute(
+            "SELECT id,headline FROM marketing_campaign_posts WHERE status='published'")}
         history = [dict(r) for r in conn.execute("""SELECT story_id,edition,title,status,reason,published,updated
                     FROM marketing_decisions ORDER BY updated DESC""")]
     tags = [campaign_tag(r["story_id"], r["edition"]) for r in history if r["published"]]
     tags += [f"plan-{p['id']}" for p in plans if p["status"]=="approved"]
+    tags.extend(campaign_names)
     try:
         report = measurements(tags, trials)
     except Exception:
         log.exception("Campaign analytics unavailable")
         report = {"available":False}
-    return dict(plans=plans, experiments=trials, history=history, report=report)
+    return dict(plans=plans, experiments=trials, history=history, report=report, campaign_names=campaign_names)
 
 
 class SuggestionRequest(BaseModel):

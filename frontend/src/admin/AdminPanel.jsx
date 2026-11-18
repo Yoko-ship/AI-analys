@@ -113,7 +113,7 @@ export default function AdminPanel({
 
   const SECTION_LEDE = {
     overview: t("Сколько людей открыло сайт сегодня, живёт ли аудитория и работает ли продукт — прежде чем смотреть на таблицы.", "Bugun saytni nechta odam ochgani va mahsulot ishlayotgani.", "How many people opened the site today, whether the audience is alive and the product is used — before the plumbing."),
-    marketing: t("Сверьте пост с источником, отредактируйте и скопируйте в Telegram.", "Postni manba bilan tekshiring, tahrirlang va Telegram uchun nusxalang.", "Check the source, edit your post and copy it for Telegram."),
+    marketing: t("Готовьте публикации и смотрите, что приводит читателей на UZStock.", "Postlar tayyorlang va UZStock’ga o‘quvchilarni nima olib kelayotganini kuzating.", "Prepare posts and see what brings readers to UZStock."),
     product: t("Какие источники приводят читателей, какие бумаги интересуют их и какие функции они используют.", "O‘quvchilar qayerdan keladi, qaysi qog‘ozlar va funksiyalarga qiziqadi.", "Which sources bring readers, which securities attract them, and which features they use."),
     audience: t("Кто приходит: сколько, откуда, на чём и на каком языке. Ответ на буквальный вопрос «сколько человек открыло сайт».", "Kim kelmoqda: qancha, qayerdan va qaysi tilda.", "Who comes: how many, from where, on what device and in which language."),
     engagement: t("Что они на самом деле смотрят: страницы, бумаги, новости. Топ бумаг — самая коммерчески интересная таблица панели.", "Ular aslida nimani ko'rmoqda: sahifalar, qog'ozlar, yangiliklar.", "What they actually look at: pages, tickers, stories. The ticker ranking is the most commercially interesting table here."),

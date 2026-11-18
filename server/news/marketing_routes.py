@@ -10,6 +10,7 @@ from pydantic import Field
 
 import news_lang
 from server.news import market_movers
+from server.news import campaign_post_routes
 from server.news import marketing_workspace_routes as workspace
 from catalogue.storage import get_catalog_conn
 from news_marketing import Pitches, campaign_tag
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/admin/marketing")
 
 
 router.include_router(workspace.private)
+router.include_router(campaign_post_routes.router)
 
 
 class Submission(Pitches):

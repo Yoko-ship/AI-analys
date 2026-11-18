@@ -12,7 +12,8 @@ function initialLanguage() {
   if (fromUrl) return normalizeLanguage(fromUrl);
   let saved = null;
   try { saved = localStorage.getItem(LANGUAGE_KEY); } catch (e) { /* ignore */ }
-  return normalizeLanguage(saved || "ru");
+  const sharedEnglish = new URLSearchParams(window.location.search).get("lang") === "en";
+  return normalizeLanguage(saved || (sharedEnglish ? "en" : "ru"));
 }
 
 export function usePreferences() {

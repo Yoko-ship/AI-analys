@@ -740,6 +740,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             id TEXT PRIMARY KEY, goal TEXT NOT NULL, content TEXT NOT NULL,
             status TEXT NOT NULL, created TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS marketing_campaign_posts (
+            id TEXT PRIMARY KEY, destination TEXT NOT NULL, edition TEXT NOT NULL, channel TEXT NOT NULL,
+            plan_id TEXT REFERENCES marketing_plans(id), headline TEXT NOT NULL, body TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'draft', version INTEGER NOT NULL DEFAULT 1,
+            created TEXT NOT NULL, published TEXT
+        );
         CREATE TABLE IF NOT EXISTS marketing_experiments (
             id TEXT PRIMARY KEY, name TEXT NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL, created TEXT NOT NULL
         );
