@@ -15,6 +15,7 @@ test("live Russian calendar data fits the screenshot-width viewport", async ({ p
   await page.setViewportSize({ width: 705, height: 1001 });
   await page.goto("/news?tab=calendar");
   await selectLanguage(page, 'ru');
+  await page.getByRole('button', { name: 'Месяц', exact: true }).click();
 
   const grid = page.locator(".newscal-grid");
   const weekdays = page.locator(".newscal-dow");

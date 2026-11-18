@@ -6,9 +6,10 @@ import { NEWS_TX, interceptNav, newsArticlePath } from "./editorial.jsx";
 import { EVENT_TYPES, calendarAnnouncementPath } from "./calendarCopy.js";
 import {
   companyOptions, countByType, daysBetween, dividendKind, eventTitle, isBondIncome, eventsToCsv, formatAmount, formatDay,
-  monthGrid, splitDay, upcomingEvents, weekRange,
+  monthGrid, splitDay, upcomingEvents, viewWindow, weekRange,
 } from "./calendarEvents.js";
 import { useNewsCalendar } from "./useNewsCalendar.js";
+import { CalendarTiles } from './CalendarTiles.jsx';
 
 // A month list stops here and offers the rest: a busy reporting week files
 // hundreds of material facts, and nobody reads them as one scroll.
@@ -346,7 +347,7 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
   );
 }
 
-export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, onOpenNews }) {
+export function NewsCalendarView({ language, securitiesMap, onOpenCompany, onOpenAnnouncement, onOpenNews }) {
   const cal = useNewsCalendar({ language });
   const { lang, tx, locale, view, setView, range, setRange, move, goToday, types, toggleType, setTypes,
     company, setCompany, resetFilters, filtered, events, visible, selected, setSelected, anchor, today } = cal;
@@ -358,7 +359,10 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
   const options = React.useMemo(() => companyOptions(events.items), [events.items]);
 
   let title = monthLabel;
-  if (view === "week") {
+  if (view === "tiles") {
+    const w = viewWindow(view, anchor);
+    title = `${formatDay(w.start, locale, { day: "numeric", month: "short" })} – ${formatDay(w.end, locale)}`;
+  } else if (view === "week") {
     const w = weekRange(anchor);
     title = `${formatDay(w.start, locale, { day: "numeric", month: "short" })} – ${formatDay(w.end, locale)}`;
   } else if (view === "list") {
@@ -384,7 +388,7 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
           <h3 className="newscal-month">{title}</h3>
         </div>
         <div className="newscal-toggle" role="group" aria-label={tx.views.month}>
-          {["month", "week", "list"].map((k) => (
+          {["tiles", "month", "week", "list"].map((k) => (
             <button key={k} type="button" className={`newscal-toggle-btn ${view === k ? "active" : ""}`}
               aria-pressed={view === k} onClick={() => setView(k)}>{tx.views[k]}</button>
           ))}
@@ -411,7 +415,7 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
           <datalist id="newscal-companies">
             {options.map((o) => <option key={o.ticker || o.name} value={o.ticker || o.name}>{o.name}</option>)}
           </datalist>
-          <label className="newscal-range">
+          {view !== 'tiles' && <><label className="newscal-range">
             <span>{tx.from}</span>
             <input type="date" value={range.from} aria-label={tx.from}
               onChange={(e) => e.target.value && setRange({ from: e.target.value })} />
@@ -420,7 +424,7 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
             <span>{tx.to}</span>
             <input type="date" value={range.to} aria-label={tx.to}
               onChange={(e) => e.target.value && setRange({ to: e.target.value })} />
-          </label>
+          </label></>}
           {filtered && <button type="button" className="ghost-btn" onClick={resetFilters}>{tx.resetFilters}</button>}
           {view === "list" && visible.length > 0 && (
             <button type="button" className="ghost-btn" onClick={downloadCsv}>{tx.download}</button>
@@ -432,13 +436,14 @@ export function NewsCalendarView({ language, onOpenCompany, onOpenAnnouncement, 
 
       {events.loading && !events.items.length ? <div className="led-empty">{tx.loading}</div>
         : events.error ? <div className="led-empty">{tx.error}</div>
-          : view === "week" ? <WeekView cal={cal} ctx={ctx} />
+          : view === "tiles" ? <CalendarTiles cal={cal} ctx={ctx} securitiesMap={securitiesMap} />
+            : view === "week" ? <WeekView cal={cal} ctx={ctx} />
             : view === "list" ? (visible.length
               ? <EventList items={visible} today={today} ctx={ctx} grouped />
               : <div className="led-empty">{filtered ? tx.emptyFiltered : tx.empty}</div>)
               : <MonthView cal={cal} ctx={ctx} />}
 
-      <Upcoming cal={cal} ctx={ctx} />
+      {view !== 'tiles' && <Upcoming cal={cal} ctx={ctx} />}
       <p className="muted newscal-note">{tx.note}</p>
       <p className="muted newscal-note">{tx.source}</p>
 

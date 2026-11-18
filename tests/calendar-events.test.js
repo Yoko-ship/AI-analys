@@ -32,6 +32,9 @@ test("each view fetches its own window", () => {
   assert.deepEqual(viewWindow("week", "2026-10-09", {}), { start: "2026-10-05", end: "2026-10-11" });
   assert.deepEqual(viewWindow("list", "2026-10-09", { from: "2026-10-01", to: "2026-12-01" }),
     { start: "2026-10-01", end: "2026-12-01" });
+  // The tile preview starts this week and includes the next month's events.
+  assert.deepEqual(viewWindow("tiles", "2026-11-18", {}), { start: "2026-11-16", end: "2026-12-13" });
+  assert.deepEqual(viewWindow("tiles", "2026-12-31", {}), { start: "2026-12-28", end: "2027-01-24" });
 });
 
 test("today is the exchange's day, not the reader's", () => {

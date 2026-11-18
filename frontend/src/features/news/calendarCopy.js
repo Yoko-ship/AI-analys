@@ -7,7 +7,8 @@ export const EVENT_TYPES = ["meeting", "dividend", "report", "fact", "notice", "
 
 export const NEWSCAL_TX = {
   ru: {
-    views: { month: "Месяц", week: "Неделя", list: "Список" },
+    views: { tiles: "Плитки", month: "Месяц", week: "Неделя", list: "Список" },
+    weekOf: (date) => `Неделя с ${date}`,
     today: "Сегодня",
     prev: "Назад",
     next: "Вперёд",
@@ -103,7 +104,8 @@ export const NEWSCAL_TX = {
     source: "Источник: openinfo.uz, РФБ «Тошкент»",
   },
   en: {
-    views: { month: "Month", week: "Week", list: "List" },
+    views: { tiles: "Tiles", month: "Month", week: "Week", list: "List" },
+    weekOf: (date) => `Week of ${date}`,
     today: "Today",
     prev: "Previous",
     next: "Next",
@@ -199,7 +201,8 @@ export const NEWSCAL_TX = {
     source: "Source: openinfo.uz, Tashkent Stock Exchange",
   },
   uz: {
-    views: { month: "Oy", week: "Hafta", list: "Ro'yxat" },
+    views: { tiles: "Plitkalar", month: "Oy", week: "Hafta", list: "Ro'yxat" },
+    weekOf: (date) => `${date} haftasi`,
     today: "Bugun",
     prev: "Orqaga",
     next: "Oldinga",

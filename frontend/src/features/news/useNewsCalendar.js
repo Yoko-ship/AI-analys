@@ -9,9 +9,9 @@ const VIEW_KEY = "uzstock:newscal:view";
 function readView() {
   try {
     const v = window.localStorage.getItem(VIEW_KEY);
-    return v === "week" || v === "list" ? v : "month";
+    return ["tiles", "month", "week", "list"].includes(v) ? v : "tiles";
   } catch {
-    return "month";
+    return "tiles";
   }
 }
 
@@ -101,7 +101,8 @@ export function useNewsCalendar({ language }) {
 
   const move = React.useCallback((dir) => {
     setDay(null);
-    if (view === "week") setAnchor((a) => addDays(a, 7 * dir));
+    if (view === "tiles") setAnchor((a) => addDays(a, 28 * dir));
+    else if (view === "week") setAnchor((a) => addDays(a, 7 * dir));
     else if (view === "list") {
       setRangeState((r) => {
         const span = Math.max(1, daysBetween(r.from, r.to) + 1);

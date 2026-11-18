@@ -460,6 +460,7 @@ test("language switch re-renders the hero copy", async ({ page }) => {
 
 test("calendar meeting headlines follow the selected interface language", async ({ page }) => {
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
   const titles = page.locator(".newscal-list .newscal-row-title");
 
   await expect(titles.nth(0)).toHaveText("Внеочередное общее собрание акционеров");
@@ -477,6 +478,7 @@ test("calendar meeting headlines follow the selected interface language", async 
 
 test("clicking a calendar event opens its detail, and the announcement on our site", async ({ page }) => {
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
 
   await page.locator(".newscal-list .newscal-row").first().click();
   const dialog = page.getByRole("dialog");
@@ -498,6 +500,7 @@ test("clicking a calendar event opens its detail, and the announcement on our si
 
 test("a dividend event shows its amounts, and filters narrow the calendar", async ({ page }) => {
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
   await expect(page.locator(".newscal-up-card")).toHaveCount(CALENDAR_EVENTS.length);
 
   await page.locator(".newscal-up-card.ev-dividend").click();
@@ -526,6 +529,7 @@ test("a dividend event shows its amounts, and filters narrow the calendar", asyn
 
 test("an open calendar refetches when the tab regains focus", async ({ page }) => {
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
   await expect(page.locator(".newscal-list .newscal-row").first()).toBeVisible();
   const refreshed = page.waitForRequest((request) => (
     new URL(request.url()).pathname === "/api/news/calendar/events"
@@ -539,6 +543,7 @@ test("an open calendar refetches when the tab regains focus", async ({ page }) =
 test("calendar rows identify the issuer on a phone without overflowing", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
   const issuers = page.locator(".newscal-list .newscal-row-org");
   await expect(issuers.nth(0)).toContainText(CALENDAR_MEETINGS[0].organization);
   await expect(issuers.nth(1)).toContainText(CALENDAR_MEETINGS[1].organization);
@@ -553,6 +558,7 @@ test("calendar rows identify the issuer on a phone without overflowing", async (
 test("calendar keeps all seven weekdays inside the screenshot-width viewport", async ({ page }) => {
   await page.setViewportSize({ width: 705, height: 1001 });
   await page.goto("/news?tab=calendar");
+  await page.getByRole("button", { name: "Месяц", exact: true }).click();
 
   const grid = page.locator(".newscal-grid");
   const weekdays = page.locator(".newscal-dow");
@@ -1864,6 +1870,7 @@ test("term definitions follow the interface language", async ({ page }) => {
 test('calendar puts the month beside its agenda and lets readers select empty dates', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/news?tab=calendar');
+  await page.getByRole('button', { name: 'Месяц', exact: true }).click();
   const grid = page.locator('.newscal-grid');
   const agenda = page.locator('.newscal-agenda');
   await expect(agenda).toBeVisible();
@@ -1889,6 +1896,7 @@ test('calendar puts the month beside its agenda and lets readers select empty da
 
 test('calendar dialog confines keyboard focus and restores the opened event', async ({ page }) => {
   await page.goto('/news?tab=calendar');
+  await page.getByRole('button', { name: 'Месяц', exact: true }).click();
   const event = page.locator('.newscal-list .newscal-row').first();
   await event.click();
   const dialog = page.getByRole('dialog');
@@ -1922,6 +1930,7 @@ test('calendar labels a filing date as publication and shows meeting date eviden
   const fact = {id:'fact:source',type:'fact',date:CAL_TODAY,organization:'BMKB-Agromash',title:'Решения акционеров', details:{link:'https://openinfo.uz/ru/facts/6/14892'}};
   await page.route('**/api/news/calendar/events**', r=>r.fulfill({json:{ok:true,items:[fact],sources:{}}}));
   await page.goto('/news?tab=calendar');
+  await page.getByRole('button', { name: 'Месяц', exact: true }).click();
   await page.locator('.newscal-row').first().click();
   await expect(page.getByRole('dialog').locator('dt').first()).toHaveText('Опубликовано');
 });

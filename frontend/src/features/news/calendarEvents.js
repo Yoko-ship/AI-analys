@@ -76,6 +76,10 @@ export function weekRange(anchor) {
 
 /** The [start, end] a view has to fetch. */
 export function viewWindow(view, anchor, range) {
+  if (view === "tiles") {
+    const { start } = weekRange(anchor);
+    return { start, end: addDays(start, 27) };
+  }
   if (view === "week") {
     const w = weekRange(anchor);
     return { start: w.start, end: w.end };

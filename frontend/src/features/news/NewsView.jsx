@@ -95,7 +95,7 @@ export function NewsView({
             </button>)}
         </div>}
 
-      {tab === "corporate" ? <CorporateEvents apiFetch={apiFetch} signedIn={signedIn} securitiesMap={securitiesMap} language={language} favoriteTickers={favoriteTickers} instrument={instrument} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
+      {tab === "corporate" ? <CorporateEvents apiFetch={apiFetch} signedIn={signedIn} securitiesMap={securitiesMap} language={language} favoriteTickers={favoriteTickers} instrument={instrument} onOpenCompany={onOpenCompany} /> : tab === "calendar" ? <NewsCalendarView language={language} securitiesMap={securitiesMap} onOpenCompany={onOpenCompany} onOpenAnnouncement={onOpenAnnouncement} onOpenNews={onOpenNews} /> : loading ? <div className="newsdesk-loading" aria-label={tx.loadingText}>
           <div className="newsdesk-loading-lead" />
           <div className="newsdesk-loading-feed" />
         </div> : error ? <div className="led-empty">{tx.error}</div> : !items.length ? <div className="led-empty">

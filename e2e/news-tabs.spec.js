@@ -234,3 +234,87 @@ test('audit: calendar identifies itself and offers a route back to news', async 
   await expect(page).toHaveURL(/\/news$/);
   await expect(page.getByRole('heading', {name:'Новости', level:1})).toBeVisible();
 });
+
+async function openTileCalendar(page, path = '/news?tab=calendar') {
+  await page.clock.install({time:new Date('2026-11-18T07:00:00Z')});
+  await openNews(page);
+  const event = {type:'meeting',date:'2026-11-18',organization:'Hamkorbank',ticker:'HMKB',
+    title:'Внеочередное общее собрание акционеров',details:{},time:'10:00'};
+  const items = [
+    ...Array.from({length:23},(_,i)=>({...event,id:`meeting:${i}`})),
+    {...event,id:'report',type:'report',date:'2026-11-19',ticker:'UZMK',organization:'Uzmetkombinat',details:{year:2026,quarter:3}},
+    {...event,id:'weekend',date:'2026-11-22',ticker:null,organization:'Новый эмитент'},
+  ];
+  await page.route('**/api/news/calendar/events?**',route=>{
+    const q = new URL(route.request().url()).searchParams;
+    return route.fulfill({json:{ok:true,items:items.filter(e=>e.date>=q.get('start')&&e.date<=q.get('end'))}});
+  });
+  await page.route('**/api/securities',route=>route.fulfill({json:{ok:true,securities:{HMKB:{name:'Hamkorbank',logo_url:'/logos/HMKB_MARK.png'}}}}));
+  await page.route('**/logos/HMKB_MARK.png',route=>route.fulfill({contentType:'image/png',body:readFileSync(new URL('../logos/HMKB_MARK.png',import.meta.url))}));
+  await page.goto(path);
+}
+
+for (const width of [390,705,1440]) test(`calendar defaults to weekly issuer tiles at ${width}px`,async({page},info)=>{
+  await page.setViewportSize({width,height:1000});
+  await openTileCalendar(page);
+  const board=page.locator('.newscal-tiles');
+  await expect(board).toBeVisible();
+  await expect(board.locator('.newscal-tile-week')).toHaveCount(4);
+  await expect(page.getByRole('button',{name:'Плитки',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('.newscal-month-layout, .newscal-upcoming')).toHaveCount(0);
+  await expect(page.locator('.newscal-range')).toHaveCount(0);
+  const week=board.locator('.newscal-tile-week[data-week="2026-11-16"]');
+  // Five workdays plus the disclosed Sunday: a weekend filing must remain reachable.
+  await expect(week.locator('.newscal-tile-day')).toHaveCount(6);
+  const busy=week.locator('[data-date="2026-11-18"]');
+  await expect(busy.locator('.newscal-event-tile')).toHaveCount(20);
+  await expect(busy.locator('.chip-logo').first()).toHaveAttribute('src','/logos/HMKB_MARK.png');
+  await busy.getByRole('button',{name:'ещё 3',exact:true}).click();
+  await expect(busy.locator('.newscal-event-tile')).toHaveCount(23);
+  const weekend=week.locator('[data-date="2026-11-22"]');
+  await expect(weekend.locator('.chip-logo-fallback')).toBeVisible();
+  await expect(weekend.locator('.newscal-tile-symbol')).toContainText('Новый эмитент');
+  await busy.locator('.newscal-event-tile').first().click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog).toContainText('Hamkorbank');
+  await page.keyboard.press('Escape');
+  await expect(busy.locator('.newscal-event-tile').first()).toBeFocused();
+  for(const theme of ['light','dark']) {
+    await page.evaluate(t=>{document.documentElement.dataset.theme=document.body.dataset.theme=t;},theme);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    if(width===1440) {
+      const days=await week.locator('.newscal-tile-day').all();
+      const first=await days[0].boundingBox(),fifth=await days[4].boundingBox();
+      expect(fifth.y).toBe(first.y);
+      expect(fifth.x).toBeGreaterThan(first.x+first.width);
+    }
+    await page.screenshot({path:info.outputPath(`calendar-tiles-${width}-${theme}.png`),fullPage:true});
+  }
+  await page.locator('.newscal-search').fill('UZMK');
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(1);
+  await page.getByRole('button',{name:'Сбросить фильтры',exact:true}).click();
+  await page.locator('.newscal-type.ev-meeting').click();
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(1);
+  await page.getByRole('button',{name:'Сбросить фильтры',exact:true}).click();
+  await page.getByRole('button',{name:'Вперёд',exact:true}).click();
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(0);
+  await expect(board).toContainText('За этот период событий нет.');
+  await page.getByRole('button',{name:'Сегодня',exact:true}).click();
+  await expect(busy.locator('.newscal-event-tile').first()).toBeVisible();
+  await page.getByRole('button',{name:'Список',exact:true}).click();
+  await expect(page.locator('.newscal-row')).toHaveCount(25);
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Список',exact:true})).toHaveAttribute('aria-pressed','true');
+});
+
+test('calendar tile controls follow Uzbek labels and broken logos retain issuer identity',async({page})=>{
+  await openTileCalendar(page,'/uz/news?tab=calendar');
+  await page.route('**/logos/HMKB_MARK.png',route=>route.abort());
+  await page.reload();
+  await expect(page.getByRole('button',{name:'Plitkalar',exact:true})).toHaveAttribute('aria-pressed','true');
+  const day=page.locator('.newscal-tile-day[data-date="2026-11-18"]');
+  await expect(day.locator('.chip-logo-fallback').first()).toBeVisible();
+  await expect(day.locator('.newscal-tile-symbol').first()).toHaveText('HMKB');
+  await day.getByRole('button',{name:'yana 3',exact:true}).click();
+  await expect(day.locator('.newscal-event-tile')).toHaveCount(23);
+});

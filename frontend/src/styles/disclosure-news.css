@@ -172,6 +172,39 @@ body[data-theme="dark"] .led .newscal {
 .led .newscal-range input { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); color-scheme: light dark; }
 .led .newscal-warn { font-size: 12.5px; color: var(--warning, #b45309); margin: 0 0 12px; }
 
+/* Issuer tiles: five workday columns, with disclosed weekend dates retained. */
+.led .newscal-tiles { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2, var(--panel)); }
+.led .newscal-tile-week + .newscal-tile-week { margin-top: 24px; }
+.led .newscal-tile-week > h3 { margin: 0 0 10px; text-align: center; font: inherit; font-size: 12px; font-weight: 500; color: var(--muted); }
+.led .newscal-tile-days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: start; gap: 8px; }
+.led .newscal-tile-day { min-width: 0; min-height: 92px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+.led .newscal-tile-day.today { border-color: var(--accent); }
+.led .newscal-tile-dayhead { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+.led .newscal-tile-dayhead time { text-transform: capitalize; }
+.led .newscal-tile-dayhead > span { font-size: 10px; font-variant-numeric: tabular-nums; }
+.led .newscal-tile-day.today time { color: var(--accent); font-weight: 600; }
+.led .newscal-day-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 4px; }
+.led .newscal-event-tile, .led .newscal-tile-more { appearance: none; position: relative; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; min-width: 0; min-height: 60px; padding: 6px 3px; border: 1px solid transparent; border-radius: 4px; background: var(--surface-2, rgba(127,127,127,.08)); color: var(--text); cursor: pointer; }
+.led .newscal-event-tile:hover, .led .newscal-tile-more:hover { border-color: var(--accent); }
+.led .newscal-event-tile:focus-visible, .led .newscal-tile-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.led .newscal-tile-logo { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.led .newscal-tile-logo .chip-logo, .led .newscal-tile-logo .chip-logo-fallback { flex: none; width: 24px; height: 24px; border-radius: 4px; object-fit: contain; font-size: 10px; }
+.led .newscal-tile-symbol { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 1.3; }
+.led .newscal-event-tile > .newscal-dot { position: absolute; right: 3px; top: 3px; width: 4px; height: 4px; }
+.led .newscal-tile-more { font-size: 11px; color: var(--accent); overflow-wrap: anywhere; }
+.led .newscal-tile-empty { font-size: 12px; color: var(--muted); }
+@media (max-width: 1100px) {
+  .led .newscal-tile-days { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .led .newscal-tile-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .led .newscal-tiles { padding: 10px; }
+}
+@media (max-width: 480px) {
+  .led .newscal-tile-days { grid-template-columns: minmax(0, 1fr); }
+  .led .newscal-toggle-btn { padding-inline: 11px; }
+}
+
 /* Month */
 /* minmax(0,1fr), not 1fr: a bare 1fr track's min-size is the content, so one
    long nowrap issuer chip widened its column until the weekend fell out of the
