@@ -55,6 +55,7 @@ function MarketView({
 }) {
   const lang = normalizeLanguage(language);
   const viewMode = viewModeProp || "table";
+  const [mapPresentation, setMapPresentation] = useState('map');
   useEffect(() => {
     if (viewMode === "heatmap") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [viewMode]);
@@ -334,7 +335,7 @@ function MarketView({
     setFavOnly(false); setInactiveOnly(false); setSortKeys([]);
   };
   const viewControl = (<div className="market-view-toggle">
-              <button type="button" className={viewMode === "heatmap" ? "active" : ""} data-track-control="market_view" data-track-value="heatmap" onClick={() => setViewMode("heatmap")} title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}>
+              <button type="button" className={viewMode === "heatmap" && mapPresentation === 'map' ? "active" : ""} data-track-control="market_view" data-track-value="heatmap" onClick={() => {setMapPresentation('map'); setViewMode("heatmap");}} title={lang === "en" ? "Market map" : lang === "uz" ? "Bozor xaritasi" : "Карта рынка"}>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
                   <rect x="1" y="1" width="5.8" height="5.8" rx="1.2" />
                   <rect x="8.2" y="1" width="5.8" height="5.8" rx="1.2" />
@@ -343,6 +344,11 @@ function MarketView({
                 </svg>
                 <span>{lang === "en" ? "Map" : lang === "uz" ? "Xarita" : "Карта"}</span>
               </button>
+              {viewMode === 'heatmap' && <button type="button" className={mapPresentation === 'matrix' ? 'active' : ''}
+                aria-pressed={mapPresentation === 'matrix'} onClick={() => setMapPresentation('matrix')}>
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="1"/><path d="M5 1v14M10 1v14M1 5h14M1 10h14"/></svg>
+                <span>{lang === 'en' ? 'Matrix' : lang === 'uz' ? 'Matritsa' : 'Матрица'}</span>
+              </button>}
               <button type="button" className={viewMode === "table" ? "active" : ""} data-track-control="market_view" data-track-value="table" onClick={() => setViewMode("table")} title={lang === "en" ? "Table view" : lang === "uz" ? "Jadval ko'rinishi" : "Таблица"}>
                 <svg width="15" height="15" viewBox="0 0 15 15" fill="currentColor">
                   <rect x="1" y="2" width="13" height="1.8" rx="0.9" />
@@ -436,6 +442,7 @@ function MarketView({
         <MarketTable
           heatmapFilters={filters}
           heatmapViewControl={viewControl}
+          mapPresentation={mapPresentation}
           isAdmin={isAdmin}
           onResetFilters={resetFilters}
           filtered={Boolean(query || marketSector || favOnly || inactiveOnly || direction !== 'all' || type === 'ordinary' || type === 'preferred')}

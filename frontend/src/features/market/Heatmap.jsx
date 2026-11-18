@@ -5,6 +5,8 @@ import {useHeatmapFullscreen} from './useHeatmapFullscreen.js';
 import {HeatmapShare} from './HeatmapShare.jsx';
 import {ResponsiveDisclosure} from '../../shared/ResponsiveDisclosure.jsx';
 import {mapAreaValue} from "./mapArea.js";
+import {CAPITALIZATION_STEPS, matrixLayout, matchesCapitalization} from './heatmapMatrix.js';
+import './heatmapMatrix.css';
 import React, { useEffect, useState } from "react";
 import { normalizeLanguage } from "../../shared/i18n.jsx";
 import { CompanyLogo } from "../../shared/CompanyLogo.jsx";
@@ -126,7 +128,7 @@ function squarifyTreemap(items, x, y, width, height) {
   return output;
 }
 
-function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement", emptyFiltered = false, onResetFilters }) {
+function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = false, rows, companies, securitiesMap, language, onAnalyze, onOpenCompany, type, mapData, stats, period = "1d", initialArea = "movement", emptyFiltered = false, onResetFilters }) {
   // Which question the map is drawing. Over a window every cell's colour is the
   // change over it and its bottom meter is the turnover over it — the caller
   // has already restated the rows (see `mapRows`), so the board arithmetic
@@ -165,6 +167,8 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   const { hover, close: closePreview } = preview;
   const [selectedTicker, setSelectedTicker] = useState("");
   const [minTurnover, setMinTurnover] = useState(0);
+  const [minCapitalization, setMinCapitalization] = useState(0);
+  const matrixMode = presentation === 'matrix';
   const [changeFilter, setChangeFilter] = useState("all");
   const metricSelection = useHeatmapMetrics(lang, type);
   const selectedMetrics = metricSelection.selected;
@@ -173,7 +177,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   const {zoom, changeZoom, viewportRef, onClickCapture, onPointerDownCapture} = useHeatmapZoom(closePreview);
   const fullscreen = useHeatmapFullscreen();
 
-  useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, changeFilter, closePreview]);
+  useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, minCapitalization, changeFilter, presentation, closePreview]);
 
   useEffect(() => {
     const element = treeElement;
@@ -224,10 +228,11 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
   };
   const tradedRows = marketRows.filter((row) => (
     (!minTurnover || (Number.isFinite(row.stockVolume) && row.stockVolume >= minTurnover))
+    && matchesCapitalization(row, minCapitalization)
     && changeBand(row)
   ));
-  const filtersActive = minTurnover > 0 || changeFilter !== "all";
-  const resetFilters = () => { setMinTurnover(0); setChangeFilter("all"); };
+  const filtersActive = minTurnover > 0 || minCapitalization > 0 || changeFilter !== "all";
+  const resetFilters = () => { setMinTurnover(0); setMinCapitalization(0); setChangeFilter("all"); };
 
   // A request failure used to leave this panel as a featureless dark rectangle.
   // Say plainly when the market-board request has not produced any rows instead
@@ -295,7 +300,8 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
     return {...section, groups, value: groups.reduce((sum, group) => sum + group.value, 0)};
   }).sort((a, b) => b.value - a.value);
   const sectorRects = squarifyTreemap(sectorItems, 0, 0, treeSize.w, treeSize.h);
-  const sectorLayout = sectorRects.map((sectorRect) => {
+  const matrix = matrixMode ? matrixLayout(groupMarketIndustries(tradedRows, securitiesMap, companyMap), treeSize.w, zoom) : null;
+  const sectorLayout = matrix ? matrix.sectors : sectorRects.map((sectorRect) => {
     const showHeader = sectorRect.w > 86 && sectorRect.h > 54;
     const headerHeight = showHeader ? 26 : 0;
     const groups = squarifyTreemap(
@@ -365,7 +371,9 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
     : key === "up" ? mapCopy.changeUp : key === "down" ? mapCopy.changeDown
       : `≥ ±${formatRatio(key === "full" ? fullScale : fullScale * 0.4, 0, lang)}%`;
 
-  const areaTitle=areaMode==='movement'?mapCopy.movement:areaMode==='turnover'?mapCopy.turnover:areaMode==='capitalization'?(lang==='en'?'Capitalization':lang==='uz'?'Kapitalizatsiya':'Капитализация'):(lang==='en'?'Equal tiles':lang==='uz'?'Teng kataklar':'Равные плитки');
+  const areaTitle = matrixMode || areaMode === 'equal' ? (lang === 'en' ? 'Equal tiles' : lang === 'uz' ? 'Teng kataklar' : 'Равные плитки')
+    : areaMode === 'movement' ? mapCopy.movement : areaMode === 'turnover' ? mapCopy.turnover
+      : lang === 'en' ? 'Capitalization' : lang === 'uz' ? 'Kapitalizatsiya' : 'Капитализация';
   const zoomCopy = lang === 'ru' ? {label: 'Масштаб карты', in: 'Увеличить карту', out: 'Уменьшить карту', reset: 'Сбросить масштаб'}
     : lang === 'uz' ? {label: 'Xarita masshtabi', in: 'Xaritani kattalashtirish', out: 'Xaritani kichraytirish', reset: 'Masshtabni tiklash'}
       : {label: 'Map zoom', in: 'Zoom in', out: 'Zoom out', reset: 'Reset zoom'};
@@ -373,12 +381,30 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
     ? lang === 'ru' ? 'Свернуть' : lang === 'uz' ? 'Kichraytirish' : 'Restore'
     : lang === 'ru' ? 'На весь экран' : lang === 'uz' ? 'To‘liq ekran' : 'Full screen';
   const toolbarLabel = lang === 'ru' ? 'Управление картой' : lang === 'uz' ? 'Xarita boshqaruvi' : 'Map controls';
+  const capLabel = lang === 'ru' ? 'Капитализация, UZS' : lang === 'uz' ? 'Kapitalizatsiya, UZS' : 'Market cap, UZS';
+  const trillion = lang === 'ru' ? 'трлн' : lang === 'uz' ? 'trln' : 'T';
+  const noCap = lang === 'ru' ? 'Нет данных' : lang === 'uz' ? 'Ma’lumot yo‘q' : 'Unknown';
   return (
     <HeatmapLayout lang={lang} filters={filters} viewControl={viewControl}
-      sizeControl={<HeatmapSizeControl lang={lang} value={areaMode} onChange={setAreaMode}/>}
+      sizeControl={matrixMode ? <div className="heatmap-size-control">
+        <span className="heatmap-sidebar-label">{lang === 'ru' ? 'Отображение' : lang === 'uz' ? 'Tasvirlash' : 'Render as'}</span>
+        <div className="heatmap-size-options"><button type="button" aria-pressed="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1 1h6v6H1zm8 0h6v6H9zM1 9h6v6H1zm8 0h6v6H9z"/></svg>
+          <span>{lang === 'ru' ? 'Сетка' : lang === 'uz' ? 'To‘r' : 'Grid'}</span>
+        </button></div>
+      </div> : <HeatmapSizeControl lang={lang} value={areaMode} onChange={setAreaMode}/>}
       controls={<>
 
       <div className="heatmap-filters" role="group" aria-label={`${mapCopy.filterTurnover}, ${mapCopy.filterChange}`}>
+        <div className="market-period-row">
+          <span className="market-period-label">{capLabel}</span>
+          <div className="segmented-control market-period-control" role="group" aria-label={capLabel}>
+            {CAPITALIZATION_STEPS.map(value => <button key={value} type="button" className={minCapitalization === value ? 'active' : ''}
+              aria-pressed={minCapitalization === value} onClick={() => setMinCapitalization(value)}>
+              {value ? `> ${value / 1e12} ${trillion}` : turnoverStepLabel(0, lang)}
+            </button>)}
+          </div>
+        </div>
         <div className="market-period-row">
           <span className="market-period-label">{mapCopy.filterTurnover}</span>
           <div className="segmented-control market-period-control" role="group" aria-label={mapCopy.filterTurnover}>
@@ -401,7 +427,8 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
     </>}>
 
       <div ref={fullscreen.element} className={`heatmap-canvas${fullscreen.expanded ? ' is-fullscreen' : ''}`}>
-        <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}>
+        <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}
+          onFocusCapture={() => closePreview()} onPointerDownCapture={() => closePreview()}>
           <HeatmapTickerSearch key={type} lang={lang} rows={tradedRows} companyMap={companyMap}
             securitiesMap={securitiesMap} value={focusRow?.ticker || ''}
             onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>
@@ -423,8 +450,16 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
         </div>
       <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
-      <div className="heatmap-tree" ref={setTreeElement} role="group" aria-label={mapCopy.board}
-        style={{width: `${zoom * 100}%`, height: `calc(var(--heatmap-base-height) * ${zoom})`}}>
+      <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
+        style={{width: `${zoom * 100}%`, minWidth: matrix?.minWidth, height: matrix ? matrix.height : `calc(var(--heatmap-base-height) * ${zoom})`, '--matrix-zoom': zoom}}>
+        {matrix && <>
+          <div className="heatmap-matrix-corner" style={{width: matrix.labelWidth, height: matrix.header}}>{capLabel}</div>
+          {matrix.columns.map(column => <div key={column.id} className="heatmap-matrix-column" data-cap-tier={column.id}
+            style={{left: column.x, width: column.w, height: matrix.header}}>{column.label ? `${column.label} ${trillion}` : noCap}</div>)}
+          {matrix.sectors.flatMap(sector => sector.groups.flatMap(group => matrix.columns.map((column, index) => <div
+            key={`${sector.sector}:${group.id}:${column.id}`} className="heatmap-matrix-cell" aria-hidden="true"
+            style={{left: column.x, top: group.y, width: column.w, height: group.h, '--tier-shade': index % 2 ? '.05' : '.025'}}/>)))}
+        </>}
         {isAdmin && hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"
           style={{left: hoverGroup.x, top: hoverGroup.y, width: hoverGroup.w, height: hoverGroup.h}} />}
         {sectorLayout.map((sector) => {
@@ -447,35 +482,36 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
               )}
               {sector.groups.filter(group => group.labelHeight).map(group => <div key={group.id}
                 className="heatmap-tree-label heatmap-tree-subgroup" data-sector={sector.sector} data-group={group.id}
-                style={{left: group.x, top: group.y, width: group.w, height: group.labelHeight}}
-                title={marketIndustryLabel(lang, `group:${group.id}`)}>
-                <span>{marketIndustryLabel(lang, `group:${group.id}`)}</span>
+                style={{left: matrix ? 0 : group.x, top: group.y, width: matrix ? matrix.labelWidth : group.w, height: group.labelHeight}}
+                title={marketIndustryLabel(lang, group.id ? `group:${group.id}` : sector.sector)}>
+                <span>{marketIndustryLabel(lang, group.id ? `group:${group.id}` : sector.sector)}</span>
               </div>)}
               {sector.stocks.map((stock) => {
                 const row = stock.row;
                 const status = tileStatus(row);
                 const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
-                const tileGap = Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
+                const tileGap = matrixMode ? 0 : Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
                 const width = stock.w - tileGap;
                 const height = stock.h - tileGap;
                 if (width <= 0 || height <= 0) return null;
                 const preferred = isPreferredRow(row);
                 const showPreferredBadge = preferred && width >= 84 && height >= 44;
                 const percentText = status === 'ok' ? formatPct(row.changePercent) : '—';
-                const labels = heatmapTileLabels(width, height, row.ticker, percentText, showPreferredBadge ? 17 : 0);
+                const labels = matrixMode ? {tickerSize: 10 * zoom, showTicker: true, showPercent: false, padding: 2 * zoom}
+                  : heatmapTileLabels(width, height, row.ticker, percentText, showPreferredBadge ? 17 : 0);
                 const {tickerSize, showTicker, showPercent} = labels;
                 // Reserve room for identity and movement before adding a logo.
                 // Small cells remain readable even when the map is crowded.
-                const showLogo = showTicker && showPercent && width >= 58 && height >= 88;
-                const logoSize = showLogo ? Math.max(20, Math.min(56, width * 0.28, (height - 52) / 2)) : 0;
+                const showLogo = matrixMode || (showTicker && showPercent && width >= 58 && height >= 88);
+                const logoSize = matrixMode ? 16 * zoom : showLogo ? Math.max(20, Math.min(56, width * 0.28, (height - 52) / 2)) : 0;
                 const logoSpace = showLogo ? logoSize + 6 : 0;
-                const showName = width > 105 && height > (showLogo ? 80 + logoSpace : 62);
+                const showName = !matrixMode && width > 105 && height > (showLogo ? 80 + logoSpace : 62);
                 const values = marketVolumeMetrics(row, stats);
                 // A tile carries only what the reader compares across the map:
                 // price and turnover. Every other trading metric lives in the
                 // panel above the map and in the tooltip.
                 const tilePrice = marketDisplayPrice(row);
-                const metricSlots = width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
+                const metricSlots = !matrixMode && width >= 120 ? Math.max(0, Math.floor((height - 80 - logoSpace) / 17)) : 0;
                 const tileMetrics = [
                   { key: "price", label: mapCopy.price, value: tilePrice != null ? formatMarketNumber(tilePrice, lang) : "—" },
                   { key: "volume", label: mapCopy.turnover, value: Number.isFinite(values.volume) ? formatCompactVolume(values.volume, lang) : "—" },
@@ -509,6 +545,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
                     aria-expanded={isAdmin ? active : undefined}
                     aria-controls={isAdmin && active ? preview.id : undefined}
                     data-ticker={row.ticker}
+                    data-cap-tier={stock.tier}
                     data-sector={sector.sector}
                     data-group={industryOf(row.ticker)?.group || ''}
                     onClick={() => openCompany(row.ticker)}
@@ -638,7 +675,7 @@ function MarketHeatmap({ filters, viewControl, isAdmin = false, rows, companies,
             <span>{mapCopy.scale}</span>
             <span className="heatmap-area-note" aria-label={`${mapCopy.area}: ${areaTitle}`}>
               <small>{mapCopy.area}</small>
-              <b>{areaMode==="movement"?"|%|":areaMode==="equal"?"=":"UZS"}</b>
+              <b>{matrixMode || areaMode==="equal"?"=":areaMode==="movement"?"|%|":"UZS"}</b>
               <span>{areaTitle}</span>
             </span>
           </div>

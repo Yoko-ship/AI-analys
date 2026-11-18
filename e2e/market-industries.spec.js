@@ -68,6 +68,14 @@ for (const width of [1440, 390]) test(`heatmap hover shows an industry quote car
   await tile.blur();
   await tile.focus();
   await expect(card).toBeVisible();
+  // The virtual popover anchor is also the keyboard trigger. Refocusing it
+  // while the card is open must not count as leaving the preview.
+  await tile.evaluate(element => { element.blur(); element.focus(); });
+  await expect(card).toBeVisible();
+  await page.locator('.heatmap-tree-tile[data-ticker="IPTBP"]').focus();
+  await expect(page.getByRole('dialog', {name: 'Обзор компании IPTBP', exact: true})).toBeVisible();
+  await tile.focus();
+  await expect(card).toBeVisible();
   await page.keyboard.press('ArrowDown');
   await expect(card.getByRole('button', {name: 'Закрыть обзор'})).toBeFocused();
   await page.keyboard.press('Escape');

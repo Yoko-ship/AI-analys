@@ -10,6 +10,7 @@ import { MarketHeatmap, HeatmapLayout } from "./Heatmap.jsx";
 export function MarketTable({
   heatmapFilters,
   heatmapViewControl,
+  mapPresentation,
   isAdmin = false,
   stats,
   windowed,
@@ -62,6 +63,7 @@ export function MarketTable({
   return <CompanyPreviewProvider enabled={isAdmin} lang={lang} changePeriod={changePeriod} onOpenCompany={onOpenCompany || onAnalyze}>{viewMode === "table" && type === "bond" ? <BondsView language={lang} onOpenBond={onOpenBond || onAnalyze} embedded /> : viewMode === "heatmap" ? blocksMarketContent(loading, rows.length) ? <HeatmapLayout lang={lang} filters={heatmapFilters} viewControl={heatmapViewControl}><p className="market-empty-cell">{mt(lang, "loading")}</p></HeatmapLayout> : <MarketHeatmap
     filters={heatmapFilters}
     viewControl={heatmapViewControl}
+    presentation={mapPresentation}
     isAdmin={isAdmin}
     rows={sectorMapRows}
     emptyFiltered={filtered && rows.length > 0}

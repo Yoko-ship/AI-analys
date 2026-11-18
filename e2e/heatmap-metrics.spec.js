@@ -62,6 +62,68 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+for (const width of [1440, 390]) test(`market matrix grid and capitalization filters at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  const caps = [0.5e12, 1e12, 5e12, 10e12, 25e12, 26e12, null];
+  const tickers = ['IPTB', 'IPTBP', 'BNGP', 'BNGPP', 'ORGS', 'UVGT', 'EMPTY'];
+  const snapshot = {stocks: tickers.map((ticker, index) => ({
+    ...row(ticker, 'stock', 110, 100, 2e6, 100, 6, 'other'), market_cap: caps[index],
+  })), bonds: []};
+  const errors = await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true}, snapshot);
+  await openMapFilters(page);
+  await page.getByRole('button', {name: 'Матрица', exact: true}).click();
+  await expect(page.getByRole('button', {name: 'Сетка', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  const matrix = page.locator('.heatmap-matrix');
+  await expect(matrix).toBeVisible();
+  await expect(matrix.locator('.heatmap-matrix-column')).toHaveCount(6);
+  for (const [tier, ticker] of [['under1', 'IPTB'], ['under1', 'IPTBP'], ['1to5', 'BNGP'], ['5to10', 'BNGPP'], ['10to25', 'ORGS'], ['over25', 'UVGT'], ['unknown', 'EMPTY']]) {
+    await expect(matrix.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`)).toHaveAttribute('data-cap-tier', tier);
+  }
+  const sizes = await matrix.locator('.heatmap-tree-tile').evaluateAll(nodes => nodes.map(node => [node.offsetWidth, node.offsetHeight]));
+  expect(new Set(sizes.map(size => size.join('x'))).size).toBe(1);
+  await expect(page.locator('.heatmap-area-note')).toHaveAttribute('aria-label', 'Площадь: Равные плитки');
+  await expect(matrix.locator('.heatmap-tree-subgroup[data-group="banks"]')).toBeVisible();
+  const capFilter = page.getByRole('group', {name: 'Капитализация, UZS', exact: true});
+  for (const [n, count] of [[1, 4], [5, 3], [10, 2], [25, 1]]) {
+    // Strictly greater than the selected threshold; missing caps stay excluded.
+    await capFilter.getByRole('button', {name: `> ${n} трлн`, exact: true}).click();
+    await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(count);
+  }
+  await page.getByRole('button', {name: 'Сбросить фильтры', exact: true}).click();
+  await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(7);
+  await page.getByRole('group', {name: 'Оборот', exact: true}).getByRole('button', {name: '≥ 10 млн', exact: true}).click();
+  await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(0);
+  await page.locator('.heatmap-empty-state').getByRole('button', {name: 'Сбросить фильтры', exact: true}).click();
+  await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(7);
+  if (width < 980) await page.getByRole('button', {name: 'Показать карту', exact: true}).click();
+  await matrix.locator('.heatmap-tree-tile[data-ticker="IPTB"]').focus();
+  const preview = page.getByRole('dialog', {name: 'Обзор компании IPTB', exact: true});
+  await expect(preview).toBeVisible();
+  await expect(preview.locator('[data-peer]')).toHaveCount(2);
+  await expect(preview.locator('[data-peer="IPTBP"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', {name: 'Увеличить карту', exact: true}).click();
+  await expect(page.locator('.heatmap-zoom output')).toHaveText('200%');
+  await page.getByRole('button', {name: 'На весь экран', exact: true}).click();
+  await expect(matrix).toBeVisible();
+  await page.getByRole('button', {name: 'Свернуть', exact: true}).click();
+  await page.getByRole('button', {name: 'Сбросить масштаб', exact: true}).click();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => {document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme;}, theme);
+    await page.screenshot({path: testInfo.outputPath(`matrix-${theme}.png`)});
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await openMapFilters(page);
+  await page.getByRole('button', {name: 'Карта', exact: true}).click();
+  await expect(matrix).toHaveCount(0);
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(7);
+  await capFilter.getByRole('button', {name: '> 10 трлн', exact: true}).click();
+  await expect(page.locator('.heatmap-tree-tile')).toHaveCount(2);
+  await page.getByRole('button', {name: 'Матрица', exact: true}).click();
+  await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(2);
+  await expect(capFilter.getByRole('button', {name: '> 10 трлн', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  expect(errors).toEqual([]);
+});
 for (const width of [1280, 320]) for (const native of [true, false]) test(`market map sharing beside fullscreen and zoom at ${width}px with native API ${native}`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 844});
   if (!native) await page.addInitScript(() => {
@@ -476,6 +538,17 @@ for (const width of [320, 390, 768]) test(`mobile map starts with compact filter
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(trigger).toBeFocused();
   await expect(page.locator('.heatmap-viewport')).toBeInViewport({ratio: .1});
+  // An open preview must yield when the user starts a new ticker search.
+  await page.locator('.heatmap-tree-tile[data-ticker="AGBA"]').focus();
+  await expect(page.getByRole('dialog', {name: 'Обзор компании AGBA', exact: true})).toBeVisible();
+  await page.locator('.heatmap-ticker-input input').focus();
+  await expect(page.getByRole('dialog', {name: 'Обзор компании AGBA', exact: true})).toHaveCount(0);
+  await page.clock.install();
+  await page.locator('.heatmap-ticker-input input').blur();
+  await page.locator('.heatmap-tree-tile[data-ticker="AGBA"]').dispatchEvent('pointerover', {pointerType: 'mouse'});
+  await page.locator('.heatmap-ticker-input input').focus();
+  await page.clock.runFor(250);
+  await expect(page.getByRole('dialog', {name: 'Обзор компании AGBA', exact: true})).toHaveCount(0);
   await chooseMapTicker(page, 'KVTS');
   await expect(panel).not.toHaveAttribute('open', '');
   await expect(page.locator('.heatmap-focus-identity strong')).toHaveText('KVTS');

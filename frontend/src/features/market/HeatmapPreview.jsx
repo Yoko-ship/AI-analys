@@ -99,12 +99,18 @@ export function HeatmapPreview({ interaction, row, peers, industry, name, securi
   const tone = item => statusOf(item) !== 'ok' ? 'neutral' : item.changePercent > 0 ? 'good' : item.changePercent < 0 ? 'danger' : 'neutral';
   // Keep requests bounded for large industries; always include the hovered issue.
   const shown = [row, ...peers.filter(peer => peer.ticker !== row.ticker)].slice(0, 12);
+  // Virtual anchors have no Radix Trigger. Focusing any tile on this board
+  // opens its preview; the previous card must not dismiss that new preview.
   return <Popover.Root open onOpenChange={open => { if (!open) close(panel.current?.contains(document.activeElement)); }}>
     <Popover.Anchor virtualRef={{ current: hover.anchor }} />
     <Popover.Portal container={portalContainer}>
       <Popover.Content ref={panel} id={id} className="heatmap-preview" side={window.innerWidth < 768 ? 'bottom' : 'right'} align="start" sideOffset={12}
         collisionPadding={8} sticky="always" aria-label={`${t('Обзор компании', 'Kompaniya haqida', 'Company preview')} ${row.ticker}`}
         onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()}
+        onFocusOutside={event => {
+          const tile = event.target.closest?.('.heatmap-tree-tile');
+          if (tile && tile.parentElement === hover.element.parentElement) event.preventDefault();
+        }}
         onEscapeKeyDown={event => { event.preventDefault(); close(true); }}
         onPointerEnter={keep} onPointerLeave={leave} onFocus={keep}
         onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== hover.element) leave(); }}>
