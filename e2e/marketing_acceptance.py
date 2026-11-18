@@ -50,13 +50,14 @@ now = datetime.now(timezone.utc)
 news_store.upsert_news([dict(title="Дивиденд", snippet="100 сумов", published_at=now.isoformat(),
                              source="OpenInfo", url="https://example.test/1", relevant=True,
                              relevance_score=1, impact="high", type="corporate_event")])
-story, = routes._stories()
-from news_marketing import Pitch
-pitch = Pitch(id=story["id"], excerpt="100 сумов", ru=dict(headline="Дивиденд", body="Предложено 100 сумов.", reason="Для акционеров"),
-              uz=dict(headline="Dividend", body="100 so‘m taklif qilindi.", reason="Aksiyadorlar uchun"))
+from catalogue import market_store
+market_store.bulk_upsert_quotes([
+    dict(isin="ISIN-NGQS", ticker="NGQS", name="Neft va gaz", market="STK",
+         trade_date="20261117", close_price=47616, prev_close=39680, quantity=27),
+    dict(isin="ISIN-UZINP", ticker="UZINP", name="O‘zbekinvest", market="STK",
+         trade_date="20261117", close_price=4800, prev_close=5800, quantity=206581),
+])
 with closing(routes.get_catalog_conn()) as conn, conn:
-    conn.execute("INSERT INTO news_marketing VALUES(1,?,?)", (routes._revision([story]), json.dumps(routes.verified_pitches([pitch],[story]))))
-
     conn.execute("INSERT INTO marketing_experiments VALUES(?,?,?,?,?)",
                  ("baseline", "Completed landing test", "/market", "/news", (now-timedelta(days=5)).isoformat()))
 analytics.init_db()
@@ -64,7 +65,7 @@ with analytics._conn() as conn:
     if conn.execute("SELECT COUNT(*) AS n FROM web_events").fetchone()["n"]:
         raise ValueError("Use a fresh QA database")
     for i in range(5):
-        rows = [(0, "s", "/news/1", "news-1-ru")]
+        rows = [(0, "s", "/news/1", "mover-1-ru")]
         if i < 2: rows.append((1, "s", "/market", None))
         if i == 0: rows.append((60, "return", "/market", None))
         for minute, session, path, tag in rows:
@@ -72,9 +73,19 @@ with analytics._conn() as conn:
                             VALUES(%s,%s,%s,'pageview',%s,%s,%s)""",
                          (now-timedelta(days=1)+timedelta(minutes=minute), f"reader{i}", session, path, tag, i==4))
 
+    prior = routes.workspace._week() - timedelta(days=5)
+    for i in range(22):
+        paths = [(-1,"/heatmap"), (0,"/uz/market")]
+        if i < 3 or i == 21:
+            paths.append((1,"/uz/heatmap"))
+        for minute, path in paths:
+            conn.execute("""INSERT INTO web_events(ts,visitor_id,session_id,event,path,internal)
+                            VALUES(%s,%s,'weekly','pageview',%s,%s)""",
+                         (prior+timedelta(minutes=minute),f"reader-week-{i}",path,i==21))
+
     for arm in ("a", "b"):
         for i in range(100):
-            for minute, path in [(0, "/news")] + ([(1, "/market")] if i < (85 if arm=="a" else 20) else []):
+            for minute, path in [(0, "/issuers")] + ([(1, "/company/QA")] if i < (85 if arm=="a" else 20) else []):
                 conn.execute("""INSERT INTO web_events(ts,visitor_id,session_id,event,path,utm_campaign)
                                 VALUES(%s,%s,'s','pageview',%s,%s)""", (now-timedelta(days=3)+timedelta(minutes=minute),
                              f"test-{arm}-{i}", path, f"exp-baseline-{arm}" if minute == 0 else None))

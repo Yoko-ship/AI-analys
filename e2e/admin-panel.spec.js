@@ -425,3 +425,32 @@ for (const width of [1440, 390]) test(`editor copies a complete edited Telegram 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.locator(".marketing-desk").screenshot({ path: info.outputPath(`marketing-${width}.png`), animations: "disabled" });
 });
+
+test("marketer shows session movers and approves an evidence-based weekly promotion", async ({ page }) => {
+  await mockAdmin(page);
+  let state="suggested";
+  const idea={status:state,week:"2026-11-16",until:"2026-11-16",since:"2026-11-09",language:"en",
+    goal:"Help quote readers compare sectors",evidence:{source:"/market",target:"/heatmap",visits:21,reached:3},
+    plan:{channel:"Telegram",audience:"Quote readers",destination:"/heatmap",schedule:["Monday: compare sectors."]}};
+  await page.route("**/api/admin/marketing/weekly-idea",route=>route.fulfill({json:{...idea,status:state}}));
+  await page.route("**/api/admin/marketing/weekly-idea/*/approve",route=>{state="approved";return route.fulfill({json:{...idea,status:state}});});
+  const edition={text:"NGQS +20% · 2026-11-17",reason:"Previous close"};
+  await page.route("**/api/admin/marketing",route=>route.fulfill({json:{items:[{id:-2,title:"UZINP −17,24%",ru:{...edition,text:"UZINP −17,24%"},uz:edition}, {id:-1,title:"NGQS +20%",ticker:"NGQS",published_at:"2026-11-17",ru:edition,uz:edition,source:"UZStock",url:"https://uzstock.uz/market"}]}}));
+  await page.goto("/admin/marketing");
+  await expect(page.getByRole("heading",{name:"Stock movers"})).toBeVisible();
+  await page.getByRole("button",{name:"NGQS +20%"}).click();
+  const editor=page.getByLabel("Telegram post");
+  await expect(editor).toHaveValue(/NGQS \+20%/);
+  await editor.fill("My working copy of NGQS");
+  await page.getByRole("button",{name:"UZINP −17,24%"}).click();
+  await expect(editor).toHaveValue(/UZINP/);
+  await page.getByRole("button",{name:"NGQS +20%"}).click();
+  await expect(editor).toHaveValue("My working copy of NGQS");
+  const panel=page.getByRole("region",{name:"What to promote this week"});
+  await expect(panel).toContainText("3 of 21");
+  await expect(panel).toContainText("/heatmap");
+  await panel.getByRole("button",{name:"Approve suggestion"}).click();
+  await expect(panel).toContainText("Approved");
+  await page.reload();
+  await expect(panel).toContainText("Approved");
+});

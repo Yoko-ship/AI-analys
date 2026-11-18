@@ -18,11 +18,11 @@ def test_daily_marketing_round_trip(monkeypatch, tmp_path):
     assert client.get(url).status_code == 401
     monkeypatch.setitem(api.app.dependency_overrides, _admin_panel_gate, lambda: None)
     assert client.get(url).json()["items"] == []
-    now = datetime.now(timezone.utc).isoformat()
-    quote = "Совет предложил выплатить 100 сумов на акцию."
-    news_store.upsert_news([dict(title="Предложение совета", snippet=quote, relevant=True,
-                                 relevance_score=1, impact="high", type="corporate_event",
-                                 source="OpenInfo", url="https://openinfo.uz/fact/1", published_at=now)])
+    from catalogue import market_store
+    row = dict(isin="ISIN-NGQS", ticker="NGQS", market="STK", trade_date="20261117",
+               close_price=47616, prev_close=39680, quantity=27)
+    market_store.bulk_upsert_quotes([row])
+    quote = "39 680 → 47 616 UZS"
     assert client.get(url + "/candidates").status_code != 200
     headers = {"X-Admin-Secret": "test-secret"}
     calls = []
@@ -33,7 +33,7 @@ def test_daily_marketing_round_trip(monkeypatch, tmp_path):
     def generate(stories, usage):
         calls.append(stories)
         return [dict(id=stories[0]["id"], excerpt=quote,
-                     ru=dict(reason="Для акционеров важен статус выплаты.", headline="Дивиденд пока предложен", body=quote),
+                     ru=dict(reason="Для акционеров важен статус выплаты.", headline="Рост цены закрытия", body="Акции подорожали за торговую сессию."),
                      uz=dict(reason="Aksiyadorlar uchun to‘lov holati muhim.", headline="Dividend taklif qilindi",
                              body="Kengash har bir aksiya uchun 100 so‘m taklif qildi."))]
     monkeypatch.setattr(marketing, "_prod_request", request)
@@ -43,12 +43,11 @@ def test_daily_marketing_round_trip(monkeypatch, tmp_path):
     assert len(calls) == 1
     idea, = client.get(url).json()["items"]
     assert idea["excerpt"] == quote
-    assert idea["uz"]["text"].startswith("Dividend taklif qilindi\n\nKengash")
-    assert f"https://uzstock.uz/uz/news/{idea['id']}?utm_source=telegram" in idea["uz"]["text"]
-    assert "/uz/news/" not in idea["ru"]["text"]
-    assert "utm_campaign=" in idea["ru"]["text"]
-    assert idea["url"] == "https://openinfo.uz/fact/1"
-    news_store.set_snippets({idea["url"]: "Исправленный текст публикации. Совет отозвал ранее опубликованное предложение."})
+    assert idea["uz"]["text"].startswith("NGQS +20%")
+    assert "https://uzstock.uz/uz/market?utm_source=telegram" in idea["uz"]["text"]
+    assert "utm_campaign=mover-" in idea["ru"]["text"] and "/uz/market" not in idea["ru"]["text"]
+    assert idea["uz"]["reason"] == "Aksiyadorlar uchun to‘lov holati muhim."
+    market_store.bulk_upsert_quotes([{**row, "close_price": 39680}])
     assert client.get(url).json()["items"] == []
 
 
@@ -145,3 +144,35 @@ def test_editorial_feedback_survives_batch_and_reaches_generator(monkeypatch, tm
     monkeypatch.setattr(routes, "_stories", lambda: [])
     assert client.put("/api/admin/marketing/posts/12/ru", json=payload).status_code == 409
     assert client.get("/api/admin/marketing/workspace").json()["history"][0]["status"] == "published"
+
+
+def test_real_exchange_movers_replace_unrelated_news(monkeypatch, tmp_path):
+    from catalogue import market_store
+    from server.news import marketing_routes as routes
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "movers.db"))
+    monkeypatch.setitem(api.app.dependency_overrides, _admin_panel_gate, lambda: None)
+    news_store.upsert_news([dict(title="В Ферганской области построят солнечную станцию на 500 МВт",
+        published_at=datetime.now(timezone.utc).isoformat(), url="https://example.test/solar",
+        source="News", relevant=True, relevance_score=1, impact="high", type="corporate_event")])
+    def quote(ticker, close, prev, quantity, **extra):
+        return dict(isin="ISIN-"+ticker, ticker=ticker, name=ticker, market="STK", trade_date="20261117",
+                    prev_close=prev, close_price=close, quantity=quantity, turnover=close*quantity) | extra
+    rows = [quote("NGQS",47616,39680,27), quote("ORGS",12787.2,10656,1), quote("UZINP",4800,5800,206581),
+            quote("SMALL",0.015,0.014,170), quote("OTHER",105,100,50), quote("SIXTH",101,100,1),
+            quote("BOND",200,100,5,market="BND"), quote("FLAT",50,50,1), quote("CARRY",500,100,0),
+            quote("OLD",200,100,5,trade_date="20261116"), quote("NOBASE",500,None,5)]
+    market_store.bulk_upsert_quotes(rows)
+    client=TestClient(api.app)
+    ideas=client.get("/api/admin/marketing").json()["items"]
+    assert [i["ticker"] for i in ideas]==["NGQS","UZINP","ORGS","SMALL","OTHER"]
+    assert len({i["id"] for i in ideas})==5
+    assert ideas[0]["id"]<0
+    for lang in ("ru","uz"):
+        assert "NGQS +20%" in ideas[0][lang]["text"] and "UZINP −17,24%" in ideas[1][lang]["text"]
+        assert "2026-11-17" in ideas[0][lang]["text"] and "39 680" in ideas[0][lang]["text"]
+        assert "0,015" in ideas[3][lang]["text"] and "0,014" in ideas[3][lang]["text"]
+    assert "/uz/market?" in ideas[0]["uz"]["text"]
+    assert [s["id"] for s in routes.candidates()["stories"]] == [i["id"] for i in ideas]
+    market_store.bulk_upsert_quotes([quote("NEW",100,None,1,trade_date="20261118")])
+    assert client.get("/api/admin/marketing").json()["items"] == []
+    assert routes.candidates()["stories"] == []

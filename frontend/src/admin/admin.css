@@ -799,3 +799,6 @@
 .marketing-table :is(th,td) { padding: 8px; text-align: end; border-bottom: 1px solid var(--border); }
 .marketing-table :is(th,td):first-child { text-align: start; }
 .marketing-module aside { margin-top: 12px; }
+.marketing-movers { display: flex; gap: 8px; flex-wrap: wrap; }
+.marketing-movers button { font-variant-numeric: tabular-nums; }
+.marketing-movers [aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }

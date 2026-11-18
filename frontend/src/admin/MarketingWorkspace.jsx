@@ -75,6 +75,52 @@ function Weekly({report, t}) {
   </section>;
 }
 
+function WeeklyPromotion({apiFetch, language, t, onApproval}) {
+  const [idea, setIdea] = useState(null);
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(()=>{
+    let live=true;
+    setError(false);
+    marketingRequest(apiFetch,"/weekly-idea","POST",{language}).then(result=>{
+      if(live) setIdea(result);
+    }).catch(()=>{if(live) setError(true);});
+    return ()=>{live=false;};
+  },[apiFetch,language,attempt]);
+  async function decide(action) {
+    setBusy(true);
+    setError(false);
+    try {
+      const result=await marketingRequest(apiFetch,"/weekly-idea/"+idea.week+"/"+action,"POST",{});
+      setIdea(result);
+      if(result.status==="approved") onApproval();
+    } catch { setError(true); }
+    finally { setBusy(false); }
+  }
+  const title=t("Что продвигать на этой неделе","Bu hafta nimani targ‘ib qilish kerak","What to promote this week");
+  const evidence=idea?.evidence;
+  return <section className="panel marketing-module" aria-label={title}>
+    <h3>{title}</h3>
+    {error ? <p role="alert">{t("Предложение недоступно.","Taklif hozir mavjud emas.","Suggestion unavailable.")}
+      <button className="admin-btn" onClick={()=>setAttempt(n=>n+1)}>{t("Повторить","Qayta urinish","Retry")}</button></p>
+      : !idea ? <p role="status">{t("Изучаем активность за неделю…","Haftalik faollik o‘rganilmoqda…","Reviewing last week’s activity…")}</p>
+      : idea.status==="empty" ? <p>{t("За прошлую неделю недостаточно данных для предложения.","O‘tgan hafta bo‘yicha taklif uchun ma’lumot yetarli emas.","Last week’s visits do not yet support a suggestion.")}</p>
+      : evidence && <>
+        <h4 lang={idea.language}>{idea.goal}</h4>
+        <p>{t(`За неделю с ${idea.since} в ${evidence.reached} из ${evidence.visits} визитов на ${evidence.source} затем открыли ${evidence.target}.`,
+          `${idea.since} dan boshlangan haftada ${evidence.source} sahifasiga ${evidence.visits} tashrifdan ${evidence.reached} tasida keyin ${evidence.target} ochilgan.`,
+          `In the week starting ${idea.since}, ${evidence.reached} of ${evidence.visits} visits to ${evidence.source} went on to ${evidence.target}.`)}</p>
+        <div lang={idea.language}><strong>{idea.plan.channel}</strong> · {idea.plan.audience}
+          <ul>{idea.plan.schedule.map((line,i)=><li key={i}>{line}</li>)}</ul></div>
+        {idea.status==="suggested" ? <div className="marketing-actions">
+          <button className="admin-btn accent" disabled={busy} onClick={()=>decide("approve")}>{t("Утвердить предложение","Taklifni tasdiqlash","Approve suggestion")}</button>
+          <button className="admin-btn" disabled={busy} onClick={()=>decide("dismiss")}>{t("Отклонить","Rad etish","Dismiss")}</button>
+        </div> : <p role="status">{idea.status==="approved" ? statusName(t,"approved") : t("Отклонено","Rad etildi","Dismissed")}</p>}
+      </>}
+  </section>;
+}
+
 export function MarketingWorkspace({t, apiFetch, language, refresh}) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
@@ -100,6 +146,7 @@ export function MarketingWorkspace({t, apiFetch, language, refresh}) {
     finally {setLoading(false);}
   }
   return <div className="marketing-workspace">
+    <WeeklyPromotion {...{apiFetch,language,t}} onApproval={()=>retry(n=>n+1)}/>
     {error && <div role="alert">{t("Не удалось выполнить запрос. Проверьте данные и повторите.","So‘rov bajarilmadi. Ma’lumotni tekshiring va qayta urining.","Request failed. Check your entries and try again.")}
       <button className="admin-btn" onClick={()=>retry(v=>v+1)}>{t("Обновить","Yangilash","Refresh")}</button></div>}
     {data && <>

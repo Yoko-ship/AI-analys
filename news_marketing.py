@@ -5,6 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field
 MAX_PITCHES = 5
 
 
+def campaign_tag(story_id, edition):
+    kind = "mover" if story_id < 0 else "news"
+    return f"{kind}-{abs(story_id)}-{edition}"
+
+
 class PostCopy(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     headline: str = Field(min_length=1, max_length=200)

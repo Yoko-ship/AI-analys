@@ -723,6 +723,13 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             drafts TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS marketing_movers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_day TEXT NOT NULL, isin TEXT NOT NULL, UNIQUE(session_day,isin)
+        );
+        CREATE TABLE IF NOT EXISTS marketing_weekly_ideas (
+            week TEXT PRIMARY KEY, content TEXT NOT NULL, status TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS marketing_decisions (
             story_id INTEGER NOT NULL, edition TEXT NOT NULL, revision TEXT NOT NULL,
             title TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, reason TEXT NOT NULL,

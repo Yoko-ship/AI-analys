@@ -52,3 +52,45 @@ def test_report_counts_sessions_paths_returns_and_avoids_premature_winners():
     assert compare([True]*9, [False]*9) == "collecting"
     assert compare([True]*100, [False]*100) == "a"
     assert compare([True]*50+[False]*50, [True]*51+[False]*49) == "inconclusive"
+
+
+def test_weekly_promotion_uses_observed_journey_and_respects_decision(desk, monkeypatch):
+    from server.news import marketing_workspace_routes as workspace
+    plan = dict(audience="Readers of market quotes", channel="Telegram", destination="/heatmap",
+                schedule=["Monday: show how to compare sectors using the heatmap."])
+    calls=[]
+    class Model:
+        def complete_json(self, system, user, **kwargs):
+            calls.append(user)
+            assert "21" in user and "3" in user and "/heatmap" in user
+            return plan
+    monkeypatch.setattr(workspace,"get_classifier_client",lambda:Model())
+    monkeypatch.setattr(workspace,"promotion_signal",lambda *args:dict(source="/market",target="/heatmap",visits=21,reached=3),raising=False)
+    path=BASE+"/weekly-idea"
+    response=desk.post(path,json={"language":"en"})
+    assert response.status_code == 200
+    idea=response.json()
+    assert idea["status"]=="suggested" and idea["plan"]==plan and idea["evidence"]["reached"]==3
+    assert desk.post(path,json={"language":"en"}).json()==idea and len(calls)==1
+    action=path+"/"+idea["week"]
+    assert desk.post(action+"/approve").json()["status"]=="approved"
+    assert desk.post(action+"/approve").json()["status"]=="approved"
+    records=desk.get(BASE+"/workspace").json()["plans"]
+    assert len(records)==1 and records[0]["status"]=="approved" and "/heatmap?" in records[0]["link"]
+    assert desk.post(action+"/dismiss").status_code==409
+
+
+def test_weekly_promotion_handles_no_evidence_and_dismissal(desk, monkeypatch):
+    from server.news import marketing_workspace_routes as workspace
+    path=BASE+"/weekly-idea"
+    monkeypatch.setattr(workspace,"promotion_signal",lambda *args:None,raising=False)
+    assert desk.post(path,json={"language":"en"}).json()["status"]=="empty"
+    monkeypatch.setattr(workspace,"promotion_signal",lambda *args:dict(source="/news",target="/issuers",visits=9,reached=1))
+    class Model:
+        def complete_json(self,*args,**kwargs):
+            return dict(audience="Readers",channel="Telegram",destination="/issuers",schedule=["Monday: compare issuers"])
+    monkeypatch.setattr(workspace,"get_classifier_client",lambda:Model())
+    idea=desk.post(path,json={"language":"en"}).json()
+    assert desk.post(path+"/"+idea["week"]+"/dismiss").json()["status"]=="dismissed"
+    assert desk.post(path,json={"language":"ru"}).json()["status"]=="dismissed"
+    assert not desk.get(BASE+"/workspace").json()["plans"]

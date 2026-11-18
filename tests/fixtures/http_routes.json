@@ -1,5 +1,45 @@
 [
   {
+    "path": "/api/admin/marketing/weekly-idea",
+    "methods": [
+      "POST"
+    ],
+    "name": "weekly_idea",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/marketing/weekly-idea/{week}/{action}",
+    "methods": [
+      "POST"
+    ],
+    "name": "decide_weekly_idea",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/weekly-idea",
+    "methods": [
+      "POST"
+    ],
+    "name": "weekly_idea__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/weekly-idea/{week}/{action}",
+    "methods": [
+      "POST"
+    ],
+    "name": "decide_weekly_idea__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
     "path": "/api/admin/marketing/posts/{story_id}/{edition}",
     "methods": [
       "PUT"

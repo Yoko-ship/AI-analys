@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MarketingWorkspace, marketingRequest, statusName } from "./MarketingWorkspace.jsx";
 import { Skeleton } from "./AdminWidgets.jsx";
 
-function PostEditor({ idea, edition, t, apiFetch, onDecision }) {
+function PostEditor({ idea, edition, t, apiFetch, onDecision, active }) {
   const [edits, setEdits] = useState({});
   const [notice, setNotice] = useState(null);
   const field = useRef(null);
@@ -31,6 +31,7 @@ function PostEditor({ idea, edition, t, apiFetch, onDecision }) {
     }
   }
 
+  if (!active) return null;
   const message = notice?.edition === edition && notice.draft === draft && (
     notice.copied
       ? t("Скопировано", "Nusxalandi", "Copied")
@@ -77,6 +78,7 @@ export function MarketingSection({ apiFetch, language, t }) {
   const [edition, setEdition] = useState(language === "uz" ? "uz" : "ru");
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
+  const [selected, setSelected] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [refresh,setRefresh] = useState(0);
   function onDecision(id, edition, text, decision) {
@@ -98,9 +100,10 @@ export function MarketingSection({ apiFetch, language, t }) {
     })();
     return () => { current = false; };
   }, [apiFetch, attempt]);
+  const active = data?.find(item=>item.id===selected) ?? data?.[0];
   return <section className="admin-section marketing-desk">
     <header className="marketing-toolbar">
-      <h2>{t("Идеи постов на сегодня", "Bugungi post g‘oyalari", "Today’s post ideas")}</h2>
+      <h2>{t("Движение акций", "Aksiyalar narxidagi o‘zgarishlar", "Stock movers")}</h2>
       <div className="admin-seg" role="group" aria-label={t("Язык поста", "Post tili", "Post language")}>
         {[["uz", "O‘zbekcha"], ["ru", "Русский"]].map(([code, name]) =>
           <button type="button" key={code} lang={code} aria-pressed={edition === code}
@@ -112,11 +115,17 @@ export function MarketingSection({ apiFetch, language, t }) {
       <button type="button" className="admin-btn" onClick={() => setAttempt(n => n + 1)}>
         {t("Повторить", "Qayta urinish", "Retry")}
       </button>
-    </div> : !data ? <Skeleton rows={3} /> : data.length ? data.map(idea =>
-      <PostEditor key={idea.id} idea={idea} edition={edition} {...{t,apiFetch,onDecision}} />)
-      : <p className="admin-muted">{t("Пока нет свежих постов. Идеи обновляются после сбора новостей.",
-        "Hozircha yangi post yo‘q. G‘oyalar yangiliklar yig‘ilgach yangilanadi.",
-        "No recent posts are ready. Ideas refresh after news collection.")}</p>}
+    </div> : !data ? <Skeleton rows={3} /> : active ? <>
+      {data.length>1 && <div className="marketing-movers" role="group" aria-label={t("Выбрать акцию","Aksiya tanlash","Choose a stock")}>
+        {data.map(item=><button type="button" className="admin-btn" key={item.id} aria-pressed={active.id===item.id}
+          onClick={()=>setSelected(item.id)}>{item.title}</button>)}
+      </div>}
+      {data.map(idea=><PostEditor key={idea.id+":"+idea.source_revision} active={active.id===idea.id}
+        {...{idea,edition,t,apiFetch,onDecision}} />)}
+    </>
+      : <p className="admin-muted">{t("За последнюю сессию нет подтверждённых изменений цены акций.",
+        "So‘nggi sessiya uchun tasdiqlangan aksiya narxi o‘zgarishlari yo‘q.",
+        "No verified stock price moves are available for the latest trading session.")}</p>}
     <MarketingWorkspace {...{t,apiFetch,language,refresh}}/>
   </section>;
 }

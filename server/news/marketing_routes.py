@@ -1,6 +1,5 @@
 """Private editorial drafts, tied to the published source and its current text."""
 from contextlib import closing
-from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from typing import Literal
@@ -10,10 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 
 import news_lang
-import news_store
+from server.news import market_movers
 from server.news import marketing_workspace_routes as workspace
 from catalogue.storage import get_catalog_conn
-from news_marketing import Pitches
+from news_marketing import Pitches, campaign_tag
 from server.auth.access import _admin_panel_gate, _require_admin
 from server.seo.routes import SITE_URL, localized
 
@@ -28,23 +27,7 @@ class Submission(Pitches):
 
 
 def _stories():
-    now = datetime.now(timezone.utc)
-    result = []
-    for item in news_store.get_news_feed(limit=60, days=3):
-        try:
-            stamp = datetime.fromisoformat(item["published_at"] or "")
-        except ValueError:
-            continue
-        if not stamp.tzinfo:
-            stamp = stamp.replace(tzinfo=timezone.utc)
-        if not now - timedelta(days=2) <= stamp <= now:
-            continue
-        story = {key: item[key] for key in ("id", "title", "source", "url", "published_at")}
-        story["snippet"] = (item.get("snippet") or "")[:1800]
-        result.append(story)
-        if len(result) == 12:
-            break
-    return result
+    return market_movers.stories(SITE_URL, post_link)
 
 
 def _revision(data):
@@ -67,8 +50,8 @@ def _valid_copy(copy, lang):
 
 
 def post_link(story_id, edition):
-    path = localized(f"/news/{story_id}", edition)
-    return f"{SITE_URL}{path}?utm_source=telegram&utm_medium=social&utm_campaign=news-{story_id}-{edition}"
+    path = localized("/market" if story_id < 0 else f"/news/{story_id}", edition)
+    return f"{SITE_URL}{path}?utm_source=telegram&utm_medium=social&utm_campaign={campaign_tag(story_id, edition)}"
 
 
 def verified_pitches(pitches, stories):
@@ -84,7 +67,8 @@ def verified_pitches(pitches, stories):
         for lang, cta in (("ru", "Читайте на UZStock"), ("uz", "UZStock’da o‘qing")):
             copy = getattr(pitch, lang)
             link = post_link(pitch.id, lang)
-            idea[lang] = {"reason": copy.reason, "text": f"{copy.headline}\n\n{copy.body}\n\n{cta}\n{link}"}
+            text = story[lang]["text"] if "ticker" in story else f"{copy.headline}\n\n{copy.body}\n\n{cta}\n{link}"
+            idea[lang] = {"reason": copy.reason, "text": text}
         result.append(idea)
         del by_id[pitch.id]
     return result
@@ -95,7 +79,10 @@ def candidates():
     stories = _stories()
     revision = _revision(stories)
     saved = _snapshot()
-    return {"feedback": workspace.feedback(), "revision": revision, "stories": [] if saved and saved["revision"] == revision else stories}
+    fields = ("id", "title", "snippet", "published_at", "source", "url")
+    candidates = [] if saved and saved["revision"] == revision else [
+        {k: story[k] for k in fields} for story in stories]
+    return {"feedback": workspace.feedback(), "revision": revision, "stories": candidates}
 
 
 @router.post("/candidates", dependencies=[Depends(_require_admin)])
@@ -116,10 +103,15 @@ def save(submission: Submission):
 @router.get("", dependencies=[Depends(_admin_panel_gate)])
 def desk():
     saved = _snapshot()
-    if not saved:
-        return {"items": []}
-    current = {_revision(story) for story in _stories()}
-    return {"items": workspace.decisions([idea for idea in json.loads(saved["drafts"]) if idea["source_revision"] in current])}
+    enriched = {idea["source_revision"]: idea for idea in json.loads(saved["drafts"])} if saved else {}
+    ideas = []
+    for story in _stories():
+        revision = _revision(story)
+        if revision in enriched:
+            ideas.append(enriched[revision])
+        elif "ticker" in story:
+            ideas.append({**story, "source_revision": revision})
+    return {"items": workspace.decisions(ideas)}
 
 
 @router.put("/posts/{story_id}/{edition}", dependencies=[Depends(_admin_panel_gate)])

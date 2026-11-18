@@ -104,3 +104,29 @@ def measurements(tags, experiments):
             a, b = (cohort[tag] for tag in arms)
             trials[experiment["id"]] = dict(result=compare(a,b), a=[sum(a),len(a)], b=[sum(b),len(b)])
     return dict(available=True, since=week.isoformat(), until=now.isoformat(), weekly=weekly, trials=trials)
+
+
+def promotion_signal(since, until):
+    """Compare follow-on journeys within the same session in the completed week."""
+    with analytics._conn() as conn:
+        analytics._scope(conn, until)
+        row = conn.execute("""
+            WITH pages AS (
+                SELECT visitor_id, session_id, ts, regexp_replace(path, '^/(uz|en)/', '/') AS path
+                FROM ev WHERE event='pageview' AND ts >= %s AND ts < %s
+            ), journeys AS (
+                SELECT visitor_id, session_id,
+                       MIN(ts) FILTER (WHERE path='/market') AS market,
+                       MAX(ts) FILTER (WHERE path='/heatmap') AS heatmap,
+                       MIN(ts) FILTER (WHERE path='/news' OR path LIKE '/news/%%') AS news,
+                       MAX(ts) FILTER (WHERE path='/issuers') AS issuers
+                FROM pages GROUP BY visitor_id, session_id
+            ), opportunities AS (
+                SELECT '/market' AS source, '/heatmap' AS target, COUNT(market) AS visits,
+                       COUNT(*) FILTER (WHERE heatmap > market) AS reached FROM journeys
+                UNION ALL
+                SELECT '/news','/issuers', COUNT(news), COUNT(*) FILTER (WHERE issuers > news) FROM journeys
+            ) SELECT * FROM opportunities WHERE visits > reached
+              ORDER BY (visits-reached) DESC, visits DESC, source LIMIT 1
+        """, (since, until)).fetchone()
+    return dict(row) if row else None
