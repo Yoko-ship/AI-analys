@@ -53,15 +53,29 @@ def configure(directory: Path, *, health: dict | None = None) -> None:
     _write(news_path, news)
 
 
+def planner_env(directory: Path) -> None:
+    news = _read(directory / "news-collector.env")
+    provider = news.get("NEWS_AI_PROVIDER", "codex").lower()
+    prefix = "NEWS_CODEX_" if provider == "codex" else "NEWS_CLAUDE_"
+    secret = "CODEX_GATEWAY_SECRET" if provider == "codex" else "CLAUDE_GATEWAY_SECRET"
+    settings = {key: news[key] for key in (secret, *(prefix + suffix for suffix in
+                ("MODEL", "FALLBACK_MODEL", "GATEWAY_URL", "REASONING", "EFFORT", "TIMEOUT"))) if key in news}
+    settings["NEWS_AI_PROVIDER"] = provider
+    _write(directory / "marketing-planner.env", settings)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
     parser.add_argument('--health-stdin', action='store_true', help='Apply the gateway login check from stdin')
+    parser.add_argument('--planner-env', action='store_true', help='Export only the planner gateway and model settings')
     args = parser.parse_args()
     try:
         health = json.load(sys.stdin) if args.health_stdin else None
         if args.health_stdin and not isinstance(health, dict):
             raise ValueError('Gateway health must be a JSON object')
         configure(args.directory, health=health)
+        if args.planner_env:
+            planner_env(args.directory)
     except ValueError as exc:
         parser.exit(1, f'{exc}\n')

@@ -1,5 +1,121 @@
 [
   {
+    "path": "/api/admin/marketing/posts/{story_id}/{edition}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "decide_post",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/marketing/plans",
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_plan",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/marketing/plans/{key}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "edit_plan",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/marketing/experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_experiment",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/admin/marketing/workspace",
+    "methods": [
+      "GET"
+    ],
+    "name": "workspace_report",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/campaigns/{key}/visit",
+    "methods": [
+      "GET"
+    ],
+    "name": "trial_visit",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/admin/marketing/posts/{story_id}/{edition}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "decide_post__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/plans",
+    "methods": [
+      "POST"
+    ],
+    "name": "generate_plan__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/plans/{key}",
+    "methods": [
+      "PUT"
+    ],
+    "name": "edit_plan__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/experiments",
+    "methods": [
+      "POST"
+    ],
+    "name": "create_experiment__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/workspace",
+    "methods": [
+      "GET"
+    ],
+    "name": "workspace_report__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/campaigns/{key}/visit",
+    "methods": [
+      "GET"
+    ],
+    "name": "trial_visit__v2",
+    "dependencies": []
+  },
+  {
     "path": "/api/admin/marketing/candidates",
     "methods": [
       "GET"
@@ -61,15 +177,23 @@
   },
   {
     "path": "/api/company/{ticker}/shareholders",
-    "methods": ["GET"],
+    "methods": [
+      "GET"
+    ],
     "name": "api_company_shareholders",
-    "dependencies": ["_require_admin_user"]
+    "dependencies": [
+      "_require_admin_user"
+    ]
   },
   {
     "path": "/api/v2/company/{ticker}/shareholders",
-    "methods": ["GET"],
+    "methods": [
+      "GET"
+    ],
     "name": "api_company_shareholders__v2",
-    "dependencies": ["_require_admin_user"]
+    "dependencies": [
+      "_require_admin_user"
+    ]
   },
   {
     "path": "/api/v1/issuers/{issuer_id}/profile",

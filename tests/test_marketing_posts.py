@@ -111,3 +111,37 @@ def test_mixed_script_word_in_uzbek_edition_is_rejected():
     assert verified_pitches([pitch], [story]) == []
     pitch.uz.headline = headline.replace("hisobлади", "hisobladi")
     assert len(verified_pitches([pitch], [story])) == 1
+
+def test_editorial_feedback_survives_batch_and_reaches_generator(monkeypatch, tmp_path):
+    from collectors.news import marketing
+    from server.news import marketing_routes as routes
+    import json
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "feedback.db"))
+    monkeypatch.setenv("ADMIN_API_SECRET", "qa-secret")
+    monkeypatch.setitem(api.app.dependency_overrides, _admin_panel_gate, lambda: None)
+    story = dict(id=12, title="Дивиденд", snippet="100 сумов", published_at="today", url="https://example.test", source="Filing")
+    monkeypatch.setattr(routes, "_stories", lambda: [story])
+    text = "Дивиденд\nhttps://uzstock.uz/news/12?utm_source=telegram&utm_medium=social&utm_campaign=news-12-ru"
+    item = {**story, "source_revision":routes._revision(story), "ru":{"text":text}, "uz":{"text":"UZ"}}
+    from contextlib import closing
+    with closing(routes.get_catalog_conn()) as conn, conn:
+        conn.execute("INSERT INTO news_marketing VALUES(1, ?, ?)", ("old", json.dumps([item])))
+    client = TestClient(api.app)
+    payload = dict(status="published", text="Редактор добавил сумму.\n" + text, reason="Specific dividend amount", source_revision=item["source_revision"])
+    wrong = dict(payload, text=text.replace("/news/12", "/unrelated"))
+    assert client.put("/api/admin/marketing/posts/12/ru", json=wrong).status_code == 422
+    resp = client.put("/api/admin/marketing/posts/12/ru", json=payload)
+    assert resp.status_code == 200
+    saved = client.get("/api/admin/marketing").json()["items"][0]
+    assert saved["ru"]["decision"]["reason"] == payload["reason"]
+    feedback = client.get("/api/admin/marketing/candidates",headers={"X-Admin-Secret":"qa-secret"}).json()["feedback"]
+    assert "Редактор добавил сумму." in feedback[0]["editor_copy"]
+    class Model:
+        def complete_json(self, system, user, **kwargs):
+            assert payload["reason"] in user and story["title"] in user
+            return {"items":[]}
+    monkeypatch.setattr(marketing, "get_classifier_client", lambda: Model())
+    assert marketing.generate([story], None, feedback) == []
+    monkeypatch.setattr(routes, "_stories", lambda: [])
+    assert client.put("/api/admin/marketing/posts/12/ru", json=payload).status_code == 409
+    assert client.get("/api/admin/marketing/workspace").json()["history"][0]["status"] == "published"

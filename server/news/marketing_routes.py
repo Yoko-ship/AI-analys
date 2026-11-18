@@ -3,6 +3,7 @@ from contextlib import closing
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+from typing import Literal
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,12 +11,16 @@ from pydantic import Field
 
 import news_lang
 import news_store
+from server.news import marketing_workspace_routes as workspace
 from catalogue.storage import get_catalog_conn
 from news_marketing import Pitches
 from server.auth.access import _admin_panel_gate, _require_admin
 from server.seo.routes import SITE_URL, localized
 
 router = APIRouter(prefix="/api/admin/marketing")
+
+
+router.include_router(workspace.private)
 
 
 class Submission(Pitches):
@@ -61,6 +66,11 @@ def _valid_copy(copy, lang):
     return True
 
 
+def post_link(story_id, edition):
+    path = localized(f"/news/{story_id}", edition)
+    return f"{SITE_URL}{path}?utm_source=telegram&utm_medium=social&utm_campaign=news-{story_id}-{edition}"
+
+
 def verified_pitches(pitches, stories):
     by_id = {story["id"]: story for story in stories}
     result = []
@@ -73,8 +83,7 @@ def verified_pitches(pitches, stories):
         idea = {**story, "excerpt": pitch.excerpt, "source_revision": _revision(story)}
         for lang, cta in (("ru", "Читайте на UZStock"), ("uz", "UZStock’da o‘qing")):
             copy = getattr(pitch, lang)
-            path = localized(f"/news/{pitch.id}", lang)
-            link = f"{SITE_URL}{path}?utm_source=telegram&utm_medium=social&utm_campaign=news-{pitch.id}-{lang}"
+            link = post_link(pitch.id, lang)
             idea[lang] = {"reason": copy.reason, "text": f"{copy.headline}\n\n{copy.body}\n\n{cta}\n{link}"}
         result.append(idea)
         del by_id[pitch.id]
@@ -86,7 +95,7 @@ def candidates():
     stories = _stories()
     revision = _revision(stories)
     saved = _snapshot()
-    return {"revision": revision, "stories": [] if saved and saved["revision"] == revision else stories}
+    return {"feedback": workspace.feedback(), "revision": revision, "stories": [] if saved and saved["revision"] == revision else stories}
 
 
 @router.post("/candidates", dependencies=[Depends(_require_admin)])
@@ -110,4 +119,23 @@ def desk():
     if not saved:
         return {"items": []}
     current = {_revision(story) for story in _stories()}
-    return {"items": [idea for idea in json.loads(saved["drafts"]) if idea["source_revision"] in current]}
+    return {"items": workspace.decisions([idea for idea in json.loads(saved["drafts"]) if idea["source_revision"] in current])}
+
+
+@router.put("/posts/{story_id}/{edition}", dependencies=[Depends(_admin_panel_gate)])
+def decide_post(story_id: int, edition: Literal["ru", "uz"], decision: workspace.Decision):
+    idea = next((i for i in desk()["items"] if i["id"] == story_id), None)
+    if not idea or idea["source_revision"] != decision.source_revision:
+        raise HTTPException(409, "Source has changed. Refresh the drafts.")
+    link = post_link(story_id, edition)
+    if decision.status == "published" and link not in (line.strip() for line in decision.text.splitlines()):
+        raise HTTPException(422, "Keep the tracking link in the published post.")
+    now = workspace.stamp()
+    with closing(get_catalog_conn()) as conn, conn:
+        conn.execute("""INSERT INTO marketing_decisions(story_id,edition,revision,title,status,body,reason,updated,published)
+                        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(story_id,edition) DO UPDATE SET
+                        revision=excluded.revision,title=excluded.title,status=excluded.status,body=excluded.body,
+                        reason=excluded.reason,updated=excluded.updated,published=COALESCE(marketing_decisions.published,excluded.published)""",
+                     (story_id, edition, decision.source_revision, idea["title"], decision.status, decision.text,
+                      decision.reason.strip(), now, now if decision.status=="published" else None))
+    return {"status":decision.status, "reason":decision.reason.strip()}

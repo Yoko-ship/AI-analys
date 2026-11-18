@@ -723,6 +723,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             drafts TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS marketing_decisions (
+            story_id INTEGER NOT NULL, edition TEXT NOT NULL, revision TEXT NOT NULL,
+            title TEXT NOT NULL, status TEXT NOT NULL, body TEXT NOT NULL, reason TEXT NOT NULL,
+            updated TEXT NOT NULL, published TEXT,
+            PRIMARY KEY(story_id, edition)
+        );
+        CREATE TABLE IF NOT EXISTS marketing_plans (
+            id TEXT PRIMARY KEY, goal TEXT NOT NULL, content TEXT NOT NULL,
+            status TEXT NOT NULL, created TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS marketing_experiments (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, a TEXT NOT NULL, b TEXT NOT NULL, created TEXT NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_news_source    ON news(source_id);
 
 

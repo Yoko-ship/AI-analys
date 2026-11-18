@@ -72,3 +72,18 @@ def test_selected_codex_without_login_fails_deployment_without_rewriting_setting
     assert result.returncode != 0
     assert 'not logged in' in result.stderr
     assert news.read_text() == original
+
+
+def test_web_planner_receives_only_its_gateway_and_model_settings(tmp_path):
+    from scripts.configure_news_codex import planner_env
+    (tmp_path / "news-collector.env").write_text(
+        "NEWS_AI_PROVIDER=codex\nNEWS_CODEX_REASONING=medium\nNEWS_CODEX_MODEL=gpt-6.1-terra\n"
+        "CODEX_GATEWAY_SECRET=unit-secret\nNEWS_CODEX_GATEWAY_URL=http://example.test\n"
+        "ADMIN_API_SECRET=collector-only\nCLAUDE_GATEWAY_SECRET=other-provider\n")
+    planner_env(tmp_path)
+    path = tmp_path / "marketing-planner.env"
+    config = read_env(path)
+    assert config["NEWS_CODEX_REASONING"] == "medium" and config["NEWS_CODEX_MODEL"] == "gpt-6.1-terra"
+    assert config["CODEX_GATEWAY_SECRET"] == "unit-secret"
+    assert "ADMIN_API_SECRET" not in config and "CLAUDE_GATEWAY_SECRET" not in config
+    assert path.stat().st_mode & 0o077 == 0

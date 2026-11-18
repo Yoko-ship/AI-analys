@@ -919,12 +919,14 @@ jobs:
               gosu appuser touch /app/data/.uzstock-write-test
               rm -f /app/data/.uzstock-write-test
             '
+          python3 /root/uzstock/app/scripts/configure_news_codex.py /root/uzstock --planner-env
           docker rm -f uzstock-web >/dev/null 2>&1 || true
           docker run -d \
             --name uzstock-web \
             --restart unless-stopped \
             --network uzstock-internal \
             --env-file /root/uzstock/app/.env \
+            --env-file /root/uzstock/marketing-planner.env \
             -e ADMIN_CONTROL_WORKER=0 \
             -p 127.0.0.1:8001:8000 \
             -v uzstock_data:/app/data \

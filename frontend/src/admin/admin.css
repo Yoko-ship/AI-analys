@@ -780,3 +780,22 @@
   .marketing-evidence { border-inline-start: 0; border-top: 1px solid var(--border); padding: 16px 0 0; }
   .marketing-copy textarea { font-size: 16px; }
 }
+
+.marketing-workspace { display: grid; gap: 16px; min-width: 0; }
+.marketing-module { padding: 20px; min-width: 0; }
+.marketing-module h3, .marketing-record h4 { margin: 0 0 10px; }
+.marketing-module p { color: var(--muted); }
+.marketing-module form, .marketing-module fieldset, .marketing-module label { display: grid; gap: 8px; }
+.marketing-module fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+.marketing-module form > button { justify-self: start; }
+.marketing-module input, .marketing-module textarea, .marketing-module select, .marketing-copy input {
+  font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px; min-width: 0; width: 100%; box-sizing: border-box;
+}
+.marketing-copy .marketing-actions + label { margin-top: 14px; }
+.marketing-record { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 14px; overflow-wrap: anywhere; }
+.marketing-table { overflow-x: auto; }
+.marketing-table table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.marketing-table :is(th,td) { padding: 8px; text-align: end; border-bottom: 1px solid var(--border); }
+.marketing-table :is(th,td):first-child { text-align: start; }
+.marketing-module aside { margin-top: 12px; }
