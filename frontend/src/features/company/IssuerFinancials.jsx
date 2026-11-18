@@ -4,6 +4,7 @@ import { CompanyFinancialsTab } from "./Financials.jsx";
 import { financialsUrl } from '../../lib/financialHistoryRequest.js';
 import { financialDisplaySeries } from '../../lib/financialDisplayScale.js';
 import { InvestorView } from './investor/InvestorView.jsx';
+import { CurrencySelect } from '../../shared/CurrencySelect.jsx';
 
 // The Финансы tab together with the data behind it. The company page and the
 // catalog terminal (PL / BS / RAT) both open it, so it owns its own requests:
@@ -136,7 +137,9 @@ function LegacyIssuerFinancials({ isAdmin = false, ticker, lang, ratios, standar
   const t=(ru,uz,en)=>lang === "uz" ? uz : lang === "en" ? en : ru;
   return (
     <div data-currency={currency} data-terminal-ticker={ticker} data-terminal-standard={standard} data-terminal-scope={scope||series?.scope||"separate"} data-terminal-function={section==="balance"?"BS":"PL"}>
-    <div className="terminal-controls"><label>{t("Валюта","Valyuta","Currency")}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option>UZS</option><option>USD</option></select></label></div>
+    <div className="terminal-controls">
+      <CurrencySelect label={t("Валюта","Valyuta","Currency")} lang={lang} value={currency} onChange={setCurrency} />
+    </div>
     {currency === "USD" && isAdmin && <p className="terminal-fx-rates fin-note muted" role="status">
       {fxLoading ? t("Загрузка курсов…", "Kurslar yuklanmoqda…", "Loading rates…") : <>
         {t("Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.",

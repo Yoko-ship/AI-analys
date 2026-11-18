@@ -5,6 +5,7 @@ import {periodEnd} from '../../../lib/terminalCurrency.js';
 import {useScreenData} from './TerminalPanels.jsx';
 import {financialsUrl} from '../../../lib/financialHistoryRequest.js';
 import {reportPeriodLabel,reportDateLabel,reportScopeLabel} from '../../../lib/reportingLabels.js';
+import {CurrencySelect} from '../../../shared/CurrencySelect.jsx';
 
 function AnnualChart({rows,fields,stacked=false,title,fmt,divisor,unit,missingLabel}) {
   const host=React.useRef(null),tooltipId=React.useId();
@@ -119,7 +120,10 @@ export function SummaryHistory({ticker,form,scope,lang,kind,fromYear}) {
   const balanceTitle=t('Структура баланса по годам','Yillar bo‘yicha balans tarkibi','Annual balance structure');
   const gaps=rows.filter(row=>!row.published).map(row=>row.period);
   return <section className="terminal-summary-history" data-currency={currency}>
-    <div className="terminal-controls"><label>{t('Валюта графиков','Grafiklar valyutasi','Chart currency')}<select value={currency} onChange={e=>setCurrency(e.target.value)}><option value="UZS">{t('Сумы','So‘m','Uzbek som')}</option><option value="USD">{t('Доллары США','AQSH dollari','US dollars')}</option></select></label><span className="terminal-report-context">{reportScopeLabel(scope,lang)}</span></div>
+    <div className="terminal-controls">
+      <CurrencySelect label={t('Валюта графиков','Grafiklar valyutasi','Chart currency')} lang={lang} value={currency} onChange={setCurrency} />
+      <span className="terminal-report-context">{reportScopeLabel(scope,lang)}</span>
+    </div>
     {current&&<p className="terminal-report-context">{t('Последние данные','So‘nggi ma’lumotlar','Latest figures')}: {reportPeriodLabel(current.period,lang)}. {t('Баланс на','Balans sanasi','Balance as of')} {reportDateLabel(periodEnd(current.period),lang).replace(/\.$/,'')}.</p>}
     {currentError&&<p role="alert">{t('Не удалось загрузить текущий отчёт.','Joriy hisobot yuklanmadi.','Could not load the current report.')}</p>}
     {currency==='USD'&&<details className="terminal-fx-rates"><summary>{t('Курсы ЦБ на конец каждого периода','Har davr oxiridagi MB kursi','CBU rates at each period end')}</summary>{rates.loading?<p role="status">{t('Загрузка курсов…','Kurslar yuklanmoqda…','Loading rates…')}</p>:<ul>{periods.map(period=><li key={period}>{periodEnd(period)} · {fx[period]?`1 USD = ${fmt(fx[period].per_unit)} UZS (${fx[period].effective_date})`:t('Курс отсутствует — суммы скрыты','Kurs yo‘q — summalar yashirildi','Rate missing — amounts unavailable')}</li>)}</ul>}</details>}

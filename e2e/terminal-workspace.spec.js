@@ -35,6 +35,11 @@ async function run(page, text) {
   await page.locator('.terminal-command').getByRole("combobox").press("Enter");
 }
 
+async function chooseCurrency(page, name) {
+  await page.getByRole('combobox', {name: 'Валюта', exact: true}).click();
+  await page.getByRole('option', {name, exact: true}).click();
+}
+
 for (const [ticker,expected] of [['CBSK','0,18 ×'],['QATT','0,09 ×']])
 for (const width of [1440, 390]) test(`${ticker} verified debt remains visible despite an unrelated profit discrepancy (${width}px)`, async ({page},testInfo) => {
   await page.setViewportSize({width,height:1000});
@@ -503,7 +508,27 @@ test("PL converts each year at its own CBU closing rate with a brief summary and
   });
   await run(page,'AGBA PL');
   await page.getByText('Ранее опубликованные показатели', { exact: true }).click();
-  await page.getByLabel('Валюта').selectOption('USD');
+  const currency = page.getByRole('combobox', {name: 'Валюта', exact: true});
+  const badge = currency.locator('img');
+  await expect(currency).toHaveText('UZS');
+  await expect(badge).toBeVisible();
+  await expect.poll(() => badge.evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+  const emblem = await badge.getAttribute('src');
+  await currency.press('Enter');
+  const som = page.getByRole('option', {name: 'Узбекский сум', exact: true});
+  const dollar = page.getByRole('option', {name: 'Доллар США', exact: true});
+  await expect(som).toHaveAttribute('aria-selected', 'true');
+  await expect(som.locator('img')).toHaveAttribute('src', emblem);
+  await expect(dollar.locator('img')).toBeVisible();
+  await expect.poll(() => dollar.locator('img').evaluate(img => img.naturalWidth)).toBeGreaterThan(0);
+  const franklin = await dollar.locator('img').getAttribute('src');
+  expect(franklin).not.toBe(emblem);
+  await page.keyboard.press('ArrowDown');
+  await expect(dollar).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(currency).toBeFocused();
+  await expect(currency).toHaveText('USD');
+  await expect(badge).toHaveAttribute('src', franklin);
   const summary = page.locator('.terminal-fx-rates');
   await expect(summary).toHaveText('Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.');
   await expect(summary.locator('a, ul, li, summary')).toHaveCount(0);
@@ -521,15 +546,16 @@ test("PL converts each year at its own CBU closing rate with a brief summary and
   expect((await summary.boundingBox()).height).toBeLessThan(100);
   await page.screenshot({path:testInfo.outputPath('fx-summary-mobile.png')});
   await page.goto('/company/AGBA?tab=financials');
-  await page.getByLabel('Валюта').selectOption('USD');
+  await chooseCurrency(page, 'Доллар США');
   await expect(summary).toHaveText('Пересчёт в USD — по курсу ЦБ на конец каждого отчётного периода.');
   await expect(summary.locator('a, ul, li, summary')).toHaveCount(0);
   await summary.scrollIntoViewIfNeeded();
   await page.screenshot({path:testInfo.outputPath('company-fx-summary-mobile.png')});
-  await page.getByLabel('Валюта').selectOption('UZS');
+  await chooseCurrency(page, 'Узбекский сум');
+  await expect(badge).toHaveAttribute('src', emblem);
   await expect(summary).toHaveCount(0);
   missingRate = true;
-  await page.getByLabel('Валюта').selectOption('USD');
+  await chooseCurrency(page, 'Доллар США');
   await expect(summary).toContainText('Нет курса для 1 из 2 периодов — суммы за них скрыты.');
 });
 
@@ -806,7 +832,7 @@ for (const [role,user,admin] of [['guest',null,false],['member',{id:2},false],['
   await expect.soft(page.getByRole('heading',{name:admin?'Мультипликатор':'Оценка',exact:true})).toBeVisible();
   await expect.soft(page.getByRole('heading',{name:admin?'Оценка':'Мультипликатор',exact:true})).toHaveCount(0);
   await page.goto('/company/AGBA?tab=financials');
-  await page.getByLabel('Валюта').selectOption('USD');
+  await chooseCurrency(page, 'Доллар США');
   const rates=page.locator('.terminal-fx-rates');
   if(admin){
     await expect(rates).toContainText('Пересчёт в USD');

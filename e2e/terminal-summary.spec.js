@@ -60,8 +60,9 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(sum.locator('.terminal-summary-kpis')).toContainText('январь–июнь 2026');
   await expect(page.locator('.terminal-analytics')).not.toContainText(/catalog_sector|sector-analysis-3\.0|Шаблон:|industry|separate/);
   await expect(sum.locator('.terminal-summary-history')).toContainText('Последние данные: январь–июнь 2026. Баланс на 30 июня 2026 г.');
-  await expect(sum.getByLabel('Валюта графиков')).toHaveValue('UZS');
-  await expect(sum.getByLabel('Валюта графиков').locator('option:checked')).toHaveText('Сумы');
+  const currency = sum.getByRole('combobox', {name: 'Валюта графиков'});
+  await expect(currency).toHaveText('UZS');
+  await expect(currency.locator('img')).toBeVisible();
   await expect(sum.locator('.terminal-summary-charts')).toContainText('млрд сумов');
   await expect(sum.getByRole('heading',{name:'Вывод',exact:true})).toBeVisible();
   await expect(sum.getByRole('heading',{name:'Риски и что смотреть',exact:true})).toBeVisible();
@@ -117,8 +118,9 @@ test('SUM shows sourced KPIs, conclusion, risks and annual charts with honest ga
   await expect(page.locator('.catalog-report-section')).toHaveCount(0);
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   await page.screenshot({path:testInfo.outputPath('sum-desktop.png'),fullPage:true,animations:'disabled'});
-  await sum.getByLabel('Валюта графиков').selectOption('USD');
-  await expect(sum.getByLabel('Валюта графиков').locator('option:checked')).toHaveText('Доллары США');
+  await currency.click();
+  await page.getByRole('option', {name: 'Доллар США', exact: true}).click();
+  await expect(currency).toHaveText('USD');
   await expect(sum.locator('.terminal-summary-charts')).toContainText('млн долларов');
   await expect(sum.locator('.terminal-fx-rates')).toContainText('2025-12-31');
   await expect(sum.locator('.terminal-fx-rates')).toContainText('2026-06-30');
