@@ -349,6 +349,8 @@ function Detail({ ev, cal, ctx, onOpenCompany, onOpenAnnouncement, onOpenNews })
 
 export function NewsCalendarView({ language, securitiesMap, onOpenCompany, onOpenAnnouncement, onOpenNews }) {
   const cal = useNewsCalendar({ language });
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const filtersId = React.useId();
   const { lang, tx, locale, view, setView, range, setRange, move, goToday, types, toggleType, setTypes,
     company, setCompany, resetFilters, filtered, events, visible, selected, setSelected, anchor, today } = cal;
   const forms = (NEWS_TX[lang] || NEWS_TX.ru).forms || {};
@@ -396,39 +398,49 @@ export function NewsCalendarView({ language, securitiesMap, onOpenCompany, onOpe
       </div>
 
       <div className="newscal-filters">
-        <div className="newscal-types" role="group" aria-label={tx.d.type}>
-          <button type="button" className={`newscal-type all${types.size === EVENT_TYPES.length ? " on" : ""}`}
-            aria-pressed={types.size === EVENT_TYPES.length} onClick={() => setTypes(new Set(EVENT_TYPES))}>
-            {tx.allTypes}
-          </button>
-          {EVENT_TYPES.map((t) => (
-            <button key={t} type="button" className={`newscal-type ev-${t}${types.has(t) ? " on" : ""}`}
-              aria-pressed={types.has(t)} onClick={() => toggleType(t)}>
-              <TypeDot type={t} />{tx.types[t]}
-              <span className="newscal-type-n">{counts[t] || 0}</span>
+        <button type="button" className={`newscal-type all newscal-filters-toggle${filtered ? " on" : ""}`}
+          aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen((open) => !open)}>
+          {tx.allTypes}
+          {types.size !== EVENT_TYPES.length && <span className="newscal-type-n" aria-hidden="true">{types.size}/{EVENT_TYPES.length}</span>}
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <div id={filtersId} className="newscal-filter-panel" hidden={!filtersOpen}>
+          <div className="newscal-types" role="group" aria-label={tx.d.type}>
+            <button type="button" className={`newscal-type all${types.size === EVENT_TYPES.length ? " on" : ""}`}
+              aria-pressed={types.size === EVENT_TYPES.length} onClick={() => setTypes(new Set(EVENT_TYPES))}>
+              {tx.allTypes}
             </button>
-          ))}
-        </div>
-        <div className="newscal-filter-row">
-          <input className="newscal-search" type="search" value={company} list="newscal-companies"
-            placeholder={tx.companyPh} aria-label={tx.d.company} onChange={(e) => setCompany(e.target.value)} />
-          <datalist id="newscal-companies">
-            {options.map((o) => <option key={o.ticker || o.name} value={o.ticker || o.name}>{o.name}</option>)}
-          </datalist>
-          {view !== 'tiles' && <><label className="newscal-range">
-            <span>{tx.from}</span>
-            <input type="date" value={range.from} aria-label={tx.from}
-              onChange={(e) => e.target.value && setRange({ from: e.target.value })} />
-          </label>
-          <label className="newscal-range">
-            <span>{tx.to}</span>
-            <input type="date" value={range.to} aria-label={tx.to}
-              onChange={(e) => e.target.value && setRange({ to: e.target.value })} />
-          </label></>}
-          {filtered && <button type="button" className="ghost-btn" onClick={resetFilters}>{tx.resetFilters}</button>}
-          {view === "list" && visible.length > 0 && (
-            <button type="button" className="ghost-btn" onClick={downloadCsv}>{tx.download}</button>
-          )}
+            {EVENT_TYPES.map((t) => (
+              <button key={t} type="button" className={`newscal-type ev-${t}${types.has(t) ? " on" : ""}`}
+                aria-pressed={types.has(t)} onClick={() => toggleType(t)}>
+                <TypeDot type={t} />{tx.types[t]}
+                <span className="newscal-type-n">{counts[t] || 0}</span>
+              </button>
+            ))}
+          </div>
+          <div className="newscal-filter-row">
+            <input className="newscal-search" type="search" value={company} list="newscal-companies"
+              placeholder={tx.companyPh} aria-label={tx.d.company} onChange={(e) => setCompany(e.target.value)} />
+            <datalist id="newscal-companies">
+              {options.map((o) => <option key={o.ticker || o.name} value={o.ticker || o.name}>{o.name}</option>)}
+            </datalist>
+            {view !== 'tiles' && <><label className="newscal-range">
+              <span>{tx.from}</span>
+              <input type="date" value={range.from} aria-label={tx.from}
+                onChange={(e) => e.target.value && setRange({ from: e.target.value })} />
+            </label>
+            <label className="newscal-range">
+              <span>{tx.to}</span>
+              <input type="date" value={range.to} aria-label={tx.to}
+                onChange={(e) => e.target.value && setRange({ to: e.target.value })} />
+            </label></>}
+            {filtered && <button type="button" className="ghost-btn" onClick={resetFilters}>{tx.resetFilters}</button>}
+            {view === "list" && visible.length > 0 && (
+              <button type="button" className="ghost-btn" onClick={downloadCsv}>{tx.download}</button>
+            )}
+          </div>
         </div>
       </div>
 

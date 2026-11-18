@@ -512,6 +512,7 @@ test("a dividend event shows its amounts, and filters narrow the calendar", asyn
 
   const rows = page.locator(".newscal-list .newscal-row");
   await expect(rows).toHaveCount(4);
+  await page.getByRole("button", { name: "Все типы", exact: true }).click();
   await page.locator(".newscal-type.ev-meeting").click();
   await expect(rows).toHaveCount(2);
   await page.locator(".newscal-search").fill("bngpp");

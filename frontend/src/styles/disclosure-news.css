@@ -156,6 +156,10 @@ body[data-theme="dark"] .led .newscal {
 .led .newscal-toggle-btn { appearance: none; border: 0; background: none; font-size: 12.5px; font-weight: 600; padding: 6px 15px; color: var(--muted); cursor: pointer; transition: all .12s ease; }
 .led .newscal-toggle-btn.active { background: var(--accent); color: #fff; }
 .led .newscal-filters { display: flex; flex-direction: column; gap: 10px; margin: 0 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2, var(--panel)); }
+.led .newscal-filters-toggle { align-self: flex-start; }
+.led .newscal-filters-toggle svg { transition: transform .12s ease; }
+.led .newscal-filters-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.led .newscal-filter-panel:not([hidden]) { display: flex; flex-direction: column; gap: 10px; }
 .led .newscal-types { display: flex; flex-wrap: wrap; gap: 6px; }
 .led .newscal-type { appearance: none; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--panel); color: var(--muted); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all .12s ease; }

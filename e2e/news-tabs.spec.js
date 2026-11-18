@@ -254,6 +254,56 @@ async function openTileCalendar(page, path = '/news?tab=calendar') {
   await page.goto(path);
 }
 
+for (const [width, path, label] of [
+  [390, '/news?tab=calendar', 'Все типы'],
+  [1440, '/news?tab=calendar', 'Все типы'],
+  [390, '/uz/news?tab=calendar', 'Barcha turlar'],
+]) test(`calendar reveals all filters on demand at ${width}px in ${path}`, async ({page}, info) => {
+  await page.setViewportSize({width, height:1000});
+  await openTileCalendar(page, path);
+  const trigger = page.locator('.newscal-filters-toggle');
+  const types = page.locator('.newscal-types');
+  const search = page.locator('.newscal-search');
+  const board = page.locator('.newscal-tiles');
+  await expect(trigger).toHaveAccessibleName(label);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(types).toBeHidden();
+  await expect(search).toBeHidden();
+  await trigger.press('Enter');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  const panel = page.locator(`[id="${await trigger.getAttribute('aria-controls')}"]`);
+  await expect(panel).toBeVisible();
+  await expect(types.locator('.newscal-type')).toHaveCount(7);
+  await expect(types.locator('.newscal-type-n')).toHaveText(['24', '0', '1', '0', '0', '0']);
+  await expect(search).toBeVisible();
+  await types.locator('button.ev-meeting').click();
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(1);
+  await trigger.click();
+  await expect(panel).toBeHidden();
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(1);
+  await trigger.press('Space');
+  await expect(types.locator('button.ev-meeting')).toHaveAttribute('aria-pressed', 'false');
+  await types.getByRole('button', {name:label, exact:true}).click();
+  await search.fill('HMKB');
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(20);
+  await trigger.click();
+  await trigger.click();
+  await expect(search).toHaveValue('HMKB');
+  await panel.locator('.newscal-filter-row .ghost-btn').click();
+  await expect(search).toHaveValue('');
+  await expect(board.locator('.newscal-event-tile')).toHaveCount(22);
+  // Date controls belong to the same disclosure in the list view.
+  await page.locator('.newscal-toggle-btn').last().click();
+  await expect(panel.locator('input[type="date"]')).toHaveCount(2);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(t => { document.documentElement.dataset.theme = document.body.dataset.theme = t; }, theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({path:info.outputPath(`calendar-filters-${theme}.png`), fullPage:true});
+  }
+  await trigger.click();
+  await expect(panel.locator('input[type="date"]').first()).toBeHidden();
+});
+
 for (const width of [390,705,1440]) test(`calendar defaults to weekly issuer tiles at ${width}px`,async({page},info)=>{
   await page.setViewportSize({width,height:1000});
   await openTileCalendar(page);
@@ -290,6 +340,7 @@ for (const width of [390,705,1440]) test(`calendar defaults to weekly issuer til
     }
     await page.screenshot({path:info.outputPath(`calendar-tiles-${width}-${theme}.png`),fullPage:true});
   }
+  await page.getByRole('button',{name:'Все типы',exact:true}).click();
   await page.locator('.newscal-search').fill('UZMK');
   await expect(board.locator('.newscal-event-tile')).toHaveCount(1);
   await page.getByRole('button',{name:'Сбросить фильтры',exact:true}).click();
