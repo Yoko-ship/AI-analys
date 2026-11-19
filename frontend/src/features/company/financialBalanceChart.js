@@ -31,12 +31,14 @@ const EQUITY_LINES = {
   INSURANCE_BS: {share_capital: '500', share_premium: '510', reserve_capital: '520', treasury_shares: '530',
     retained_earnings: '540', target_receipts: '550', future_expense_reserves: '560'},
 };
+const RECONCILIATION_TOLERANCE_UZS = 1_000_000;
 
 function compare(rows, comparator) {
   const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
   const difference = sum - comparator.value;
   const roundingError = Number.EPSILON * Math.max(Math.abs(comparator.value), Math.abs(sum)) * rows.length;
-  return {rows, comparator, sum, difference, roundingError};
+  const tolerance = RECONCILIATION_TOLERANCE_UZS / DISPLAY_SCALES.get(comparator.unit) + roundingError;
+  return {rows, comparator, sum, difference, tolerance};
 }
 
 function composition(rows, comparator, mismatch = null) {
@@ -59,9 +61,11 @@ function composition(rows, comparator, mismatch = null) {
 
   const comparison = compare(rows, comparator);
   if (!Number.isFinite(comparison.sum)) return panel('overflow');
-  if (mismatch && Math.abs(comparison.difference) > comparison.roundingError) return panel(mismatch, {comparison});
+  if (mismatch && (Math.abs(comparison.difference) > comparison.tolerance || (total > 0 && comparison.sum === 0))) {
+    return panel(mismatch, {comparison});
+  }
   if (total === 0) return panel('zero');
-  if (comparison.difference > comparison.roundingError) return panel('inconsistent', {comparison});
+  if (comparison.difference > comparison.tolerance) return panel('inconsistent', {comparison});
   return panel();
 }
 
@@ -109,7 +113,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const current = components.filter(row => ASSET_LINES[totalAssets.form][row.metric_id] > boundary);
     for (const [index, items] of [noncurrent, current].entries()) {
       const calculation = compare(items, sections[index]);
-      if (calculation.difference > calculation.roundingError) {
+      if (calculation.difference > calculation.tolerance) {
         assets.reason = 'asset_section_overrun';
         assets.total = null;
         assets.comparison = calculation;
@@ -117,7 +121,8 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
       }
     }
   }
-  if (!assets.reason) {
+  // A shortfall between two filed sections is already covered by reconciliation.
+  if (!assets.reason && (!hasSections || components.length)) {
     const difference = totalAssets.value - assetRows.reduce((sum, row) => sum + row.value, 0);
     const roundingError = Number.EPSILON * Math.abs(totalAssets.value) * assetRows.length;
     if (difference > roundingError) assets.rows = [...assetRows, {

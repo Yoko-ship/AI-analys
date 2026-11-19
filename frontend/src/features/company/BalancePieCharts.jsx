@@ -84,8 +84,11 @@ function PiePanel({id, title, data, period, ticker, format, t}) {
   const [selection, setSelection] = React.useState(null);
   const inspected = selection?.period === period.key ? selection.metric : null;
   const setInspected = metric => setSelection({period: period.key, metric});
+  const sliceTotal = data.reason ? 0 : data.rows.reduce((sum, row) => sum + row.value, 0);
+  const shareOf = row => row.value / sliceTotal;
+  const percent = row => `${format(shareOf(row) * 100)}%`;
   const amount = row => row.value == null || !row.unit ? format(row.value) : `${format(row.value)} ${unitLabel(row.unit, t)}`;
-  const describe = row => `${label(row, t)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
+  const describe = row => `${label(row, t)} · ${period.label} · ${amount(row)} · ${percent(row)}`;
   const active = data.rows.find(row => row.metric_id === inspected);
   let angle = -Math.PI / 2;
   return <div className="fc-chart-plot fc-balance-pie" data-balance-chart={id}>
@@ -103,7 +106,7 @@ function PiePanel({id, title, data, period, ticker, format, t}) {
       <svg viewBox="0 0 280 280" role="img" aria-label={`${title} · ${period.label} · Pie chart`}>
         {data.rows.map((row, index) => {
           if (!row.value) return null;
-          const share = row.value / data.total;
+          const share = shareOf(row);
           const path = piePath(angle, share);
           angle += share * Math.PI * 2;
           return <path key={row.metric_id} d={path} fill={COLORS[index % COLORS.length]}
@@ -121,7 +124,7 @@ function PiePanel({id, title, data, period, ticker, format, t}) {
         data-balance-value={row.metric_id} style={{'--series-color': COLORS[index % COLORS.length]}}>
         <button type="button" aria-pressed={inspected === row.metric_id} onClick={() => setInspected(row.metric_id)}
           onFocus={() => setInspected(row.metric_id)} disabled={Boolean(data.reason) || row.value === 0}>
-          <span>{label(row, t)}</span><strong>{amount(row)}{!data.reason && <small>{format(row.value / data.total * 100)}%</small>}</strong>
+          <span>{label(row, t)}</span><strong>{amount(row)}{!data.reason && <small>{percent(row)}</small>}</strong>
         </button>
       </li>)}</ul>
     </details>
