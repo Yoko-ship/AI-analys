@@ -45,26 +45,37 @@ describe("market data shared by the board, company, chart and landing", () => {
   });
 
   it("preserves quote changes while using matching session totals", () => {
-    const [row] = prepareMarketRows([quote()], { UZ0001: trades() });
-    assert.equal(row.lastPrice, 120);
+    // UQEQ closed at 30,720 on 31 July against 25,600 on 30 July.
+    const [row] = prepareMarketRows([quote({ ticker: "UQEQ", isin: "UZ7042540003",
+      last_price: 30720, close_price: 25600, last_trade_date: "2026-07-31", close_date: "2026-07-30",
+      volume: null, quantity: null, trade_count: null })], {
+      UZ7042540003: trades({ trade_date: "20260731", total_value: 30720, total_qty: 1,
+        trade_count: 1, avg_price: 30720, vwap: 30720 }),
+    });
+    assert.equal(row.lastPrice, 30720);
     assert.equal(row.changePercent, 20);
-    assert.equal(row.stockVolume, 1234);
-    assert.equal(row.stockQuantity, 10);
-    assert.equal(row.stockTradeCount, 3);
-    assert.equal(row.vwap, 123.4);
+    assert.equal(row.stockVolume, 30720);
+    assert.equal(row.stockQuantity, 1);
+    assert.equal(row.stockTradeCount, 1);
+    assert.equal(row.vwap, 30720);
     assert.equal(row.tone, "good");
+    assert.equal(row.tradedToday, true);
   });
 
   it("uses the newest previous close rather than publishing a two-session move", () => {
-    const [row] = prepareMarketRows([quote({ last_price: 37200, close_price: 31000,
-      last_trade_date: "2026-08-06", close_date: "2026-08-05" })], {
-      UZ0001: trades({ close_price: 37200, open_price: 37200, high_price: 37200, low_price: 37200 }),
+    const [row] = prepareMarketRows([quote({ ticker: "UQEQ", isin: "UZ7042540003",
+      last_price: 37200, close_price: 31000, last_trade_date: "2026-08-06", close_date: "2026-08-05",
+      volume: 0, quantity: 0, trade_count: 0 })], {
+      UZ7042540003: trades({ trade_date: "20260807", close_price: 37200, open_price: 37200,
+        high_price: 37200, low_price: 37200, total_value: 37200, total_qty: 1, trade_count: 1,
+        avg_price: 37200, vwap: 37200 }),
     });
     assert.equal(row.changePercent, 0);
     assert.equal(row.closePrice, 37200);
     assert.equal(row.close_price, 37200);
-    assert.equal(row.last_trade_date, "2026-08-14");
+    assert.equal(row.last_trade_date, "2026-08-07");
     assert.equal(row.tone, "neutral");
+    assert.equal(row.tradedToday, true);
   });
 
   it("keeps an older negotiated deal visible without contaminating newer auction totals", () => {
@@ -86,16 +97,30 @@ describe("market data shared by the board, company, chart and landing", () => {
     assert.equal(row.last_trade_date, "2026-08-13");
     assert.equal(row.stockVolume, 240);
     assert.equal(row.nego.value, 55000);
+    assert.equal(row.tradedToday, false);
   });
 
-  it("does not publish a stale quote change when newer trades have no usable price", () => {
-    const [row] = prepareMarketRows([quote({ last_trade_date: "2026-08-13" })], {
-      UZ0001: trades({ avg_price: null, vwap: null, close_price: null }),
+  for (const day of ["2026-08-13", null]) {
+    it(`does not use the quote change when current trades have no price and the quote date is ${day}`, () => {
+      const [row] = prepareMarketRows([quote({ last_trade_date: day })], {
+        UZ0001: trades({ avg_price: null, vwap: null, close_price: null }),
+      });
+      assert.equal(row.changeValue, null);
+      assert.equal(row.changePercent, null);
+      assert.equal(row.stockVolume, 1234);
+      assert.equal(row.tone, "neutral");
+      assert.equal(row.tradedToday, true);
     });
-    assert.equal(row.changeValue, null);
+  }
+
+  it("recognizes regular trades even when the comparison price is missing", () => {
+    const [row] = prepareMarketRows([quote({ last_price: null, close_price: null,
+      volume: null, quantity: null, trade_count: null })], {
+      UZ0001: trades({ close_price: 120 }),
+    });
+    assert.equal(row.lastPrice, 120);
     assert.equal(row.changePercent, null);
-    assert.equal(row.stockVolume, 1234);
-    assert.equal(row.tone, "neutral");
+    assert.equal(row.tradedToday, true);
   });
 
   it("uses the board-wide latest session and accepts lowercase ISINs", () => {
@@ -105,6 +130,7 @@ describe("market data shared by the board, company, chart and landing", () => {
     });
     assert.equal(row.stockVolume, 1234);
     assert.equal(row.lastPrice, 120, "an older statistic must not restate the latest session price");
+    assert.equal(row.tradedToday, false);
   });
 
   it("handles missing statistics and empty inputs", () => {
@@ -163,6 +189,7 @@ describe("audit of 12.10.2026", () => {
     assert.equal(becmp.changeValue, null);
     assert.equal(becmp.changePercent, null);
     assert.equal(becmp.tone, "neutral");
+    assert.equal(becmp.tradedToday, false);
     assert.equal(becmp.lastPrice, 28000, "the price itself still stands");
   });
 

@@ -44,10 +44,7 @@ function enrichMarketStock(stock) {
     sharesOutstanding: safeNumber(stock?.shares_outstanding) || null,
     changeValue: change.value,
     changePercent: change.percent,
-    // Did this security trade in the session the board is showing? The
-    // exchange carries a close forward through sessions with no executions, so
-    // last == prev proves nothing on its own — a security CAN trade and close
-    // exactly flat, and that is a real 0 %. Only activity separates the two.
+    // Quote activity is checked against the market session after reconciliation.
     tradedToday: (safeNumber(stock?.trade_count) || 0) > 0
       || (safeNumber(stock?.volume) || 0) > 0
       || (safeNumber(stock?.quantity) || 0) > 0,
@@ -61,6 +58,10 @@ function latestTradeStatsDay(tmap) {
     const d = String(t?.trade_date || "");
     return /^\d{8}$/.test(d) && (!m || d > m) ? d : m;
   }, null);
+}
+
+function hasRegularTrades(stats) {
+  return stats?.trade_count > 0 || stats?.total_qty > 0;
 }
 
 // Reconcile ONE enriched board row against the stored per-trade day statistics.
@@ -111,7 +112,7 @@ function applyTradeStats(r, tmap, latestTsDay) {
   // bulletin says nothing traded, so its zeros must not replace the row's own
   // last real session, and its price must not become the row's close. The
   // deal stays reachable through `ts.block_value` for its own line on the card.
-  if (!(t.trade_count > 0) && !(t.total_qty > 0)) return out;
+  if (!hasRegularTrades(t)) return out;
   if (Number.isFinite(t.total_value)) out.stockVolume = t.total_value;
   if (Number.isFinite(t.total_qty)) out.stockQuantity = t.total_qty;
   if (Number.isFinite(t.trade_count)) out.stockTradeCount = t.trade_count;
@@ -168,11 +169,9 @@ function applyTradeStats(r, tmap, latestTsDay) {
         out.changePercent = null;
       }
       out.tone = marketTone(out.changePercent);
-    } else if (rowDay && rowDay < tsDay) {
-      // The stats put this row in a session the quote layer has not reached,
-      // and carry no price to restate it with. Whatever change the quote holds
-      // belongs to the older session — leaving it in place is how a stale move
-      // gets published under today's date, which is the whole defect above.
+    } else if (rowDay !== tsDay) {
+      // The stats confirm activity, but only a quote dated to this session
+      // can supply its price change when the stats carry no price.
       out.changeValue = null;
       out.changePercent = null;
       out.tone = marketTone(null);
@@ -186,10 +185,14 @@ function applyTradeStats(r, tmap, latestTsDay) {
 // printed here it read as today's — 17 rows on 12.10.2026, BECMP's 09.10 move
 // among them, and ORFI's 2021 one at −54 %, past any limit the exchange allows.
 // The period columns are anchored the same way (see /api/market/changes).
-function withoutStaleChange(row, marketDay) {
+function alignSession(row, marketDay) {
   const day = normalizeMarketDay(row.last_trade_date);
-  if (!marketDay || !day || day >= marketDay || row.changePercent === null) return row;
-  return { ...row, changeValue: null, changePercent: null, tone: marketTone(null) };
+  const staleQuote = marketDay && day && day < marketDay;
+  const sessionTrades = marketDay && normalizeMarketDay(row.ts?.trade_date) === marketDay
+    && hasRegularTrades(row.ts);
+  const tradedToday = Boolean(sessionTrades || (!staleQuote && row.tradedToday));
+  if (!staleQuote) return { ...row, tradedToday };
+  return { ...row, tradedToday, changeValue: null, changePercent: null, tone: marketTone(null) };
 }
 
 /** Prepare independent display rows without changing the source snapshots. */
@@ -203,5 +206,5 @@ export function prepareMarketRows(rows, tradeStats = {}) {
     const d = normalizeMarketDay(r.last_trade_date);
     return d && (!m || d > m) ? d : m;
   }, latestDay);
-  return prepared.map((row) => withoutStaleChange(row, marketDay));
+  return prepared.map((row) => alignSession(row, marketDay));
 }

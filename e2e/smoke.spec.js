@@ -393,9 +393,10 @@ test("module routing preserves hidden workspace redirects and the bonds alias", 
 test("shared market data keeps the board, company and chart aligned", async ({ page }, testInfo) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
+  await page.addInitScript(() => localStorage.setItem("uz_market_cols_v3", JSON.stringify(["change"])));
   await page.route("**/api/market/stocks**", route => route.fulfill({ json: {
     ...STOCKS, stocks: [{ ...STOCKS.stocks[0], last_price: 120, close_price: 100,
-      last_trade_date: "2026-09-24", close_date: "2026-09-23" }],
+      last_trade_date: "2026-09-24", close_date: "2026-09-23", volume: null, quantity: null, trade_count: null }],
   } }));
   await page.route("**/api/market/trade-stats**", route => route.fulfill({ json: {
     ok: true, trade_date: "20260925", stats: { UZ0001: {
@@ -405,7 +406,13 @@ test("shared market data keeps the board, company and chart aligned", async ({ p
   await page.goto("/market");
   const row = page.locator(".market-table-wrap tbody tr").filter({ hasText: "AGBA" }).first();
   await expect(row).toContainText("144");
-  await expect(row).toContainText(/\+20(?:[,.]00)?%/);
+  await expect(row.locator(".market-change-badge")).toContainText(/\+20(?:[,.]00)?%/);
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: /Экспорт CSV/ }).click(),
+  ]);
+  const csv = Buffer.concat(await (await download.createReadStream()).toArray()).toString("utf8");
+  expect(csv.split("\r\n").find(line => line.startsWith("AGBA;"))).toBe("AGBA;AGBA Bank;144;20");
   await page.screenshot({ path: testInfo.outputPath("market.png") });
   await page.goto("/company/AGBA");
   await expect(page.locator(".company-page-price-val")).toHaveText("144 сум");
