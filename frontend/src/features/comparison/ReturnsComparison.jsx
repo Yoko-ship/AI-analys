@@ -90,7 +90,7 @@ export function ReturnsComparison({language='ru',apiFetch=fetch,Picker}) {
             {months.map(({month,selected})=><th scope="col" key={month} className={selected?undefined:'rc-unselected'}>{label(month)}</th>)}
             <th scope="col">{tx('total')}</th></tr></thead>
           <tbody><tr><th scope="row">{year}</th>{months.map(({month,selected})=><td key={month} className={selected?undefined:'rc-unselected'} data-testid={`returns-period-${month}`}>
-            {selected ? cells(month,'months'):<span className="rc-outside" aria-label="—">—</span>}</td>)}
+            {selected ? cells(month,'months'):state.tickers.map((ticker,index)=><span key={ticker} className="rc-outside" aria-hidden={index>0}>—</span>)}</td>)}
             <td data-testid={`returns-period-${year}`}>{cells(year,'years')}</td></tr></tbody>
         </table>;
         }) : <table className="rc-table rc-annual"><caption>{tx('annual')}</caption><thead><tr>{years.map(year=><th scope="col" key={year}>{year}</th>)}</tr></thead>

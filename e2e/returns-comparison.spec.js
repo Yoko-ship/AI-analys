@@ -20,6 +20,30 @@ test.beforeEach(async({page})=>{
   });
 });
 const url='/compare?view=returns&companies=HMKB,IPKY&from=2026-01&to=2026-05';
+const crossYearUrl='/compare?view=returns&companies=HMKB,IPKY&from=2025-12&to=2026-11';
+
+async function expectContinuousGrid(table) {
+  const edges=await table.evaluate(element=>{
+    const cells=Array.from(element.tBodies[0].rows[0].cells);
+    const headers=Array.from(element.tHead.rows[0].cells);
+    const stack=element.querySelector('td:has(button + button)');
+    const rowEdge=stack.firstElementChild.getBoundingClientRect().bottom;
+    const divider=(cell,edge)=>{
+      const style=getComputedStyle(cell);
+      return style[`border${edge}Style`]==='solid' && style[`border${edge}Width`]==='1px' &&
+        style[`border${edge}Color`]!=='rgba(0, 0, 0, 0)';
+    };
+    return {
+      columns:cells.slice(1).every((cell,i)=>cell.getBoundingClientRect().left===cells[i].getBoundingClientRect().right && divider(cells[i],'Right')),
+      headers:headers.every((header,i)=>header.getBoundingClientRect().bottom===cells[i].getBoundingClientRect().top && divider(header,'Bottom') && divider(header,'Right')),
+      rows:Array.from(element.tBodies[0].rows[0].querySelectorAll('td')).every(cell=>{
+        const [first,second]=cell.children;
+        return second && first.getBoundingClientRect().bottom===rowEdge && second.getBoundingClientRect().top===rowEdge && divider(first,'Bottom');
+      }),
+    };
+  });
+  expect.soft(edges).toEqual({columns:true,headers:true,rows:true});
+}
 
 for(const role of ['guest','member','editor']) test(`returns are hidden from ${role}, including direct links`,async({page},info)=>{
   await page.addInitScript(role=>{
@@ -90,7 +114,13 @@ test('selection, empty histories, date validation, keyboard details and phone la
   await page.getByLabel('From month').fill('2026-06');
   await expect(page.getByRole('alert')).toContainText('Start month');
   await page.getByLabel('From month').fill('2026-01');
-  const cell=page.getByTestId('return-HMKB-2026-01'); await cell.focus(); await cell.press('Enter');
+  const cell=page.getByTestId('return-HMKB-2026-01');
+  await expect(cell).toBeEnabled();
+  await page.getByRole('region',{name:'Returns',exact:true}).focus();
+  await page.keyboard.press('Tab');
+  await expect(cell).toBeFocused();
+  await expect(cell).toHaveCSS('outline-style','solid');
+  await cell.press('Enter');
   await expect(page.getByTestId('return-detail')).toContainText('100');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath('returns-phone.png'),fullPage:true,animations:'disabled'});
@@ -125,12 +155,32 @@ test('company page links to its returns and the comparison offers both views',as
 for(const theme of ['dark','light']) test(`heatmap is readable on desktop and phone (${theme})`,async({page},info)=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
-  await page.setViewportSize({width:1440,height:1000});await page.goto(url);
+  await page.route('**/api/price-history/*?**',route=>{
+    const ticker=new URL(route.request().url()).pathname.split('/').pop();
+    const points=[['2025-11-28',histories[ticker][0][1]],...histories[ticker],['2026-09-30',100],['2026-11-18',125]];
+    return route.fulfill({json:{ok:true,ticker,as_of:'2026-11-18',points:points.map(([date,close])=>({date,close})),adjustments:[]}});
+  });
+  await page.setViewportSize({width:1440,height:1000});await page.goto(crossYearUrl);
   await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('+20%');
   await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+  for(const label of ['From month','To month']) {
+    const {width,height}=await page.getByLabel(label).boundingBox();
+    expect.soft(width).toBeLessThan(165);
+    expect.soft(height).toBeLessThan(42);
+  }
+  const tables=page.getByRole('table');
+  for(const year of ['2025','2026']) await expectContinuousGrid(page.getByRole('table',{name:year,exact:true}));
+  const november=page.getByTestId('return-HMKB-2026-11').locator('strong');
+  await expect(november).toHaveText('+25%*†');
+  expect.soft(parseFloat(await november.evaluate(element=>getComputedStyle(element).fontSize))).toBeGreaterThan(11);
   await page.screenshot({path:info.outputPath(`returns-desktop-${theme}.png`),fullPage:true,animations:'disabled'});
   await page.getByRole('button',{name:'Relative',exact:true}).click();
+  await expectContinuousGrid(page.getByRole('table',{name:'2026',exact:true}));
   await page.screenshot({path:info.outputPath(`returns-ranking-${theme}.png`),fullPage:true,animations:'disabled'});
+  await page.getByRole('button',{name:'Annual',exact:true}).click();
+  await expectContinuousGrid(tables);
+  await page.screenshot({path:info.outputPath(`returns-annual-${theme}.png`),fullPage:true,animations:'disabled'});
+  await page.getByRole('button',{name:'Monthly',exact:true}).click();
   await page.setViewportSize({width:390,height:844});
   await page.reload();await expect(page.getByTestId('return-HMKB-2026-01')).toContainText('+20%');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
@@ -170,12 +220,21 @@ test('mode changes reuse history and selection rejects duplicates',async({page})
 
 test('a partial first year shows its selected month immediately on a phone',async({page})=>{
   await page.setViewportSize({width:390,height:844});
-  await page.goto(url.replace('from=2026-01','from=2025-12'));
+  await page.goto(crossYearUrl);
   const december=page.getByTestId('return-HMKB-2025-12');
   await expect(december).toBeVisible();
   const box=await december.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x+box.width).toBeLessThanOrEqual(390);
+  const scroller=page.getByRole('region',{name:'Returns',exact:true});
+  await scroller.evaluate(element=>{element.scrollLeft=element.scrollWidth;});
+  const total=page.getByTestId('return-HMKB-2026');
+  await expect(total).toBeInViewport();
+  const totalBox=await total.boundingBox();
+  const scrollBox=await scroller.boundingBox();
+  expect(totalBox.x).toBeGreaterThan(scrollBox.x);
+  expect(totalBox.x+totalBox.width).toBeLessThanOrEqual(scrollBox.x+scrollBox.width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
 });
 
 for(const [index,invalid] of [
