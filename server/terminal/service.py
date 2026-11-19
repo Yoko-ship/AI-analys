@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+from calendar import monthrange
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import partial
 import logging
+from zoneinfo import ZoneInfo
 
 import catalogue.filings as filings
 import catalogue.organization as organization
@@ -127,7 +129,7 @@ def bank_metrics(bank):
             for kind, fields in BANK_FIELDS.items() for field in fields}
 
 
-async def screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None):
+async def screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None, rv=False):
     """Share simultaneous identical reads, without retaining completed results.
 
     SQLite batches serialize across requests as well as across issuers. The
@@ -141,7 +143,10 @@ async def screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None
         loop._terminal_screener_reads = state
     peer_ticker = peer_ticker.upper() if peer_ticker else None
     selection = {'peer_ticker': peer_ticker} if peer_ticker else {}
-    key = (form, scope, str(year) if year is not None else None, peer_ticker)
+    rv = bool(rv and peer_ticker and year is None)
+    if rv:
+        selection['rv'] = True
+    key = (form, scope, str(year) if year is not None else None, peer_ticker, rv)
     task = state['pending'].get(key)
     if task is None:
         async def build():
@@ -163,7 +168,7 @@ async def _screener_batch(form, scope, year, **selection):
         return await _screener(form, scope, year, **selection)
 
 
-async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None):
+async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=None, rv=False):
     loop = asyncio.get_running_loop()
     central_read = partial(cbu.context,year=year) if year is not None else cbu.context
     if peer_ticker:
@@ -172,6 +177,8 @@ async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=Non
         # FV and RV compare only the same issuer type. Select before loading
         # histories so an industrial issuer never waits for unrelated banks.
         companies = [c for c in companies if c['kind'] == base['kind']] if base else []
+        if rv and base and base['kind'] == 'bank':
+            return await asyncio.to_thread(_current_bank_peers, base, companies, form, scope)
         market, central = {}, {'banks': {}}
         if companies:
             if base['kind'] == 'bank':
@@ -218,6 +225,89 @@ async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=Non
             "standard": form, "scope": scope, "deposit_rate": (central.get("deposit") or {}).get("value"),
             "deposit": central.get("deposit"), "sector_series": central.get("sector_series", {}),
             "as_of": datetime.now(timezone.utc).isoformat()}
+
+
+def _current_bank_peers(base, companies, form, scope):
+    from data_quality import held_public_periods
+    from server.comparison import service as comparison
+
+    now = datetime.now(ZoneInfo("Asia/Tashkent"))
+    reporting_year = now.year
+    standard = "IFRS" if form == "MSFO" else form
+    period, period_end = None, None
+    reporting_status = "MISSING_CURRENT_YEAR"
+    years, rows = set(), []
+    market = market_context()
+    central = cbu.context(year=reporting_year)
+    # Resolve the selected bank's period once, before reading any peers.
+    for company in [base, *(c for c in companies if c["ticker"] != base["ticker"])]:
+        ticker = company["ticker"]
+        selected = ticker == base["ticker"]
+        try:
+            held = set().union(*(held_public_periods(alias, form) for alias in company.get("tickers") or [ticker]))
+            series, published = comparison.read_statement_series(ticker, standard, scope)
+            years.update(p for p in series if p not in held and len(p) == 4 and p.isdigit() and int(p) < reporting_year)
+            if selected:
+                period, period_end = _latest_bank_interim(ticker, standard, scope, series, held, now.date())
+            if not period or period in held:
+                continue
+            context = market.get(ticker) or {}
+            row = _bank_interim_snapshot(ticker, form, scope, period, series, published, held, context)
+            if row is None:
+                continue
+            bank_ratios.enrich_interim(company, row, published, held, period_end)
+            bank = central["banks"].get(ticker, {})
+            dividend = analytics.dividend(dividends.read_snapshot(ticker), context.get("price"))
+            rows.append(explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
+                                         "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct")}))
+            if selected:
+                reporting_status = "AVAILABLE"
+        except Exception:
+            logger.exception("Terminal interim statements unavailable for %s", ticker)
+            if selected:
+                period, period_end = None, None
+                reporting_status = "SOURCE_UNAVAILABLE"
+    return {"ok": True, "rows": rows, "years": sorted(years, reverse=True),
+            "period": period, "reporting_year": reporting_year, "reporting_status": reporting_status,
+            "standard": form, "scope": scope,
+            "sector_series": central.get("sector_series", {}), "as_of": now.isoformat()}
+
+
+def _latest_bank_interim(ticker, standard, scope, series, held, today):
+    from server.comparison.service import exact_statement
+
+    # The current calendar year can only have completed interim periods.
+    for quarter in (3, 2, 1):
+        period = f"{today.year}Q{quarter}"
+        month = quarter * 3
+        end = today.replace(month=month, day=monthrange(today.year, month)[1])
+        if end >= today or period in held:
+            continue
+        current, _ = exact_statement(ticker, period, standard, scope, series)
+        if current:
+            return period, end.isoformat()
+    return None, None
+
+
+def _bank_interim_snapshot(ticker, form, scope, period, series, published, held, market):
+    from server.comparison import service as comparison
+
+    standard = "IFRS" if form == "MSFO" else form
+    current, _ = comparison.exact_statement(ticker, period, standard, scope, series)
+    if not current:
+        return None
+    year, quarter = int(period[:4]), period[4:]
+    references = [str(year - 1), *(f"{year - n}{quarter}" for n in (1, 3, 5))]
+    statements = {period: current}
+    for p in references:
+        if p not in held:
+            statements[p], _ = comparison.exact_statement(ticker, p, standard, scope, series)
+    fields = {key: {"values": {p: comparison.money(statement.get(field)) for p, statement in statements.items()}}
+              for key, field in (("net_profit", "net_income"), ("total_equity", "total_equity"), ("total_assets", "total_assets"))}
+    source = comparison.statement_source(ticker, period, standard, scope, published)
+    data = {"standard": form, "scope": scope, "period_basis": "cumulative_ytd",
+            "series": fields, "period_sources": {period: source}}
+    return analytics.snapshot(data, kind="bank", year=period, market_cap=market.get("market_cap"))
 
 
 async def issuer(ticker, form="NSBU", scope="separate"):

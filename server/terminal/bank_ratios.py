@@ -9,6 +9,32 @@ logger = logging.getLogger(__name__)
 METRICS = ('nim', 'cost_of_risk')
 
 
+def enrich_interim(company, row, published, held, end):
+    """Use the same scoped, YTD source lines as the financial-columns screen."""
+    from financial_columns import observations, ratios, source_store
+
+    ticker = company['ticker']
+    opening_year = str(int(end[:4]) - 1)
+    if opening_year in held:
+        return
+    try:
+        if row['standard'] == 'NSBU':
+            issuer_id = company.get('org_id') or f'ticker:{ticker}'
+            source = observations.nsbu(source_store.read(issuer_id, standard='NSBU', scope=row['scope']))
+        else:
+            source = observations.ifrs(published)
+        dates = {end, f'{opening_year}-12-31'}
+        source = [item for item in source if item['period_end'] in dates]
+        if not source:
+            return
+        observations.check(source)
+        for metric in ratios.calculate(source, ticker=ticker, template='bank', end=end, basis='ytd'):
+            if metric['metric_id'] in METRICS and metric['quality'] in {'valid', 'warn'}:
+                row[metric['metric_id']] = number(metric['value'])
+    except Exception:
+        logger.warning('Bank interim detail unavailable for %s %s', ticker, end, exc_info=True)
+
+
 def enrich(ticker, row, form, scope):
     if row.get('kind') != 'bank' or form != 'NSBU' or scope != 'separate' or not row.get('period'):
         return row

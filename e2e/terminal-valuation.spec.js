@@ -1,6 +1,7 @@
 import { toggleTheme } from './language-control.js';
 import { test, expect } from '@playwright/test';
 import {expectFullWidth} from './helpers/full-width.js';
+import {readDownload} from './helpers/download.js';
 
 const parameters = {key_rate:14,default_spread:3.06,equity_premium:8.89,growth:9.8};
 function valuation(ticker='HMKB', standard='NSBU') {
@@ -63,6 +64,7 @@ test('BIOK FV and RV reuse loaded data and request only the peer universe', asyn
   expect(requests).toHaveLength(1);
   expect(peers).toHaveLength(1);
   expect(peers[0].searchParams.get('peer_ticker')).toBe('BIOK');
+  expect(peers[0].searchParams.get('rv')).toBe('true');
   await tab('RV').click();
   await page.getByRole('combobox',{name:'Reporting year',exact:true}).selectOption('2024');
   await expect.poll(()=>peers.length).toBe(2);
@@ -107,8 +109,7 @@ for(const referenceOnly of [false,true]) test(`FV opens without the assumptions 
   await expect.poll(()=>csvButton.evaluate(el=>getComputedStyle(el,'::before').content)).toBe('none');
   const download=page.waitForEvent('download');
   await fv.getByRole('button',{name:'CSV',exact:true}).click();
-  const {readFile}=await import('node:fs/promises');
-  const csv=await readFile(await (await download).path(),'utf8');
+  const csv=await readDownload(download);
   expect(csv).toContain('UZS/share');
   expect(csv).toContain('No recent ordinary dividend');
   await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
@@ -167,8 +168,7 @@ for(const theme of ['light','dark']) test(`FV details keep wide valuation ranges
   await csv.focus();
   expect(await csv.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');
   const download=page.waitForEvent('download');await csv.press('Enter');
-  const {readFile}=await import('node:fs/promises');
-  const content=await readFile(await (await download).path(),'utf8');
+  const content=await readDownload(download);
   expect(content.replaceAll('\u00a0',' ')).toContain('39 368,08');
   expect(content).toContain('Метод применяется только к банкам');
   for(const width of [2260,768,390]) {

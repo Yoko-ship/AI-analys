@@ -392,16 +392,22 @@ test("REC compares standards and explains different reporting scopes", async({pa
 test("RV compares the selected reporting year and handles missing peers", async({page},testInfo)=>{
   await fixture(page);
   const requests=[];
+  let available=true;
   await page.route('**/api/terminal/screener?**', route=>{
-    const year=new URL(route.request().url()).searchParams.get('year')||'2025';
+    const query=new URL(route.request().url()).searchParams;
+    const interim=query.get('rv')==='true'&&!query.has('year');
+    const year=query.get('year')||(interim?'2026':'2025');
     requests.push(year);
-    const base={kind:'bank',standard:'NSBU',scope:'separate',period:year,years:['2025','2024','2023'],
+    const period=interim?'2026Q3':year;
+    const base={kind:'bank',standard:'NSBU',scope:'separate',period,years:['2025','2024','2023'],
       cbu:year==='2023'?{}:{main:{date:`${year}-12-01`,source_url:`https://cbu.uz/${year}`}},
       cbu_assets_share_pct:year==='2023'?null:year==='2024'?4.2:5.1};
-    return route.fulfill({json:{ok:true,years:['2025','2024','2023'],rows:[
+    return route.fulfill({json:{ok:true,years:['2025','2024','2023'],
+      ...(interim?{reporting_year:2026,period:available?period:null}:{}),
+      rows:interim&&!available?[]:[
       {...base,ticker:'AGBA',roe:year==='2024'?18:20},
       ...(year==='2023'?[]:[{...base,ticker:'ALKB',roe:year==='2024'?14:27}]),
-      {...base,ticker:'WRONG',period:'2022',roe:99},
+      {...base,ticker:'WRONG',period:interim?'2026Q2':'2022',roe:99},
     ]}});
   });
   await run(page,'AGBA RV');
@@ -409,10 +415,15 @@ test("RV compares the selected reporting year and handles missing peers", async(
   const year=screen.getByRole('combobox',{name:'Год отчётности',exact:true});
   const peers=screen.locator('table').first();
   await expect(year).toHaveValue('');
+  await expect(screen).toContainText('2026 Q3 · 9M YTD');
   await expect(peers.locator('tbody tr')).toHaveCount(2);
   await expect(peers.locator('tbody tr').first()).toContainText('AGBA');
   await expect(peers.locator('tbody tr').first().getByRole('cell').first()).toHaveText('20');
   await expect(peers).toContainText('27');
+  const pendingDownload=page.waitForEvent('download');
+  await screen.getByRole('button',{name:'CSV',exact:true}).first().click();
+  const csv=await readDownload(pendingDownload);
+  expect(csv.split(/\r?\n/).filter(line=>/^(AGBA|ALKB|WRONG),/.test(line)).map(line=>line.split(',')[0])).toEqual(['AGBA','ALKB']);
   await year.selectOption('2024');
   await expect(peers).toContainText('14');
   await expect(peers.locator('tbody tr').first().getByRole('cell').first()).toHaveText('18');
@@ -435,6 +446,12 @@ test("RV compares the selected reporting year and handles missing peers", async(
   await expect(peers).toContainText('27');
   await expect(bankCells.first()).toHaveText('5,1');
   await expect(screen.locator('.terminal-bank-sector')).toHaveCount(0);
+  available=false;
+  await page.reload();
+  await expect(screen).toContainText('За 2026 год пока нет сопоставимой отчётности');
+  await expect(screen).not.toContainText('27');
+  await year.selectOption('2025');
+  await expect(peers).toContainText('27');
 });
 for (const [theme, width] of [['light', 1440], ['dark', 390]]) {
   test(`RV includes UZAL before its financial peers and in CSV (${theme}, ${width}px)`, async ({page}, testInfo) => {
@@ -780,7 +797,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep 
     }:sectorSeries,deposit:null}});
   });
   const comparison=page.locator('.terminal-bank-comparison');
-  const sector=comparison.locator('.terminal-bank-sector');
+  const sector=page.locator('.terminal-bank-sector');
   const headers=['Банк','Доля активов, %','Доля кредитов, %','Доля капитала, %','Доля депозитов, %','Кредиты физлиц','Кредиты юрлиц','Депозиты физлиц','Депозиты юрлиц'];
   async function checkFigures(mode) {
     await expect(comparison.getByRole('columnheader')).toHaveText(headers);
@@ -805,6 +822,7 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep 
   }
   await run(page,'EQS');
   await checkFigures('eqs');
+  await expect(comparison.locator('.terminal-bank-sector')).toHaveCount(1);
   const pendingDownload=page.waitForEvent('download');
   await comparison.getByRole('button',{name:'CSV',exact:true}).click();
   const csv=await readDownload(pendingDownload);
@@ -815,6 +833,10 @@ for(const [theme,width] of [['light',1440],['dark',390]]) test(`EQS and RV keep 
   await run(page,'AGBA RV');
   await expect(comparison).toContainText('HMKB');
   await checkFigures('rv');
+  const peerCard=page.locator('.terminal-peer-card');
+  expect((await sector.boundingBox()).y).toBeLessThan((await peerCard.boundingBox()).y);
+  expect((await peerCard.boundingBox()).y).toBeLessThan((await comparison.boundingBox()).y);
+  await expect(sector).toContainText('2026-10-01');
   await page.getByRole('combobox',{name:'Год отчётности',exact:true}).selectOption('2024');
   await expect(sector.locator('dt')).toHaveText(['Достаточность капитала','ROE']);
   await expect(sector.locator('dd')).toHaveText(['0%','—']);

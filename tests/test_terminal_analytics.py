@@ -80,6 +80,33 @@ def test_returns_share_the_existing_average_balance_rule():
     assert analytics.snapshot(data)["roe"] == 25
 
 
+def test_bank_interim_snapshot_requires_ytd_and_matching_opening_balances():
+    # HMKB's filed 9M 2026 profit and year-opening/closing balances, in UZS.
+    data = series({
+        'net_profit': {'2026Q3': 1_480_422_343_000, '2025': 1_704_969_118_000,
+                       '2025Q3': 1_000_000_000_000, '2021Q3': 500_000_000_000},
+        'total_equity': {'2026Q3': 8_185_132_247_000, '2025': 6_704_709_904_000},
+        'total_assets': {'2026Q3': 44_389_278_550_000, '2025': 35_911_649_727_000},
+    }, period_basis='cumulative_ytd')
+    row = analytics.snapshot(data, kind='bank', year='2026Q3', market_cap=10_000_000_000_000)
+    assert row['roe'] == pytest.approx(26.5133295211)
+    assert row['roa'] == pytest.approx(4.9162481672)
+    assert row['pe'] == pytest.approx(10_000_000_000_000 / (1_704_969_118_000 + 1_480_422_343_000 - 1_000_000_000_000))
+    assert row['ep'] == pytest.approx(100 / row['pe'])
+    assert row['cg5'] == pytest.approx(((1_480_422_343 / 500_000_000) ** (1 / 5) - 1) * 100)
+
+    del data['series']['net_profit']['values']['2025Q3']
+    del data['series']['total_equity']['values']['2025']
+    row = analytics.snapshot(data, kind='bank', year='2026Q3', market_cap=10_000_000_000_000)
+    assert row['roe'] is None
+    assert row['roa'] == pytest.approx(4.9162481672)
+    assert row['pe'] is None and row['ep'] is None
+    assert row['metric_reasons']['pe']['code'] == 'MISSING_TTM_EARNINGS'
+    assert row['nim'] is None and row['cost_of_risk'] is None
+    data.pop('period_basis')
+    assert analytics.snapshot(data, kind='bank', year='2026Q3')['roa'] is None
+
+
 def test_annual_bank_screener_nim_uses_shared_average_asset_method():
     data={'periods':['2024','2025'],'series':{'interest_income':{'values':{'2025':100}},'interest_expense':{'values':{'2025':40}},'total_assets':{'values':{'2024':800,'2025':1000}}}}
     row=analytics.snapshot(data,kind='bank')

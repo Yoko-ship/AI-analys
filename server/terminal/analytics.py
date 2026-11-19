@@ -26,9 +26,10 @@ def ratio(numerator, denominator, scale=1):
 
 
 def growth(values, end, years, *, inflation=None, fx=None):
-    start = str(int(end) - years)
-    first, last = number(values.get(start)), number(values.get(str(end)))
-    result = {"start": start, "end": str(end), "years": years, "nominal": None,
+    end = str(end)
+    start = str(int(end[:4]) - years) + end[4:]
+    first, last = number(values.get(start)), number(values.get(end))
+    result = {"start": start, "end": end, "years": years, "nominal": None,
               "real": None, "usd": None, "reason": None}
     if first is None or last is None:
         return {**result, "reason": "MISSING_ENDPOINT"}
@@ -36,6 +37,8 @@ def growth(values, end, years, *, inflation=None, fx=None):
         return {**result, "reason": "NON_POSITIVE_ENDPOINT"}
     factor = last / first
     result["nominal"] = (factor ** (1 / years) - 1) * 100
+    if len(end) > 4:
+        return result
     rates = [number((inflation or {}).get(str(y))) for y in range(int(start) + 1, int(end) + 1)]
     if all(r is not None and r > -100 for r in rates):
         result["real"] = ((factor / math.prod(1 + r / 100 for r in rates)) ** (1 / years) - 1) * 100
@@ -52,26 +55,37 @@ def values(data, field):
 def snapshot(data, *, kind="industry", year=None, market_cap=None):
     periods = sorted(p for p in data.get("periods", []) if re.fullmatch(r"\d{4}", str(p)))
     period = str(year) if year is not None else (periods[-1] if periods else None)
+    quarter = re.fullmatch(r"(\d{4})Q([1-4])", period or "")
+    months = int(quarter[2]) * 3 if quarter else 12
+    if quarter and data.get("period_basis") != "cumulative_ytd":
+        data = {**data, "series": {}}
     v = lambda field: number(values(data, field).get(period))
     profit, equity, assets = v("net_profit"), v("total_equity"), v("total_assets")
-    prior = str(int(period) - 1) if period else None
-    returns = {code: return_on(profit, v(field), values(data, field).get(prior))
-               for code, field in (("roe", "total_equity"), ("roa", "total_assets"))}
-    # Returns state their denominator explicitly. Market multiples use this
-    # exact annual, not a TTM figure from another screen or another standard.
+    prior = str(int(period[:4]) - 1) if period else None
+    returns = {}
+    for code, field in (("roe", "total_equity"), ("roa", "total_assets")):
+        opening = number(values(data, field).get(prior))
+        returns[code] = return_on(profit if not quarter or opening not in (None, 0) else None,
+                                 v(field), opening, months=months)
+    earnings = profit
+    if quarter and months < 12:
+        annual_profit = number(values(data, "net_profit").get(prior))
+        previous_ytd = number(values(data, "net_profit").get(prior + period[4:]))
+        # Both flows must cover the same number of months to roll the annual forward.
+        earnings = annual_profit + profit - previous_ytd if None not in (annual_profit, profit, previous_ytd) else None
     result = {"period": period, "standard": data.get("standard", "NSBU"),
               "scope": data.get("scope") or "separate", "kind": kind,
               "net_profit": profit, "equity": equity, "assets": assets,
               "revenue": None if kind in {"bank", "fund"} else v("net_revenue"),
               "roe": returns["roe"]["value"], "roa": returns["roa"]["value"],
               "de": None if kind in {"bank", "fund", "insurance", "financial"} else ratio(v("total_liabilities"), equity),
-              "pe": ratio(market_cap, profit), "pb": ratio(market_cap, equity),
+              "pe": ratio(market_cap, earnings), "pb": ratio(market_cap, equity),
               "ps": None if kind in {"bank", "fund"} else ratio(market_cap, v("net_revenue")),
-              "ep": ratio(profit, market_cap, 100), "return_basis": returns,
+              "ep": ratio(earnings, market_cap, 100), "return_basis": returns,
               "cg3": None, "cg5": None, "dy": None, "npl": None, "nim": None, "cost_of_risk": None,
               "source": (data.get("period_sources") or {}).get(period),
               "issues": [g for g in data.get("data_gaps", []) if g.get("period") == period]}
-    if period and kind == "bank":
+    if period and kind == "bank" and not quarter:
         from financial_analysis.sector_calculations import financial_ratios
         current = {field:v(field) for field in data.get("series", {})}
         opening = {field:number(values(data, field).get(prior)) for field in data.get("series", {})}
@@ -92,12 +106,16 @@ def snapshot(data, *, kind="industry", year=None, market_cap=None):
             code = 'NOT_APPLICABLE'
         elif metric in {'pe', 'ep', 'pb'} and (number(market_cap) is None or number(market_cap) <= 0):
             code = 'MARKET_CAP_UNAVAILABLE'
-        elif metric == 'pe' and profit is not None and profit <= 0:
+        elif metric in {'pe', 'ep'} and quarter and months < 12 and earnings is None:
+            code = 'MISSING_TTM_EARNINGS'
+        elif metric == 'pe' and earnings is not None and earnings <= 0:
             code = 'NON_POSITIVE_PROFIT'
         elif metric in {'roe', 'pb', 'de'} and equity is not None and equity <= 0:
             code = 'NON_POSITIVE_EQUITY'
         elif metric in {'nim', 'cost_of_risk'}:
             code = 'MISSING_BANK_FIELDS'
+        elif metric in {'roe', 'roa'} and quarter and returns[metric]['opening_balance'] is None:
+            code = 'MISSING_OPENING_BALANCE'
         elif metric == 'npl':
             code = 'MISSING_CBU_DATA'
         reasons[metric] = {'code': code}

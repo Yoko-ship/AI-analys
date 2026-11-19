@@ -50,6 +50,29 @@ def test_hmkb_9m_current_ratios_use_year_opening_balances_and_reported_ytd(hmkb_
     assert hmkb_rows==original
 
 
+def test_rv_uses_verified_earning_assets_and_loan_only_costs(hmkb_rows, monkeypatch):
+    from server.terminal import bank_ratios
+
+    # Model a filing with the additional lines the real HMKB fixture lacks.
+    for metric, kind, when, value in [
+        ('earning_assets', 'stock', '2025-12-31', 28_000_000_000),
+        ('earning_assets', 'stock', '2026-09-30', 33_000_000_000),
+        ('loan_credit_loss_cost', 'flow', '2026-09-30', 150_000_000),
+    ]:
+        anchor = next(row for row in hmkb_rows if row['metric_id'] == 'total_equity' and row['period_end'] == when)
+        hmkb_rows.append({**anchor, 'kind': kind, 'metric_id': metric, 'value': str(value),
+                          'period_start': when if kind == 'stock' else '2026-01-01'})
+    monkeypatch.setattr('financial_columns.source_store.read', lambda *args, **kwargs: [])
+    monkeypatch.setattr('financial_columns.observations.nsbu', lambda docs: deepcopy(hmkb_rows))
+    row = {'standard': 'NSBU', 'scope': 'separate', 'nim': None, 'cost_of_risk': None}
+    bank_ratios.enrich_interim({'ticker': 'HMKB'}, row, [], set(), '2026-09-30')
+    assert row['nim'] == pytest.approx(2_323_944_970 / 30_500_000_000 * 100 * 12 / 9)
+    assert row['cost_of_risk'] == pytest.approx(150_000_000 / ((23_274_799_997 + 30_361_825_389) / 2) * 100 * 12 / 9)
+    row.update(nim=None, cost_of_risk=None)
+    bank_ratios.enrich_interim({'ticker': 'HMKB'}, row, [], {'2025'}, '2026-09-30')
+    assert row['nim'] is None and row['cost_of_risk'] is None
+
+
 @pytest.mark.parametrize('end,months',[('2026-03-31',3),('2026-06-30',6),('2026-09-30',9)])
 def test_ytd_rate_annualization_depends_on_elapsed_months_only(hmkb_rows,end,months):
     # Synthetic period variants isolate the annualization policy.

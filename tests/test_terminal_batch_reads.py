@@ -1,6 +1,7 @@
 """The 65-issuer screener must not rebuild the security registry per alias."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 import pytest
 
 
@@ -51,6 +52,101 @@ def test_missing_peer_issuer_does_not_fall_back_to_loading_the_whole_market(monk
     monkeypatch.setattr(service, 'financial_series', unused)
     monkeypatch.setattr(service.cbu, 'context', unused)
     assert asyncio.run(service.screener(peer_ticker='BIOK'))['rows'] == []
+
+
+def test_bank_rv_latest_uses_sqbn_q3_and_exact_peer_periods(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import data_quality
+    from catalogue import snapshots
+    from server.terminal import routes, service
+
+    class November(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 11, 19, tzinfo=timezone.utc).astimezone(tz)
+
+    companies = [{'ticker': t, 'kind': 'bank'} for t in ('SQBN', 'HMKB', 'ALKB', 'AGBA', 'IPKY')]
+    # Cached NSBU filings store thousands of UZS.
+    sqbn_fy = {'net_income': 1_880_069_362, 'total_assets': 102_438_659_711, 'total_equity': 11_875_165_808}
+    # OpenInfo form 1, report 1303. The inspected form 2 rows have no amounts.
+    sqbn_q3 = {'total_assets': 104_272_548_442, 'total_equity': 13_052_479_941,
+               'total_liabilities': 91_220_068_501}
+    peer_q3 = {'net_income': 50_000, 'total_assets': 900_000, 'total_equity': 400_000}
+    quarters = {'SQBN': {'2026Q3': sqbn_q3},
+                'HMKB': {'2026Q3': peer_q3},
+                'AGBA': {'2026Q4': {**peer_q3, 'net_income': 90_000}, '2026Q3': peer_q3},
+                'ALKB': {'2026Q2': peer_q3},
+                'IPKY': {'2026Q3': {**peer_q3, 'total_assets': 0}}}
+    monkeypatch.setattr(service, 'datetime', November)
+    monkeypatch.setattr(service, 'universe', lambda: companies)
+    monkeypatch.setattr(snapshots, 'get_financials_series',
+                        lambda ticker, form: {'2025': sqbn_fy} if ticker == 'SQBN' else {'2025': peer_q3})
+    monkeypatch.setattr(snapshots, 'get_financials_series_quarterly', lambda ticker, form: quarters.get(ticker, {}))
+    monkeypatch.setattr(service.filings, 'get_company_reports', lambda ticker: [])
+    monkeypatch.setattr(data_quality, 'held_public_periods', lambda *args: set())
+    monkeypatch.setattr(service, 'market_context', lambda: {'SQBN': {'market_cap': sqbn_q3['total_equity'] * 2000}})
+    monkeypatch.setattr(service.cbu, 'context', lambda year=None: {'banks': {}, 'sector_series': {'capital': {'year': year}}})
+    monkeypatch.setattr(service.bank_ratios, 'enrich', lambda ticker, row, *args: row)
+    monkeypatch.setattr(service.dividends, 'read_snapshot', lambda ticker: [])
+
+    async def annual_series(ticker, *_args):
+        return {'periods': ['2025'], 'series': {
+            key: {'values': {'2025': value * 1000}} for key, value in {
+                'net_profit': sqbn_fy['net_income'], 'total_assets': sqbn_fy['total_assets'],
+                'total_equity': sqbn_fy['total_equity']}.items()}}
+
+    monkeypatch.setattr(service, 'financial_series', annual_series)
+    async def simultaneous_modes():
+        return await asyncio.gather(service.screener(peer_ticker='SQBN', rv=True),
+                                    service.screener(peer_ticker='SQBN'))
+    interim, annual = asyncio.run(simultaneous_modes())
+    assert interim['period'] == '2026Q3'
+    assert annual['rows'][0]['period'] == '2025'
+
+    app = FastAPI()
+    app.include_router(routes.public_router)
+    with TestClient(app) as client:
+        url = '/api/terminal/screener?peer_ticker=SQBN'
+        latest = client.get(url + '&rv=true').json()
+        rows = {r['ticker']: r for r in latest['rows']}
+        assert rows['SQBN']['period'] == '2026Q3'
+        assert latest['period'] == '2026Q3'
+        assert latest['years'] == ['2025']
+        assert latest['sector_series']['capital']['year'] == 2026
+        assert set(rows) == {'SQBN', 'HMKB', 'AGBA'}
+        assert rows['SQBN']['assets'] == 104_272_548_442_000
+        assert rows['SQBN']['equity'] == 13_052_479_941_000
+        assert rows['SQBN']['pb'] == 2
+        assert rows['SQBN']['roe'] is None
+        assert rows['AGBA']['roe'] == rows['HMKB']['roe'] == pytest.approx(50_000 / 400_000 * 12 / 9 * 100)
+        historical = client.get(url + '&rv=true&year=2025').json()
+        assert historical['rows'][0]['period'] == '2025'
+        assert historical['rows'][0]['roe'] == pytest.approx(15.83194199)
+        assert client.get(url).json()['rows'][0]['period'] == '2025'
+        missing = client.get('/api/terminal/screener?peer_ticker=IPKY&rv=true').json()
+        assert missing['period'] is None
+        assert missing['rows'] == []
+        assert missing['reporting_year'] == 2026
+        assert missing['years'] == ['2025']
+
+        quarters['SQBN']['2026Q2'] = quarters['SQBN'].pop('2026Q3')
+        quarters['AGBA']['2026Q2'] = {**peer_q3, 'net_income': 65_000}
+        earlier = client.get(url + '&rv=true').json()
+        assert earlier['period'] == '2026Q2'
+        rows = {r['ticker']: r for r in earlier['rows']}
+        assert set(rows) == {'SQBN', 'AGBA', 'ALKB'}
+        assert rows['AGBA']['net_profit'] == 65_000_000
+        monkeypatch.setattr(data_quality, 'held_public_periods',
+                            lambda ticker, form: {'2026Q2'} if ticker == 'SQBN' else set())
+        assert client.get(url + '&rv=true').json()['period'] is None
+
+        def unavailable(ticker, form):
+            raise OSError('Temporary catalogue read failure')
+        monkeypatch.setattr(snapshots, 'get_financials_series_quarterly', unavailable)
+        failed = client.get(url + '&rv=true').json()
+        assert failed['reporting_status'] == 'SOURCE_UNAVAILABLE'
+        assert failed['rows'] == []
 
 
 def test_issuer_alias_lookup_reuses_registry_only_inside_one_read_batch(monkeypatch):

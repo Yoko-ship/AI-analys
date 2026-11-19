@@ -86,7 +86,7 @@ def universe():
     return stocks, sorted(companies, key=lambda c: c['ticker'])
 
 
-def _series(ticker, standard, scope):
+def read_statement_series(ticker, standard, scope):
     if standard == 'NSBU':
         if scope != 'separate':
             return {}, []
@@ -114,7 +114,7 @@ def options(tickers=(), standard='NSBU', scope='separate'):
         raise UnknownCompany('Unknown company')
     available = []
     for ticker in wanted:
-        series, _ = _series(ticker, standard, scope)
+        series, _ = read_statement_series(ticker, standard, scope)
         available.append({p for p, row in series.items() if PERIOD_RE.fullmatch(p)
                           and catalog_ratios.catalog_period_problem(row) is None})
     periods = sorted(set().union(*available) if available else set(), key=period_order, reverse=True)
@@ -138,7 +138,7 @@ def market_rows(securities):
     return rows
 
 
-def _source(ticker, period, standard, scope, published):
+def statement_source(ticker, period, standard, scope, published):
     if standard == 'NSBU' and scope != 'separate':
         return None
     if standard == 'IFRS':
@@ -158,11 +158,13 @@ def _source(ticker, period, standard, scope, published):
             'publication_date': row.get('published_at'), 'period': period, 'scope': scope} if row else None
 
 
-def _statement(ticker, period, standard, scope, series):
+def exact_statement(ticker, period, standard, scope, series):
     if period not in series:
         return {}, 'missing_period'
     if standard == 'NSBU':
-        payload = catalog_ratios.get_cached_catalog_period(ticker, 'NSBU', int(period[:4]), int(period[-1]) if 'Q' in period else 0)
+        quarter = int(period[-1]) if 'Q' in period else 0
+        same_frequency = {p: row for p, row in series.items() if ('Q' in p) == bool(quarter)}
+        payload = catalog_ratios.get_cached_catalog_period(ticker, 'NSBU', int(period[:4]), quarter, series=same_frequency)
         return (dict(payload.get('all_values') or {}), None) if payload.get('has_data') else ({}, (payload.get('unavailable') or {}).get('code', 'unavailable'))
     row = series[period]
     problem = catalog_ratios.catalog_period_problem(row)
@@ -193,7 +195,7 @@ def compare(tickers, period='latest', standard='NSBU', scope='separate'):
     if any(t not in securities for t in wanted):
         raise UnknownCompany('Unknown company')
     by_ticker = {c['ticker']: c for c in all_companies}
-    loaded = {t: _series(t, standard, scope) for t in wanted}
+    loaded = {t: read_statement_series(t, standard, scope) for t in wanted}
     if period == 'latest':
         available = [{p for p, row in series.items() if PERIOD_RE.fullmatch(p)
                       and catalog_ratios.catalog_period_problem(row) is None} for series, _ in loaded.values()]
@@ -211,12 +213,12 @@ def compare(tickers, period='latest', standard='NSBU', scope='separate'):
     for ticker in wanted:
         company = by_ticker[ticker]
         series, published = loaded[ticker]
-        current, problem = _statement(ticker, period, standard, scope, series) if period else ({}, 'missing_period')
+        current, problem = exact_statement(ticker, period, standard, scope, series) if period else ({}, 'missing_period')
         previous_period = str(int(period[:4]) - 1) + period[4:] if period else None
         opening_period = str(int(period[:4]) - 1) if period else None
-        previous, _ = _statement(ticker, previous_period, standard, scope, series) if previous_period else ({}, None)
-        opening, _ = _statement(ticker, opening_period, standard, scope, series) if opening_period else ({}, None)
-        source = _source(ticker, period, standard, scope, published) if period else None
+        previous, _ = exact_statement(ticker, previous_period, standard, scope, series) if previous_period else ({}, None)
+        opening, _ = exact_statement(ticker, opening_period, standard, scope, series) if opening_period else ({}, None)
+        source = statement_source(ticker, period, standard, scope, published) if period else None
         months = int(period[-1]) * 3 if period and 'Q' in period else 12
         extra = _extra_facts(ticker, period, standard, scope) if current else {}
         cells = {}

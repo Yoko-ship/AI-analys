@@ -223,6 +223,7 @@ html[data-theme="dark"] .app-shell-wrap.view-catalog {
 .catalog-terminal-ui .terminal-table .terminal-missing-value:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .catalog-terminal-ui .terminal-table .terminal-missing-value::before { content:none; }
 .catalog-terminal-ui .terminal-bank-sector { margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+.catalog-terminal-ui .terminal-peers-screen .terminal-bank-sector { margin-bottom:20px; }
 .catalog-terminal-ui .terminal-bank-sector h4 { margin:0 0 12px; color:var(--text-secondary); font-size:12px; font-weight:600; }
 .catalog-terminal-ui .terminal-bank-sector dl { display:grid; grid-template-columns:minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap:16px; max-width:640px; margin:0; }
 .catalog-terminal-ui .terminal-bank-sector dl > div { display:grid; grid-template-rows:1fr auto; min-width:0; }

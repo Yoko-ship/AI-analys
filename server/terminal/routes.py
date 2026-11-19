@@ -135,9 +135,12 @@ async def api_admin_terminal_catalogue() -> dict[str, Any]:
 async def api_terminal_screener(form: Literal["NSBU", "MSFO"] = "NSBU",
                                scope: Literal["separate", "consolidated"] = "separate",
                                year: int | None = Query(default=None, ge=2015, le=2100),
-                               peer_ticker: str | None = Query(default=None, pattern=r'^[A-Za-z0-9]{1,12}$')):
+                               peer_ticker: str | None = Query(default=None, pattern=r'^[A-Za-z0-9]{1,12}$'),
+                               rv: bool = False):
     from server.terminal import service
     selection = {'peer_ticker': peer_ticker.upper()} if peer_ticker else {}
+    if rv and peer_ticker and year is None:
+        selection['rv'] = True
     return await service.screener(form, scope if form == "MSFO" else "separate", year, **selection)
 
 

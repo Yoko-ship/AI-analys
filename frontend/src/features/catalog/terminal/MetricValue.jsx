@@ -13,6 +13,8 @@ const reasons={
   NON_POSITIVE_PROFIT:['Для этого расчёта нужна положительная прибыль.','Bu hisob uchun musbat foyda kerak.','This calculation requires positive earnings.'],
   NON_POSITIVE_EQUITY:['Для этого расчёта нужен положительный собственный капитал.','Bu hisob uchun musbat o‘z kapitali kerak.','This calculation requires positive equity.'],
   MISSING_FINANCIALS:['В отчёте не хватает необходимых показателей.','Hisobotda kerakli ko‘rsatkichlar yetishmaydi.','Required financial figures are missing from the report.'],
+  MISSING_OPENING_BALANCE:['Для расчёта нужна строка баланса на начало года.','Hisoblash uchun yil boshidagi balans satri kerak.','This calculation needs the opening balance for the year.'],
+  MISSING_TTM_EARNINGS:['Для расчёта прибыли за 12 месяцев нужны годовой отчёт и данные за одинаковые периоды двух лет.','12 oylik foydani hisoblash uchun yillik hisobot va ikki yilning bir xil davri ma’lumotlari kerak.','Trailing 12-month earnings require a full-year report and matching interim periods for both years.'],
   MISSING_BANK_FIELDS:['Не хватает подтверждённых строк банковского отчёта для расчёта.','Hisoblash uchun bank hisobotining tasdiqlangan satrlari yetishmaydi.','Verified bank report figures required for this calculation are missing.'],
   MISSING_CBU_DATA:['Нет данных ЦБ по этому банку за выбранный период.','Tanlangan davr uchun ushbu bank bo‘yicha MB ma’lumotlari yo‘q.','CBU data is unavailable for this bank in the selected period.'],
   WITHHELD_GROSS_UP:['Расходы на резервы почти компенсированы другими доходами. Показатель требует проверки.','Zaxira xarajatlari boshqa daromadlar bilan deyarli qoplangan. Ko‘rsatkichni tekshirish kerak.','Provision charges are nearly offset by other income. This metric needs review.'],
@@ -30,7 +32,7 @@ export function MetricValue({row,metric,label,lang,text}) {
   const reason=row.metric_reasons?.[metric];
   if(!reason)return text;
   let description=words(lang,...(reasons[reason.code]||reasons.MISSING_FINANCIALS));
-  if(reason.code==='MISSING_ENDPOINT')description=words(lang,`Для расчёта роста нужна прибыль за оба года: ${reason.start} и ${reason.end}. Данных за один из них нет.`,`O‘sishni hisoblash uchun ${reason.start} va ${reason.end} yillardagi foyda kerak. Ulardan biri yo‘q.`,`Growth requires earnings for both ${reason.start} and ${reason.end}; one is missing.`);
-  if(reason.code==='NON_POSITIVE_ENDPOINT')description=words(lang,`Рост не рассчитывается: прибыль за ${reason.start} или ${reason.end} год равна нулю или отрицательна.`,`O‘sish hisoblanmaydi: ${reason.start} yoki ${reason.end} yildagi foyda nol yoki manfiy.`,`Growth cannot be calculated because earnings in ${reason.start} or ${reason.end} are zero or negative.`);
+  if(reason.code==='MISSING_ENDPOINT')description=words(lang,`Для расчёта роста нужна прибыль за оба периода: ${reason.start} и ${reason.end}. Данных за один из них нет.`,`O‘sishni hisoblash uchun ${reason.start} va ${reason.end} davrlaridagi foyda kerak. Ulardan biri yo‘q.`,`Growth requires earnings for both ${reason.start} and ${reason.end}; one is missing.`);
+  if(reason.code==='NON_POSITIVE_ENDPOINT')description=words(lang,`Рост не рассчитывается: прибыль за ${reason.start} или ${reason.end} равна нулю или отрицательна.`,`O‘sish hisoblanmaydi: ${reason.start} yoki ${reason.end} davridagi foyda nol yoki manfiy.`,`Growth cannot be calculated because earnings in ${reason.start} or ${reason.end} are zero or negative.`);
   return <TermInfo termId={metric} label={`${row.ticker} · ${label}`} description={description} lang={lang} marker="—" className="terminal-missing-value"/>;
 }

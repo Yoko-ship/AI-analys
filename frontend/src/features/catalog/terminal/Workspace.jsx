@@ -1,4 +1,4 @@
-import { BankComparison } from './BankComparison.jsx';
+import { BankComparison, BankSectorBenchmarks } from './BankComparison.jsx';
 import { MetricValue } from './MetricValue.jsx';
 import { finLabel } from '../../../shared/financialLabels.jsx';
 import { reportRatioUnit, reportRatioReason } from '../../../lib/reportRatioDisplay.js';
@@ -165,21 +165,40 @@ export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,
 
 export function PeersScreen({ticker,form,scope,lang,onOpen}) {
   const [year,setYear]=React.useState("");
-  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}&peer_ticker=${encodeURIComponent(ticker)}${year?`&year=${year}`:""}`,{ticker,form,func:"RV"});
+  const {data,error}=useScreenData(`/api/terminal/screener?form=${form}&scope=${scope}&peer_ticker=${encodeURIComponent(ticker)}${year?`&year=${year}`:"&rv=true"}`,{ticker,form,func:"RV"});
   const years=[...new Set([...(data?.years||[]).map(String),...(year?[year]:[])])].sort().reverse();
   const base=(data?.rows||[]).find(r=>r.ticker===ticker);
   const peers=base?(data?.rows||[]).filter(r=>r.ticker!==ticker&&["kind","standard","scope","period"].every(k=>r[k]===base[k])):[];
   const rows=base?[base,...peers]:[];
   const metrics=metricsForRows(base?[base]:[]);
+  const quarter=/^(\d{4})Q([1-4])$/.exec(base?.period||"");
+  const period=quarter?`${quarter[1]} Q${quarter[2]} · ${3*Number(quarter[2])}M YTD`:base?.period;
+  const missingCurrentYear=data?.reporting_year!=null&&!data.period;
+  const isBank=base?.kind==='bank'||data?.reporting_year!=null;
   return <section className="terminal-peers-screen"><h3>RV · {functionLabel("RV",lang)}</h3>
     <div className="terminal-controls"><label>{words(lang,"Год отчётности","Hisobot yili","Reporting year")}<select value={year} onChange={e=>setYear(e.target.value)}>
       <option value="">{words(lang,"Последний","Oxirgi","Latest")}</option>{years.map(y=><option key={y} value={y}>{y}</option>)}
     </select></label></div>
-    <p className="muted">{words(lang,"Один тип, стандарт, периметр и год.","Bir tur, standart, qamrov va yil.","Same type, standard, scope and year.")} {base?.period} · {kindLabel(base?.kind,lang)}</p>
-    <p className="muted">{words(lang,"Год применяется к отчётности и данным ЦБ: берётся последнее доступное наблюдение внутри выбранного года. При отсутствии данных — прочерк. Исторические рыночные коэффициенты без котировок недоступны.","Yil hisobotlarga va MB ma’lumotlariga qo‘llanadi: tanlangan yil ichidagi oxirgi mavjud kuzatuv olinadi. Ma’lumot bo‘lmasa — chiziqcha. Tarixiy kotirovkalarsiz bozor koeffitsiyentlari mavjud emas.","The year applies to statements and CBU data: the latest available observation within that year is used. Missing data is shown as a dash. Historical market ratios require historical quotes.")}</p><State data={data} error={error} lang={lang}>
-    <PeerComparisonTable rows={rows} metrics={metrics} ticker={ticker} lang={lang} onOpen={onOpen} formatValue={(value,key)=>fmt(value,lang,key)}/>
-    <BankComparison rows={rows} lang={lang} sectorSeries={data?.sector_series}/>
-    {!peers.length&&<p className="terminal-empty">{words(lang,"Сопоставимые эмитенты не найдены","Mos emitentlar topilmadi","No comparable issuers found")}</p>}
+    <State data={data} error={error} lang={lang}>
+      {base&&<p className="muted">{period} · {kindLabel(base.kind,lang)} · {form} · {reportScopeLabel(scope,lang)}</p>}
+      {quarter&&<p className="muted">{words(lang,
+        "ROE, ROA, NIM и CoR приведены к годовому темпу. P/E и E/P используют прибыль за последние 12 месяцев. CAGR сравнивает одинаковые периоды.",
+        "ROE, ROA, NIM va CoR yillik stavkaga keltirilgan. P/E va E/P oxirgi 12 oylik foydaga asoslanadi. CAGR bir xil davrlarni taqqoslaydi.",
+        "ROE, ROA, NIM and CoR are annualized. P/E and E/P use trailing 12-month earnings. CAGR compares matching periods.")}</p>}
+      {year&&<p className="muted">{words(lang,
+        "Исторические рыночные коэффициенты без котировок недоступны.",
+        "Tarixiy kotirovkalarsiz bozor koeffitsiyentlari mavjud emas.",
+        "Historical market ratios require historical quotes.")}</p>}
+      {missingCurrentYear&&<p className="terminal-empty" role="status">{words(lang,
+        data.reporting_status==='SOURCE_UNAVAILABLE'?'Не удалось загрузить текущую отчётность.':`За ${data.reporting_year} год пока нет сопоставимой отчётности. В списке можно выбрать прошлый год.`,
+        data.reporting_status==='SOURCE_UNAVAILABLE'?'Joriy hisobotni yuklab bo‘lmadi.':`${data.reporting_year}-yil uchun taqqoslanadigan hisobot hali yo‘q. Ro‘yxatdan oldingi yilni tanlash mumkin.`,
+        data.reporting_status==='SOURCE_UNAVAILABLE'?'Could not load current statements.':`No comparable statements are available for ${data.reporting_year} yet. Select a prior year to see historical figures.`)}</p>}
+      {isBank&&<BankSectorBenchmarks lang={lang} sectorSeries={data?.sector_series} showObservationDates/>}
+      {!missingCurrentYear&&<>
+        <PeerComparisonTable rows={rows} metrics={metrics} ticker={ticker} lang={lang} onOpen={onOpen} formatValue={(value,key)=>fmt(value,lang,key)}/>
+        <BankComparison rows={rows} lang={lang}/>
+        {!peers.length&&<p className="terminal-empty">{words(lang,"Сопоставимые эмитенты не найдены","Mos emitentlar topilmadi","No comparable issuers found")}</p>}
+      </>}
   </State></section>;
 }
 

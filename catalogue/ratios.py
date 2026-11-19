@@ -541,7 +541,7 @@ def _catalog_series(ticker: str, form: str, quarterly: bool) -> dict[str, dict[s
 
 
 def get_cached_catalog_period(ticker: str, form: str, year: int,
-                              quarter: int = 0) -> dict[str, Any]:
+                              quarter: int = 0, *, series=None) -> dict[str, Any]:
     """Return one exact filing period from the local financial cache.
 
     A period the store holds but which carries no usable statement — an empty
@@ -554,7 +554,8 @@ def get_cached_catalog_period(ticker: str, form: str, year: int,
         return empty
     quarter = int(quarter or 0)
     period = f"{int(year)}Q{quarter}" if quarter else str(int(year))
-    series = _catalog_series(ticker, form, bool(quarter))
+    if series is None:
+        series = _catalog_series(ticker, form, bool(quarter))
     row = series.get(period)
     payload = {"period": period, **_cached_catalog_ratio_payload(row, catalog_period_months(quarter))}
     if row is None:
