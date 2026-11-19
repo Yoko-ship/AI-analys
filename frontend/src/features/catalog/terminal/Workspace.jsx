@@ -19,6 +19,7 @@ import { QuarterlyMetrics } from './QuarterlyMetrics.jsx';
 import { PeerComparisonTable } from './PeerComparisonTable.jsx';
 import { TerminalValuation } from "../../../shared/TerminalValuation.jsx";
 import "../../../shared/terminalWorkspace.css";
+import './reportRatios.css';
 
 const fmt = (n, lang, key) => n == null ? "—" : key === "pe" && n > 100 ? ">100" : Number(n).toLocaleString(lang === "en" ? "en-US" : "ru-RU",{maximumFractionDigits:2});
 const labels = {net_profit:["Чистая прибыль","Sof foyda","Net profit"],net_revenue:["Выручка","Tushum","Revenue"],total_assets:["Активы","Aktivlar","Assets"],total_equity:["Капитал / NAV","Kapital / NAV","Equity / NAV"],total_liabilities:["Обязательства","Majburiyatlar","Liabilities"]};
@@ -248,22 +249,25 @@ export function PanelWorkspace({companies,terminal,lang,user,apiFetch}) {
 
 function SectorMetrics({ticker,form,scope,lang,summary}) {
   const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:summary?'SUM':'RAT'});
-  const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th>{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th>{data?.period||'—'}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.metric_code||i}>
-    <th><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></span></th>
-    <td>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
+  const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th scope="col">{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th scope="col">{data?.period||'—'}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.metric_code||i}>
+    <th scope="row"><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></span></th>
+    <td className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
       {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}
       {safeHref(r.share_disclosure_url)&&<div><a href={safeHref(r.share_disclosure_url)} target="_blank" rel="noreferrer">
         {words(lang,'Раскрытие об акциях','Aksiyalar haqidagi ma’lumot','Share disclosure')}
       </a></div>}</td>
   </tr>)}</tbody></table></div>;
-  return <section className="terminal-sector-metrics"><State data={data} error={error} lang={lang}>
-    <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||scope,lang)}</p>
+  return <section className={`terminal-sector-metrics${summary?'':' terminal-report-ratios'}`}><State data={data} error={error} lang={lang}>
+    <header className="terminal-report-ratios-head">
+      {!summary&&<h3>{words(lang,'Коэффициенты отчёта','Hisobot koeffitsiyentlari','Filing ratios')}</h3>}
+      <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||scope,lang)}</p>
+    </header>
     {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<>
       {table(data?.ratios||[])}
       {data?.additional_ratios?.length>0&&<details className="verified-block"><summary>{words(lang,'Дополнительные показатели','Qo‘shimcha ko‘rsatkichlar','Additional indicators')}</summary>{table(data.additional_ratios)}</details>}
     </>}
     {data?.status&& !['available','stale'].includes(data.status)&&<p className="terminal-warning">{data.availability?.reason_text||words(lang,'Отчёт не прошёл проверку данных. Показатели недоступны.','Hisobot tekshiruvdan o‘tmadi.','The filing did not pass data checks. Metrics unavailable.')}</p>}
-    {data?.sources?.map((source,i)=>source.url&&<a key={i} href={safeHref(source.url)} target="_blank" rel="noreferrer">{words(lang,'Источник отчёта','Hisobot manbasi','Filing source')} ↗ </a>)}
+    {data?.sources?.length>0&&<footer className="terminal-report-ratios-sources">{data.sources.map((source,i)=>source.url&&<a key={i} href={safeHref(source.url)} target="_blank" rel="noreferrer">{words(lang,'Источник отчёта','Hisobot manbasi','Filing source')} ↗ </a>)}</footer>}
   </State></section>;
 }
 

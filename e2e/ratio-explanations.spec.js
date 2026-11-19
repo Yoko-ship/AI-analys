@@ -1,6 +1,9 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
+import {readDownload} from './helpers/download.js';
+import {textContrast} from './helpers/contrast.js';
 const columns=JSON.parse(readFileSync('e2e/fixtures/financial-columns-template.json','utf8')).annual;
+const bankReports=JSON.parse(readFileSync('tests/fixtures/calculation_contracts.json','utf8')).sectors;
 
 async function setup(page,lang='en') {
   await page.addInitScript(lang=>{
@@ -76,7 +79,7 @@ test('catalog ratio meanings move into ! while missing-data reasons remain visib
   await expect(page.getByRole('tooltip')).toContainText('Net interest income relative to average earning assets.');
   await page.keyboard.press('Escape');
   const [download]=await Promise.all([page.waitForEvent('download'),sector.getByRole('button',{name:'CSV',exact:true}).click()]);
-  const csv=readFileSync(await download.path(),'utf8');
+  const csv=await readDownload(download);
   expect(csv).toContain('NIM');
   expect(csv).not.toContain('!');
   await page.goto('/catalog?t=HMKB&f=SUM');
@@ -87,6 +90,62 @@ test('catalog ratio meanings move into ! while missing-data reasons remain visib
   await expect(terminal.locator('.fc-table .term-info-btn')).toHaveCount(await rows.count());
 });
 
+for(const lang of ['ru','uz','en'])for(const theme of ['light','dark'])test(`bank filing ratios keep help beside labels and readable values (${lang}, ${theme})`,async({page},testInfo)=>{
+  await setup(page,lang);
+  await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
+  const report=bankReports[`bank-valid-${lang}`];
+  await page.route('**/api/v1/issuers/*/ai-report**',route=>route.fulfill({json:report}));
+  await page.setViewportSize({width:1440,height:1200});
+  await page.goto('/catalog?t=HMKB&f=RAT');
+  const sector=page.locator('.terminal-sector-metrics');
+  await expect(sector.locator('tbody tr')).toHaveCount(10);
+  await sector.screenshot({path:testInfo.outputPath('bank-ratios-desktop.png'),animations:'disabled',style:'.topbar {visibility:hidden}'});
+  // A shared space-between rule used to put help halfway across the screen.
+  const helpGap=await sector.locator('.terminal-ratio-label').first().evaluate(el=>{
+    const label=el.querySelector('span').getBoundingClientRect(),help=el.querySelector('button').getBoundingClientRect();
+    return help.left-label.right;
+  });
+  expect(helpGap).toBeLessThanOrEqual(12);
+  await expect(sector.getByRole('heading',{level:3})).toBeVisible();
+  await expect(sector.locator('thead')).toContainText(report.period);
+  expect(await sector.locator('tbody td').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+  expect(await textContrast(sector.locator('tbody td').first())).toBeGreaterThanOrEqual(4.5);
+  expect(await textContrast(sector.locator('tbody td .muted').first())).toBeGreaterThanOrEqual(4.5);
+  await sector.locator('.term-info-btn').first().focus();
+  await expect(page.getByRole('tooltip')).toContainText(report.ratios[0][`meaning_${lang}`]);
+  await page.keyboard.press('Escape');
+  const [download]=await Promise.all([page.waitForEvent('download'),sector.getByRole('button',{name:'CSV',exact:true}).click()]);
+  const csv=await readDownload(download);
+  expect(csv).toContain(report.period);
+  expect(csv).toContain(report.ratios[0][`name_${lang}`]);
+  expect(csv).not.toContain('!');
+  await expect(sector.getByRole('link')).toHaveAttribute('href',report.sources[0].url);
+  for(const width of [360,390,768]) {
+    await page.setViewportSize({width,height:1000});
+    await expect(sector.locator('tbody tr').last().locator('td .muted')).toBeVisible();
+    const layout=await sector.locator('tbody tr').evaluateAll(rows=>rows.map(row=>({
+      height:row.getBoundingClientRect().height,
+      cellsFit:[...row.cells].every(cell=>cell.scrollWidth<=cell.clientWidth+1),
+      labelWidth:row.querySelector('.terminal-ratio-label > span').getBoundingClientRect().width,
+      labelLength:row.querySelector('.terminal-ratio-label > span').textContent.length,
+    })));
+    for(const row of layout) {
+      expect(row.height).toBeLessThanOrEqual(180);
+      expect(row.cellsFit).toBe(true);
+      if(row.labelLength>16)expect(row.labelWidth).toBeGreaterThanOrEqual(100);
+    }
+    expect(await sector.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+    await sector.locator('.term-info-btn').last().click();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    const tip=await page.getByRole('tooltip').boundingBox();
+    expect(tip.x).toBeGreaterThanOrEqual(0);
+    expect(tip.x+tip.width).toBeLessThanOrEqual(width);
+    await page.keyboard.press('Escape');
+    await sector.screenshot({path:testInfo.outputPath(`bank-ratios-${width}.png`),animations:'disabled',style:'.topbar {visibility:hidden}'});
+  }
+});
+
 test.describe('touch explanations',()=>{
   test.use({hasTouch:true,viewport:{width:390,height:844}});
   test('a tap toggles the explanation and a marker near the top keeps all text on screen',async({page})=>{
@@ -95,6 +154,7 @@ test.describe('touch explanations',()=>{
     await page.getByRole('button',{name:'Коэффициенты',exact:true}).click();
     await page.getByRole('button',{name:'Таблица',exact:true}).click();
     const marker=page.locator('.company-financials .term-info-btn').first(), tip=page.getByRole('tooltip');
+    await page.mouse.move(1,1);
     await marker.evaluate(el=>{el.scrollIntoView({block:'start'});window.scrollBy(0,-120);});
     await marker.tap();
     await expect(tip).toBeVisible();
@@ -103,6 +163,18 @@ test.describe('touch explanations',()=>{
     expect(box.y).toBeGreaterThanOrEqual(0);expect(box.y+box.height).toBeLessThanOrEqual(844);
     await marker.tap();
     await expect(tip).toHaveCount(0);
+  });
+  test('bank filing help toggles by touch without hiding the missing-data reason',async({page})=>{
+    await setup(page,'ru');
+    await page.route('**/api/v1/issuers/*/ai-report**',route=>route.fulfill({json:bankReports['bank-valid-ru']}));
+    await page.goto('/catalog?t=HMKB&f=RAT');
+    const row=page.locator('.terminal-sector-metrics tbody tr').last();
+    const marker=row.locator('.term-info-btn');
+    await marker.tap();
+    await expect(page.getByRole('tooltip')).toContainText('Стоимость риска');
+    await marker.tap();
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+    await expect(row.locator('td .muted')).toBeVisible();
   });
 });
 

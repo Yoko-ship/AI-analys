@@ -1,0 +1,84 @@
+/* The filing-ratios screen owns this layout; other terminal tables retain
+   their own density, column sizing and export placement. */
+.catalog-terminal-ui .terminal-report-ratios {
+  position:relative;
+  min-width:0;
+  padding:20px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--panel);
+  font-family:Inter,system-ui,sans-serif;
+}
+.terminal-report-ratios-head { min-height:56px; margin-bottom:16px; padding-right:72px; }
+.catalog-terminal-ui .terminal-report-ratios h3 {
+  margin:0 0 8px;
+  font-size:18px;
+  font-weight:600;
+  line-height:1.4;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-context {
+  margin:0;
+  color:var(--text-secondary);
+  font:12px/1.6 Inter,system-ui,sans-serif;
+}
+.catalog-terminal-ui .terminal-report-ratios > .terminal-table-wrap > .terminal-csv {
+  position:absolute;
+  top:20px;
+  right:20px;
+  min-height:44px;
+  margin:0;
+  padding:0 12px;
+  border-radius:8px;
+  font-size:12px;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-table { margin-bottom:0; }
+.catalog-terminal-ui .terminal-report-ratios .terminal-table :is(th,td) {
+  height:56px;
+  box-sizing:border-box;
+  padding:12px;
+  border-top:0;
+  vertical-align:middle;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-table thead th {
+  height:40px;
+  padding-top:8px;
+  padding-bottom:8px;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-ratio-label {
+  display:inline-flex;
+  max-width:100%;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+}
+.catalog-terminal-ui .terminal-report-ratios .term-info-btn {
+  width:28px;
+  height:28px;
+  min-height:28px;
+  padding:0;
+  margin:0;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-table td {
+  font-size:18px;
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
+.catalog-terminal-ui .terminal-report-ratios .terminal-table td.is-missing { color:var(--text-secondary); font-weight:400; }
+.catalog-terminal-ui .terminal-report-ratios td :is(.muted,div:has(a)) {
+  max-width:42ch;
+  margin:4px 0 0 auto;
+  font-size:12px;
+  font-weight:400;
+  line-height:1.5;
+}
+.catalog-terminal-ui .terminal-report-ratios tbody tr:hover { background:var(--surface-2); }
+.terminal-report-ratios-sources { display:flex; flex-wrap:wrap; gap:8px 16px; }
+.catalog-terminal-ui .terminal-report-ratios .terminal-report-ratios-sources { margin-top:16px; font-size:12px; }
+.catalog-terminal-ui .terminal-report-ratios-sources a { color:var(--accent); text-underline-offset:3px; }
+@container terminal-analytics (max-width:480px) {
+  .catalog-terminal-ui .terminal-report-ratios { padding:16px; }
+  .catalog-terminal-ui .terminal-report-ratios > .terminal-table-wrap > .terminal-csv { top:16px; right:16px; }
+  .catalog-terminal-ui .terminal-report-ratios .terminal-table th:first-child { width:62%; }
+  .catalog-terminal-ui .terminal-report-ratios .terminal-table :is(th,td) { padding-left:4px; padding-right:4px; }
+  .catalog-terminal-ui .terminal-report-ratios .term-info-btn { width:32px; height:44px; min-height:44px; }
+}
