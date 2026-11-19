@@ -1,6 +1,7 @@
 import {chooseMapArea, chooseMapTicker, openMapFilters} from './helpers/map-controls.js';
 import {chooseIndustry} from './industry-control.js';
 import { selectLanguage, toggleTheme } from './language-control.js';
+import {textContrast} from './helpers/contrast.js';
 import { test, expect } from "@playwright/test";
 import path from "node:path";
 import {readFileSync} from 'node:fs';
@@ -62,6 +63,56 @@ async function openMap(page, type = "stock", path = "/heatmap", selectTicker = t
 }
 
 const metric = (page, key) => page.locator(`.heatmap-metric-details [data-metric="${key}"] strong`);
+
+for (const width of [1440, 390]) test(`market matrix sector colors at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  const sectors = [
+    ['IPTB', 'Финансы и страхование', 'rgb(52, 59, 71)'],
+    ['UZIR', 'Добыча полезных ископаемых', 'rgb(35, 76, 118)'],
+    ['UZMT', 'Производство', 'rgb(112, 58, 87)'],
+    ['UQEQ', 'Строительство', 'rgb(117, 69, 41)'],
+    ['CBSK', 'Торговля', 'rgb(37, 83, 63)'],
+  ];
+  const snapshot = {stocks: sectors.map(([ticker]) => ({
+    ...row(ticker, 'stock', ticker === 'UZIR' ? 90 : 110, 100, 2e6, 100, 6, 'other'),
+    market_cap: ticker === 'UZIR' ? 2e12 : 0.5e12,
+  })), bonds: []};
+  await openMap(page, 'stock', '/heatmap', false, {id: 1, is_admin: true}, snapshot);
+  await openMapFilters(page);
+  await page.getByRole('button', {name: 'Матрица', exact: true}).click();
+  if (width < 980) await page.getByRole('button', {name: 'Показать карту', exact: true}).click();
+  const matrix = page.locator('.heatmap-matrix');
+  const labels = sectors.map(([, name]) => matrix.getByText(name, {exact: true}));
+  const headers = labels.map(label => label.locator('..'));
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => {document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme;}, theme);
+    for (const label of labels) await expect(label).toBeVisible();
+    const backgrounds = await Promise.all(headers.map(header => header.evaluate(node => getComputedStyle(node).backgroundColor)));
+    expect(new Set(backgrounds).size).toBe(sectors.length);
+    expect(backgrounds).toEqual(sectors.map(([, , background]) => background));
+    for (const header of headers) {
+      for (const text of await header.locator(':scope > *').all()) expect(await textContrast(text)).toBeGreaterThanOrEqual(4.5);
+    }
+    await expect(matrix.getByText('Банки', {exact: true}).locator('..')).toHaveCSS(
+      'background-color', await matrix.getByText('Уголь', {exact: true}).locator('..').evaluate(node => getComputedStyle(node).backgroundColor),
+    );
+    for (const [ticker, channel, movement] of [['IPTB', 1, /\+10%$/], ['UZIR', 0, /[-−]10%$/]]) {
+      const tile = matrix.locator(`.heatmap-tree-tile[data-ticker="${ticker}"]`);
+      const rgb = await tile.evaluate(node => getComputedStyle(node).backgroundColor.match(/\d+/g).map(Number));
+      expect(rgb[channel]).toBe(Math.max(...rgb));
+      expect(rgb[channel]).toBeGreaterThan(rgb[1 - channel]);
+      await expect(tile).toHaveAccessibleName(movement);
+    }
+    await page.locator('.heatmap-viewport').screenshot({path: testInfo.outputPath(`matrix-sector-colors-${theme}.png`)});
+  }
+  await openMapFilters(page);
+  await page.getByRole('group', {name: 'Капитализация, UZS', exact: true}).getByRole('button', {name: '> 1 трлн', exact: true}).click();
+  await expect(matrix.locator('.heatmap-tree-tile')).toHaveCount(1);
+  await expect(headers[1]).toHaveCSS('background-color', sectors[1][2]);
+  await selectLanguage(page, 'en');
+  await expect(matrix.getByText('Mining and quarrying', {exact: true}).locator('..')).toHaveCSS('background-color', sectors[1][2]);
+});
+
 for (const width of [1440, 390]) test(`market matrix grid and capitalization filters at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   const caps = [0.5e12, 1e12, 5e12, 10e12, 25e12, 26e12, null];

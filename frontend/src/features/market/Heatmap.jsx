@@ -470,7 +470,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             <React.Fragment key={sector.sector}>
               {sector.showHeader && (
                 <div
-                  className="heatmap-tree-label"
+                  className={matrix ? 'heatmap-tree-label heatmap-matrix-sector-header' : 'heatmap-tree-label'}
+                  data-sector={matrix ? sector.sector : undefined}
                   style={{ left: sector.x, top: sector.y, width: sector.w, height: sector.headerHeight }}
                 >
                   <span title={marketIndustryLabel(lang, sector.sector)}>{marketIndustryLabel(lang, sector.sector)}</span>

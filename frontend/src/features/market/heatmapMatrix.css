@@ -12,6 +12,14 @@
 }
 .heatmap-matrix-cell { position: absolute; background: rgb(130 160 195 / var(--tier-shade)); border: 1px solid var(--border); }
 .heatmap-matrix .heatmap-tree-label { border-width: 1px; font-size: calc(9px * var(--matrix-zoom)); }
+.heatmap-matrix .heatmap-matrix-sector-header[data-sector] { background-color: var(--matrix-sector-fill, #343b47); }
+.heatmap-matrix-sector-header[data-sector="mining"],
+.heatmap-matrix-sector-header[data-sector="telecom"] { --matrix-sector-fill: #234c76; }
+.heatmap-matrix-sector-header[data-sector="manufacturing"],
+.heatmap-matrix-sector-header[data-sector="professional"] { --matrix-sector-fill: #703a57; }
+.heatmap-matrix-sector-header[data-sector="construction"] { --matrix-sector-fill: #754529; }
+.heatmap-matrix-sector-header[data-sector="trade"] { --matrix-sector-fill: #25533f; }
+.heatmap-matrix .heatmap-matrix-sector-header small { color: #cdd6e1; }
 .heatmap-matrix .heatmap-tree-subgroup { background: var(--surface-2); color: var(--text); white-space: normal; }
 .heatmap-matrix .heatmap-tree-subgroup > span { white-space: normal; }
 .heatmap-matrix .heatmap-tree-tile { flex-direction: row; justify-content: flex-start; gap: calc(4px * var(--matrix-zoom)); border-radius: 3px; }
