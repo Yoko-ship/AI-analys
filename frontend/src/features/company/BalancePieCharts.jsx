@@ -12,8 +12,14 @@ const COLORS = [
   'color-mix(in srgb, var(--muted) 80%, var(--text))',
 ];
 const LABELS = {
+  total_assets: ['Итог активов', 'Jami aktivlar', 'Total assets'],
+  noncurrent_assets: ['Долгосрочные активы', 'Uzoq muddatli aktivlar', 'Non-current assets'],
+  current_assets: ['Текущие активы', 'Joriy aktivlar', 'Current assets'],
   total_liabilities: ['Обязательства', 'Majburiyatlar', 'Liabilities'],
   total_equity: ['Капитал', 'Kapital', 'Equity'],
+  nonreserve_liabilities: ['Обязательства без страховых резервов', 'Sug‘urta rezervlarisiz majburiyatlar', 'Liabilities excluding insurance reserves'],
+  insurance_reserves_net: ['Страховые резервы нетто', 'Sof sug‘urta rezervlari', 'Net insurance reserves'],
+  loans_leases_net: ['Кредиты и лизинг нетто', 'Sof kreditlar va lizing', 'Net loans and leases'],
   share_capital: ['Уставный капитал', 'Ustav kapitali', 'Share capital'],
   share_premium: ['Добавленный капитал', 'Qo‘shilgan kapital', 'Additional capital'],
   reserve_capital: ['Резервный капитал', 'Rezerv kapitali', 'Reserve capital'],
@@ -33,10 +39,39 @@ const REASONS = {
   equity_unreconciled: ['Составляющие капитала не сходятся с итогом раздела.', 'Kapital tarkibi bo‘lim jamiga mos kelmaydi.', 'Equity components do not reconcile to the section total.'],
   deductions: ['Выкупленные акции уменьшают капитал. Pie chart недоступен.', 'Sotib olingan aksiyalar kapitalni kamaytiradi. Pie chart mavjud emas.', 'Treasury shares reduce equity. A pie chart is unavailable.'],
   asset_sections: ['Разделы активов не сходятся с итогом активов.', 'Aktivlar bo‘limlari aktivlar jamiga mos kelmaydi.', 'The asset sections do not reconcile to total assets.'],
+  asset_section_overrun: ['Составляющие превышают итог раздела активов.', 'Tarkibiy qismlar aktivlar bo‘limi jamidan oshib ketgan.', 'Components exceed their asset section total.'],
   source: ['Не удалось подтвердить единый источник для этих значений.', 'Bu qiymatlar uchun umumiy manba tasdiqlanmadi.', 'A common reporting source could not be verified for these values.'],
   overflow: ['Значения слишком велики для расчёта долей.', 'Qiymatlar ulushlarni hisoblash uchun juda katta.', 'The amounts are too large to calculate shares.'],
 };
 const unitLabel = (unit, t) => unit === 'UZS_thousand' ? t('тыс. UZS', 'ming UZS', 'thousands UZS') : unit;
+const label = (row, t) => LABELS[row.metric_id] ? t(...LABELS[row.metric_id]) : row.label;
+function inputLabel(row, t) {
+  const name = label(row, t);
+  const line = [row.form, row.code].filter(Boolean).join(' ');
+  return <>{name}{line && <>{name && ' · '}<span className="fc-balance-source">{line}</span></>}</>;
+}
+
+function BalanceCalculation({comparison, format, t}) {
+  const {rows, comparator, sum, difference} = comparison;
+  const inputs = [...rows, comparator];
+  const precision = Math.max(2, ...inputs.map(({value}) => {
+    const [mantissa, exponent = '0'] = String(value).split('e');
+    return (mantissa.split('.')[1]?.length ?? 0) - Number(exponent);
+  }));
+  const amount = value => format(value, precision);
+  const unit = unitLabel(comparator.unit, t);
+  const sign = difference < 0 ? '−' : '+';
+  return <div className="fc-balance-calculation">
+    <dl>{inputs.map(row => <React.Fragment key={row.metric_id}>
+      <dt>{inputLabel(row, t)}</dt><dd>{amount(row.value)} {unit}</dd>
+    </React.Fragment>)}</dl>
+    <p className="fc-balance-equation">{rows.map(row => amount(row.value)).join(' + ')} = {amount(sum)} {unit}</p>
+    <div className="fc-balance-difference">
+      <strong>{t('Расхождение', 'Tafovut', 'Difference')}</strong>
+      <p className="fc-balance-equation">{amount(sum)} − {amount(comparator.value)} = {sign}{amount(Math.abs(difference))} {unit}</p>
+    </div>
+  </div>;
+}
 
 function piePath(start, share) {
   const point = angle => `${140 + 112 * Math.cos(angle)},${140 + 112 * Math.sin(angle)}`;
@@ -45,19 +80,26 @@ function piePath(start, share) {
   return `M140,140 L${point(start)} A112,112 0 0,1 ${point(middle)} A112,112 0 0,1 ${point(end)} Z`;
 }
 
-function PiePanel({id, title, data, period, format, t}) {
+function PiePanel({id, title, data, period, ticker, format, t}) {
   const [selection, setSelection] = React.useState(null);
   const inspected = selection?.period === period.key ? selection.metric : null;
   const setInspected = metric => setSelection({period: period.key, metric});
-  const label = row => LABELS[row.metric_id] ? t(...LABELS[row.metric_id]) : row.label;
   const amount = row => row.value == null || !row.unit ? format(row.value) : `${format(row.value)} ${unitLabel(row.unit, t)}`;
-  const describe = row => `${label(row)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
+  const describe = row => `${label(row, t)} · ${period.label} · ${amount(row)} · ${format(row.value / data.total * 100)}%`;
   const active = data.rows.find(row => row.metric_id === inspected);
   let angle = -Math.PI / 2;
   return <div className="fc-chart-plot fc-balance-pie" data-balance-chart={id}>
     <h3 className="fc-balance-title">{title}</h3>
-    <p className="fc-balance-total">{data.total == null ? '—' : <>{format(data.total)} <small>{unitLabel(data.unit, t)}</small></>}</p>
-    {data.reason ? <p className="fc-balance-unavailable" role="status">{t(...REASONS[data.reason])}</p> : <>
+    {!data.comparison && <p className="fc-balance-total">{data.total == null ? '—' : <>{format(data.total)} <small>{unitLabel(data.unit, t)}</small></>}</p>}
+    {data.reason ? <div className={`fc-balance-unavailable${data.comparison ? ' fc-balance-with-calculation' : ''}`} role="status">
+      <p>{t(...REASONS[data.reason])}</p>
+      {(data.comparison || data.unavailable.length > 0) && <p className="fc-balance-context">{ticker} · {period.label}</p>}
+      {data.comparison && <BalanceCalculation comparison={data.comparison} format={format} t={t}/>}
+      {data.unavailable.length > 0 && <div>
+        <p>{t('Строки для проверки', 'Tekshiriladigan qatorlar', 'Rows to check')}</p>
+        <ul>{data.unavailable.map(row => <li key={row.metric_id}>{inputLabel(row, t)}</li>)}</ul>
+      </div>}
+    </div> : <>
       <svg viewBox="0 0 280 280" role="img" aria-label={`${title} · ${period.label} · Pie chart`}>
         {data.rows.map((row, index) => {
           if (!row.value) return null;
@@ -79,28 +121,25 @@ function PiePanel({id, title, data, period, format, t}) {
         data-balance-value={row.metric_id} style={{'--series-color': COLORS[index % COLORS.length]}}>
         <button type="button" aria-pressed={inspected === row.metric_id} onClick={() => setInspected(row.metric_id)}
           onFocus={() => setInspected(row.metric_id)} disabled={Boolean(data.reason) || row.value === 0}>
-          <span>{label(row)}</span><strong>{amount(row)}{!data.reason && <small>{format(row.value / data.total * 100)}%</small>}</strong>
+          <span>{label(row, t)}</span><strong>{amount(row)}{!data.reason && <small>{format(row.value / data.total * 100)}%</small>}</strong>
         </button>
       </li>)}</ul>
     </details>
   </div>;
 }
 
-export function BalancePieCharts({rows, columns, reportContext, statementContext, renderStatementValue, format, t}) {
-  const [selected, setSelected] = React.useState(null);
-  const periods = columns.filter(column => column.basis !== 'ttm');
-  const period = periods.find(column => column.key === selected) || periods.at(-1);
+export function BalancePieCharts({rows, periods, period, onPeriodChange, reportContext, statementContext, renderStatementValue, format, t}) {
   if (!period) return <p className="fc-empty" role="status">{t(...REASONS.missing)}</p>;
   const {assets, funding, equity} = balanceComposition(rows, period.key, period.end, reportContext ?? undefined);
   return <section className="fc-balance-pies fc-chart-visuals" aria-label={t('Структура баланса', 'Balans tarkibi', 'Balance composition')}>
     <div className="fc-balance-periods" role="group" aria-label={t('Отчётный период', 'Hisobot davri', 'Reporting period')}>
       {periods.map(column => <button key={column.key} type="button" aria-pressed={column.key === period.key}
-        onClick={() => setSelected(column.key)}>{column.label}</button>)}
+        onClick={() => onPeriodChange(column.key)}>{column.label}</button>)}
     </div>
     <div className="fc-balance-panels">
-      <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} format={format} t={t}/>
-      <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} format={format} t={t}/>
-      <PiePanel id="equity" title={t('Источники собственных средств', 'O‘z mablag‘lari manbalari', 'Sources of equity')} data={equity} period={period} format={format} t={t}/>
+      <PiePanel id="assets" title={t('Активы', 'Aktivlar', 'Assets')} data={assets} period={period} ticker={statementContext.ticker} format={format} t={t}/>
+      <PiePanel id="funding" title={t('Обязательства и капитал', 'Majburiyatlar va kapital', 'Liabilities and equity')} data={funding} period={period} ticker={statementContext.ticker} format={format} t={t}/>
+      <PiePanel id="equity" title={t('Источники собственных средств', 'O‘z mablag‘lari manbalari', 'Sources of equity')} data={equity} period={period} ticker={statementContext.ticker} format={format} t={t}/>
     </div>
     <details className="fc-balance-details fc-balance-statement-details">
       <summary>{t('Подробнее · Все строки отчёта', 'Batafsil · Hisobotning barcha qatorlari', 'Details · All statement rows')}</summary>

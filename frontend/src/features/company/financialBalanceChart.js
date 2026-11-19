@@ -32,25 +32,37 @@ const EQUITY_LINES = {
     retained_earnings: '540', target_receipts: '550', future_expense_reserves: '560'},
 };
 
-function composition(rows, {value: total, unit, source, sourceError, unitError}, mismatch = null) {
-  let reason = null;
-  const sources = new Set([source, ...rows.map(row => row.source)].filter(Boolean));
-  if (sourceError || rows.some(row => row.sourceError) || sources.size > 1) reason = 'source';
-  else if (unitError || rows.some(row => row.unitError)) reason = 'units';
-  else if (total == null || !rows.length || rows.some(row => row.value == null)) reason = 'missing';
-  else if (rows.some(row => row.unit !== unit)) reason = 'units';
-  else if (total < 0 || rows.some(row => row.value < 0)) reason = 'negative';
-  else {
-    const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
-    const difference = sum - total;
-    const roundingError = Number.EPSILON * Math.max(Math.abs(total), Math.abs(sum)) * rows.length;
-    if (!Number.isFinite(sum)) reason = 'overflow';
-    else if (mismatch && Math.abs(difference) > roundingError) reason = mismatch;
-    else if (total === 0) reason = 'zero';
-    else if (difference > roundingError) reason = 'inconsistent';
-  }
-  const readings = reason === 'source' ? rows.map(row => ({...row, value: null, unit: null})) : rows;
-  return {rows: readings, total: reason ? null : total, unit, reason};
+function compare(rows, comparator) {
+  const sum = rows.reduce((subtotal, row) => subtotal + row.value, 0);
+  const difference = sum - comparator.value;
+  const roundingError = Number.EPSILON * Math.max(Math.abs(comparator.value), Math.abs(sum)) * rows.length;
+  return {rows, comparator, sum, difference, roundingError};
+}
+
+function composition(rows, comparator, mismatch = null) {
+  const {value: total, unit, source} = comparator;
+  const inputs = [comparator, ...rows];
+  const sources = new Set(inputs.map(row => row.source).filter(Boolean));
+  const panel = (reason = null, {unavailable = [], comparison = null} = {}) => ({
+    rows: reason === 'source' ? rows.map(row => ({...row, value: null, unit: null})) : rows,
+    total: reason ? null : total, unit, reason, comparison, unavailable,
+  });
+  const sourceIssues = inputs.filter(row => row.sourceError || (sources.size > 1 && row.source && row.source !== source));
+  if (sourceIssues.length) return panel('source', {unavailable: sourceIssues});
+  const invalidUnits = inputs.filter(row => row.unitError);
+  if (invalidUnits.length) return panel('units', {unavailable: invalidUnits});
+  const missing = inputs.filter(row => row.value == null);
+  if (missing.length || !rows.length) return panel('missing', {unavailable: missing});
+  const differingUnits = rows.filter(row => row.unit !== unit);
+  if (differingUnits.length) return panel('units', {unavailable: differingUnits});
+  if (inputs.some(row => row.value < 0)) return panel('negative');
+
+  const comparison = compare(rows, comparator);
+  if (!Number.isFinite(comparison.sum)) return panel('overflow');
+  if (mismatch && Math.abs(comparison.difference) > comparison.roundingError) return panel(mismatch, {comparison});
+  if (total === 0) return panel('zero');
+  if (comparison.difference > comparison.roundingError) return panel('inconsistent', {comparison});
+  return panel();
 }
 
 export function balanceComposition(rows, period, periodEnd, {scope, standard, ticker, issuerId} = {}) {
@@ -79,7 +91,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const unitError = value != null && !DISPLAY_SCALES.has(row?.unit);
     const sourceError = candidates.length > 1 || (value != null && !unitError && !source);
     return {...row, metric_id: metric, value: sourceError || unitError ? null : value, source, sourceError, unitError,
-      form};
+      form, code};
   };
   const totalAssets = reading('total_assets');
   const sections = ['noncurrent_assets', 'current_assets'].map(reading);
@@ -95,15 +107,14 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     const boundary = BALANCE_LINES[totalAssets.form].noncurrent_assets;
     const noncurrent = components.filter(row => ASSET_LINES[totalAssets.form][row.metric_id] < boundary);
     const current = components.filter(row => ASSET_LINES[totalAssets.form][row.metric_id] > boundary);
-    const exceedsSection = [noncurrent, current].some((items, i) => {
-      const sum = items.reduce((subtotal, item) => subtotal + item.value, 0);
-      const cap = sections[i].value;
-      const roundingError = Number.EPSILON * Math.max(sum, cap) * items.length;
-      return sum - cap > roundingError;
-    });
-    if (exceedsSection) {
-      assets.reason = 'asset_sections';
-      assets.total = null;
+    for (const [index, items] of [noncurrent, current].entries()) {
+      const calculation = compare(items, sections[index]);
+      if (calculation.difference > calculation.roundingError) {
+        assets.reason = 'asset_section_overrun';
+        assets.total = null;
+        assets.comparison = calculation;
+        break;
+      }
     }
   }
   if (!assets.reason) {
@@ -127,6 +138,7 @@ export function balanceComposition(rows, period, periodEnd, {scope, standard, ti
     equityRows.some(row => row.metric_id === 'treasury_shares' && row.value > 0)) {
     equity.reason = 'deductions';
     equity.total = null;
+    equity.comparison = null;
   }
   return {assets, funding: composition(fundingRows, totalAssets, 'unreconciled'), equity};
 }

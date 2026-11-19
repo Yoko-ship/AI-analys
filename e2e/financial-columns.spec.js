@@ -440,6 +440,68 @@ test('balance funding shows no aggregate when units differ', async ({page}) => {
   await expect(funding.getByRole('status')).toContainText('units do not match');
   await expect(funding.locator('.fc-balance-total')).toHaveText('—');
   await expect(funding.getByRole('img')).toHaveCount(0);
+  await expect(funding.getByRole('status')).toContainText('Equity · BANK_BS 30');
+  await expect(funding.getByText('Difference', {exact: true})).toHaveCount(0);
+});
+
+for (const width of [1440, 390]) test(`balance warnings show the selected filing arithmetic at ${width}px`, async ({page}, testInfo) => {
+  const reports = filedBalance('UZTL');
+  reports.ticker = 'DEMO';
+  // The 2025 filing is untouched. The adjacent periods simulate two distinct mismatches.
+  const synthetic = [
+    ['2024', '2024', '2024-12-31', 'annual', [12700000000, 10000000000.25, 2700000020, 6700000000, 6000000000]],
+    ['2026-09-30', '2026 · 9M', '2026-09-30', 'ytd', [13900000000.25, 10000000000.25, 3900000000, 7300000000, 6600000000.125]],
+  ];
+  for (const [key, label, end, basis, amounts] of synthetic) {
+    reports.columns.push({key, label, end, basis});
+    ['total_assets', 'noncurrent_assets', 'current_assets', 'total_liabilities', 'total_equity'].forEach((metric, index) => {
+      const row = reports.chart_rows.find(row => row.metric_id === metric);
+      row.cells[key] = {...row.cells['2025'], period_end: end, value: amounts[index], raw_value: amounts[index],
+        source_url: null, source_version: `fixture-${key}`};
+    });
+  }
+  reports.columns.sort((a, b) => a.end.localeCompare(b.end));
+  await page.setViewportSize({width, height: 950});
+  await setup(page, {ticker: 'DEMO', func: 'BS', lang: 'ru', reports, theme: 'dark'});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('button', {name: 'График', exact: true}).click();
+  const balance = terminal.getByRole('region', {name: 'Структура баланса'});
+  const periods = balance.getByRole('group', {name: 'Отчётный период'});
+  const assets = balance.locator('[data-balance-chart="assets"]');
+  const funding = balance.locator('[data-balance-chart="funding"]');
+  const stats = terminal.locator('.fc-stats');
+  const statsAssets = stats.locator('div').filter({hasText: 'Активы'});
+
+  await expect(periods.getByRole('button', {name: '2026 · 9M', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  await expect(funding.getByRole('img')).toHaveCount(0);
+  const fundingWarning = funding.getByRole('status');
+  await expect(fundingWarning).toContainText('Обязательства и капитал не сходятся с итогом активов.');
+  await expect(fundingWarning).toContainText('DEMO · 2026 · 9M');
+  for (const line of ['Обязательства · F1 770', 'Капитал · F1 480', 'Итог активов · F1 400'])
+    await expect(fundingWarning).toContainText(line);
+  await expect(fundingWarning).toContainText('7 300 000 000 + 6 600 000 000,125 = 13 900 000 000,125 тыс. UZS');
+  await expect(fundingWarning).toContainText('13 900 000 000,125 − 13 900 000 000,25 = −0,125 тыс. UZS');
+  await funding.screenshot({path: testInfo.outputPath('fixture-funding-warning.png')});
+
+  await periods.getByRole('button', {name: '2024', exact: true}).click();
+  await expect(statsAssets).toContainText('12 700 000 000');
+  await expect(statsAssets).toContainText('2024 · тыс. UZS');
+  await expect(funding.getByRole('img')).toBeVisible();
+  await expect(funding).not.toContainText('−0,125');
+  await expect(assets.getByRole('img')).toHaveCount(0);
+  const assetWarning = assets.getByRole('status');
+  await expect(assetWarning).toContainText('Разделы активов не сходятся с итогом активов.');
+  await expect(assetWarning).toContainText('DEMO · 2024');
+  for (const line of ['Долгосрочные активы · F1 130', 'Текущие активы · F1 390', 'Итог активов · F1 400'])
+    await expect(assetWarning).toContainText(line);
+  await expect(assetWarning).toContainText('10 000 000 000,25 + 2 700 000 020 = 12 700 000 020,25 тыс. UZS');
+  await expect(assetWarning).toContainText('12 700 000 020,25 − 12 700 000 000 = +20,25 тыс. UZS');
+  await assets.screenshot({path: testInfo.outputPath('fixture-assets-warning.png')});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+
+  await periods.getByRole('button', {name: '2025', exact: true}).click();
+  await expect(balance.getByRole('img')).toHaveCount(3);
+  await expect(assets).not.toContainText('+20,25');
 });
 
 test('balance legends withhold duplicate amounts and readings from another period', async ({page}) => {

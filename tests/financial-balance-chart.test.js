@@ -187,10 +187,16 @@ test('asset details replace section slices while section totals still reconcile'
   assert.equal(assets.reason, null);
   assert.deepEqual(assets.rows.map(row => row.metric_id), ['ppe', 'inventory', 'cash', 'unclassified_assets']);
   assert.equal(assets.rows.at(-1).value, 10);
-  rows[1].cells[period].value = '80';
-  assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
-  rows[1].cells[period].value = '50';
-  assert.equal(balanceComposition(rows, period).assets.reason, 'asset_sections');
+  for (const [section, sum, difference] of [[80, 120, 20], [50, 90, -10]]) {
+    rows[1].cells[period].value = section;
+    const {assets} = balanceComposition(rows, period);
+    assert.equal(assets.reason, 'asset_sections');
+    const {rows: inputs, comparator, sum: calculated, difference: delta} = assets.comparison;
+    assert.deepEqual(inputs.map(input => [input.metric_id, input.code, input.value]),
+      [['noncurrent_assets', '130', section], ['current_assets', '390', 40]]);
+    assert.deepEqual([comparator.metric_id, comparator.code, comparator.value, comparator.unit, calculated, delta],
+      ['total_assets', '400', 100, 'UZS_thousand', sum, difference]);
+  }
 });
 
 test('asset components cannot exceed their own filed subtotals', () => {
@@ -198,8 +204,14 @@ test('asset components cannot exceed their own filed subtotals', () => {
     const rows = [row('total_assets', 100), row('noncurrent_assets', 60), row('current_assets', 40),
       row('ppe', noncurrent), row('inventory', current)];
     const {assets} = balanceComposition(rows, period);
-    assert.equal(assets.reason, 'asset_sections');
+    assert.equal(assets.reason, 'asset_section_overrun');
     assert.equal(assets.total, null);
+    const {rows: inputs, comparator, sum, difference} = assets.comparison;
+    const currentSection = current > 40;
+    assert.deepEqual(inputs.map(row => row.metric_id), [currentSection ? 'inventory' : 'ppe']);
+    assert.equal(comparator.metric_id, currentSection ? 'current_assets' : 'noncurrent_assets');
+    assert.equal(sum, currentSection ? current : noncurrent);
+    assert.equal(difference, sum - (currentSection ? 40 : 60));
   }
   const insurance = filedBalance('KFSK');
   // Preserve the grand total while moving current assets into noncurrent assets.
@@ -211,8 +223,9 @@ test('asset components cannot exceed their own filed subtotals', () => {
   const {assets} = compose(insurance.rows, '2025', '2025-12-31', {
     ticker: 'KFSK', issuerId: insurance.issuer_id, scope: insurance.scope, standard: insurance.standard,
   });
-  assert.equal(assets.reason, 'asset_sections');
+  assert.equal(assets.reason, 'asset_section_overrun');
   assert.equal(assets.total, null);
+  assert.equal(assets.comparison.comparator.code, '130');
 });
 
 test('balance pies reject duplicate readings and conflicting source contexts', () => {
@@ -298,16 +311,24 @@ test('unavailable, negative and incompatible funding values keep their reported 
 test('funding needs a published assets total and reconciles in the same known unit', () => {
   const liabilities = row('total_liabilities', '80');
   const equity = row('total_equity', '30');
-  for (const [rows, reason] of [
+  for (const [rows, reason, difference] of [
     [[liabilities, equity], 'missing'],
-    [[row('total_assets', '100'), liabilities, equity], 'unreconciled'],
-    [[row('total_assets', '120'), liabilities, equity], 'unreconciled'],
+    [[row('total_assets', '100'), liabilities, equity], 'unreconciled', 10],
+    [[row('total_assets', '120'), liabilities, equity], 'unreconciled', -10],
     [[row('total_assets', '110'), liabilities, {...equity, unit: undefined}], 'units'],
     [[row('total_assets', '110', 'valid', 'shares'), {...liabilities, unit: 'shares'}, {...equity, unit: 'shares'}], 'units'],
   ]) {
     const {funding} = balanceComposition(rows, period);
     assert.equal(funding.reason, reason);
     assert.equal(funding.total, null);
+    if (difference === undefined) {
+      assert.equal(funding.comparison, null);
+      assert.ok(funding.unavailable.some(input => input.metric_id === (reason === 'missing' ? 'total_assets' : 'total_equity')));
+    } else {
+      const {rows: inputs, comparator, sum, difference: delta} = funding.comparison;
+      assert.deepEqual(inputs.map(input => [input.form, input.code, input.value]), [['F1', '770', 80], ['F1', '480', 30]]);
+      assert.deepEqual([comparator.form, comparator.code, comparator.value, sum, delta], ['F1', '400', 110 - difference, 110, difference]);
+    }
   }
   assert.equal(balanceComposition([row('total_assets', '100'), {...row('ppe', '20'), unit: undefined}], period).assets.reason, 'units');
 });
@@ -315,7 +336,9 @@ test('funding needs a published assets total and reconciles in the same known un
 test('asset pies require a published total and reject invalid components without inventing totals', () => {
   assert.equal(balanceComposition([row('ppe', '20')], period).assets.reason, 'missing');
   assert.equal(balanceComposition([row('total_assets', '100'), row('ppe', '-1')], period).assets.reason, 'negative');
-  assert.equal(balanceComposition([row('total_assets', '100'), row('ppe', '101')], period).assets.reason, 'inconsistent');
+  const overrun = balanceComposition([row('total_assets', '100'), row('ppe', '101')], period).assets;
+  assert.equal(overrun.reason, 'inconsistent');
+  assert.equal(overrun.comparison.difference, 1);
   const {assets} = balanceComposition([row('total_assets', '100'), row('ppe', '20'), row('cash', '60', 'blocked')], period);
   assert.equal(assets.reason, 'missing');
   assert.equal(assets.total, null);

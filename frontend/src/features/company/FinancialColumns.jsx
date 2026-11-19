@@ -113,6 +113,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   const showBalancePie = representation === 'chart' && statement === 'balance' && view === 'summary' && standard === 'NSBU';
   const [query, setQuery] = React.useState(''), [loaded, setLoaded] = React.useState(null), [retry, setRetry] = React.useState(0), [passport, setPassport] = React.useState(null);
   const [collapsed, setCollapsed] = React.useState({});
+  const [balanceSelection, setBalanceSelection] = React.useState(null);
   React.useEffect(() => { setPassport(null); }, [statement]);
   const params = new URLSearchParams({ form: standard, scope, freq, view: 'template',
     include_sources: 'false', include_ratios: String(view === 'ratios') });
@@ -136,9 +137,18 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   }, [url, retry, read, version]);
   const cached = peek(url);
   const current = loaded?.url === url && loaded.version === version ? loaded : cached ? {data:cached} : null, data = current?.data;
-  const formatter = React.useMemo(() => new Intl.NumberFormat(lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU', { maximumFractionDigits: 2 }), [lang]);
-  const format = value => value == null ? '—' : formatter.format(Number(value));
+  const locale = lang === 'en' ? 'en-US' : lang === 'uz' ? 'uz-UZ' : 'ru-RU';
+  const formatter = React.useMemo(() => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }), [locale]);
+  const format = (value, maximumFractionDigits = 2) => {
+    if (value == null) return '—';
+    const number = Number(value);
+    if (maximumFractionDigits === 2) return formatter.format(number);
+    const notation = maximumFractionDigits > 20 && number !== 0 && Math.abs(number) < 1e-20 ? 'scientific' : 'standard';
+    return number.toLocaleString(locale, { notation, maximumFractionDigits: Math.min(20, maximumFractionDigits) });
+  };
   const columns = (data?.columns || []).filter(c => Number(c.end.slice(0,4)) >= fromYear);
+  const balancePeriods = showBalancePie ? columns.filter(column => column.basis !== 'ttm') : [];
+  const balancePeriod = balancePeriods.find(column => balanceSelection?.url === url && column.key === balanceSelection.key) ?? balancePeriods.at(-1);
   const visibleRows = view === 'ratios' ? data?.ratios : view === 'summary' ? data?.overview_rows ?? data?.rows : data?.rows;
   const statementContext = {ticker, issuer_id: data?.issuer_id, scope, standard};
   const renderStatementValue = (row, cell, period) => <FinancialValue cell={cell} format={format} t={t}
@@ -149,8 +159,9 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
   if (data?.presentation !== 'template') groups.sort((a,b) => FORM_ORDER.indexOf(a)-FORM_ORDER.indexOf(b));
   const stat = metric => {
     const row = (data?.rows || []).find(r => r.metric_id === metric);
-    const column = row && columns.filter(c => row.cells[c.key]?.value != null && ['valid','warn'].includes(row.cells[c.key].quality)).at(-1);
-    return { value: format(column ? row.cells[column.key].value : null), period: column?.label || '—' };
+    const hasValue = key => row?.cells[key]?.value != null && ['valid','warn'].includes(row.cells[key].quality);
+    const column = balancePeriod ?? columns.findLast(c => hasValue(c.key));
+    return { value: format(hasValue(column?.key) ? row.cells[column.key].value : null), period: column?.label || '—' };
   };
   return <section className="financial-columns" data-testid="financial-columns" aria-busy={view !== 'owners' && !current}>
     <div className="fc-toolbar">
@@ -173,7 +184,8 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
       {representation === 'chart' ? (showIncomeFlow && view === 'summary' ?
         <IncomeSankey key={url} rows={data.rows || []} details={data.income_flow_rows} statementRows={data.chart_rows ?? data.rows ?? []} matchesStatementRow={matchesQuery}
           statementContext={statementContext} renderStatementValue={renderStatementValue} columns={columns} format={format} lang={lang} t={t} showDifference={isAdmin}/> : <>
-        {showBalancePie ? <BalancePieCharts key={url} rows={data.chart_rows ?? data.rows ?? []} columns={columns}
+        {showBalancePie ? <BalancePieCharts key={url} rows={data.chart_rows ?? data.rows ?? []} periods={balancePeriods} period={balancePeriod}
+          onPeriodChange={key => setBalanceSelection({url, key})}
           statementContext={statementContext} renderStatementValue={renderStatementValue} reportContext={
           data.ticker === ticker && data.scope === scope && data.standard === standard ? {ticker, issuerId: data.issuer_id, scope, standard} : null
         } format={format} t={t}/> :
