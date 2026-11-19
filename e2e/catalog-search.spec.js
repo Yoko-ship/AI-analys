@@ -11,7 +11,7 @@ const locales = {
   en: { hint: 'Company name or ticker', label: 'Company search', open: 'Open', help: 'Terminal help' },
 };
 
-async function setup(page, { lang = 'ru', theme = 'light', width = 1440 } = {}) {
+async function setup(page, { lang = 'ru', theme = 'light', width = 1440, valuationResponse } = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.addInitScript(({ lang, theme }) => {
     localStorage.setItem('uz_stock_analyzer_token', 'admin-token');
@@ -24,11 +24,50 @@ async function setup(page, { lang = 'ru', theme = 'light', width = 1440 } = {}) 
     const json = body => route.fulfill({ json: body });
     if (path === '/api/auth/me') return json({ user: { id: 1, is_admin: true, email: 'admin@example.test' } });
     if (path === '/api/catalog/companies') return json({ ok: true, companies });
+    if (path === '/api/admin/terminal/valuations' && valuationResponse) return valuationResponse(route);
     if (path.startsWith('/api/catalog/index/')) return json({ ok: true, availability: { NSBU: { annual: [], quarter: [] } } });
     return json({ ok: true, items: [], rows: [], periods: [], series: {}, companies_synced: 2, total_reports: 0 });
   });
   await page.goto(`${lang === 'uz' ? '/uz' : ''}/catalog?t=SQBN&f=SUM`);
 }
+
+test('undervalued issuers compose with sector and search on mobile and recover from a failed load', async ({page}) => {
+  let reads = 0;
+  await setup(page, {width:390, valuationResponse:route => {
+    reads += 1;
+    if (reads === 1) return route.fulfill({status:503, json:{ok:false}});
+    return route.fulfill({json:{ok:true, rows:[{ticker:'SQBN', period:'2025', standard:'NSBU', scope:'separate', price_to_value_pct:80}]}});
+  }});
+  const sidebar = page.locator('.catalog-sidebar');
+  const list = sidebar.locator('.catalog-company-item');
+  const toggle = page.getByRole('button', {name:/Эмитенты: 2/});
+  await toggle.click();
+  const filter = sidebar.getByRole('checkbox', {name:'Недооценённый', exact:true});
+  await expect(filter).toBeVisible();
+  expect(reads).toBe(0);
+  await filter.check();
+  await expect(sidebar.getByRole('alert')).toContainText('Не удалось загрузить оценки');
+  await expect(sidebar.locator('.catalog-toolbar-count')).not.toHaveText('Результаты: 0');
+  await sidebar.getByRole('button', {name:'Повторить', exact:true}).click();
+  await expect(list).toHaveCount(1);
+  await expect(list).toContainText('SQBN');
+  await sidebar.getByRole('button', {name:'Все отрасли'}).click();
+  await sidebar.getByRole('option', {name:'Телеком'}).click();
+  await expect(sidebar.locator('.catalog-toolbar-count')).toHaveText('Результаты: 0');
+  await sidebar.getByRole('button', {name:'Все отрасли'}).click();
+  await sidebar.getByRole('option', {name:'Все отрасли'}).click();
+  const search = page.getByRole('combobox', {name:locales.ru.label});
+  await search.fill('UZTLP');
+  await expect(list).toHaveCount(0);
+  await search.fill('Узпром');
+  await expect(list).toHaveCount(1);
+  await search.fill('');
+  await filter.uncheck();
+  await expect(list).toHaveCount(2);
+  await filter.check();
+  await expect(list).toHaveCount(1);
+  expect(reads).toBe(2);
+});
 
 for (const [lang, copy] of Object.entries(locales)) {
   for (const [theme, width] of [['light', 1440], ['dark', 390]]) {

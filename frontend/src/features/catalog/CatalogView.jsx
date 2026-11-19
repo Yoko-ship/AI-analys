@@ -18,7 +18,7 @@ import { CommandBar } from "./terminal/CommandBar.jsx";
 import { FunctionTabs, HelpPanel, LastPanel, NewsScreen, QualityScreen } from "./terminal/TerminalPanels.jsx";
 import { useTerminal } from "./terminal/useTerminal.js";
 import { MarketScreen, PanelWorkspace, DividendsScreen, AnalyticsScreen, Reconciliation, PeersScreen, ContextControls } from "./terminal/Workspace.jsx";
-import { useTableExports } from "../../shared/TerminalTables.jsx";
+import { useTableExports, words } from "../../shared/TerminalTables.jsx";
 import { TerminalValuation } from "../../shared/TerminalValuation.jsx";
 import "./terminal/catalogTerminal.css";
 import { StatementOverview } from "./terminal/StatementOverview.jsx";
@@ -30,6 +30,7 @@ import { CatalogIssuerList } from './CatalogIssuerList.jsx';
 const FINANCIAL_SECTIONS = { PL: "income", BS: "balance" };
 const SECTION_FUNCTIONS = { income: "PL", balance: "BS", ratios: "RAT" };
 const normalizeSearch = value => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+const validValuationRows = data => data?.ok === true && Array.isArray(data.rows);
 
 // ---------------------------------------------------------------------------
 // CatalogView helpers
@@ -536,11 +537,36 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
   const [sectorFilter, setSectorFilter] = useState("all");
   const [reportFilter, setReportFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  const [undervaluedOnly, setUndervaluedOnly] = useState(false);
+  const [valuationLoad, setValuationLoad] = useState(null);
+  const [valuationAttempt, setValuationAttempt] = useState(0);
   const [reportPage, setReportPage] = useState(0);
   const [peers, setPeers] = useState(null);
   const terminal = useTerminal({
     companies: catalogComps, ticker, setTicker, lang,
   });
+  const {form: valuationForm, scope: valuationScope} = terminal;
+  const valuationUrl = user?.is_admin && undervaluedOnly && !terminal.market
+    ? `/api/admin/terminal/valuations?${new URLSearchParams({form:valuationForm, scope:valuationScope})}`
+    : null;
+  const valuationKey = valuationUrl ? `${valuationUrl}:${version}:${valuationAttempt}` : null;
+  useEffect(() => {
+    if (!valuationUrl) return;
+    let active = true;
+    read(valuationUrl, {validate:validValuationRows}).then(data => {
+      if (active) setValuationLoad({key:valuationKey, rows:data.rows});
+    }).catch(() => {
+      if (active) setValuationLoad({key:valuationKey, error:true});
+    });
+    return () => { active = false; };
+  }, [read, valuationUrl, valuationKey]);
+  const valuation = valuationKey && valuationLoad?.key === valuationKey ? valuationLoad : null;
+  const undervaluedTickers = React.useMemo(() => new Set(valuation?.rows?.filter(row =>
+    row.standard === valuationForm && row.scope === valuationScope
+    && /^\d{4}$/.test(row.period) && (yearFilter === 'all' || String(row.period) === String(yearFilter))
+    && Number.isFinite(row.price_to_value_pct) && row.price_to_value_pct < 100
+  ).map(row => row.ticker)), [valuation, valuationForm, valuationScope, yearFilter]);
+  const valuationPending = Boolean(valuationUrl && !valuation?.rows);
   const exportRoot = React.useRef(null);
   useTableExports(exportRoot, {ticker:terminal.market?null:ticker, function:terminal.market || terminal.func, standard:terminal.form, scope:terminal.scope});
   const terminalFunc = React.useRef(terminal.func);
@@ -752,9 +778,10 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
     // series (ACMT2B4) has to reach the company it belongs to.
     const matchesSearch = !q || normalizeSearch(c.company_name).includes(q)
       || (c.tickers?.length ? c.tickers : [c.ticker]).some((t) => t.toLowerCase().includes(q));
-    return matchesSearch && matchesSector && matchesReport;
+    return matchesSearch && matchesSector && matchesReport && (!valuationUrl || undervaluedTickers.has(c.ticker));
   }).sort((a, b) => (b.total_count || 0) - (a.total_count || 0)
-    || String(a.company_name || a.ticker).localeCompare(String(b.company_name || b.ticker), lang)), [catalogComps, sectorFilter, reportFilter, q, lang]);
+    || String(a.company_name || a.ticker).localeCompare(String(b.company_name || b.ticker), lang)), [catalogComps, sectorFilter, reportFilter, q, lang, valuationUrl, undervaluedTickers]);
+  const issuerCount = valuationPending ? "—" : filteredComps.length;
   const goToIssuer = terminal.go;
   const selectIssuer = React.useCallback(ticker => {
     goToIssuer({ticker});
@@ -871,7 +898,7 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
           <button className="catalog-issuer-toggle" type="button" ref={issuerToggle}
             aria-expanded={!compactCatalog || issuersOpen} aria-controls={issuerPanelId}
             onClick={() => setIssuersOpen(open => !open)}>
-            <span>{catalogTerminalText(lang, "issuers")}: {filteredComps.length}</span>
+            <span>{catalogTerminalText(lang, "issuers")}: {issuerCount}</span>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
           </button>
           <div id={issuerPanelId} hidden={compactCatalog && !issuersOpen}>
@@ -904,21 +931,37 @@ function CatalogScreen({ language, token, addToast, initialStatus, user }) {
             ...reportYears.map((reportYear) => ({ value: reportYear, label: reportYear })),
           ]}
         />
-        <span className="catalog-toolbar-count">{catalogTerminalText(lang, "results")}: {filteredComps.length}</span>
+        <span className="catalog-toolbar-count">{catalogTerminalText(lang, "results")}: {issuerCount}</span>
+        {user?.is_admin && (
+          <div className="catalog-valuation-filter">
+            <label className="catalog-valuation-toggle">
+              <input type="checkbox" checked={undervaluedOnly} onChange={e => setUndervaluedOnly(e.target.checked)} />
+              {words(lang, "Недооценённый", "Past baholangan", "Undervalued")}
+            </label>
+            {undervaluedOnly && <small>{words(lang, "Цена к оценке < 100% по последнему годовому отчёту", "Oxirgi yillik hisobot bo‘yicha narx / baho < 100%", "Price / valuation < 100% using the latest annual filing")}</small>}
+          </div>
+        )}
       </div>
 
           <div className="catalog-sidebar-head">
             <span>{catalogTerminalText(lang, "issuers")}</span>
-            <span>{filteredComps.length}</span>
+            <span>{issuerCount}</span>
           </div>
-          {compsLoading ? (
+          {valuationPending ? (
+            valuation?.error ? (
+              <div className="catalog-list-empty" role="alert">
+                <div>{words(lang, "Не удалось загрузить оценки", "Baholar yuklanmadi", "Could not load valuations")}</div>
+                <button className="ghost-btn" type="button" onClick={() => setValuationAttempt(n => n + 1)}>{words(lang, "Повторить", "Qayta urinish", "Retry")}</button>
+              </div>
+            ) : <div className="catalog-list-loading" role="status">{words(lang, "Загрузка оценок…", "Baholar yuklanmoqda…", "Loading valuations…")}</div>
+          ) : compsLoading ? (
             <div className="catalog-list-loading">{clg(lang, "loading")}</div>
           ) : filteredComps.length === 0 ? (
             <div className="catalog-list-empty">
-              {catalogComps.length === 0 ? clg(lang, "empty") : clg(lang, "noReports")}
+              {valuationUrl ? words(lang, "Нет подходящих эмитентов", "Mos emitentlar yo‘q", "No matching issuers") : catalogComps.length === 0 ? clg(lang, "empty") : clg(lang, "noReports")}
             </div>
           ) : (
-            <CatalogIssuerList key={`${q}:${sectorFilter}:${reportFilter}`} companies={filteredComps}
+            <CatalogIssuerList key={`${q}:${sectorFilter}:${reportFilter}:${undervaluedOnly}:${undervaluedOnly ? yearFilter : ''}`} companies={filteredComps}
               ticker={ticker} lang={lang} onSelect={selectIssuer}/>
           )}
           </div>

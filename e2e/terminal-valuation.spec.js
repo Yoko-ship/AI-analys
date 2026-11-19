@@ -18,14 +18,14 @@ function valuation(ticker='HMKB', standard='NSBU') {
     }};
 }
 
-async function setup(page, {admin=true, fail=false, theme='dark', referenceOnly=false, lang='en', valuationResult=null, beforeNavigate}={}) {
+async function setup(page, {admin=true, fail=false, theme='dark', referenceOnly=false, lang='en', valuationResult=null, additionalIssuers=[], beforeNavigate}={}) {
   await page.addInitScript(({theme,lang}) => {
     localStorage.setItem('uz_stock_analyzer_token','admin-token');
     localStorage.setItem('uz_stock_analyzer_language',lang);
     localStorage.setItem('uz_stock_analyzer_theme',theme);
   }, {theme,lang});
   const requests=[];
-  const companies=[{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance',nsbu_count:45,msfo_count:1,total_count:46},{ticker:'AGBA',company_name:'Agrobank',sector:'finance',total_count:42}];
+  const companies=[{ticker:'HMKB',company_name:'Hamkorbank',sector:'finance',nsbu_count:45,msfo_count:1,total_count:46},{ticker:'AGBA',company_name:'Agrobank',sector:'finance',total_count:42},...additionalIssuers];
   if(valuationResult)companies.push({ticker:valuationResult.ticker,company_name:valuationResult.ticker,sector:'industry',nsbu_count:7,total_count:7});
   await page.route('**/api/**',route=>{
     const url=new URL(route.request().url()), path=url.pathname;
@@ -223,10 +223,45 @@ test('FV explains load errors and retries without leaving a stale valuation',asy
 });
 
 test('a non-admin cannot open a catalog valuation bookmark',async({page})=>{
+  const batchRequests=[];
+  page.on('request',request=>{
+    if (new URL(request.url()).pathname === '/api/admin/terminal/valuations') batchRequests.push(request);
+  });
   const requests=await setup(page,{admin:false});
   await expect(page.getByRole('heading',{name:'Administrators only',exact:true})).toBeVisible();
   await expect(page.locator('.terminal-valuation')).toHaveCount(0);
+  await expect(page.getByRole('checkbox',{name:'Undervalued',exact:true})).toHaveCount(0);
   expect(requests).toHaveLength(0);
+  expect(batchRequests).toHaveLength(0);
+});
+
+test('CAT uses the FV annual valuation strictly below 100% for the matching issuer and context', async ({page}) => {
+  const result = valuation('UNVB');
+  result.summary.price_to_value_pct = 97.09;
+  const row = (ticker, price_to_value_pct, context = {}) => ({ticker, price_to_value_pct, period:'2025', standard:'NSBU', scope:'separate', ...context});
+  const rows = [row('UNVB',97.09), row('HMKB',100), row('AGBA',100.001), row('TEST',99.999,{period:'2024'}), row('MISSING',null),
+    row('OTHERSTD',80,{standard:'MSFO'}), row('OTHERSCOPE',80,{scope:'consolidated'}), row('QUARTER',80,{period:'2025Q3'}), row('ALIASB1',80)];
+  const requests = [];
+  await setup(page, {lang:'ru', valuationResult:result,
+    additionalIssuers:['TEST','MISSING','OTHERSTD','OTHERSCOPE','QUARTER','ALIAS'].map(ticker => ({ticker, company_name:ticker, tickers:[ticker,`${ticker}B1`]})),
+    beforeNavigate:() => page.route('**/api/admin/terminal/valuations?**', route => {
+      requests.push(route.request());
+      return route.fulfill({json:{ok:true, rows}});
+    }),
+  });
+  await expect(page.locator('.terminal-valuation')).toContainText('97,09');
+  const sidebar = page.locator('.catalog-sidebar');
+  const filter = sidebar.getByRole('checkbox', {name:'Недооценённый', exact:true});
+  await expect(filter).toBeVisible();
+  await filter.check();
+  await expect(sidebar.locator('.catalog-toolbar-count')).toHaveText('Результаты: 2');
+  await expect(sidebar.locator('.catalog-company-item')).toHaveText([/UNVB/, /TEST/]);
+  await sidebar.getByRole('button', {name:'Все годы'}).click();
+  await sidebar.getByRole('option', {name:'2025'}).click();
+  await expect(sidebar.locator('.catalog-company-item')).toHaveText([/UNVB/]);
+  expect(requests).toHaveLength(1);
+  expect(requests[0].headers().authorization).toBe('Bearer admin-token');
+  expect(Object.fromEntries(new URL(requests[0].url()).searchParams)).toEqual({form:'NSBU', scope:'separate'});
 });
 
 for (const [theme, width] of [['light',1440],['dark',390]]) test(`admin EQS has aligned readable filters and preserves valuation context (${theme}, ${width}px)`,async({page},testInfo)=>{

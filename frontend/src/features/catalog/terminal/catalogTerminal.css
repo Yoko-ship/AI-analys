@@ -38,6 +38,10 @@ html[data-theme="dark"] .app-shell-wrap.view-catalog {
 .app-shell-wrap[data-ui="purple"] .catalog-filter-trigger { min-height:44px; padding:8px; border-radius:8px; font-size:12px; }
 .catalog-terminal-ui .catalog-filter-control { min-width:0; }
 .app-shell-wrap[data-ui="purple"] .catalog-toolbar-count { font-size:12px; white-space:normal; color:var(--text-secondary); }
+.catalog-valuation-filter { grid-column:1 / -1; }
+.catalog-valuation-toggle { display:flex; align-items:center; gap:8px; min-height:44px; padding-inline:8px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); font-size:13px; cursor:pointer; }
+.catalog-valuation-toggle input { width:16px; height:16px; margin:0; accent-color:var(--accent); }
+.catalog-valuation-filter small { display:block; margin-top:4px; color:var(--text-secondary); }
 .app-shell-wrap[data-ui="purple"] .catalog-sidebar-head { padding:16px 0 8px; font-size:12px; font-weight:500; }
 .app-shell-wrap[data-ui="purple"] .catalog-sidebar-head span:last-child { background:none; color:var(--text-secondary); }
 .app-shell-wrap[data-ui="purple"] .catalog-company-list { gap:4px; margin:0; max-height:calc(100vh - 340px); min-height:0; }
