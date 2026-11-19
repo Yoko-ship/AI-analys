@@ -1,4 +1,5 @@
 import {test, expect} from '@playwright/test';
+import {readFileSync} from 'node:fs';
 import {row} from './helpers/market-board.js';
 
 const technicalKeys = ['sma20','sma50','sma200','high52w','low52w','rsi14','dayChange','changeOpen','gap','dayVolume'];
@@ -6,11 +7,11 @@ const technical = {
   HMKB: {as_of:'2026-11-06', observations:240, values:{sma20:5, sma50:8, sma200:12, high52w:-10, low52w:30, rsi14:65, dayChange:2, changeOpen:1, gap:0.99, dayVolume:12000, atr14:3.5, beta:null}, missing:{beta:'benchmark_unavailable'}},
   SQBNP: {as_of:'2026-11-05', observations:20, values:{sma20:-2, sma50:null, sma200:null, high52w:null, low52w:null, rsi14:25, dayChange:-1, changeOpen:0, gap:-1, dayVolume:0, atr14:null, beta:null}, missing:{sma50:'insufficient_history', sma200:'insufficient_history', high52w:'insufficient_history',low52w:'insufficient_history',atr14:'missing_ohlc', beta:'benchmark_unavailable'}},
 };
-async function setup(page, {role='administrator', saved=[], fail=false, authenticate}={}) {
+async function setup(page, {role='administrator', saved=[], fail=false, authenticate,
+  stocks=[row('HMKB',118,116,12000),row('SQBNP',89,90,0)], respondTechnical}={}) {
   const requests=[];
   const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
-  const stocks=[row('HMKB',118,116,12000),row('SQBNP',89,90,0)];
   await page.route('**/api/**',route=>{
     const path=new URL(route.request().url()).pathname;
     const data=path==='/api/market/stocks'?{stocks}
@@ -31,6 +32,7 @@ async function setup(page, {role='administrator', saved=[], fail=false, authenti
   });
   await page.route('**/api/market/technical',route=>{
     requests.push(route.request().headers().authorization);
+    if (respondTechnical) return respondTechnical(route, requests.length);
     return route.fulfill({status:fail?503:200,json:fail?{detail:'unavailable'}:{ok:true,as_of:'2026-11-06',technical}});
   });
   await page.goto('/market');
@@ -45,7 +47,8 @@ async function settings(page) {
   await page.getByRole('button',{name:/^Technical/}).click();
   return page.getByTestId('technical-settings');
 }
-const cell=(page,ticker,key)=>page.locator('.market-table tbody tr').filter({hasText:ticker}).locator(`[data-technical="${key}"]`);
+const securityRow=(page,ticker)=>page.locator('.market-table tbody tr').filter({has:page.getByRole('button',{name:ticker,exact:true})});
+const cell=(page,ticker,key)=>securityRow(page,ticker).locator(`[data-technical="${key}"]`);
 
 for(const role of [null,'reader','analyst']) test(`${role||'guest'} cannot use saved Technical columns or filters`,async({page})=>{
   const {requests}=await setup(page,{role,saved:technicalKeys});
@@ -146,6 +149,84 @@ test('failed Technical request is explicit and retryable',async({page})=>{
   await page.route('**/api/market/technical',route=>route.fulfill({json:{ok:true,as_of:'2026-11-06',technical}}));
   await page.getByRole('button',{name:'Повторить Technical',exact:true}).click();
   await expect(cell(page,'HMKB','sma20')).toContainText('5');
+});
+
+test('saved Technical columns recover from a stalled request for both Uzbektelecom share classes', async ({page}) => {
+  const {securities} = JSON.parse(readFileSync('tests/fixtures/uztl_share_classes.json', 'utf8'));
+  const stocks = [
+    {...row('UZTL', 21175, 21000, 12000), ...securities.UZTL},
+    {...row('UZTLP', 12800, 12700, 1000), ...securities.UZTLP},
+  ];
+  const snapshot = {ok:true, as_of:'2026-11-18', technical:{
+    UZTL:{as_of:'2026-11-18', observations:55, values:{sma20:5, sma50:8}},
+    UZTLP:{as_of:'2026-11-17', observations:30, values:{sma20:-2, sma50:null}, missing:{sma50:'insufficient_history'}},
+  }};
+  let release;
+  const stalled = new Promise(resolve => {release = resolve;});
+  await page.clock.install();
+  try {
+    const {requests} = await setup(page, {stocks, saved:['sma20', 'sma50'], respondTechnical:async (route, attempt) => {
+      if (attempt === 1) await stalled;
+      return route.fulfill({json:snapshot});
+    }});
+    await expect.poll(() => requests.length).toBe(1);
+    const status = page.getByTestId('technical-status');
+    const retry = page.getByRole('button', {name:'Повторить Technical', exact:true});
+    const prices = [securityRow(page, 'UZTL').getByRole('cell', {name:/^21\s175$/}),
+      securityRow(page, 'UZTLP').getByRole('cell', {name:/^12\s800$/})];
+    await expect(status).toHaveText('Загрузка Technical…');
+    await expect(cell(page, 'UZTL', 'sma20')).toHaveText('—');
+    await expect(cell(page, 'UZTLP', 'sma20')).toHaveText('—');
+    for (const price of prices) await expect(price).toBeVisible();
+
+    await page.clock.fastForward(30_000);
+    await expect(retry).toBeVisible();
+    for (const price of prices) await expect(price).toBeVisible();
+    await retry.click();
+
+    await expect(cell(page, 'UZTL', 'sma20')).toHaveText('5%');
+    await expect(cell(page, 'UZTL', 'sma50')).toHaveText('8%');
+    await expect(cell(page, 'UZTLP', 'sma20')).toHaveText('-2%');
+    await expect(cell(page, 'UZTLP', 'sma50')).toHaveText('—');
+    await expect(cell(page, 'UZTLP', 'sma50')).toHaveAttribute('title', /2026-11-17.*Недостаточно истории/);
+    await expect(status).toContainText('2026-11-18');
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', {name:/Экспорт CSV/}).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/^uzstock_stock_.*\.csv$/);
+    expect(requests).toEqual(['Bearer technical-session', 'Bearer technical-session']);
+  } finally {
+    release();
+  }
+});
+
+test('Technical also times out while reading the response body', async ({page}) => {
+  await page.clock.install();
+  await page.addInitScript(() => {
+    const fetchResponse = window.fetch.bind(window);
+    window.fetch = async (url, options) => {
+      const response = await fetchResponse(url, options);
+      if (url === '/api/market/technical' && !window.finishTechnicalBody) {
+        response.json = () => new Promise(resolve => {
+          window.finishTechnicalBody = resolve;
+        });
+      }
+      return response;
+    };
+  });
+  await setup(page, {saved:['sma20']});
+  await expect.poll(() => page.evaluate(() => typeof window.finishTechnicalBody)).toBe('function');
+  await page.clock.fastForward(30_000);
+  const retry = page.getByRole('button', {name:'Повторить Technical', exact:true});
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(cell(page, 'HMKB', 'sma20')).toHaveText('5%');
+
+  await page.evaluate(() => window.finishTechnicalBody({ok:true, as_of:'2026-11-05', technical:{}}));
+  await page.clock.fastForward(30_000);
+  await expect(page.getByTestId('technical-status')).toContainText('2026-11-06');
+  await expect(cell(page, 'HMKB', 'sma20')).toHaveText('5%');
 });
 
 test('Technical waits for authenticated admin and is removed on logout',async({page})=>{

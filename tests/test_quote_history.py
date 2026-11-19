@@ -23,6 +23,7 @@ import securities_catalog as subject_securities_catalog
 
 import importlib
 
+import dbx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -154,10 +155,23 @@ class TestTheStore:
         assert n == 0
         assert catalogue_market_store.get_quote_history([ISIN_A]) == {}
 
-    def test_the_window_counts_sessions_not_calendar_days(self, store):
+    def test_the_window_counts_sessions_not_calendar_days(self, store, monkeypatch):
         """A quiet security must not come back empty and read as 'no data'."""
         catalogue_market_store.bulk_upsert_quote_history(_rows())
-        assert len(catalogue_market_store.get_quote_history([ISIN_A], days=2)[ISIN_A]) == 2
+        fetchall = dbx.Cursor.fetchall
+        read_counts = []
+
+        def count_rows(cursor):
+            rows = fetchall(cursor)
+            read_counts.append(len(rows))
+            return rows
+
+        monkeypatch.setattr(dbx.Cursor, "fetchall", count_rows)
+        history = catalogue_market_store.get_quote_history([ISIN_A, ISIN_B, ISIN_A.lower()], days=2)
+        assert {isin: [row["trade_date"] for row in rows] for isin, rows in history.items()} == {
+            ISIN_A: ["20260806", "20260807"], ISIN_B: ["20260807"],
+        }
+        assert read_counts == [3]
 
     def test_asks_for_many_securities_at_once(self, store):
         catalogue_market_store.bulk_upsert_quote_history(_rows())

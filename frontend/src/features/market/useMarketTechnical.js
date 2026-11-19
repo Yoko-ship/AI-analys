@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react';
 const EMPTY = {};
+const TECHNICAL_TIMEOUT_MS = 30_000;
 
 export function useMarketTechnical({enabled, needed, accountKey, apiFetch, loadVersion}) {
   const [state, setState] = useState({});
@@ -7,17 +8,26 @@ export function useMarketTechnical({enabled, needed, accountKey, apiFetch, loadV
   useEffect(() => {
     if (!enabled || !needed || !loadVersion) return;
     const controller = new AbortController();
-    let alive = true;
-    setState({owner:accountKey, version:loadVersion, status:'loading'});
-    apiFetch('/api/market/technical', {signal:controller.signal}).then(async response => {
+    const {signal} = controller;
+    const request = {owner:accountKey, version:loadVersion};
+    const showError = () => setState({...request, status:'error'});
+    setState({...request, status:'loading'});
+    const deadline = setTimeout(() => {
+      controller.abort();
+      showError();
+    }, TECHNICAL_TIMEOUT_MS);
+    apiFetch('/api/market/technical', {signal}).then(async response => {
       if (!response.ok) throw new Error('Technical request failed');
       const body = await response.json();
       if (!body.ok || !body.technical || typeof body.technical !== 'object' || Array.isArray(body.technical)) throw new Error('Technical data unavailable');
-      if (alive) setState({owner:accountKey, version:loadVersion, status:'ready', data:body.technical, asOf:body.as_of});
+      if (!signal.aborted) setState({...request, status:'ready', data:body.technical, asOf:body.as_of});
     }).catch(() => {
-      if (alive) setState({owner:accountKey, version:loadVersion, status:'error'});
-    });
-    return () => { alive = false; controller.abort(); };
+      if (!signal.aborted) showError();
+    }).finally(() => clearTimeout(deadline));
+    return () => {
+      clearTimeout(deadline);
+      controller.abort();
+    };
   }, [enabled, needed, accountKey, apiFetch, loadVersion, attempt]);
   const current = enabled && needed && state.owner === accountKey && state.version === loadVersion;
   return {data:current && state.data || EMPTY, asOf:current && state.asOf,

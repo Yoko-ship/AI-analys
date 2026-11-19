@@ -422,33 +422,44 @@ def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[di
     One query for the whole set — the point of storing this at all was to stop
     a list of securities costing one upstream request per row.
     """
-    codes = [str(i).strip().upper() for i in (isins or []) if str(i or "").strip()]
+    codes = list(dict.fromkeys(str(i).strip().upper() for i in (isins or []) if str(i or "").strip()))
     if not codes:
         return {}
     days = max(1, min(int(days or 30), 3650))
-    placeholders = ",".join("?" * len(codes))
+    requested = ", ".join("(?)" for _ in codes)
     conn = catalogue_storage.get_catalog_conn()
     try:
+        # Find the oldest session once per ISIN using the (isin, trade_date)
+        # index, then fetch only rows in that range. Short histories use all rows.
         rows = conn.execute(
             f"""
-            SELECT isin, trade_date, close_price, change_value, quantity, turnover,
+            WITH requested(isin) AS (VALUES {requested}),
+            bounds AS MATERIALIZED (
+                SELECT requested.isin, COALESCE((
+                    SELECT recent.trade_date
+                    FROM catalog_quote_history AS recent
+                    WHERE recent.isin = requested.isin
+                    ORDER BY recent.trade_date DESC
+                    LIMIT 1 OFFSET ?
+                ), '') AS oldest
+                FROM requested
+            )
+            SELECT history.isin, trade_date, close_price, change_value, quantity, turnover,
                    open_price, high_price, low_price, trade_count,
                    largest_value, largest_qty
-            FROM catalog_quote_history
-            WHERE isin IN ({placeholders})
-            ORDER BY isin, trade_date
+            FROM bounds
+            JOIN catalog_quote_history AS history ON history.isin = bounds.isin
+                AND history.trade_date >= bounds.oldest
+            ORDER BY history.isin, history.trade_date
             """,
-            codes,
+            [*codes, days - 1],
         ).fetchall()
     finally:
         conn.close()
     out: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
         out.setdefault(r["isin"], []).append(dict(r))
-    # The window is the last N SESSIONS the security has, not the last N calendar
-    # days: a quiet security would otherwise return an empty series and read as
-    # "no data" when what it did was not trade.
-    return {isin: series[-days:] for isin, series in out.items()}
+    return out
 
 
 def latest_session_date() -> date | None:
