@@ -88,6 +88,22 @@ def test_the_team_never_counts(traffic):
     assert wa.users_funnel(30)["steps"][0]["count"] == 5
 
 
+def test_dot_landing_excludes_only_the_marked_visit(traffic):
+    # The same browser can return later as an ordinary reader.
+    traffic("visitorDOT1", "/chart/HMKB", "chart", "198.51.100.3", us="Dot")
+    traffic("visitorDOT1", "/chart/UZTL", "chart", "198.51.100.3")
+    traffic("visitorDOT1", "/chart/UZTL", "chart", "198.51.100.3", event="leave", ms=9000)
+    traffic("visitorDOT1", "/market", "market", "198.51.100.3", sid="normalVisit1")
+    traffic("visitorDOT2", "/chart/HMKB", "chart", "198.51.100.3", us="dot")
+    assert wa.flush() == 5
+    with wa._conn() as conn:
+        wa._scope(conn)
+        for view in ("ev", "ev_all"):
+            rows = conn.execute(f"SELECT path FROM {view} WHERE visitor_id IN ('visitorDOT1','visitorDOT2')").fetchall()
+            assert [row["path"] for row in rows] == ["/market"]
+        assert conn.execute("SELECT COUNT(*) AS n FROM web_events WHERE utm_source='dot'").fetchone()["n"] == 2
+
+
 def test_channels_campaigns_and_landings(traffic):
     audience = wa.audience(30)
     channels = {c["channel"]: c for c in audience["channels"]}

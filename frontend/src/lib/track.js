@@ -106,12 +106,12 @@ function visitorId(store) {
 }
 
 /** The current visit's id; rotating it after idle is what defines a visit. */
-function sessionId(store) {
+function sessionId(store, startNew = false) {
   const now = Date.now();
   const seen = Number(store.getItem(SEEN_KEY) || 0);
   let sid = store.getItem(SESSION_KEY);
   let fresh = false;
-  if (!sid || !/^[a-z0-9_-]{8,64}$/i.test(sid) || !seen || now - seen > IDLE_MS) {
+  if (startNew || !sid || !/^[a-z0-9_-]{8,64}$/i.test(sid) || !seen || now - seen > IDLE_MS) {
     sid = randomId();
     store.setItem(SESSION_KEY, sid);
     fresh = true;
@@ -168,7 +168,9 @@ export function trackPageview({ path, view = "", ticker = "" } = {}) {
     lastSent = { path, at: now };
 
     reportLeave();
-    const { sid, fresh } = sessionId(store);
+    // Keep a tagged automation run separate from any previous visit in this browser.
+    const dotEntry = tagsPending && landingTags?.us?.trim().toLowerCase() === "dot";
+    const { sid, fresh } = sessionId(store, dotEntry);
     const vid = visitorId(store);
     const tags = fresh && tagsPending ? landingTags : null;
     if (fresh) tagsPending = false;

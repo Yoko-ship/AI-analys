@@ -32,6 +32,27 @@ test("a visit reports its campaign and how long each page was read", async ({ pa
   expect(beacons.find((b) => !b.event && b.path === "/market").us).toBeUndefined();
 });
 
+test("a Dot entry link starts a separate visit even in an existing browser", async ({page}) => {
+  const views = [];
+  await page.route("**/api/**", route => {
+    if (new URL(route.request().url()).pathname === "/api/track") {
+      const payload = route.request().postDataJSON();
+      if (!payload.event) views.push(payload);
+      return route.fulfill({status: 204, body: ""});
+    }
+    return route.fulfill({json: {ok: true, items: [], securities: {}}});
+  });
+  await page.goto("/market");
+  await expect.poll(() => views.length).toBe(1);
+  await page.goto("/chart/HMKB?lang=ru&utm_source=dot");
+  await expect.poll(() => views.length).toBe(2);
+  expect(views[1]).toMatchObject({vid: views[0].vid, us: "dot"});
+  expect(views[1].sid).not.toBe(views[0].sid);
+  await page.goto("/market");
+  await expect.poll(() => views.length).toBe(3);
+  expect(views[2].sid).toBe(views[1].sid);
+});
+
 test("a browser the team excluded marks every beacon", async ({ page }) => {
   const beacons = [];
   await page.addInitScript(() => localStorage.setItem("uz_track_internal", "1"));

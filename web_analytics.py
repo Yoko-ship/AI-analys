@@ -110,6 +110,8 @@ def init_db() -> bool:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_ts ON web_events(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_visitor_ts ON web_events(visitor_id, ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_session ON web_events(session_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_web_events_dot_visit ON web_events(visitor_id, session_id) "
+                     "WHERE utm_source = 'dot'")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_web_events_user ON web_events(user_id) WHERE user_id IS NOT NULL"
         )
@@ -524,7 +526,13 @@ def _scope(conn, until: datetime | None = None) -> list[str]:
     ).fetchall()
     excluded = [r["visitor_id"] for r in rows]
     conn.execute(sql.SQL(
-        "CREATE OR REPLACE TEMP VIEW ev_all AS SELECT * FROM web_events WHERE NOT (visitor_id = ANY({}::text[]))"
+        """CREATE OR REPLACE TEMP VIEW ev_all AS
+           SELECT e.* FROM web_events e
+           WHERE NOT (e.visitor_id = ANY({}::text[]))
+             AND NOT EXISTS (
+                 SELECT 1 FROM web_events dot WHERE dot.utm_source = 'dot'
+                 AND dot.visitor_id = e.visitor_id AND dot.session_id = e.session_id
+             )"""
     ).format(sql.Literal(excluded)))
     if until is None:
         conn.execute("CREATE OR REPLACE TEMP VIEW ev AS SELECT * FROM ev_all")
