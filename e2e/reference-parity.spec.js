@@ -28,6 +28,9 @@ test('currency selectors show emblems, full names and the selected check in the 
  const to=converter.getByRole('combobox',{name:'В валюту',exact:true,includeHidden:true});
  await expect(from).toHaveText('USD');await expect(to).toHaveText('UZS');
  await expect(converter.locator('.currency-select-label')).toHaveText(['Валюта','Валюта']);
+ for (const label of await converter.locator('.currency-select-label').all()) {
+  expect(await label.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(22);
+ }
  for(const trigger of [from,to]){
   await expect(trigger.locator('img')).toBeVisible();
   expect(await trigger.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
@@ -37,8 +40,12 @@ test('currency selectors show emblems, full names and the selected check in the 
   expect(svg).toContain('<path');
   expect(svg).not.toMatch(/<image\b|data:image|<script\b|<foreignObject\b/i);
   expect(await trigger.evaluate(el=>parseFloat(getComputedStyle(el).borderTopWidth))).toBe(2);
-  expect((await trigger.boundingBox()).height).toBeGreaterThanOrEqual(64);
-  expect(await trigger.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(22);
+  expect((await trigger.boundingBox()).height).toBeGreaterThanOrEqual(74);
+  const badge = await trigger.locator('img').boundingBox();
+  expect(badge.width).toBeGreaterThanOrEqual(58);
+  expect(badge.height).toBeCloseTo(badge.width);
+  const code = trigger.getByText(await trigger.innerText(), { exact: true });
+  expect(await code.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(24);
  }
  expect((await converter.getByLabel('Сумма',{exact:true}).boundingBox()).y).toBeLessThan((await from.boundingBox()).y);
  await from.click();const menu=page.getByRole('listbox');
@@ -47,21 +54,87 @@ test('currency selectors show emblems, full names and the selected check in the 
  const selected=menu.getByRole('option',{name:'Доллар США',exact:true});
  await expect(selected).toHaveAttribute('aria-selected','true');
  await expect(selected.locator('.currency-select-check')).toBeVisible();
+ const selectedName = selected.getByText('Доллар США', { exact: true });
+ expect(await selectedName.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
  const box=await menu.boundingBox(),triggerBox=await from.boundingBox();
  expect(Math.abs(box.width-triggerBox.width)).toBeLessThan(2);
  expect(box.y).toBeGreaterThanOrEqual(triggerBox.y+triggerBox.height);
  expect(await selected.evaluate(el=>getComputedStyle(el).backgroundColor)).not.toBe(await menu.evaluate(el=>getComputedStyle(el).backgroundColor));
+ await expect(selected).toHaveCSS('outline-style', 'none');
  await page.screenshot({path:info.outputPath('currency-selector-dark.png')});
- await menu.getByRole('option',{name:'Узбекский сум',exact:true}).click();
+ const som = menu.getByRole('option', { name: 'Узбекский сум', exact: true });
+ await page.keyboard.press('ArrowUp');
+ await expect(som).toBeFocused();
+ await expect(som).toHaveCSS('outline-style', 'solid');
+ await som.click();
  await expect(from).toHaveText('UZS');await expect(converter.getByTestId('converted-amount')).toContainText(/1\s000/);
  await to.click();await page.keyboard.press('Escape');await expect(menu).toHaveCount(0);await expect(to).toBeFocused();
 });
+
+async function expectPartsToFit(row, parts) {
+ const bounds = await row.boundingBox();
+ let right = bounds.x;
+ for (const part of parts) {
+  await expect(part).toBeVisible();
+  const box = await part.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(right);
+  expect(box.y).toBeGreaterThanOrEqual(bounds.y);
+  expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+  expect(await part.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  right = box.x + box.width;
+ }
+ expect(right).toBeLessThanOrEqual(bounds.x + bounds.width);
+}
+
+for (const width of [719, 800, 1024, 1240]) {
+ test(`currency selector contents stay inside the converter at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 1100 });
+  await setup(page, { language: 'ru', theme: 'dark' });
+  await page.goto('/currency');
+  const converter = page.getByTestId('currency-converter');
+  const from = converter.getByRole('combobox', { name: 'Из валюты' });
+  const to = converter.getByRole('combobox', { name: 'В валюту' });
+  await converter.scrollIntoViewIfNeeded();
+  for (const [trigger, code] of [[from, 'USD'], [to, 'UZS']]) {
+   await expectPartsToFit(trigger, [
+    trigger.locator('img'), trigger.getByText(code, { exact: true }), trigger.locator('.currency-select-chevron'),
+   ]);
+  }
+  const fromBox = await from.boundingBox();
+  const toBox = await to.boundingBox();
+  if (width === 719) expect(toBox.y).toBeCloseTo(fromBox.y);
+  await from.click();
+  const menu = page.getByRole('listbox');
+  for (const name of ['Узбекский сум', 'Доллар США']) {
+   const option = menu.getByRole('option', { name, exact: true });
+   const optionName = option.getByText(name, { exact: true });
+   const parts = [option.locator('img'), optionName];
+   if (name === 'Доллар США') parts.push(option.locator('.currency-select-check'));
+   await expectPartsToFit(option, parts);
+   const lineCount = await optionName.evaluate(el => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return range.getClientRects().length;
+   });
+   expect(lineCount).toBe(1);
+  }
+  const menuBox = await menu.boundingBox();
+  expect(menuBox.x).toBeGreaterThanOrEqual(0);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(width);
+  await page.screenshot({ path: info.outputPath(`currency-selector-${width}.png`) });
+  await menu.getByRole('option', { name: 'Узбекский сум', exact: true }).click();
+  await expect(from).toHaveText('UZS');
+  await expect(converter.getByTestId('converted-amount')).toContainText(/1\s000/);
+ });
+}
 test('currency selectors fit a phone and support keyboard selection, swapping and outside dismissal',async({page},info)=>{
  await page.setViewportSize({width:390,height:844});await setup(page);await page.goto('/currency');
  const converter=page.getByTestId('currency-converter'),from=converter.getByRole('combobox',{name:'From currency'}),to=converter.getByRole('combobox',{name:'To currency'});
  await converter.getByLabel('Amount',{exact:true}).fill('2');
  await from.focus();await page.keyboard.press('Enter');
- await expect(page.getByRole('option',{name:'US dollar',exact:true})).toBeFocused();
+ const selected = page.getByRole('option', { name: 'US dollar', exact: true });
+ await expect(selected).toBeFocused();
+ await expect(selected).toHaveCSS('outline-style', 'solid');
  await page.keyboard.press('End');await expect(page.getByRole('option',{name:'Euro',exact:true})).toBeFocused();await page.keyboard.press('Enter');
  await expect(from).toContainText('EUR');await expect(converter.getByTestId('converted-amount')).toContainText('28,000');
  await converter.getByRole('button',{name:'Swap currencies'}).click();

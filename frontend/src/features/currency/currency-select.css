@@ -1,3 +1,4 @@
+#currency-converter { container-type: inline-size; }
 #currency-converter .currency-converter-fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
@@ -10,7 +11,7 @@
 #currency-converter .currency-select-label {
   display: block;
   color: var(--text);
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.3;
 }
@@ -26,7 +27,7 @@
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -38,8 +39,8 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   overflow: hidden;
   border-radius: 50%;
   background: var(--accent-light);
@@ -71,19 +72,26 @@
   min-height: 60px;
   padding: 6px 34px 6px 8px;
   border-radius: 9px;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
   cursor: pointer;
   user-select: none;
 }
-.currency-select-option .currency-select-emblem { width: 44px; height: 44px; font-size: 20px; }
+.currency-select-option .currency-select-emblem { width: 48px; height: 48px; font-size: 20px; }
+.currency-select-option[data-highlighted] { background: var(--surface-2); }
 .currency-select-option[data-state="checked"] { background: var(--accent-light); }
-.currency-select-option[data-highlighted] { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Radix focuses the selected item when the menu opens in either input mode. */
+.currency-select-option:focus-visible { outline: none; }
+.currency-select-menu[data-keyboard-navigation] .currency-select-option[data-highlighted] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .currency-select-check { position: absolute; right: 8px; display: flex; color: var(--accent); }
 .currency-select-scroll { display: flex; justify-content: center; height: 24px; color: var(--accent); }
-@media (max-width: 480px) {
+/* Allow room for two 260px menus and the swap button with its gaps. */
+@container (width < 580px) {
   #currency-converter .currency-converter-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   #currency-converter .currency-converter-fields > .ghost-btn { justify-self: center; width: 44px; margin: 0; }
 }
