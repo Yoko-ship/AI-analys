@@ -1,0 +1,36 @@
+@font-face {
+  font-family: "Poster Anton";
+  src: url("/fonts/Anton.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Poster Caveat";
+  src: url("/fonts/Caveat.ttf") format("truetype");
+  font-weight: 400 700;
+}
+@font-face {
+  font-family: "Poster Manrope";
+  src: url("/fonts/Manrope.ttf") format("truetype");
+  font-weight: 200 800;
+}
+.market-poster h3 { margin: 0; }
+.market-poster-toggle {
+  width: 100%; display: flex; align-items: center; gap: 14px;
+  border: 0; background: transparent; color: inherit; font: inherit;
+  padding: 0; cursor: pointer; text-align: start;
+}
+.market-poster-thumb {
+  width: 44px; height: 55px; flex: none; border-radius: 6px;
+  background: center / cover url("../assets/bozor-sunset.webp");
+}
+.market-poster-chevron { margin-inline-start: auto; padding-inline: 8px; }
+.market-poster-editor {
+  display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  align-items: start; gap: 24px; padding-top: 18px;
+}
+.market-poster-editor canvas { width: 100%; height: auto; border-radius: 8px; }
+.market-poster-controls { display: grid; gap: 16px; min-width: 0; }
+.market-poster-controls label { display: grid; gap: 6px; }
+.market-poster-controls textarea { width: 100%; resize: vertical; }
+@media (max-width: 760px) {
+  .market-poster-editor { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
