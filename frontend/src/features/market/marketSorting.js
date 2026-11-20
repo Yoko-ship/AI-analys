@@ -93,7 +93,8 @@ export function sortMarketRows({
       const aDate = marketRowDay(a) || "";
       const bDate = marketRowDay(b) || "";
       if (aDate !== bDate) return bDate.localeCompare(aDate);
-      return Math.abs(b.changePercent ?? -Infinity) - Math.abs(a.changePercent ?? -Infinity);
+      return (Number.isFinite(b.changePercent) ? Math.abs(b.changePercent) : -1)
+        - (Number.isFinite(a.changePercent) ? Math.abs(a.changePercent) : -1);
     }
     // Each key decides only the rows the keys before it tied on.
     for (const {

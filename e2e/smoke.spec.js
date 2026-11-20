@@ -1299,7 +1299,7 @@ test("market CSV waits for hidden financial data and exports issuer reporting (�
   expect(header).toBeTruthy();
   // Semicolons, because Excel in a ru locale splits on ';' and reads ',' as the decimal mark.
   // Exactly the board's columns, in the board's order — nothing switched off leaks in.
-  expect(header.split(";")).toEqual(["Тикер", "Компания", "Последняя", "Изм. (сессия), %", "Объём", "% объёма",
+  expect(header.split(";")).toEqual(["Тикер", "Компания", "Последняя", "Изм. (посл. сессия), %", "Объём", "% объёма",
     "Выручка", "Общие обязательства", "Чистая прибыль", "Капитализация", "P/E"]);
   expect(header).not.toContain("Ticker");        // never English on the Russian UI
 
@@ -1307,7 +1307,7 @@ test("market CSV waits for hidden financial data and exports issuer reporting (�
   expect(row[0]).toBe("AGBA");
   expect(row[header.split(";").indexOf("Выручка")]).toBe("9000000000");
   // Rounded like the screen and with a decimal comma — not "4.166666666666667".
-  expect(row[header.split(";").indexOf("Изм. (сессия), %")]).toBe("4,17");
+  expect(row[header.split(";").indexOf("Изм. (посл. сессия), %")]).toBe("4,17");
 });
 
 test("market CSV fails visibly and retries without downloading incomplete data", async ({ page }, testInfo) => {

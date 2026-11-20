@@ -6,6 +6,9 @@ export function marketColumns({
   changePeriod,
   isAdmin = false
 }) {
+  const changePeriodTitle = changePeriod === "1d"
+    ? { ru: "посл. сессия", en: "last session", uz: "oxirgi sessiya" }[lang]
+    : changePeriodLabel(changePeriod, lang, "short");
   const COL_GROUPS = [{
     key: "overview",
     title: mt(lang, "grpOverview"),
@@ -13,7 +16,7 @@ export function marketColumns({
     // «Изм.» follows the period selector; these two never do. A reader who is
     // comparing the week against the month needs both on screen at once, and a
     // column whose meaning depends on a control elsewhere cannot be that.
-    ["change", `${mt(lang, "change")} (${changePeriodLabel(changePeriod, lang, "short")})`], ["change1w", `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}`], ["change1m", `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}`],
+    ["change", `${mt(lang, "change")} (${changePeriodTitle})`], ["change1w", `${mt(lang, "change")} 1${lang === "en" ? "W" : lang === "uz" ? "H" : "Н"}`], ["change1m", `${mt(lang, "change")} 1${lang === "en" ? "M" : lang === "uz" ? "O" : "М"}`],
     // «Номинальная стоимость» and what the market pays for it. The par is a
     // registry fact about the security; the ratio beside it is the reading a
     // par is FOR — a share trading at eighteen times its par and one trading

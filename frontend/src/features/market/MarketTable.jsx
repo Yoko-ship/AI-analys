@@ -78,14 +78,8 @@ export function MarketTable({
     period={windowed ? changePeriod : "1d"}
     stats={stats}
   /> : <>
-          {/* What the reader is now looking at, and why these rows do not
-              behave like the rest of the board: the price is a close from
-              months ago carried forward, the day's change is nil because there
-              was no day, and the server leaves them out of the market's
-              capitalisation. Without this the eleven rows look like eleven
-              securities that all happened to close flat. */}
           {inactiveOnly && <p className="market-dormant-note">
-              {lang === "en" ? "Listings with no trades for over 90 days. The price is their last settled close, carried forward — there is no day's move, and the market capitalisation above leaves them out." : lang === "uz" ? "90 kundan ortiq bitimsiz qog'ozlar. Narx — ularning oxirgi yopilishi, oldinga ko'chirilgan; kunlik o'zgarish yo'q va yuqoridagi kapitalizatsiya ularni hisobga olmaydi." : "Бумаги без сделок более 90 дней. Цена — их последнее закрытие, перенесённое вперёд: дневного изменения нет, и в капитализацию рынка выше они не входят."}
+              {lang === "en" ? "These securities last traded over 90 days ago. Prices and daily changes refer to each security’s last trading session. The market capitalisation above excludes these securities." : lang === "uz" ? "Bu qimmatli qog‘ozlar oxirgi marta 90 kundan ko‘proq vaqt oldin sotilgan. Narx va kunlik o‘zgarish har bir qog‘ozning oxirgi savdo sessiyasiga tegishli. Yuqoridagi bozor kapitallashuviga ular kiritilmagan." : "Эти бумаги торговались более 90 дней назад. Цена и дневное изменение указаны за последнюю сессию каждой бумаги. Капитализация рынка выше рассчитана без этих бумаг."}
             </p>}
           <div className="market-table-wrap" ref={wrapRef}>
             <table className="market-table">

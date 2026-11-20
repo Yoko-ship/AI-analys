@@ -92,8 +92,7 @@ export function createMarketExport({
     const EXPORT_OF = {
       ...Object.fromEntries(TECHNICAL_KEYS.map(key => [key, row => round(technicalValue(technical, row.ticker, key), key === "dayVolume" ? 0 : 2)])),
       last: row => round(marketDisplayPrice(row), 2),
-      // Mirrors the cell: «нет сделок» on a 1D board is a blank, never a 0.
-      change: row => changePeriod === "1d" ? row.tradedToday ? round(row.changePercent, 2) : "" : round(changeOver(row.ticker, changePeriod)?.pct, 2),
+      change: row => changePeriod === "1d" ? round(row.changePercent, 2) : round(changeOver(row.ticker, changePeriod)?.pct, 2),
       change1w: row => round(changeOver(row.ticker, "1w")?.pct, 2),
       change1m: row => round(changeOver(row.ticker, "1m")?.pct, 2),
       nominal: row => round(parOf(row), 2),

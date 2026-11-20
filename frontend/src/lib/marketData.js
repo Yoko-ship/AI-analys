@@ -79,7 +79,7 @@ function hasRegularTrades(stats) {
 // to derive its move as a bare `last_price - close_price`, which is the exact
 // two-days-in-one-day defect `previousClose` exists to prevent — so a security
 // the board showed flat could lead the company page at +20 %.
-function applyTradeStats(r, tmap, latestTsDay) {
+function applyTradeStats(r, tmap) {
   const t = (tmap || {})[r.isin] || (tmap || {})[(r.isin || "").toUpperCase()];
   if (!t) return r;
   const rowDay = normalizeMarketDay(r.last_trade_date);
@@ -127,17 +127,18 @@ function applyTradeStats(r, tmap, latestTsDay) {
   // The feed lags for thin names — SANE still carried its 13.07 trade
   // while today's executions existed (and sometimes last_price is null
   // outright) — so the official move vanished from the board. When the
-  // day stats are the latest session AND newer than the feed row, the
+  // day stats are newer than this security’s feed row, the
   // session's own OHLC is authoritative: price/date/OHLC come from it and
   // the change is close-to-close (session close vs the feed's stale
   // close, which IS the previous close — matching the daily bulletin).
-  const tsIsNewer = tsDay && tsDay === latestTsDay &&
+  const tsIsNewer = tsDay &&
     (r.lastPrice === null || !rowDay || rowDay < tsDay);
   if (tsIsNewer) {
     const px = Number.isFinite(t.close_price) ? t.close_price
       : Number.isFinite(t.vwap) ? t.vwap : t.avg_price;
     if (Number.isFinite(px)) {
       out.lastPrice = px;
+      out.last_price = px;
       if (Number.isFinite(t.open_price)) out.openPrice = t.open_price;
       if (Number.isFinite(t.high_price)) out.highPrice = t.high_price;
       if (Number.isFinite(t.low_price)) out.lowPrice = t.low_price;
@@ -180,11 +181,15 @@ function applyTradeStats(r, tmap, latestTsDay) {
   return out;
 }
 
-// The session column describes the MARKET's latest session. A security that sat
-// it out has no move in it: its last change belongs to an older session, and
-// printed here it read as today's — 17 rows on 12.10.2026, BECMP's 09.10 move
-// among them, and ORFI's 2021 one at −54 %, past any limit the exchange allows.
-// The period columns are anchored the same way (see /api/market/changes).
+// Preserve the dated close-to-close move for the table before scoping daily
+// leaderboards, heatmaps and market breadth to a single exchange session.
+function datedTradeChange(row) {
+  const day = normalizeMarketDay(row.last_trade_date);
+  const previousDay = normalizeMarketDay(row.close_date);
+  if (!day || (previousDay && previousDay >= day) || !Number.isFinite(row.changePercent)) return null;
+  return { day, value: row.changeValue, percent: row.changePercent };
+}
+
 function alignSession(row, marketDay) {
   const day = normalizeMarketDay(row.last_trade_date);
   const staleQuote = marketDay && day && day < marketDay;
@@ -201,7 +206,10 @@ export function prepareMarketRows(rows, tradeStats = {}) {
   const latestDay = latestTradeStatsDay(stats);
   const prepared = (Array.isArray(rows) ? rows : [])
     .map(enrichMarketStock)
-    .map((row) => applyTradeStats(row, stats, latestDay));
+    .map(quote => {
+      const row = applyTradeStats(quote, stats);
+      return { ...row, latestTradeChange: datedTradeChange(row) ?? datedTradeChange(quote) };
+    });
   const marketDay = prepared.reduce((m, r) => {
     const d = normalizeMarketDay(r.last_trade_date);
     return d && (!m || d > m) ? d : m;

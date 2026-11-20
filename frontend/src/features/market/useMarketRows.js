@@ -123,7 +123,14 @@ export function useMarketRows({
       return item ? item.is_active === false : r.inactive === true;
     };
     const dormantCount = byClass.filter(isDormant).length;
-    const prepared = byClass.filter(r => isDormant(r) === inactiveOnly);
+    // Table sorting, direction filters and CSV all consume the displayed move.
+    // Market summaries and heatmaps below still consume session-aligned rows.
+    const tableRows = byClass.filter(r => isDormant(r) === inactiveOnly);
+    const prepared = windowed ? tableRows : tableRows.map(row => ({
+      ...row,
+      changeValue: row.latestTradeChange?.value ?? null,
+      changePercent: row.latestTradeChange?.percent ?? null,
+    }));
     const mapRows = byClass.filter(r => !isDormant(r));
     const periodMapRows = mapRows;
     // Share-class and inactive toggles must not silently widen an industry

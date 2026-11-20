@@ -129,7 +129,10 @@ describe("market data shared by the board, company, chart and landing", () => {
       UZ0002: trades(),
     });
     assert.equal(row.stockVolume, 1234);
-    assert.equal(row.lastPrice, 120, "an older statistic must not restate the latest session price");
+    assert.equal(row.lastPrice, 160, "use the security's newest recorded close");
+    assert.equal(row.last_trade_date, "2026-08-13");
+    assert.equal(row.latestTradeChange.value, 40);
+    assert.equal(row.changePercent, null, "the stock sat out the market session");
     assert.equal(row.tradedToday, false);
   });
 

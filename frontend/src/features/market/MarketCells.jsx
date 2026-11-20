@@ -176,15 +176,16 @@ export function createMarketCells({
       </td>;
   };
   const sessionChangeCell = row => {
-    if (!row.tradedToday) {
-      const when = row.last_trade_date || row.ts?.trade_date;
-      return <td className="num">
-          <span className="cell-status" title={when ? `${lang === "ru" ? "цена за" : lang === "uz" ? "narx" : "price from"} ${when}` : undefined}>
-            {lang === "en" ? "no trades" : lang === "uz" ? "bitim yo'q" : "нет сделок"}
-          </span>
-        </td>;
+    const change = row.latestTradeChange;
+    if (!change) {
+      return <td className="num"><span className="cell-status">
+        {lang === "en" ? "No comparison available" : lang === "uz" ? "Taqqoslash uchun ma’lumot yo‘q" : "Нет данных для сравнения"}
+      </span></td>;
     }
-    return <td className="num"><MarketChangeBadge value={row.changeValue} percent={row.changePercent} language={lang} /></td>;
+    return <td className="num">
+      <MarketChangeBadge value={change.value} percent={change.percent} language={lang} />
+      {change.day !== stats.boardDay && <small className="fin-cell-period">{prettyDay(change.day)}</small>}
+    </td>;
   };
   const windowChangeCell = (row, code) => {
     const hit = changeOver(row.ticker, code);

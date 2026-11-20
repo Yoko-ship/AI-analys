@@ -144,3 +144,23 @@ for (const width of [1024, 1440, 2512]) {
     await page.locator('.market-filterbar').screenshot({ path: testInfo.outputPath(`market-toolbar-${width}.png`) });
   });
 }
+
+test("daily changes show each stock's latest traded session and export its real move", async ({ page }) => {
+  const quotes = [
+    { ...row("IPTB", 6.51, 6.61, 43157008.81), last_trade_date: "2026-11-19" },
+    { ...row("UQEQ", 70000, 75000, 70000), last_trade_date: "2026-11-18", close_date: "2026-11-16" },
+    { ...row("TRSBP", 164500, 164500, 164500), last_trade_date: "2026-11-18", close_date: "2026-11-17" },
+    { ...row("FIRST", 100, null, 100), last_trade_date: "2026-11-17" },
+  ];
+  await openBoard(page, ["change"], null, null, quotes);
+  const changeCell = ticker => page.locator(".market-table tbody tr").filter({hasText: ticker}).locator("td").last();
+  await expect(changeCell("UQEQ")).toContainText(/-5\s?000.*-6,67%/);
+  await expect(changeCell("UQEQ")).toContainText("18.11.2026");
+  await expect(changeCell("TRSBP")).toContainText("0%");
+  await expect(changeCell("TRSBP")).toContainText("18.11.2026");
+  await expect(changeCell("FIRST")).toContainText("Нет данных для сравнения");
+  await expect(changeCell("IPTB")).toContainText("-1,51%");
+  const csv = await exportedTable(page);
+  expect(csv.find(([ticker]) => ticker === "UQEQ").at(-1)).toBe("-6,67");
+  expect(csv.find(([ticker]) => ticker === "TRSBP").at(-1)).toBe("0");
+});
