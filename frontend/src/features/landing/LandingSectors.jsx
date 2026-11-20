@@ -6,9 +6,9 @@ import { compact } from '../../lib/format.js';
 import { selectSectorLeaders } from './sectorLeaders.js';
 
 const sectors = [
-  { key: 'finance', image: bank },
-  { key: 'manufacturing', image: factory },
-  { key: 'telecom', image: telecom },
+  { key: 'finance', image: bank, width: 373 },
+  { key: 'manufacturing', image: factory, width: 373 },
+  { key: 'telecom', image: telecom, width: 368 },
 ];
 
 export function LandingSectors({ copy, lang, market, onSector, onOpenCompany }) {
@@ -30,8 +30,8 @@ export function LandingSectors({ copy, lang, market, onSector, onOpenCompany }) 
       </>}
     </div>
     <div className="landing-sector-cards">
-      {sectors.map(({ key, image }) => <button type="button" className="landing-sector-card" key={key} onClick={() => onSector(key)}>
-        <img src={image} alt="" width="1536" height="1024" loading="lazy" />
+      {sectors.map(({ key, image, width }) => <button type="button" className="landing-sector-card" key={key} onClick={() => onSector(key)}>
+        <img src={image} alt="" width={width} height="245" loading="lazy" />
         <span><strong>{copy.sectors[key]}</strong><LandingArrow /></span>
       </button>)}
     </div>

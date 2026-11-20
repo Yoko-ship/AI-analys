@@ -20,7 +20,7 @@ export function LandingHero({ copy, onNavigate, lang = 'ru', staticPage = false 
       </div>
     </div>
     <div className="landing-hero-art">
-      <img src={artwork} width="1536" height="1024" alt={copy.artAlt} fetchPriority="high" />
+      <img src={artwork} width="863" height="383" alt={copy.artAlt} fetchPriority="high" />
       <div className="landing-art-chart" aria-hidden="true">
         <span>{copy.artCard}</span>
         <svg viewBox="0 0 160 52" fill="none"><path d="M2 44 13 36 22 40 33 25 43 30 55 16 66 28 77 23 89 31 100 14 111 20 123 8 135 16 145 5 158 11" /></svg>

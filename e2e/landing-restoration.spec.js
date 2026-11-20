@@ -25,8 +25,9 @@ for (const options of cases) {
     await expect(landing.locator('.landing-sector-card')).toHaveCount(3);
     const artwork = landing.locator('.landing-hero-art img');
     await expect(artwork).toBeVisible();
-    await expect.poll(() => artwork.evaluate(img => img.complete && img.naturalWidth >= 1536)).toBe(true);
-    await expect(artwork).toHaveCSS('object-fit', 'contain');
+    await expect.poll(() => artwork.evaluate(img => [img.naturalWidth, img.naturalHeight])).toEqual([863, 383]);
+    await expect(artwork).toHaveCSS('object-fit', 'cover');
+    expect(await artwork.boundingBox()).toEqual(await landing.locator('.landing-hero-art').boundingBox());
     const primary = landing.locator('.landing-hero-primary');
     await expect(primary).toBeInViewport();
     expect((await primary.boundingBox()).height).toBeGreaterThanOrEqual(44);
@@ -34,6 +35,10 @@ for (const options of cases) {
       const artBox = await artwork.boundingBox(), buttonBox = await primary.boundingBox();
       expect(artBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
     }
+    const sectorImages = landing.locator('.landing-sector-card img');
+    await sectorImages.last().scrollIntoViewIfNeeded();
+    await expect.poll(() => sectorImages.evaluateAll(images => images.map(img => [img.naturalWidth, img.naturalHeight])))
+      .toEqual([[373, 245], [373, 245], [368, 245]]);
     await expect(landing.locator('.landing-market tbody tr')).toHaveCount(5);
     const companyLogo = landing.locator('.landing-market img[src="/logos/HMKB_MARK.png"]');
     await companyLogo.scrollIntoViewIfNeeded();

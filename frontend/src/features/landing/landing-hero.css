@@ -75,7 +75,12 @@ html[data-theme] .view-main .topbar {
 .landing-view :is(.landing-hero-primary,.landing-primary):hover { background: var(--accent-hover); }
 .landing-hero-secondary:hover { background: var(--accent-light); }
 .landing-hero-art { position: absolute; right: 0; bottom: 0; width: 63%; height: 100%; pointer-events: none; }
-.landing-hero-art > img { position: absolute; bottom: 16px; right: -20px; width: 100%; height: auto; max-height: 98%; object-fit: contain; }
+.landing-hero-art > img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  mask-image: linear-gradient(to right, transparent 20%, black 52%),
+    linear-gradient(to bottom, transparent, black 24%, black 80%, transparent 96%);
+  mask-composite: intersect;
+}
 .landing-art-chart { position: absolute; top: 43px; right: 34px; width: 165px; padding: 14px; background: var(--accent-light); color: var(--accent); border: 1px solid var(--border); border-radius: 6px; transform: rotate(-4deg); }
 .landing-art-chart span { font-size: 10px; font-weight: 700; display: block; }
 .landing-art-chart svg { width: 100%; height: 48px; margin-top: 10px; stroke: var(--accent); stroke-width: 2; }
@@ -201,7 +206,7 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-hero .lv-h1 { font-size: clamp(38px,6.5vw,52px); }
   .landing-hero .landing-hero-description { max-width: 440px; font-size: 14px; }
   .landing-hero-art { position: relative; width: 100%; height: auto; aspect-ratio: 1.7; margin-top: 14px; }
-  .landing-hero-art > img { width: 98%; height: 100%; max-height: none; right: 1%; bottom: 0; }
+  .landing-hero-art > img { mask-image: linear-gradient(to bottom, transparent, black 28%, black 73%, transparent 96%); }
   .landing-art-chart { top: 6%; right: 8%; width: 135px; padding: 10px; }
   .landing-art-caption { bottom: 13px; right: 20px; font-size: 9px; }
   .landing-steps { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px 0; }
@@ -228,7 +233,6 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-actions { margin-top: 23px; gap: 8px; }
   .landing-view .landing-button { font-size: 11px; padding: 12px; gap: 10px; min-height: 44px; }
   .landing-hero-art { aspect-ratio: 1.4; margin-top: 16px; }
-  .landing-hero-art > img { width: 108%; right: -4%; bottom: 3px; }
   .landing-art-chart { top: 5%; right: 7%; width: 106px; padding: 8px; }
   .landing-art-chart span { font-size: 8px; }
   .landing-art-chart svg { height: 30px; margin-top: 6px; }
