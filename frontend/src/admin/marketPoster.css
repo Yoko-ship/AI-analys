@@ -34,3 +34,8 @@
 @media (max-width: 760px) {
   .market-poster-editor { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 }
+.marketing-module form.earnings-lookup {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding-block: 18px 12px;
+}
+.earnings-lookup input { width: 12ch; }
+#issuer-earnings-editor > label { max-width: 17rem; }

@@ -176,3 +176,25 @@ def test_real_exchange_movers_replace_unrelated_news(monkeypatch, tmp_path):
     market_store.bulk_upsert_quotes([quote("NEW",100,None,1,trade_date="20261118")])
     assert client.get("/api/admin/marketing").json()["items"] == []
     assert routes.candidates()["stories"] == []
+
+
+def test_earnings_brief_uses_filed_current_lines_and_discloses_profit_conflict(monkeypatch):
+    from server.news import earnings
+    from financial_columns import source_store
+    import data_quality
+
+    monkeypatch.setattr(data_quality, 'held_public_periods', lambda *_: {'2026Q2'})
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_id=19277'
+    def line(metric, code, raw):
+        return dict(metric_id=metric, source_form='F2', source_code=code, kind='flow',
+                    unit='UZS_thousand', source_url=url, raw_label=metric,
+                    current={'value': str(raw), 'quality': 'valid'}, previous={'value': None, 'quality': 'missing'})
+    doc = dict(issuer_id='238', scope='separate', period_end='2026-09-30', source_version='v1',
+               currency='UZS', unit_scale='1000', quality='valid', rows=[
+                   line('net_income', '270', 4691715), line('profit_before_tax', '240', 6403562),
+                   line('income_tax', '250', 0), line('other_profit_payments', '260', 0),
+                   line('revenue', '010', 682158199)])
+    monkeypatch.setattr(source_store, 'read', lambda *a, **kw: [doc, {**doc, 'period_end': '2026-06-30'}])
+    period, = earnings.periods('QZSM', '238')
+    assert period == dict(end='2026-09-30', values={'net_income':4691715000, 'revenue':682158199000},
+                          sources=[url], profit_mismatch=True)

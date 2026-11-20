@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EarningsPoster } from "./EarningsPoster.jsx";
 import { MarketPoster } from "./MarketPoster.jsx";
 import { FeatureCampaigns } from "./FeatureCampaigns.jsx";
 
@@ -148,6 +149,7 @@ export function MarketingWorkspace({t, apiFetch, language, refresh, children}) {
     finally {setLoading(false);}
   }
   return <div className="marketing-workspace">
+    <EarningsPoster {...{t,apiFetch}}/>
     <MarketPoster {...{t,apiFetch,language}}/>
     <FeatureCampaigns {...{t,apiFetch,language}} plans={data?.plans || []} report={data?.report} onPublish={()=>retry(n=>n+1)}/>
     {children}

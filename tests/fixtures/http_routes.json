@@ -70,6 +70,16 @@
     ]
   },
   {
+    "path": "/api/admin/marketing/earnings/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "earnings_report",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
     "path": "/api/admin/marketing/experiments",
     "methods": [
       "POST"
@@ -123,6 +133,16 @@
       "PUT"
     ],
     "name": "edit_plan__v2",
+    "dependencies": [
+      "_admin_panel_gate"
+    ]
+  },
+  {
+    "path": "/api/v2/admin/marketing/earnings/{ticker}",
+    "methods": [
+      "GET"
+    ],
+    "name": "earnings_report__v2",
     "dependencies": [
       "_admin_panel_gate"
     ]

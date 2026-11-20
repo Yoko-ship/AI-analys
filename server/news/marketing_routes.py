@@ -133,3 +133,13 @@ def decide_post(story_id: int, edition: Literal["ru", "uz"], decision: workspace
                      (story_id, edition, decision.source_revision, idea["title"], decision.status, decision.text,
                       decision.reason.strip(), now, now if decision.status=="published" else None))
     return {"status":decision.status, "reason":decision.reason.strip()}
+
+
+@router.get("/earnings/{ticker}", dependencies=[Depends(_admin_panel_gate)])
+def earnings_report(ticker: str):
+    from server.news.earnings import periods
+    ticker = ticker.strip().upper()
+    with closing(get_catalog_conn()) as conn:
+        issuer = conn.execute("SELECT company_name, org_id FROM catalog_companies WHERE ticker=?", (ticker,)).fetchone()
+    return {"ticker": ticker, "issuer": issuer["company_name"] if issuer else ticker,
+            "periods": periods(ticker, issuer["org_id"]) if issuer and issuer["org_id"] else []}

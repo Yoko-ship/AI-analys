@@ -52,26 +52,33 @@ async function loadImage(url) {
   return img;
 }
 
-export async function posterAssets(poster) {
-  const urls = new Set([...poster.turnover, ...poster.trades].map(row => row.logo).filter(url => url?.startsWith("/logos/")));
-  const [background, logos] = await Promise.all([
+export async function posterBackground() {
+  const [background] = await Promise.all([
     loadImage(sunset),
-    Promise.all(Array.from(urls, async url => [url, await loadImage(url).catch(() => null)])),
     document.fonts.load('48px "Poster Anton"'),
     document.fonts.load('700 72px "Poster Caveat"'),
     document.fonts.load('700 36px "Poster Manrope"'),
   ]);
+  return background;
+}
+
+export async function posterAssets(poster) {
+  const urls = new Set([...poster.turnover, ...poster.trades].map(row => row.logo).filter(url => url?.startsWith("/logos/")));
+  const [background, logos] = await Promise.all([
+    posterBackground(),
+    Promise.all(Array.from(urls, async url => [url, await loadImage(url).catch(() => null)])),
+  ]);
   return {background, logos: new Map(logos)};
 }
 
-function box(ctx, x, y, w, h, radius, color) {
+export function box(ctx, x, y, w, h, radius, color) {
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.roundRect(x, y, w, h, radius);
   ctx.fill();
 }
 
-function label(ctx, text, x, y, font, color, align = "left", maxWidth) {
+export function label(ctx, text, x, y, font, color, align = "left", maxWidth) {
   ctx.font = font;
   ctx.fillStyle = color;
   ctx.textAlign = align;
