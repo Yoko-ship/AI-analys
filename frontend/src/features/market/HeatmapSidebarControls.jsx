@@ -1,11 +1,11 @@
-import {useRef, useState} from 'react';
+import {useRef} from 'react';
 import {CompanyLogo} from '../../shared/CompanyLogo.jsx';
 import './heatmapSidebar.css';
 
 const copy = {
-  ru: {size: 'Площадь плитки', movement: 'Движение', capitalization: 'Капитализация', equal: 'Равные', turnover: 'Оборот', search: 'Найти тикер', clear: 'Очистить поиск тикера', empty: 'Ничего не найдено', securities: 'Бумаги'},
-  en: {size: 'Tile area', movement: 'Movement', capitalization: 'Market cap', equal: 'Equal', turnover: 'Turnover', search: 'Search ticker', clear: 'Clear ticker search', empty: 'No matches found', securities: 'Securities'},
-  uz: {size: 'Katak maydoni', movement: 'O‘zgarish', capitalization: 'Kapitalizatsiya', equal: 'Teng', turnover: 'Aylanma', search: 'Tikerni qidirish', clear: 'Tiker qidiruvini tozalash', empty: 'Hech narsa topilmadi', securities: 'Qog‘ozlar'},
+  ru: {size: 'Площадь плитки', movement: 'Движение', capitalization: 'Капитализация', equal: 'Равные', turnover: 'Оборот', search: 'Найти тикер', clear: 'Очистить поиск тикера', securities: 'Бумаги'},
+  en: {size: 'Tile area', movement: 'Movement', capitalization: 'Market cap', equal: 'Equal', turnover: 'Turnover', search: 'Search ticker', clear: 'Clear ticker search', securities: 'Securities'},
+  uz: {size: 'Katak maydoni', movement: 'O‘zgarish', capitalization: 'Kapitalizatsiya', equal: 'Teng', turnover: 'Aylanma', search: 'Tikerni qidirish', clear: 'Tiker qidiruvini tozalash', securities: 'Qog‘ozlar'},
 };
 
 function SizeIcon({mode}) {
@@ -30,33 +30,34 @@ export function HeatmapSizeControl({lang, value, onChange}) {
   </div>;
 }
 
-export function HeatmapTickerSearch({lang, rows, companyMap, securitiesMap, value, onChange}) {
-  const [query, setQuery] = useState('');
+export function HeatmapTickerSearch({lang, query, matches, nameOf, securitiesMap, focusTicker, onChange, onSelect}) {
   const input = useRef(null);
   const t = copy[lang] || copy.ru;
-  const needle = query.trim().toLocaleLowerCase();
-  const nameOf = row => row.name || companyMap[row.ticker]?.company_name || row.ticker;
-  const matches = needle ? rows.filter(row => `${row.ticker} ${nameOf(row)}`.toLocaleLowerCase().includes(needle)) : [];
-  return <section className="heatmap-ticker-search" aria-label={t.securities}>
+  const clear = () => {
+    onChange('');
+    input.current?.focus();
+  };
+  return <section className="heatmap-ticker-search" aria-label={t.securities} onKeyDown={event => {
+    if (event.key === 'Escape' && query) {
+      event.preventDefault();
+      clear();
+    }
+  }}>
     <div className="heatmap-ticker-input">
       <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
       <input ref={input} type="search" aria-label={t.search} placeholder={t.search} value={query}
-        onChange={event => setQuery(event.target.value)} onKeyDown={event => {
-          if (event.key === 'Escape' && query) { event.preventDefault(); setQuery(''); }
-        }} autoComplete="off" />
-      {query && <button type="button" aria-label={t.clear} onClick={() => {setQuery(''); input.current?.focus();}}>×</button>}
+        onChange={event => onChange(event.target.value)} autoComplete="off" />
+      {query && <button type="button" aria-label={t.clear} onClick={clear}>×</button>}
     </div>
-    {needle && <div className="heatmap-ticker-list" role="group" aria-label={t.securities}>
+    {matches.length > 0 && <div className="heatmap-ticker-list" role="group" aria-label={t.securities}>
       {matches.map(row => <button key={row.ticker} type="button" data-ticker={row.ticker}
-        aria-pressed={value === row.ticker} onClick={() => {
-          onChange(row.ticker);
-          setQuery('');
+        aria-pressed={focusTicker === row.ticker} onClick={() => {
+          onSelect(row.ticker);
           input.current?.focus();
         }} title={`${row.ticker} · ${nameOf(row)}`}>
         <span className="heatmap-ticker-logo" aria-hidden="true"><CompanyLogo ticker={row.ticker} name={nameOf(row)} logo={securitiesMap?.[row.ticker]?.logo_url || row.logo_url}/></span>
         <strong>{row.ticker}</strong><span className="heatmap-ticker-name">{nameOf(row)}</span>
       </button>)}
-      {!matches.length && <p className="heatmap-ticker-empty" role="status">{t.empty}</p>}
     </div>}
   </section>;
 }

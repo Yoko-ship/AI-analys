@@ -165,7 +165,10 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const [areaMode,setAreaMode]=useState(initialArea);
   const preview = useHeatmapHover();
   const { hover, close: closePreview } = preview;
-  const [selectedTicker, setSelectedTicker] = useState("");
+  const emptySearch = {type, query: '', ticker: ''};
+  const [search, setSearch] = useState(emptySearch);
+  if (search.type !== type) setSearch(emptySearch);
+  const {query, ticker: selectedTicker} = search;
   const [minTurnover, setMinTurnover] = useState(0);
   const [minCapitalization, setMinCapitalization] = useState(0);
   const matrixMode = presentation === 'matrix';
@@ -197,6 +200,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
 
   const companyMap = {};
   (companies || []).forEach((c) => { companyMap[c.ticker] = c; });
+  const nameOf = row => row.name || companyMap[row.ticker]?.company_name || row.ticker;
   // Sector membership comes from lib/sectors.js — the same call the Рынок filter
   // bar makes, so a ticker cannot be Фонды in the table and Прочее on the map.
   const sectorKeyOf = (t) => sectorOf(t, securitiesMap, companyMap);
@@ -231,6 +235,15 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     && matchesCapitalization(row, minCapitalization)
     && changeBand(row)
   ));
+  const needle = query.trim().toLocaleLowerCase();
+  const visibleRows = needle ? tradedRows.filter(row => selectedTicker
+    ? row.ticker === selectedTicker
+    : `${row.ticker} ${nameOf(row)}`.toLocaleLowerCase().includes(needle)) : tradedRows;
+  const searchEmpty = Boolean(needle && !visibleRows.length);
+  const updateSearch = (nextQuery, ticker = '') => {
+    setSearch({type, query: nextQuery, ticker});
+    closePreview();
+  };
   const filtersActive = minTurnover > 0 || minCapitalization > 0 || changeFilter !== "all";
   const resetFilters = () => { setMinTurnover(0); setMinCapitalization(0); setChangeFilter("all"); };
 
@@ -260,7 +273,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const movementValue = (row) => (
     areaMode === "movement" && tileStatus(row) !== "ok" ? 0 : mapAreaValue(row,areaMode)
   );
-  const maxMovementValue = Math.max(0, ...tradedRows.map(movementValue));
+  const maxMovementValue = Math.max(0, ...visibleRows.map(movementValue));
   const movementFloor = maxMovementValue > 0 ? maxMovementValue * 0.002 : 1;
   const tileWeight = (row) => Math.max(
     movementValue(row),
@@ -292,7 +305,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     total: rs.length,
   });
 
-  const sectorItems = groupMarketIndustries(tradedRows, securitiesMap, companyMap).map(section => {
+  const industries = groupMarketIndustries(visibleRows, securitiesMap, companyMap);
+  const sectorItems = industries.map(section => {
     const groups = section.groups.map(group => ({...group,
       rows: [...group.rows].sort((a, b) => tileWeight(b) - tileWeight(a)),
       value: group.rows.reduce((sum, row) => sum + tileWeight(row), 0),
@@ -300,7 +314,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     return {...section, groups, value: groups.reduce((sum, group) => sum + group.value, 0)};
   }).sort((a, b) => b.value - a.value);
   const sectorRects = squarifyTreemap(sectorItems, 0, 0, treeSize.w, treeSize.h);
-  const matrix = matrixMode ? matrixLayout(groupMarketIndustries(tradedRows, securitiesMap, companyMap), treeSize.w, zoom) : null;
+  const matrix = matrixMode ? matrixLayout(industries, treeSize.w, zoom) : null;
   const sectorLayout = matrix ? matrix.sectors : sectorRects.map((sectorRect) => {
     const showHeader = sectorRect.w > 86 && sectorRect.h > 54;
     const headerHeight = showHeader ? 26 : 0;
@@ -346,19 +360,16 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     : lang === "uz"
       ? { pulse: "Bozor pulsi", weighted: "aylanma bo'yicha", up: "O'sish", down: "Pasayish", flat: "O'zgarishsiz", noData: "Ma'lumotsiz", scale: "Narx o'zgarishi", area: "Maydon", movement: "Harakat kuchi", securities: "qog'oz", board: "Bozor issiqlik xaritasi", sectors: "Sektorlar", price: "Narx", turnover: "Aylanma", focus: "Tanlangan", mainMove: "Asosiy harakat", open: "Kompaniyani ochish uchun bosing", preferred: "Imtiyozli aksiya", filterTurnover: "Aylanma", filterChange: "O'zgarish", changeUp: "O'sish", changeDown: "Pasayish", shown: "Ko'rsatilgan", reset: "Filtrlarni tozalash", none: "Tanlangan filtrlarga mos qog'oz yo'q" }
       : { pulse: "Market pulse", weighted: "turnover weighted", up: "Up", down: "Down", flat: "Unchanged", noData: "No data", scale: "Price change", area: "Area", movement: "Move magnitude", securities: "securities", board: "Market heatmap", sectors: "Sectors", price: "Price", turnover: "Turnover", focus: "In focus", mainMove: "Largest move", open: "Click to open company", preferred: "Preferred share", filterTurnover: "Turnover", filterChange: "Change", changeUp: "Up", changeDown: "Down", shown: "Showing", reset: "Reset filters", none: "No securities match the selected filters" };
-  const mainMover = signalRows.filter((row) => tradedRows.includes(row)).reduce((best, row) => (
+  const mainMover = signalRows.filter((row) => visibleRows.includes(row)).reduce((best, row) => (
     !best || Math.abs(row.changePercent) > Math.abs(best.changePercent) ? row : best
   ), null);
   // Resolve from current rows so changing the period never leaves stale values.
-  const focusRow = tradedRows.find((row) => row.ticker === hover?.ticker)
-    || tradedRows.find((row) => row.ticker === selectedTicker) || mainMover || tradedRows[0] || null;
+  const hoverRow = visibleRows.find(row => row.ticker === hover?.ticker);
+  const focusRow = hoverRow || mainMover || visibleRows[0] || null;
   const focusMetrics = marketVolumeMetrics(focusRow, stats);
   const focusStatus = focusRow ? tileStatus(focusRow) : null;
   const focusPrice = focusRow ? marketDisplayPrice(focusRow) : null;
-  const focusName = focusRow
-    ? focusRow.name || companyMap[focusRow.ticker]?.company_name || focusRow.ticker
-    : null;
-  const hoverRow = tradedRows.find(row => row.ticker === hover?.ticker);
+  const focusName = focusRow ? nameOf(focusRow) : null;
   const hoverSector = hoverRow && sectorLayout.find(sector => sector.sector === sectorKeyOf(hoverRow.ticker));
   const hoverGroup = hoverSector?.groups.find(group => group.id === (industryOf(hoverRow.ticker)?.group || ''));
   const openCompany = ticker => {
@@ -384,6 +395,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const capLabel = lang === 'ru' ? 'Капитализация, UZS' : lang === 'uz' ? 'Kapitalizatsiya, UZS' : 'Market cap, UZS';
   const trillion = lang === 'ru' ? 'трлн' : lang === 'uz' ? 'trln' : 'T';
   const noCap = lang === 'ru' ? 'Нет данных' : lang === 'uz' ? 'Ma’lumot yo‘q' : 'Unknown';
+  const noMatches = lang === 'ru' ? 'Ничего не найдено' : lang === 'uz' ? 'Hech narsa topilmadi' : 'No matches found';
   return (
     <HeatmapLayout lang={lang} filters={filters} viewControl={viewControl}
       sizeControl={matrixMode ? <div className="heatmap-size-control">
@@ -420,7 +432,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
           </div>
         </div>
         <span className="heatmap-filters-count" aria-live="polite">
-          {mapCopy.shown}: <b>{tradedRows.length}</b>/{marketRows.length}
+          {mapCopy.shown}: <b>{visibleRows.length}</b>/{marketRows.length}
           {filtersActive && <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>}
         </span>
       </div>
@@ -429,9 +441,9 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
       <div ref={fullscreen.element} className={`heatmap-canvas${fullscreen.expanded ? ' is-fullscreen' : ''}`}>
         <div className="heatmap-metrics-toolbar" role="group" aria-label={toolbarLabel}
           onFocusCapture={() => closePreview()} onPointerDownCapture={() => closePreview()}>
-          <HeatmapTickerSearch key={type} lang={lang} rows={tradedRows} companyMap={companyMap}
-            securitiesMap={securitiesMap} value={focusRow?.ticker || ''}
-            onChange={ticker => {setSelectedTicker(ticker); closePreview();}}/>
+          <HeatmapTickerSearch lang={lang} query={query} matches={needle && !selectedTicker ? visibleRows : []}
+            nameOf={nameOf} securitiesMap={securitiesMap} focusTicker={focusRow?.ticker}
+            onChange={updateSearch} onSelect={ticker => updateSearch(ticker, ticker)}/>
           <HeatmapMetricPicker lang={lang} {...metricSelection} />
           <div className="heatmap-zoom" role="group" aria-label={zoomCopy.label}>
             <HeatmapShare lang={lang} portalContainer={fullscreen.expanded ? fullscreen.element.current : undefined} />
@@ -448,8 +460,9 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             </button>
           </div>
         </div>
-      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
+      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}${searchEmpty ? ' is-search-empty' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
+      {searchEmpty ? <p className="market-empty-cell heatmap-empty-state" role="status">{noMatches}</p> :
       <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
         style={{width: `${zoom * 100}%`, minWidth: matrix?.minWidth, height: matrix ? matrix.height : `calc(var(--heatmap-base-height) * ${zoom})`, '--matrix-zoom': zoom}}>
         {matrix && <>
@@ -490,7 +503,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
               {sector.stocks.map((stock) => {
                 const row = stock.row;
                 const status = tileStatus(row);
-                const companyName = row.name || companyMap[row.ticker]?.company_name || row.ticker;
+                const companyName = nameOf(row);
                 const tileGap = matrixMode ? 0 : Math.min(TREEMAP_GAP, stock.w * 0.35, stock.h * 0.35);
                 const width = stock.w - tileGap;
                 const height = stock.h - tileGap;
@@ -583,7 +596,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             </React.Fragment>
           );
         })}
-      </div>
+      </div>}
 
       </div>
 
@@ -598,7 +611,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
         >
           <span className="heatmap-focus-signal" style={{ background: focusStatus === "ok" ? heatmapColor(focusRow.changePercent, fullScale) : undefined }} />
           <span className="heatmap-focus-identity">
-            <small>{hover || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
+            <small>{hoverRow || selectedTicker === focusRow.ticker ? mapCopy.focus : mapCopy.mainMove}</small>
             <span>
               <strong>{focusRow.ticker}</strong>
               <b className={`tone-${focusRow.changePercent > flatBand ? "good" : focusRow.changePercent < -flatBand ? "danger" : "neutral"}`}>
@@ -628,18 +641,18 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
 
       {isAdmin && hoverRow && hoverGroup && <HeatmapPreview interaction={preview} row={hoverRow} peers={hoverGroup.rows}
         industry={[marketIndustryLabel(lang, hoverSector.sector), hoverGroup.id && marketIndustryLabel(lang, `group:${hoverGroup.id}`)].filter(Boolean).join(' · ')}
-        name={hoverRow.name || companyMap[hoverRow.ticker]?.company_name || hoverRow.ticker}
+        name={nameOf(hoverRow)}
         security={securitiesMap?.[hoverRow.ticker]} lang={lang} period={period} type={type}
         statusOf={tileStatus} formatPct={formatPct} metrics={selectedMetrics} values={marketVolumeMetrics(hoverRow, stats)} onOpen={openCompany}
         portalContainer={fullscreen.expanded ? fullscreen.element.current : undefined} />}
 
-      {sectorItems.length === 0 && filtersActive && (
+      {!searchEmpty && sectorItems.length === 0 && filtersActive && (
         <p className="market-empty-cell heatmap-empty-state" role="status">
           {mapCopy.none}{" "}
           <button type="button" className="heatmap-filters-reset" onClick={resetFilters}>{mapCopy.reset}</button>
         </p>
       )}
-      {sectorItems.length === 0 && !filtersActive && (
+      {!searchEmpty && sectorItems.length === 0 && !filtersActive && (
         <p className="market-empty-cell">
           {lang === "ru" ? "Нет данных для карты" : lang === "uz" ? "Xarita uchun ma'lumot yo'q" : "No data for map"}
         </p>

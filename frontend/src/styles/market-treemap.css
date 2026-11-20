@@ -181,6 +181,7 @@
 .heatmap-canvas.is-fullscreen .heatmap-ticker-search,
 .heatmap-canvas.is-fullscreen .heatmap-metric-picker { display: none; }
 .heatmap-canvas.is-fullscreen .heatmap-viewport { flex: 1; min-height: 0; height: auto; }
+.heatmap-viewport.is-search-empty { height: auto; }
 .heatmap-zoom { display: flex; flex: none; align-items: center; justify-content: flex-end; gap: 4px; color: var(--muted); font-size: 10px; }
 .heatmap-zoom button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--panel); font-size: 18px; cursor: pointer; }
 .heatmap-zoom button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
