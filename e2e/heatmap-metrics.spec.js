@@ -772,6 +772,12 @@ for (const width of [1280, 390, 320]) test(`reference-style sidebar with ticker 
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({path: testInfo.outputPath('market-map-company-search.png')});
 
+  for (const query of ['O‘zbekko‘mir', 'Oʻzbekkoʻmir']) {
+    await search.fill(query);
+    await expect.poll(tickers).toEqual(companyTickers);
+    await expect(entries).toHaveCount(2);
+  }
+
   await search.fill('uZiR');
   await expect.poll(tickers).toEqual(companyTickers);
   // An ordinary share's ticker is a prefix of the preferred share's ticker.

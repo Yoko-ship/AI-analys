@@ -68,6 +68,10 @@ function heatmapShortName(name) {
   return base.length > 13 ? base.slice(0, 12) + "…" : base;
 }
 
+function normalizeHeatmapSearch(text) {
+  return text.trim().toLocaleLowerCase().replace(/[‘’ʻʼ`]/g, "'");
+}
+
 // Bruls/Huizing/van Wijk squarified treemap. Every returned rectangle keeps
 // its item's exact proportional area while avoiding unreadable long slivers.
 function heatmapWorst(row, length) {
@@ -235,10 +239,10 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     && matchesCapitalization(row, minCapitalization)
     && changeBand(row)
   ));
-  const needle = query.trim().toLocaleLowerCase();
+  const needle = normalizeHeatmapSearch(query);
   const visibleRows = needle ? tradedRows.filter(row => selectedTicker
     ? row.ticker === selectedTicker
-    : `${row.ticker} ${nameOf(row)}`.toLocaleLowerCase().includes(needle)) : tradedRows;
+    : normalizeHeatmapSearch(`${row.ticker} ${nameOf(row)}`).includes(needle)) : tradedRows;
   const searchEmpty = Boolean(needle && !visibleRows.length);
   const updateSearch = (nextQuery, ticker = '') => {
     setSearch({type, query: nextQuery, ticker});
