@@ -1,3 +1,22 @@
+# Verify missing or incorrect data on Openinfo.uz
+
+Whenever a user reports missing, stale, or incorrect UZStock data, check
+Openinfo.uz directly before diagnosing the issue, changing a value, or replying
+with a conclusion. This applies to requests from the owner and from Telegram,
+including screenshots and follow-ups.
+
+Match the issuer, security or share class, field, units, and date or reporting
+period. For prices, changes, and trade dates, check the exact ISIN in Openinfo's
+trade history or daily closes. For financial figures, check the original filing
+and line item. For a calculated figure, verify its source inputs and reproduce
+the calculation. Compare the result with what UZStock displays.
+
+State what Openinfo reports, the source date or reporting period, and what the
+comparison establishes. Identify the record so the user can verify it. If the
+lookup fails or the available records cover only part of the request, state
+what remains unverified. An unavailable or incomplete source cannot establish
+a zero value or the absence of a trade or filing.
+
 # Deployment target
 
 This project is deployed to the `uzstock.uz` server, not Railway.
