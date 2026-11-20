@@ -38,6 +38,11 @@ test("renders centered login variant with working auth controls", async ({ page 
   await expect(page.getByRole("heading", { name: "Войти в UZ Stock Analyzer" })).toBeVisible();
   await expect(page.locator(".auth-hub-card")).toBeVisible();
   await expect(page.locator(".auth-market-strip")).toBeVisible();
+  const mark = page.locator(".auth-hub-logo");
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveAttribute("src", "/favicon.svg?v=candles-1");
+  await expect(mark).toHaveAttribute("alt", "");
+  await expect.poll(() => mark.evaluate(img => img.naturalWidth > 0)).toBe(true);
 
   const password = page.getByLabel("Пароль", { exact: true });
   await expect(password).toHaveAttribute("type", "password");

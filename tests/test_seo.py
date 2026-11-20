@@ -664,7 +664,9 @@ def test_plain_company_link_does_not_load_the_analysis(tmp_path, monkeypatch):
 
 def test_organization_logo_is_a_size_google_accepts():
     # Google ignores an organisation logo under 112×112; the 96-px favicon was.
-    logo = Path(__file__).resolve().parents[1] / "frontend/public" / seo.LOGO_PATH.lstrip("/")
+    path, _, version = seo.LOGO_PATH.partition("?")
+    assert version == "v=candles-1"
+    logo = Path(__file__).resolve().parents[1] / "frontend/public" / path.lstrip("/")
     head = logo.read_bytes()[:24]
     assert head[:8] == b"\x89PNG\r\n\x1a\n"
     width, height = struct.unpack(">II", head[16:24])

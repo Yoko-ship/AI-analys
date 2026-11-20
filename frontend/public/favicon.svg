@@ -1,1 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="5" y="5" width="90" height="90" rx="24" fill="#062D5F"/><path d="M28 28v24c0 13.2 8 21 19 21 8.5 0 14.5-4.5 17-12.2" fill="none" stroke="#F7FBFF" stroke-linecap="round" stroke-width="9"/><path d="M54 61.5 76 32" fill="none" stroke="#65E6A2" stroke-linecap="round" stroke-width="9"/><path d="m64.5 32 11.5 0 0 11.5" fill="none" stroke="#65E6A2" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="2" y="2" width="96" height="96" rx="22" fill="#0C1B34"/>
+  <g fill="#27E99A">
+    <line x1="16" y1="51" x2="16" y2="86" stroke="#27E99A" stroke-width="2.8" stroke-linecap="round"/>
+    <rect x="9.75" y="58" width="12.5" height="17" rx=".75"/>
+  </g>
+  <g fill="#27E99A">
+    <line x1="33" y1="37" x2="33" y2="73" stroke="#27E99A" stroke-width="2.8" stroke-linecap="round"/>
+    <rect x="26.75" y="45" width="12.5" height="19" rx=".75"/>
+  </g>
+  <g fill="#FF535C">
+    <line x1="50" y1="43" x2="50" y2="76" stroke="#FF535C" stroke-width="2.8" stroke-linecap="round"/>
+    <rect x="43.75" y="51" width="12.5" height="17" rx=".75"/>
+  </g>
+  <g fill="#27E99A">
+    <line x1="67" y1="30" x2="67" y2="67" stroke="#27E99A" stroke-width="2.8" stroke-linecap="round"/>
+    <rect x="60.75" y="39" width="12.5" height="20" rx=".75"/>
+  </g>
+  <g fill="#27E99A">
+    <line x1="84" y1="14" x2="84" y2="58" stroke="#27E99A" stroke-width="2.8" stroke-linecap="round"/>
+    <rect x="77.75" y="23" width="12.5" height="27" rx=".75"/>
+  </g>
+</svg>

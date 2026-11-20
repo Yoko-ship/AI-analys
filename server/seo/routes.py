@@ -67,7 +67,7 @@ _ENTITY_PREFIXES = ("/company/", "/chart/", "/bond/", "/news/")
 _ALIASES = {"/bonds": "/market"}
 # Google shows an organisation logo only from 112×112 up (tests/test_seo.py
 # reads the file's real size).
-LOGO_PATH = "/apple-touch-icon.png"
+LOGO_PATH = "/apple-touch-icon.png?v=candles-1"
 
 _STATIC_PAGES: dict[str, tuple[str, str]] = {
     "/": (DEFAULT_TITLE, DEFAULT_DESCRIPTION),

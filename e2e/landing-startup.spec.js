@@ -54,7 +54,10 @@ for (const sample of cases) {
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator('html')).toHaveAttribute('data-theme', sample.theme || 'dark');
       const before = { box: await heading.boundingBox(), background: await hero.evaluate(el => getComputedStyle(el).backgroundColor), src: await image.getAttribute('src') };
-      const stableElements = ['.landing-hero-primary', '.landing-hero-art', '.landing-hero-description', '.topbar'];
+      const mark = page.locator('.topbar .brand-icon');
+      await expect(mark).toHaveAttribute('src', '/favicon.svg?v=candles-1');
+      await expect.poll(() => mark.evaluate(img => img.naturalWidth > 0)).toBe(true);
+      const stableElements = ['.landing-hero-primary', '.landing-hero-art', '.landing-hero-description', '.topbar', '.topbar .brand-icon'];
       await expect(page.locator('.topbar .account-avatar')).toBeVisible();
       await expect(page.locator('.topbar .language-trigger')).not.toBeVisible();
       await expect(page.locator('.topbar .theme-toggle')).not.toBeVisible();
@@ -66,6 +69,8 @@ for (const sample of cases) {
       await expect(heading).toHaveText(sample.title);
       await expect(hero).toHaveCSS('background-color', before.background);
       await expect(image).toHaveAttribute('src', before.src);
+      await expect(mark).toHaveAttribute('src', '/favicon.svg?v=candles-1');
+      await expect.poll(() => mark.evaluate(img => img.naturalWidth > 0)).toBe(true);
       await expect(heading).toHaveCSS('opacity', '1');
       const after = await heading.boundingBox();
       for (const dimension of ['x', 'y', 'width', 'height']) expect(Math.abs(after[dimension] - before.box[dimension]), dimension).toBeLessThan(1);
