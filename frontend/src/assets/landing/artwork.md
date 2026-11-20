@@ -1,6 +1,6 @@
 # Artwork
 
-The homepage uses the four WebP images embedded in the supplied `UZStock-design (1).html`, at their original dimensions. The small chart over the skyline is a separate decorative element.
+The homepage uses the four WebP images embedded in the supplied `UZStock-design (1).html`, at their original dimensions.
 
 | Asset | Subject | Size |
 | --- | --- | --- |

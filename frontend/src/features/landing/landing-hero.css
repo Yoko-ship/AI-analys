@@ -74,16 +74,14 @@ html[data-theme] .view-main .topbar {
 .landing-view :is(.landing-hero-primary,.landing-primary) { background: var(--accent); color: var(--landing-on-accent); border-color: var(--accent); }
 .landing-view :is(.landing-hero-primary,.landing-primary):hover { background: var(--accent-hover); }
 .landing-hero-secondary:hover { background: var(--accent-light); }
-.landing-hero-art { position: absolute; right: 0; bottom: 0; width: 63%; height: 100%; pointer-events: none; }
+.landing-hero-art { position: absolute; right: 0; bottom: 0; width: 65%; height: 100%; pointer-events: none; }
 .landing-hero-art > img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  mask-image: linear-gradient(to right, transparent 20%, black 52%),
-    linear-gradient(to bottom, transparent, black 24%, black 80%, transparent 96%);
+  position: absolute; inset: 0; width: 100%; height: clamp(342px, 25vw, 405px);
+  max-height: 100%; margin-block: auto; object-fit: cover; object-position: right center;
+  mask-image: var(--skyline-text-mask, linear-gradient(to right, transparent, black 36%)),
+    linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
   mask-composite: intersect;
 }
-.landing-art-chart { position: absolute; top: 43px; right: 34px; width: 165px; padding: 14px; background: var(--accent-light); color: var(--accent); border: 1px solid var(--border); border-radius: 6px; transform: rotate(-4deg); }
-.landing-art-chart span { font-size: 10px; font-weight: 700; display: block; }
-.landing-art-chart svg { width: 100%; height: 48px; margin-top: 10px; stroke: var(--accent); stroke-width: 2; }
 .landing-art-caption { position: absolute; right: 34px; bottom: 22px; font-size: 10px; color: var(--muted); }
 .landing-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-block: 26px; border-bottom: 1px solid var(--border); }
 .landing-steps > * { padding: 0 26px; border: 0; border-right: 1px solid var(--border); background: none; color: var(--text); text-align: left; border-radius: 0; }
@@ -199,6 +197,12 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-market-toolbar { flex-wrap: wrap; }
   .landing-about { gap: 40px; padding-block: 36px; }
 }
+@media (min-width: 801px) and (max-width: 1000px) {
+  .landing-hero-art {
+    width: 75%;
+    --skyline-text-mask: linear-gradient(to right, transparent 22%, black 54%);
+  }
+}
 @media (max-width: 800px) {
   .landing-container { width: calc(100% - 32px); padding-top: 18px; }
   .landing-hero { display: block; min-height: 0; }
@@ -206,8 +210,7 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-hero .lv-h1 { font-size: clamp(38px,6.5vw,52px); }
   .landing-hero .landing-hero-description { max-width: 440px; font-size: 14px; }
   .landing-hero-art { position: relative; width: 100%; height: auto; aspect-ratio: 1.7; margin-top: 14px; }
-  .landing-hero-art > img { mask-image: linear-gradient(to bottom, transparent, black 28%, black 73%, transparent 96%); }
-  .landing-art-chart { top: 6%; right: 8%; width: 135px; padding: 10px; }
+  .landing-hero-art > img { height: 100%; object-position: center; mask-image: linear-gradient(to bottom, transparent, black 28%, black 73%, transparent 96%); }
   .landing-art-caption { bottom: 13px; right: 20px; font-size: 9px; }
   .landing-steps { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px 0; }
   .landing-steps > :nth-child(2) { border-right: 0; }
@@ -233,9 +236,6 @@ html[data-theme="dark"] .landing-company-mark .chip-logo { background: #fff; pad
   .landing-actions { margin-top: 23px; gap: 8px; }
   .landing-view .landing-button { font-size: 11px; padding: 12px; gap: 10px; min-height: 44px; }
   .landing-hero-art { aspect-ratio: 1.4; margin-top: 16px; }
-  .landing-art-chart { top: 5%; right: 7%; width: 106px; padding: 8px; }
-  .landing-art-chart span { font-size: 8px; }
-  .landing-art-chart svg { height: 30px; margin-top: 6px; }
   .landing-art-caption { font-size: 8px; bottom: 14px; }
   .landing-steps > * { padding-inline: 13px; }
   .landing-step-number { font-size: 27px; }

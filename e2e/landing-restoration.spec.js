@@ -8,6 +8,7 @@ const cases = [
   { width: 320, theme: 'dark', language: 'ru', title: 'Большая картина. За каждой компанией.' },
   { width: 390, theme: 'light', language: 'ru', title: 'Большая картина. За каждой компанией.' },
   { width: 768, theme: 'light', language: 'ru', title: 'Большая картина. За каждой компанией.' },
+  { width: 900, theme: 'light', language: 'uz', title: 'Katta manzara. Har bir kompaniya ortida.' },
   { width: 1440, theme: 'light', language: 'en', title: 'The bigger picture. Behind every company.' },
   { width: 390, theme: 'dark', language: 'uz', title: 'Katta manzara. Har bir kompaniya ortida.' },
 ];
@@ -25,15 +26,22 @@ for (const options of cases) {
     await expect(landing.locator('.landing-sector-card')).toHaveCount(3);
     const artwork = landing.locator('.landing-hero-art img');
     await expect(artwork).toBeVisible();
+    await expect(landing.locator('.landing-hero-art svg')).toHaveCount(0);
     await expect.poll(() => artwork.evaluate(img => [img.naturalWidth, img.naturalHeight])).toEqual([863, 383]);
     await expect(artwork).toHaveCSS('object-fit', 'cover');
-    expect(await artwork.boundingBox()).toEqual(await landing.locator('.landing-hero-art').boundingBox());
+    const artBox = await artwork.boundingBox();
     const primary = landing.locator('.landing-hero-primary');
     await expect(primary).toBeInViewport();
     expect((await primary.boundingBox()).height).toBeGreaterThanOrEqual(44);
     if (options.width <= 800) {
-      const artBox = await artwork.boundingBox(), buttonBox = await primary.boundingBox();
+      expect(artBox).toEqual(await landing.locator('.landing-hero-art').boundingBox());
+      const buttonBox = await primary.boundingBox();
       expect(artBox.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
+    } else {
+      // The reference shows the full panorama at 1440px and about 84% at 900px.
+      const skylineFraction = Math.min(1, (artBox.width / artBox.height) / (863 / 383));
+      expect(skylineFraction).toBeGreaterThanOrEqual(options.width >= 1440 ? 0.99 : 0.83);
+      await expect(artwork).toHaveCSS('object-position', '100% 50%');
     }
     const sectorImages = landing.locator('.landing-sector-card img');
     await sectorImages.last().scrollIntoViewIfNeeded();
