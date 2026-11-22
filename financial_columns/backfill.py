@@ -64,6 +64,15 @@ def _end(job):
     return date(job['year'], month, monthrange(job['year'], month)[1]).isoformat()
 
 
+def _latest_first(jobs):
+    latest = {}
+    for job in jobs:
+        org = job['issuer_id']
+        latest[org] = max(latest.get(org, ''), _end(job))
+    ordered = sorted(jobs, key=lambda job: (_end(job) == latest[job['issuer_id']], _end(job)), reverse=True)
+    return latest, ordered
+
+
 def pending(annual_periods=2):
     covered = {}
     result = []
@@ -77,20 +86,22 @@ def pending(annual_periods=2):
     return result
 
 
-def collect_share_bases(issuer_ids=None):
+def share_supplement_rounds(issuer_ids=None):
     from collectors.openinfo.transport import _json_get
-    from .share_disclosures import collect_form5, filing_key
+    from .share_disclosures import filing_key
 
     # The archive listing identifies the few filings with an Excel supplement.
     # Walking its pages covers older quarters without fetching every filing detail.
     groups = defaultdict(dict)
-    for job in _recent_jobs(None):
+    latest, filings = _latest_first(_recent_jobs(None))
+    for job in filings:
         url = job['urls']['excel_url'] or job['urls']['excel_url_form1']
         key = filing_key(url)
         if key and job['issuer_id'].isdigit() and (issuer_ids is None or job['issuer_id'] in issuer_ids):
             org_type, report_type, report_id = key
             groups[(org_type, report_type)][(job['issuer_id'], report_id)] = (job, url)
-    result = {'checked': 0, 'imported': 0, 'errors': []}
+    errors = []
+    supplements = []
     with catalogue_sources._make_session() as session:
         for (org_type, report_type), jobs in groups.items():
             path = f'/reports/{org_type}/{report_type}/'
@@ -101,23 +112,42 @@ def collect_share_bases(issuer_ids=None):
                     pages = int(listing['total_pages'])
                     records = listing['results']
                 except Exception as exc:
-                    result['errors'].append({'listing':path, 'page':page, 'error':str(exc)})
+                    errors.append({'listing':path, 'page':page, 'error':str(exc)})
                     break
                 for entry in records:
                     found = jobs.pop((str(entry.get('organization')), str(entry.get('id'))), None)
                     if not found or not str(entry.get('int_report') or '').lower().endswith('.xlsx'):
                         continue
                     job, url = found
-                    ticker, end = job['ticker'], _end(job)
-                    result['checked'] += 1
-                    try:
-                        result['imported'] += collect_form5(session, ticker=ticker, issuer_id=job['issuer_id'],
-                                                            period_end=end, excel_url=url)
-                    except Exception as exc:
-                        result['errors'].append({'ticker':ticker, 'period_end':end, 'error':str(exc)})
+                    supplements.append({**job, 'excel_url':url})
                 if page >= pages:
                     break
                 page += 1
+    current, history = [], []
+    for job in sorted(supplements, key=_end, reverse=True):
+        (current if _end(job) == latest[job['issuer_id']] else history).append(job)
+    return current, history, errors
+
+
+def import_share_supplements(jobs):
+    from .share_disclosures import collect_form5
+    result = {'checked': 0, 'imported': 0, 'errors': []}
+    with catalogue_sources._make_session() as session:
+        for job in jobs:
+            ticker, end = job['ticker'], _end(job)
+            result['checked'] += 1
+            try:
+                result['imported'] += collect_form5(session, ticker=ticker, issuer_id=job['issuer_id'],
+                                                    period_end=end, excel_url=job['excel_url'])
+            except Exception as exc:
+                result['errors'].append({'ticker':ticker, 'period_end':end, 'error':str(exc)})
+    return result
+
+
+def collect_share_bases(issuer_ids=None):
+    latest, history, errors = share_supplement_rounds(issuer_ids)
+    result = import_share_supplements([*latest, *history])
+    result['errors'].extend(errors)
     return result
 
 
@@ -179,7 +209,7 @@ def collect_valuation_quotes(session, ticker, isin, start):
     return market_store.bulk_upsert_quote_history(changes)
 
 
-def collect_valuation_history(issuer_ids=None):
+def collect_valuation_history(issuer_ids=None, *, historical=None):
     from . import share_disclosures
     from catalogue.filings import get_company_index
     from issuer_financials import resolve_issuer
@@ -188,15 +218,13 @@ def collect_valuation_history(issuer_ids=None):
     keys = share_disclosures.filing_keys()
     issues = {}
     result = {'filings':0, 'quotes':0, 'errors':[]}
-    jobs = _recent_jobs(None)
+    latest, jobs = _latest_first(_recent_jobs(None))
     securities = get_securities_map()
-    latest = {}
-    for job in jobs:
-        org = job['issuer_id']
-        latest[org] = max(latest.get(org, ''), _end(job))
     for job in jobs:
         org, ticker, end = job['issuer_id'], job['ticker'], _end(job)
         if issuer_ids is not None and org not in issuer_ids:
+            continue
+        if historical is not None and historical != (end != latest[org]):
             continue
         has_basis = (org, ticker, end, 'separate') in keys
         if not has_basis and end != latest[org]:

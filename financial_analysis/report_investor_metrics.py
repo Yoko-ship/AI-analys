@@ -16,7 +16,7 @@ from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-8'
+VERSION = 'report-investor-metrics-9'
 HISTORICAL_METRICS = {'book_value_per_share', 'price_to_book', 'eps_basic', 'ebit'}
 SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
@@ -491,6 +491,9 @@ def _published_ifrs_eps(report):
                     return None
                 return {'standard':'ifrs', 'scope':scope, 'period':stamp[:4], 'value':row['value'], 'unit':row['unit'],
                         'source_url':url, 'page':evidence.get('page')}
+    # An unusable newer statement does not invalidate an independently verified earlier filing.
+    if direct and all(stamp[:4] != direct['period'] or scope != direct['scope'] for stamp, scope, _ in candidates):
+        return direct
     return None
 
 

@@ -53,6 +53,15 @@ def test_coverage_includes_unresolved_issuers_historical_periods_and_sector_excl
     assert result['issuer_count'] == 3
 
 
+def test_coverage_counts_hmkb_linked_annual_eps_with_its_own_period_and_scope():
+    from financial_ingestion.investor_sweep import _metric
+    filing = {'standard':'ifrs','scope':'consolidated','period':'2025','value':14.22,
+              'unit':'UZS_per_share','source_url':'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf','page':48}
+    report = {'status':'available','ratios':[{'metric_code':'eps_basic','value':None,'other_filing':filing}]}
+    metric = _metric('eps_basic', report)
+    assert metric['state'] == 'other_filing' and metric['other_filing'] == filing
+
+
 def test_approved_file_hash_binds_automatic_eps_and_caches_scan(monkeypatch, tmp_path):
     from financial_ingestion import investor_eps
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path/'catalog.db'))
@@ -123,3 +132,74 @@ def test_latest_openinfo_approval_is_required_even_for_previously_verified_origi
     with store.transaction() as c:
         c.execute("UPDATE ingest_sources SET metadata_json=? WHERE id='src'",(store.encoded({**meta,'status':'withdrawn'}),))
     assert read() is None
+
+
+def test_market_scan_visits_latest_filing_for_every_issuer_before_history(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    import hashlib
+    import ifrs_financials
+    from financial_ingestion import documents, investor_sweep, store
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'market.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path / 'pdfs'))
+    official = 'https://openinfo.uz/media/msfo/'
+    hmkb_latest = 'ba173c49-969f-48b2-8657-64d386332c52.pdf'
+    filings = [
+        ('8', 'HMKB', 'audit_report_2022_RUS.pdf', '2023-05-22'),
+        ('8', 'HMKB', 'eb302c3c-5999-4f8a-bae5-986932590249.pdf', '2025-04-14'),
+        ('19', 'AGBA', 'agba-prior.pdf', '2020-04-01'),
+        ('19', 'AGBA', 'agba-latest.pdf', '2021-04-01'),
+        ('8', 'HMKB', hmkb_latest, '2026-05-07'),
+        ('396', 'BIOK', 'biok-latest.pdf', '2025-06-01'),
+    ]
+    def content(name):
+        return b'%PDF-' + name.encode()
+    with store.transaction() as conn:
+        for org, ticker, name, filed in filings:
+            meta = {'period_type':'annual', 'published_at':filed, 'status':'approved'}
+            source = documents.register(conn, org_id=org, ticker=ticker, url=official+name,
+                                        category='MSFO', metadata=meta, processor='test')
+            if name == hmkb_latest:  # New in the issuer listing, not yet archived by the document worker.
+                continue
+            sha, path = documents.archive(content(name))
+            conn.execute('INSERT INTO ingest_artifacts VALUES (?,?,?,?,?)', (sha,path,1,'application/pdf',filed))
+            conn.execute('INSERT INTO ingest_versions VALUES (?,?,?,?,?)', (sha,source,sha,store.encoded(meta),filed))
+            conn.execute('UPDATE ingest_sources SET latest_version=? WHERE id=?', (sha,source))
+
+    downloaded = []
+    def download(url, **_):
+        downloaded.append(url)
+        return content(url.rsplit('/',1)[-1])
+    monkeypatch.setattr(ifrs_financials, 'download_pdf', download)
+    monkeypatch.setattr(investor_sweep.backfill, '_recent_jobs', lambda _: [])
+    names = {hashlib.sha256(content(f[2])).hexdigest():f[2] for f in filings}
+    scanned = []
+    def scan(sha, *, ocr):
+        scanned.append(names[sha])
+        return []
+    monkeypatch.setattr(investor_sweep.investor_eps, 'archived_rows', scan)
+    # A single latest filing can take longer than the entire historical OCR allowance.
+    monkeypatch.setattr(investor_sweep, 'time', SimpleNamespace(monotonic=lambda: len(scanned)*1900))
+    companies = [{'org_id':o, 'ticker':t} for o,t in [('8','HMKB'),('19','AGBA'),('396','BIOK')]]
+    results = investor_sweep.collect(companies, ocr=True)
+    assert set(scanned[:3]) == {hmkb_latest, 'agba-latest.pdf', 'biok-latest.pdf'}
+    assert len(scanned) == 4 and scanned[3] == 'eb302c3c-5999-4f8a-bae5-986932590249.pdf'
+    assert downloaded == [official+hmkb_latest]
+    assert results['pdfs_pending'] == 2 and not results['errors']
+
+
+def test_statutory_and_ifrs_latest_passes_both_precede_historical_work(monkeypatch):
+    from financial_ingestion import investor_sweep as sweep
+    calls = []
+    def valuations(**kwargs):
+        phase = kwargs.get('historical')
+        calls.append('history balances' if phase else 'latest balances')
+        return {'filings':1,'quotes':0,'errors':[]}
+    monkeypatch.setattr(sweep, '_filing_rounds', lambda ids: (
+        [('2026','8','a','new')], [('2025','8','b','old')]))
+    monkeypatch.setattr(sweep.investor_eps,'archived_rows',lambda sha, **kw: calls.append(sha) or [])
+    monkeypatch.setattr(sweep.backfill, 'collect_valuation_history', valuations)
+    monkeypatch.setattr(sweep.backfill, '_recent_jobs', lambda _: [])
+    result = sweep.collect([{'org_id':'8','ticker':'HMKB'}], ocr=True)
+    assert max(calls.index('new'), calls.index('latest balances')) < min(calls.index('old'), calls.index('history balances'))
+    assert result['valuation_history']['filings'] == 2

@@ -128,7 +128,8 @@ def enqueue(c, source_id, stage, processor, *, version_id=None, generation="init
     return key
 
 
-def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), processor=None, org_ids=None):
+def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), processor=None, org_ids=None,
+          source_id=None):
     if not stages or (org_ids is not None and not org_ids):
         return None
     clock = time.time()
@@ -170,6 +171,9 @@ def claim(*, lease_seconds=900, max_attempts=3, stages=("FETCH", "EXTRACT"), pro
         if org_ids is not None:
             scope_args = tuple(str(org) for org in org_ids)
             scope = " AND source_id IN (SELECT id FROM ingest_sources WHERE org_id IN (" + ",".join("?" for _ in scope_args) + "))"
+        if source_id is not None:
+            scope += " AND source_id=?"
+            scope_args += (source_id,)
         row = c.execute(f"SELECT * FROM ingest_jobs WHERE state IN ('QUEUED','RETRY') "
                         f"AND available_at<=? AND stage IN ({marks})" + scope + " ORDER BY available_at,id LIMIT 1",
                         (time.time(), *stages, *scope_args)).fetchone()

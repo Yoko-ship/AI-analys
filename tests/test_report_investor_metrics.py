@@ -67,6 +67,26 @@ def test_hmkb_separate_report_links_other_published_basis_without_substituting_e
         assert not eps.get('other_filing')
 
 
+def test_verified_older_eps_survives_a_newer_filing_without_usable_eps(report, monkeypatch):
+    from financial_ingestion import investor_eps, publication
+    from financial_analysis import report_investor_metrics as subject
+    import issuer_financials
+    report.update(standard='nsbu', scope='separate', period='2027Q3', financial_as_of='2027-09-30')
+    report['instrument'] = {'valuation_as_of':'2027-11-20'}
+    report['issuer'].update(id='8',ticker='HMKB')
+    old = {'standard':'ifrs','scope':'consolidated','period':'2025','value':14.22,'unit':'UZS_per_share',
+           'source_url':'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf','page':48}
+    snapshot = {'org_id':'8','period_end':'2026-12-31','payload':{
+        'classification':{'role':'PRIMARY'}, 'source':{'source_published_at':'2027-05-07',
+        'pdf_url':'https://openinfo.uz/media/msfo/newer-example.pdf'},
+        'source_rows':[{'metric_id':'eps_basic'}]}}
+    monkeypatch.setattr(publication,'snapshots',lambda ticker,scope: [snapshot] if scope=='consolidated' else [])
+    monkeypatch.setattr(investor_eps,'official_eps',lambda *args: old)
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda ticker: report['issuer'])
+    monkeypatch.setattr(subject,'_metrics_at',lambda *args: [])
+    assert subject._published_ifrs_eps(report) == old
+
+
 @pytest.mark.parametrize('treasury', [0, 100])
 def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch, treasury):
     report.update(period='2026Q3', financial_as_of='2026-09-30')

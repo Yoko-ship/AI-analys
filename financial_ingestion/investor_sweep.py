@@ -1,6 +1,8 @@
 """Nightly collection and coverage for published per-share metrics and EBIT."""
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import closing
+import json
+import logging
 import time
 
 from catalogue.sources import cached_report_excel_data
@@ -10,7 +12,9 @@ from financial_columns import backfill, source_store
 from issuer_financials import IssuerNotFoundError, resolve_issuer, report_rows
 from sector_report_service import public_report, sector_report
 from securities_catalog import get_securities_map
-from . import investor_eps, publication, store
+from . import documents, extract, investor_eps, publication, source_policy, store
+
+log = logging.getLogger(__name__)
 
 
 def unlinked_equities():
@@ -59,6 +63,7 @@ def _metric(code, report):
     result = {'state':state, 'reason':row.get('reason_code') or report['status'],
               'missing_inputs':row.get('missing_inputs') or []}
     if row.get('other_filing'):
+        result['state'] = 'other_filing'
         result['other_filing'] = row['other_filing']
     return result
 
@@ -86,38 +91,103 @@ def coverage(companies):
     return {'generated_at':store.now(), 'issuer_count':len(issuers), 'by_metric_and_reporting_basis':totals, 'issuers':issuers}
 
 
+def _filing_rounds(ids):
+    """Order by the filing's publication date, never by when the crawler last saw it."""
+    with closing(store.connect()) as conn:
+        rows = conn.execute("""
+            SELECT s.org_id,s.id,s.url,s.metadata_json,v.sha,'' AS period_end
+            FROM ingest_sources s LEFT JOIN ingest_versions v ON v.id=s.latest_version
+            WHERE s.category='MSFO'
+            UNION ALL
+            SELECT h.org_id,s.id,s.url,v.metadata_json,v.sha,MAX(h.period_end)
+            FROM ingest_heads h JOIN ingest_snapshots p ON p.id=h.snapshot_id
+            JOIN ingest_candidates c ON c.id=p.candidate_id JOIN ingest_versions v ON v.id=c.version_id
+            JOIN ingest_sources s ON s.id=v.source_id WHERE h.standard='MSFO'
+            GROUP BY h.org_id,s.id,s.url,v.metadata_json,v.sha
+        """).fetchall()
+    issuers = defaultdict(dict)
+    for row in rows:
+        if row['org_id'] not in ids or (not row['sha'] and not source_policy.allows(row['url'])):
+            continue
+        meta = json.loads(row['metadata_json'])
+        if not row['period_end'] and (meta.get('status') not in (None,'approved')
+                                     or meta.get('period_type') not in (None,'annual')):
+            continue
+        filed = str(meta.get('published_at') or row['period_end'] or '')[:10]
+        group = issuers[row['org_id']]
+        key = row['sha'] or row['id']
+        if key not in group or filed > group[key][0]:
+            group[key] = (filed, row['org_id'], row['id'], row['sha'])
+    latest, history = [], []
+    for group in issuers.values():
+        newest = max(doc[0] for doc in group.values())
+        for doc in group.values():
+            (latest if doc[0] == newest else history).append(doc)
+    return sorted(latest, reverse=True), sorted(history, reverse=True)
+
+
+def _fetch_filing(source):
+    job = store.claim(stages=('FETCH',), source_id=source)
+    if job:
+        try:
+            documents.fetch_job(job, extract.processor_version())
+        except Exception as exc:
+            store.fail(job, exc)
+            raise
+    with closing(store.connect()) as conn:
+        row = conn.execute('SELECT v.sha FROM ingest_sources s JOIN ingest_versions v '
+                           'ON v.id=s.latest_version WHERE s.id=?', (source,)).fetchone()
+    if not row:
+        raise ValueError('Latest original is awaiting download or retry')
+    return row['sha']
+
+
 def collect(companies, *, ocr, deadline=None):
     ids = {str(c['org_id']) for c in companies if c['org_id']}
-    result = {'errors':[], 'pdfs_checked':0, 'pdfs_with_eps':0}
-    for name, operation in [('share_supplements',backfill.collect_share_bases), ('valuation_history',backfill.collect_valuation_history)]:
+    result = {'errors':[], 'pdfs_checked':0, 'pdfs_with_eps':0,
+              'share_supplements':{'checked':0,'imported':0,'errors':[]},
+              'valuation_history':{'filings':0,'quotes':0,'errors':[]}}
+    if deadline is not None and time.monotonic() >= deadline:
+        return {**result, 'deferred':True}
+    try:
+        current_shares, past_shares, errors = backfill.share_supplement_rounds(ids)
+    except Exception as exc:
+        current_shares, past_shares, errors = [], [], [{'stage':'share_supplements','error':str(exc)}]
+    result['share_supplements']['errors'].extend(errors)
+    result['errors'].extend(errors)
+    latest, history = _filing_rounds(ids)
+    scanned = set()
+    for phase, filings, supplements in [('latest', latest, current_shares), ('history', history, past_shares)]:
         if deadline is not None and time.monotonic() >= deadline:
             return {**result, 'deferred':True}
-        try:
-            result[name] = operation(issuer_ids=ids)
-            result['errors'].extend(result[name]['errors'])
-        except Exception as exc:
-            result['errors'].append({'stage':name,'error':str(exc)})
-    # Include new official annuals as soon as the document worker archives them.
-    with closing(store.connect()) as conn:
-        heads = conn.execute('SELECT DISTINCT h.org_id,v.sha FROM ingest_heads h '
-            'JOIN ingest_snapshots s ON s.id=h.snapshot_id JOIN ingest_candidates c ON c.id=s.candidate_id '
-            'JOIN ingest_versions v ON v.id=c.version_id WHERE h.standard=\'MSFO\'').fetchall()
-        annuals = conn.execute('SELECT s.org_id,v.sha FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
-                               'WHERE s.category=? ORDER BY s.last_seen DESC,s.id', ('MSFO',)).fetchall()
-    hashes = dict.fromkeys(h['sha'] for h in [*heads,*annuals] if h['org_id'] in ids)
-    # Leave the shared nightly worker time for statutory history and document discovery.
-    # Completed originals are checkpointed, so subsequent nights advance through the backlog.
-    scan_until = time.monotonic() + 1800
-    for index, sha in enumerate(hashes):
-        if deadline is not None and time.monotonic() >= deadline:
-            return {**result, 'deferred':True}
-        if time.monotonic() >= scan_until:
-            result['pdfs_pending'] = len(hashes) - index
-            break
-        try:
-            rows = investor_eps.archived_rows(sha, ocr=ocr)
-            result['pdfs_checked'] += 1
-            result['pdfs_with_eps'] += bool(rows)
-        except Exception as exc:
-            result['errors'].append({'file_hash':sha, 'error':str(exc)})
+        log.info('Investor metrics: %s filings (%d originals)', phase, len(filings))
+        for name, operation, kwargs in [
+            ('share_supplements', backfill.import_share_supplements, {'jobs':supplements}),
+            ('valuation_history', backfill.collect_valuation_history, {'issuer_ids':ids,'historical':phase == 'history'}),
+        ]:
+            try:
+                outcome = operation(**kwargs)
+            except Exception as exc:
+                outcome = {'errors':[{'stage':name,'error':str(exc)}]}
+            for key, value in outcome.items():
+                result[name][key] += value
+            result['errors'].extend(outcome['errors'])
+        history_until = time.monotonic() + 1800 if phase == 'history' else None
+        for index, (filed, org, source, sha) in enumerate(filings):
+            if deadline is not None and time.monotonic() >= deadline:
+                return {**result, 'deferred':True}
+            if history_until is not None and time.monotonic() >= history_until:
+                result['pdfs_pending'] = len(filings) - index
+                break
+            try:
+                sha = sha or _fetch_filing(source)
+                if sha in scanned:
+                    continue
+                log.info('Investor EPS: %s issuer %s, filed %s', phase, org, filed or 'undated')
+                rows = investor_eps.archived_rows(sha, ocr=ocr)
+                scanned.add(sha)
+                result['pdfs_checked'] += 1
+                result['pdfs_with_eps'] += bool(rows)
+            except Exception as exc:
+                result['errors'].append({'issuer_id':org, 'source_id':source, 'file_hash':sha, 'error':str(exc)})
     return result

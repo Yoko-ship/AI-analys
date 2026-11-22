@@ -40,6 +40,36 @@ def test_financial_bond_only_issuer_does_not_require_a_share_valuation_workbook(
     assert warmed==['HMKB']
 
 
+def test_valuation_workbooks_check_latest_for_each_issuer_before_verified_fallback(monkeypatch):
+    from financial_columns import backfill, share_disclosures
+    jobs = [dict(issuer_id=org,ticker=ticker,template='non_financial',year=year,quarter=quarter)
+            for org,ticker,year,quarter in [('78','ABKZ',2025,1),('78','ABKZ',2026,3),('396','BIOK',2023,2)]]
+    monkeypatch.setattr(backfill, '_recent_jobs', lambda _: jobs)
+    monkeypatch.setattr(share_disclosures, 'filing_keys', lambda: {('78','ABKZ','2025-03-31','separate')})
+    monkeypatch.setattr(share_disclosures, 'read', lambda *args: None)
+    checked = []
+    monkeypatch.setattr(backfill, '_import', lambda job, **kw: checked.append((job['ticker'],job['year'])))
+    assert backfill.collect_valuation_history()['filings'] == 3
+    assert checked == [('ABKZ',2026),('BIOK',2023),('ABKZ',2025)]
+
+
+def test_share_supplements_check_each_company_before_older_attachment(monkeypatch):
+    from collectors.openinfo import transport
+    from financial_columns import backfill, share_disclosures
+    filings = [('396','BIOK',2025,17697),('396','BIOK',2026,18938),('78','ABKZ',2023,12000)]
+    jobs = [{'issuer_id':org,'ticker':ticker,'year':year,'quarter':3,'urls':{
+        'excel_url':f'https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=jsc&report_type=quarter&report_id={rid}'}}
+        for org,ticker,year,rid in filings]
+    monkeypatch.setattr(backfill, '_recent_jobs', lambda _: jobs)
+    monkeypatch.setattr(transport, '_json_get', lambda *args: {'total_pages':1,'results':[
+        {'id':rid,'organization':org,'int_report':'supplement.xlsx'} for org,_,_,rid in filings]})
+    imported = []
+    monkeypatch.setattr(share_disclosures,'collect_form5',
+                        lambda _, **job: imported.append((job['ticker'],job['period_end'])) or True)
+    assert backfill.collect_share_bases()['imported'] == 3
+    assert imported == [('BIOK','2026-09-30'),('ABKZ','2023-09-30'),('BIOK','2025-09-30')]
+
+
 def test_nightly_share_discovery_checks_bank_attachments_and_respects_issuer_subset(monkeypatch):
     from collectors.openinfo import transport
     from financial_columns import backfill, share_disclosures
