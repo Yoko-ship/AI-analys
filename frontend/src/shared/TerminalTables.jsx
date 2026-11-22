@@ -3,6 +3,7 @@ import { tableCsv } from "../lib/terminalWorkspace.js";
 import { logTerminalEvent } from "../lib/terminalJournal.js";
 export const words = (lang, ru, uz, en) => ({ru,uz,en}[lang] || ru);
 function cellText(cell) {
+  if (cell.hasAttribute('data-export-value')) return cell.dataset.exportValue;
   if (!cell.querySelector('.term-info-btn')) return cell.innerText.trim();
   const read = node => {
     if (node.nodeType === Node.TEXT_NODE) return node.textContent;

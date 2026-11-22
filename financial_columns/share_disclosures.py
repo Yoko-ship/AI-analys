@@ -6,7 +6,7 @@ participating equity was ordinary throughout the stated period, not merely that
 one ordinary instrument was found on today's exchange board.
 """
 from copy import deepcopy
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import hashlib
@@ -21,15 +21,50 @@ from catalogue.storage import get_catalog_conn
 
 FIELDS = {'issuer_id', 'ticker', 'period_start', 'period_end', 'scope', 'source_url',
           'source_standard', 'ordinary_shares', 'weighted_average_shares',
-          'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit'}
+          'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit', 'isin', 'share_intervals', 'capital_changes'}
 REVIEWED = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_share_disclosures.json'
 KEY_COLUMNS = 'issuer_id,ticker,period_end,scope'
+
+
+def _share_history(data, start, end):
+    """An effective date starts an interval. A split factor restates earlier shares."""
+    history = data['share_intervals']
+    evidence = data['source_lines'].get('share_intervals')
+    if not isinstance(history, list) or not history or not isinstance(evidence, str) or not evidence.strip():
+        raise ValueError('A dated, reviewed share history is required')
+    until = end + timedelta(days=1)
+    factor, weighted = Decimal(1), Decimal(0)
+    closing = None
+    for entry in reversed(history):
+        if not isinstance(entry, dict) or set(entry) - {'from', 'issued', 'treasury', 'restatement_factor'}:
+            raise ValueError('Invalid share interval')
+        try:
+            since = date.fromisoformat(entry['from'])
+            issued, treasury, split = (Decimal(str(v)) for v in (entry['issued'], entry['treasury'], entry.get('restatement_factor', 1)))
+            if (not all(v.is_finite() for v in (issued, treasury, split)) or not start <= since < until
+                    or split <= 0 or not 0 <= treasury <= issued or any(x != x.to_integral_value() for x in (issued, treasury))):
+                raise ValueError('Invalid share interval')
+        except (KeyError, TypeError, InvalidOperation) as exc:
+            raise ValueError('Invalid share interval') from exc
+        outstanding = issued - treasury
+        if closing is None:
+            closing = outstanding
+        weighted += outstanding * factor * (until - since).days
+        factor *= split
+        until = since
+    if until != start:
+        raise ValueError('Share history must cover the full reporting period')
+    for key, count in [('ordinary_shares', closing), ('weighted_average_shares', weighted / ((end - start).days + 1))]:
+        if key in data and Decimal(str(data[key])) != count:
+            raise ValueError('Share history conflicts with disclosed count')
+        data[key] = str(count)
+        data['source_lines'][key] = evidence
 
 
 def _validate(value):
     if not isinstance(value, dict) or set(value) - FIELDS:
         raise ValueError('Share disclosure contains unsupported fields')
-    data = dict(value)
+    data = deepcopy(value)
     if not str(data.get('issuer_id') or '').strip() or not str(data.get('ticker') or '').strip():
         raise ValueError('Issuer identity is required')
     data['issuer_id'], data['ticker'] = str(data['issuer_id']), data['ticker'].strip().upper()
@@ -45,6 +80,14 @@ def _validate(value):
     lines = data.get('source_lines')
     if not isinstance(lines, dict):
         raise ValueError('Source lines are required')
+    for event in data.get('capital_changes', []):
+        if (not isinstance(event, dict) or event.get('kind') not in {'cash_issue', 'buyback', 'treasury_reissue'}
+                or date.fromisoformat(event['date']) <= end or not str(event.get('source_url', '')).startswith('https://')):
+            raise ValueError('Expected a dated post-balance change with a source')
+    if 'share_intervals' in data:
+        _share_history(data, start, end)
+    if 'isin' in data and not re.fullmatch(r'[A-Z]{2}[A-Z0-9]{9}[0-9]', str(data['isin'])):
+        raise ValueError('Invalid issue ISIN')
     for key in ('ordinary_shares', 'weighted_average_shares'):
         if key not in data:
             continue

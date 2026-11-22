@@ -768,15 +768,15 @@ def _blocked_line(issuer: dict[str, Any], snapshot: dict[str, Any], lang: str) -
     return {'text': text, 'snapshot': snapshot_line, 'reason': reason}
 
 
-def _published_analysis(issuer: dict[str, Any], standard: str, lang: str, period: str | None) -> dict[str, Any] | None:
+def _published_analysis(issuer: dict[str, Any], standard: str, lang: str, period: str | None, scope: str = 'separate') -> dict[str, Any] | None:
     """The issuer's published six-block analysis for this period, if any."""
     try:
         from reporting import store
-        report = store.latest_publication(issuer["id"], lang, standard)
+        report = store.latest_publication(issuer["id"], lang, standard, scope)
     except Exception:
         logging.getLogger(__name__).warning("Published analysis unavailable for %s", issuer.get("ticker"), exc_info=True)
         return None
-    if not report or report.get("narrative_structure") != "six-blocks-v1" or report.get("period") != period or not report.get("card_text"):
+    if not report or report.get("scope", "separate") != scope or report.get("narrative_structure") != "six-blocks-v1" or report.get("period") != period or not report.get("card_text"):
         return None
     return report
 
@@ -856,7 +856,7 @@ def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...
     if blocked:
         headline, headline_tone = blocked['text'], 'neutral'
         card_text = headline
-    published = _published_analysis(issuer, standard, lang, snapshot.get('period'))
+    published = _published_analysis(issuer, standard, lang, snapshot.get('period'), scope)
     if published:
         # The card shows the analysis's own headline and verdict, the same
         # line the full report opens with, not a second wording of it.

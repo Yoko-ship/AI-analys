@@ -6,6 +6,21 @@ from financial_ingestion.statements import numeric
 from .registry import metric, LABEL_RULES
 
 
+def ebit_line(row):
+    field = row.get('metric_id')
+    codes = {'profit_before_tax':'240', 'interest_expense':'180'}
+    return (field in codes and row.get('source_form') == 'F2' and row.get('source_code') == codes[field]
+            and row.get('unit') == 'UZS_thousand'
+            and re.search(LABEL_RULES[field], str(row.get('raw_label') or ''), re.I) is not None)
+
+
+def ebit(pretax, signed_interest):
+    """On Form 2 interest expense is income-column less expense-column."""
+    if pretax is None or signed_interest is None or signed_interest > 0:
+        return None
+    return pretax - signed_interest
+
+
 def cell(raw):
     text = str(raw).strip() if raw is not None else ''
     result = {'raw_value': raw, 'value': None, 'quality': 'missing'}
@@ -104,6 +119,12 @@ def rows(workbook, *, template, default_form=None):
             else:
                 continue
             metric_id = metric(form, code)
+            if metric_id is None and form in {'F1', 'F2'}:
+                from .ifrs import metric as label_metric
+                semantic = label_metric(label, 'BS' if form == 'F1' else 'PL')
+                if semantic in {'equity_owners', 'profit_owners', 'profit_ordinary', 'common_equity',
+                                'nci', 'profit_nci', 'preferred_profit_allocation', 'preferred_equity_claim'}:
+                    metric_id = semantic
             mapping_issue = None
             if metric_id in LABEL_RULES and not re.search(LABEL_RULES[metric_id], label, re.I):
                 metric_id, mapping_issue = None, 'CODE_LABEL_MISMATCH'

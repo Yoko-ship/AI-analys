@@ -12,7 +12,7 @@ KEEP_TITLES = {
     "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)":           "gross_profit",
     "Расходы периода, всего (стр.050+060+070+080), в том числе:":                                        "operating_expenses",
     "Административные расходы":                                                                           "admin_expenses",
-    "Прибыль (убыток) от основной деятельности (стр.0З0-040+090)":                                      "ebit",
+    "Прибыль (убыток) от основной деятельности (стр.0З0-040+090)":                                      "operating_income",
     "Расходы по финансовой деятельности (стр.180+190+200+210), в том числе:":                            "finance_expenses",
     "Расходы в виде процентов":                                                                           "interest_expense",
     "Прибыль (убыток) до уплаты налога на доходы прибыль) (стр.220+/-230)":                             "ebt",
@@ -86,8 +86,8 @@ BANK_TITLES = {
     # Alternative field names that may appear
     "Доходы от процентов":                                                  "revenue",
     "Расходы по процентам":                                                 "interest_expense",
-    "Прибыль от операционной деятельности":                                 "ebit",
-    "Операционная прибыль":                                                 "ebit",
+    "Прибыль от операционной деятельности":                                 "operating_income",
+    "Операционная прибыль":                                                 "operating_income",
 
     # Real titles from the openinfo PnL/Balance Form2/Form1 banking template
     "ЧИСТАЯ ПРИБЫЛЬ (УБЫТКИ)":                                              "net_income",
@@ -170,6 +170,17 @@ def _get_field_mapping(title: str) -> str | None:
     return None
 
 
+def _statement_values(values):
+    result = dict(values)
+    form2_interest = result.pop('_form2_interest', False)
+    # EBT and interest on the non-financial Form 2. Bank interest is operating.
+    if 'ebt' in result and 'interest_expense' in result and form2_interest:
+        pretax, interest = result['ebt'], result['interest_expense']
+        if pd.notna(pretax) and pd.notna(interest):
+            result['ebit'] = pretax + abs(interest)
+    return result
+
+
 def df_to_annual(annual_df: pd.DataFrame) -> list:
     data = defaultdict(lambda: {"financials": {}, "ratios": {}})
     for _, row in annual_df.iterrows():
@@ -182,6 +193,8 @@ def df_to_annual(annual_df: pd.DataFrame) -> list:
         field_name = _get_field_mapping(title)
         if field_name:
             # Don't overwrite if already set (prefer first match)
+            if field_name == "interest_expense" and _normalize_title(title) == "расходы в виде процентов":
+                data[year]["financials"]["_form2_interest"] = True
             if field_name not in data[year]["financials"]:
                 data[year]["financials"][field_name] = value
         if not data[year]["ratios"]:
@@ -196,7 +209,7 @@ def df_to_annual(annual_df: pd.DataFrame) -> list:
     result = []
     for i, year in enumerate(years):
         entry = {"year": year}
-        entry.update(data[year]["financials"])
+        entry.update(_statement_values(data[year]["financials"]))
         entry.update(data[year]["ratios"])
         if i > 0:
             prev = data[years[i - 1]]["financials"]
@@ -225,6 +238,8 @@ def df_to_quarterly(quarter_df: pd.DataFrame) -> list:
         field_name = _get_field_mapping(title)
         if field_name:
             # Don't overwrite if already set
+            if field_name == "interest_expense" and _normalize_title(title) == "расходы в виде процентов":
+                data[(year, quarter)]["_form2_interest"] = True
             if field_name not in data[(year, quarter)]:
                 data[(year, quarter)][field_name] = value
 
@@ -232,7 +247,7 @@ def df_to_quarterly(quarter_df: pd.DataFrame) -> list:
     result = []
     for i, (year, quarter) in enumerate(keys):
         entry = {"year": year, "quarter": quarter, "period": f"{year}Q{quarter}"}
-        entry.update(data[(year, quarter)])
+        entry.update(_statement_values(data[(year, quarter)]))
         if i > 0:
             prev = data[keys[i - 1]]
             curr = data[(year, quarter)]
@@ -249,7 +264,7 @@ def df_to_quarterly(quarter_df: pd.DataFrame) -> list:
 
 def slim_for_prompt(annual: list, quarterly: list) -> dict:
     keep_annual = {
-        "year", "revenue", "gross_profit", "ebit", "net_income",
+        "year", "revenue", "gross_profit", "operating_income", "ebit", "net_income",
         "total_assets", "equity", "current_assets", "current_liabilities",
         "cash", "long_term_debt", "net_profit_margin", "return_on_equity",
         "return_on_assets", "debt_to_equity_ratio", "current_ratio",
@@ -258,7 +273,7 @@ def slim_for_prompt(annual: list, quarterly: list) -> dict:
         "interest_expense", "retained_earnings",
     }
     keep_quarterly = {
-        "period", "revenue", "gross_profit", "ebit", "net_income",
+        "period", "revenue", "gross_profit", "operating_income", "ebit", "net_income",
         "total_assets", "equity", "current_assets", "current_liabilities",
         "cash", "qoq_growth",
     }
@@ -278,7 +293,7 @@ def slim_for_prompt(annual: list, quarterly: list) -> dict:
             year = row.get("year", "?")
             for q in range(1, 5):
                 approx = {"period": f"{year}Q{q}(approx)"}
-                for k in ["revenue", "gross_profit", "ebit", "net_income",
+                for k in ["revenue", "gross_profit", "operating_income", "ebit", "net_income",
                           "current_assets", "current_liabilities", "cash"]:
                     v = row.get(k)
                     if v:

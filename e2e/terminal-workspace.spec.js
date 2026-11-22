@@ -889,6 +889,8 @@ print(json.dumps({**report, 'ratios': calculate(report, [], {**basis, 'verificat
   await page.route('**/api/v1/issuers/BIOK/ai-report?**', route => route.fulfill({json:report}));
   await run(page, 'BIOK RAT');
   const table = page.locator('.terminal-sector-metrics');
+  const bvps = table.getByRole('row').filter({hasText:'BVPS'});
+  await expect(bvps).toContainText('22 858,3');
   const book = table.getByRole('row').filter({hasText:'P/BV'});
   await expect(book).toContainText('0,63 ×');
   await expect(book.getByRole('link', {name:'Раскрытие об акциях'})).toHaveAttribute('href', /openinfo\.uz\/media\/int_report/);
@@ -920,4 +922,19 @@ test('quarterly blanks distinguish loss bases from missing reports', async ({pag
   await expect(page.locator('.terminal-quarterly-overview')).toContainText('Убыток или нулевая база');
   await page.setViewportSize({width:390,height:844});
   await expect(row.getByRole('cell').nth(1)).toHaveAttribute('aria-label',/2023Q2/);
+});
+
+test('filing screener exposes verified EBIT and separate estimate columns for CSV', async ({page}) => {
+  await fixture(page);
+  await page.route('**/api/terminal/filing-metrics?**', route => route.fulfill({json:{rows:[{
+    ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
+  }]}}));
+  await run(page,'EQS');
+  await page.getByRole('button',{name:'EPS · P/BV · EBIT',exact:true}).click();
+  const table=page.getByRole('table').filter({has:page.getByRole('columnheader',{name:/EBIT/})});
+  await expect(table.getByRole('row').filter({hasText:'ABKZ'})).toContainText('8\u00a0714\u00a0009');
+  await expect(table.getByRole('columnheader',{name:/EPS прибл/})).toBeVisible();
+  const download=page.waitForEvent('download');
+  await page.locator('.terminal-market-screen').getByRole('button',{name:'CSV',exact:true}).click();
+  expect((await download).suggestedFilename()).toMatch(/csv$/i);
 });

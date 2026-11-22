@@ -56,3 +56,13 @@ def test_missing_source_unit_is_blocked_not_silently_assumed(isolated_store):
     assert 'UNIT_UNRESOLVED' in doc['source_coverage']['issues']
     from financial_columns.observations import nsbu
     assert all(r['value'] is None for r in nsbu([doc]))
+
+def test_scoped_bank_workbooks_keep_separate_and_group_values_apart(isolated_store):
+    data=bank_data()
+    separate=record(data)
+    group=record(data,urls={'excel_url':data['income']['source_url'],'title':'Консолидированная финансовая отчетность'})
+    assert separate!=group
+    assert source_store.read('217',standard='NSBU',scope='separate')[0]['source_version']==separate
+    series, sources=source_store.consolidated_series('217')
+    assert series['2026Q3']['total_assets']>0
+    assert [s['report_id'] for s in sources]==[group]

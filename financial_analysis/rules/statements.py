@@ -11,7 +11,7 @@ def statements(history):
     net_income = get(latest, "net_income", 0)
     equity = get(latest, "equity", 0)
     total_assets = get(latest, "total_assets", 0)
-    ebit = get(latest, "ebit", 0)
+    operating = latest.get("operating_income")
     gross_profit = get(latest, "gross_profit", 0)
     # ── HORIZONTAL ANALYSIS (Горизонтальный анализ) ──────
     # Сравнение показателей текущего года с предыдущим (YoY изменения)
@@ -112,7 +112,8 @@ def statements(history):
         income_structure = {}
         income_items = [
             ("gross_profit", "Валовая прибыль"),
-            ("ebit", "Операционная прибыль (EBIT)"),
+            ("operating_income", "Операционная прибыль"),
+            ("ebit", "EBIT"),
             ("net_income", "Чистая прибыль"),
             ("interest_expense", "Процентные расходы"),
         ]
@@ -139,7 +140,7 @@ def statements(history):
             "base_value": round(revenue, 0),
             "items": income_structure,
             "gross_margin_pct": round((gross_profit / revenue) * 100, 1) if gross_profit else 0,
-            "operating_margin_pct": round((ebit / revenue) * 100, 1) if ebit else 0,
+            "operating_margin_pct": round((operating / revenue) * 100, 1) if operating is not None else None,
             "net_margin_pct": round((net_income / revenue) * 100, 1),
         }
 

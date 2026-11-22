@@ -131,6 +131,15 @@ async def api_admin_terminal_catalogue() -> dict[str, Any]:
     return {"events": journal.catalogue()}
 
 
+@public_router.get("/api/terminal/filing-metrics")
+def api_filing_metrics(scope: Literal['separate', 'consolidated'] = 'separate',
+                       period: str | None = Query(default=None, pattern=r'^\d{4}(?:Q[1-4])?$'),
+                       search: str = Query(default='', max_length=80),
+                       offset: int = Query(default=0, ge=0), limit: int = Query(default=10, ge=1, le=25)):
+    from server.terminal.service import filing_metrics
+    return filing_metrics(scope, period, search, offset, limit)
+
+
 @public_router.get("/api/terminal/screener")
 async def api_terminal_screener(form: Literal["NSBU", "MSFO"] = "NSBU",
                                scope: Literal["separate", "consolidated"] = "separate",

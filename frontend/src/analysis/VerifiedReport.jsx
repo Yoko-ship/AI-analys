@@ -169,6 +169,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
           <details className="verified-ratio-details">
             <summary>{t("Как рассчитано", "Qanday hisoblangan", "How it is calculated")}</summary>
             <p><code>{item.metric_code}</code> · {item.formula}</p>
+            {item.addends?.length===2 && item.addends.every(v=>v!=null) && <p>{fmt(item.addends[0],lang)} + {fmt(item.addends[1],lang)} = {fmt(item.value,lang)}{reportRatioUnit(item.unit,lang)}</p>}
             {item.denominator_value != null && <p>{compactNumber(item.numerator_value, lang)} / {compactNumber(item.denominator_value, lang)}</p>}
             {item.components?.length > 0 && <ul>{item.components.map((component,i)=><li key={i}>
               {component.label||component.raw_label||component.metric_code||t('Котировка','Kotirovka','Quote')}: {fmt(component.value??component.last_price,lang)}{reportRatioUnit(component.unit==='thousand UZS'?'UZS_thousand':component.unit,lang)}

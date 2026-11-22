@@ -32,6 +32,9 @@ export function reportRatioReason(item,lang){
     EPS_INPUTS_MISSING:['Нет подтверждённой EPS или данных для её расчёта','Tasdiqlangan EPS yoki hisoblash ma’lumotlari yo‘q','Verified EPS or the inputs needed to calculate it are unavailable'],
     DEBT_INPUTS_MISSING:['Не подтверждён полный состав долга или положительный капитал','Qarz tarkibi yoki musbat kapital tasdiqlanmagan','Complete debt components or positive equity are unverified'],
     BOOK_OR_QUOTE_INPUTS_MISSING:['Нет подтверждённой базы обычных акций или актуальной котировки','Oddiy aksiyalar bazasi yoki dolzarb kotirovka tasdiqlanmagan','Verified ordinary-share inputs or a current quote are unavailable'],
+    EBIT_INPUTS_MISSING:['Нужны подтверждённые строки 240 и 180 формы 2','2-shaklning 240 va 180-satrlari tasdiqlanishi kerak','Verified Form 2 lines 240 and 180 are required'],
+    ORDINARY_SHARES_ONLY:['Только для обычных акций','Faqat oddiy aksiyalar uchun','Applies to ordinary shares only'],
+    CAPITAL_CHANGED:['После отчётной даты изменился капитал','Hisobot sanasidan keyin kapital o‘zgargan','Capital changed after the balance sheet date'],
     INPUTS_MISSING:['Компоненты отсутствуют или недопустимы','Tarkibiy qismlar yetishmaydi yoki yaroqsiz','Components are incomplete or invalid'],
   };
   const texts=reasons[item.reason_code];

@@ -145,7 +145,7 @@ def test_balance_ratios_use_balance_anchors_while_eps_still_requires_matching_in
 def source_rows(report, **values):
     facts = {r['metric_code']: r['value'] for r in report['verified_facts']}
     values = {'total_assets': facts['total_assets'], 'total_equity': facts['total_equity'], **values}
-    return [dict(metric_id=key, raw_label=key, value=str(value), unit='UZS_per_share' if key == 'eps_basic' else 'shares' if key in {'ordinary_shares', 'weighted_average_shares'} else 'UZS_thousand',
+    return [dict(metric_id=key, raw_label={'profit_before_tax':'Прибыль (убыток) до уплаты налога на прибыль', 'interest_expense':'Расходы в виде процентов'}.get(key,key), value=str(value), unit='UZS_per_share' if key == 'eps_basic' else 'shares' if key in {'ordinary_shares', 'weighted_average_shares'} else 'UZS_thousand',
                  issuer_id=report['issuer']['id'], standard='NSBU', scope='separate', currency='UZS',
                  period_end='2026-06-30', period_start='2026-01-01' if key in {'eps_basic', 'profit_ordinary', 'weighted_average_shares'} else '2026-06-30',
                  kind='flow' if key in {'profit_ordinary', 'weighted_average_shares'} else 'per_share' if key == 'eps_basic' else 'stock',
@@ -235,7 +235,10 @@ def test_blocked_filings_and_financial_sectors_do_not_gain_enterprise_metrics(re
     report['status'] = 'available'
     for org in ('bank', 'insurance', 'investment_fund_ifrs_annual'):
         report['issuer']['organization_type'] = org
-        assert not NEW & metrics(report).keys()
+        keys = metrics(report).keys()
+        assert not {'operating_margin', 'book_value', 'interest_debt_to_equity', 'ebit'} & keys
+        if org in ('bank', 'insurance'):
+            assert {'eps_basic', 'price_to_book', 'book_value_per_share'} <= keys
 
 
 def test_ifrs_exact_aliases_keep_ordinary_equity_and_profit_separate():
@@ -557,3 +560,199 @@ def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, 
         monkeypatch.setattr(share_disclosures, 'REVIEWED', changed_path)
         assert share_disclosures.read(*key) is None
     assert (basis or {}).get('ordinary_shares') == (None if variant == 'wrong_issuer' else '5713280')
+
+@pytest.mark.parametrize('pretax,expense,expected', [
+    (7603980, -1110029, 8714009), (-200, -50, -150), (-200, 0, -200), (7603980, None, None),
+])
+def test_abkz_9m_2026_ebit_uses_signed_pretax_and_recognised_interest(report, pretax, expense, expected):
+    from financial_analysis.report_investor_metrics import calculate
+    report['issuer'].update(id='78', ticker='ABKZ')
+    report.update(period='2026Q3', financial_as_of='2026-09-30')
+    for f in report['verified_facts']:
+        f['period'] = report['period']
+    rows = source_rows(report, profit_before_tax=pretax, interest_expense=expense, operating_income=8607795)
+    for row in rows:
+        row.update(period_end=report['financial_as_of'], source_url='https://openinfo.uz/ru/reports/to_pdf31816/')
+        if row['metric_id'] in {'profit_before_tax', 'interest_expense', 'operating_income'}:
+            row.update(period_start='2026-01-01', source_form='F2',
+                       source_code={'profit_before_tax':'240','interest_expense':'180','operating_income':'100'}[row['metric_id']])
+    result = {r['metric_code']: r for r in calculate(report, rows)}
+    assert result['ebit']['value'] == expected
+    assert {c['source_code'] for c in result['ebit']['components']} == {'240', '180'}
+
+
+@pytest.mark.parametrize('attribution', ['direct', 'minority', 'missing', 'conflict'])
+def test_consolidated_eps_and_book_use_only_parent_common_amounts(report, attribution):
+    from financial_analysis.report_investor_metrics import calculate
+    report['scope'] = 'consolidated'
+    for fact in report['verified_facts']:
+        if fact['metric_code'] in {'total_equity', 'net_income'}:
+            fact['value'] = {'total_equity':120000000, 'net_income':350000}[fact['metric_code']]
+    values = {}
+    if attribution in {'direct','conflict'}:
+        values.update(equity_owners=100000000, profit_owners=300000)
+    if attribution in {'minority','conflict'}:
+        values.update(nci=20000000 if attribution=='minority' else 10000000,
+                      profit_nci=50000 if attribution=='minority' else 10000)
+    rows = source_rows(report, **values)
+    for row in rows:
+        row['scope'] = report['scope']
+        if row['metric_id'] in {'profit_owners','profit_nci'}:
+            row['period_start'] = '2026-01-01'
+    basis = dict(verification_status='verified', issuer_id=report['issuer']['id'], ticker=report['issuer']['ticker'],
+                 scope='consolidated', period_start='2026-01-01', period_end='2026-06-30', ordinary_only=True,
+                 ordinary_shares=10000000, weighted_average_shares=1500000)
+    report['instrument'] = dict(instrument_type='ordinary_share', market_as_of='2026-08-01', last_price=8000,
+                                freshness={'status':'fresh'})
+    out = {r['metric_code']:r for r in calculate(report, rows, basis)}
+    valid = attribution in {'direct','minority'}
+    assert out['eps_basic']['value'] == (200 if valid else None)
+    assert out['book_value_per_share']['value'] == (10000 if valid else None)
+    assert out['price_to_book']['value'] == (0.8 if valid else None)
+
+
+def test_reviewed_240_day_share_history_weights_outstanding_shares_and_splits():
+    from financial_columns.share_disclosures import _validate
+    start, change, end = '2026-01-01', '2026-05-01', '2026-08-28'
+    base = dict(issuer_id='1', ticker='TEST', period_start=start, period_end=end, scope='separate',
+                source_url='https://example.org/share-register', unit='shares', source_standard='NSBU',
+                source_lines={'share_intervals':'Reviewed register and corporate actions, cross-checked to closing count'},
+                share_intervals=[{'from':start, 'issued':1100000, 'treasury':100000},
+                                 {'from':change, 'issued':2100000, 'treasury':100000}])
+    out = _validate(base)
+    assert out['weighted_average_shares'] == '1500000'
+    assert out['ordinary_shares'] == '2000000'
+    split = deepcopy(base)
+    split['share_intervals'][1]['restatement_factor'] = 2
+    assert _validate(split)['weighted_average_shares'] == '2000000'
+    for bad in [[], [base['share_intervals'][1]], [base['share_intervals'][0]] * 2]:
+        with pytest.raises(ValueError):
+            _validate({**base, 'share_intervals':bad})
+
+
+def test_nsbu_consolidated_supplement_reads_parent_and_preference_allocations_by_exact_label():
+    from financial_columns.nsbu import rows
+    source = {'sheets':[{'sheet':'Форма 2','source_rows':[
+        {'row':1, 'cells':['Прибыль, приходящаяся на собственников материнской компании', 271, 0, 0, 300000, 0]},
+        {'row':2, 'cells':['Права привилегированных акционеров на прибыль за период', 272, 0, 0, 10000, 0]},
+        {'row':3, 'cells':['Проценты к получению', 240, 0, 0, 50, 0]}]}]}
+    assert [r['metric_id'] for r in rows(source, template='general')] == ['profit_owners','preferred_profit_allocation',None]
+
+
+def test_legacy_abkz_annual_and_quarterly_do_not_label_operating_profit_ebit():
+    from financial_analysis.frames import df_to_annual, df_to_quarterly
+    import pandas as pd
+    rows = [('Прибыль (убыток) от основной деятельности (стр.0З0-040+090)',8607795),
+            ('Прибыль (убыток) до уплаты налога на доходы прибыль) (стр.220+/-230)',7603980),
+            ('Расходы в виде процентов',1110029)]
+    frame = pd.DataFrame([dict(reporting_year=2026,quarter=3,title=k,value=v) for k,v in rows])
+    for convert in (df_to_annual, df_to_quarterly):
+        out = convert(frame)[0]
+        assert (out['operating_income'],out['ebit']) == (8607795,8714009)
+        assert convert(frame.iloc[:2])[0].get('ebit') is None
+        assert convert(frame.iloc[1:])[0].get('ebit') == 8714009
+
+
+def test_quote_basis_split_and_recent_trade_without_using_unpublished_balance(report, monkeypatch):
+    from corporate_actions import ShareAction
+    import corporate_actions
+    inject(monkeypatch, source_rows(report, common_equity=500, ordinary_shares=100))
+    monkeypatch.setattr(corporate_actions, 'actions_for', lambda t:[ShareAction('2026-07-15', 2, 'split', 'https://example.org/split')])
+    report['instrument'] = dict(instrument_type='ordinary_share', market_as_of='2026-08-01', last_price=2000,
+                                valuation_as_of='2026-09-01', freshness={'status':'stale','days_since_trade':31})
+    out = metrics(report)
+    assert out['price_to_book']['value'] == 0.8
+    assert out['book_value_per_share']['value'] == 5000
+    report['sources'][0]['publication_date']='2026-09-02'
+    assert metrics(report)['price_to_book']['value'] is None
+
+
+def test_consolidated_income_requires_physical_scoped_source_and_never_borrows_separate_snapshot(report,monkeypatch):
+    import issuer_financials as fin
+    from financial_columns import source_store
+    issuer=dict(id='383',ticker='UZMK',name='Uzmetkombinat',sector='metallurgy',isin='UZ7012040003',index={})
+    monkeypatch.setattr(fin,'get_financials_series',lambda *a:{'2025':{'net_income':999,'total_assets':500}})
+    monkeypatch.setattr(fin,'get_financials_series_quarterly',lambda *a:{})
+    monkeypatch.setattr(fin,'report_rows',lambda *a:[])
+    monkeypatch.setattr(fin,'get_all_ratios',lambda:{})
+    snapshot=fin.financial_snapshot(issuer,'nsbu','2025','consolidated')
+    assert snapshot['current_values'].get('net_income') is None
+
+
+def test_class_claims_weighted_eps_and_distinct_closing_estimate(report):
+    from financial_analysis.report_investor_metrics import calculate
+    amounts={'net_income':350000, 'total_equity':120000000}
+    for fact in report['verified_facts']:
+        if fact['metric_code'] in amounts:
+            fact['value']=amounts[fact['metric_code']]
+    rows=source_rows(report, preferred_profit_allocation=50000, preferred_equity_claim=20000000,
+                     weighted_average_shares=1500000, ordinary_shares=2000000)
+    next(r for r in rows if r['metric_id']=='preferred_profit_allocation')['period_start']='2026-01-01'
+    result={r['metric_code']:r for r in calculate(report,rows)}
+    assert result['eps_basic']['value']==200
+    assert result['eps_closing_estimate']['value']==150
+    assert result['eps_closing_estimate']['calculation_status']=='approximate'
+    assert result['book_value_per_share']['value']==50000
+
+
+def test_latest_publication_isolated_by_scope_including_rollbacks(report, tmp_path, monkeypatch):
+    from reporting import store
+    monkeypatch.setenv('SECTOR_ANALYSIS_DB',str(tmp_path/'sectors.db'))
+    for scope in ('separate','consolidated'):
+        filing={**deepcopy(report), 'scope':scope,'version':scope,'status':'available'}
+        store.record_report(filing)
+    issuer=report['issuer']['id']
+    assert store.latest_publication(issuer,report['language'],'nsbu')['scope']=='separate'
+    assert store.latest_publication(issuer,report['language'],'nsbu','consolidated')['scope']=='consolidated'
+    assert store.rollback('consolidated','test','verified consolidated report')
+    assert store.publication_version({**report,'scope':'separate'})=='separate'
+
+
+def test_historical_quote_is_only_taken_from_same_issue_on_or_before_publication(monkeypatch, tmp_path):
+    from catalogue import market_store
+    from catalogue.storage import get_catalog_conn
+    monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'history.db'))
+    c=get_catalog_conn()
+    with c:
+        for isin, day, price in [('UZ7047650005','2025-07-01',8000),('UZ7047650005','2025-07-11',9000),
+                                ('UZ7025870005','2025-07-04',7000)]:
+            c.execute('INSERT INTO catalog_quote_history(isin,trade_date,close_price,quantity) VALUES(?,?,?,?)',(isin,day,price,1))
+    c.close()
+    assert market_store.quote_at('UZ7047650005','2025-07-05')['close_price']==8000
+    assert market_store.quote_at('UZ7047650005','2025-06-01')=={}
+
+
+def test_ebit_trace_adds_the_positive_interest_charge(report):
+    from financial_analysis.report_investor_metrics import calculate
+    rows = source_rows(report, profit_before_tax=-200, interest_expense=-50)
+    for row in rows[-2:]:
+        row.update(period_start='2026-01-01',source_form='F2',
+                   source_code='180' if row['metric_id']=='interest_expense' else '240')
+    result = next(r for r in calculate(report,rows) if r['metric_code']=='ebit')
+    assert result['denominator_value'] is None
+    assert result['addends'] == [-200,50]
+
+
+def test_nsbu_statement_matrix_calculates_quarterly_and_trailing_ebit_from_comparable_flows(report):
+    from financial_columns.derived import enrich
+    from financial_columns.periods import calculate
+    rows=[]
+    for end, pretax, expense in [('2025-09-30',100,-20),('2025-12-31',160,-30),
+                                  ('2026-06-30',80,-10),('2026-09-30',140,-15)]:
+        for key, code, value in [('profit_before_tax','240',pretax),('interest_expense','180',expense)]:
+            rows.append(dict(metric_id=key,value=str(value), quality='valid', issuer_id='78', scope='separate',
+                             standard='NSBU', unit='UZS_thousand',currency='UZS', period_start=end[:4]+'-01-01',
+                             period_end=end,kind='flow',source_version=end,source_form='F2',source_code=code,
+                             role='PRIMARY',raw_label='Прибыль до уплаты налога' if code=='240' else 'Расходы в виде процентов'))
+    financials=[r for r in enrich(rows,template='industry') if r['metric_id']=='ebit']
+    assert calculate(financials,'2026-09-30','quarter')['value']=='65'
+    assert calculate(financials,'2026-09-30','ttm')['value']=='225'
+    assert not any(r['metric_id']=='ebit' for r in enrich(rows,template='leasing'))
+
+
+def test_ebit_rechecks_label_and_source_code_on_previously_imported_cells(report):
+    from financial_analysis.report_investor_metrics import calculate
+    rows=source_rows(report,profit_before_tax=200,interest_expense=-50)
+    for row,code,label in zip(rows[-2:],('240','180'),('Доход от инвестиций','Расходы в виде процентов')):
+        row.update(source_form='F2',source_code=code,raw_label=label,period_start='2026-01-01')
+    assert next(r for r in calculate(report,rows) if r['metric_code']=='ebit')['value'] is None

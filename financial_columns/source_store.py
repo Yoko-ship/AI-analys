@@ -6,6 +6,7 @@ workbook it parsed, with an atomic pointer to its current source version.
 from datetime import date, datetime, timezone
 from calendar import monthrange
 import json
+import re
 
 import dbx
 from catalogue.storage import get_catalog_conn
@@ -59,7 +60,12 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
         issues.append('UNIT_UNRESOLVED')
     if not rows:
         issues.append('NO_SOURCE_ROWS')
-    payload = {'issuer_id': str(issuer_id), 'ticker': ticker, 'standard': 'NSBU', 'scope': 'separate',
+    titles = [urls.get('title') or '', *(sheet.get('sheet', '') for doc in documents for sheet in doc['sheets'])]
+    explicit_group = any(re.search(r'консолидированн|consolidated|konsolidatsiyalashgan', str(title), re.I) for title in titles)
+    scope = urls.get('scope') or ('consolidated' if explicit_group else 'separate')
+    if scope not in {'separate', 'consolidated'} or (explicit_group and scope == 'separate'):
+        raise ValueError('Conflicting or unknown filing scope')
+    payload = {'issuer_id': str(issuer_id), 'ticker': ticker, 'standard': 'NSBU', 'scope': scope,
                'period_start': f'{year}-01-01', 'period_end': end,
                'template': template, 'currency': denomination, 'unit_scale': scale,
                'published_at': urls.get('published_at'), 'source_forms': documents, 'rows': rows,
@@ -69,7 +75,7 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
     c = get_catalog_conn()
     try:
         _schema(c)
-        context = (str(issuer_id), 'NSBU', 'separate', end)
+        context = (str(issuer_id), 'NSBU', scope, end)
         with c:
             old = c.execute('SELECT version_id FROM financial_form_heads WHERE issuer_id=? AND standard=? AND scope=? AND period_end=?', context).fetchone()
             payload['source_version'] = version_id
@@ -83,15 +89,19 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
         c.close()
 
 
-def read(issuer_id, *, standard, scope):
+def read(issuer_id, *, standard, scope, period_end=None):
     c = get_catalog_conn()
     try:
         if 'financial_form_heads' not in dbx.tables(c):
             return []
+        params = [str(issuer_id), standard, scope]
+        restriction = ''
+        if period_end:
+            restriction = ' AND h.period_end=?'
+            params.append(period_end)
         return [json.loads(row['payload_json']) for row in c.execute(
             'SELECT v.payload_json FROM financial_form_heads h JOIN financial_form_versions v ON v.id=h.version_id '
-            'WHERE h.issuer_id=? AND h.standard=? AND h.scope=? ORDER BY h.period_end',
-            (str(issuer_id), standard, scope))]
+            'WHERE h.issuer_id=? AND h.standard=? AND h.scope=?' + restriction + ' ORDER BY h.period_end', params)]
     finally:
         c.close()
 
@@ -105,3 +115,24 @@ def version(version_id):
         return json.loads(row['payload_json']) if row else None
     finally:
         c.close()
+
+def consolidated_series(issuer_id):
+    """Only dated, validated cells from an explicitly consolidated NSBU workbook."""
+    from . import observations
+    series, sources = {}, []
+    for doc in read(issuer_id, standard='NSBU', scope='consolidated'):
+        if doc.get('scope') != 'consolidated' or str(doc.get('issuer_id')) != str(issuer_id):
+            continue
+        rows = observations.nsbu([doc])
+        observations.check(rows)
+        end = date.fromisoformat(doc['period_end'])
+        period = str(end.year) if end.month == 12 else f'{end.year}Q{end.month // 3}'
+        values = {}
+        for row in rows:
+            if row['role'] == 'PRIMARY' and row.get('metric_id'):
+                value = row['value'] if row['quality'] in {'valid','warn'} else None
+                values.setdefault(row['metric_id'], set()).add(value)
+        series[period] = {k:float(next(iter(v))) for k,v in values.items() if len(v) == 1 and None not in v}
+        sources.append({'period':period, 'scope':'consolidated', 'published_at':doc.get('published_at'),
+                        'report_id':doc['source_version'], 'excel_url':next((r['source_url'] for r in rows if r.get('source_url')),None)})
+    return series, sources

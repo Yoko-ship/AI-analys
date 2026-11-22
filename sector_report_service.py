@@ -153,7 +153,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     if org == "investment_fund_ifrs_annual":
         from fund_analysis import audited_snapshot
         snapshot = audited_snapshot(issuer, period)
-    snapshot = snapshot or financials.financial_snapshot(issuer, standard, period, scope)
+    snapshot = snapshot or financials.financial_snapshot(issuer, standard, period, scope, **({'source_reader': source_reader} if source_reader else {}))
     # Keep the proven prior annual close before a bank workbook replaces the
     # narrative comparison with a different, possibly undated balance column.
     snapshot["return_opening_values"] = deepcopy(snapshot.get("opening_values") or {})
@@ -172,7 +172,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         snapshot["organization_type"] = "non_financial"
     workbook = None
     selected = snapshot.get("period")
-    reports = financials.report_rows(issuer, standard)
+    reports = financials.report_rows(issuer, standard) if scope == 'separate' else []
     doc = next((r for r in reports if r.get("period") == selected), {})
     if selected and standard == "nsbu" and (doc.get("excel_url") or doc.get("excel_url_form1")):
         year, quarter = financials.period_key(selected)
@@ -302,12 +302,23 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
                 'Manbani yangilab bo‘lmadi; oxirgi saqlangan ma’lumotlar ko‘rsatilgan.',
                 'Source refresh failed; showing the last saved data.'),
         }]
+    report["issuer"]["ticker"] = issuer["ticker"]
+    report["available_periods"] = snapshot.get("available_periods", [])
     report["financial_snapshot_id"] = report["source_snapshot_hash"]
     report["regression"] = regression
     security = issuer.get("security") or {}
     quote, _ = financials.quote_and_trade(issuer)
     from bond_quality import freshness
-    market = freshness(quote.get("trade_date"), financials.now().date())
+    quote_day = financials.now().date()
+    historical = period and any((financials.period_end(p) or '') > (report.get('financial_as_of') or '')
+                                for p in report.get('available_periods', []))
+    if historical:
+        from catalogue.market_store import quote_at
+        from bond_quality import day
+        publication_day = day(str(source.get('publication_date') or '')[:10])
+        quote = quote_at(issuer.get('isin'), publication_day.isoformat()) if publication_day else {}
+        quote_day = publication_day or quote_day
+    market = freshness(quote.get("trade_date"), quote_day)
     report["market_as_of"] = market["quote_as_of"]
     report["instrument"] = {
         "issuer_id": issuer["id"], "issuer_analysis_id": report["financial_snapshot_id"],
@@ -316,6 +327,8 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         "instrument_type": "bond" if security.get("type") == "bond" else "preferred_share" if security.get("is_preferred") or security.get("share_type") == "preferred" else "ordinary_share",
         "verdict": "insufficient_data", "market_as_of": report["market_as_of"],
         "last_price": financial_analysis_sector_numbers.number(quote.get("close_price")), "freshness": market,
+        "currency": quote.get("currency") or "UZS", "quote_isin": quote.get("isin") or issuer.get("isin"),
+        "valuation_as_of": quote_day.isoformat(),
         "dividend_rights": security.get("dividend_rights"), "share_class": security.get("share_type"),
     }
     report["credit_profile"] = {

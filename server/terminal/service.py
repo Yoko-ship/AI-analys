@@ -344,3 +344,33 @@ async def reconciliation(ticker, scope="separate"):
     left, right = await asyncio.gather(financial_series(ticker, "annual", "NSBU"),
                                         financial_series(ticker, "annual", "MSFO", scope))
     return {"ok": True, "ticker": ticker, **analytics.reconcile(left, right)}
+
+def filing_metrics(scope, period, search, offset, limit):
+    """Page the equity universe before reading the selected issuers’ filings."""
+    from catalogue.read_batch import scope as read_scope
+    from catalogue.sources import cached_report_excel_data
+    from financial_analysis.report_investor_metrics import SHARE_METRICS
+    from issuer_financials import resolve_issuer
+    from sector_report_service import public_report, sector_report
+    with read_scope():
+        query = search.strip().casefold()
+        companies = sorted((c for c in universe() if query in (c['ticker'] + ' ' + (c.get('name') or '')).casefold()),
+                           key=lambda c:c['ticker'])
+        rows = []
+        for company in companies[offset:offset + limit]:
+            ticker = company['ticker']
+            item = {'ticker':ticker, 'period':None, 'metrics':{}, 'status':'no_source'}
+            try:
+                issuer = resolve_issuer(ticker)
+                report = public_report(sector_report(issuer, 'nsbu', period, scope, 'ru', persist=False,
+                                                     source_reader=cached_report_excel_data))
+                if report.get('scope') == scope and report.get('standard') == 'nsbu':
+                    item.update(period=report.get('period'), status=report.get('status'))
+                    item['metrics'] = {r['metric_code']: {k:r.get(k) for k in
+                        ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of')}
+                        for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}}
+            except Exception:
+                logger.warning('Filing indicators unavailable for %s', ticker, exc_info=True)
+                item['status'] = 'source_unavailable'
+            rows.append(item)
+    return {'rows':rows,'total':len(companies),'scope':scope,'standard':'NSBU'}

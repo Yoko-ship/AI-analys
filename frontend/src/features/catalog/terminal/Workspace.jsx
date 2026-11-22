@@ -1,3 +1,4 @@
+import { FilingScreener } from './FilingScreener.jsx';
 import { BankComparison, BankSectorBenchmarks } from './BankComparison.jsx';
 import { MetricValue } from './MetricValue.jsx';
 import { finLabel } from '../../../shared/financialLabels.jsx';
@@ -56,6 +57,7 @@ export function ContextControls({form,scope,onForm,onScope,lang,tabs=false}) {
 const METRICS=[['roe','ROE, %'],['roa','ROA, %'],['pe','P/E'],['ep','E/P, %'],['pb','P/B'],['de','D/E'],['dy','DVD¹, %'],['cg5','CAGR 5Y, %'],['npl','NPL, %'],['nim','NIM, %'],['cost_of_risk','CoR, %']];
 const metricsForRows=rows=>METRICS.filter(([key])=>metricApplies({},key)||rows.some(row=>metricApplies(row,key)));
 export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
+  const [filings,setFilings]=React.useState(false);
   const [year,setYear]=React.useState("");
   const [filters,setFilters]=React.useState({});
   const [sort,setSort]=React.useState({key:"roe",desc:true});
@@ -95,8 +97,10 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
   const visibleMetrics=metricsForRows(rows);
   const metrics=user?.is_admin&&mode==='EQS'?[...visibleMetrics,['price_to_value_pct',words(lang,'Цена к оценке, %','Narx / baho, %','Price / valuation, %')]]:visibleMetrics;
   const update=(k,v)=>setFilters(f=>({...f,[k]:v}));
+  if(mode==='EQS' && filings)return <FilingScreener lang={lang} onClose={()=>setFilings(false)}/>;
   return <section className="panel terminal-market-screen">
     <header className="terminal-section-head"><h2>{mode} · {functionLabel(mode,lang)}</h2><span className="muted">{rows.length} / {data?.rows?.length||0}</span></header>
+    {mode==='EQS'&&form==='NSBU'&&<button className="ghost-btn" onClick={()=>setFilings(true)}>EPS · P/BV · EBIT</button>}
     <p className="muted">{words(lang,"Годовая отчётность; P/E и P/B — текущая капитализация к последнему годовому отчёту. Пропуски не заменяются нулём.","Yillik hisobotlar; P/E va P/B oxirgi yil bo‘yicha. Bo‘sh qiymatlar nol emas.","Annual statements; P/E and P/B use current capitalisation and the latest annual. Missing values are not zero.")}</p>
     <p className="muted">{words(lang,"¹ Последнее положительное дивидендное решение за 366 дней / текущая цена. Это не сумма выплат за год. NPL — отдельная месячная дата ЦБ.","¹ Oxirgi 366 kundagi dividend qarori / joriy narx. NPL — MB oylik sanasi.","¹ Latest positive dividend decision within 366 days / current price; not annual payouts. NPL has its own monthly CBU date.")}</p>
     <div className="terminal-controls terminal-market-filters" role="group" aria-label={words(lang,'Фильтры списка','Ro‘yxat filtrlari','List filters')}>
@@ -150,7 +154,7 @@ export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,
       {error && <p role="alert" className="terminal-empty">{words(lang,'Не удалось загрузить показатели.','Ko‘rsatkichlar yuklanmadi.','Could not load metrics.')}</p>}
       <SummaryScreen ticker={ticker} form={form} scope={scope} lang={lang} snapshot={snap} fromYear={fromYear} bankData={data?.cbu} bankHistory={data?.cbu_history}/>
     </>:<>
-      <SectorMetrics ticker={ticker} form={form} scope={scope} lang={lang}/>
+      <SectorMetrics key={ticker+form+scope} ticker={ticker} form={form} scope={scope} lang={lang}/>
       <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
         metrics={metricsForRows([snap]).filter(([key])=>!["pe","pb","dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
         growth={(data?.growth||[]).map(row=>({...row,label:label(row.field,lang)}))}/>
@@ -267,19 +271,28 @@ export function PanelWorkspace({companies,terminal,lang,user,apiFetch}) {
 }
 
 function SectorMetrics({ticker,form,scope,lang,summary}) {
-  const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${scope}&lang=${lang}`,{ticker,form,func:summary?'SUM':'RAT'});
+  const initial = new URLSearchParams(window.location.search);
+  const [filingScope,setScope] = React.useState(initial.get('filingScope')==='consolidated'?'consolidated':scope);
+  const [period,setPeriod] = React.useState(/^\d{4}(Q[1-4])?$/.test(initial.get('filing')||'')?initial.get('filing'):'');
+  const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${filingScope}&lang=${lang}${period?'&period='+period:''}`,{ticker,form,func:summary?'SUM':'RAT'});
   const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th scope="col">{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th scope="col">{data?.period||'—'}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.metric_code||i}>
-    <th scope="row"><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={r.formula}/></span></th>
-    <td className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
+    <th scope="row"><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={[r.formula, ...((r.method_id||'').startsWith('report-investor') ? (r.components||[]).filter(c=>c.value!=null).map(c=>[c.source_code||c.source_line_id||c.metric_id,c.value].filter(Boolean).join(' = ')) : [])].filter(Boolean).join('\n')}/></span></th>
+    <td data-export-value={['eps_basic','eps_closing_estimate','book_value_per_share','price_to_book','ebit'].includes(r.metric_code) ? r.raw_result ?? (r.value==null?reportRatioReason(r,lang):String(r.value)) : undefined} className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
       {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}
       {safeHref(r.share_disclosure_url)&&<div><a href={safeHref(r.share_disclosure_url)} target="_blank" rel="noreferrer">
         {words(lang,'Раскрытие об акциях','Aksiyalar haqidagi ma’lumot','Share disclosure')}
       </a></div>}</td>
   </tr>)}</tbody></table></div>;
-  return <section className={`terminal-sector-metrics${summary?'':' terminal-report-ratios'}`}><State data={data} error={error} lang={lang}>
+  return <section data-terminal-ticker={ticker} data-terminal-function={summary?'SUM':'RAT'} data-terminal-standard={form} data-terminal-scope={filingScope} className={`terminal-sector-metrics${summary?'':' terminal-report-ratios'}`}><State data={data} error={error} lang={lang}>
     <header className="terminal-report-ratios-head">
       {!summary&&<h3>{words(lang,'Коэффициенты отчёта','Hisobot koeffitsiyentlari','Filing ratios')}</h3>}
-      <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||scope,lang)}</p>
+      <p className="terminal-context">{words(lang,'Последний разобранный отчёт','Oxirgi tahlil qilingan hisobot','Latest analysed filing')}: {data?.period||'—'} · {reportScopeLabel(data?.scope||filingScope,lang)}</p>
+      {!summary&&form==='NSBU'&&<div className="terminal-controls"><select aria-label={words(lang,'Периметр отчёта','Hisobot qamrovi','Filing scope')} value={filingScope} onChange={e=>{setScope(e.target.value);setPeriod('');}}>
+        {['separate','consolidated'].map(s=><option key={s} value={s}>{reportScopeLabel(s,lang)}</option>)}
+      </select><select aria-label={words(lang,'Период отчёта','Hisobot davri','Filing period')} value={period} onChange={e=>setPeriod(e.target.value)}>
+        <option value="">{words(lang,'Последний отчёт','Oxirgi hisobot','Latest filing')}</option>
+        {[...new Set([...(data?.available_periods||[]),...(period?[period]:[])])].map(p=><option key={p}>{p}</option>)}
+      </select></div>}
     </header>
     {summary?<><p>{data?.headline}</p><p>{data?.verdict_line}</p>{data?.risks?.length>0&&<ul>{data.risks.map((r,i)=><li key={i}>{r.text||r.message||r.code}</li>)}</ul>}</>:<>
       {table(data?.ratios||[])}

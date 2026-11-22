@@ -33,9 +33,9 @@ def test_ratio_periods_prepare_derived_history_only_once(source, monkeypatch):
     from financial_columns import service, ratios
     calls = []
     original = service.derived.enrich
-    def counted(rows):
+    def counted(rows, **options):
         calls.append(len(rows))
-        return original(rows)
+        return original(rows, **options)
     expected = service.load('IPTB', freq='quarter', view='template')
     monkeypatch.setattr(service.derived, 'enrich', counted)
     monkeypatch.setattr(ratios, 'enrich', counted)

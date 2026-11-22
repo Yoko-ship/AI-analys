@@ -82,7 +82,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         if period in held:
             row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
     issues = observations.check(source_rows)
-    source_rows = derived.enrich(source_rows)
+    source_rows = derived.enrich(source_rows, template=template)
     if view == 'investor':
         from .investor import enrich
         source_rows = enrich(source_rows)

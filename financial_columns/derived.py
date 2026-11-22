@@ -6,7 +6,7 @@ from .matrix import choose
 from .periods import CONTEXT
 
 
-def enrich(observations):
+def enrich(observations, *, template=None):
     result = list(observations)
     groups = defaultdict(list)
     for row in observations:
@@ -38,6 +38,18 @@ def enrich(observations):
                 'net_interest_before_ecl + noninterest_income - noninterest_expense')
             add('operating_costs_positive', 'Operating costs', [('operating_expenses', 1)], 'BANK_PL operating expenses')
         if standard == 'NSBU' and 'F2' in forms:
+            if template in {'industry', 'non_financial', 'enterprise', 'general'}:
+                from .nsbu import ebit, ebit_line
+                parts = [choose([r for r in rows if r.get('metric_id') == field and r.get('source_form') == 'F2'
+                                 and r.get('source_code') == code and r.get('unit') == 'UZS_thousand'])
+                         for field, code in [('profit_before_tax','240'),('interest_expense','180')]]
+                if all(ebit_line(p) and p.get('quality') in {'valid','warn'} and p.get('value') is not None for p in parts):
+                    value = ebit(*(Decimal(p['value']) for p in parts))
+                    if value is not None:
+                        result.append({**parts[0], 'metric_id':'ebit', 'raw_label':'EBIT', 'source_form':'DERIVED',
+                                       'source_code':None, 'raw_value':None, 'value':str(value), 'components':parts,
+                                       'formula':'F2/240 + interest expense (F2/180)', 'origin':'UZStock_calculated',
+                                       'quality':'warn' if any(p['quality'] == 'warn' for p in parts) else 'valid'})
             add('interest_cost_positive', 'Interest costs', [('interest_expense', -1)], '- F2:180 expense column')
         if standard == 'NSBU' and 'INSURANCE_BS' in forms:
             add('total_liabilities', 'Liabilities including net insurance reserves',

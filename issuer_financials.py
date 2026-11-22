@@ -278,7 +278,7 @@ def freshness_one(issuer: dict[str, Any], standard: str, today: date | None = No
         "source": (latest or {}).get("pdf_url") or (latest or {}).get("excel_url"),
     }
 
-def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None, scope: str) -> dict[str, Any]:
+def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None, scope: str, *, source_reader=None) -> dict[str, Any]:
     if standard == 'ifrs' and period and ('Q' in period):
         raise UnsupportedPeriodError('IFRS quarterly data is not part of the market-wide comparable layer')
     ticker = issuer['ticker']
@@ -286,7 +286,30 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     organization_type = classify_organization(issuer, standard)
     template_code = sector_template_code(issuer, standard)
     is_quarterly = standard == 'nsbu' and bool(period and 'Q' in period)
-    if standard == 'nsbu' and period is None:
+    scoped_reports = None
+    scoped_series = None
+    if standard == 'nsbu' and scope == 'consolidated':
+        from financial_columns.source_store import consolidated_series
+        scoped_series, scoped_reports = consolidated_series(issuer['id'])
+    elif standard == 'ifrs':
+        from financial_ingestion import publication
+        approved = [r for r in publication.snapshots(ticker, scope=scope) if str(r['org_id']) == str(issuer['id'])]
+        if approved or scope == 'consolidated' or publication.snapshots(ticker, scope='consolidated'):
+            scoped_series, scoped_reports = {}, []
+            for row in approved:
+                data = row['payload']
+                p = publication.period_key(data['classification'])
+                if not p or 'Q' in p or data['classification']['scope'] != scope:
+                    continue
+                scoped_series[p] = {k: float(v) / 1000 for k,v in data['normalized_uzs'].items() if v is not None}
+                src = data.get('source') or {}
+                scoped_reports.append({'period':p,'scope':scope,'published_at':src.get('source_published_at'),
+                                       'pdf_url':src.get('pdf_url'),'report_id':row['id']})
+    if scoped_series is not None:
+        selected = period or max(scoped_series, key=period_key, default=None)
+        is_quarterly = bool(selected and 'Q' in selected)
+        series = scoped_series
+    elif standard == 'nsbu' and period is None:
         annual_series = get_financials_series(ticker, form)
         quarterly_series = get_financials_series_quarterly(ticker, form)
         selected = max([*(str(key) for key in annual_series or {}), *(str(key) for key in quarterly_series or {})], key=period_key, default=None)
@@ -300,7 +323,7 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     reported_values = dict((series or {}).get(selected) or {}) if selected else {}
     values = dict(reported_values)
     reviewed_correction_fields: set[str] = set()
-    if selected:
+    if selected and scoped_series is None:
         try:
             import data_quality
             correction_year, correction_quarter = period_key(selected)
@@ -317,7 +340,7 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     # when it carries amounts (prepare_inputs); this keeps a comparison when
     # that column is blank or the workbook is unavailable.
     opening_period = str(period_key(selected)[0] - 1) if selected and period_key(selected)[0] else None
-    annual = series if not is_quarterly else (get_financials_series(ticker, form) if opening_period else {})
+    annual = series if scoped_series is not None or not is_quarterly else (get_financials_series(ticker, form) if opening_period else {})
     opening_reported = dict((annual or {}).get(opening_period) or {}) if opening_period else {}
     opening = {key: opening_reported[key] for key in OPENING_BALANCE_KEYS if safe_float(opening_reported.get(key)) is not None}
     # The total assets every filing of the issuer states at its own period
@@ -339,17 +362,17 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
         'opening_available': safe_float(opening.get('total_assets')) is not None,
     }
     period_basis = 'cumulative_ytd' if is_quarterly and selected else 'annual'
-    reports = report_rows(issuer, standard)
+    reports = scoped_reports if scoped_reports is not None else report_rows(issuer, standard)
     source_doc = next((row for row in reports if row.get('period') == selected), None)
     source = {'document_id': (source_doc or {}).get('report_id') or f"catalog:{ticker}:{form}:{selected or 'none'}", 'url': (source_doc or {}).get('pdf_url') or (source_doc or {}).get('excel_url'), 'publication_date': (source_doc or {}).get('published_at') or (source_doc or {}).get('synced_at'), 'provider': 'openinfo/catalog'}
     insurance_balance: dict[str, Any] = {}
     insurance_mapping_error: str | None = None
-    if standard == 'nsbu' and organization_type == 'insurance' and selected:
+    if standard == 'nsbu' and scope == 'separate' and organization_type == 'insurance' and selected:
         year, quarter = period_key(selected)
         if 'Q' not in selected:
             quarter = 0
         try:
-            workbook = fetch_report_excel_data(ticker, form, year, quarter)
+            workbook = (source_reader or fetch_report_excel_data)(ticker, form, year, quarter)
             insurance_balance = extract_insurance_balance(workbook.get('balance') or workbook.get('income')) if workbook.get('ok') else {}
             if insurance_balance.get('gross_insurance_reserves') is None:
                 insurance_mapping_error = str(workbook.get('error') or 'insurance reserve lines were not mapped')
@@ -373,7 +396,7 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
         direct_codes.extend(['gross_insurance_reserves', 'reinsurer_share_in_reserves', 'net_insurance_reserves', 'other_liabilities'])
     for code in direct_codes:
         add(code, values.get(code), 'thousand UZS', reported_values.get(code))
-    if organization_type == 'non_financial':
+    if organization_type == 'non_financial' and scoped_series is None:
         ratios = get_all_ratios().get(ticker) or {}
         for source_code, code in (('roe', 'roe_pct'), ('roa', 'roa_pct'), ('debt_to_equity', 'debt_to_equity'), ('current_ratio', 'current_ratio'), ('quick_ratio', 'quick_ratio')):
             value = values.get(source_code)

@@ -416,6 +416,20 @@ def bulk_upsert_quote_history(rows: list[dict]) -> int:
     return len(seen)
 
 
+def quote_at(isin, as_of):
+    """Last recorded trade for this issue at the end of a historical valuation day."""
+    conn = catalogue_storage.get_catalog_conn()
+    try:
+        row = conn.execute(
+            "SELECT isin, trade_date, close_price FROM catalog_quote_history "
+            "WHERE isin=? AND trade_date<=? AND close_price>0 AND "
+            "(quantity>0 OR turnover>0 OR trade_count>0) ORDER BY trade_date DESC LIMIT 1",
+            (isin, as_of)).fetchone()
+        return dict(row) if row else {}
+    finally:
+        conn.close()
+
+
 def get_quote_history(isins: Sequence[str], days: int = 30) -> dict[str, list[dict[str, Any]]]:
     """Recent settled closes for several securities, oldest first, keyed by ISIN.
 

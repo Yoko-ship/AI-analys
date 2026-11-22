@@ -108,6 +108,7 @@ def metric(form, code):
 # Form revisions sometimes reuse a code. These high-impact totals and sector
 # inputs need a matching literal label or the source's defining row formula.
 LABEL_RULES = {
+    'profit_before_tax': r'до (?:уплаты )?налог|до налогооблож|before tax|soliq.*(?:oldin|avval|to‘lagunga)',
     'total_assets': r'актив|asset|aktiv',
     'total_liabilities': r'обязательств|liabil|majburiyat|490\s*\+\s*600',
     'total_equity': r'капитал|собственн|equity|kapital|410.*480|410.*470|500.*560',

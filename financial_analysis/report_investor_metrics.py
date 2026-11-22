@@ -6,14 +6,22 @@ counts and rights, never another standard's profit or equity. Current exchange
 counts and nominal capital do not establish historical share entitlement.
 """
 from collections import defaultdict
+from datetime import date, timedelta
+
+import corporate_actions
 from copy import deepcopy
 import logging
 
+from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-4'
+VERSION = 'report-investor-metrics-5'
+SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
+    'ebit': ('EBIT', 'EBIT', 'EBIT'),
+    'book_value_per_share': ('Балансовая стоимость акции (BVPS)', 'Aksiyaning balans qiymati (BVPS)', 'Book value per ordinary share (BVPS)'),
+    'eps_closing_estimate': ('Приблизительная EPS по числу акций на конец периода', 'Davr oxiridagi aksiyalar bo‘yicha taxminiy EPS', 'Estimated EPS using closing shares'),
     'operating_margin': ('Операционная маржа', 'Operatsion marja', 'Operating margin'),
     'book_value': ('Балансовая стоимость капитала', 'Kapitalning balans qiymati', 'Book value of equity'),
     'interest_debt_to_equity': ('Долг / капитал (D/E)', 'Qarz / kapital (D/E)', 'Debt / equity (D/E)'),
@@ -21,6 +29,9 @@ NAMES = {
     'eps_basic': ('Базовая прибыль на акцию (EPS)', 'Aksiyaga bazaviy foyda (EPS)', 'Basic earnings per share (EPS)'),
 }
 MEANINGS = {
+    'ebit': ('Прибыль до налога плюс признанные процентные расходы за тот же период.', 'Soliqqacha foyda va shu davrda tan olingan foiz xarajatlari yig‘indisi.', 'Profit before tax plus recognised interest expense for the same period.'),
+    'book_value_per_share': ('Капитал обычных акционеров материнской компании на одну обычную акцию в обращении.', 'Bosh kompaniya oddiy aksiyadorlari kapitalining bitta muomaladagi oddiy aksiyaga to‘g‘ri keladigan qismi.', 'Parent ordinary shareholders’ equity per outstanding ordinary share at the balance sheet date.'),
+    'eps_closing_estimate': ('Прибыль обычных акционеров делится на количество акций на конец периода.', 'Oddiy aksiyadorlar foydasi davr oxiridagi aksiyalar soniga bo‘linadi.', 'Ordinary shareholders’ profit divided by closing ordinary shares.'),
     'operating_margin': ('Операционная прибыль / выручка за тот же период. Прибыль до налога не подставляется.',
                         'Bir davrdagi operatsion foyda / tushum. Soliqqacha foyda bilan almashtirilmaydi.',
                         'Operating profit / revenue for the same period. Pre-tax profit is not substituted.'),
@@ -52,7 +63,7 @@ def _load(report):
     from financial_ingestion import publication
     issuer = report['issuer']
     if report['standard'].lower() == 'nsbu':
-        docs = source_store.read(issuer['id'], standard='NSBU', scope=report['scope'])
+        docs = source_store.read(issuer['id'], standard='NSBU', scope=report['scope'], period_end=report['financial_as_of'])
         rows = observations.nsbu([d for d in docs if not d.get('period_end') or d['period_end'] == report['financial_as_of']])
     else:
         docs = publication.snapshots(issuer['ticker'], scope=report['scope'])
@@ -110,9 +121,8 @@ def calculate(report, rows, share_basis=None):
                 and str(basis.get('issuer_id')) == str(report['issuer']['id'])
                 and basis.get('ticker') == report['issuer']['ticker']
                 and basis.get('scope') == report['scope'] and basis.get('period_end') == end)
-    separate_basis = basis_ok and report['scope'] == 'separate'
-    ordinary_only = separate_basis and basis.get('ordinary_only') is True
-    ordinary_at_close = separate_basis and basis.get('ordinary_only_at_end') is True
+    ordinary_only = basis_ok and basis.get('ordinary_only') is True
+    ordinary_at_close = basis_ok and basis.get('ordinary_only_at_end') is True
 
     def disclosed_count(part, key, *, flow=False):
         # A conflicting/blocked source cell is not a missing source cell.
@@ -125,12 +135,31 @@ def calculate(report, rows, share_basis=None):
 
     def ordinary_fact(part, key, *, flow=False):
         ordinary_context = ordinary_only and basis.get('period_start') == start if flow else ordinary_only or ordinary_at_close
-        if part['components'] or not ordinary_context:
+        if part['components']:
             return part
-        value = fact(key)
-        if value['value'] is not None:
-            value['components'].append({**basis, 'metric_id': 'ordinary_only' if ordinary_only else 'ordinary_only_at_end'})
-        return value
+        group = fact(key)
+        parent = group
+        if report['scope'] == 'consolidated':
+            parent = pick('profit_owners' if flow else 'equity_owners', flow=flow)
+            minority = pick('profit_nci' if flow else 'nci', flow=flow)
+            if minority['components']:
+                derived = group['value'] - minority['value'] if None not in (group['value'], minority['value']) else None
+                if parent['components'] and (parent['value'] is None or derived is None or abs(parent['value'] - derived) > 1):
+                    derived = None
+                    parent = {**parent, 'components': [{**c, 'attribution_conflict': True} for c in parent['components']]}
+                parent = {'value': derived, 'components': parent['components'] + group['components'] + minority['components']}
+        elif report['scope'] != 'separate':
+            return part
+        claim = pick('preferred_profit_allocation' if flow else 'preferred_equity_claim', flow=flow)
+        if claim['components']:
+            amount = claim['value']
+            consistent = amount is not None and amount >= 0 and (not ordinary_context or amount == 0)
+            return {'value': parent['value'] - amount if consistent and parent['value'] is not None else None,
+                    'components': parent['components'] + claim['components']}
+        if not ordinary_context:
+            return part
+        return {'value': parent['value'], 'components': parent['components'] +
+                [{**basis, 'metric_id': 'ordinary_only' if ordinary_only else 'ordinary_only_at_end'}]}
     result = []
 
     def emit(code, value, formula, parts, unit='ratio', reason='INPUTS_MISSING', **extra):
@@ -141,8 +170,12 @@ def calculate(report, rows, share_basis=None):
             'value': number(value), 'raw_result': str(value) if value is not None else None,
             'unit': unit, 'formula': formula, 'period': report['period'], 'period_end': end,
             'accounting_standard': report['standard'].upper(), 'scope': report['scope'],
+            'publication_date': (report.get('sources') or [{}])[0].get('publication_date'),
+            'period_basis': report.get('period_basis'), 'isin': (report.get('instrument') or {}).get('isin'),
             'origin': 'calculated', 'verification_status': 'verified' if value is not None else 'unavailable',
-            'calculation_status': 'verified' if value is not None else 'missing_or_invalid_components',
+            'calculation_status': ('verified' if value is not None else 'conflict' if any(
+                c.get('quality') == 'blocked' or c.get('attribution_conflict') for p in parts for c in p['components'])
+                else 'missing_or_invalid_components'),
             'reason_code': None if value is not None else reason,
             'numerator_value': number(parts[0]['value']) if parts else None,
             'denominator_value': number(parts[1]['value']) if len(parts) > 1 else None,
@@ -164,18 +197,54 @@ def calculate(report, rows, share_basis=None):
     emit('interest_debt_to_equity', ratio(debt['value'], equity['value']),
          f"({' + '.join(fields)}) / total_equity", [debt, equity], reason='DEBT_INPUTS_MISSING')
 
+    if report['standard'].lower() == 'nsbu' and enterprise(report):
+        validated = [{**r, 'quality': 'blocked', 'reason': 'CODE_LABEL_MISMATCH'} if not ebit_line(r) else r
+                     for r in income_rows if r.get('metric_id') in {'profit_before_tax', 'interest_expense'}]
+        pretax, interest = (_pick(validated, field, 'UZS_thousand', end, start)
+                            for field in ('profit_before_tax', 'interest_expense'))
+        charge = interest['value']
+        # The NSBU signed income/expense pair records an expense as negative.
+        ebit = nsbu_ebit(pretax['value'], charge)
+        emit('ebit', ebit, 'F2/240 + interest expense (F2/180)', [pretax, interest], 'UZS_thousand',
+             reason='EBIT_INPUTS_MISSING', period_start=start, numerator_value=None, denominator_value=None,
+             addends=[number(pretax['value']), number(-charge) if charge is not None and charge <= 0 else None])
+
     common = ordinary_fact(pick('common_equity'), 'total_equity')
     shares = disclosed_count(pick('ordinary_shares', 'shares'), 'ordinary_shares')
-    bvps = ratio(common['value'] * 1000 if common['value'] is not None and common['value'] > 0 else None, shares['value'])
+    bvps = ratio(common['value'] * 1000 if common['value'] is not None else None, shares['value'])
     instrument = report.get('instrument') or {}
+    ordinary_issue = instrument.get('instrument_type') in (None, 'ordinary_share')
+    emit('book_value_per_share', bvps if ordinary_issue else None, 'common_equity × 1000 / ordinary_shares',
+         [common, shares], 'UZS_per_share')
     price, quoted = decimal(instrument.get('last_price')), instrument.get('market_as_of')
-    usable = (instrument.get('instrument_type') == 'ordinary_share' and quoted and quoted >= end
-              and (instrument.get('freshness') or {}).get('status') in {'fresh', 'aging'}
+    market_bvps = bvps
+    actions = []
+    if quoted and bvps is not None:
+        for action in corporate_actions.actions_for(report['issuer']['ticker']):
+            if end < action.ex_date <= quoted:
+                market_bvps /= decimal(action.ratio)
+                actions.append({'source_url': action.source, 'metric_id': action.kind,
+                                'effective_date': action.ex_date, 'value': str(action.ratio)})
+    valuation_date = instrument.get('valuation_as_of')
+    age = (instrument.get('freshness') or {}).get('days_since_trade')
+    if not valuation_date and quoted and isinstance(age, int):
+        valuation_date = (date.fromisoformat(quoted[:10]) + timedelta(days=age)).isoformat()
+    published = max((str(s.get('publication_date') or '')[:10] for s in report.get('sources', [])), default='')
+    changed = any(end < action['date'] <= quoted for action in (basis.get('capital_changes', []) if basis_ok and quoted else []))
+    usable = (not changed and (not valuation_date or not published or published <= valuation_date)
+              and instrument.get('instrument_type') == 'ordinary_share' and quoted and quoted >= end
+              and (instrument.get('freshness') or {}).get('status') in {'fresh', 'aging', 'stale'}
+              and (instrument.get('currency') or 'UZS') == 'UZS'
+              and (not instrument.get('issuer_id') or str(instrument['issuer_id']) == str(report['issuer']['id']))
+              and (not instrument.get('ticker') or instrument['ticker'] == report['issuer']['ticker'])
+              and (not instrument.get('quote_isin') or instrument['quote_isin'] == instrument.get('isin'))
+              and (not basis_ok or not basis.get('isin') or basis['isin'] == instrument.get('isin'))
               and price is not None and price > 0)
-    emit('price_to_book', ratio(price, bvps) if usable else None,
+    emit('price_to_book', ratio(price, market_bvps) if usable else None,
          'ordinary_share_price / (common_equity × 1000 / ordinary_shares)',
-         [{'value': price, 'components': [instrument]}, {'value': bvps, 'components': common['components'] + shares['components']}],
-          reason='BOOK_OR_QUOTE_INPUTS_MISSING', market_as_of=quoted,
+         [{'value': price, 'components': [instrument]}, {'value': market_bvps, 'components': common['components'] + shares['components'] + actions}],
+          reason='CAPITAL_CHANGED' if changed else 'BOOK_OR_QUOTE_INPUTS_MISSING', market_as_of=quoted,
+          valuation_as_of=valuation_date, price_basis_actions=actions,
           share_disclosure_url=basis.get('source_url') if basis_ok and shares['value'] is not None else None,
           missing_inputs=([key for key, part in [('common_equity',common),('ordinary_shares',shares)]
                            if part['value'] is None or part['value'] <= 0] + ([] if usable else ['usable_quote'])))
@@ -198,7 +267,28 @@ def calculate(report, rows, share_basis=None):
                   (['weighted_average_shares'] if weighted['value'] is None or weighted['value'] <= 0 else [])),
               basis='verified_share_disclosure' if any(c.get('verification_status') == 'verified' and c.get('unit') == 'shares'
                     for p in [profit, weighted] for c in p['components']) else 'filing')
+        if (not disclosed['components'] and ordinary_issue and shares['value'] is not None
+                and (not weighted['components'] or weighted['value'] is not None and weighted['value'] != shares['value'])):
+            estimate = ratio(profit['value'] * 1000 if profit['value'] is not None else None, shares['value'])
+            if estimate is not None:
+                emit('eps_closing_estimate', estimate, 'profit_ordinary × 1000 / closing_ordinary_shares',
+                     [profit, shares], 'UZS_per_share', calculation_status='approximate', origin='estimate')
+
+    if not ordinary_issue:
+        for metric in result:
+            if metric['metric_code'] in SHARE_METRICS:
+                metric.update(value=None, raw_result=None, verification_status='unavailable',
+                              calculation_status='not_applicable', reason_code='ORDINARY_SHARES_ONLY', missing_inputs=[])
     return result
+
+
+def enterprise(report):
+    issuer = report.get('issuer') or {}
+    from catalogue.organization import uses_credit_metrics
+    return (not uses_credit_metrics('financial', issuer.get('name') or '')
+            and issuer.get('organization_type') in {'non_financial', 'commodity_exchange'}
+            and 'leas' not in str(issuer.get('sector') or '').lower()
+            and 'leas' not in str(report.get('sector_template_code') or '').lower())
 
 
 def project(report):
@@ -206,7 +296,8 @@ def project(report):
     if report.get('status') not in {'available', 'stale'}:
         report['ratios'], report['additional_ratios'] = [], []
         return report
-    if (report.get('issuer') or {}).get('organization_type') != 'non_financial':
+    is_enterprise = enterprise(report)
+    if not is_enterprise and (report.get('standard') != 'nsbu' or report['issuer'].get('organization_type') == 'investment_fund_ifrs_annual'):
         return report
     try:
         rows = _load(report)
@@ -221,6 +312,10 @@ def project(report):
         logging.getLogger(__name__).warning('Share disclosure unavailable for %s', report['issuer']['ticker'], exc_info=True)
         basis = None
     metrics = calculate(report, rows, basis)
+    if not is_enterprise:
+        report['ratios'] = [r for r in metrics if r['metric_code'] in SHARE_METRICS] + report['ratios']
+        report['ratio_policy_version'] = VERSION
+        return report
     report['additional_ratios'] = [r for r in report['ratios'] if r['metric_code'] in ADDITIONAL]
     report['ratios'] = metrics + [r for r in report['ratios'] if r['metric_code'] not in ADDITIONAL]
     report['ratio_policy_version'] = VERSION

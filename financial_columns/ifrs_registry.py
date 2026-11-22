@@ -23,6 +23,7 @@ share_premium|Share premium|Эмиссионный доход
 retained_earnings|Retained earnings|Нераспределенная прибыль
 treasury_shares|Treasury shares|Собственные выкупленные акции
 other_reserves|Other reserves|Прочие резервы
+preferred_equity_claim|Equity attributable to preferred shareholders|Капитал, приходящийся на владельцев привилегированных акций
 equity_owners|Equity attributable to owners of the parent|Капитал, приходящийся на собственников материнской компании
 common_equity|Equity attributable to ordinary shareholders|Капитал, приходящийся на владельцев обыкновенных акций
 nci|Non-controlling interests|Неконтролирующая доля участия
@@ -71,6 +72,7 @@ profit_before_tax|Profit before tax|Прибыль до налогообложе
 income_tax|Income tax expense|Расходы по налогу на прибыль
 profit_continuing|Profit from continuing operations|Прибыль от продолжающейся деятельности
 net_income|Profit for the year|Прибыль за год
+preferred_profit_allocation|Profit allocated to preferred shareholders for the period|Права привилегированных акционеров на прибыль за период
 profit_owners|Profit attributable to owners of the parent|Прибыль, приходящаяся на собственников материнской компании
 profit_ordinary|Profit attributable to ordinary equity holders of the parent|Прибыль, приходящаяся на владельцев обыкновенных акций материнской компании
 profit_nci|Profit attributable to non-controlling interests|Прибыль, приходящаяся на неконтролирующие доли участия

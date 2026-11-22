@@ -4810,6 +4810,14 @@
     "dependencies": []
   },
   {
+    "path": "/api/terminal/filing-metrics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_filing_metrics",
+    "dependencies": []
+  },
+  {
     "path": "/api/terminal/screener",
     "methods": [
       "GET"
@@ -4955,6 +4963,14 @@
       "GET"
     ],
     "name": "api_terminal_reconciliation__v2",
+    "dependencies": []
+  },
+  {
+    "path": "/api/v2/terminal/filing-metrics",
+    "methods": [
+      "GET"
+    ],
+    "name": "api_filing_metrics__v2",
     "dependencies": []
   },
   {

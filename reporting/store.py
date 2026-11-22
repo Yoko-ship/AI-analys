@@ -53,12 +53,18 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _publication_key(issuer_id, language, standard, scope):
+    # These two registries predate scoped filings. Keep existing separate keys readable.
+    partition = standard if scope != 'consolidated' else f'{standard}/consolidated'
+    return str(issuer_id), language, partition
+
+
 def publication_version(report):
     issuer = report.get("issuer") or {}
     with connect() as connection:
         row = connection.execute(
             "SELECT version FROM sector_publications WHERE issuer_id=? AND language=? AND standard=?",
-            (str(issuer["id"]), report["language"], report["standard"]),
+            _publication_key(issuer["id"], report["language"], report["standard"], report.get("scope")),
         ).fetchone()
     return row["version"] if row else None
 
@@ -101,7 +107,7 @@ def finish_job(job_id, state, attempts, error):
 
 
 def record_report(report):
-    key = (str(report["issuer"]["id"]), report["language"], report["standard"])
+    key = _publication_key(report["issuer"]["id"], report["language"], report["standard"], report.get("scope"))
     with connect() as connection:
         hold = connection.execute("SELECT * FROM sector_publication_holds WHERE issuer_id=? AND language=? AND standard=?", key).fetchone()
         if hold:
@@ -149,7 +155,7 @@ def record_report(report):
         report["generated_at"] = stamp
         connection.execute(
             "INSERT INTO sector_runs VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(version) DO NOTHING",
-            (report["version"], key[0], report["issuer"]["ticker"], key[1], key[2],
+            (report["version"], key[0], report["issuer"]["ticker"], key[1], report["standard"],
              report["period"], report["status"], stamp, json.dumps(report, ensure_ascii=False)))
         # A public read cannot roll the latest pointer back to an explicitly
         # requested historical report.
@@ -193,12 +199,12 @@ def overview(limit=50):
             "overrides": overrides, "regression": run()}
 
 
-def latest_publication(issuer_id, language, standard):
+def latest_publication(issuer_id, language, standard, scope='separate'):
     """The published report an issuer's page currently shows, or None."""
     with connect() as connection:
         row = connection.execute(
             "SELECT r.payload FROM sector_publications p JOIN sector_runs r ON r.version=p.version "
-            "WHERE p.issuer_id=? AND p.language=? AND p.standard=?", (str(issuer_id), language, standard)).fetchone()
+            "WHERE p.issuer_id=? AND p.language=? AND p.standard=?", _publication_key(issuer_id, language, standard, scope)).fetchone()
     return json.loads(row["payload"]) if row else None
 
 
@@ -238,7 +244,7 @@ def rollback(version, actor, reason):
     report = get_run(version)
     if not report or report["status"] != "available":
         return False
-    key = (str(report["issuer"]["id"]), report["language"], report["standard"])
+    key = _publication_key(report["issuer"]["id"], report["language"], report["standard"], report.get("scope"))
     with connect() as connection:
         old = connection.execute("SELECT p.version,r.payload FROM sector_publications p JOIN sector_runs r ON r.version=p.version WHERE p.issuer_id=? AND p.language=? AND p.standard=?", key).fetchone()
         rejected = json.loads(old["payload"]) if old else report
