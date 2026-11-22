@@ -17,6 +17,7 @@ from .statements import cells
 
 
 VERSION = 'annual-eps-note-2'
+STATEMENT_VERSION = 'annual-reported-eps-1'
 NOTE_TITLE = re.compile(r"^\s*(?:\d+[.)]?\s+)?(?:basic )?earnings per (?:ordinary )?share\s*$", re.I | re.M)
 PERIOD = re.compile(r'notes to (?:the )?(consolidated|separate|individual) financial statements\s*[-–—,]?\s*(?:as (?:at|of) )?31 December (20\d\d)', re.I)
 TABLE = re.compile(r'^(?:in )?(millions|thousands) of (?:Uzbekistan |Uzbek )?(?:soums?|UZS)\s+(20\d\d)\s+(20\d\d)$', re.I)
@@ -74,6 +75,45 @@ def reconciled_eps(text, *, page):
     return rows
 
 
+def statement_eps(text, *, page, printed_note):
+    """A printed basic EPS needs its own unit and unambiguous annual columns."""
+    lines = [' '.join(line.split()) for line in text.splitlines() if line.strip()]
+    if len(lines) < 4:
+        return []
+    title = re.fullmatch(r'(Консолидированный|Отдельный|Индивидуальный) отч[её]т о прибылях и убытках'
+                         r'(?: и прочем совокупном доходе)?', lines[1], re.I)
+    if not title:
+        return []
+    candidates = [i for i, line in enumerate(lines) if re.match(r'Базовая прибыль на (?:одну )?акцию\b', line, re.I)]
+    if len(candidates) != 1:
+        return []
+    index = candidates[0]
+    headers = re.findall(r'\bСтатьи\s+(Примечание\s+)?31 декабря (20\d{2}) года 31 декабря (20\d{2}) года\b',
+                         ' '.join(lines[2:min(index, 10)]), re.I)
+    if len(headers) != 1:
+        return []
+    note, year, prior = headers[0]
+    if int(prior) + 1 != int(year):
+        return []
+    # Whitespace can separate columns or thousands in flattened PDF text. Only
+    # accept complete, ungrouped decimal cells, with a distinct note number.
+    amount = r'(?:-?\d+,\d+|\(\d+,\d+\))'
+    label = r'(Базовая прибыль на (?:одну )?акцию \(в (?:узбекских )?сумах\))'
+    match = re.fullmatch(label + (r'\s+(?P<note>\d{1,3})' if note else '') + r'\s+(?P<latest>' +
+                         amount + r')\s+' + amount, lines[index], re.I)
+    if not match:
+        return []
+    if note and match['note'] != printed_note(match[1]):
+        return []
+    eps = match['latest'].replace(',', '.').replace('(', '-').rstrip(')')
+    return [dict(source_form='Income statement', metric_id='eps_basic', source_code=None,
+                 raw_label=match[1], raw_line=lines[index], raw_value=eps, issuer_heading=lines[0],
+                 scope='consolidated' if title[1].lower() == 'консолидированный' else 'separate',
+                 page=page, column=0, period_start=year+'-01-01', period_end=year+'-12-31',
+                 statement_period_end=year+'-12-31', kind='per_share', currency='UZS', unit_scale='1',
+                 unit='UZS_per_share', quality='valid', reason=None)]
+
+
 def _ocr(page, scratch, *, scale):
     width, height = page.get_size()
     if width * height * scale**2 > 20_000_000:
@@ -88,7 +128,26 @@ def _ocr(page, scratch, *, scale):
     return layout.tsv_text(result.stdout.decode('utf-8'))
 
 
-def scan_pdf(content, *, ocr):
+def _note_cell(native, label):
+    """Read the intersection of the EPS row and the physically separate note column."""
+    locations = []
+    for phrase in ('Примечание', label):
+        search = native.search(phrase, match_whole_word=False)
+        try:
+            hit = search.get_next()
+            if not hit:
+                return ''
+            start, count = hit
+            locations.append((native.get_charbox(start), native.get_charbox(start+count-1)))
+        finally:
+            search.close()
+    (left, right), (first, last) = locations
+    if left[1] <= first[3] or last[2] >= left[0]:
+        return ''
+    return native.get_text_bounded(left[0], min(first[1], last[1]), right[2], max(first[3],last[3])).strip()
+
+
+def scan_pdf(content, *, ocr, statements=False):
     rows = []
     with pypdfium2.PdfDocument(content) as pdf, TemporaryDirectory(prefix='uzstock-eps-') as folder:
         if len(pdf) > 500:
@@ -99,9 +158,10 @@ def scan_pdf(content, *, ocr):
                 native = page.get_textpage()
                 try:
                     text = native.get_text_bounded()
+                    found = (statement_eps(text, page=index+1, printed_note=lambda label: _note_cell(native, label))
+                             if statements else reconciled_eps(text, page=index+1))
                 finally:
                     native.close()
-                found = reconciled_eps(text, page=index+1)
                 if not found and ocr:
                     # A broken text layer can contain thousands of unreadable glyphs.
                     # Survey only when native text cannot identify a readable report page.
@@ -119,19 +179,28 @@ def scan_pdf(content, *, ocr):
 
 def archived_rows(sha, *, ocr):
     """Cache successful scans (including empty ones), separately by OCR capability."""
+    return _cached_scan(sha, VERSION, ocr)
+
+
+def archived_statements(sha):
+    return _cached_scan(sha, STATEMENT_VERSION, False)
+
+
+def _cached_scan(sha, parser, ocr):
     with closing(get_catalog_conn()) as conn:
         with conn:
             conn.execute('CREATE TABLE IF NOT EXISTS investor_eps_scans (sha TEXT, parser TEXT, ocr INTEGER, '
                          'rows_json TEXT NOT NULL, PRIMARY KEY (sha,parser,ocr))')
         row = conn.execute('SELECT rows_json FROM investor_eps_scans WHERE sha=? AND parser=? AND ocr>=? '
-                           'ORDER BY ocr DESC LIMIT 1', (sha, VERSION, int(ocr))).fetchone()
+                           'ORDER BY ocr DESC LIMIT 1', (sha, parser, int(ocr))).fetchone()
         if row:
             return json.loads(row['rows_json'])
-    rows = scan_pdf(documents.read_artifact(sha), ocr=ocr)
+    content = documents.read_artifact(sha)
+    rows = scan_pdf(content, ocr=False, statements=True) if parser == STATEMENT_VERSION else scan_pdf(content, ocr=ocr)
     with closing(get_catalog_conn()) as conn:
         with conn:
             conn.execute('INSERT INTO investor_eps_scans VALUES (?,?,?,?) ON CONFLICT DO NOTHING',
-                         (sha, VERSION, int(ocr), json.dumps(rows, ensure_ascii=False)))
+                         (sha, parser, int(ocr), json.dumps(rows, ensure_ascii=False)))
         return rows
 
 
@@ -167,7 +236,16 @@ def official_filing(meta, *, url, org, row, end, cutoff):
             or meta.get('report_form') != 'MSFO' or meta.get('period_type') != 'annual' or row['column'] != 0):
         return None
     printed = _name(row.get('issuer_heading'))
-    if not printed or printed != _name(meta.get('organization_name')):
+    registered = _name(meta.get('organization_name'))
+    if row.get('source_form') == 'Income statement':
+        # The Russian and Uzbek legal forms must retain the same activity and
+        # the full distinctive name. Never match a substring of an issuer.
+        printed = re.sub(r' и е[её] дочерн(?:ее предприятие|ие предприятия)$', '', printed)
+        printed = printed.removeprefix('акционерное общество ')
+        insurance = re.fullmatch(r'(?:ск|страховая компания) (.+)', printed)
+        if insurance:
+            printed = insurance[1] + ' sug urta kompaniyasi'
+    if not printed or printed != registered:
         return None
     try:
         published = date.fromisoformat(str(meta.get('published_at') or '')[:10]).isoformat()
@@ -187,8 +265,8 @@ def official_eps(org, end, cutoff, preferred_scope):
         records = conn.execute(
             'SELECT s.url,s.metadata_json,v.metadata_json AS archived_metadata,x.rows_json '
             'FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
-            'JOIN investor_eps_scans x ON x.sha=v.sha WHERE s.org_id=? AND s.category=? AND x.parser=?',
-            (str(org), 'MSFO', VERSION)).fetchall()
+            'JOIN investor_eps_scans x ON x.sha=v.sha WHERE s.org_id=? AND s.category=? AND x.parser IN (?,?)',
+            (str(org), 'MSFO', VERSION, STATEMENT_VERSION)).fetchall()
     by_period = {}
     for record in records:
         meta = json.loads(record['metadata_json'])

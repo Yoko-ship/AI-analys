@@ -144,7 +144,7 @@ def _fetch_filing(source):
 
 def collect(companies, *, ocr, deadline=None):
     ids = {str(c['org_id']) for c in companies if c['org_id']}
-    result = {'errors':[], 'pdfs_checked':0, 'pdfs_with_eps':0,
+    result = {'errors':[], 'pdfs_checked':0, 'pdfs_with_eps':0, 'statements_checked':0, 'statements_with_eps':0,
               'share_supplements':{'checked':0,'imported':0,'errors':[]},
               'valuation_history':{'filings':0,'quotes':0,'errors':[]}}
     if deadline is not None and time.monotonic() >= deadline:
@@ -172,15 +172,28 @@ def collect(companies, *, ocr, deadline=None):
             for key, value in outcome.items():
                 result[name][key] += value
             result['errors'].extend(outcome['errors'])
+        # A slow image-only PDF must not starve the searchable statements in
+        # this round. Each native scan is checkpointed independently of OCR.
+        originals = []
+        for filed, org, source, sha in filings:
+            if deadline is not None and time.monotonic() >= deadline:
+                return {**result, 'deferred':True}
+            try:
+                sha = sha or _fetch_filing(source)
+                originals.append((filed, org, source, sha))
+                found = investor_eps.archived_statements(sha)
+                result['statements_checked'] += 1
+                result['statements_with_eps'] += bool(found)
+            except Exception as exc:
+                result['errors'].append({'issuer_id':org, 'source_id':source, 'file_hash':sha, 'error':str(exc)})
         history_until = time.monotonic() + 1800 if phase == 'history' else None
-        for index, (filed, org, source, sha) in enumerate(filings):
+        for index, (filed, org, source, sha) in enumerate(originals):
             if deadline is not None and time.monotonic() >= deadline:
                 return {**result, 'deferred':True}
             if history_until is not None and time.monotonic() >= history_until:
-                result['pdfs_pending'] = len(filings) - index
+                result['pdfs_pending'] = len(originals) - index
                 break
             try:
-                sha = sha or _fetch_filing(source)
                 if sha in scanned:
                     continue
                 log.info('Investor EPS: %s issuer %s, filed %s', phase, org, filed or 'undated')

@@ -31,6 +31,39 @@ def test_hmkb_audited_eps_requires_matching_currency_class_dates_and_arithmetic(
         assert values[1]['raw_value'] == '12.13'
 
 
+# The native text layer of ALSM’s FY2021 audited income statement, PDF page 5.
+ALSM_STATEMENT = """Акционерное Общество СК «ALSKOM» и ее дочернее предприятие
+Консолидированный отчет о прибылях и убытках и прочем совокупном доходе
+(в тысячах узбекских сумов)
+Статьи Примечание 31 декабря
+2021 года
+31 декабря
+2020 года
+ЧИСТАЯ ПРИБЫЛЬ 3 378 112 9 334 611
+Базовая прибыль на акцию (в сумах) 34 194,45 687,14"""
+
+
+@pytest.mark.parametrize('change', [None, ('2021 года', '2019 года'), ('в сумах', 'в тысячах сумов'),
+    ('Базовая прибыль', 'Разводненная прибыль'), ('Примечание ', ''), ('194,45', '—'),
+    ('194,45', '194 45'), ('ALSKOM', 'ALSKOM Leasing')])
+def test_alsm_disclosed_eps_keeps_filing_year_class_currency_and_identity(change):
+    from financial_ingestion import investor_eps
+    url = 'https://openinfo.uz/media/msfo/audit_MSFO_2021_07_07_2021.pdf'
+    meta = dict(organization_id=683, organization_name='"Alskom sug\'urta kompaniyasi" AJ',
+                status='approved', report_form='MSFO', period_type='annual', pdf_url=url, published_at='2023-06-14')
+    text = ALSM_STATEMENT.replace(*change) if change else ALSM_STATEMENT
+    facts = [investor_eps.official_filing(meta, url=url, org='683', row=row, end='2026-09-30', cutoff='2026-11-20')
+             for row in investor_eps.statement_eps(text, page=5, printed_note=lambda label: '34')]
+    assert [fact for fact in facts if fact] == ([] if change else [
+        dict(standard='ifrs', scope='consolidated', period='2021', value=194.45, unit='UZS_per_share', source_url=url, page=5)])
+
+
+def test_missing_note_column_cannot_turn_part_of_a_grouped_eps_into_a_note_number():
+    from financial_ingestion import investor_eps
+    # The same flattened row could say 34 194,45 in a single amount cell.
+    assert investor_eps.statement_eps(ALSM_STATEMENT, page=5, printed_note=lambda label: '') == []
+
+
 def test_coverage_includes_unresolved_issuers_historical_periods_and_sector_exclusions(monkeypatch):
     from financial_ingestion import investor_sweep
     def project(ticker, org):
@@ -174,6 +207,9 @@ def test_market_scan_visits_latest_filing_for_every_issuer_before_history(monkey
     monkeypatch.setattr(investor_sweep.backfill, '_recent_jobs', lambda _: [])
     names = {hashlib.sha256(content(f[2])).hexdigest():f[2] for f in filings}
     scanned = []
+    statements = []
+    monkeypatch.setattr(investor_sweep.investor_eps, 'archived_statements',
+                        lambda sha: statements.append((names[sha], len(scanned))) or [], raising=False)
     def scan(sha, *, ocr):
         scanned.append(names[sha])
         return []
@@ -183,6 +219,9 @@ def test_market_scan_visits_latest_filing_for_every_issuer_before_history(monkey
     companies = [{'org_id':o, 'ticker':t} for o,t in [('8','HMKB'),('19','AGBA'),('396','BIOK')]]
     results = investor_sweep.collect(companies, ocr=True)
     assert set(scanned[:3]) == {hmkb_latest, 'agba-latest.pdf', 'biok-latest.pdf'}
+    # Every searchable older statement gets checked before a slow historical OCR job.
+    assert {name for name, count in statements if count == 3} >= {
+        'audit_report_2022_RUS.pdf', 'eb302c3c-5999-4f8a-bae5-986932590249.pdf', 'agba-prior.pdf'}
     assert len(scanned) == 4 and scanned[3] == 'eb302c3c-5999-4f8a-bae5-986932590249.pdf'
     assert downloaded == [official+hmkb_latest]
     assert results['pdfs_pending'] == 2 and not results['errors']
@@ -198,6 +237,7 @@ def test_statutory_and_ifrs_latest_passes_both_precede_historical_work(monkeypat
     monkeypatch.setattr(sweep, '_filing_rounds', lambda ids: (
         [('2026','8','a','new')], [('2025','8','b','old')]))
     monkeypatch.setattr(sweep.investor_eps,'archived_rows',lambda sha, **kw: calls.append(sha) or [])
+    monkeypatch.setattr(sweep.investor_eps, 'archived_statements', lambda sha: [])
     monkeypatch.setattr(sweep.backfill, 'collect_valuation_history', valuations)
     monkeypatch.setattr(sweep.backfill, '_recent_jobs', lambda _: [])
     result = sweep.collect([{'org_id':'8','ticker':'HMKB'}], ocr=True)
