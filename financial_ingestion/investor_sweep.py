@@ -1,10 +1,12 @@
 """Nightly collection and coverage for published per-share metrics and EBIT."""
 from collections import Counter, defaultdict
 from contextlib import closing
+from datetime import date
 import json
 import logging
 import time
 
+from catalogue import sources
 from catalogue.sources import cached_report_excel_data
 from catalogue.storage import get_catalog_conn
 from financial_analysis.report_investor_metrics import HISTORICAL_METRICS
@@ -142,6 +144,88 @@ def _fetch_filing(source):
     return row['sha']
 
 
+def _check_filing_receipt(source, sha, rows):
+    """Bind a legacy original to a fresh official listing and a matching download."""
+    with closing(store.connect()) as conn:
+        item = conn.execute(
+            'SELECT s.org_id,s.ticker,s.url,s.metadata_json,COALESCE(f.metadata_json,v.metadata_json) AS receipt,'
+            'c.company_name FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
+            'LEFT JOIN ingest_version_filing_checks f ON f.version_id=v.id '
+            'LEFT JOIN catalog_companies c ON c.ticker=s.ticker WHERE s.id=? AND v.sha=?',
+            (source, sha)).fetchone()
+    if not item:
+        return sha
+    org, url = item['org_id'], item['url']
+    today = date.today().isoformat()
+    def approved(meta):
+        return any(investor_eps.official_filing(meta, url=url, org=org, row=row, end=today, cutoff=today) for row in rows)
+    current, receipt = json.loads(item['metadata_json']), json.loads(item['receipt'])
+    if approved(current) and approved(receipt):
+        return sha
+    if not item['company_name']:
+        return sha
+    with sources._make_session() as session:
+        listings, _ = sources._fetch_main_results(session, item['company_name'], org)
+    matching = [sources._build_report_document(record) for record in listings
+                if record.get('pdf_url') == url and str(record.get('organization')) == org
+                and record.get('report_type') == 'MSFO']
+    if len(matching) != 1:
+        return sha
+    official = matching[0]
+    processor = extract.processor_version()
+    with store.transaction() as conn:
+        documents.register(conn, org_id=org, ticker=item['ticker'], url=url, category='MSFO',
+                           metadata=official, processor=processor, refresh_days=0)
+    return _fetch_filing(source) if approved(official) else sha
+
+
+def _scan_statements(filings, result, deadline=None):
+    originals = []
+    for filed, org, source, sha in filings:
+        if deadline is not None and time.monotonic() >= deadline:
+            result['deferred'] = True
+            break
+        try:
+            sha = sha or _fetch_filing(source)
+            found = investor_eps.archived_statements(sha)
+            if found:
+                latest = _check_filing_receipt(source, sha, found)
+                if latest != sha:
+                    sha, found = latest, investor_eps.archived_statements(latest)
+                today = date.today().isoformat()
+                published = investor_eps.official_eps(org, today, today, 'separate')
+                log.info('Printed EPS: issuer %s filed %s, extracted %s, verified %s', org, filed,
+                         [(r['period_end'], r['raw_value']) for r in found], published)
+            result['statements_checked'] += 1
+            result['statements_with_eps'] += bool(found)
+        except Exception as exc:
+            result['errors'].append({'issuer_id':org, 'source_id':source, 'file_hash':sha, 'error':str(exc)})
+        if sha:
+            originals.append((filed, org, source, sha))
+    return originals
+
+
+def backfill_statements():
+    """Refresh the issuer listings and scan printed statements without waiting for image OCR."""
+    from catalogue.snapshots import _remember_ifrs_sources
+    from .bulk import issuers
+
+    companies, _ = issuers()
+    result = {'statements_checked':0, 'statements_with_eps':0, 'errors':[]}
+    with sources._make_session() as session:
+        for company in companies:
+            org, ticker = str(company['org_id']), company['ticker']
+            try:
+                records, _ = sources._fetch_main_results(session, company['company_name'], org)
+                count = _remember_ifrs_sources(ticker=ticker, org_id=org, records=records)
+                log.info('Filing registry: %s, %s originals', ticker, count)
+            except Exception as exc:
+                result['errors'].append({'issuer_id':org, 'stage':'listing', 'error':str(exc)})
+    for filings in _filing_rounds({str(c['org_id']) for c in companies}):
+        _scan_statements(filings, result)
+    return result
+
+
 def collect(companies, *, ocr, deadline=None):
     ids = {str(c['org_id']) for c in companies if c['org_id']}
     result = {'errors':[], 'pdfs_checked':0, 'pdfs_with_eps':0, 'statements_checked':0, 'statements_with_eps':0,
@@ -174,18 +258,9 @@ def collect(companies, *, ocr, deadline=None):
             result['errors'].extend(outcome['errors'])
         # A slow image-only PDF must not starve the searchable statements in
         # this round. Each native scan is checkpointed independently of OCR.
-        originals = []
-        for filed, org, source, sha in filings:
-            if deadline is not None and time.monotonic() >= deadline:
-                return {**result, 'deferred':True}
-            try:
-                sha = sha or _fetch_filing(source)
-                originals.append((filed, org, source, sha))
-                found = investor_eps.archived_statements(sha)
-                result['statements_checked'] += 1
-                result['statements_with_eps'] += bool(found)
-            except Exception as exc:
-                result['errors'].append({'issuer_id':org, 'source_id':source, 'file_hash':sha, 'error':str(exc)})
+        originals = _scan_statements(filings, result, deadline)
+        if result.get('deferred'):
+            return result
         history_until = time.monotonic() + 1800 if phase == 'history' else None
         for index, (filed, org, source, sha) in enumerate(originals):
             if deadline is not None and time.monotonic() >= deadline:
@@ -204,3 +279,7 @@ def collect(companies, *, ocr, deadline=None):
             except Exception as exc:
                 result['errors'].append({'issuer_id':org, 'source_id':source, 'file_hash':sha, 'error':str(exc)})
     return result
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+    print(json.dumps(backfill_statements(), ensure_ascii=False))

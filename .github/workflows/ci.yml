@@ -37,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      backfill_reported_eps:
+        description: Recheck published annual EPS statements for every issuer
+        required: false
+        type: boolean
+        default: false
       backfill_governance:
         description: Collect management disclosures for every company after deployment
         required: false
@@ -1740,10 +1745,10 @@ jobs:
           REMOTE
 
   backfill-column-sources:
-    name: Restore detailed financial source tables
+    name: Restore financial filing sources
     environment: uzstock-production
     needs: deploy-production
-    if: (github.event_name == 'workflow_dispatch' && inputs.backfill_column_sources) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[backfill-financial-sources]'))
+    if: (github.event_name == 'workflow_dispatch' && (inputs.backfill_column_sources || inputs.backfill_reported_eps)) || (github.event_name == 'push' && (contains(github.event.head_commit.message, '[backfill-financial-sources]') || contains(github.event.head_commit.message, '[backfill-reported-eps]')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -1759,23 +1764,30 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
       - name: Inspect and restore recent source reports
         env:
+          REPORTED_EPS: ${{ inputs.backfill_reported_eps || contains(github.event.head_commit.message, '[backfill-reported-eps]') }}
+          COLUMN_SOURCES: ${{ inputs.backfill_column_sources || contains(github.event.head_commit.message, '[backfill-financial-sources]') }}
           PROD_HOST: ${{ secrets.PROD_HOST }}
           PROD_PORT: ${{ secrets.PROD_PORT }}
           PROD_USER: ${{ secrets.PROD_USER }}
         run: |
           ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=60 \
-            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- $GITHUB_SHA" <<'REMOTE'
+            -p "$PROD_PORT" "$PROD_USER@$PROD_HOST" "bash -s -- '$GITHUB_SHA' '$REPORTED_EPS' '$COLUMN_SOURCES'" <<'REMOTE'
           set -euo pipefail
           cd /root/uzstock/app
           pwd -P
-          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = "$1"
           docker inspect --format '{{.Config.Image}} {{.State.Status}}' uzstock-web
           test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' uzstock-web)" = "$1"
           systemctl show uzstock-financial-ingestion.service -p FragmentPath -p ActiveState
-          docker exec uzstock-web python -m financial_columns.backfill --inspect
-          docker exec -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web python -u -m financial_columns.backfill --annual-periods 2 --max-periods 1000 --repair-issuer-links --share-bases
-          docker exec uzstock-web python -m financial_columns.backfill --inspect
+          if [ "$2" = true ]; then
+            docker exec uzstock-web python -u -m financial_ingestion.investor_sweep
+          fi
+          if [ "$3" = true ]; then
+            docker exec uzstock-web python -m financial_columns.backfill --inspect
+            docker exec -e FINANCIALS_PUSH_URL=http://uzstock-web:8000 uzstock-web python -u -m financial_columns.backfill --annual-periods 2 --max-periods 1000 --repair-issuer-links --share-bases
+            docker exec uzstock-web python -m financial_columns.backfill --inspect
+          fi
           REMOTE
 
   backfill-company-financials:

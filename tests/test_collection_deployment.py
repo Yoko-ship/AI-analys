@@ -47,3 +47,11 @@ def test_openinfo_filings_watcher_runs_at_1620_tashkent_monday_to_saturday():
     assert re.findall(r"^OnCalendar=(.+)$", timer, re.MULTILINE) == [
         "Mon..Sat *-*-* 16:20:00 Asia/Tashkent"
     ]
+
+
+def test_reported_eps_backfill_only_runs_explicitly_on_the_tested_release():
+    _, workflow = units()
+    job = workflow.split('  backfill-column-sources:',1)[1].split('  backfill-company-financials:',1)[0]
+    assert "inputs.backfill_reported_eps" in job and "'[backfill-reported-eps]'" in job
+    assert job.index('test "$(git rev-parse HEAD)"') < job.index('python -u -m financial_ingestion.investor_sweep')
+    assert job.index('org.opencontainers.image.revision') < job.index('python -u -m financial_ingestion.investor_sweep')

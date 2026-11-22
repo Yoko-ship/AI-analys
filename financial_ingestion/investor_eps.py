@@ -260,11 +260,16 @@ def official_filing(meta, *, url, org, row, end, cutoff):
 
 def official_eps(org, end, cutoff, preferred_scope):
     with closing(get_catalog_conn()) as conn:
-        if not {'investor_eps_scans','ingest_sources','ingest_versions'} <= set(dbx.tables(conn)):
+        tables = set(dbx.tables(conn))
+        if not {'investor_eps_scans','ingest_sources','ingest_versions'} <= tables:
             return None
+        checks = 'ingest_version_filing_checks' in tables
+        observation = 'COALESCE(f.metadata_json,v.metadata_json)' if checks else 'v.metadata_json'
+        join = 'LEFT JOIN ingest_version_filing_checks f ON f.version_id=v.id ' if checks else ''
         records = conn.execute(
-            'SELECT s.url,s.metadata_json,v.metadata_json AS archived_metadata,x.rows_json '
+            f'SELECT s.url,s.metadata_json,{observation} AS archived_metadata,x.rows_json '
             'FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
+            f'{join}'
             'JOIN investor_eps_scans x ON x.sha=v.sha WHERE s.org_id=? AND s.category=? AND x.parser IN (?,?)',
             (str(org), 'MSFO', VERSION, STATEMENT_VERSION)).fetchall()
     by_period = {}

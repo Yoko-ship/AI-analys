@@ -167,6 +167,72 @@ def test_latest_openinfo_approval_is_required_even_for_previously_verified_origi
     assert read() is None
 
 
+def test_alsm_catalog_archive_can_regain_approval_only_after_checking_the_original(monkeypatch, tmp_path):
+    from financial_ingestion import documents, investor_eps, store
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path / 'files'))
+    url = 'https://openinfo.uz/media/msfo/audit_MSFO_2021_07_07_2021.pdf'
+    thin = dict(org_id='683', report_form='MSFO', period_type='annual', pdf_url=url,
+                published_at='2023-06-14', openinfo_report_id='2542')
+    full = dict(id=2542, organization_id=683, organization_name='"Alskom sug\'urta kompaniyasi" AJ',
+                report_form='MSFO', period_type='annual', pdf_url=url, status='approved', published_at='2023-06-14')
+    payload = b'%PDF-ALSM historical filing'
+    with store.transaction() as conn:
+        source = documents.register(conn, org_id='683', ticker='ALSM', url=url, category='MSFO',
+                                    processor='test', metadata=thin)
+    first = documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda url: payload)
+    sha, _ = documents.archive(payload)
+    rows = investor_eps.statement_eps(ALSM_STATEMENT, page=5, printed_note=lambda _: '34')
+    monkeypatch.setattr(investor_eps, 'scan_pdf', lambda *args, **kwargs: rows)
+    investor_eps.archived_statements(sha)
+    read = lambda: investor_eps.official_eps('683', '2026-09-30', '2026-11-20', 'separate')
+    assert read() is None
+    def register(meta):
+        with store.transaction() as conn:
+            documents.register(conn, org_id='683', ticker='ALSM', url=url, category='MSFO', processor='test',
+                               metadata=meta, refresh_days=0)
+    register(full)
+    assert read() is None
+    second = documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda url: payload)
+    assert second == first and read()['value'] == 194.45
+    register(thin)
+    assert read()['value'] == 194.45
+    register({**full, 'status':'withdrawn'})
+    assert read() is None
+
+
+def test_market_collection_rechecks_an_older_alsm_original_against_the_issuer_listing(monkeypatch, tmp_path):
+    import ifrs_financials
+    from catalogue import sources
+    from financial_ingestion import documents, investor_eps, investor_sweep, store
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path / 'files'))
+    url = 'https://openinfo.uz/media/msfo/audit_MSFO_2021_07_07_2021.pdf'
+    org, ticker, name = '683', 'ALSM', '"Alskom sug\'urta kompaniyasi" AJ'
+    meta = dict(org_id=org, report_form='MSFO', period_type='annual', pdf_url=url,
+                published_at='2023-06-14', openinfo_report_id='2542')
+    official = dict(id=2542, organization=683, organization_name=name, pdf_url=url, status='approved',
+                    report_type='MSFO', properties={'report_type':'annual'}, pub_date='2023-06-14')
+    with store.transaction() as conn:
+        conn.execute('INSERT INTO catalog_companies(ticker,org_id,company_name) VALUES (?,?,?)',(ticker,org,name))
+        source = documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test', metadata=meta)
+    downloads = []
+    monkeypatch.setattr(ifrs_financials, 'download_pdf', lambda url, **kwargs: downloads.append(url) or b'%PDF-original')
+    investor_sweep._fetch_filing(source)
+    monkeypatch.setattr(sources, '_fetch_main_results', lambda session, issuer, org_id: ([official], None))
+    monkeypatch.setattr(investor_eps, 'scan_pdf', lambda *a, **kw:
+                        investor_eps.statement_eps(ALSM_STATEMENT, page=5, printed_note=lambda _: '34'))
+    monkeypatch.setattr(investor_eps, 'archived_rows', lambda *a, **kw: [])
+    monkeypatch.setattr(investor_sweep.backfill, '_recent_jobs', lambda _: [])
+    for _ in range(2):
+        result = investor_sweep.collect([{'ticker':ticker, 'org_id':org}], ocr=False)
+        assert not result['errors']
+        assert investor_eps.official_eps(org, '2026-09-30', '2026-11-20', 'separate')['value'] == 194.45
+    assert downloads == [url, url]
+
+
 def test_market_scan_visits_latest_filing_for_every_issuer_before_history(monkeypatch, tmp_path):
     from types import SimpleNamespace
     import hashlib
@@ -243,3 +309,19 @@ def test_statutory_and_ifrs_latest_passes_both_precede_historical_work(monkeypat
     result = sweep.collect([{'org_id':'8','ticker':'HMKB'}], ocr=True)
     assert max(calls.index('new'), calls.index('latest balances')) < min(calls.index('old'), calls.index('history balances'))
     assert result['valuation_history']['filings'] == 2
+
+
+def test_reported_eps_backfill_checks_fresh_listings_before_both_rounds(monkeypatch):
+    from catalogue import snapshots, sources
+    from financial_ingestion import bulk, investor_sweep
+
+    events = []
+    issuers = [{'ticker':'ALSM','org_id':'683','company_name':'Alskom'}, {'ticker':'HMKB','org_id':'8','company_name':'Hamkorbank'}]
+    monkeypatch.setattr(bulk, 'issuers', lambda: (issuers, []))
+    monkeypatch.setattr(sources, '_fetch_main_results', lambda session, name, org: ([{'organization':org}], None))
+    monkeypatch.setattr(snapshots, '_remember_ifrs_sources', lambda **kw: events.append(kw['ticker']))
+    monkeypatch.setattr(investor_sweep, '_filing_rounds', lambda ids: ([('recent','8','new','sha1')],[('prior','683','old','sha2')]))
+    monkeypatch.setattr(investor_sweep.investor_eps, 'archived_statements', lambda sha: events.append(sha) or [])
+    result = investor_sweep.backfill_statements()
+    assert events == ['ALSM','HMKB','sha1','sha2']
+    assert result['statements_checked'] == 2 and not result['errors']

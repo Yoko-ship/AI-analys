@@ -43,6 +43,9 @@ def _schema(c):
       sha TEXT NOT NULL REFERENCES ingest_artifacts(sha), metadata_json TEXT NOT NULL,
       received_at TEXT NOT NULL, UNIQUE(source_id,sha)
     );
+    CREATE TABLE IF NOT EXISTS ingest_version_filing_checks (
+      version_id TEXT PRIMARY KEY REFERENCES ingest_versions(id), metadata_json TEXT NOT NULL, checked_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ingest_jobs (
       id TEXT PRIMARY KEY, dedupe_key TEXT NOT NULL UNIQUE,
       source_id TEXT NOT NULL REFERENCES ingest_sources(id), version_id TEXT,
@@ -95,7 +98,7 @@ def _schema(c):
 def connect():
     from catalogue.storage import get_catalog_conn
     c = get_catalog_conn()
-    dbx.ensure_schema(c, "financial-ingestion-v3", _schema)
+    dbx.ensure_schema(c, "financial-ingestion-v4", _schema)
     return c
 
 

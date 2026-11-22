@@ -61,10 +61,22 @@ def read_artifact(sha):
     return content
 
 
+def _listing_evidence(meta):
+    """Identify the official filing observation independently of mutable view counts."""
+    keys = ('id', 'organization_id', 'organization_name', 'status', 'pdf_url', 'report_form', 'period_type', 'published_at')
+    if all(meta.get(key) for key in keys):
+        return [str(meta[key]) for key in keys]
+
+
 def register(c, *, org_id, ticker, url, category, metadata, processor, refresh_days=7):
     source_policy.require(url)
     source_id = store.digest([str(org_id), url])
     old = c.execute("SELECT * FROM ingest_sources WHERE id=?", (source_id,)).fetchone()
+    if old and metadata.get('openinfo_report_id') and 'status' not in metadata:
+        previous = json.loads(old['metadata_json'])
+        if (_listing_evidence(previous) and str(previous['id']) == str(metadata['openinfo_report_id'])
+                and str(previous['organization_id']) == str(org_id) and previous['pdf_url'] == url):
+            metadata = previous
     c.execute("INSERT INTO ingest_sources (id,org_id,ticker,url,category,metadata_json,first_seen,last_seen) "
               "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=excluded.metadata_json,"
               "last_seen=excluded.last_seen,category=excluded.category",
@@ -216,6 +228,12 @@ def fetch_job(job, processor, fetch=None):
                   (sha, path, len(payload), "application/pdf", store.now()))
         c.execute("INSERT INTO ingest_versions VALUES (?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
                   (version_id, source["id"], sha, source["metadata_json"], store.now()))
+        if _listing_evidence(metadata):
+            # A later approved observation of the same bytes must not rewrite
+            # the original metadata used by previous reviews and publications.
+            c.execute("INSERT INTO ingest_version_filing_checks(version_id,metadata_json,checked_at) VALUES (?,?,?) "
+                      "ON CONFLICT(version_id) DO UPDATE SET metadata_json=excluded.metadata_json,checked_at=excluded.checked_at",
+                      (version_id, source["metadata_json"], store.now()))
         c.execute("UPDATE ingest_sources SET latest_version=?,checked_at=? WHERE id=?", (version_id, time.time(), source["id"]))
         if source["latest_version"] and source["latest_version"] != version_id:
             store.event(c, source["id"], "source.replaced", old_version=source["latest_version"], new_version=version_id)
