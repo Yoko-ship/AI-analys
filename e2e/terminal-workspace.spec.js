@@ -927,14 +927,22 @@ test('quarterly blanks distinguish loss bases from missing reports', async ({pag
 test('filing screener exposes verified EBIT and separate estimate columns for CSV', async ({page}) => {
   await fixture(page);
   await page.route('**/api/terminal/filing-metrics?**', route => route.fulfill({json:{rows:[{
-    ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
+    ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, roce:{value:9.194}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
   }]}}));
   await run(page,'EQS');
-  await page.getByRole('button',{name:'EPS · P/BV · EBIT',exact:true}).click();
+  await page.getByRole('button',{name:'EPS · P/BV · EBIT · ROCE',exact:true}).click();
   const table=page.getByRole('table').filter({has:page.getByRole('columnheader',{name:/EBIT/})});
   await expect(table.getByRole('row').filter({hasText:'ABKZ'})).toContainText('8\u00a0714\u00a0009');
   await expect(table.getByRole('columnheader',{name:/EPS прибл/})).toBeVisible();
+  await expect(table.getByRole('columnheader',{name:/ROCE.*%/})).toBeVisible();
+  await expect(table.getByRole('row').filter({hasText:'ABKZ'})).toContainText('9,19');
   const download=page.waitForEvent('download');
   await page.locator('.terminal-market-screen').getByRole('button',{name:'CSV',exact:true}).click();
-  expect((await download).suggestedFilename()).toMatch(/csv$/i);
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/csv$/i);
+  const chunks = [];
+  for await (const chunk of await file.createReadStream()) chunks.push(chunk);
+  const csv = Buffer.concat(chunks).toString('utf8');
+  expect(csv).toContain('ROCE');
+  expect(csv).toContain('9.194');
 });

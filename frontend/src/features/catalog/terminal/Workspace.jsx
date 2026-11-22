@@ -100,7 +100,7 @@ export function MarketScreen({mode,terminal,lang,user,apiFetch}) {
   if(mode==='EQS' && filings)return <FilingScreener lang={lang} onClose={()=>setFilings(false)}/>;
   return <section className="panel terminal-market-screen">
     <header className="terminal-section-head"><h2>{mode} · {functionLabel(mode,lang)}</h2><span className="muted">{rows.length} / {data?.rows?.length||0}</span></header>
-    {mode==='EQS'&&form==='NSBU'&&<button className="ghost-btn" onClick={()=>setFilings(true)}>EPS · P/BV · EBIT</button>}
+    {mode==='EQS'&&form==='NSBU'&&<button className="ghost-btn" onClick={()=>setFilings(true)}>EPS · P/BV · EBIT · ROCE</button>}
     <p className="muted">{words(lang,"Годовая отчётность; P/E и P/B — текущая капитализация к последнему годовому отчёту. Пропуски не заменяются нулём.","Yillik hisobotlar; P/E va P/B oxirgi yil bo‘yicha. Bo‘sh qiymatlar nol emas.","Annual statements; P/E and P/B use current capitalisation and the latest annual. Missing values are not zero.")}</p>
     <p className="muted">{words(lang,"¹ Последнее положительное дивидендное решение за 366 дней / текущая цена. Это не сумма выплат за год. NPL — отдельная месячная дата ЦБ.","¹ Oxirgi 366 kundagi dividend qarori / joriy narx. NPL — MB oylik sanasi.","¹ Latest positive dividend decision within 366 days / current price; not annual payouts. NPL has its own monthly CBU date.")}</p>
     <div className="terminal-controls terminal-market-filters" role="group" aria-label={words(lang,'Фильтры списка','Ro‘yxat filtrlari','List filters')}>

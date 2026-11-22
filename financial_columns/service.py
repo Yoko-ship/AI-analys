@@ -6,7 +6,37 @@ import re
 from catalogue.storage import get_catalog_conn
 from catalogue.organization import organization_kind
 from financial_ingestion import publication
-from . import derived, matrix, observations, ratios, source_store
+from . import capital_returns, derived, matrix, observations, ratios, source_store
+
+
+def _check_filing_rows(source_rows, ticker, form):
+    import data_quality
+    held = data_quality.held_public_periods(ticker, form)
+    for row in source_rows:
+        end = row['period_end']
+        period = end[:4] if end.endswith('-12-31') else end[:4] + 'Q' + str(int(end[5:7]) // 3)
+        if period in held:
+            row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
+    return observations.check(source_rows)
+
+
+def filing_roce(company, end, scope):
+    """The screener uses the same filed YTD/FY result as the ratio table."""
+    ticker = company['ticker']
+    template = organization_kind(ticker, name=company.get('name'))
+    docs = source_store.read(company['org_id'], standard='NSBU', scope=scope, period_end=end, latest=True)
+    if not end and docs:
+        end = docs[0]['period_end']
+    if not end:
+        return None, {'value': None, 'reason_code': 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
+                      if template in capital_returns.FINANCIAL else 'ROCE_INPUTS_MISSING', 'unit': 'percent'}
+    rows = observations.nsbu(docs)
+    _check_filing_rows(rows, ticker, 'NSBU')
+    cell = capital_returns.roce(rows, template=template, end=end, basis='annual' if end.endswith('-12-31') else 'ytd')
+    period = end[:4] if end.endswith('-12-31') else f'{end[:4]}Q{int(end[5:7]) // 3}'
+    return period, {'value': float(cell['value']) if cell['value'] is not None else None, 'raw_result': cell['value'],
+            'unit': cell['unit'], 'reason_code': cell['reason'], 'quality': cell['quality'], 'basis': cell['basis'],
+            'balance_basis': cell['balance_basis'], 'formula': cell['formula']}
 
 
 def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all',
@@ -74,20 +104,14 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
     # No future reporting periods, even if a catalogue placeholder was imported.
     today = date.today().isoformat()
     source_rows = [r for r in source_rows if r['period_end'] < today]
-    import data_quality
-    held = data_quality.held_public_periods(ticker, form)
-    for row in source_rows:
-        end = row['period_end']
-        period = end[:4] if end.endswith('-12-31') else end[:4] + 'Q' + str(int(end[5:7]) // 3)
-        if period in held:
-            row.update(value=None, quality='blocked', reason='UNDER_REVIEW')
-    issues = observations.check(source_rows)
+    issues = _check_filing_rows(source_rows, ticker, form)
     source_rows = derived.enrich(source_rows, template=template)
     if view == 'investor':
         from .investor import enrich
         source_rows = enrich(source_rows)
     table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'},
-                         interim_ttm=view == 'investor')
+                         interim_ttm=view == 'investor',
+                         recent_ttm=include_ratios and view == 'template' and form == 'NSBU' and template not in capital_returns.FINANCIAL)
     ratio_rows = []
     for column in table['columns'] if include_ratios else []:
         for ratio in ratios.calculate(source_rows, ticker=ticker, template=template,

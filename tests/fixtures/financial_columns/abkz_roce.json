@@ -1,0 +1,227 @@
+[
+  {
+    "issuer_id": "78",
+    "scope": "separate",
+    "period_end": "2025-09-30",
+    "template": "industry",
+    "quality": "valid",
+    "unit_scale": "1000",
+    "currency": "UZS",
+    "source_version": "b1cf38f77916eb655b32215fae8dc96a7bd13d759d8a5399547f3a3551aa5158",
+    "rows": [
+      {
+        "metric_id": "total_assets",
+        "kind": "stock",
+        "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+        "source_form": "F1",
+        "source_code": "400",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=17815&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 132437543,
+          "value": "132437543"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 105671409,
+          "value": "105671409"
+        }
+      },
+      {
+        "metric_id": "current_liabilities",
+        "kind": "stock",
+        "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+        "source_form": "F1",
+        "source_code": "600",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=17815&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 41961843,
+          "value": "41961843"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 21808470,
+          "value": "21808470"
+        }
+      },
+      {
+        "metric_id": "operating_income",
+        "kind": "flow",
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_form": "F2",
+        "source_code": "100",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=17815&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            10620453,
+            0
+          ],
+          "value": "10620453"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            12360926,
+            0
+          ],
+          "value": "12360926"
+        }
+      }
+    ]
+  },
+  {
+    "issuer_id": "78",
+    "scope": "separate",
+    "period_end": "2025-12-31",
+    "template": "industry",
+    "quality": "valid",
+    "unit_scale": "1000",
+    "currency": "UZS",
+    "source_version": "2b31642787ec6359756e8357901a61d2ccb50c0358fc158b2d1db298a578b04a",
+    "rows": [
+      {
+        "metric_id": "total_assets",
+        "kind": "stock",
+        "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+        "source_form": "F1",
+        "source_code": "400",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6007&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 122461662,
+          "value": "122461662"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 105671409,
+          "value": "105671409"
+        }
+      },
+      {
+        "metric_id": "current_liabilities",
+        "kind": "stock",
+        "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+        "source_form": "F1",
+        "source_code": "600",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6007&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 31454274,
+          "value": "31454274"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 21808470,
+          "value": "21808470"
+        }
+      },
+      {
+        "metric_id": "operating_income",
+        "kind": "flow",
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_form": "F2",
+        "source_code": "100",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6007&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            12615413,
+            0
+          ],
+          "value": "12615413"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            19224528,
+            0
+          ],
+          "value": "19224528"
+        }
+      }
+    ]
+  },
+  {
+    "issuer_id": "78",
+    "scope": "separate",
+    "period_end": "2026-09-30",
+    "template": "industry",
+    "quality": "valid",
+    "unit_scale": "1000",
+    "currency": "UZS",
+    "source_version": "6a95b4856fe6f71c98ef128ea070641ab318faba577558e15015563d6d3df8d3",
+    "rows": [
+      {
+        "metric_id": "total_assets",
+        "kind": "stock",
+        "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+        "source_form": "F1",
+        "source_code": "400",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19190&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 136766523,
+          "value": "136766523"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 122461662,
+          "value": "122461662"
+        }
+      },
+      {
+        "metric_id": "current_liabilities",
+        "kind": "stock",
+        "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+        "source_form": "F1",
+        "source_code": "600",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19190&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": 40522638,
+          "value": "40522638"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": 31454274,
+          "value": "31454274"
+        }
+      },
+      {
+        "metric_id": "operating_income",
+        "kind": "flow",
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_form": "F2",
+        "source_code": "100",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19190&lang=ru",
+        "unit": "UZS_thousand",
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            8607795,
+            0
+          ],
+          "value": "8607795"
+        },
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            10590953,
+            0
+          ],
+          "value": "10590953"
+        }
+      }
+    ]
+  }
+]

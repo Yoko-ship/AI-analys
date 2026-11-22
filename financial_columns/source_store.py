@@ -89,19 +89,24 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
         c.close()
 
 
-def read(issuer_id, *, standard, scope, period_end=None):
+def read(issuer_id, *, standard, scope, period_end=None, latest=False):
     c = get_catalog_conn()
     try:
         if 'financial_form_heads' not in dbx.tables(c):
             return []
         params = [str(issuer_id), standard, scope]
         restriction = ''
+        order = ' ORDER BY h.period_end'
         if period_end:
             restriction = ' AND h.period_end=?'
             params.append(period_end)
+        elif latest:
+            restriction = ' AND h.period_end<?'
+            params.append(date.today().isoformat())
+            order = ' ORDER BY h.period_end DESC LIMIT 1'
         return [json.loads(row['payload_json']) for row in c.execute(
             'SELECT v.payload_json FROM financial_form_heads h JOIN financial_form_versions v ON v.id=h.version_id '
-            'WHERE h.issuer_id=? AND h.standard=? AND h.scope=?' + restriction + ' ORDER BY h.period_end', params)]
+            'WHERE h.issuer_id=? AND h.standard=? AND h.scope=?' + restriction + order, params)]
     finally:
         c.close()
 

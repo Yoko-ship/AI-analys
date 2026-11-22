@@ -1,0 +1,150 @@
+{
+  "period_end": "2026-09-30",
+  "issuer_id": "446",
+  "template": "industry",
+  "scope": "separate",
+  "currency": "UZS",
+  "unit_scale": "1000",
+  "source_version": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru",
+  "quality": "valid",
+  "rows": [
+    {
+      "metric_id": "total_assets",
+      "source_form": "F1",
+      "source_code": "400",
+      "raw_label": "Всего по активу баланса (стр.130+стр.390)",
+      "unit": "UZS_thousand",
+      "kind": "stock",
+      "current": {
+        "raw_value": 780300544.9,
+        "value": "780300544.9",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": 763160382.9,
+        "value": "763160382.9",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    },
+    {
+      "metric_id": "current_liabilities",
+      "source_form": "F1",
+      "source_code": "600",
+      "raw_label": "Текущие обязательства,всего (стр.610+630+640+650+660+670+680+690+700+710+720+730+740+750+760)",
+      "unit": "UZS_thousand",
+      "kind": "stock",
+      "current": {
+        "raw_value": 304876645.4,
+        "value": "304876645.4",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": 288182129.8,
+        "value": "288182129.8",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    },
+    {
+      "metric_id": "gross_profit",
+      "source_form": "F2",
+      "source_code": "030",
+      "raw_label": "Валовая прибыль (убыток) от реализации продукции (товаров, работ и услуг) (стр.010-020)",
+      "unit": "UZS_thousand",
+      "kind": "flow",
+      "current": {
+        "raw_value": [
+          10671932,
+          0
+        ],
+        "value": "10671932",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": [
+          8793386,
+          0
+        ],
+        "value": "8793386",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    },
+    {
+      "metric_id": "operating_expenses",
+      "source_form": "F2",
+      "source_code": "040",
+      "raw_label": "Расходы периода, всего (стр.050+060+070+080), в том числе:",
+      "unit": "UZS_thousand",
+      "kind": "flow",
+      "current": {
+        "raw_value": [
+          0,
+          20764072
+        ],
+        "value": "-20764072",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": [
+          0,
+          19935284
+        ],
+        "value": "-19935284",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    },
+    {
+      "metric_id": "other_operating_income",
+      "source_form": "F2",
+      "source_code": "090",
+      "raw_label": "Прочие доходы от основной деятельности",
+      "unit": "UZS_thousand",
+      "kind": "flow",
+      "current": {
+        "raw_value": [
+          1857483,
+          0
+        ],
+        "value": "1857483",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": [
+          11963262,
+          0
+        ],
+        "value": "11963262",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    },
+    {
+      "metric_id": "operating_income",
+      "source_form": "F2",
+      "source_code": "100",
+      "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+      "unit": "UZS_thousand",
+      "kind": "flow",
+      "current": {
+        "raw_value": [
+          8234657,
+          0
+        ],
+        "value": "8234657",
+        "quality": "valid"
+      },
+      "previous": {
+        "raw_value": [
+          821365,
+          0
+        ],
+        "value": "821365",
+        "quality": "valid"
+      },
+      "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 // Public interface for this feature.
+export { qualityReason as financialColumnQualityReason } from "./financialColumnQuality.js";
 import { lazy } from "react";
 export const CompanyPage = lazy(() => import("./CompanyPage.jsx").then(module => ({ default: module.CompanyPage })));
 // The Финансы and Дивиденды views with their own data, for the catalog terminal.

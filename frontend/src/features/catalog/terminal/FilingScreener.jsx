@@ -2,6 +2,7 @@ import React from 'react';
 import {localizedPath} from '../../../lib/languagePath.js';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {reportRatioReason} from '../../../lib/reportRatioDisplay.js';
+import {financialColumnQualityReason} from '../../company/index.js';
 import {reportScopeLabel} from '../../../lib/reportingLabels.js';
 import {useScreenData} from './TerminalPanels.jsx';
 
@@ -17,10 +18,11 @@ export function FilingScreener({lang, onClose}) {
     ['eps_basic','EPS · UZS'], ['eps_closing_estimate',words(lang,'EPS прибл. · UZS','Taxminiy EPS · UZS','Estimated EPS · UZS')],
     ['book_value_per_share','BVPS · UZS'], ['price_to_book','P/BV · ×'],
     ['ebit',words(lang,'EBIT · тыс. UZS','EBIT · ming UZS','EBIT · thousand UZS')],
+    ['roce','ROCE · %'],
   ];
   const format = new Intl.NumberFormat(lang === 'en' ? 'en-US' : 'ru-RU', {maximumFractionDigits:2});
   return <section className="panel terminal-market-screen" data-terminal-standard="NSBU" data-terminal-scope={scope} data-terminal-function="EQS" data-terminal-ticker="market">
-    <header className="terminal-section-head"><h2>EPS · P/BV · EBIT</h2><button className="ghost-btn" onClick={onClose}>{words(lang,'Все показатели','Barcha ko‘rsatkichlar','All indicators')}</button></header>
+    <header className="terminal-section-head"><h2>EPS · P/BV · EBIT · ROCE</h2><button className="ghost-btn" onClick={onClose}>{words(lang,'Все показатели','Barcha ko‘rsatkichlar','All indicators')}</button></header>
     <form className="terminal-controls" onSubmit={e=>{e.preventDefault();setOffset(0);setQuery(search.trim());}}>
       <input type="search" aria-label={words(lang,'Компания или тикер','Kompaniya yoki tiker','Company or ticker')} value={search} onChange={e=>setSearch(e.target.value)} />
       <button className="ghost-btn" type="submit">{words(lang,'Найти','Qidirish','Search')}</button>
@@ -33,9 +35,10 @@ export function FilingScreener({lang, onClose}) {
         <th>{words(lang,'Тикер','Tiker','Ticker')}</th><th>{words(lang,'Период','Davr','Period')}</th>{columns.map(([k,l])=><th key={k}>{l}</th>)}
       </tr></thead><tbody>{(data.rows||[]).map(row=><tr key={row.ticker}>
         <th><a href={localizedPath('/catalog?' + new URLSearchParams({t:row.ticker,f:'RAT',filingScope:scope}),lang)}>{row.ticker}</a></th><td>{row.period||'—'}</td>
-        {columns.map(([k])=>{const r=row.metrics?.[k];const reason=r?.reason_code ? reportRatioReason(r,lang) : '';
+        {columns.map(([k])=>{const r=row.metrics?.[k];const reason=r?.reason_code
+          ? k === 'roce' ? financialColumnQualityReason(r.reason_code,(...labels)=>words(lang,...labels)) : reportRatioReason(r,lang) : '';
           return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? reason || '—' : r.raw_result || String(r.value)}>
-            {r?.value == null ? '—' : format.format(r.value)}
+            {r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
           </td>;})}
       </tr>)}</tbody></table></div>
       <div className="terminal-controls"><button className="ghost-btn" disabled={!offset} onClick={()=>setOffset(offset-limit)}>←</button>

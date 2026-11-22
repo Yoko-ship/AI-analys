@@ -164,12 +164,12 @@ test('CBSK ratios show usable values with warnings and explain unavailable value
   });
   const reports={...structuredClone(recentReports),ticker:'CBSK',issuer_name:evidence.issuer_name,
     rows:sourceRows,overview_rows:sourceRows,
-    ratios:[['roe','ROE','24.12039585222919782581105131'],['roa','ROA','20.87533122811144977968666155'],['roce','ROCE',null]].map(([metric_id,label,value])=>({
+    ratios:[['roe','ROE','24.12039585222919782581105131'],['roa','ROA','20.87533122811144977968666155'],['roce','ROCE','22.60']].map(([metric_id,label,value])=>({
       id:`ratio:${metric_id}`,metric_id,label,unit:'percent',source_form:'RAT',kind:'ratio',cells:{
         '2024':{value:null,quality:'blocked',reason:'INCOMPATIBLE_OR_BLOCKED_INPUTS',components:[{...profit,quality:'blocked'}]},
         '2025':{value:0,quality:'valid'},
-        '2026-09-30':{value,quality:value===null?'missing':'warn',annualized:true,
-          reason:value===null?'NOPAT_OR_INVESTED_CAPITAL_POLICY_MISSING':reason,components:value===null?[]:[profit]},
+        '2026-09-30':metric_id==='roce' ? {value,quality:'valid',annualized:false,basis:'ytd'}
+          : {value,quality:'warn',annualized:true,reason,components:[profit]},
       },
     })),published_ratios:[]};
   await page.setViewportSize({width:390,height:844});
@@ -181,7 +181,10 @@ test('CBSK ratios show usable values with warnings and explain unavailable value
   await expect(current.locator('.fc-value-reason')).toContainText('Source totals do not reconcile');
   await expect(roe.locator('td').first()).toContainText('Calculation blocked');
   await expect(roe.locator('td').nth(1)).toHaveText('0');
-  await expect(terminal.locator('tr[data-metric="roce"] td').last()).toContainText('NOPAT');
+  const roce = terminal.locator('tr[data-metric="roce"] td');
+  await expect(roce.last()).toContainText('22.6');
+  await expect(roce.last()).not.toContainText('annualized');
+  await expect(roce.first()).toContainText('Calculation blocked');
   await terminal.locator('.fc-scroll').evaluate(el=>{el.scrollLeft=el.scrollWidth;});
   await current.getByRole('button').click();
   const passport=page.getByRole('dialog',{name:'Source passport'});

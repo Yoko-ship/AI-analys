@@ -21,16 +21,18 @@ import company_imports
 logger = logging.getLogger(__name__)
 
 
-def universe():
-    """One row per issuer with a listed stock; never count preferred twice."""
+def universe(*, all_filings=False):
+    """One row per issuer. The filing screener includes bond-only issuers."""
     approved = company_imports.approved_metadata_map()
     securities = get_securities_map()
     stocks = {t for t, row in securities.items() if str(row.get("type") or "stock").lower() != "bond"}
-    kinds = organization.filing_org_types(stocks)
+    companies = filings.list_companies_with_stats()
+    kinds = organization.filing_org_types(
+        {t for c in companies for t in c.get('tickers') or [c['ticker']]} if all_filings else stocks)
     result = []
-    for company in filings.list_companies_with_stats():
+    for company in companies:
         tickers = company.get("tickers") or [company["ticker"]]
-        if not set(tickers) & stocks:
+        if not all_filings and not set(tickers) & stocks:
             continue
         ticker = company["ticker"]
         reviewed = [approved[t] for t in tickers if t in approved]
@@ -41,7 +43,7 @@ def universe():
         sector = imported.get("sector") or COMPANY_SECTORS.get(ticker, "other")
         kind = organization.resolve_kind(org_type=next((kinds[t] for t in tickers if kinds.get(t)), None),
                                          name=company.get("company_name"), sector=sector)
-        if kind == "financial" and any("micro" in str(kinds.get(t, "")) for t in tickers):
+        if not all_filings and kind == "financial" and any("micro" in str(kinds.get(t, "")) for t in tickers):
             continue
         result.append({**company, "name": company.get("company_name") or ticker, "sector": sector, "kind": kind,
                        "credit_metrics_applicable": organization.uses_credit_metrics(kind, company.get("company_name"))})
@@ -346,31 +348,37 @@ async def reconciliation(ticker, scope="separate"):
     return {"ok": True, "ticker": ticker, **analytics.reconcile(left, right)}
 
 def filing_metrics(scope, period, search, offset, limit):
-    """Page the equity universe before reading the selected issuers’ filings."""
+    """Page visible issuers before reading their filings."""
     from catalogue.read_batch import scope as read_scope
     from catalogue.sources import cached_report_excel_data
     from financial_analysis.report_investor_metrics import SHARE_METRICS
-    from issuer_financials import resolve_issuer
+    from financial_columns.service import filing_roce
+    from issuer_financials import period_end, resolve_issuer
     from sector_report_service import public_report, sector_report
     with read_scope():
         query = search.strip().casefold()
-        companies = sorted((c for c in universe() if query in (c['ticker'] + ' ' + (c.get('name') or '')).casefold()),
+        companies = sorted((c for c in universe(all_filings=True) if query in (' '.join(c.get('tickers') or [c['ticker']]) + ' ' + (c.get('name') or '')).casefold()),
                            key=lambda c:c['ticker'])
         rows = []
         for company in companies[offset:offset + limit]:
             ticker = company['ticker']
             item = {'ticker':ticker, 'period':None, 'metrics':{}, 'status':'no_source'}
             try:
+                item['period'], item['metrics']['roce'] = filing_roce(company, period_end(period), scope)
+                if item['metrics']['roce'].get('value') is not None:
+                    item['status'] = 'available'
                 issuer = resolve_issuer(ticker)
-                report = public_report(sector_report(issuer, 'nsbu', period, scope, 'ru', persist=False,
+                report = public_report(sector_report(issuer, 'nsbu', item['period'] or period, scope, 'ru', persist=False,
                                                      source_reader=cached_report_excel_data))
-                if report.get('scope') == scope and report.get('standard') == 'nsbu':
-                    item.update(period=report.get('period'), status=report.get('status'))
-                    item['metrics'] = {r['metric_code']: {k:r.get(k) for k in
+                if (report.get('scope') == scope and report.get('standard') == 'nsbu'
+                        and (not item['period'] or report.get('period') == item['period'])):
+                    item.update(period=report.get('period'), status=report.get('status') if item['status'] != 'available' else item['status'])
+                    item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
                         ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of')}
-                        for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}}
+                        for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
             except Exception:
                 logger.warning('Filing indicators unavailable for %s', ticker, exc_info=True)
-                item['status'] = 'source_unavailable'
+                if item['status'] != 'available':
+                    item['status'] = 'source_unavailable'
             rows.append(item)
     return {'rows':rows,'total':len(companies),'scope':scope,'standard':'NSBU'}

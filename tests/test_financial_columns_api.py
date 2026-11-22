@@ -239,7 +239,9 @@ def test_reference_view_keeps_only_named_bank_fields_and_exports_the_same_rows(s
     assert next(r for r in rows if r['source_code'] == '1л')['label'] == income['label']
     assert not any((r['source_form'], r['source_code']) in {('BANK_PL','7а'), ('BANK_PL','7в'), ('BANK_BS','31')} for r in rows)
     assert any(r['source_code'] == '1л' and r['value'] == '9447836814' for r in rows)
-    assert all(r['metric_id'] in {'roe','roa','nim','cir','cost_of_risk','loans_to_deposits'} for r in selected['ratios'])
+    assert all(r['metric_id'] in {'roe','roa','roce','nim','cir','cost_of_risk','loans_to_deposits'} for r in selected['ratios'])
+    roce = next(r for r in selected['ratios'] if r['metric_id'] == 'roce')
+    assert all(cell['reason'] == 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE' for cell in roce['cells'].values())
 
 
 def test_reference_view_rejects_unknown_view(source):

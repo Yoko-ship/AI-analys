@@ -17,13 +17,17 @@ def choose(items):
             'sources': [{k: r.get(k) for k in ('source_version', 'source_url', 'page', 'sheet', 'row', 'raw_label')} for r in items]}
 
 
-def build(observations, *, mode, recent=False, interim_ttm=False):
+def build(observations, *, mode, recent=False, interim_ttm=False, recent_ttm=False):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
     ends = sorted({r['period_end'] for r in observations})
     if mode == 'annual':
         columns = [{'key': end[:4], 'label': end[:4], 'end': end, 'basis': 'annual'} for end in ends if end.endswith('-12-31')]
         if recent:
+            if recent_ttm:
+                filed = {r['period_end'] for r in observations if r['kind'] == 'flow' and r.get('role') != 'COMPARATIVE'
+                         and r.get('period_start') == r['period_end'][:4] + '-01-01'}
+                columns = [column for column in columns if column['end'] in filed]
             columns = columns[-2:]
         if ends and not ends[-1].endswith('-12-31'):
             latest = ends[-1]
@@ -32,6 +36,9 @@ def build(observations, *, mode, recent=False, interim_ttm=False):
                 # flows from January through that date (not a rolling-year estimate).
                 columns.append({'key': latest, 'label': f'{latest[:4]} · {int(latest[5:7])}M',
                                 'end': latest, 'basis': 'ytd'})
+                if recent_ttm:
+                    columns.append({'key': 'ttm:' + latest, 'label': 'TTM · ' + latest,
+                                    'end': latest, 'basis': 'ttm'})
             else:
                 columns += [{'key': 'asof:' + latest, 'label': latest, 'end': latest, 'basis': 'as_of'},
                             {'key': 'ttm:' + latest, 'label': 'TTM · ' + latest, 'end': latest, 'basis': 'ttm'}]

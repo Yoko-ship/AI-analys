@@ -6,6 +6,7 @@ from decimal import Decimal
 from .matrix import choose
 from .periods import calculate as period_value, CONTEXT
 from .derived import enrich
+from . import capital_returns
 
 
 def calculate(observations, *, ticker, template, end, basis, enriched=False):
@@ -93,7 +94,9 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('liabilities_to_equity', 'Liabilities / equity', point('total_liabilities', end), [point('total_equity', end)], formula='total_liabilities / total_equity')
     ratio('asset_turnover', 'Asset turnover', flow('revenue'), [point('total_assets', start), point('total_assets', end)],
           formula='revenue / average(total_assets)', applicable=corporate, flow_ratio=True, annualize=True)
-    ratio('roce', 'ROCE', flow('nopat'), [point('invested_capital', start), point('invested_capital', end)],
+    result.append(capital_returns.roce(
+        (row for key in capital_returns.LINES for row in by_metric[key]), template=template, end=end, basis=basis))
+    ratio('roic', 'ROIC', flow('nopat'), [point('invested_capital', start), point('invested_capital', end)],
           factor=Decimal(100), formula='NOPAT / average(invested capital) × 100',
           applicable=corporate, unit='percent', flow_ratio=True, annualize=True, reason='NOPAT_OR_INVESTED_CAPITAL_POLICY_MISSING')
     ratio('nim', 'NIM', flow('net_interest_before_ecl'), [point('earning_assets', start), point('earning_assets', end)],

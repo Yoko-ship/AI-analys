@@ -250,9 +250,9 @@ export const TERMS = {
     uz: { term: "Aktivlar aylanmasi", def: "Tushumning aktivlarga nisbati: har bir so‘m aktiv yil davomida qancha so‘m savdo keltirishi. 1,0 — aktivlar yiliga roppa-rosa bir marta aylanadi. Savdoda yuqori, kapital talab qiladigan ishlab chiqarish va banklarda tabiatan past." },
   },
   roce: {
-    ru: { term: "ROCE (Return on Capital Employed)", def: "Отдача на задействованный капитал — собственный капитал плюс долгосрочный долг. Показывает, что зарабатывает бизнес на всех деньгах, которыми он распоряжается, а не только на деньгах акционеров. Эмитенты публикуют его коэффициентом, а не процентом: 0,07 — это 7 %." },
-    en: { term: "ROCE (return on capital employed)", def: "The return on equity plus long-term debt — what the business earns on all the money it has at its disposal, not just the shareholders'. Issuers publish it as a coefficient rather than a percent: 0.07 is 7 %." },
-    uz: { term: "ROCE (jalb qilingan kapital rentabelligi)", def: "O‘z kapitali va uzoq muddatli qarz yig‘indisiga qaytim — biznes ixtiyoridagi barcha puldan qancha topayotgani, faqat aksiyadorlar pulidan emas. Emitentlar buni foiz emas, koeffitsiyent sifatida e’lon qiladi: 0,07 — bu 7 %." },
+    ru: { term: "ROCE (Return on Capital Employed)", def: "В отчёте операционная прибыль за период делится на среднее значение активов за вычетом текущих обязательств на начало и конец периода. Результат указан в процентах. Рынок отдельно показывает годовой темп на конечном капитале." },
+    en: { term: "ROCE (return on capital employed)", def: "Filing ROCE is operating profit for the period divided by average opening and closing capital employed (assets less current liabilities), expressed as a percentage. The market board shows the annualized rate on closing capital." },
+    uz: { term: "ROCE (jalb qilingan kapital rentabelligi)", def: "Hisobotda davr operatsion foydasi davr boshidagi va oxiridagi kapitalning o‘rtachasiga bo‘linadi. Kapital aktivlardan joriy majburiyatlarni ayirish orqali aniqlanadi. Natija foizda beriladi. Bozor jadvali davr oxiridagi kapital asosidagi yillik sur’atni ko‘rsatadi." },
   },
 
   // ── Мультипликаторы ───────────────────────────────────────────────────────

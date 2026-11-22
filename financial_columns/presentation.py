@@ -86,9 +86,10 @@ def project(payload):
                                          'display_field': field['field_id'], 'display_group': group['label']})
                         used.add(row['id'])
     allowed_ratios = set(RATIOS[template][standard].split())
+    calculated = allowed_ratios | {'roce'} if standard == 'NSBU' else allowed_ratios
     return {**payload, 'presentation': 'template', 'display_template': template,
             **({'chart_rows': [r for r in payload['rows'] if r['kind'] in {'stock', 'flow'}
                               and r['source_form'] != 'DERIVED']} if standard == 'NSBU' else {}),
             'overview_rows': compact_rows(groups, selected, payload['columns']),
-            'rows': selected, 'ratios': [r for r in payload.get('ratios', []) if r['metric_id'] in allowed_ratios],
+            'rows': selected, 'ratios': [r for r in payload.get('ratios', []) if r['metric_id'] in calculated],
             'published_ratios': [r for r in payload.get('published_ratios', []) if r['field'] in allowed_ratios]}
