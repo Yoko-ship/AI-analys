@@ -132,11 +132,8 @@ def main():
             parser.error("retry requires --id, --actor and --reason")
         with store.transaction() as c:
             for job_id in args.ids:
-                changed = c.execute("UPDATE ingest_jobs SET state='QUEUED',attempts=0,available_at=0,error=NULL,updated_at=? "
-                                    "WHERE id=? AND state='FAILED'", (store.now(), job_id))
-                if changed.rowcount != 1:
+                if not store.retry_failed(c, job_id, actor=args.actor, reason=args.reason):
                     raise ValueError("Only failed jobs can be retried explicitly")
-                store.event(c, job_id, "job.retry_requested", actor=args.actor, reason=args.reason)
         result = {"retried": args.ids}
     print(json.dumps(result, ensure_ascii=False))
     return 1 if args.command in {"work", "cycle"} and any(not x["ok"] for x in result["outcomes"]) else 0

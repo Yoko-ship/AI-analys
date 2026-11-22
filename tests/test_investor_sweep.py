@@ -325,3 +325,25 @@ def test_reported_eps_backfill_checks_fresh_listings_before_both_rounds(monkeypa
     result = investor_sweep.backfill_statements()
     assert events == ['ALSM','HMKB','sha1','sha2']
     assert result['statements_checked'] == 2 and not result['errors']
+
+
+def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tmp_path):
+    import ifrs_financials
+    from catalogue import sources
+    from financial_ingestion import documents, investor_sweep, store
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path / 'files'))
+    url = 'https://openinfo.uz/media/msfo/unavailable.pdf'
+    with store.transaction() as c:
+        c.execute("INSERT INTO catalog_companies(ticker,org_id,company_name) VALUES ('BIOK','396','Biokimyo')")
+        source = documents.register(c, org_id='396', ticker='BIOK', url=url, category='MSFO',
+                                    processor='test', metadata={'status':'approved','period_type':'annual'})
+    store.fail(store.claim(source_id=source, stages=('FETCH',)), 'Old upstream failure', max_attempts=1)
+    monkeypatch.setattr(sources, '_fetch_main_results', lambda *args: ([], None))
+    downloads = []
+    monkeypatch.setattr(ifrs_financials, 'download_pdf',lambda url, **kw: downloads.append(url) or b'%PDF-recovered')
+    monkeypatch.setattr(investor_sweep.investor_eps, 'archived_statements', lambda sha: [])
+    for _ in range(2):
+        result = investor_sweep.backfill_statements()
+        assert not result['errors'] and result['statements_checked'] == 1
+    assert downloads == [url]

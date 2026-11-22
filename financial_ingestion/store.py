@@ -213,6 +213,15 @@ def fail(job, error, *, max_attempts=3):
                   (time.time() + min(3600, 60 * 2 ** (job["attempts"] - 1)), job["id"]))
 
 
+def retry_failed(c, job_id, *, actor, reason):
+    changed = c.execute("UPDATE ingest_jobs SET state='QUEUED',attempts=0,available_at=0,error=NULL,updated_at=? "
+                        "WHERE id=? AND state='FAILED'", (now(), job_id))
+    if changed.rowcount == 1:
+        event(c, job_id, "job.retry_requested", actor=actor, reason=reason)
+        return True
+    return False
+
+
 def status(org_id=None):
     c = connect()
     try:

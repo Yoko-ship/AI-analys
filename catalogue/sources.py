@@ -97,6 +97,19 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
 
             continue
 
+        if isinstance(payload, dict) and payload.get("next") and isinstance(payload.get("count"), int):
+            # Name search may match the whole market. Re-query the approval feed
+            # using the tax number returned by this issuer's own filings.
+            if payload["count"] > 20 * len(payload.get("results") or ()):
+                identity = _json_get(session, "/reports/unified-financial-reports/",
+                                     {"organization": org_id, "page": 1, "page_size": 1})
+                tax_numbers = {str(item.get("organization_inn", "")) for item in identity.get("results", [])
+                               if str(item.get("organization_id")) == str(org_id)}
+                if len(tax_numbers) != 1 or not re.fullmatch(r"[0-9]{9}", next(iter(tax_numbers), "")):
+                    raise RuntimeError("OpenInfo listing exceeded the bounded discovery window without a confirmed issuer tax number")
+                query = tax_numbers.pop()
+                payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": query})
+
         results = list(payload.get("results") or []) if isinstance(payload, dict) else []
 
         # The unified feed is paginated. Finding one recent issuer record does

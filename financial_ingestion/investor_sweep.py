@@ -221,7 +221,16 @@ def backfill_statements():
                 log.info('Filing registry: %s, %s originals', ticker, count)
             except Exception as exc:
                 result['errors'].append({'issuer_id':org, 'stage':'listing', 'error':str(exc)})
-    for filings in _filing_rounds({str(c['org_id']) for c in companies}):
+    rounds = _filing_rounds({str(c['org_id']) for c in companies})
+    with store.transaction() as conn:
+        for filings in rounds:
+            for _, _, source, sha in filings:
+                if not sha:
+                    failed = conn.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND stage='FETCH' AND state='FAILED'",
+                                          (source,)).fetchall()
+                    for job in failed:
+                        store.retry_failed(conn, job['id'], actor='bulk-cli', reason='Explicit reported EPS backfill')
+    for filings in rounds:
         _scan_statements(filings, result)
     return result
 

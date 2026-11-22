@@ -120,10 +120,7 @@ def prepare_jobs(org_ids, *, ocr=False, retry_failed=False):
                 jobs = c.execute("SELECT id FROM ingest_jobs WHERE source_id=? AND state='FAILED'",
                                  (source["id"],)).fetchall()
                 for job in jobs:
-                    c.execute("UPDATE ingest_jobs SET state='QUEUED',attempts=0,available_at=0,error=NULL,updated_at=? WHERE id=?",
-                              (store.now(), job["id"]))
-                    store.event(c, job["id"], "job.retry_requested", actor="bulk-cli", reason="--retry-failed")
-                    retried += 1
+                    retried += store.retry_failed(c, job["id"], actor="bulk-cli", reason="--retry-failed")
     return {"failed_jobs_retried": retried, "ocr_sources_scheduled": upgrades}
 
 

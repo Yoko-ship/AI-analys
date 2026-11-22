@@ -246,6 +246,28 @@ def test_unified_discovery_reads_later_pages(monkeypatch):
     assert calls == [1, 2] and len(rows) == 201 and kind == "bank"
 
 
+@pytest.mark.parametrize('identity_org', [383, 735])
+def test_uzmk_overbroad_name_search_uses_its_official_tax_number(monkeypatch, identity_org):
+    # OpenInfo spelling differs between the catalogue and the issuer's live filing.
+    calls = []
+    def fetch(session, path, params):
+        calls.append((path, params.copy()))
+        if path == '/reports/unified-financial-reports/':
+            assert str(params['organization']) == '383'
+            return {'results':[{'organization_id':identity_org, 'organization_inn':200460222}]}
+        if params.get('search') == '200460222':
+            return {'count':2, 'results':[{'id':2796,'organization':383}, {'id':3073,'organization':735}], 'next':None}
+        return {'count':25138,'results':[{'id':31948,'organization':244}],'next':True}
+    monkeypatch.setattr(catalogue_sources, '_json_get', fetch)
+    if identity_org == 383:
+        rows, _ = catalogue_sources._fetch_main_results(None, "O'zmetkombinat AJ", 383)
+        assert [r['id'] for r in rows] == [2796]
+    else:
+        with pytest.raises(RuntimeError, match='discovery window'):
+            catalogue_sources._fetch_main_results(None, "O'zmetkombinat AJ", 383)
+    assert all(params.get('page', 1)==1 for _,params in calls)
+
+
 def test_repeated_discovery_page_is_an_explicit_failure(monkeypatch):
     monkeypatch.setattr(catalogue_sources, "_json_get", lambda *a: {"results": [{"id": n, "organization": 23} for n in range(200)], "next": True})
     with pytest.raises(RuntimeError, match="repeated"):
