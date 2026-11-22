@@ -376,6 +376,11 @@ def filing_metrics(scope, period, search, offset, limit):
                     item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
                         ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of')}
                         for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
+                    for r in report['ratios']:
+                        if r.get('last_verified') and r['metric_code'] in item['metrics']:
+                            item['metrics'][r['metric_code']]['last_verified'] = {
+                                k:r['last_verified'][k] for k in ('value','raw_result','period_start','period_end','market_as_of')
+                                if k in r['last_verified']}
             except Exception:
                 logger.warning('Filing indicators unavailable for %s', ticker, exc_info=True)
                 if item['status'] != 'available':

@@ -1,5 +1,17 @@
 const pick=(lang,ru,uz,en)=>({ru,uz,en}[lang]||ru);
 
+export function displayReportRatio(item, lang) {
+  const last = item?.last_verified;
+  if (item?.value != null || last?.value == null || !last.period_end) return item;
+  const label = last.period_start
+    ? pick(lang, 'Последнее подтверждённое значение за период', 'Oxirgi tasdiqlangan davr', 'Last verified for')
+    : pick(lang, 'Последнее подтверждённое значение на', 'Oxirgi tasdiqlangan qiymat sanasi', 'Last verified as of');
+  const period = last.period_start ? last.period_start + ' – ' + last.period_end : last.period_end;
+  const quoteLabel = last.market_as_of ? pick(lang, 'Котировка', 'Kotirovka', 'Quote') + ' ' + last.market_as_of : '';
+  return {...item, ...last, reason_code:null, market_as_of:last.market_as_of, asOfLabel:label + ' ' + period, quoteLabel,
+    datedExport:String(last.raw_result ?? last.value) + ' (' + [period, quoteLabel].filter(Boolean).join(', ') + ')'};
+}
+
 export function reportRatioUnit(unit,lang){
   if(['percent','%'].includes(unit))return '%';
   if(unit==='UZS_thousand')return pick(lang,' тыс. UZS',' ming UZS',' thousand UZS');

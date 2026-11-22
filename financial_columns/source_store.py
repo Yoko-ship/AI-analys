@@ -113,6 +113,18 @@ def read(issuer_id, *, standard, scope, period_end=None, latest=False):
         c.close()
 
 
+def prior_dates(issuer_id, *, standard, scope, end):
+    c = get_catalog_conn()
+    try:
+        if 'financial_form_heads' not in dbx.tables(c):
+            return []
+        return [r['period_end'] for r in c.execute(
+            'SELECT period_end FROM financial_form_heads WHERE issuer_id=? AND standard=? AND scope=? AND period_end<?',
+            (str(issuer_id), standard, scope, end))]
+    finally:
+        c.close()
+
+
 def version(version_id):
     c = get_catalog_conn()
     try:

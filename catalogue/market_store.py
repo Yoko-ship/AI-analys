@@ -422,10 +422,13 @@ def quote_at(isin, as_of):
     try:
         row = conn.execute(
             "SELECT isin, trade_date, close_price FROM catalog_quote_history "
-            "WHERE isin=? AND trade_date<=? AND close_price>0 AND "
-            "(quantity>0 OR turnover>0 OR trade_count>0) ORDER BY trade_date DESC LIMIT 1",
-            (isin, as_of)).fetchone()
-        return dict(row) if row else {}
+            "WHERE isin=? AND REPLACE(trade_date,'-','')<=? AND close_price>0 AND "
+            "(quantity>0 OR turnover>0 OR trade_count>0) ORDER BY REPLACE(trade_date,'-','') DESC, trade_date LIMIT 1",
+            (isin, as_of.replace('-', ''))).fetchone()
+        if not row:
+            return {}
+        stamp = row['trade_date'].replace('-', '')
+        return {**dict(row), 'trade_date': f'{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}'}
     finally:
         conn.close()
 

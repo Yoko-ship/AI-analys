@@ -1,7 +1,7 @@
 import React from 'react';
 import {localizedPath} from '../../../lib/languagePath.js';
 import {words} from '../../../shared/TerminalTables.jsx';
-import {reportRatioReason} from '../../../lib/reportRatioDisplay.js';
+import {displayReportRatio,reportRatioReason} from '../../../lib/reportRatioDisplay.js';
 import {financialColumnQualityReason} from '../../company/index.js';
 import {reportScopeLabel} from '../../../lib/reportingLabels.js';
 import {useScreenData} from './TerminalPanels.jsx';
@@ -35,10 +35,12 @@ export function FilingScreener({lang, onClose}) {
         <th>{words(lang,'Тикер','Tiker','Ticker')}</th><th>{words(lang,'Период','Davr','Period')}</th>{columns.map(([k,l])=><th key={k}>{l}</th>)}
       </tr></thead><tbody>{(data.rows||[]).map(row=><tr key={row.ticker}>
         <th><a href={localizedPath('/catalog?' + new URLSearchParams({t:row.ticker,f:'RAT',filingScope:scope}),lang)}>{row.ticker}</a></th><td>{row.period||'—'}</td>
-        {columns.map(([k])=>{const r=row.metrics?.[k];const reason=r?.reason_code
+        {columns.map(([k])=>{const r=displayReportRatio(row.metrics?.[k],lang);const reason=r?.reason_code
           ? k === 'roce' ? financialColumnQualityReason(r.reason_code,(...labels)=>words(lang,...labels)) : reportRatioReason(r,lang) : '';
-          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? reason || '—' : r.raw_result || String(r.value)}>
+          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? reason || '—' : r.datedExport || r.raw_result || String(r.value)}>
             {r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
+            {r?.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
+            {r?.quoteLabel && <div className="muted">{r.quoteLabel}</div>}
           </td>;})}
       </tr>)}</tbody></table></div>
       <div className="terminal-controls"><button className="ghost-btn" disabled={!offset} onClick={()=>setOffset(offset-limit)}>←</button>

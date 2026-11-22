@@ -205,6 +205,27 @@ test("blocked reports keep a dated prior report and never open empty details", a
   expect(width.scroll).toBeLessThanOrEqual(width.client);
 });
 
+test("the company card shows dated verified ratios when a filing is missing", async ({ page }) => {
+  await api(page, {...PUBLIC_REPORT, status:'no_source', ratios:[{
+    metric_code:'book_value_per_share', value:null, unit:'UZS_per_share',
+    last_verified:{value:2530.163074, period_end:'2026-06-30'}
+  },{
+    metric_code:'price_to_book', value:null, unit:'ratio', name_ru:'P/BV',
+    last_verified:{value:0.43, period_end:'2025-03-31',market_as_of:'2025-05-20'}
+  },{
+    metric_code:'eps_basic', value:null, unit:'UZS_per_share', name_ru:'EPS',
+    last_verified:{value:13.90, period_start:'2025-01-01', period_end:'2025-12-31'}
+  }]});
+  await page.goto('/company/UZMK');
+  const card = page.getByTestId('company-insight-card');
+  await expect(card).toContainText('2 530,16 UZS/акция');
+  await expect(card).toContainText('Последнее подтверждённое значение на 2026-06-30');
+  await expect(card).toContainText('0,43 ×');
+  await expect(card).toContainText('2025-05-20');
+  await expect(card).toContainText('13,9 UZS/акция');
+  await expect(card).toContainText('2025-01-01');
+});
+
 test("mapping problems are explained without internal parser language", async ({ page }) => {
   await api(page, {
     ...REPORT, status: "mapping_failed", headline: "Не удалось сопоставить строки отчётности.",

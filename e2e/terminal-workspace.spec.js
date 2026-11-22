@@ -866,6 +866,21 @@ for (const [role,user,admin] of [['guest',null,false],['member',{id:2},false],['
   }
 });
 
+test('BVPS displays the last verified filing date and value when the selected period has no share count', async ({page}) => {
+  await fixture(page, [{ticker:'KVTS',company_name:'Kvarts',sector:'manufacturing'}]);
+  await page.route('**/api/v1/issuers/KVTS/ai-report?**', route => route.fulfill({json:{
+    ok:true, status:'available', period:'2026Q3', standard:'nsbu', scope:'separate',
+    ratios:[{metric_code:'book_value_per_share', name_ru:'Балансовая стоимость акции (BVPS)',
+      unit:'UZS_per_share', value:null, last_verified:{value:2530.163074, period_end:'2026-06-30',
+        share_disclosure_url:'https://docs.kvarts.uz/uz/redirect.php?dlid=298'}}],
+  }}));
+  await run(page, 'KVTS RAT');
+  const row = page.locator('.terminal-sector-metrics').getByRole('row').filter({hasText:'BVPS'});
+  await expect(row).toContainText('2 530,16');
+  await expect(row).toContainText('2026-06-30');
+  await expect(row.getByRole('link')).toHaveAttribute('href', /dlid=298/);
+});
+
 test('BIOK P/BV uses Yangiyul’s filed shares and mobile EPS shows the missing basis', async ({page}, testInfo) => {
   await page.setViewportSize({width: 390, height: 844});
   const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';

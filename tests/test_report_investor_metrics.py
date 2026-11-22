@@ -23,6 +23,154 @@ def metrics(report):
     return {r['metric_code']: r for r in service.public_report(report)['ratios']}
 
 
+@pytest.mark.parametrize('treasury', [0, 100])
+def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch, treasury):
+    report.update(period='2026Q3', financial_as_of='2026-09-30')
+    report['issuer'].update(id='78', ticker='ABKZ', name='Andijon biokimyo zavodi')
+    report['verified_facts'] = [dict(metric_code=k, value=v, period='2026Q3',
+                                     unit_normalized='thousand UZS', verification_status='verified')
+                                for k,v in [('total_assets',136766523), ('total_equity',94790492)]]
+    rows = source_rows(report, share_capital=24070520, treasury_shares=treasury)
+    inject(monkeypatch, [{**r, 'period_end':'2026-09-30', 'period_start':'2026-09-30'} for r in rows])
+    out = metrics(report)
+    book = out['book_value_per_share']
+    if treasury:
+        assert book['value'] is None
+        return
+    assert book['value'] == pytest.approx(16051.42049847)
+    assert book['denominator_value'] == 5905427
+    assert book['share_disclosure_url'].startswith('https://www.uzse.uz/')
+    assert out['eps_basic']['value'] is None
+
+
+@pytest.mark.parametrize('status', ['available','no_source'])
+def test_last_verified_book_value_uses_both_inputs_from_same_older_filing(biok_report, monkeypatch, status):
+    import issuer_financials
+    old = deepcopy(biok_report)
+    old['sources'] = [{'publication_date':'2025-01-06','url':old['sources'][0]['url']}]
+    import_basis(share_basis())
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda _: old['issuer'])
+    monkeypatch.setattr(service, 'sector_report', lambda *args, **kw: deepcopy(old))
+    biok_report.update(period='2025', financial_as_of='2025-12-31', status=status)
+    biok_report['verified_facts'] = [{**f, 'period':'2025', 'value': f['value'] * 2}
+                                     for f in old['verified_facts']]
+    result = metrics(biok_report)
+    book = result['book_value_per_share']
+    assert book['value'] is None
+    assert book['last_verified']['period_end'] == '2024-12-31'
+    assert book['last_verified']['value'] == pytest.approx(143292694000 / 5713280)
+    assert book['last_verified']['share_disclosure_url'] == share_basis()['source_url']
+    assert result.get('price_to_book', {}).get('value') is None
+    assert result.get('eps_basic', {}).get('value') is None
+    eps = result['eps_basic']['last_verified']
+    assert eps['value'] == pytest.approx(26037647000 / 5713280)
+    assert (eps['period_start'], eps['period_end']) == ('2024-01-01', '2024-12-31')
+    pb = result['price_to_book']['last_verified']
+    assert pb['value'] == pytest.approx(10000 / book['last_verified']['value'])
+    assert pb['market_as_of'] == '2025-01-06'
+    biok_report['scope'] = 'consolidated'
+    assert not metrics(biok_report).get('book_value_per_share', {}).get('last_verified')
+    biok_report.update(scope='separate', period='2023', financial_as_of='2023-12-31')
+    assert not metrics(biok_report).get('book_value_per_share', {}).get('last_verified')
+
+
+@pytest.mark.parametrize('ticker,org,year,profit,shares', [
+    ('KVTS','445','2025',1340874.93,96449218), ('ABKZ','78','2023',10157483,5905427)])
+def test_parent_profit_uses_audited_weighted_average(report, ticker, org, year, profit, shares):
+    from financial_columns import share_disclosures
+    from financial_analysis.report_investor_metrics import calculate
+    report.update(period=year, financial_as_of=year+'-12-31')
+    report['issuer'].update(id=org, ticker=ticker)
+    report['verified_facts'] = [dict(metric_code='net_income', value=profit, period=year,
+        unit_normalized='thousand UZS', verification_status='verified')]
+    basis = share_disclosures.read(org, ticker, report['financial_as_of'], 'separate')
+    earnings = next(r for r in calculate(report, [], basis) if r['metric_code'] == 'eps_basic')
+    assert earnings['value'] == pytest.approx(profit * 1000 / shares)
+    assert earnings['denominator_value'] == shares
+
+
+def test_biok_2026_ytd_earnings_use_reviewed_share_movements(report):
+    from financial_columns import share_disclosures
+    from financial_analysis.report_investor_metrics import calculate
+    report.update(period='2026Q3', financial_as_of='2026-09-30')
+    report['issuer'].update(id='396', ticker='BIOK')
+    report['verified_facts'] = [dict(metric_code='net_income', value=12628226, period='2026Q3',
+        unit_normalized='thousand UZS', verification_status='verified')]
+    basis = share_disclosures.read('396', 'BIOK', '2026-09-30', 'separate')
+    earnings = next(r for r in calculate(report, [], basis) if r['metric_code'] == 'eps_basic')
+    assert earnings['value'] == pytest.approx(12628226000 / 5713280)
+    assert earnings['denominator_value'] == 5713280
+
+
+def test_abkz_historical_valuation_uses_last_trade_before_next_public_filing(monkeypatch):
+    from catalogue import market_store
+    from financial_columns import share_disclosures
+    from financial_analysis.report_investor_metrics import _historical_instrument
+    basis = share_disclosures.read('78', 'ABKZ', '2025-03-31', 'separate')
+    assert basis['ordinary_shares'] == '5905427'
+    rows = [{'period':'2025Q2','published_at':'2025-07-28T15:12:08'},
+            {'period':'2026Q3','published_at':'2026-10-30'}]
+    old = {'issuer':{'id':'78','ticker':'ABKZ'}, 'financial_as_of':'2025-03-31',
+           'instrument':{'instrument_type':'ordinary_share','ticker':'ABKZ','isin':None},
+           'sources':[{'publication_date':'2025-04-29'}]}
+    def quote(isin, cap):
+        assert isin == 'UZ7047650005'
+        assert cap == '2025-07-27'
+        return {'isin':isin,'trade_date':'2025-05-20','close_price':6100}
+    monkeypatch.setattr(market_store, 'quote_at', quote)
+    matched = _historical_instrument(old, basis, rows, '2026-11-22')
+    assert (matched['market_as_of'], matched['valuation_as_of'], matched['last_price']) == ('2025-05-20','2025-05-20',6100)
+    assert _historical_instrument(old, basis, [{'period':'2025Q1','published_at':'2025-04-29'}],
+                                  '2025-07-27')['market_as_of'] == '2025-05-20'
+    old['instrument']['isin'] = 'UZ7025770007'
+    assert _historical_instrument(old, basis, rows, '2026-11-22').get('last_price') is None
+
+
+def test_latest_trade_uses_newer_archived_biok_close_and_respects_a_historical_cutoff(monkeypatch):
+    from catalogue import market_store
+    from datetime import date
+    quote = {'isin':'UZ7025870005','trade_date':'20261106','close_price':14450}
+    archived = {'isin':quote['isin'],'trade_date':'2026-11-20','close_price':14558.99}
+    monkeypatch.setattr(market_store,'quote_at',lambda isin,end: archived if end >= '2026-11-20' else {})
+    assert service._report_quote(quote,quote['isin'],date(2026,11,22))['close_price'] == 14558.99
+    assert service._report_quote(quote,quote['isin'],date(2026,11,10)) == quote
+    assert service._report_quote(quote,quote['isin'],date(2026,10,20)) == {}
+    assert service._report_quote({**quote,'trade_date':'20261120','close_price':None},quote['isin'],date(2026,11,20)) == archived
+
+
+def test_unavailable_optional_history_keeps_current_report(report, monkeypatch):
+    from financial_columns import share_disclosures
+    def unavailable(*args):
+        raise OSError('optional history unavailable')
+    monkeypatch.setattr(share_disclosures,'prior_dates',unavailable)
+    assert metrics(report)['book_value']['value'] == 6375622697.23
+
+
+def test_expired_trade_on_latest_balance_is_preserved_as_a_dated_valuation(biok_report,monkeypatch):
+    from catalogue import market_store
+    from financial_analysis.report_investor_metrics import project
+    import_basis(share_basis())
+    biok_report['instrument'].update(isin='UZ7025870005',market_as_of='2025-03-12',valuation_as_of='2025-10-01',
+                                     freshness={'status':'very_stale'},last_price=10000)
+    biok_report['sources']=[{'publication_date':'2025-03-10','url':'https://openinfo.uz/'}]
+    monkeypatch.setattr(market_store,'quote_at',lambda isin,day: {'isin':isin,'trade_date':'2025-03-12','close_price':10000})
+    item=next(r for r in project(biok_report)['ratios'] if r['metric_code']=='price_to_book')
+    assert item['value'] is None
+    assert item['last_verified']['value'] == pytest.approx(10000 / (143292694000 / 5713280))
+    assert (item['last_verified']['period_end'],item['last_verified']['market_as_of']) == ('2024-12-31','2025-03-12')
+
+
+def test_kvts_june_charter_and_openinfo_balance(report, monkeypatch):
+    report['issuer'].update(id='445', ticker='KVTS', name='Kvarts')
+    report['verified_facts'] = [dict(metric_code=k, value=v, period='2026Q2',
+        unit_normalized='thousand UZS', verification_status='verified')
+        for k,v in [('total_assets',506127021.21), ('total_equity',244032249.94)]]
+    inject(monkeypatch, source_rows(report, share_capital=165410409, treasury_shares=0))
+    book = metrics(report)['book_value_per_share']
+    assert book['value'] == pytest.approx(244032249940 / 96449218)
+    assert book['denominator_value'] == 96449218
+
+
 @pytest.mark.parametrize('missing_short_debt', [False, True])
 def test_cbsk_q2_short_term_loans_are_debt_and_missing_is_not_zero(monkeypatch, missing_short_debt):
     case = json.loads((Path(__file__).parent / 'fixtures/cbsk_2026q2_investor_inputs.json').read_text())
@@ -122,7 +270,10 @@ def test_real_q3_debt_is_blocked_by_balance_discrepancies_but_not_unrelated_inco
     source = {r['metric_id']: r for r in _load(report) if r['role'] == 'PRIMARY'}
     assert source[invalid_metric]['reason'] == reason
     assert source['total_equity']['quality'] == 'valid'
-    debt = metrics(report)['interest_debt_to_equity']
+    indicators = metrics(report)
+    if ticker == 'kvts':
+        assert indicators['ebit']['value'] == pytest.approx(50531291.18)
+    debt = indicators['interest_debt_to_equity']
     assert debt['value'] == (pytest.approx(expected) if expected is not None else None)
     if expected is not None:
         assert debt['numerator_value'] == debt_total
@@ -510,9 +661,9 @@ def test_openinfo_equity_attachment_is_checked_against_reviewed_basis(tmp_path, 
             reviewed.update(weighted_average_shares='5700000', ordinary_only=True)
             reviewed['source_lines'].update(weighted_average_shares='Test-only audited period average',
                                             ordinary_only='Test-only period-wide rights evidence')
-        path = tmp_path / 'reviewed.json'
-        path.write_text(json.dumps([reviewed]), encoding='utf-8')
-        monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
+    path = tmp_path / 'reviewed.json'
+    path.write_text(json.dumps([] if variant in {'new','wrong_issuer'} else [reviewed]), encoding='utf-8')
+    monkeypatch.setattr(share_disclosures, 'REVIEWED', path)
     calls = []
     def detail(session, path):
         assert path == '/reports/jsc/quarter/18938/'
@@ -714,7 +865,7 @@ def test_historical_quote_is_only_taken_from_same_issue_on_or_before_publication
     monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'history.db'))
     c=get_catalog_conn()
     with c:
-        for isin, day, price in [('UZ7047650005','2025-07-01',8000),('UZ7047650005','2025-07-11',9000),
+        for isin, day, price in [('UZ7047650005','20250701',8000),('UZ7047650005','2025-07-11',9000),
                                 ('UZ7025870005','2025-07-04',7000)]:
             c.execute('INSERT INTO catalog_quote_history(isin,trade_date,close_price,quantity) VALUES(?,?,?,?)',(isin,day,price,1))
     c.close()

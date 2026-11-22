@@ -21,7 +21,8 @@ from catalogue.storage import get_catalog_conn
 
 FIELDS = {'issuer_id', 'ticker', 'period_start', 'period_end', 'scope', 'source_url',
           'source_standard', 'ordinary_shares', 'weighted_average_shares',
-          'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit', 'isin', 'share_intervals', 'capital_changes'}
+          'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit', 'isin', 'share_intervals', 'capital_changes',
+          'closing_share_capital_thousand'}
 REVIEWED = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_share_disclosures.json'
 KEY_COLUMNS = 'issuer_id,ticker,period_end,scope'
 
@@ -102,6 +103,10 @@ def _validate(value):
         data[key] = str(number)
     if not any(k in data for k in ('ordinary_shares', 'weighted_average_shares')):
         raise ValueError('At least one disclosed share count is required')
+    if 'closing_share_capital_thousand' in data:
+        capital = Decimal(str(data['closing_share_capital_thousand']))
+        if not capital.is_finite() or capital <= 0 or 'ordinary_shares' not in data:
+            raise ValueError('A charter count requires positive corroborating share capital')
     for field in ('ordinary_only', 'ordinary_only_at_end'):
         if type(data.get(field, False)) is not bool:
             raise ValueError('Ordinary-share rights must be explicit')
@@ -197,6 +202,35 @@ def _has_eps_basis(data):
             and data['period_start'] == f"{data['period_end'][:4]}-01-01")
 
 
+def filing_keys():
+    keys = set(_reviewed(REVIEWED))
+    c = get_catalog_conn()
+    try:
+        if 'share_disclosure_heads' in dbx.tables(c):
+            keys.update(tuple(r[k] for k in ('issuer_id','ticker','period_end','scope'))
+                        for r in c.execute('SELECT issuer_id,ticker,period_end,scope FROM share_disclosure_heads'))
+        return keys
+    finally:
+        c.close()
+
+
+def prior_dates(issuer_id, ticker, end, scope):
+    """Dates with independently reviewed share evidence, including imported Form 5s."""
+    issuer_id, ticker = str(issuer_id), ticker.upper()
+    dates = {day for org, symbol, day, perimeter in _reviewed(REVIEWED)
+             if (org, symbol, perimeter) == (issuer_id, ticker, scope) and day < end}
+    c = get_catalog_conn()
+    try:
+        if 'share_disclosure_heads' in dbx.tables(c):
+            rows = c.execute('SELECT period_end FROM share_disclosure_heads '
+                             'WHERE issuer_id=? AND ticker=? AND scope=? AND period_end<?',
+                             (issuer_id, ticker, scope, end))
+            dates.update(r['period_end'] for r in rows)
+    finally:
+        c.close()
+    return dates
+
+
 def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
     key = (str(issuer_id), ticker.upper(), end, scope)
     reviewed = _reviewed(REVIEWED).get(key) if include_reviewed else None
@@ -282,25 +316,31 @@ def form5_basis(workbook, *, ticker, issuer_id, tin, period_end):
                         'ordinary_shares': str(ordinary), 'ordinary_only_at_end': only, 'source_lines': lines})
     return matches[0] if matches and all(basis == matches[0] for basis in matches) else None
 
-def collect_form5(session, *, ticker, issuer_id, period_end, excel_url):
-    """Import a supplement attached to the same official OpenInfo filing."""
+def filing_key(excel_url):
     from urllib.parse import parse_qs
-    from collectors.openinfo.transport import _json_get
-    from catalogue.history import _parse_workbook_uncached
-
-    if not str(issuer_id or '').isdigit():
-        return False
     source = urlparse(excel_url or '')
     if (source.scheme, source.netloc, source.path) != (
         'https', 'new-api.openinfo.uz', '/api/v2/reports/export-excel/',
     ):
-        return False
+        return None
     query = parse_qs(source.query)
     report_type = (query.get('report_type') or [''])[0]
     org_type = (query.get('org_type') or [''])[0]
     report_id = (query.get('report_id') or [''])[0]
     if report_type not in {'annual', 'quarter'} or not re.fullmatch(r'[a-z_]+', org_type) or not report_id.isdigit():
+        return None
+    return org_type, report_type, report_id
+
+
+def collect_form5(session, *, ticker, issuer_id, period_end, excel_url):
+    """Import a supplement attached to the same official OpenInfo filing."""
+    from collectors.openinfo.transport import _json_get
+    from catalogue.history import _parse_workbook_uncached
+
+    key = filing_key(excel_url)
+    if not key or not str(issuer_id or '').isdigit():
         return False
+    org_type, report_type, report_id = key
     if read(issuer_id, ticker, period_end, 'separate', include_reviewed=False):
         return False
     detail = _json_get(session, f'/reports/{org_type}/{report_type}/{report_id}/')

@@ -1,1 +1,123 @@
-[]
+[
+  {
+    "issuer_id": "445",
+    "ticker": "KVTS",
+    "isin": "UZ7025770007",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "MSFO",
+    "source_url": "https://openinfo.uz/media/int_report/46fc5ec0-ae52-4c80-b78a-e62023537024.pdf",
+    "unit": "shares",
+    "ordinary_shares": "96449218",
+    "weighted_average_shares": "96449218",
+    "ordinary_only": true,
+    "source_lines": {
+      "ordinary_shares": "Note 14, share capital of the parent, 31 December 2025: 96,449,218 outstanding ordinary shares.",
+      "weighted_average_shares": "Note 14, earnings per share table: weighted average ordinary shares outstanding in 2025, 96,449,218.",
+      "ordinary_only": "Note 14 identifies the entire paid-up share capital as ordinary shares. The parent filing supplies its own earnings.",
+      "parent_filing": "https://openinfo.uz/ru/reports/jsc/annual/6078"
+    }
+  },
+  {
+    "issuer_id": "78",
+    "ticker": "ABKZ",
+    "isin": "UZ7047650005",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb2dnIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--cb81c8ce58461e50a9a0b9d3366ca2170cc13558/%D0%96%D0%B0%D0%BC%D0%B8%D1%8F%D1%82_%D1%83%D1%81%D1%82%D0%B0%D0%B2%D0%B8_2024.pdf",
+    "unit": "shares",
+    "ordinary_shares": "5905427",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "24070520",
+    "source_lines": {
+      "ordinary_shares": "Charter §5.1.1 specifies 5,905,427 placed ordinary shares at 4,076 UZS. OpenInfo Q3 filing 19190, Form 1 lines 410 and 440, confirms matching registered capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §4.2 identifies the entire capital of 24,070,520,452 UZS as ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19190"
+    }
+  },
+  {
+    "issuer_id": "445",
+    "ticker": "KVTS",
+    "isin": "UZ7025770007",
+    "period_start": "2026-06-30",
+    "period_end": "2026-06-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://docs.kvarts.uz/uz/redirect.php?dlid=298",
+    "unit": "shares",
+    "ordinary_shares": "96449218",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "165410409",
+    "source_lines": {
+      "ordinary_shares": "Charter approved 27 February 2026, §3.2: 96,449,218 ordinary shares at 1,715 UZS. June Form 1 lines 410 and 440 report matching capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §3.2 allocates the entire registered capital of 165,410,408,870 UZS to ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/ru/reports/jsc/quarter/18653"
+    }
+  },
+  {
+    "issuer_id": "78",
+    "ticker": "ABKZ",
+    "isin": "UZ7047650005",
+    "period_start": "2025-03-31",
+    "period_end": "2025-03-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb2dnIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--cb81c8ce58461e50a9a0b9d3366ca2170cc13558/%D0%96%D0%B0%D0%BC%D0%B8%D1%8F%D1%82_%D1%83%D1%81%D1%82%D0%B0%D0%B2%D0%B8_2024.pdf",
+    "unit": "shares",
+    "ordinary_shares": "5905427",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "24070520",
+    "source_lines": {
+      "ordinary_shares": "Charter §5.1.1 specifies 5,905,427 placed ordinary shares at 4,076 UZS. The March 2025 filing confirms registered capital of 24,070,520 thousand UZS and zero treasury shares in Form 1 lines 410 and 440.",
+      "ordinary_only_at_end": "Charter §4.2 identifies the entire capital of 24,070,520,452 UZS as ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/ru/reports/jsc/quarter/16981"
+    }
+  },
+  {
+    "issuer_id": "396",
+    "ticker": "BIOK",
+    "isin": "UZ7025870005",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/int_report/acd94734-d796-4ec0-b21f-9c2ae1067b8a.xlsx",
+    "unit": "shares",
+    "share_intervals": [
+      {
+        "from": "2026-01-01",
+        "issued": "5713280",
+        "treasury": "0"
+      }
+    ],
+    "ordinary_only": true,
+    "source_lines": {
+      "share_intervals": "Form 5 lines 010, 020, 110 and 152: unchanged statutory capital of 19,139,488 thousand UZS, no issuance, 5,713,280 ordinary shares outstanding. Form 1 line 440 shows zero treasury shares at both dates. Form 4 lines 130 and 140 record zero gross share proceeds and repurchases. The issuer’s issue register and signed nine-month note corroborate the unchanged ordinary issue at 3,350 UZS par.",
+      "ordinary_only": "Form 5 lines 131 and 151 show zero preferred shares. The signed nine-month note identifies all placed capital as ordinary.",
+      "issue_register": "https://biokimyo.uz/ru/menu/prospekt-emissii",
+      "issuer_note": "https://biokimyo.uz/storage/uploads/docs/poiasnitelnia-za-2026-god-9-mesiacev_6aec44ab728989.44019748.pdf"
+    }
+  },
+  {
+    "issuer_id": "78",
+    "ticker": "ABKZ",
+    "isin": "UZ7047650005",
+    "period_start": "2023-01-01",
+    "period_end": "2023-12-31",
+    "scope": "separate",
+    "source_standard": "MSFO",
+    "source_url": "https://openinfo.uz/media/msfo/Мустакил_аудиторлик_хулосаси_2023_йил_якуни_буйичатулик.pdf",
+    "unit": "shares",
+    "weighted_average_shares": "5905427",
+    "ordinary_only": true,
+    "source_lines": {
+      "weighted_average_shares": "2023 audited income statement, page 4, basic earnings per share: divisor 5,905,427. Total 2023 profit attributed to shareholders of 13,034,956 thousand UZS reconciles to the disclosed IFRS basic EPS of 2.21 thousand UZS after rounding. Only the share divisor is used for the separate NSBU filing.",
+      "ordinary_only": "The 2022 charter identifies the entire registered capital as 5,905,427 ordinary shares. The 2023 audited income statement attributes all earnings to shareholders, whose basic EPS reconciles to the full profit.",
+      "charter": "https://openinfo.uz/media/documents/%D0%AF%D0%BD%D0%B3%D0%B8_%D1%82%D0%B0%D1%85%D1%80%D0%B8%D1%80%D0%B4%D0%B0%D0%B3%D0%B8_%D0%A3%D1%81%D1%82%D0%B0%D0%B2_2022.pdf",
+      "parent_filing": "https://openinfo.uz/ru/reports/jsc/annual/4953"
+    }
+  }
+]

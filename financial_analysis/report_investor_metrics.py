@@ -16,7 +16,8 @@ from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-5'
+VERSION = 'report-investor-metrics-7'
+HISTORICAL_METRICS = {'book_value_per_share', 'price_to_book', 'eps_basic', 'ebit'}
 SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
     'ebit': ('EBIT', 'EBIT', 'EBIT'),
@@ -87,7 +88,10 @@ def _compatible(report, rows, facts, *, income=False):
         # One thousand UZS is the source form's existing rounding tolerance.
         keys = ['total_assets', 'total_equity']
         if income:
-            keys += [key for key in ('net_income', 'revenue') if key in facts and any(r.get('metric_id') == key for r in group)]
+            income_keys = [key for key in ('net_income', 'revenue')
+                           if key in facts and any(r.get('metric_id') == key for r in group)]
+            if income_keys:
+                keys = income_keys
         anchors = [_pick(group, key, 'UZS_thousand', end,
                          end[:4] + '-01-01' if key in {'net_income', 'revenue'} else None) for key in keys]
         expected = [decimal(facts.get(key, {}).get('value')) for key in keys]
@@ -121,6 +125,13 @@ def calculate(report, rows, share_basis=None):
                 and str(basis.get('issuer_id')) == str(report['issuer']['id'])
                 and basis.get('ticker') == report['issuer']['ticker']
                 and basis.get('scope') == report['scope'] and basis.get('period_end') == end)
+    capital_evidence = []
+    if basis_ok and 'closing_share_capital_thousand' in basis:
+        capital, treasury = pick('share_capital'), pick('treasury_shares')
+        basis_ok = (report['standard'].lower() == 'nsbu'
+                    and capital['value'] == decimal(basis['closing_share_capital_thousand'])
+                    and treasury['value'] == 0)
+        capital_evidence = capital['components'] + treasury['components']
     ordinary_only = basis_ok and basis.get('ordinary_only') is True
     ordinary_at_close = basis_ok and basis.get('ordinary_only_at_end') is True
 
@@ -131,7 +142,7 @@ def calculate(report, rows, share_basis=None):
         value = decimal(basis.get(key))
         if value is None or value <= 0:
             return part
-        return {'value': value, 'components': [{**basis, 'metric_id': key, 'value': str(value)}]}
+        return {'value': value, 'components': [{**basis, 'metric_id': key, 'value': str(value)}, *capital_evidence]}
 
     def ordinary_fact(part, key, *, flow=False):
         ordinary_context = ordinary_only and basis.get('period_start') == start if flow else ordinary_only or ordinary_at_close
@@ -215,7 +226,8 @@ def calculate(report, rows, share_basis=None):
     instrument = report.get('instrument') or {}
     ordinary_issue = instrument.get('instrument_type') in (None, 'ordinary_share')
     emit('book_value_per_share', bvps if ordinary_issue else None, 'common_equity × 1000 / ordinary_shares',
-         [common, shares], 'UZS_per_share')
+         [common, shares], 'UZS_per_share', share_disclosure_url=next(
+             (c['source_url'] for c in shares['components'] if c.get('source_url')), None))
     price, quoted = decimal(instrument.get('last_price')), instrument.get('market_as_of')
     market_bvps = bvps
     actions = []
@@ -231,7 +243,8 @@ def calculate(report, rows, share_basis=None):
         valuation_date = (date.fromisoformat(quoted[:10]) + timedelta(days=age)).isoformat()
     published = max((str(s.get('publication_date') or '')[:10] for s in report.get('sources', [])), default='')
     changed = any(end < action['date'] <= quoted for action in (basis.get('capital_changes', []) if basis_ok and quoted else []))
-    usable = (not changed and (not valuation_date or not published or published <= valuation_date)
+    usable = (not changed and (not valuation_date or not quoted or quoted <= valuation_date)
+              and (not valuation_date or not published or published <= valuation_date)
               and instrument.get('instrument_type') == 'ordinary_share' and quoted and quoted >= end
               and (instrument.get('freshness') or {}).get('status') in {'fresh', 'aging', 'stale'}
               and (instrument.get('currency') or 'UZS') == 'UZS'
@@ -251,7 +264,8 @@ def calculate(report, rows, share_basis=None):
 
     disclosed = pick('eps_basic', 'UZS_per_share', True)
     if disclosed['value'] is not None:
-        emit('eps_basic', disclosed['value'], 'disclosed basic earnings per share', [disclosed], 'UZS_per_share', origin='reported')
+        emit('eps_basic', disclosed['value'], 'disclosed basic earnings per share', [disclosed], 'UZS_per_share',
+             origin='reported', period_start=start)
     else:
         profit = ordinary_fact(pick('profit_ordinary', flow=True), 'net_income', flow=True)
         weighted = disclosed_count(pick('weighted_average_shares', 'shares', True), 'weighted_average_shares', flow=True)
@@ -260,7 +274,7 @@ def calculate(report, rows, share_basis=None):
         if disclosed['components']:
             value = None
         emit('eps_basic', value, 'profit_ordinary × 1000 / weighted_average_shares',
-              [profit, weighted], 'UZS_per_share', reason='EPS_INPUTS_MISSING',
+              [profit, weighted], 'UZS_per_share', reason='EPS_INPUTS_MISSING', period_start=start,
               closing_share_count_verified=basis_ok and shares['value'] is not None,
               missing_inputs=(['reported_eps_conflict'] if disclosed['components'] else
                   (['profit_ordinary'] if profit['value'] is None else []) +
@@ -291,10 +305,152 @@ def enterprise(report):
             and 'leas' not in str(report.get('sector_template_code') or '').lower())
 
 
+def _historical_instrument(report, basis, filings, cutoff, *, latest=False):
+    """Find the last valuation while this balance sheet was public and current."""
+    from bond_quality import day, freshness
+    from catalogue.market_store import quote_at
+    from issuer_financials import period_end
+
+    instrument = report.get('instrument') or {}
+    if instrument.get('instrument_type') != 'ordinary_share':
+        return instrument
+    isin = instrument.get('isin') or (basis or {}).get('isin')
+    if not isin or ((basis or {}).get('isin') and basis['isin'] != isin):
+        return instrument
+    end = report['financial_as_of']
+    published = max((s.get('publication_date') or '' for s in report.get('sources', [])), default='')[:10]
+    publication_day = day(published)
+    if not publication_day:
+        return instrument
+    filing_dates = [(period_end(f.get('period')), day(f.get('published_at'))) for f in filings if f.get('period')]
+    later = [published_at for closing, published_at in filing_dates if closing and closing > end]
+    last_filed = not later and (end, publication_day) in filing_dates
+    limit = publication_day
+    if later and all(later):
+        limit = min(later) - timedelta(days=1)
+    elif (latest or last_filed) and cutoff:
+        limit = day(cutoff)
+    if cutoff:
+        limit = min(limit, day(cutoff))
+    quote = quote_at(isin, limit.isoformat()) if limit >= publication_day else {}
+    if not quote:
+        existing = day(instrument.get('market_as_of'))
+        if existing and (existing > limit or limit < publication_day):
+            return {**instrument, 'last_price': None, 'market_as_of': None}
+        return instrument
+    traded = day(quote['trade_date'])
+    valuation = max(traded, publication_day)
+    return {**instrument, 'isin': isin, 'quote_isin': quote['isin'], 'market_as_of': traded.isoformat(),
+            'last_price': quote['close_price'], 'freshness': freshness(traded, valuation),
+            'valuation_as_of': valuation.isoformat()}
+
+
+def _metrics_at(issuer, standard, scope, period, stamp, cutoff, filings):
+    from catalogue.sources import cached_report_excel_data
+    from financial_columns import share_disclosures
+    from sector_report_service import sector_report
+
+    old = sector_report(issuer, standard, period, scope, 'ru', persist=False, source_reader=cached_report_excel_data)
+    if (old.get('status') not in {'available', 'stale'} or old.get('financial_as_of') != stamp
+            or old.get('standard') != standard or old.get('scope') != scope or old.get('period') != period
+            or str(old['issuer']['id']) != str(issuer['id']) or old['issuer']['ticker'] != issuer['ticker']):
+        return []
+    if cutoff and any(str(s.get('publication_date') or '')[:10] > cutoff for s in old.get('sources', [])):
+        return []
+    basis = share_disclosures.read(issuer['id'], issuer['ticker'], stamp, scope)
+    old['instrument'] = _historical_instrument(old, basis, filings, cutoff)
+    return [row for row in calculate(old, _load(old), basis) if row['verification_status'] == 'verified'
+            and (row['metric_code'] != 'price_to_book' or not cutoff or row['market_as_of'] <= cutoff)]
+
+
+def _include_history(report, metrics):
+    """Keep the current result and the newest independently verified result for each metric."""
+    from financial_columns import share_disclosures, source_store
+    from financial_ingestion import publication
+    from issuer_financials import IssuerNotFoundError, resolve_issuer, period_end, report_rows
+
+    org, ticker = report['issuer']['id'], report['issuer']['ticker']
+    end, standard, scope = report['financial_as_of'], report['standard'], report['scope']
+    missing = {r['metric_code']: r for r in metrics if r['metric_code'] in HISTORICAL_METRICS
+               and r['value'] is None and not r.get('last_verified') and r['calculation_status'] != 'not_applicable'}
+    if not missing:
+        return
+    candidates = defaultdict(set)
+    for stamp in share_disclosures.prior_dates(org, ticker, end, scope):
+        candidates[stamp].update(('book_value_per_share', 'price_to_book', 'eps_basic'))
+    if 'ebit' in missing and standard == 'nsbu':
+        for stamp in source_store.prior_dates(org, standard='NSBU', scope=scope, end=end):
+            candidates[stamp].add('ebit')
+    if standard == 'ifrs':
+        for snapshot in publication.snapshots(ticker, scope=scope):
+            if str(snapshot.get('org_id')) == str(org) and snapshot.get('period_end') and snapshot['period_end'] < end:
+                keys = {r.get('metric_id') for r in snapshot['payload'].get('source_rows') or []}
+                if 'ordinary_shares' in keys:
+                    candidates[snapshot['period_end']].update(('price_to_book', 'book_value_per_share'))
+                if keys & {'eps_basic', 'weighted_average_shares'}:
+                    candidates[snapshot['period_end']].add('eps_basic')
+    if not any(missing.keys() & codes for codes in candidates.values()):
+        return
+    try:
+        issuer = resolve_issuer(ticker)
+    except IssuerNotFoundError:
+        return
+    if str(issuer['id']) != str(org) or issuer['ticker'] != ticker:
+        return
+    cutoff = (report.get('instrument') or {}).get('valuation_as_of') or date.today().isoformat()
+    filings = report_rows(issuer, standard) if scope == 'separate' else []
+    for stamp in sorted(candidates, reverse=True):
+        if not candidates[stamp].intersection(missing):
+            continue
+        day = date.fromisoformat(stamp)
+        if day.month not in (3, 6, 9, 12) or (standard == 'ifrs' and day.month != 12):
+            continue
+        periods = [str(day.year)] if day.month == 12 else []
+        if standard == 'nsbu':
+            periods.append(f'{day.year}Q{day.month // 3}')
+        for period in periods:
+            if period_end(period) != stamp:
+                continue
+            try:
+                historical = _metrics_at(issuer, standard, scope, period, stamp, cutoff, filings)
+            except Exception:
+                logging.getLogger(__name__).warning('Historical indicators unavailable for %s %s', ticker, period, exc_info=True)
+                continue
+            for row in historical:
+                current = missing.pop(row['metric_code'], None)
+                if current is not None:
+                    current['last_verified'] = row
+            if not missing:
+                return
+
+
+def _with_history(report, rows, basis):
+    metrics = calculate(report, rows, basis)
+    try:
+        book = next(r for r in metrics if r['metric_code'] == 'book_value_per_share')
+        market = next(r for r in metrics if r['metric_code'] == 'price_to_book')
+        cutoff = (report.get('instrument') or {}).get('valuation_as_of')
+        if book['value'] is not None and market['value'] is None and cutoff:
+            instrument = _historical_instrument(report, basis, [], cutoff, latest=True)
+            if instrument.get('valuation_as_of') and instrument['valuation_as_of'] < cutoff:
+                previous = next(r for r in calculate({**report, 'instrument':instrument}, rows, basis)
+                                if r['metric_code'] == 'price_to_book')
+                if previous['value'] is not None:
+                    market['last_verified'] = previous
+        _include_history(report, metrics)
+    except Exception:
+        logging.getLogger(__name__).warning('Optional historical indicators unavailable for %s',
+                                            report['issuer']['ticker'], exc_info=True)
+    return metrics
+
+
 def project(report):
     """Change only the public indicator selection, retaining statutory evidence."""
     if report.get('status') not in {'available', 'stale'}:
         report['ratios'], report['additional_ratios'] = [], []
+        if report.get('status') == 'no_source' and report.get('financial_as_of') and report.get('issuer', {}).get('ticker'):
+            metrics = _with_history({**report, 'verified_facts': []}, [], None)
+            report['ratios'] = [r for r in metrics if r.get('last_verified')]
         return report
     is_enterprise = enterprise(report)
     if not is_enterprise and (report.get('standard') != 'nsbu' or report['issuer'].get('organization_type') == 'investment_fund_ifrs_annual'):
@@ -311,7 +467,7 @@ def project(report):
     except Exception:
         logging.getLogger(__name__).warning('Share disclosure unavailable for %s', report['issuer']['ticker'], exc_info=True)
         basis = None
-    metrics = calculate(report, rows, basis)
+    metrics = _with_history(report, rows, basis)
     if not is_enterprise:
         report['ratios'] = [r for r in metrics if r['metric_code'] in SHARE_METRICS] + report['ratios']
         report['ratio_policy_version'] = VERSION

@@ -256,6 +256,22 @@ def test_ai_report_summary_defers_the_full_report(client):
     assert "number_references" not in body
 
 
+def test_company_summary_exposes_verified_history_when_requested_filing_is_absent(client, monkeypatch):
+    import sector_report_service as service
+    from catalogue.sources import cached_report_excel_data
+    dated = {'metric_code':'eps_basic','value':None,'unit':'UZS_per_share',
+             'last_verified':{'period_end':'2025-12-31','period_start':'2025-01-01','value':13.90}}
+    def missing(issuer, standard, period, scope, lang, *, persist, source_reader):
+        assert not persist and source_reader is cached_report_excel_data
+        return {'status':'no_source','period':period,'ratios':[dated]}
+    monkeypatch.setattr(service,'sector_report',missing)
+    monkeypatch.setattr(service,'public_report',lambda report:report)
+    body = client.get('/api/v1/issuers/FACT/ai-report?standard=nsbu&period=2026Q3&summary=true').json()
+    assert body['status'] == 'no_source'
+    assert body['ratios'] == [dated]
+    assert body['deferred_full_report'] is False
+
+
 def test_bank_ai_report_summary_uses_bank_metrics_and_keeps_period(client):
     body = client.get(
         "/api/v1/issuers/BANK/ai-report?standard=nsbu&period=2026Q2&lang=ru&summary=true"

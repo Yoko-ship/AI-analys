@@ -1,5 +1,5 @@
 import React from "react";
-import {reportRatioUnit,reportRatioReason} from '../lib/reportRatioDisplay.js';
+import {displayReportRatio,reportRatioUnit,reportRatioReason} from '../lib/reportRatioDisplay.js';
 import "./verified-report.css";
 
 const pick = (lang, ru, uz, en) => ({ ru, uz, en }[lang] || ru);
@@ -56,6 +56,7 @@ const compactNumber = (value, lang) => value == null ? "—" : Number(value).toL
 
 export function ReportAvailability({ report, lang = "ru" }) {
   if (!report || ["available", "stale"].includes(report.status)) return null;
+  const historical = (report.ratios || []).map(r=>displayReportRatio(r,lang)).filter(r=>r.asOfLabel);
   const mappingFailed = report.status === "mapping_failed"
     || (report.data_quality || []).some((item) => item.code === "SOURCE_MAPPING_FAILED");
   const comparativeUnitConflict = (report.data_quality || []).some(
@@ -79,6 +80,7 @@ export function ReportAvailability({ report, lang = "ru" }) {
     : item.message;
   return <div className="verified-availability" role="status">
     <strong>{heading}</strong>
+    {historical.map(r=><p key={r.metric_code}>{r['name_'+lang] || r.name_ru || (r.metric_code === 'book_value_per_share' ? 'BVPS' : r.metric_code)} · {fmt(r.value,lang)}{reportRatioUnit(r.unit,lang)}<br/>{r.asOfLabel}{r.quoteLabel && <><br/>{r.quoteLabel}</>}</p>)}
     <p>{pick(lang, "Доступный период", "Mavjud davr", "Available period")}: {report.availability?.last_source_period || report.period || "—"}</p>
     {/* A blocked filing states its one reason in the heading; the raw check
         messages are not repeated beside it. */}
@@ -154,9 +156,10 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
       [report.additional_ratios,t("Дополнительные показатели", "Qo‘shimcha ko‘rsatkichlar", "Additional indicators")]].map(([items,title])=>items?.length > 0 ? <details className="verified-block" key={title}>
       <summary>{title}</summary>
       <div className="verified-ratios">
-        {items.map((item) => <article key={item.method_id} data-testid={`verified-ratio-${item.metric_code}`}>
+        {items.map(item=>displayReportRatio(item,lang)).map((item) => <article key={item.method_id} data-testid={`verified-ratio-${item.metric_code}`}>
           <strong className="verified-ratio-name">{ratioText(item, lang, 0)}</strong>
           <p className="verified-ratio-value">{fmt(item.value, lang)}{item.value != null && reportRatioUnit(item.unit,lang)}</p>
+          {item.asOfLabel && <small>{item.asOfLabel}</small>}
           {item.market_as_of && <small>{t('Котировка','Kotirovka','Quote')}: {item.market_as_of}</small>}
           <p className="verified-ratio-meaning">{ratioText(item, lang, 3)}</p>
           {item.benchmark_type && item.value != null && <small className={`verified-ratio-status ${item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max) ? "good" : "attention"}`}>

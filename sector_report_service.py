@@ -127,6 +127,26 @@ def special_type(issuer):
     return None
 
 
+def _report_quote(quote, isin, as_of):
+    from bond_quality import day
+    from catalogue.market_store import quote_at
+    traded = day(quote.get('trade_date'))
+    if (traded and traded > as_of) or (isin and quote.get('isin') and quote['isin'] != isin):
+        quote, traded = {}, None
+    price = financial_analysis_sector_numbers.decimal(quote.get('close_price'))
+    has_close = price is not None and price > 0
+    if not isin or (traded == as_of and has_close):
+        return quote
+    try:
+        archived = quote_at(isin, as_of.isoformat())
+    except Exception:
+        logger.warning('Archived quote unavailable for %s', isin, exc_info=True)
+        return quote
+    if archived and (not has_close or not traded or day(archived['trade_date']) > traded):
+        return archived
+    return quote
+
+
 def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_override=None,
                   _workbook=None, _refresh_checked=False, source_reader=None):
     if persist:
@@ -310,14 +330,16 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
     quote, _ = financials.quote_and_trade(issuer)
     from bond_quality import freshness
     quote_day = financials.now().date()
+    known_periods = {*report.get('available_periods', []), *(r.get('period') for r in reports)}
     historical = period and any((financials.period_end(p) or '') > (report.get('financial_as_of') or '')
-                                for p in report.get('available_periods', []))
+                                for p in known_periods if p)
     if historical:
-        from catalogue.market_store import quote_at
         from bond_quality import day
         publication_day = day(str(source.get('publication_date') or '')[:10])
-        quote = quote_at(issuer.get('isin'), publication_day.isoformat()) if publication_day else {}
+        quote = _report_quote({}, issuer.get('isin'), publication_day) if publication_day else {}
         quote_day = publication_day or quote_day
+    else:
+        quote = _report_quote(quote, issuer.get('isin'), quote_day)
     market = freshness(quote.get("trade_date"), quote_day)
     report["market_as_of"] = market["quote_as_of"]
     report["instrument"] = {

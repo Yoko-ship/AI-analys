@@ -2955,6 +2955,42 @@
           },
           {
             "source_form": "F2",
+            "source_code": "180",
+            "raw_label": "Расходы в виде процентов",
+            "metric_id": "interest_expense",
+            "mapping_issue": null,
+            "kind": "flow",
+            "unit": "UZS_thousand",
+            "previous": {
+              "raw_value": [
+                0,
+                23753819.71
+              ],
+              "value": "-23753819.71",
+              "quality": "valid"
+            },
+            "current": {
+              "raw_value": [
+                0,
+                13600170.12
+              ],
+              "value": "-13600170.12",
+              "quality": "valid"
+            },
+            "raw_cells": [
+              "Расходы в виде процентов",
+              "180",
+              0,
+              23753819.71,
+              0,
+              13600170.12
+            ],
+            "sheet": "Квартальный отчет АО рус",
+            "row": 149,
+            "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19069&lang=ru"
+          },
+          {
+            "source_form": "F2",
             "source_code": "240",
             "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
             "metric_id": "profit_before_tax",

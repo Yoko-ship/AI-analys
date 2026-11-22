@@ -2,7 +2,7 @@ import { FilingScreener } from './FilingScreener.jsx';
 import { BankComparison, BankSectorBenchmarks } from './BankComparison.jsx';
 import { MetricValue } from './MetricValue.jsx';
 import { finLabel } from '../../../shared/financialLabels.jsx';
-import { reportRatioUnit, reportRatioReason } from '../../../lib/reportRatioDisplay.js';
+import { displayReportRatio, reportRatioUnit, reportRatioReason } from '../../../lib/reportRatioDisplay.js';
 import { reportScopeLabel } from '../../../lib/reportingLabels.js';
 import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
@@ -275,9 +275,10 @@ function SectorMetrics({ticker,form,scope,lang,summary}) {
   const [filingScope,setScope] = React.useState(initial.get('filingScope')==='consolidated'?'consolidated':scope);
   const [period,setPeriod] = React.useState(/^\d{4}(Q[1-4])?$/.test(initial.get('filing')||'')?initial.get('filing'):'');
   const {data,error}=useScreenData(`/api/v1/issuers/${encodeURIComponent(ticker)}/ai-report?standard=${form==='MSFO'?'ifrs':'nsbu'}&scope=${filingScope}&lang=${lang}${period?'&period='+period:''}`,{ticker,form,func:summary?'SUM':'RAT'});
-  const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th scope="col">{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th scope="col">{data?.period||'—'}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={r.metric_code||i}>
+  const table=rows=><div className="terminal-table-wrap"><table className="terminal-table"><thead><tr><th scope="col">{words(lang,'Показатель','Ko‘rsatkich','Metric')}</th><th scope="col">{data?.period||'—'}</th></tr></thead><tbody>{rows.map(r=>displayReportRatio(r,lang)).map((r,i)=><tr key={r.metric_code||i}>
     <th scope="row"><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={[r.formula, ...((r.method_id||'').startsWith('report-investor') ? (r.components||[]).filter(c=>c.value!=null).map(c=>[c.source_code||c.source_line_id||c.metric_id,c.value].filter(Boolean).join(' = ')) : [])].filter(Boolean).join('\n')}/></span></th>
-    <td data-export-value={['eps_basic','eps_closing_estimate','book_value_per_share','price_to_book','ebit'].includes(r.metric_code) ? r.raw_result ?? (r.value==null?reportRatioReason(r,lang):String(r.value)) : undefined} className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
+    <td data-export-value={['eps_basic','eps_closing_estimate','book_value_per_share','price_to_book','ebit'].includes(r.metric_code) ? r.datedExport ?? r.raw_result ?? (r.value==null?reportRatioReason(r,lang):String(r.value)) : undefined} className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
+      {r.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
       {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}
       {safeHref(r.share_disclosure_url)&&<div><a href={safeHref(r.share_disclosure_url)} target="_blank" rel="noreferrer">
         {words(lang,'Раскрытие об акциях','Aksiyalar haqidagi ma’lumot','Share disclosure')}

@@ -863,7 +863,18 @@ def issuer_ai_report(issuer_id: str, standard: Literal['nsbu', 'ifrs']=Query(...
         available = True
         headline, headline_tone = published['headline'], published['headline_tone']
         card_text, verdict_line = published['card_text'], published.get('verdict_line')
-    return {'ok': True, 'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name')}, 'standard': standard, 'period': snapshot.get('period'), 'period_label': financials.period_label(snapshot.get('period'), lang), 'scope': scope, 'language': lang, 'status': 'available' if available else 'quality_blocked', 'content_status': 'complete' if available else 'shortened', 'headline': headline, 'headline_tone': headline_tone, 'verdict_line': verdict_line, 'card_text': card_text, 'short_summary': card_text, 'card_word_count': len(str(card_text or '').split()), 'deferred_full_report': available, 'availability': {'reason_code': 'available' if available else 'quality_blocked', 'last_source_period': snapshot.get('period'), 'last_successful_period': snapshot.get('period') if available else None, 'next_action': None, 'snapshot_text': (blocked or {}).get('snapshot'), 'reason_text': (blocked or {}).get('reason')}, 'source_snapshot_hash': snapshot.get('source_snapshot_hash')}
+    result = {'ok': True, 'issuer': {key: issuer[key] for key in ('id', 'ticker', 'name')}, 'standard': standard, 'period': snapshot.get('period'), 'period_label': financials.period_label(snapshot.get('period'), lang), 'scope': scope, 'language': lang, 'status': 'available' if available else 'quality_blocked', 'content_status': 'complete' if available else 'shortened', 'headline': headline, 'headline_tone': headline_tone, 'verdict_line': verdict_line, 'card_text': card_text, 'short_summary': card_text, 'card_word_count': len(str(card_text or '').split()), 'deferred_full_report': available, 'availability': {'reason_code': 'available' if available else 'quality_blocked', 'last_source_period': snapshot.get('period'), 'last_successful_period': snapshot.get('period') if available else None, 'next_action': None, 'snapshot_text': (blocked or {}).get('snapshot'), 'reason_text': (blocked or {}).get('reason')}, 'source_snapshot_hash': snapshot.get('source_snapshot_hash')}
+    if not available and not snapshot.get('current_values'):
+        from catalogue.sources import cached_report_excel_data
+        from sector_report_service import public_report, sector_report
+        filing = sector_report(issuer, standard, period, scope, lang, persist=False, source_reader=cached_report_excel_data)
+        if filing.get('status') == 'no_source':
+            history = public_report(filing).get('ratios', [])
+            if history:
+                result.update(status='no_source', ratios=history)
+                result['availability']['reason_code'] = 'no_source'
+    return result
+
 
 
 @router.get("/issuers/{issuer_id}/credit-profile")

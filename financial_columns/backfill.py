@@ -6,8 +6,9 @@ source_store writer.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from collections import defaultdict
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 import json
 
 import catalogue.sources as catalogue_sources
@@ -39,7 +40,9 @@ def _recent_jobs(annual_periods):
     jobs = []
     for issuer, reports in issuers.items():
         annual = sorted((p for p in reports if p[1] == 0), reverse=True)[:annual_periods]
-        quarterly = sorted((p for p in reports if p[1] != 0), reverse=True)[:1]
+        quarterly = sorted((p for p in reports if p[1] != 0), reverse=True)
+        if annual_periods is not None:
+            quarterly = quarterly[:1]
         for year, quarter in annual + quarterly:
             report = reports[(year, quarter)]
             jobs.append({'ticker': report['ticker'], 'issuer_id': issuer, 'year': year, 'quarter': quarter,
@@ -68,21 +71,46 @@ def pending(annual_periods=2):
 
 
 def collect_share_bases():
-    from .share_disclosures import collect_form5
+    from collectors.openinfo.transport import _json_get
+    from .share_disclosures import collect_form5, filing_key
 
+    # The archive listing identifies the few filings with an Excel supplement.
+    # Walking its pages covers older quarters without fetching every filing detail.
+    groups = defaultdict(dict)
+    for job in _recent_jobs(None):
+        url = job['urls']['excel_url'] or job['urls']['excel_url_form1']
+        key = filing_key(url)
+        if key and job['issuer_id'].isdigit() and job['template'] not in {'bank','insurance','microfinance'}:
+            org_type, report_type, report_id = key
+            groups[(org_type, report_type)][(job['issuer_id'], report_id)] = (job, url)
     result = {'checked': 0, 'imported': 0, 'errors': []}
     with catalogue_sources._make_session() as session:
-        for job in _recent_jobs(1):
-            if (job['year'] < date.today().year - 1 or job['issuer_id'].startswith('ticker:')
-                    or job['template'] in {'bank', 'insurance', 'microfinance'}):
-                continue
-            ticker, end = job['ticker'], _end(job)
-            result['checked'] += 1
-            try:
-                result['imported'] += collect_form5(session, ticker=ticker, issuer_id=job['issuer_id'],
-                                                    period_end=end, excel_url=job['urls']['excel_url'])
-            except Exception as exc:
-                result['errors'].append({'ticker': ticker, 'period_end': end, 'error': str(exc)})
+        for (org_type, report_type), jobs in groups.items():
+            path = f'/reports/{org_type}/{report_type}/'
+            page = 1
+            while jobs:
+                try:
+                    listing = _json_get(session, path, {'page': page, 'page_size': 500})
+                    pages = int(listing['total_pages'])
+                    records = listing['results']
+                except Exception as exc:
+                    result['errors'].append({'listing':path, 'page':page, 'error':str(exc)})
+                    break
+                for entry in records:
+                    found = jobs.pop((str(entry.get('organization')), str(entry.get('id'))), None)
+                    if not found or not str(entry.get('int_report') or '').lower().endswith('.xlsx'):
+                        continue
+                    job, url = found
+                    ticker, end = job['ticker'], _end(job)
+                    result['checked'] += 1
+                    try:
+                        result['imported'] += collect_form5(session, ticker=ticker, issuer_id=job['issuer_id'],
+                                                            period_end=end, excel_url=url)
+                    except Exception as exc:
+                        result['errors'].append({'ticker':ticker, 'period_end':end, 'error':str(exc)})
+                if page >= pages:
+                    break
+                page += 1
     return result
 
 
@@ -104,10 +132,19 @@ def repair_issuer_links():
                      'expected_issuer_id': ORG_OVERRIDES[ticker]} for ticker in sorted(tickers)}
 
 
-def _import(job):
-    data = catalogue_sources.fetch_report_excel_data(job['ticker'], 'NSBU', job['year'], job['quarter'], use_snapshot_cache=False)
+def _import(job, *, cache_for_reports=False):
+    data = catalogue_sources.fetch_report_excel_data(job['ticker'], 'NSBU', job['year'], job['quarter'], use_snapshot_cache=cache_for_reports)
     if not data.get('ok'):
         raise ValueError(data.get('error') or 'Source download failed')
+    if cache_for_reports:
+        expected = {job['urls'].get(key) for key in ('excel_url','excel_url_form1')} - {None, ''}
+        complete = {part.get('source_url') for form in ('income','balance') if (part := data.get(form))
+                    and (part.get('source_coverage') or {}).get('complete')}
+        if expected - complete:
+            prior = source_store.read(job['issuer_id'],standard='NSBU',scope='separate',period_end=_end(job))
+            if any(d['source_coverage']['complete'] for d in prior):
+                return {'ticker':job['ticker'], 'year':job['year'], 'quarter':job['quarter'], 'rows':len(prior[0]['rows'])}
+            return _import(job)
     if not any(nsbu.rows(data.get(name) or {}, template=job['template'], default_form=form)
                for name, form in [('income','F2'),('balance','F1')]):
         raise ValueError('No original source rows in workbook')
@@ -116,6 +153,57 @@ def _import(job):
     if document['quality'] == 'blocked':
         raise ValueError('Source units require review')
     return {'ticker':job['ticker'], 'year':job['year'], 'quarter':job['quarter'], 'rows':len(document['rows'])}
+
+
+def collect_valuation_quotes(session, ticker, isin, start):
+    from catalogue import market_store
+    from catalogue.technical_history import _fill_gaps
+    from collectors.openinfo import transport
+
+    end = date.today()
+    archive = transport._json_get(session, '/iuzse/conclusions/', {
+        'isu_cd': isin, 'start_date': start, 'end_date': (end + timedelta(days=1)).isoformat()})
+    points = archive.get('results') or []
+    if points and str(archive.get('ticker') or '').strip().upper() != ticker:
+        raise ValueError('Archive ticker differs from the reviewed issue')
+    points = [p for p in points if start <= str(p.get('date') or '') <= end.isoformat()]
+    stored = market_store.get_quote_history([isin], 3650).get(isin, [])
+    _, changes = _fill_gaps(stored, points, isin)
+    return market_store.bulk_upsert_quote_history(changes)
+
+
+def collect_valuation_history():
+    from . import share_disclosures
+    from issuer_financials import resolve_issuer
+
+    keys = share_disclosures.filing_keys()
+    issues = {}
+    result = {'filings':0, 'quotes':0, 'errors':[]}
+    for job in _recent_jobs(None):
+        org, ticker, end = job['issuer_id'], job['ticker'], _end(job)
+        if (org, ticker, end, 'separate') not in keys:
+            continue
+        try:
+            basis = share_disclosures.read(org, ticker, end, 'separate')
+            if not basis:
+                continue
+            _import(job, cache_for_reports=True)
+            result['filings'] += 1
+            issuer = resolve_issuer(ticker)
+            isin = issuer.get('isin') or basis.get('isin')
+            if (str(issuer['id']) == org and issuer['ticker'] == ticker and isin and basis.get('ordinary_shares')
+                    and basis.get('isin', isin) == isin):
+                key = (ticker, isin)
+                issues[key] = min(end, issues.get(key, end))
+        except Exception as exc:
+            result['errors'].append({'ticker':ticker, 'period_end':end, 'error':str(exc)})
+    with catalogue_sources._make_session() as session:
+        for (ticker, isin), start in issues.items():
+            try:
+                result['quotes'] += collect_valuation_quotes(session, ticker, isin, start)
+            except Exception as exc:
+                result['errors'].append({'ticker':ticker, 'error':str(exc)})
+    return result
 
 
 def run(annual_periods=2, max_periods=1000, workers=2, progress=None):
@@ -159,6 +247,7 @@ def main():
             raise SystemExit('Issuer mapping refresh did not complete')
     if args.share_bases:
         print('SHARE_DISCLOSURE_BACKFILL=' + json.dumps(collect_share_bases()), flush=True)
+        print('VALUATION_HISTORY=' + json.dumps(collect_valuation_history()), flush=True)
     result=run(args.annual_periods,args.max_periods,progress=lambda item:print(json.dumps(item),flush=True))
     print('SOURCE_BACKFILL_RESULT='+json.dumps(result),flush=True)
 
