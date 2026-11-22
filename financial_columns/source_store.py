@@ -14,6 +14,8 @@ from financial_ingestion.store import digest, encoded
 from financial_ingestion.statements import units, currency
 from . import nsbu
 
+CONSOLIDATED_TITLE = re.compile(r'консолидированн|consolidated|konsolidatsiyalashgan', re.I)
+
 
 def _schema(c):
     c.executescript('''
@@ -61,7 +63,7 @@ def record_nsbu(*, ticker, issuer_id, year, quarter, template, data, urls):
     if not rows:
         issues.append('NO_SOURCE_ROWS')
     titles = [urls.get('title') or '', *(sheet.get('sheet', '') for doc in documents for sheet in doc['sheets'])]
-    explicit_group = any(re.search(r'консолидированн|consolidated|konsolidatsiyalashgan', str(title), re.I) for title in titles)
+    explicit_group = any(CONSOLIDATED_TITLE.search(str(title)) for title in titles)
     scope = urls.get('scope') or ('consolidated' if explicit_group else 'separate')
     if scope not in {'separate', 'consolidated'} or (explicit_group and scope == 'separate'):
         raise ValueError('Conflicting or unknown filing scope')

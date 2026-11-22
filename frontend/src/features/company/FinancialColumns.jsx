@@ -13,6 +13,8 @@ import { CompanyShareholders } from './CompanyShareholders.jsx';
 import './financialColumns.css';
 import { useCatalogRequests } from '../../shared/CatalogData.jsx';
 const validFinancialColumns = data => data?.ok === true;
+// A new build must not reuse a previously cached export of the old table.
+const exportVersion = import.meta.url.split('/').pop();
 
 const FORM_ORDER = ['F2', 'BANK_PL', 'INSURANCE_PL', 'PL', 'ASSETS', 'EQUITY', 'CF', 'DEBT', 'F1', 'BANK_BS', 'INSURANCE_BS', 'BS', 'Equity', 'Notes', 'DERIVED', 'RAT'];
 const QUALITY = {
@@ -119,7 +121,7 @@ export function FinancialColumns({ ticker, lang = 'ru', standard = 'NSBU', scope
     include_sources: 'false', include_ratios: String(view === 'ratios') });
   const exportParams = new URLSearchParams({ form: standard, scope, freq, view: view === 'summary' ? 'overview' : 'template',
     statement: ['summary', 'original'].includes(view) ? statement : 'all',
-    layout: 'table', lang, tab: view, from_year: String(fromYear), query: showBalancePie ? '' : query });
+    layout: 'table', lang, tab: view, from_year: String(fromYear), query: showBalancePie ? '' : query, v: exportVersion });
   const url = `/api/company/${encodeURIComponent(ticker)}/financials/columns?${params}`;
   const loadRef = React.useRef(onLoad); loadRef.current = onLoad;
   React.useEffect(() => {

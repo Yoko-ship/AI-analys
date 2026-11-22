@@ -142,6 +142,28 @@ def test_tgmq_missing_comparable_filing_takes_precedence_for_ttm():
     assert cell['value'] is None and cell['reason'] == 'ROCE_INPUTS_MISSING'
 
 
+def test_acmt_latest_ratio_period_uses_filed_date_even_before_cells_are_imported(monkeypatch, tmp_path):
+    from catalogue import filings
+    from catalogue.storage import get_catalog_conn
+    from financial_columns import service
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'catalog.db'))
+    conn = get_catalog_conn()
+    with conn:
+        conn.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES ('ACMT1B2','AGAT CREDIT mikromoliya','1058')")
+    conn.close()
+    quarterly = {'report_form':'NSBU', 'year':2026, 'quarter':3, 'period_type':'quarter',
+                 'excel_url':'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=microfinance&report_id=66&lang=ru'}
+    monkeypatch.setattr(filings, 'get_company_reports', lambda ticker: [quarterly])
+    monkeypatch.setattr(service.source_store, 'read', lambda *args, **kw: [])
+    company = {'ticker':'ACMT1B2', 'name':'AGAT CREDIT mikromoliya', 'org_id':'1058'}
+    period, item = service.filing_roce(company, None, 'separate')
+    assert period == '2026Q3' and item['reason_code'] == 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
+    table = service.load(company['ticker'], view='template', include_sources=False)
+    roce = next(r for r in table['ratios'] if r['metric_id'] == 'roce')['cells']['2026-09-30']
+    assert roce['value'] is None and roce['reason'] == item['reason_code']
+    assert service.filing_roce(company, None, 'consolidated')[0] is None
+
+
 @pytest.fixture
 def hmkb_rows():
     # Captured source cells include the exact filing, row and original amount.
@@ -269,6 +291,7 @@ def test_current_hmkb_ratios_reach_api_and_exports(hmkb_rows,monkeypatch,tmp_pat
         response=client.get(f'/api/company/HMKB/financials/columns?{query}')
         exported=client.get(f'/api/company/HMKB/financials/columns.csv?{query}')
     assert response.status_code==exported.status_code==200
+    assert 'no-store' in exported.headers.get('cache-control', '')
     payload=response.json()
     roe=next(r for r in payload['ratios'] if r['metric_id']=='roe')['cells']['2026-09-30']
     assert Decimal(roe['value']).quantize(Decimal('.01'))==Decimal('26.51')

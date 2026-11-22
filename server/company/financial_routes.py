@@ -57,6 +57,7 @@ async def api_financial_columns_export(ticker: str, extension: str, form: str = 
     filename = re.sub(r'[^A-Za-z0-9_-]', '_', ticker)[:32] or 'issuer'
     return Response(body, media_type=media_type, headers={
         'Content-Disposition': f'attachment; filename="{filename}-{form}-{freq}.{extension}"',
+        'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff'})
 
 

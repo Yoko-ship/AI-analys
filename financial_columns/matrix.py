@@ -17,16 +17,18 @@ def choose(items):
             'sources': [{k: r.get(k) for k in ('source_version', 'source_url', 'page', 'sheet', 'row', 'raw_label')} for r in items]}
 
 
-def build(observations, *, mode, recent=False, interim_ttm=False, recent_ttm=False):
+def build(observations, *, mode, recent=False, interim_ttm=False, recent_ttm=False, filed_end=None):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
-    ends = sorted({r['period_end'] for r in observations})
+    ends = sorted({r['period_end'] for r in observations} | ({filed_end} if filed_end else set()))
     if mode == 'annual':
         columns = [{'key': end[:4], 'label': end[:4], 'end': end, 'basis': 'annual'} for end in ends if end.endswith('-12-31')]
         if recent:
             if recent_ttm:
                 filed = {r['period_end'] for r in observations if r['kind'] == 'flow' and r.get('role') != 'COMPARATIVE'
                          and r.get('period_start') == r['period_end'][:4] + '-01-01'}
+                if filed_end:
+                    filed.add(filed_end)
                 columns = [column for column in columns if column['end'] in filed]
             columns = columns[-2:]
         if ends and not ends[-1].endswith('-12-31'):

@@ -9,6 +9,24 @@ from financial_ingestion import publication
 from . import capital_returns, derived, matrix, observations, ratios, source_store
 
 
+def _latest_separate_end(ticker):
+    from catalogue import filings
+    from issuer_financials import period_end
+    dates = []
+    today = date.today().isoformat()
+    for report in filings.get_company_reports(ticker):
+        if (report.get('report_form') != 'NSBU' or report.get('scope') not in {None, 'separate'}
+                or source_store.CONSOLIDATED_TITLE.search(report.get('title') or '')
+                or not any(report.get(k) for k in ('excel_url', 'excel_url_form1', 'pdf_url'))):
+            continue
+        quarter = report.get('quarter')
+        period = str(report.get('year')) + (f'Q{quarter}' if quarter else '')
+        end = period_end(period)
+        if end and end < today:
+            dates.append(end)
+    return max(dates, default=None)
+
+
 def _check_filing_rows(source_rows, ticker, form):
     import data_quality
     held = data_quality.held_public_periods(ticker, form)
@@ -25,8 +43,12 @@ def filing_roce(company, end, scope):
     ticker = company['ticker']
     template = organization_kind(ticker, name=company.get('name'))
     docs = source_store.read(company['org_id'], standard='NSBU', scope=scope, period_end=end, latest=True)
-    if not end and docs:
-        end = docs[0]['period_end']
+    if not end:
+        imported = docs[0]['period_end'] if docs else ''
+        indexed = _latest_separate_end(ticker) if scope == 'separate' else None
+        end = max(imported, indexed or '') or None
+        if end != imported:
+            docs = []
     if not end:
         return None, {'value': None, 'reason_code': 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
                       if template in capital_returns.FINANCIAL else 'ROCE_INPUTS_MISSING', 'unit': 'percent'}
@@ -109,7 +131,8 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
     if view == 'investor':
         from .investor import enrich
         source_rows = enrich(source_rows)
-    table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'},
+    filed_end = _latest_separate_end(ticker) if form == 'NSBU' and scope == 'separate' and include_ratios and view == 'template' else None
+    table = matrix.build(source_rows, mode=freq, recent=view in {'template', 'overview', 'investor'}, filed_end=filed_end,
                          interim_ttm=view == 'investor',
                          recent_ttm=include_ratios and view == 'template' and form == 'NSBU' and template not in capital_returns.FINANCIAL)
     ratio_rows = []

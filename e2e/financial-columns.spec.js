@@ -848,6 +848,7 @@ test('BIOK downloads the displayed table with periods, language and active filte
   await setup(page, {ticker:'BIOK', lang:'ru', reports:biok});
   const terminal = page.getByTestId('financial-columns');
   const excel = terminal.getByRole('link', {name:'XLSX', exact:true});
+  await expect(excel).toHaveAttribute('href', /[?&]v=[^&]+/);
   await expect(excel).toHaveAttribute('href', /layout=table/);
   await expect(excel).toHaveAttribute('href', /lang=ru/);
   await expect(excel).toHaveAttribute('href', /tab=summary/);
