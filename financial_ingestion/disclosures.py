@@ -63,6 +63,11 @@ def _attachments(detail, row):
         url = urljoin(WEB + "/media/", str(value))
         parsed = urlparse(url)
         path = unquote(parsed.path)
+        if (field == 'int_report' and parsed.scheme == 'https' and parsed.netloc == 'openinfo.uz'
+                and not parsed.query and not parsed.fragment
+                and re.fullmatch(r'/media/int_report/[A-Za-z0-9_-]+\.xlsx', path, re.I)):
+            # The dated share-supplement importer reads these. Continue to the audit attachment.
+            continue
         if (parsed.scheme != "https" or parsed.netloc != "openinfo.uz" or parsed.query or parsed.fragment
                 or not path.startswith("/media/") or not path.lower().endswith(".pdf")
                 or ".." in path.split("/") or "\\" in path):

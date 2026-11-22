@@ -3,6 +3,7 @@ import { BankComparison, BankSectorBenchmarks } from './BankComparison.jsx';
 import { MetricValue } from './MetricValue.jsx';
 import { finLabel } from '../../../shared/financialLabels.jsx';
 import { displayReportRatio, reportRatioUnit, reportRatioReason } from '../../../lib/reportRatioDisplay.js';
+import OtherFilingEps from '../../../shared/OtherFilingEps.jsx';
 import { reportScopeLabel } from '../../../lib/reportingLabels.js';
 import { RatioInfo } from '../../../shared/RatioInfo.jsx';
 import { WorkspacePanel } from './WorkspacePanel.jsx';
@@ -279,6 +280,7 @@ function SectorMetrics({ticker,form,scope,lang,summary}) {
     <th scope="row"><span className="terminal-ratio-label"><span>{r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)}</span><RatioInfo metric={r.metric_code} label={r[`name_${lang}`]||r.name_ru||finLabel(r.metric_code,lang)} lang={lang} meaning={r[`meaning_${lang}`]||r.meaning_ru} formula={[r.formula, ...((r.method_id||'').startsWith('report-investor') ? (r.components||[]).filter(c=>c.value!=null).map(c=>[c.source_code||c.source_line_id||c.metric_id,c.value].filter(Boolean).join(' = ')) : [])].filter(Boolean).join('\n')}/></span></th>
     <td data-export-value={['eps_basic','eps_closing_estimate','book_value_per_share','price_to_book','ebit'].includes(r.metric_code) ? r.datedExport ?? r.raw_result ?? (r.value==null?reportRatioReason(r,lang):String(r.value)) : undefined} className={(r.value??r.raw_result)==null?'is-missing':undefined}>{fmt(r.value??r.raw_result,lang)}{(r.value??r.raw_result)!=null ? reportRatioUnit(r.unit,lang) : <div className="muted">{reportRatioReason(r,lang)}</div>}
       {r.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
+      {r.other_filing && <div><OtherFilingEps filing={r.other_filing} lang={lang}/></div>}
       {r.market_as_of&&<div className="muted">{words(lang,'Котировка','Kotirovka','Quote')}: {r.market_as_of}</div>}
       {safeHref(r.share_disclosure_url)&&<div><a href={safeHref(r.share_disclosure_url)} target="_blank" rel="noreferrer">
         {words(lang,'Раскрытие об акциях','Aksiyalar haqidagi ma’lumot','Share disclosure')}

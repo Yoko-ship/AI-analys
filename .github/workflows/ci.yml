@@ -1266,7 +1266,7 @@ jobs:
                   "Repair bank financial history daily", "*-*-* 02:00:00"),
               "/etc/systemd/system/uzstock-financial-ingestion.service": worker(
                   "uzstock-financial-ingestion", "UZStock NSBU history and IFRS document staging",
-                  "python -m financial_ingestion.bulk --workers 2 --ocr --nsbu-history --report /app/data/bulk-financial-report.json",
+                  "python -m financial_ingestion.bulk --workers 2 --ocr --nsbu-history --investor-metrics --report /app/data/bulk-financial-report.json",
                   timeout="24h", cpus="1.0", data_volume=True,
                   resources="--memory 3g --memory-swap 3g --pids-limit 256",
                   extra_env=("APP_DATA_DIR=/app/data", "FINANCIAL_ARTIFACT_DIR=/app/data/financial_artifacts",

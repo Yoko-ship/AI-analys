@@ -26,7 +26,7 @@ def write_report(path, report):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".bulk-", dir=path.parent)
     try:
-        with os.fdopen(fd, "w") as stream:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(report, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
             stream.flush()
@@ -203,6 +203,7 @@ def main(argv=None):
     parser.add_argument("--workers", type=int, default=2, help="Concurrent downloads and PDF processes (1..8)")
     parser.add_argument("--ocr", action="store_true", help="Read scanned statements; revisit native-only gaps once")
     parser.add_argument("--nsbu-history", action="store_true", help="Also collect and reparse NSBU annual/quarter history")
+    parser.add_argument("--investor-metrics", action="store_true", help="Collect share evidence and audit the latest public investor indicators")
     parser.add_argument("--skip-sync", action="store_true", help="Use existing issuer/report catalog")
     parser.add_argument("--force-sync", action="store_true", help="Refresh listings even within catalog TTL")
     parser.add_argument("--retry-failed", action="store_true", help="Explicitly retry terminal failed jobs")
@@ -222,6 +223,7 @@ def main(argv=None):
     tickers = sorted({t.upper().strip() for t in args.ticker}) if args.ticker else None
     started = time.monotonic()
     deadline = started + args.max_seconds if args.max_seconds else None
+    coverage_report = None
     run = {"started_at": store.now(), "processor": extract.processor_version(), "discovery": [], "errors": []}
     try:
         if not args.report_only and not args.skip_sync:
@@ -234,6 +236,21 @@ def main(argv=None):
         run["unresolved_tickers"] = unresolved
         run["issuer_count"] = len(targets)
         org_ids = [str(r["org_id"]) for r in targets]
+        if args.investor_metrics:
+            from . import investor_sweep
+            companies = [*targets, *({"ticker": ticker, "org_id": None} for ticker in unresolved)]
+            if tickers is None:
+                companies.extend(investor_sweep.unlinked_equities())
+            if not args.report_only:
+                run["investor_collection"] = investor_sweep.collect(companies, ocr=args.ocr, deadline=deadline)
+                run["errors"].extend(run["investor_collection"]["errors"])
+                if run["investor_collection"].get("deferred"):
+                    run["discovery_incomplete"] = True
+            coverage_report = investor_sweep.coverage(companies)
+            if 'investor_collection' in run:
+                coverage_report['collection'] = run['investor_collection']
+            run["errors"].extend({"ticker":i["ticker"], "reason":i["error"]} for i in coverage_report["issuers"] if i.get("error"))
+            write_report(Path(args.report).with_name("investor-metrics-coverage.json"), coverage_report)
         if not args.report_only:
             if args.nsbu_history:
                 from . import nsbu_history
@@ -267,6 +284,8 @@ def main(argv=None):
         log.exception("Bulk collection failed")
         run["errors"].append({"reason": str(exc)})
     report = build_report(tickers=tickers)
+    if coverage_report is not None:
+        report["investor_metrics"] = coverage_report
     report["run"] = {**run, "finished_at": store.now(), "elapsed_seconds": round(time.monotonic() - started, 1)}
     write_report(args.report, report)
     log.info("Coverage and missing-data report: %s", args.report)

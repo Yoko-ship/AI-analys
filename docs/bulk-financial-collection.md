@@ -4,7 +4,7 @@ Run the OpenInfo NSBU history and IFRS/audit PDF sweep from the project director
 the application's Python environment and catalog database:
 
 ```sh
-python -m financial_ingestion.bulk --workers 2 --ocr --nsbu-history
+python -m financial_ingestion.bulk --workers 2 --ocr --nsbu-history --investor-metrics
 ```
 
 This refreshes the issuer/report catalog, groups securities by issuer, discovers
@@ -31,6 +31,20 @@ reset. With `--ocr`, native-only incomplete candidates receive one additional
 OCR job per parser/document version. Reviewed evidence, original files and
 published snapshots remain intact. Terminal failures require an explicit
 `--retry-failed` run.
+
+The investor sweep checks every catalog issuer and looks through archived OpenInfo
+supplements for dated share counts. It refreshes compatible filings and exchange
+quotes and checks archived IFRS originals for reconcilable annual EPS notes.
+An approved OpenInfo annual can supply a separately labelled EPS when its PDF
+heading matches the issuer name on the disclosure, its publication date is
+eligible and both years of reported EPS reconcile to ordinary profit and weighted
+shares. The company report links the original page. Each nightly job spends up
+to 30 minutes starting PDF scans and resumes with previously unseen originals.
+Scans are reused by document hash and OCR mode. The job writes
+`investor-metrics-coverage.json` next to the bulk report before processing the
+remaining document queue. It lists current and historical verified values,
+missing inputs, inapplicable metrics and source failures by issuer, standard and
+scope. Run with `--investor-metrics --report-only` to audit existing evidence offline.
 
 Useful variants:
 

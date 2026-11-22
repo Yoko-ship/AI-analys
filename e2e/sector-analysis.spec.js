@@ -57,6 +57,21 @@ async function api(page, report = PUBLIC_REPORT, admin = false) {
   });
 }
 
+test('missing separate EPS links the dated consolidated HMKB figure', async ({page})=>{
+  const url='https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf';
+  await api(page,{...PUBLIC_REPORT,issuer:{...PUBLIC_REPORT.issuer,ticker:'HMKB'},ratios:[
+    {metric_code:'eps_basic',method_id:'eps',name_ru:'EPS',value:null,unit:'UZS_per_share',
+     other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',source_url:url,page:48}}]});
+  await page.goto('/company/HMKB?report=ai');
+  const dialog=page.getByRole('dialog');
+  await dialog.getByText('Финансовые коэффициенты',{exact:true}).click();
+  const row=dialog.getByTestId('verified-ratio-eps_basic');
+  await expect(row.locator('.verified-ratio-value')).toHaveText('—');
+  const link=row.getByRole('link',{name:/МСФО.*2025.*14,22/});
+  await expect(link).toContainText(/консолидирован/i);
+  await expect(link).toHaveAttribute('href',url+'#page=48');
+});
+
 test("sector report opens from the company card and exposes sourced formulas", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

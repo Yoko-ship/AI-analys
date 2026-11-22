@@ -12,6 +12,7 @@ from datetime import date, timedelta
 import json
 
 import catalogue.sources as catalogue_sources
+from catalogue.filings import _canonical_ticker
 from catalogue.organization import organization_kind
 from catalogue.periods import _is_future_period
 from catalogue.storage import get_catalog_conn
@@ -21,6 +22,10 @@ from . import nsbu, source_store
 def _recent_jobs(annual_periods):
     c = get_catalog_conn()
     try:
+        aliases = defaultdict(set)
+        for row in c.execute('SELECT ticker,org_id FROM catalog_companies'):
+            aliases[str(row['org_id'] or 'ticker:' + row['ticker'])].add(row['ticker'])
+        primary = {org:_canonical_ticker(symbols) for org, symbols in aliases.items()}
         reports = [dict(r) for r in c.execute(
             "SELECT r.*,c.org_id,c.company_name FROM catalog_reports r JOIN catalog_companies c "
             "ON c.ticker=r.ticker WHERE r.report_form='NSBU' AND "
@@ -35,7 +40,9 @@ def _recent_jobs(annual_periods):
         period = (report['year'], report['quarter'] or 0)
         candidates = issuers.setdefault(issuer, {})
         previous = candidates.get(period)
-        if previous is None or (str(report.get('published_at') or ''), report['id']) > (str(previous.get('published_at') or ''), previous['id']):
+        def rank(row):
+            return row['ticker'] == primary[issuer], str(row.get('published_at') or ''), row['id']
+        if previous is None or rank(report) > rank(previous):
             candidates[period] = report
     jobs = []
     for issuer, reports in issuers.items():
@@ -45,8 +52,8 @@ def _recent_jobs(annual_periods):
             quarterly = quarterly[:1]
         for year, quarter in annual + quarterly:
             report = reports[(year, quarter)]
-            jobs.append({'ticker': report['ticker'], 'issuer_id': issuer, 'year': year, 'quarter': quarter,
-                         'template': organization_kind(report['ticker'], name=report['company_name']),
+            jobs.append({'ticker': primary[issuer], 'issuer_id': issuer, 'year': year, 'quarter': quarter,
+                         'template': organization_kind(primary[issuer], name=report['company_name']),
                          'urls': {k: report.get(k) for k in ('excel_url','excel_url_form1','published_at')}})
     # Cover issuers' latest annual first, then current quarters and prior years.
     return sorted(jobs, key=lambda j: (-(j['year'] if not j['quarter'] else j['year'] - 1), bool(j['quarter']), j['ticker']))
@@ -70,7 +77,7 @@ def pending(annual_periods=2):
     return result
 
 
-def collect_share_bases():
+def collect_share_bases(issuer_ids=None):
     from collectors.openinfo.transport import _json_get
     from .share_disclosures import collect_form5, filing_key
 
@@ -80,7 +87,7 @@ def collect_share_bases():
     for job in _recent_jobs(None):
         url = job['urls']['excel_url'] or job['urls']['excel_url_form1']
         key = filing_key(url)
-        if key and job['issuer_id'].isdigit() and job['template'] not in {'bank','insurance','microfinance'}:
+        if key and job['issuer_id'].isdigit() and (issuer_ids is None or job['issuer_id'] in issuer_ids):
             org_type, report_type, report_id = key
             groups[(org_type, report_type)][(job['issuer_id'], report_id)] = (job, url)
     result = {'checked': 0, 'imported': 0, 'errors': []}
@@ -172,23 +179,39 @@ def collect_valuation_quotes(session, ticker, isin, start):
     return market_store.bulk_upsert_quote_history(changes)
 
 
-def collect_valuation_history():
+def collect_valuation_history(issuer_ids=None):
     from . import share_disclosures
+    from catalogue.filings import get_company_index
     from issuer_financials import resolve_issuer
+    from securities_catalog import get_securities_map
 
     keys = share_disclosures.filing_keys()
     issues = {}
     result = {'filings':0, 'quotes':0, 'errors':[]}
-    for job in _recent_jobs(None):
+    jobs = _recent_jobs(None)
+    securities = get_securities_map()
+    latest = {}
+    for job in jobs:
+        org = job['issuer_id']
+        latest[org] = max(latest.get(org, ''), _end(job))
+    for job in jobs:
         org, ticker, end = job['issuer_id'], job['ticker'], _end(job)
-        if (org, ticker, end, 'separate') not in keys:
+        if issuer_ids is not None and org not in issuer_ids:
             continue
-        try:
-            basis = share_disclosures.read(org, ticker, end, 'separate')
-            if not basis:
+        has_basis = (org, ticker, end, 'separate') in keys
+        if not has_basis and end != latest[org]:
+            continue
+        if (not has_basis and job['template'] in {'bank','insurance','microfinance'}
+                and securities.get(ticker, {}).get('share_type') == 'bond'):
+            aliases = (get_company_index(ticker) or {}).get('tickers') or [ticker]
+            if all(securities.get(alias, {}).get('share_type') == 'bond' for alias in aliases):
                 continue
+        try:
             _import(job, cache_for_reports=True)
             result['filings'] += 1
+            basis = share_disclosures.read(org, ticker, end, 'separate') if has_basis else None
+            if not basis:
+                continue
             issuer = resolve_issuer(ticker)
             isin = issuer.get('isin') or basis.get('isin')
             if (str(issuer['id']) == org and issuer['ticker'] == ticker and isin and basis.get('ordinary_shares')

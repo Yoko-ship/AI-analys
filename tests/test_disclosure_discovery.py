@@ -21,6 +21,15 @@ def detail(org=23, rid=7):
             'audition_result_report': [{'main_report': rid, 'conclusion_file': 'audit_conclusion/opinion.PDF'}]}
 
 
+@pytest.mark.parametrize('audit', ['', 'audit_conclusion/opinion.pdf'])
+def test_biok_annual_equity_workbook_does_not_block_pdf_discovery(audit):
+    d=detail(org=396,rid=5983)
+    d['int_report']='https://openinfo.uz/media/int_report/cd068eb7-abb1-4081-8632-a366fedc34f5.xlsx'
+    d['audition_result_report'][0]['conclusion_file']=audit
+    attachments=disclosures._attachments(d,{'org_id':'396','api_path':'/reports/jsc/annual/5983/'})
+    assert [r['url'] for r in attachments] == (['https://openinfo.uz/media/'+audit] if audit else [])
+
+
 def remember(rid=7, org=23, kind='bank'):
     disclosures.remember_listing(ticker='BRBN', org_id=org, records=listing(org,rid,kind))
 

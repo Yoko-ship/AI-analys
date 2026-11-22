@@ -117,3 +117,15 @@ def test_report_written_after_discovery_failure(setup, monkeypatch, tmp_path):
     report = json.loads(path.read_text())
     assert report["run"]["errors"][0]["reason"] == "source unavailable"
     assert report["publication_performed"] is False
+
+
+def test_investor_inventory_in_report_only_mode_is_scoped_and_offline(setup, monkeypatch, tmp_path):
+    import pytest
+    from financial_ingestion import investor_sweep
+    calls = []
+    monkeypatch.setattr(investor_sweep, 'coverage', lambda issuers: calls.append([i['ticker'] for i in issuers]) or {'issuers':[]})
+    monkeypatch.setattr(investor_sweep, 'collect', lambda *a, **kw: pytest.fail('offline inventory downloaded a source'))
+    path = tmp_path / 'report.json'
+    assert bulk.main(['--report-only','--investor-metrics','--ticker','BRBN','--report',str(path)]) == 0
+    assert calls == [['BRBN']]
+    assert json.loads(path.read_text())['investor_metrics']['issuers'] == []

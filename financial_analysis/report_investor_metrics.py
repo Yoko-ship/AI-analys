@@ -16,7 +16,7 @@ from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-7'
+VERSION = 'report-investor-metrics-8'
 HISTORICAL_METRICS = {'book_value_per_share', 'price_to_book', 'eps_basic', 'ebit'}
 SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
@@ -226,7 +226,9 @@ def calculate(report, rows, share_basis=None):
     instrument = report.get('instrument') or {}
     ordinary_issue = instrument.get('instrument_type') in (None, 'ordinary_share')
     emit('book_value_per_share', bvps if ordinary_issue else None, 'common_equity × 1000 / ordinary_shares',
-         [common, shares], 'UZS_per_share', share_disclosure_url=next(
+         [common, shares], 'UZS_per_share', missing_inputs=(
+             (['common_equity'] if common['value'] is None else []) +
+             (['ordinary_shares'] if shares['value'] is None or shares['value'] <= 0 else [])), share_disclosure_url=next(
              (c['source_url'] for c in shares['components'] if c.get('source_url')), None))
     price, quoted = decimal(instrument.get('last_price')), instrument.get('market_as_of')
     market_bvps = bvps
@@ -382,9 +384,10 @@ def _include_history(report, metrics):
         for stamp in source_store.prior_dates(org, standard='NSBU', scope=scope, end=end):
             candidates[stamp].add('ebit')
     if standard == 'ifrs':
+        from financial_ingestion.investor_eps import published_rows
         for snapshot in publication.snapshots(ticker, scope=scope):
             if str(snapshot.get('org_id')) == str(org) and snapshot.get('period_end') and snapshot['period_end'] < end:
-                keys = {r.get('metric_id') for r in snapshot['payload'].get('source_rows') or []}
+                keys = {r.get('metric_id') for r in [*(snapshot['payload'].get('source_rows') or []), *published_rows(snapshot)]}
                 if 'ordinary_shares' in keys:
                     candidates[snapshot['period_end']].update(('price_to_book', 'book_value_per_share'))
                 if keys & {'eps_basic', 'weighted_average_shares'}:
@@ -438,10 +441,57 @@ def _with_history(report, rows, basis):
                 if previous['value'] is not None:
                     market['last_verified'] = previous
         _include_history(report, metrics)
+        if report['standard'] == 'nsbu' and report.get('status') in {'available', 'stale'}:
+            eps = next(r for r in metrics if r['metric_code'] == 'eps_basic')
+            if eps['value'] is None and not eps.get('last_verified') and eps['calculation_status'] != 'not_applicable':
+                other = _published_ifrs_eps(report)
+                if other:
+                    eps['other_filing'] = other
     except Exception:
         logging.getLogger(__name__).warning('Optional historical indicators unavailable for %s',
                                             report['issuer']['ticker'], exc_info=True)
     return metrics
+
+
+def _published_ifrs_eps(report):
+    from financial_ingestion import investor_eps, publication
+    from issuer_financials import resolve_issuer
+
+    ticker, org = report['issuer']['ticker'], str(report['issuer']['id'])
+    cutoff = (report.get('instrument') or {}).get('valuation_as_of') or date.today().isoformat()
+    candidates = []
+    for scope in ('separate', 'consolidated'):
+        for snapshot in publication.snapshots(ticker, scope=scope):
+            payload = snapshot['payload']
+            source = payload.get('source') or {}
+            stamp = snapshot['period_end']
+            published = str(source.get('source_published_at') or '')[:10]
+            if (str(snapshot['org_id']) != org or stamp > report['financial_as_of'] or not stamp.endswith('-12-31')
+                    or not stamp <= published <= cutoff or not source.get('pdf_url')
+                    or payload['classification'].get('role') != 'PRIMARY'):
+                continue
+            if (any(r.get('metric_id') == 'eps_basic' for r in payload.get('source_rows') or [])
+                    or investor_eps.published_rows(snapshot)):
+                candidates.append((stamp, scope, source['pdf_url']))
+    direct = investor_eps.official_eps(org, report['financial_as_of'], cutoff, report['scope'])
+    if not candidates:
+        return direct
+    issuer = resolve_issuer(ticker)
+    if str(issuer['id']) != org or issuer['ticker'] != ticker:
+        return None
+    for stamp, scope, url in sorted(candidates, key=lambda c:(c[0], c[1]==report['scope']), reverse=True):
+        if direct and direct['period'] > stamp[:4]:
+            return direct
+        for row in _metrics_at(issuer, 'ifrs', scope, stamp[:4], stamp, cutoff, []):
+            if row['metric_code'] != 'eps_basic':
+                continue
+            evidence = next((c for c in row['components'] if c.get('source_url')==url and c.get('metric_id')=='eps_basic'), None)
+            if evidence:
+                if direct and direct['period'] == stamp[:4] and direct['scope'] == scope and direct['value'] != row['value']:
+                    return None
+                return {'standard':'ifrs', 'scope':scope, 'period':stamp[:4], 'value':row['value'], 'unit':row['unit'],
+                        'source_url':url, 'page':evidence.get('page')}
+    return None
 
 
 def project(report):
@@ -453,7 +503,7 @@ def project(report):
             report['ratios'] = [r for r in metrics if r.get('last_verified')]
         return report
     is_enterprise = enterprise(report)
-    if not is_enterprise and (report.get('standard') != 'nsbu' or report['issuer'].get('organization_type') == 'investment_fund_ifrs_annual'):
+    if report['issuer'].get('organization_type') == 'investment_fund_ifrs_annual':
         return report
     try:
         rows = _load(report)

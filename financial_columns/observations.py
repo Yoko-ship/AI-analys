@@ -33,6 +33,7 @@ def nsbu(documents):
 
 
 def ifrs(snapshots):
+    from financial_ingestion.investor_eps import published_rows
     result = []
     for snapshot in snapshots:
         payload, meta = snapshot['payload'], snapshot['payload']['classification']
@@ -44,7 +45,7 @@ def ifrs(snapshots):
                 'audit_status': meta.get('audit_status', 'unknown'), 'accounting_model': meta.get('accounting_model'),
                 'currency': meta.get('currency'), 'unit_scale': meta.get('unit_scale'), 'fx': meta.get('fx')}
         mapped = set()
-        for row in payload.get('source_rows') or []:
+        for row in [*(payload.get('source_rows') or []), *published_rows(snapshot)]:
             quality, reason = row['quality'], row.get('reason')
             value = None
             if row.get('raw_value') is not None and row.get('unit_scale'):

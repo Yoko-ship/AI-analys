@@ -1,4 +1,5 @@
 import React from "react";
+import OtherFilingEps from '../shared/OtherFilingEps.jsx';
 import {displayReportRatio,reportRatioUnit,reportRatioReason} from '../lib/reportRatioDisplay.js';
 import "./verified-report.css";
 
@@ -160,6 +161,7 @@ export default function VerifiedReport({ report, lang = "ru", narrative = false,
           <strong className="verified-ratio-name">{ratioText(item, lang, 0)}</strong>
           <p className="verified-ratio-value">{fmt(item.value, lang)}{item.value != null && reportRatioUnit(item.unit,lang)}</p>
           {item.asOfLabel && <small>{item.asOfLabel}</small>}
+          <OtherFilingEps filing={item.other_filing} lang={lang}/>
           {item.market_as_of && <small>{t('Котировка','Kotirovka','Quote')}: {item.market_as_of}</small>}
           <p className="verified-ratio-meaning">{ratioText(item, lang, 3)}</p>
           {item.benchmark_type && item.value != null && <small className={`verified-ratio-status ${item.value >= item.benchmark_min && (item.benchmark_max == null || item.value <= item.benchmark_max) ? "good" : "attention"}`}>

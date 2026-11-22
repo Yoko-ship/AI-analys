@@ -23,6 +23,50 @@ def metrics(report):
     return {r['metric_code']: r for r in service.public_report(report)['ratios']}
 
 
+def test_hmkb_published_ifrs_eps_appears_in_bank_report_only_for_its_scope(report, monkeypatch):
+    from financial_analysis import report_investor_metrics as subject
+    report.update(standard='ifrs', scope='consolidated', period='2025', financial_as_of='2025-12-31')
+    report['issuer'].update(id='8', ticker='HMKB', name='Hamkorbank', organization_type='bank')
+    report['verified_facts'] = [dict(metric_code='net_income', value=1786756000, period='2025',
+        unit_normalized='thousand UZS', verification_status='verified')]
+    base = dict(issuer_id='8', standard='MSFO', scope='consolidated', period_start='2025-01-01',
+                period_end='2025-12-31', quality='valid', role='PRIMARY', source_version='published',
+                source_url='https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf')
+    monkeypatch.setattr(subject, '_load', lambda r: [dict(base, metric_id='net_income', value='1786756000',unit='UZS_thousand'),
+        dict(base, metric_id='eps_basic', value='14.22', unit='UZS_per_share')])
+    out = metrics(report)
+    assert out['eps_basic']['value'] == 14.22
+    assert out['book_value_per_share']['missing_inputs'] == ['common_equity','ordinary_shares']
+    assert 'operating_margin' not in out and 'ebit' not in out
+    report['scope'] = 'separate'
+    assert metrics(report).get('eps_basic', {}).get('value') is None
+
+
+@pytest.mark.parametrize('published,shown', [('2026-05-07',True),('2027-05-07',False),('',False)])
+def test_hmkb_separate_report_links_other_published_basis_without_substituting_eps(report, monkeypatch, published, shown):
+    from financial_ingestion import publication
+    from financial_analysis import report_investor_metrics as subject
+    import issuer_financials
+    report.update(scope='separate',standard='nsbu',period='2026Q3',financial_as_of='2026-09-30')
+    report['issuer'].update(id='8',ticker='HMKB',organization_type='bank',name='Hamkorbank')
+    report['instrument']={'instrument_type':'ordinary_share','valuation_as_of':'2026-11-20'}
+    url='https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf'
+    snapshot={'org_id':'8','scope':'consolidated','period_end':'2025-12-31','payload':{
+        'classification':{'role':'PRIMARY'}, 'source':{'pdf_url':url,'source_published_at':published},
+        'source_rows':[{'metric_id':'eps_basic'}]}}
+    monkeypatch.setattr(publication,'snapshots',lambda ticker,scope: [snapshot] if scope=='consolidated' else [])
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda ticker: report['issuer'])
+    monkeypatch.setattr(subject,'_metrics_at',lambda *a:[{'metric_code':'eps_basic','value':14.22,'unit':'UZS_per_share',
+        'verification_status':'verified','components':[{'metric_id':'eps_basic','source_url':url,'page':48}]}])
+    eps=metrics(report)['eps_basic']
+    assert eps['value'] is None and not eps.get('last_verified')
+    if shown:
+        assert eps['other_filing']=={'standard':'ifrs','scope':'consolidated','period':'2025','value':14.22,
+                                     'unit':'UZS_per_share','source_url':url,'page':48}
+    else:
+        assert not eps.get('other_filing')
+
+
 @pytest.mark.parametrize('treasury', [0, 100])
 def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch, treasury):
     report.update(period='2026Q3', financial_as_of='2026-09-30')

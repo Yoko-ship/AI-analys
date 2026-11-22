@@ -5,6 +5,59 @@ from catalogue.storage import get_catalog_conn
 from financial_columns import source_store
 
 
+def test_hmkb_sibling_filing_reaches_ordinary_ticker_without_existing_share_basis(monkeypatch, tmp_path):
+    from financial_columns import backfill, share_disclosures
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path/'test.db'))
+    conn = get_catalog_conn()
+    with conn:
+        for ticker in ('HMKB','HMKBP'):
+            conn.execute('INSERT INTO catalog_companies(ticker,org_id,company_name) VALUES (?,\'8\',\'Hamkorbank\')',(ticker,))
+        for quarter, rid in [(2,1201),(3,1306)]:
+            url = f'https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=bank&report_type=quarter&report_id={rid}'
+            conn.execute("INSERT INTO catalog_reports(ticker,report_form,period_type,year,quarter,excel_url) "
+                         "VALUES ('HMKBP','NSBU','quarter',2026,?,?)",(quarter,url))
+    conn.close()
+    monkeypatch.setattr(share_disclosures, 'filing_keys', lambda: set())
+    warmed = []
+    monkeypatch.setattr(backfill, '_import', lambda job, **kw: warmed.append((job['ticker'],job['quarter'])))
+    assert backfill.collect_valuation_history(issuer_ids={'8'})['filings'] == 1
+    assert warmed == [('HMKB',3)]
+
+
+def test_financial_bond_only_issuer_does_not_require_a_share_valuation_workbook(monkeypatch, tmp_path):
+    from financial_columns import backfill, share_disclosures
+    monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'test.db'))
+    jobs=[dict(issuer_id='1058',ticker='ACMT1B2',template='microfinance',year=2026,quarter=3),
+          dict(issuer_id='8',ticker='HMKB',template='bank',year=2026,quarter=3)]
+    monkeypatch.setattr(backfill,'_recent_jobs',lambda _:jobs)
+    import securities_catalog
+    monkeypatch.setattr(securities_catalog,'get_securities_map',lambda:{
+        'ACMT1B2':{'share_type':'bond'},'HMKB':{'share_type':'ordinary'}})
+    monkeypatch.setattr(share_disclosures,'filing_keys',lambda:set())
+    warmed=[]
+    monkeypatch.setattr(backfill,'_import',lambda j,**kw:warmed.append(j['ticker']))
+    assert backfill.collect_valuation_history()['filings']==1
+    assert warmed==['HMKB']
+
+
+def test_nightly_share_discovery_checks_bank_attachments_and_respects_issuer_subset(monkeypatch):
+    from collectors.openinfo import transport
+    from financial_columns import backfill, share_disclosures
+    jobs = [dict(ticker=ticker, issuer_id=org, template=kind, year=2026, quarter=3,
+                 urls={'excel_url': f'https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type={kind}&report_type=quarter&report_id={rid}'})
+            for ticker, org, kind, rid in [('HMKB','8','bank',1306), ('BIOK','396','jsc',18938)]]
+    monkeypatch.setattr(backfill, '_recent_jobs', lambda _: jobs)
+    paths = []
+    def listing(session, path, params):
+        paths.append(path)
+        return {'total_pages': 1, 'results': [{'id':1306, 'organization':8, 'int_report':'test.xlsx'}]}
+    monkeypatch.setattr(transport, '_json_get', listing)
+    collected = []
+    monkeypatch.setattr(share_disclosures, 'collect_form5', lambda session, **job: collected.append(job['ticker']) or False)
+    assert backfill.collect_share_bases(issuer_ids={'8'})['checked'] == 1
+    assert paths == ['/reports/bank/quarter/'] and collected == ['HMKB']
+
+
 def test_share_backfill_finds_older_quarters_in_attachment_index(monkeypatch, tmp_path):
     from collectors.openinfo import transport
     from financial_columns import backfill, share_disclosures
