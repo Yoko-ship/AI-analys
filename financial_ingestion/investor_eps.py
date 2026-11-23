@@ -333,22 +333,36 @@ def _reviewed_eps_unit(note, eps):
                 'USD_per_ordinary_share': 'USD_per_share'}.get(note.get('unit'))
 
 
+def _reviewed_source_published(conn, org, note):
+    from .disclosures import reviewed_attachment
+
+    url = note['source_url']
+    attachment = note.get('annual_attachment')
+    if attachment:
+        if reviewed_attachment(conn, org_id=str(org), api_path=attachment['api_path'], category=attachment['category'],
+                               url=url, pdf_sha=note['sha256'], parent_sha=attachment['approved_parent_sha256']):
+            return attachment['publication_date']
+        return None
+    record = conn.execute(
+        'SELECT s.metadata_json FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
+        'WHERE s.org_id=? AND s.category=? AND s.url=? AND v.sha=?',
+        (str(org), 'MSFO', url, note['sha256'])).fetchone()
+    if not record:
+        return None
+    meta = json.loads(record['metadata_json'])
+    if (meta.get('id') == note['report_id'] and str(meta.get('organization_id')) == str(org)
+            and meta.get('pdf_url') == url and meta.get('status') == 'approved'
+            and meta.get('report_form') == 'MSFO' and meta.get('period_type') == 'annual'):
+        return str(meta.get('published_at') or '')[:10]
+
+
 def _reviewed_eps(conn, org, end, cutoff):
     for note in _reviewed_notes().get(str(org), []):
         url, stamp = note['source_url'], note['period_end']
         if stamp > end:
             continue
-        record = conn.execute(
-            'SELECT s.metadata_json FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
-            'WHERE s.org_id=? AND s.category=? AND s.url=? AND v.sha=?',
-            (str(org), 'MSFO', url, note['sha256'])).fetchone()
-        if not record:
-            continue
-        meta = json.loads(record['metadata_json'])
-        if (meta.get('id') != note['report_id'] or str(meta.get('organization_id')) != str(org)
-                or meta.get('pdf_url') != url or meta.get('status') != 'approved'
-                or meta.get('report_form') != 'MSFO' or meta.get('period_type') != 'annual'
-                or not stamp <= str(meta.get('published_at') or '')[:10] <= cutoff):
+        published = _reviewed_source_published(conn, org, note)
+        if not published or not stamp <= published <= cutoff:
             continue
         eps = Decimal(note['reported_eps'])
         unit = _reviewed_eps_unit(note, eps)

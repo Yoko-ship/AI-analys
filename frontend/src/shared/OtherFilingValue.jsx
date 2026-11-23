@@ -16,6 +16,6 @@ export default function OtherFilingValue({ filing, lang }) {
   const assurance = filing.audited === false && ({ru:'без аудита',uz:'auditsiz',en:'unaudited'}[lang] || 'без аудита');
   const quote = filing.market_as_of && (({ru:'Котировка',uz:'Kotirovka',en:'Quote'}[lang] || 'Котировка')+' '+filing.market_as_of);
   return <small><a href={href} target="_blank" rel="noreferrer">
-    {[standard, scope, assurance, period].filter(Boolean).join(' · ')} · {Number(filing.value).toLocaleString(lang==='en'?'en-US':'ru-RU', { maximumFractionDigits: 10 })}{reportRatioUnit(filing.unit,lang)}{quote && ' · '+quote}
+    {[standard, scope, assurance, period].filter(Boolean).join(' · ')} · {Number(filing.value).toLocaleString(lang==='en'?'en-US':'ru-RU', { maximumFractionDigits: filing.unit === 'percent' ? 2 : 10 })}{reportRatioUnit(filing.unit,lang)}{quote && ' · '+quote}
   </a></small>;
 }

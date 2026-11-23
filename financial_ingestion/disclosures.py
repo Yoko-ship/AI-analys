@@ -129,3 +129,23 @@ def discover(*, ticker=None, processor, max_requests=8, fetch=None):
                                  **attachment))
     return {"sources": len(ids), "requests": requested, "errors": errors,
             "pending": sum(r["retry_at"] <= time.time() for r in rows) - requested}
+
+
+def reviewed_attachment(conn, *, org_id, api_path, category, url, pdf_sha, parent_sha):
+    """Match the archived PDF and its membership in the reviewed annual filing."""
+    import dbx
+    if not {'ingest_disclosures', 'ingest_sources', 'ingest_versions'} <= set(dbx.tables(conn)):
+        return False
+    row = conn.execute(
+        """SELECT d.attachments_json
+             FROM ingest_disclosures d
+             JOIN ingest_sources s ON s.org_id = d.org_id
+             JOIN ingest_versions v ON v.id = s.latest_version
+            WHERE d.org_id = ? AND d.api_path = ? AND s.category = ? AND s.url = ? AND v.sha = ?""",
+        (org_id, api_path, category, url, pdf_sha)).fetchone()
+    if not row:
+        return False
+    return any(item['url'] == url and item['category'] == category
+               and item['metadata'].get('disclosure_sha256') == parent_sha
+               and item['metadata'].get('source_api_url') == API + api_path
+               for item in json.loads(row['attachments_json']))

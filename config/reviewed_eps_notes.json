@@ -157,6 +157,25 @@
       "uzs_per_currency_unit": 1000000,
       "weighted_ordinary_shares": "243259",
       "shares_per_unit": 1000000
+    },
+    {
+      "source_url": "https://openinfo.uz/media/int_report/3db4e8ef-1933-4b9a-add1-62ec2dcd1581.pdf",
+      "sha256": "c58f129faedc14810b23be4e58c738ceeec966330d56ba87e92b3f6d287c7d34",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 79,
+      "note": "35",
+      "reported_eps": "6.35",
+      "ordinary_profit": "1543801",
+      "uzs_per_currency_unit": 1000000,
+      "weighted_ordinary_shares": "243259",
+      "shares_per_unit": 1000000,
+      "annual_attachment": {
+        "api_path": "/reports/bank/annual/419/",
+        "category": "MSFO",
+        "approved_parent_sha256": "61f1f101a37a144ff28935c46f08e4186bd346191654878ba813a8cfbdeddce5",
+        "publication_date": "2026-07-02"
+      }
     }
   ],
   "717": [
@@ -432,6 +451,38 @@
       "row_label": "Basic and dilutive earnings per share in US Dollars",
       "column_year": 2023,
       "unit": "USD_per_ordinary_share"
+    }
+  ],
+  "27": [
+    {
+      "source_url": "https://openinfo.uz/media/audit_conclusion/545b4703-e05b-44d6-ac1e-a53d7b504523.pdf",
+      "sha256": "e68a3b08643485bc2c4ef22319dd8fd985f9b2a16df029a6e22398be908118a8",
+      "scope": "separate",
+      "period_end": "2025-12-31",
+      "page": 8,
+      "note": "21",
+      "reported_eps": "312",
+      "ordinary_profit": "156156635",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "500000000",
+      "shares_per_unit": 1,
+      "annual_attachment": {
+        "api_path": "/reports/bank/annual/431/",
+        "category": "Audition",
+        "approved_parent_sha256": "949a663a3a538f483824fffd67df1244f032a40a95be437d3b192ffaf3949050",
+        "publication_date": "2026-07-03"
+      },
+      "unit_reconciliation": "The audited income statement reports EPS of 312. The audited statement of changes in equity shows the same paid-up capital throughout FY2025 and no treasury-share movement. The charter amendment records 500 million shares. The FY2024, interim FY2025 and FY2025 statutory capital disclosures allocate all paid-up capital to ordinary shares. Dividing audited earnings of 156,156,635 thousand UZS by 500 million shares reproduces the reported amount in UZS per ordinary share.",
+      "corroborating_sources": [
+        "https://openinfo.uz/media/documents/ac3d78f9-b9f1-415d-b420-00d9c832a015.docx",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/372/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1062/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1122/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1179/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/431/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/91344/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/94646/"
+      ]
     }
   ]
 }

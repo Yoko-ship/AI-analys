@@ -1,4 +1,5 @@
 import React from 'react';
+import OtherFilingValue from '../../../shared/OtherFilingValue.jsx';
 import {TermInfo} from '../../../shared/TermInfo.jsx';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {metricApplies} from '../../../lib/terminalWorkspace.js';
@@ -35,6 +36,8 @@ export function MetricValue({row,metric,label,lang,text}) {
     }
     return text;
   }
+  const filing=row.other_filing_metrics?.[metric];
+  if(filing)return <OtherFilingValue filing={filing} lang={lang}/>;
   const reason=row.metric_reasons?.[metric];
   if(!reason)return text;
   let description=words(lang,...(reasons[reason.code]||reasons.MISSING_FINANCIALS));

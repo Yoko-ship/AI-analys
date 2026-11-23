@@ -344,3 +344,60 @@ def test_infb_issuer_cap_requires_every_registered_equity_isin(monkeypatch):
     securities['PREF'] = {'isin': 'UZ7055561003', 'name': 'Invest Finance Bank', 'share_type': 'preferred'}
     listings['PREF'] = {'shares_outstanding': 300000000, 'last_price': 1200, 'last_trade_date': today}
     assert service.market_context()['INFB']['market_cap'] == 2300000000000
+
+
+@pytest.mark.parametrize('ticker,org,parent,category,slug,sha,scope,net,opening,closing,page', [
+    ('GRBK', '11', 450, 'Audition', '1b29a626-15a2-49d3-abab-b3623cd946c8', 'bca5c31544118b21163e33af5636566d180eddfce561a12ff68b4c6caec3bfec', 'consolidated', 38860780,1923539769,4280790466,9),
+    ('OCBK', '27', 431, 'Audition', '545b4703-e05b-44d6-ac1e-a53d7b504523', 'e68a3b08643485bc2c4ef22319dd8fd985f9b2a16df029a6e22398be908118a8', 'separate', 52656371,3554473332,12195319951,8),
+    ('SQBN', '30', 419, 'MSFO', '3db4e8ef-1933-4b9a-add1-62ec2dcd1581', 'c58f129faedc14810b23be4e58c738ceeec966330d56ba87e92b3f6d287c7d34', 'consolidated',3996898,84800168,97184401,14),
+])
+def test_bank_ratios_can_show_independent_audited_annual(monkeypatch,tmp_path,ticker,org,parent,category,slug,sha,scope,net,opening,closing,page):
+    from financial_ingestion import store, disclosures, documents
+    from server.terminal import bank_ratios
+    import sector_report_service, issuer_financials
+    monkeypatch.setenv('CATALOG_DB_PATH',str(tmp_path/'catalog.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR',str(tmp_path))
+    monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda t:{'ticker':t,'id':org})
+    monkeypatch.setattr(sector_report_service,'sector_report',lambda *a,**k:{'status':'quality_blocked'})
+    field,folder=('audition_result_report','audit_conclusion') if category=='Audition' else ('int_report','int_report')
+    url=f'https://openinfo.uz/media/{folder}/{slug}.pdf'
+    api_path=f'/reports/bank/annual/{parent}/'
+    # Metadata recorded by disclosure discovery on the approved parent filing.
+    parent_sha={'GRBK':'4549607e38506e5d4b337f702213101e55cba4e220faeb2ada2149816548c77d',
+                'OCBK':'949a663a3a538f483824fffd67df1244f032a40a95be437d3b192ffaf3949050',
+                'SQBN':'61f1f101a37a144ff28935c46f08e4186bd346191654878ba813a8cfbdeddce5'}[ticker]
+    meta={'attachment_field':field,'disclosure_id':str(parent),'disclosure_sha256':parent_sha,
+          'source_api_url':'https://new-api.openinfo.uz/api/v2'+api_path,'report_form':category}
+    def read(period='2025'):
+        row=dict(kind='bank',period=period,assets=100,net_profit=1)
+        return bank_ratios.enrich(ticker,row,'NSBU','separate')
+    with store.transaction() as c:
+        disclosures.remember(c,ticker=ticker,org_id=org,report_id=parent,org_type='bank')
+        c.execute('UPDATE ingest_disclosures SET attachments_json=? WHERE org_id=?',
+                  (store.encoded([dict(url=url,category=category,metadata=meta)]),org))
+        source=documents.register(c,org_id=org,ticker=ticker,url=url,category=category,processor='test',metadata=meta)
+    assert not read().get('other_filing_metrics')
+    monkeypatch.setattr(documents,'archive',lambda payload:(sha,'example.pdf'))
+    documents.fetch_job(store.claim(stages=('FETCH',),source_id=source),'test',fetch=lambda _:b'%PDF-audited')
+    row=read()
+    assert row['nim'] is None and row['cost_of_risk'] is None
+    ref=row.get('other_filing_metrics',{}).get('nim') or {}
+    assert ref.get('value')==pytest.approx(net*200/(opening+closing))
+    assert (ref['standard'],ref['scope'],ref['period'],ref['unit'],ref['source_url'],ref['page'])==('ifrs',scope,'2025','percent',url,page)
+    loss=row['other_filing_metrics'].get('cost_of_risk')
+    if ticker=='SQBN':
+        from financial_ingestion.investor_eps import official_eps
+        assert official_eps(org,'2025-12-31','2026-07-01','consolidated') is None
+        eps=official_eps(org,'2025-12-31','2026-07-02','consolidated') or {}
+        assert (eps.get('value'),eps.get('scope'),eps.get('page'),eps.get('source_url'))==(6.35,'consolidated',79,url)
+        assert loss['value']==pytest.approx(1116391*200/(66757912+66475832))
+    else:
+        assert loss is None
+    if ticker=='OCBK':
+        from financial_ingestion.investor_eps import official_eps
+        eps=official_eps(org,'2025-12-31','2026-07-03','separate') or {}
+        assert (eps.get('value'),eps.get('scope'),eps.get('page'),eps.get('source_url'))==(312,'separate',8,url)
+    assert not read('2024').get('other_filing_metrics')
+    with store.transaction() as c:
+        c.execute("UPDATE ingest_disclosures SET attachments_json='[]' WHERE org_id=?", (org,))
+    assert not read().get('other_filing_metrics')

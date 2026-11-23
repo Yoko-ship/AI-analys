@@ -1027,3 +1027,22 @@ test('published zero and preferred yields link to the applicable shareholder dec
     await expect(row.locator('a')).toContainText(decision.ticker === 'AGBA' ? '0' : '8,88');
   }
 });
+
+test('bank screener labels audited IFRS ratios separately when statutory inputs are held', async ({page}) => {
+  await fixture(page);
+  const url='https://openinfo.uz/media/int_report/3db4e8ef-1933-4b9a-add1-62ec2dcd1581.pdf';
+  const filing={standard:'ifrs',scope:'consolidated',period:'2025',unit:'percent',page:14,source_url:url};
+  await page.route('**/api/terminal/screener?**',route=>route.fulfill({json:{rows:[{
+    ticker:'SQBN',name:'SQB',kind:'bank',period:'2025',standard:'NSBU',nim:null,cost_of_risk:null,
+    other_filing_metrics:{nim:{...filing,value:3996898*200/(84800168+97184401)},
+      cost_of_risk:{...filing,value:1116391*200/(66475832+66757912)}},
+    metric_reasons:{nim:{code:'UNDER_REVIEW'},cost_of_risk:{code:'UNDER_REVIEW'}}
+  }], years:[2025]}}));
+  await run(page,'EQS');
+  const row=page.locator('.terminal-screener').getByRole('row').filter({hasText:'SQBN'});
+  await expect(row.getByRole('link',{name:/МСФО.*консолидированная.*2025.*4,39%/})).toHaveAttribute('href',url+'#page=14');
+  await expect(row.getByRole('link',{name:/МСФО.*2025.*1,68%/})).toBeVisible();
+  const download=page.waitForEvent('download');
+  await page.locator('.terminal-table-wrap').filter({has:page.locator('.terminal-screener')}).getByRole('button',{name:'CSV',exact:true}).click();
+  expect(await readDownload(await download)).toContain('4,39%');
+});
