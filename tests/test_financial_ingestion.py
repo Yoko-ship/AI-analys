@@ -459,6 +459,36 @@ def test_scope_api_scales_once_and_binds_passport_to_requested_view(setup):
     assert client.get('/api/company/BRBN/financials?form=MSFO&scope=combined').status_code==422
 
 
+@pytest.mark.parametrize(("filed_org", "status", "accepted"), [
+    (528, "approved", True), (528, "withdrawn", False), (396, "approved", False),
+])
+def test_utyk_large_original_requires_matching_approved_openinfo_listing(setup, monkeypatch, filed_org, status, accepted):
+    url = "https://openinfo.uz/media/msfo/cec77c76-f2ad-4f77-bc42-676280aa691a.pdf"
+    metadata = dict(id=3297, organization_id=filed_org, organization_name="O'ztemiryo'lkonteyner",
+                    status=status, pdf_url=url, report_form="MSFO", period_type="annual", published_at="2026-07-07")
+    with store.transaction() as conn:
+        src = documents.register(conn, org_id="528", ticker="UTYK", url=url, category="MSFO",
+                                 metadata=metadata, processor="test")
+    monkeypatch.setattr(ifrs_financials, "MAX_BYTES", 4)
+    class Response:
+        status_code = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def raise_for_status(self): pass
+        def iter_content(self, size): yield setup[1]
+    monkeypatch.setattr(ifrs_financials.requests, "get", lambda *a, **kw: Response())
+    job = store.claim(stages=("FETCH",), source_id=src)
+    if not accepted:
+        with pytest.raises(ValueError, match="download limit"):
+            documents.fetch_job(job, "test")
+        return
+    documents.fetch_job(job, "test")
+    with store.transaction() as conn:
+        saved = conn.execute("SELECT v.sha FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version "
+                             "WHERE s.id=?", (src,)).fetchone()
+        assert saved["sha"] == hashlib.sha256(setup[1]).hexdigest()
+
+
 def test_registered_issuer_original_needs_no_ledger_entry_and_is_refreshed(setup,monkeypatch):
     monkeypatch.setenv("FINANCIAL_SOURCE_POLICY", "reviewed_issuers")
     import socket

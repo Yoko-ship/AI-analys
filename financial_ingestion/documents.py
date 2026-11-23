@@ -215,9 +215,14 @@ def fetch_job(job, processor, fetch=None):
         c.close()
     metadata = json.loads(source["metadata_json"])
     source_policy.require(source['url'])
-    payload = (fetch(source["url"]) if fetch else download_pdf(source["url"],
-               issuer_origin=(metadata.get("linked_document_origin") or metadata.get("source_page_url"))
-               if source["category"] == "IssuerIFRS" else None))
+    options = {}
+    if source["category"] == "IssuerIFRS":
+        options["issuer_origin"] = metadata.get("linked_document_origin") or metadata.get("source_page_url")
+    elif (_listing_evidence(metadata) and metadata["status"] == "approved"
+          and str(metadata["organization_id"]) == str(source["org_id"]) and metadata["pdf_url"] == source["url"]
+          and metadata["report_form"] == source["category"] and source["category"] in {"MSFO", "Audition"}):
+        options["approved_openinfo"] = True
+    payload = fetch(source["url"]) if fetch else download_pdf(source["url"], **options)
     if not payload.startswith(b"%PDF-"):
         raise ValueError("Source did not return a PDF")
     sha, path = archive(payload)

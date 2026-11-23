@@ -100,7 +100,7 @@ def validate_review(entry: dict, payload: bytes) -> dict[str, float]:
     return {field: float(value * factor) for field, value in amounts.items()}
 
 
-def download_pdf(url: str, *, issuer_origin: str | None = None) -> bytes:
+def download_pdf(url: str, *, issuer_origin: str | None = None, approved_openinfo: bool = False) -> bytes:
     from financial_ingestion import source_policy
     source_policy.require(url)
     parsed = urlparse(url)
@@ -116,7 +116,7 @@ def download_pdf(url: str, *, issuer_origin: str | None = None) -> bytes:
                     and origin.port in {None, 443} and not origin.username and not origin.password)
     if parsed.scheme != "https" or parsed.port not in {None, 443} or parsed.username or parsed.password or not (openinfo or official):
         raise ValueError("IFRS source must be an OpenInfo media document or an explicitly reviewed issuer document")
-    max_bytes = 100 * 1024 * 1024 if reviewed or official else MAX_BYTES
+    max_bytes = 100 * 1024 * 1024 if reviewed or official or (openinfo and approved_openinfo) else MAX_BYTES
     # No redirects to private/internal destinations, no unbounded downloads.
     if openinfo:
         from openinfo_http import _pace
