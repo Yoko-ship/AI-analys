@@ -373,6 +373,7 @@ def test_terminal_matches_dividend_to_quoted_preferred_isin(monkeypatch, ticker,
     ('METQ', 'UZ7035230000', 46000, '2026-08-26', '2026-09-08', None, None, 14685),
     ('GRBK', 'UZ7037610001', 4100, '2026-06-29', '2026-07-13', None, None, 14460),
     ('TMYS', 'UZ7057480012', 1500, '2026-05-26', '2026-06-01', None, None, 14038),
+    ('UZPN', 'UZ7005950009', 20260.82, '2026-06-30', '2026-07-06', None, None, 14338),
     ('ORGS', 'UZ7023070004', 15344, '2026-06-30', '2026-07-22', None, None, 14517),
 ])
 def test_zero_ordinary_yield_requires_applicable_decision(ticker, isin, price, decision, published, fid, preferred, resolution):
