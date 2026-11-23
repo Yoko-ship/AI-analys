@@ -174,5 +174,36 @@
       "weighted_ordinary_shares": "24986140",
       "shares_per_unit": 1
     }
+  ],
+  "638": [
+    {
+      "report_id": 3195,
+      "source_url": "https://openinfo.uz/media/msfo/034056eb-8d01-4b1c-90c3-3a7f2044857f.pdf",
+      "sha256": "62230b7098b396f816dbdb6b0ed692f37de570c673c079f9ade86707fb593d6c",
+      "scope": "separate",
+      "period_end": "2025-12-31",
+      "page": 7,
+      "reported_eps_uzs": "12.02",
+      "source_form": "income_statement",
+      "row_label": "Базовая и разводненная прибыль/(убыток) на обыкновенную акцию, в УЗС на акцию",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "382": [
+    {
+      "report_id": 1980,
+      "source_url": "https://openinfo.uz/media/msfo/Бекабадцемент_аудиторское_заключение_по_МСФО_за_2020_г.pdf",
+      "sha256": "d89648811c38b63c85f2cd9b433a0a6aa37a98354e8379b583629e96d55971fc",
+      "scope": "separate",
+      "period_end": "2020-12-31",
+      "page": 4,
+      "reported_eps_uzs": "182352.11",
+      "source_form": "income_statement",
+      "row_label": "Прибыль на акцию — Базовая и разводненная, в УЗС",
+      "column_year": 2020,
+      "unit": "UZS_per_ordinary_share",
+      "note": "8"
+    }
   ]
 }

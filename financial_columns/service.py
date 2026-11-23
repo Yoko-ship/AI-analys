@@ -38,8 +38,15 @@ def _check_filing_rows(source_rows, ticker, form):
     return observations.check(source_rows)
 
 
+def _filing_roce_cell(docs, ticker, template, end):
+    rows = observations.nsbu(docs)
+    _check_filing_rows(rows, ticker, 'NSBU')
+    return capital_returns.roce(rows, template=template, end=end, basis='annual' if end.endswith('-12-31') else 'ytd')
+
+
 def filing_roce(company, end, scope):
     """The screener uses the same filed YTD/FY result as the ratio table."""
+    latest = end is None
     ticker = company['ticker']
     template = organization_kind(ticker, name=company.get('name'))
     docs = source_store.read(company['org_id'], standard='NSBU', scope=scope, period_end=end, latest=True)
@@ -52,13 +59,22 @@ def filing_roce(company, end, scope):
     if not end:
         return None, {'value': None, 'reason_code': 'SECTOR_OR_ACCOUNTING_MODEL_NOT_APPLICABLE'
                       if template in capital_returns.FINANCIAL else 'ROCE_INPUTS_MISSING', 'unit': 'percent'}
-    rows = observations.nsbu(docs)
-    _check_filing_rows(rows, ticker, 'NSBU')
-    cell = capital_returns.roce(rows, template=template, end=end, basis='annual' if end.endswith('-12-31') else 'ytd')
+    cell = _filing_roce_cell(docs, ticker, template, end)
     period = end[:4] if end.endswith('-12-31') else f'{end[:4]}Q{int(end[5:7]) // 3}'
-    return period, {'value': float(cell['value']) if cell['value'] is not None else None, 'raw_result': cell['value'],
-            'unit': cell['unit'], 'reason_code': cell['reason'], 'quality': cell['quality'], 'basis': cell['basis'],
-            'balance_basis': cell['balance_basis'], 'formula': cell['formula']}
+    metric = {'value': float(cell['value']) if cell['value'] is not None else None, 'raw_result': cell['value'],
+              'unit': cell['unit'], 'reason_code': cell['reason'], 'quality': cell['quality'], 'basis': cell['basis'],
+              'balance_basis': cell['balance_basis'], 'formula': cell['formula']}
+    if latest and cell['reason'] in {'ROCE_INPUTS_MISSING', 'NON_POSITIVE_CAPITAL_EMPLOYED'}:
+        dates = source_store.prior_dates(company['org_id'], standard='NSBU', scope=scope, end=end)
+        for stamp in sorted(dates, reverse=True):
+            previous = source_store.read(company['org_id'], standard='NSBU', scope=scope, period_end=stamp)
+            prior = _filing_roce_cell(previous, ticker, template, stamp)
+            if prior['value'] is not None:
+                metric['last_verified'] = {k: prior[k] for k in ('period_start', 'period_end', 'basis', 'unit', 'quality', 'balance_basis')}
+                metric['last_verified'].update(value=float(prior['value']), raw_result=prior['value'],
+                                              source_url=prior['components'][0]['source_url'])
+                break
+    return period, metric
 
 
 def filing_ebit(company, report):

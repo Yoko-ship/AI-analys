@@ -487,3 +487,32 @@ def test_tnbn_held_nsbu_quarter_can_show_approved_annual_ifrs_ordinary_eps(monke
     held.clear()
     report['instrument']['instrument_type'] = 'preferred_share'
     assert not row()['metrics'].get('eps_basic')
+
+
+def test_tgpg_latest_screener_roce_preserves_loss_and_dated_capital_basis(monkeypatch):
+    from financial_columns import service
+    import data_quality
+
+    company = {'ticker': 'TGPG', 'org_id': '650'}
+    docs = json.loads(Path('tests/fixtures/financial_columns/tgpg_roce.json').read_text())
+    latest, previous = docs
+    def read(org, *, standard, scope, period_end=None, latest=False):
+        assert (org, standard, scope) == ('650', 'NSBU', 'separate')
+        return [d for d in docs if d['period_end'] == (period_end or '2026-09-30')]
+    monkeypatch.setattr(service.source_store, 'read', read)
+    monkeypatch.setattr(service.source_store, 'prior_dates', lambda *a, **kw: [previous['period_end']])
+    monkeypatch.setattr(service, '_latest_separate_end', lambda *a: latest['period_end'])
+    monkeypatch.setattr(service, 'organization_kind', lambda *a, **kw: 'industry')
+    holds = set()
+    monkeypatch.setattr(data_quality, 'held_public_periods', lambda *a: holds)
+    def load(end=None):
+        return service.filing_roce(company, end, 'separate')[1]
+    item = load()
+    assert item['value'] is None and item['reason_code'] == 'NON_POSITIVE_CAPITAL_EMPLOYED'
+    prior = item.get('last_verified') or {}
+    assert prior.get('value') == pytest.approx(-125.81421846573018)
+    assert (prior['period_start'], prior['period_end'], prior['basis']) == ('2026-01-01', '2026-06-30', 'ytd')
+    assert 'report_id=18714' in prior['source_url']
+    assert 'last_verified' not in load('2026-09-30')
+    holds.add('2026Q2')
+    assert 'last_verified' not in load()

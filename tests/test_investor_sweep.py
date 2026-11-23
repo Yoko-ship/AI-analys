@@ -390,6 +390,10 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
 
 
 @pytest.mark.parametrize(('org', 'ticker', 'filing_id', 'sha', 'filename', 'expected', 'page', 'year', 'scope'), [
+    ('638', 'UZAL', 3195, '62230b7098b396f816dbdb6b0ed692f37de570c673c079f9ade86707fb593d6c',
+     '034056eb-8d01-4b1c-90c3-3a7f2044857f.pdf', 12.02, 7, '2025', 'separate'),
+    ('382', 'BECM', 1980, 'd89648811c38b63c85f2cd9b433a0a6aa37a98354e8379b583629e96d55971fc',
+     'Бекабадцемент_аудиторское_заключение_по_МСФО_за_2020_г.pdf', 182352.11, 4, '2020', 'separate'),
     ('666', 'UZTL', 3247, 'b9f77bd6bdfa283dbdf2bba863cc34c45cb07e6c46f9d53eb6e543ac9ae64efb',
      '7e7924bc-31df-4729-aa34-9499f7bdb516.pdf', 2215, 57, '2025', 'consolidated'),
     ('17', 'IPTB', 3335, '10a865f60a680744891049210eb4a54b68f26457accfc06cd9717c29d5578acd',
