@@ -421,6 +421,14 @@ def filing_metrics(scope, period, search, offset, limit):
                             item['metrics'][r['metric_code']]['last_verified'] = {
                                 k:r['last_verified'][k] for k in ('value','raw_result','period_start','period_end','market_as_of')
                                 if k in r['last_verified']}
+                elif (report.get('standard') == 'ifrs' and report.get('scope') == scope
+                      and report.get('period') == (item['period'] or period)
+                      and report.get('issuer', {}).get('organization_type') == 'investment_fund_ifrs_annual'
+                      and str(report['issuer'].get('id')) == str(company.get('org_id'))):
+                    from fund_analysis import reported_eps
+                    audited = reported_eps(report)
+                    if audited:
+                        item['metrics']['eps_basic'] = {'value': None, 'other_filing': audited}
             except Exception:
                 logger.warning('Filing indicators unavailable for %s', ticker, exc_info=True)
                 if item['status'] != 'available':

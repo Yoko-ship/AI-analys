@@ -1,5 +1,6 @@
 """Read self-reconciling annual EPS notes from the exact PDF of a published filing."""
 from contextlib import closing
+from functools import lru_cache
 from datetime import date
 import json
 import subprocess
@@ -307,11 +308,43 @@ def official_filing(meta, *, url, org, row, end, cutoff):
             'unit':row['unit'], 'source_url':url, 'page':row['page']}
 
 
+@lru_cache(maxsize=1)
+def _reviewed_notes():
+    path = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_eps_notes.json'
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _reviewed_eps(conn, org, end, cutoff):
+    for note in _reviewed_notes().get(str(org), []):
+        url, stamp = note['source_url'], note['period_end']
+        if stamp > end:
+            continue
+        record = conn.execute(
+            'SELECT s.metadata_json FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
+            'WHERE s.org_id=? AND s.category=? AND s.url=? AND v.sha=?',
+            (str(org), 'MSFO', url, note['sha256'])).fetchone()
+        if not record:
+            continue
+        meta = json.loads(record['metadata_json'])
+        if (meta.get('id') != note['report_id'] or str(meta.get('organization_id')) != str(org)
+                or meta.get('pdf_url') != url or meta.get('status') != 'approved'
+                or meta.get('report_form') != 'MSFO' or meta.get('period_type') != 'annual'
+                or not stamp <= str(meta.get('published_at') or '')[:10] <= cutoff):
+            continue
+        eps = Decimal(note['reported_eps_uzs'])
+        profit = Decimal(note['ordinary_profit']) * note['uzs_per_currency_unit']
+        shares = Decimal(note['weighted_ordinary_shares']) * note['shares_per_unit']
+        if shares > 0 and (profit / shares).quantize(Decimal(1).scaleb(eps.as_tuple().exponent), rounding=ROUND_HALF_UP) == eps:
+            yield {'standard': 'ifrs', 'scope': note['scope'], 'period': stamp[:4], 'value': float(eps),
+                   'unit': 'UZS_per_share', 'source_url': url, 'page': note['page']}
+
+
 def official_eps(org, end, cutoff, preferred_scope):
     with closing(get_catalog_conn()) as conn:
         tables = set(dbx.tables(conn))
-        if not {'investor_eps_scans','ingest_sources','ingest_versions'} <= tables:
+        if not {'ingest_sources','ingest_versions'} <= tables:
             return None
+        reviewed = list(_reviewed_eps(conn, org, end, cutoff))
         checks = 'ingest_version_filing_checks' in tables
         observation = 'COALESCE(f.metadata_json,v.metadata_json)' if checks else 'v.metadata_json'
         join = 'LEFT JOIN ingest_version_filing_checks f ON f.version_id=v.id ' if checks else ''
@@ -320,8 +353,10 @@ def official_eps(org, end, cutoff, preferred_scope):
             'FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
             f'{join}'
             'JOIN investor_eps_scans x ON x.sha=v.sha WHERE s.org_id=? AND s.category=? AND x.parser IN (?,?)',
-            (str(org), 'MSFO', VERSION, STATEMENT_VERSION)).fetchall()
+            (str(org), 'MSFO', VERSION, STATEMENT_VERSION)).fetchall() if 'investor_eps_scans' in tables else []
     by_period = {}
+    for fact in reviewed:
+        by_period.setdefault((fact['period'], fact['scope']), []).append(fact)
     for record in records:
         meta = json.loads(record['metadata_json'])
         archived = json.loads(record['archived_metadata'])

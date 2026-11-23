@@ -12,7 +12,8 @@ export default function OtherFilingEps({ filing, lang }) {
   const [standard, consolidated, separate] = labels[lang] || labels.ru;
   const scope = filing.scope === 'consolidated' ? consolidated : separate;
   const href = Number.isInteger(filing.page) ? filing.source_url+'#page='+filing.page : filing.source_url;
+  const period = filing.period_start && filing.period_end ? filing.period_start+' – '+filing.period_end : filing.period;
   return <small><a href={href} target="_blank" rel="noreferrer">
-    {standard} · {scope} · {filing.period} · {Number(filing.value).toLocaleString(lang==='en'?'en-US':'ru-RU', { maximumFractionDigits: 2 })}{reportRatioUnit(filing.unit,lang)}
+    {standard} · {scope} · {period} · {Number(filing.value).toLocaleString(lang==='en'?'en-US':'ru-RU', { maximumFractionDigits: 10 })}{reportRatioUnit(filing.unit,lang)}
   </a></small>;
 }

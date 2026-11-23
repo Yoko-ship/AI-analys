@@ -387,3 +387,36 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
         result = investor_sweep.backfill_statements()
         assert not result['errors'] and result['statements_checked'] == 1
     assert downloads == [url]
+
+
+@pytest.mark.parametrize(('org', 'ticker', 'filing_id', 'sha', 'filename', 'expected', 'page'), [
+    ('666', 'UZTL', 3247, 'b9f77bd6bdfa283dbdf2bba863cc34c45cb07e6c46f9d53eb6e543ac9ae64efb',
+     '7e7924bc-31df-4729-aa34-9499f7bdb516.pdf', 2215, 57),
+    ('17', 'IPTB', 3335, '10a865f60a680744891049210eb4a54b68f26457accfc06cd9717c29d5578acd',
+     '75f067b6-58c4-4f79-a7c1-94a7cfe4da5b.pdf', .53, 53)])
+def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(
+        monkeypatch, tmp_path, org, ticker, filing_id, sha, filename, expected, page):
+    from financial_ingestion import documents, investor_eps, store
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'review.db'))
+    monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path))
+    url = 'https://openinfo.uz/media/msfo/' + filename
+    meta = dict(id=filing_id, organization_id=int(org), organization_name=ticker, status='approved',
+                pdf_url=url, report_form='MSFO', period_type='annual', published_at='2026-10-20')
+    with store.transaction() as conn:
+        source = documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test', metadata=meta)
+    def read():
+        return investor_eps.official_eps(org, '2026-09-30', '2026-11-23', 'separate')
+    documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda _: b'%PDF-test')
+    assert read() is None
+    with store.transaction() as conn:
+        documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test',
+                           metadata=meta, refresh_days=0)
+    monkeypatch.setattr(documents, 'archive', lambda payload: (sha, sha + '.pdf'))
+    documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda _: b'%PDF-reviewed')
+    filing = read() or {}
+    assert filing.get('value') == expected
+    assert (filing['scope'], filing['period'], filing['source_url'], filing['page']) == ('consolidated', '2025', url, page)
+    with store.transaction() as conn:
+        documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test',
+                           metadata={**meta, 'status': 'withdrawn'})
+    assert read() is None

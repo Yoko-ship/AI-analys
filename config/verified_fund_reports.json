@@ -51,7 +51,8 @@
       "ifrs_issued_shares": "25271312655635",
       "weighted_average_shares": "13746603049919",
       "audited_eps_uzs": "0.1021",
-      "source_line_id": "PDF:note11:earnings_per_share",
+      "source_line_id": "PDF:p61:note11:earnings_per_share",
+      "page": 61,
       "reconciliation_required": true
     },
     "subsequent_events": [{

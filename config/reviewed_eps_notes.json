@@ -1,0 +1,34 @@
+{
+  "17": [
+    {
+      "report_id": 3335,
+      "source_url": "https://openinfo.uz/media/msfo/75f067b6-58c4-4f79-a7c1-94a7cfe4da5b.pdf",
+      "sha256": "10a865f60a680744891049210eb4a54b68f26457accfc06cd9717c29d5578acd",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 53,
+      "note": "24",
+      "ordinary_profit": "2042326",
+      "uzs_per_currency_unit": 1000000,
+      "weighted_ordinary_shares": "3826166",
+      "shares_per_unit": 1000000,
+      "reported_eps_uzs": "0.53"
+    }
+  ],
+  "666": [
+    {
+      "report_id": 3247,
+      "source_url": "https://openinfo.uz/media/msfo/7e7924bc-31df-4729-aa34-9499f7bdb516.pdf",
+      "sha256": "b9f77bd6bdfa283dbdf2bba863cc34c45cb07e6c46f9d53eb6e543ac9ae64efb",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 57,
+      "note": "18",
+      "ordinary_profit": "604172553",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "272779843",
+      "shares_per_unit": 1,
+      "reported_eps_uzs": "2215"
+    }
+  ]
+}

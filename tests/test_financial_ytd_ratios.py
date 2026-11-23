@@ -376,3 +376,31 @@ def test_catalog_ebit_uses_verified_income_lines_when_only_equity_is_blocked(mon
     report['data_quality'].pop()
     urls['excel_url'] += '&revision=different'
     assert metric().get('value') is None
+
+
+def test_catalog_shows_uznf_first_audited_eps_with_its_actual_period(monkeypatch):
+    from server.terminal import service
+    from financial_columns import service as columns
+    import issuer_financials
+    import sector_report_service
+
+    company = {'ticker': 'UZNF', 'org_id': '1059'}
+    url = 'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf'
+    report = {'period': '2025', 'financial_as_of': '2025-12-31', 'standard': 'ifrs', 'scope': 'separate',
+              'status': 'available', 'issuer': {'ticker': 'UZNF', 'id': '1059', 'organization_type': 'investment_fund_ifrs_annual'},
+              'instrument': {'instrument_type': 'ordinary_share', 'valuation_as_of': '2026-11-23'},
+              'sources': [{'url': url, 'publication_date': '2026-03-30'}],
+              'verified_facts': [{'metric_code': 'net_income', 'period': '2025', 'unit_normalized': 'thousand UZS',
+                                  'verification_status': 'verified', 'value': 1403150000}]}
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(columns, 'filing_roce', lambda *a: ('2025', {'value': None}))
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda t: company)
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda *a, **kw: report)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda r: r)
+    def eps():
+        return service.filing_metrics('separate', '2025', 'UZNF', 0, 1)['rows'][0]['metrics'].get('eps_basic', {})
+    filing = eps().get('other_filing') or {}
+    assert filing.get('value') == 0.1021
+    assert (filing['period_start'], filing['period_end'], filing['page']) == ('2024-12-24', '2025-12-31', 61)
+    report['verified_facts'][0]['value'] /= 1000
+    assert not eps().get('other_filing')

@@ -1,6 +1,7 @@
 """Audited annual fund facts, kept separate from quarterly NSBU."""
 import json
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 from financial_analysis.sector_numbers import decimal, difference, number, ratio
@@ -21,6 +22,31 @@ def audited_snapshot(issuer, period=None):
         "source": {"document_id": record["source_document_id"], "url": record["source_url"], "publication_date": record["publication_date"]},
         "quality": {"data_quality": []}, "fund_record": record,
     }
+
+
+def reported_eps(report):
+    """Reconcile the audited fund's ordinary EPS independently of exchange share conversions."""
+    snapshot = audited_snapshot(report['issuer'], report['period'])
+    if not snapshot or snapshot['source']['url'] not in {s.get('url') for s in report.get('sources', [])}:
+        return None
+    record = snapshot['fund_record']
+    basis = record['share_basis']
+    instrument = report.get('instrument') or {}
+    if (report.get('scope') != snapshot['scope'] or report.get('status') != 'available'
+            or instrument.get('instrument_type') != 'ordinary_share'
+            or not record['period_end'] <= record['publication_date'] <= (instrument.get('valuation_as_of') or date.today().isoformat())):
+        return None
+    profit = Decimal(record['values']['net_income']) * 1000
+    if not any(f.get('metric_code') == 'net_income' and f.get('verification_status') == 'verified'
+               and f.get('period') == record['period'] and f.get('unit_normalized') == 'thousand UZS'
+               and decimal(f.get('value')) == profit for f in report.get('verified_facts', [])):
+        return None
+    shares, eps = Decimal(basis['weighted_average_shares']), Decimal(basis['audited_eps_uzs'])
+    if shares <= 0 or (profit * 1000 / shares).quantize(Decimal(1).scaleb(eps.as_tuple().exponent), rounding=ROUND_HALF_UP) != eps:
+        return None
+    return {'standard': 'ifrs', 'scope': snapshot['scope'], 'period': record['period'],
+            'period_start': record['period_start'], 'period_end': record['period_end'], 'value': float(eps),
+            'source_url': record['source_url'], 'page': basis['page'], 'unit': 'UZS_per_share'}
 
 
 def enrich(report, snapshot, market=None):

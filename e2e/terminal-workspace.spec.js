@@ -956,6 +956,9 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   await fixture(page);
   await page.route('**/api/terminal/filing-metrics?**', route => route.fulfill({json:{rows:[{
     ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, roce:{value:9.194}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
+  }, {ticker:'UZNF', period:'2025', metrics:{eps_basic:{value:null,other_filing:{
+    standard:'ifrs',scope:'separate',period:'2025',period_start:'2024-12-24',period_end:'2025-12-31',
+    value:0.1021,unit:'UZS_per_share',source_url:'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf',page:61}}}
   }, {ticker:'HMKB', period:'2026Q3', metrics:{issuer_price_to_book:{value:1.820788,market_as_of:'2026-11-20'},eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
     other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',
       source_url:'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf',page:48}}}
@@ -982,4 +985,8 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   const published=table.getByRole('row').filter({hasText:'HMKB'}).getByRole('link',{name:/МСФО.*2025.*14,22/});
   await expect(published).toHaveAttribute('href',/ba173c49.*#page=48$/);
   expect(csv).toMatch(/МСФО.*2025.*14[,.]22/);
+  const fund = table.getByRole('row').filter({hasText:'UZNF'}).getByRole('link',{name:/МСФО/});
+  await expect(fund).toContainText('0,1021');
+  await expect(fund).toContainText('2024-12-24');
+  expect(csv).toMatch(/2024-12-24.*0,1021/);
 });
