@@ -77,87 +77,47 @@ def _org_search_terms(company_name: str) -> list[str]:
 
 def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[list[dict], str | None]:
 
-    """Return (org-filtered /reports/main/ records, org_type) for a company.
-
-
-
-    Tries progressively cleaner search terms until one returns records for this
-
-    org_id — openinfo's search misses the full legal name for many issuers.
-
-    """
-
-    for query in _org_search_terms(company_name):
-
+    """Read all filing approvals for an issuer, including filings under former names."""
+    filters = [{"organization_id": org_id}] if str(org_id).isdigit() else []
+    filters.extend({"search": query} for query in _org_search_terms(company_name))
+    for criteria in filters:
         try:
-
-            payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": query})
-
+            payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, **criteria})
         except Exception:
-
             continue
-
         if isinstance(payload, dict) and payload.get("next") and isinstance(payload.get("count"), int):
-            # Name search may match the whole market. Re-query the approval feed
-            # using the tax number returned by this issuer's own filings.
             if payload["count"] > 20 * len(payload.get("results") or ()):
+                if "organization_id" in criteria:
+                    # Some deployments ignore the issuer filter and return the market-wide listing.
+                    continue
                 identity = _json_get(session, "/reports/unified-financial-reports/",
                                      {"organization": org_id, "page": 1, "page_size": 1})
                 tax_numbers = {str(item.get("organization_inn", "")) for item in identity.get("results", [])
                                if str(item.get("organization_id")) == str(org_id)}
                 if len(tax_numbers) != 1 or not re.fullmatch(r"[0-9]{9}", next(iter(tax_numbers), "")):
                     raise RuntimeError("OpenInfo listing exceeded the bounded discovery window without a confirmed issuer tax number")
-                query = tax_numbers.pop()
-                payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, "search": query})
-
+                criteria = {"search": tax_numbers.pop()}
+                payload = _json_get(session, "/reports/main/", {"page": 1, "page_size": 200, **criteria})
         results = list(payload.get("results") or []) if isinstance(payload, dict) else []
-
-        # The unified feed is paginated. Finding one recent issuer record does
-
-        # not mean its older statements were included in the first 200 rows.
-
         seen = {str(r.get("id")) for r in results}
-
         for page in range(2, 21):
-
             batch = payload.get("results") or []
-
             if not batch or (not payload["next"] if "next" in payload else len(batch) < 200):
-
                 break
-
-            payload = _json_get(session, "/reports/main/", {"page": page, "page_size": 200, "search": query})
-
+            payload = _json_get(session, "/reports/main/", {"page": page, "page_size": 200, **criteria})
             fresh = [r for r in payload.get("results", []) if str(r.get("id")) not in seen]
-
             if payload.get("results") and not fresh:
-
                 raise RuntimeError("OpenInfo repeated a report-listing page; discovery is incomplete")
-
             results.extend(fresh)
-
             seen.update(str(r.get("id")) for r in fresh)
-
         else:
-
             if payload.get("next") or ("next" not in payload and len(payload.get("results") or []) >= 200):
-
                 raise RuntimeError("OpenInfo listing exceeded the bounded discovery window")
-
         filtered = [r for r in results if str(r.get("organization")) == str(org_id)]
-
         if filtered:
-
-            org_type = next(
-
-                ((r.get("properties") or {}).get("org_type") for r in filtered if (r.get("properties") or {}).get("org_type")),
-
-                None,
-
-            )
-
+            org_type = next(((r.get("properties") or {}).get("org_type") for r in filtered
+                             if (r.get("properties") or {}).get("org_type")), None)
             return filtered, org_type
-
     return [], None
 
 

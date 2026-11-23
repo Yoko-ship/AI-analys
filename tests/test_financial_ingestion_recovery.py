@@ -234,6 +234,20 @@ def test_income_only_page_is_extracted_but_requires_review():
     assert not validation.validate(draft, page_count=8)["valid"]
 
 
+def test_davr_renamed_issuer_discovers_approved_filings_by_organization(monkeypatch):
+    # The catalog retains the older legal name. The approval register calls it "ABB Davr Bank".
+    def fetch(session, path, params):
+        assert path == '/reports/main/'
+        if str(params.get('organization_id')) != '26':
+            return {'results': [], 'next': None}
+        return {'results': [{'id': 3244, 'organization': 26, 'organization_name': '"ABB Davr Bank" AJ',
+                             'status': 'approved', 'report_type': 'MSFO'},
+                            {'id': 3144, 'organization': 24, 'report_type': 'MSFO'}], 'next': None}
+    monkeypatch.setattr(catalogue_sources, '_json_get', fetch)
+    rows, _ = catalogue_sources._fetch_main_results(None, '"Davr-bank" Xususiy aksiyadorlik tijorat banki', 26)
+    assert [row['id'] for row in rows] == [3244]
+
+
 def test_unified_discovery_reads_later_pages(monkeypatch):
     first = [{"id": n, "organization": 23} for n in range(200)]
     second = [{"id": 201, "organization": 23, "properties": {"org_type": "bank"}}, {"id": 202, "organization": 99}]

@@ -205,5 +205,44 @@
       "unit": "UZS_per_ordinary_share",
       "note": "8"
     }
+  ],
+  "26": [
+    {
+      "report_id": 3244,
+      "source_url": "https://openinfo.uz/media/msfo/2d2307d8-351b-4348-b76d-020e6ede93d1.pdf",
+      "sha256": "fbd1d12d29f8f710c9e130d6a26f5824fe6a02206c6cb33586ff6478526b8a09",
+      "scope": "separate",
+      "period_end": "2025-12-31",
+      "page": 9,
+      "note": "24",
+      "reported_eps_uzs": "5663",
+      "ordinary_profit": "566319511",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "100000000",
+      "shares_per_unit": 1,
+      "unit_reconciliation": "Page 9 prints basic and diluted EPS with the unit reversed. Profit of 566,319,511 thousand UZS divided by 100,000,000 ordinary shares reproduces the printed 5,663 UZS per share. Page 10 shows unchanged share capital throughout 2025. Both annual national filings show 500 billion UZS ordinary capital and zero preferred capital. The registered nominal is 5,000 UZS. The June 2025 and June 2026 meetings each record 100,000,000 votes at 100% quorum.",
+      "corroborating_sources": [
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/375/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/422/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/87230/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/91568/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/97286/"
+      ]
+    },
+    {
+      "report_id": 2824,
+      "source_url": "https://openinfo.uz/media/msfo/Davrbank_FS_RU_2023.pdf",
+      "sha256": "d65a9a56b89ea5dc8c8f5ae3397f3bdb1a1a255a008a497d8055d08baf60b730",
+      "scope": "separate",
+      "period_end": "2023-12-31",
+      "page": 53,
+      "note": "24",
+      "reported_eps_uzs": "3891.48",
+      "ordinary_profit": "311318210",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "80000000",
+      "shares_per_unit": 1,
+      "unit_reconciliation": "Note 24 reports profit attributable to ordinary shareholders in thousand UZS, weighted ordinary shares in units, and basic and diluted EPS. These independently reproduce the UZS per share amount."
+    }
   ]
 }
