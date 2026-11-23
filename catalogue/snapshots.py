@@ -1013,6 +1013,24 @@ def _inherit_financials_by_org(conn: sqlite3.Connection, out: dict[str, dict[str
                            "inherited_from_ticker": base}
 
 
+def _same_period_row(row):
+    """Latest-value caches may carry older fields. A dated series must use each field's source period."""
+    periods = catalogue_codecs._decode_field_periods(row['field_periods'])
+    period = str(row['year']) + (f"Q{row['quarter']}" if row['quarter'] else '')
+    mismatched = {field for field, source in periods.items() if source != period}
+    if not mismatched:
+        return row
+    result = dict(row)
+    for field in mismatched.intersection(result):
+        result[field] = None
+    # The balance fallback can carry a second copy of the same closing amount.
+    balance = catalogue_codecs._decode_balance_period(row['balance_period']) or {}
+    for field in mismatched.intersection(_CORRECTION_BALANCE_KEYS):
+        balance.pop(_CORRECTION_BALANCE_KEYS[field], None)
+    result['balance_period'] = balance
+    return result
+
+
 def _fin_row_fields(row: Any) -> dict[str, Any]:
 
     """One cached row's non-null fields, for the series readers.
@@ -1135,7 +1153,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
         fin = conn.execute(
 
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} FROM catalog_financials "
+            f"SELECT ticker, year, quarter, balance_period, field_periods, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} FROM catalog_financials "
 
             f"WHERE ticker IN ({placeholders}) AND form=? "
 
@@ -1149,6 +1167,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
             (*siblings, form)).fetchall()
 
+        fin = [_same_period_row(row) for row in fin]
         if form == 'NSBU':
             fin = [_corroborate_annual_assets(conn, row) for row in fin]
 
@@ -1277,7 +1296,7 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
 
         fin = conn.execute(
 
-            f"SELECT ticker, year, quarter, balance_period, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} "
+            f"SELECT ticker, year, quarter, balance_period, field_periods, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} "
 
             f"FROM catalog_financials "
 
@@ -1295,7 +1314,7 @@ def get_financials_series_quarterly(ticker: str, form: str = "NSBU") -> dict[str
 
     for row in sorted(fin, key=lambda r: r["ticker"] == t):
 
-        out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(_fin_row_fields(row))
+        out.setdefault(f"{row['year']}Q{row['quarter']}", {}).update(_fin_row_fields(_same_period_row(row)))
 
     if form == "NSBU":
         from financial_ingestion import quarterly_comparative

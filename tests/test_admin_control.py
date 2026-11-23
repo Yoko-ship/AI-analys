@@ -106,6 +106,17 @@ def test_immutable_history_and_environment_isolation(monkeypatch):
         get("documents", "d")
 
 
+def test_sqlite_initializing_another_filing_reader_keeps_revision_schema_stable():
+    # ALKB's filing page and a concurrent catalog read each initialize their connection.
+    import os
+    from contextlib import closing
+
+    with s.connection(), closing(sqlite3.connect(os.environ['ADMIN_CONTROL_DB'])) as observer:
+        before = observer.execute('PRAGMA schema_version').fetchone()[0]
+        with s.connection():
+            assert observer.execute('PRAGMA schema_version').fetchone()[0] == before
+
+
 def test_sqlite_revision_retention_keeps_recent_history_but_not_public_deletes():
     value = put("documents", {"id": "retained", "ticker": "T", "status": "V0"})
     for version in range(1, 14):

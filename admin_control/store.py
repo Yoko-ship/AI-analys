@@ -79,6 +79,7 @@ def schema(c):
     # No application API can delete history. Database triggers also protect it
     # from accidental UPDATE/DELETE through the application connection.
     if dbx.backend() == dbx.SQLITE:
+        c.execute("BEGIN IMMEDIATE")
         # Revision retention is a bounded, internal maintenance operation.  It
         # must not turn the public/admin API into a delete-capable interface,
         # nor does it apply to the append-only audit log.
@@ -90,15 +91,14 @@ def schema(c):
                   "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
         c.execute("CREATE TRIGGER IF NOT EXISTS control_revisions_update BEFORE UPDATE ON control_revisions "
                   "BEGIN SELECT RAISE(ABORT, 'immutable history'); END")
-        # Replace the v1 trigger once, so production SQLite gets the same
-        # revision bounds as PostgreSQL.  The guard is set only around the
-        # explicit maintenance query below.
-        c.execute("DROP TRIGGER IF EXISTS control_revisions_delete")
+        # Install the guarded retention trigger before retiring its legacy name.
+        # Further connection initializations leave the installed trigger in place.
         c.execute(
-            "CREATE TRIGGER control_revisions_delete BEFORE DELETE ON control_revisions "
+            "CREATE TRIGGER IF NOT EXISTS control_revisions_delete_v2 BEFORE DELETE ON control_revisions "
             "WHEN COALESCE((SELECT revision_prune FROM control_lock WHERE id=1), 0) <> 1 "
             "BEGIN SELECT RAISE(ABORT, 'immutable history'); END"
         )
+        c.execute("DROP TRIGGER IF EXISTS control_revisions_delete")
     else:
         c.execute("CREATE OR REPLACE FUNCTION control_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ "
                   "BEGIN IF TG_OP = 'DELETE' AND current_setting('app.revision_prune', true) = 'on' "

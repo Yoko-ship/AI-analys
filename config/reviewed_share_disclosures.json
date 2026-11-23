@@ -23,7 +23,7 @@
     "issuer_id": "78",
     "ticker": "ABKZ",
     "isin": "UZ7047650005",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -35,8 +35,15 @@
     "source_lines": {
       "ordinary_shares": "Charter §5.1.1 specifies 5,905,427 placed ordinary shares at 4,076 UZS. OpenInfo Q3 filing 19190, Form 1 lines 410 and 440, confirms matching registered capital and zero treasury shares.",
       "ordinary_only_at_end": "Charter §4.2 identifies the entire capital of 24,070,520,452 UZS as ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19190"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19190",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18216/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18726/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19190/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=78&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98073/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "445",
@@ -124,7 +131,7 @@
     "issuer_id": "246",
     "ticker": "JASM",
     "isin": "UZ7012450001",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -136,14 +143,22 @@
     "source_lines": {
       "ordinary_shares": "Charter §§4.1 and 4.3 identify 1,633,137 placed ordinary shares at 1,000 UZS each. September Form 1 lines 410 and 440 confirm the same capital and zero treasury shares.",
       "ordinary_only_at_end": "Charter §3.4 gives total capital of 1,633,137,000 UZS, fully accounted for by the ordinary issue in §4.1.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19060"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19060",
+      "ordinary_only": "Sections 3.4 and 4.1 of the 2023 and May 2026 charters both allocate the entire capital to 1,633,137 ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in each of the three quarters.",
+      "additional_charter": "https://openinfo.uz/media/documents/JSM_USTAVI_2023.pdf",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18170/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18688/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19060/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=246&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97445/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "717",
     "ticker": "URTS",
     "isin": "UZ7043200003",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -155,14 +170,22 @@
     "source_lines": {
       "ordinary_shares": "Charter §3.4, page 4, filed with the exchange on 02.09.2026: 374,792,100 placed ordinary shares of 630 UZS each. September Form 1 lines 410 and 440 confirm the registered capital and zero treasury shares.",
       "ordinary_only_at_end": "Charter §3.4, page 4 allocates the entire 236,119,023,000 UZS statutory capital to the ordinary issue.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/18974"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/18974",
+      "ordinary_only": "The November 2024 charter and January 2026 charter both allocate all capital to 374,792,100 ordinary shares. The January resolution amended section 11.6 on board elections. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in each of the three quarters.",
+      "additional_charter": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBcGtnIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--d1fefaa35d03358bdfb642eb54e4a69b13bc80f6/%D0%8E%D0%B7%D0%B1%D0%B5%D0%BA%D0%B8%D1%81%D1%82%D0%BE%D0%BD_%D1%80%D0%B5%D1%81%D0%BF%D1%83%D0%B1%D0%BB%D0%B8%D0%BA%D0%B0_%D1%82%D0%BE%D0%B2%D0%B0%D1%80_%D1%85%D0%BE%D0%BC_%D0%B0%D1%88%D1%91_%D0%B1%D0%B8%D1%80%D0%B6%D0%B0%D1%81%D0%B8_%D0%B0%D0%BA%D1%86%D0%B8%D1%8F%D0%B4%D0%BE%D1%80%D0%BB%D0%B8%D0%BA_%D0%B6%D0%B0%D0%BC%D0%B8%D1%8F%D1%82%D0%B8_%D1%8F%D0%BD%D0%B3%D0%B8_%D1%82%D0%B0%D2%B3%D1%80%D0%B8%D1%80%D0%B4%D0%B0%D0%B3%D0%B8_%D1%83%D1%81%D1%82%D0%B0%D0%B2%D0%B8.pdf",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18245/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18622/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18974/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=717&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97762/, https://new-api.openinfo.uz/api/v2/disclosure/facts/96288/, https://new-api.openinfo.uz/api/v2/disclosure/facts/95961/, https://new-api.openinfo.uz/api/v2/disclosure/facts/95715/, https://new-api.openinfo.uz/api/v2/disclosure/facts/95086/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "733",
     "ticker": "METQ",
     "isin": "UZ7035230000",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -174,14 +197,21 @@
     "source_lines": {
       "ordinary_shares": "Charter §4.1, page 5, filed with the exchange on 04.03.2025: 2,041,300 placed ordinary shares of 3,600 UZS each. September Form 1 lines 410 and 440 confirm the registered capital and zero treasury shares.",
       "ordinary_only_at_end": "Charter §4.1, page 5 allocates the entire 7,348,680,000 UZS statutory capital to the ordinary issue.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19136"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19136",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18400/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18676/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19136/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=733&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99212/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "310",
     "ticker": "UQEQ",
     "isin": "UZ7042540003",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -193,14 +223,21 @@
     "source_lines": {
       "ordinary_shares": "Charter §4.2, page 5, filed on 21.07.2025: 2,404,129 ordinary shares of 5,000 UZS each. September Form 1 lines 410 and 440 confirm the same paid-up capital and zero treasury shares.",
       "ordinary_only_at_end": "Charter §§4.1–4.3 identify the entire paid-up capital of 12,020,645,000 UZS as ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19236"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19236",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18417/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18775/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19236/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=310&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98326/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "220",
     "ticker": "NGQS",
     "isin": "UZ7042650000",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -212,14 +249,21 @@
     "source_lines": {
       "ordinary_shares": "Page 5, Openinfo fact 87571 dated 2024-12-19: 2,763,900 ordinary shares at 500 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
       "ordinary_only_at_end": "The charter allocates the entire 1,381,950,000 UZS capital to the placed ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19267"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19267",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18491/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18762/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19267/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=220&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99060/, https://new-api.openinfo.uz/api/v2/disclosure/facts/98283/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "611",
     "ticker": "ORGS",
     "isin": "UZ7023070004",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -231,14 +275,21 @@
     "source_lines": {
       "ordinary_shares": "§3.2, page 3, Openinfo fact 72733 dated 2023-07-11: 666,680 ordinary shares at 1,000 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
       "ordinary_only_at_end": "The charter allocates the entire 666,680,000 UZS capital to the placed ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19145"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19145",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18254/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18709/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19145/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=611&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98534/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "528",
     "ticker": "UTYK",
     "isin": "UZ7051720009",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -250,14 +301,21 @@
     "source_lines": {
       "ordinary_shares": "Page 6, Openinfo fact 77638 dated 2024-02-12: 3,366,271 ordinary shares at 1,000 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
       "ordinary_only_at_end": "The charter allocates the entire 3,366,271,000 UZS capital to the placed ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19193"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19193",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18371/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18730/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19193/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=528&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97893/, https://new-api.openinfo.uz/api/v2/disclosure/facts/95810/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "576",
     "ticker": "UZML",
     "isin": "UZ7055630006",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -269,14 +327,22 @@
     "source_lines": {
       "ordinary_shares": "Share capital clause in both columns of the charter comparison attached to the shareholder decision, Openinfo fact 92191 dated 2025-07-11: 1,500,000 ordinary shares at 1,363 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
       "ordinary_only_at_end": "The charter allocates the entire 2,044,500,000 UZS capital to the placed ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19129"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19129",
+      "ordinary_only": "The July 2025 charter comparison identifies 1,500,000 ordinary shares as the entire capital. The June 2026 amendment changes only the address in clause 1.20. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in each of the three quarters.",
+      "additional_charter": "https://openinfo.uz/media/documents/7a4918ea-2743-4c46-a4b9-129dc550dee5.docx",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18264/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18806/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19129/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=576&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97850/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "150",
     "ticker": "UZPN",
     "isin": "UZ7005950009",
-    "period_start": "2026-09-30",
+    "period_start": "2026-01-01",
     "period_end": "2026-09-30",
     "scope": "separate",
     "source_standard": "NSBU",
@@ -288,8 +354,15 @@
     "source_lines": {
       "ordinary_shares": "§4.2, page 3, Openinfo fact 94604 dated 2025-12-22: 8,447,400 ordinary shares at 85 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
       "ordinary_only_at_end": "The charter allocates the entire 718,029,000 UZS capital to the placed ordinary shares.",
-      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19293"
-    }
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19293",
+      "ordinary_only": "The charter in force at the start of 2026 assigns the entire capital to ordinary shares. Form 1 lines 410 and 440 reconcile opening and closing capital and treasury holdings in all three 2026 filings. The issuer’s issue register and shareholder resolutions through September corroborate the same share class.",
+      "form1_q1": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19291/",
+      "form1_q2": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19292/",
+      "form1_q3": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19293/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=150&fact_number=25",
+      "shareholder_resolutions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98003/"
+    },
+    "ordinary_only": true
   },
   {
     "issuer_id": "522",

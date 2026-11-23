@@ -155,6 +155,27 @@ class TestEquityByIdentity:
         assert "total_equity" not in s
 
 
+@pytest.mark.parametrize(('quarter', 'reader', 'current', 'original'), [
+    (0, 'get_financials_series', '2025', '2020'),
+    (3, 'get_financials_series_quarterly', '2025Q3', '2020Q3'),
+])
+def test_uzngp_history_excludes_cache_fields_from_another_period(tmp_path, monkeypatch, quarter, reader, current, original):
+    from catalogue import financial_store
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'uzng.db'))
+    # Openinfo annual 3748 has profit of 3,424,982,201 thousand UZS.
+    # The FY2025 cache for both issuer tickers carries that number with an explicit FY2020 stamp.
+    profit = 3424982201
+    financial_store.upsert_financials_cache('UZNGP', 'NSBU', 2020, quarter, {'revenue': 11417991844, 'net_income': profit})
+    financial_store.upsert_financials_cache('UZNGP', 'NSBU', 2025, quarter, {
+        'revenue': 11417991844, 'net_income': profit, 'total_liabilities': 18352649906, 'cash': 0,
+        'field_periods': {'revenue': original, 'net_income': original, 'total_liabilities': original, 'cash': current}})
+    history = getattr(catalogue_snapshots, reader)('UZNGP')
+    assert history[original]['net_income'] == profit
+    assert history[current]['cash'] == 0
+    assert not {'net_income', 'revenue', 'total_liabilities'}.intersection(history[current])
+
+
 class TestBalancePeriodFallback:
     def test_a_row_without_the_columns_reads_its_filed_balance_block(self):
         """Rows the reconcile pushed before the total_assets/total_equity
