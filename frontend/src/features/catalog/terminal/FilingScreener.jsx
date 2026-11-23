@@ -2,7 +2,7 @@ import React from 'react';
 import OtherFilingValue from '../../../shared/OtherFilingValue.jsx';
 import {localizedPath} from '../../../lib/languagePath.js';
 import {words} from '../../../shared/TerminalTables.jsx';
-import {displayReportRatio,reportRatioReason} from '../../../lib/reportRatioDisplay.js';
+import {displayReportRatio,reportRatioReason,reportRatioUnit} from '../../../lib/reportRatioDisplay.js';
 import {financialColumnQualityReason} from '../../company/index.js';
 import {reportScopeLabel} from '../../../lib/reportingLabels.js';
 import {useScreenData} from './TerminalPanels.jsx';
@@ -16,7 +16,7 @@ export function FilingScreener({lang, onClose}) {
   const params = new URLSearchParams({scope, search:query, offset, limit});
   const {data, error} = useScreenData('/api/terminal/filing-metrics?' + params, {func:'EQS',form:'NSBU'});
   const columns = [
-    ['eps_basic','EPS · UZS'], ['eps_closing_estimate',words(lang,'EPS прибл. · UZS','Taxminiy EPS · UZS','Estimated EPS · UZS')],
+    ['eps_basic','EPS'], ['eps_closing_estimate',words(lang,'EPS прибл. · UZS','Taxminiy EPS · UZS','Estimated EPS · UZS')],
     ['book_value_per_share','BVPS · UZS'], ['price_to_book','P/BV · ×'],
     ...(scope === 'separate' ? [['issuer_price_to_book',words(lang,'P/B эмитента · ×','Emitent P/B · ×','Issuer P/B · ×')]] : []),
     ['ebit',words(lang,'EBIT · тыс. UZS','EBIT · ming UZS','EBIT · thousand UZS')],
@@ -42,8 +42,9 @@ export function FilingScreener({lang, onClose}) {
           const quoteDates = [r?.first_quote_date, r?.market_as_of].filter(Boolean);
           const quoteLabel = r?.quoteLabel || (quoteDates.length ? words(lang,'Котировка','Kotirovka','Quote') + ' ' + [...new Set(quoteDates)].join(' – ') : '');
           const exportValue = r?.datedExport ?? (r?.value != null ? [r.raw_result ?? r.value, quoteLabel].filter(v=>v !== '').join(' ') : undefined);
-          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : exportValue}>
-            {r?.other_filing && r.value == null ? <OtherFilingValue filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
+          const valueUnit = k === 'eps_basic' && r?.value != null ? reportRatioUnit(r.unit,lang) : '';
+          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : exportValue+valueUnit}>
+            {r?.other_filing && r.value == null ? <OtherFilingValue filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)+valueUnit}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
             {r?.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
             {quoteLabel && <div className="muted">{quoteLabel}</div>}
           </td>;})}

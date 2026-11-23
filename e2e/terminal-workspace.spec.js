@@ -964,6 +964,9 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
     price_to_book:{value:null,other_filing:{standard:'ifrs',scope:'separate',period:'2026Q3',period_end:'2026-09-30',
       value:1.0701459,unit:'ratio',audited:false,market_as_of:'2026-11-20',
       source_url:'https://openinfo.uz/media/msfo/5af7c625-ee50-43c4-bb6a-d008089057fb.pdf',page:3}}}
+  }, {ticker:'UZMT', period:'2025Q3', metrics:{eps_basic:{value:null,other_filing:{
+    standard:'ifrs',scope:'consolidated',period:'2024',value:1.16,unit:'USD_per_share',
+    source_url:'https://openinfo.uz/media/msfo/0cf11785-0a35-4351-90ab-75d51a0f0b4a.pdf',page:6}}}
   }, {ticker:'HMKB', period:'2026Q3', metrics:{issuer_price_to_book:{value:1.820788,market_as_of:'2026-11-20'},eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
     other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',
       source_url:'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf',page:48}}}
@@ -990,6 +993,10 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   const published=table.getByRole('row').filter({hasText:'HMKB'}).getByRole('link',{name:/МСФО.*2025.*14,22/});
   await expect(published).toHaveAttribute('href',/ba173c49.*#page=48$/);
   expect(csv).toMatch(/МСФО.*2025.*14[,.]22/);
+  await expect(table.getByRole('columnheader',{name:'EPS',exact:true})).toBeVisible();
+  const motorEps = table.getByRole('row').filter({hasText:'UZMT'}).getByRole('link',{name:/МСФО.*2024.*1,16 USD\/акция/});
+  await expect(motorEps).toHaveAttribute('href', /#page=6$/);
+  expect(csv).toMatch(/UZMT.*2024.*1,16 USD\/акция/);
   const priorBook = table.getByRole('row').filter({hasText:'KSCM'});
   await expect(priorBook).toContainText('2026-06-30');
   await expect(priorBook).toContainText('2026-10-06 – 2026-11-20');

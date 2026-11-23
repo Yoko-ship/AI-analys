@@ -42,9 +42,11 @@ def test_hmkb_published_ifrs_eps_appears_in_bank_report_only_for_its_scope(repor
     assert metrics(report).get('eps_basic', {}).get('value') is None
 
 
-@pytest.mark.parametrize('published,shown', [('2026-05-07',True),('2027-05-07',False),('',False)])
-def test_hmkb_separate_report_links_other_published_basis_without_substituting_eps(report, monkeypatch, published, shown):
-    from financial_ingestion import publication
+@pytest.mark.parametrize('published,shown,source_unit', [
+    ('2026-05-07',True,'UZS_per_share'), ('2027-05-07',False,None), ('',False,None),
+    ('2026-05-07',False,'USD_per_share')])
+def test_hmkb_separate_report_links_other_published_basis_without_substituting_eps(report, monkeypatch, published, shown, source_unit):
+    from financial_ingestion import investor_eps, publication
     from financial_analysis import report_investor_metrics as subject
     import issuer_financials
     report.update(scope='separate',standard='nsbu',period='2026Q3',financial_as_of='2026-09-30')
@@ -58,6 +60,9 @@ def test_hmkb_separate_report_links_other_published_basis_without_substituting_e
     monkeypatch.setattr(issuer_financials,'resolve_issuer',lambda ticker: report['issuer'])
     monkeypatch.setattr(subject,'_metrics_at',lambda *a:[{'metric_code':'eps_basic','value':14.22,'unit':'UZS_per_share',
         'verification_status':'verified','components':[{'metric_id':'eps_basic','source_url':url,'page':48}]}])
+    direct = {'standard':'ifrs','scope':'consolidated','period':'2025','value':14.22,'unit':source_unit,
+              'source_url':url,'page':48} if source_unit else None
+    monkeypatch.setattr(investor_eps,'official_eps',lambda *args: direct)
     eps=metrics(report)['eps_basic']
     assert eps['value'] is None and not eps.get('last_verified')
     if shown:

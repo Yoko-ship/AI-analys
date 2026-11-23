@@ -390,6 +390,12 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
 
 
 @pytest.mark.parametrize(('org', 'ticker', 'filing_id', 'sha', 'filename', 'expected', 'page', 'year', 'scope'), [
+    ('102', 'UZMT', 3216, '63db7b9ada8b30c5ccffe4f0074853e0dfc1fd0f48ace31ed60768dfa6345fda',
+     '0ed3ebbe-7cf3-4716-a38c-2c0e9ec6a848.pdf', 1.25, 6, '2025', 'consolidated'),
+    ('102', 'UZMT', 2970, '0711b3bc6b8e91fa62305f7af984c67100eb11a1dfc10ec3230b95933b911494',
+     '0cf11785-0a35-4351-90ab-75d51a0f0b4a.pdf', 1.16, 6, '2024', 'consolidated'),
+    ('102', 'UZMT', 2799, '7acaeecd409c2d82d99ab641a8eddb539b20c8c3580cac1beb0bfa1409e5d4f2',
+     'Report_for_the_year_end_2023_full-4-11.pdf', 1.23, 6, '2023', 'consolidated'),
     ('638', 'UZAL', 3195, '62230b7098b396f816dbdb6b0ed692f37de570c673c079f9ade86707fb593d6c',
      '034056eb-8d01-4b1c-90c3-3a7f2044857f.pdf', 12.02, 7, '2025', 'separate'),
     ('382', 'BECM', 1980, 'd89648811c38b63c85f2cd9b433a0a6aa37a98354e8379b583629e96d55971fc',
@@ -459,6 +465,8 @@ def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(
     documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda _: b'%PDF-reviewed')
     filing = read() or {}
     assert filing.get('value') == expected
+    source_unit = 'USD_per_share' if ticker == 'UZMT' else 'UZS_per_share'
+    assert filing['unit'] == source_unit
     assert (filing['scope'], filing['period'], filing['source_url'], filing['page']) == (scope, year, url, page)
     with store.transaction() as conn:
         documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test',

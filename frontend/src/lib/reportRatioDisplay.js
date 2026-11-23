@@ -16,7 +16,9 @@ export function displayReportRatio(item, lang) {
 export function reportRatioUnit(unit,lang){
   if(['percent','%'].includes(unit))return '%';
   if(unit==='UZS_thousand')return pick(lang,' тыс. UZS',' ming UZS',' thousand UZS');
-  if(unit==='UZS_per_share')return pick(lang,' UZS/акция',' UZS/aksiya',' UZS/share');
+  if(['UZS_per_share','USD_per_share'].includes(unit)){
+    return ' '+unit.slice(0,3)+pick(lang,'/акция','/aksiya','/share');
+  }
   return unit==='ratio'?' ×':'';
 }
 

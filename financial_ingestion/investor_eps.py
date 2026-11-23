@@ -314,19 +314,23 @@ def _reviewed_notes():
     return json.loads(path.read_text(encoding='utf-8'))
 
 
-def _verified_reviewed_amount(note, eps):
+def _reviewed_eps_unit(note, eps):
+    """Return the unit only after validating the statement row or its components."""
     components = {'ordinary_profit', 'uzs_per_currency_unit', 'weighted_ordinary_shares', 'shares_per_unit'}
     if components.intersection(note):
-        if not components.issubset(note):
-            return False
+        if not components.issubset(note) or note.get('unit', 'UZS_per_ordinary_share') != 'UZS_per_ordinary_share':
+            return None
         profit = Decimal(note['ordinary_profit']) * note['uzs_per_currency_unit']
         shares = Decimal(note['weighted_ordinary_shares']) * note['shares_per_unit']
         precision = Decimal(1).scaleb(eps.as_tuple().exponent)
-        return shares > 0 and (profit / shares).quantize(precision, rounding=ROUND_HALF_UP) == eps
+        if shares > 0 and (profit / shares).quantize(precision, rounding=ROUND_HALF_UP) == eps:
+            return 'UZS_per_share'
+        return None
     # Scanned income statements can print basic EPS directly, with its own unit.
-    return (note.get('source_form') == 'income_statement' and bool(note.get('row_label'))
-            and note.get('unit') == 'UZS_per_ordinary_share' and note['page'] > 0
-            and note['period_end'] == f"{note.get('column_year')}-12-31")
+    if (note.get('source_form') == 'income_statement' and note.get('row_label') and note['page'] > 0
+            and note['period_end'] == f"{note.get('column_year')}-12-31"):
+        return {'UZS_per_ordinary_share': 'UZS_per_share',
+                'USD_per_ordinary_share': 'USD_per_share'}.get(note.get('unit'))
 
 
 def _reviewed_eps(conn, org, end, cutoff):
@@ -346,10 +350,11 @@ def _reviewed_eps(conn, org, end, cutoff):
                 or meta.get('report_form') != 'MSFO' or meta.get('period_type') != 'annual'
                 or not stamp <= str(meta.get('published_at') or '')[:10] <= cutoff):
             continue
-        eps = Decimal(note['reported_eps_uzs'])
-        if _verified_reviewed_amount(note, eps):
+        eps = Decimal(note['reported_eps'])
+        unit = _reviewed_eps_unit(note, eps)
+        if unit:
             yield {'standard': 'ifrs', 'scope': note['scope'], 'period': stamp[:4], 'value': float(eps),
-                   'unit': 'UZS_per_share', 'source_url': url, 'page': note['page']}
+                   'unit': unit, 'source_url': url, 'page': note['page']}
 
 
 def official_eps(org, end, cutoff, preferred_scope):
@@ -379,5 +384,5 @@ def official_eps(org, end, cutoff, preferred_scope):
                 by_period.setdefault((fact['period'], fact['scope']), []).append(fact)
     for key in sorted(by_period, key=lambda k:(k[0], k[1]==preferred_scope), reverse=True):
         choices = by_period[key]
-        if len({item['value'] for item in choices}) == 1:
+        if len({(item['value'], item['unit']) for item in choices}) == 1:
             return choices[0]

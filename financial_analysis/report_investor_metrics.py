@@ -525,7 +525,8 @@ def _published_ifrs_eps(report):
                 continue
             evidence = next((c for c in row['components'] if c.get('source_url')==url and c.get('metric_id')=='eps_basic'), None)
             if evidence:
-                if direct and direct['period'] == stamp[:4] and direct['scope'] == scope and direct['value'] != row['value']:
+                if (direct and direct['period'] == stamp[:4] and direct['scope'] == scope
+                        and (direct['value'], direct['unit']) != (row['value'], row['unit'])):
                     return None
                 return {'standard':'ifrs', 'scope':scope, 'period':stamp[:4], 'value':row['value'], 'unit':row['unit'],
                         'source_url':url, 'page':evidence.get('page')}
