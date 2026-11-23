@@ -322,7 +322,7 @@ def sync_company(
 
                 continue
 
-            pub = (pdf_ids.get(rid) or {}).get("pub_date")
+            pub = rec.get("pub_date") if rec.get("combined_form") else (pdf_ids.get(rid) or {}).get("pub_date")
 
             from nsbu_periods import resolve_annual_year
 
@@ -356,6 +356,9 @@ def sync_company(
 
     # a relabeled income statement with the wrong year's balance (or none).
 
+    form2_annual = [*form2_annual, *catalogue_sources.additional_annual_forms(
+        session, org_id, main_results, form2_annual, errors)]
+
     form1_annual_by_year: dict[int, dict] = {}
 
     for yr, _pub, rec in _corrected_annuals(form1_annual):
@@ -378,11 +381,14 @@ def sync_company(
 
             pdf_url, excel_url = catalogue_sources._nsbu_export_urls(
 
-                doc2.get("id"), "annual", org_type,
+                doc2.get("id"), "annual", rec.get("combined_form") or org_type,
 
-                pdf_id=(pdf_ids.get(str(doc2.get("id") or "")) or {}).get("pdf_id"))
+                pdf_id=rec.get("pdf_id") or (pdf_ids.get(str(doc2.get("id") or "")) or {}).get("pdf_id"))
 
             excel_url_form1 = catalogue_sources._nsbu_export_urls(doc1.get("id"), "annual", org_type)[1] if doc1 else None
+
+            if rec.get("combined_form"):
+                excel_url_form1 = excel_url
 
             new = catalogue_filings._upsert_report(
 
@@ -622,9 +628,10 @@ def sync_company(
 
     # the structured path yielded nothing we harvest NSBU straight from the listing.
 
-    if not form2_annual and not form2_quarter:
+    if not form2_quarter:
 
-        nsbu_main = [r for r in main_results if r.get("report_type") == "NSBU"]
+        nsbu_main = [r for r in main_results if r.get("report_type") == "NSBU"
+                     and (r.get("properties") or {}).get("report_type") in ("quarter", "quarterly")]
 
         with conn:
 
@@ -638,29 +645,12 @@ def sync_company(
 
                     continue
 
-                pt = str(doc.get("period_type") or "annual").lower()
-
-                if pt not in ("annual", "quarter"):
-
-                    pt = "annual"
-
-                q = 0
-
-                if pt == "quarter":
-
-                    props = rec.get("properties") or {}
-
-                    q = catalogue_periods._extract_quarter(str(props.get("report_title") or ""))
-
-                    # «Квартальный отчет ООО» names no quarter, and quarter 0 is
-
-                    # the annual slot: BFMT's Q1 2024 became its FY2024 there.
-
-                    # The history sweep files these by the workbook's header.
-
-                    if q is None:
-
-                        continue
+                pt = "quarter"
+                props = rec.get("properties") or {}
+                q = catalogue_periods._extract_quarter(str(props.get("report_title") or ""))
+                # An undated quarter cannot go in the annual (quarter zero) slot.
+                if q is None:
+                    continue
 
                 new = catalogue_filings._upsert_report(
 

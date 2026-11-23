@@ -396,3 +396,58 @@ def test_ctfb3_quarterly_sector_report_uses_reconciled_structured_lines(catalog,
             assert ratios.get("provisions_to_net_interest_income") == pytest.approx(100 * 781305 / 3565340)
         if mismatch is None:
             assert not report.get("source_refresh_failed")
+
+
+def test_contact_finance_december_form_fills_the_year_until_an_annual_is_filed(catalog, monkeypatch):
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.snapshots as snapshots
+    import catalogue.storage as storage
+    import issuer_financials as financials
+    import openinfo_reconcile as oi
+    from financial_ingestion import quarterly_comparative as quarters
+
+    detail = json.loads(Path("tests/fixtures/ctfb3-2025q4-structured.json").read_text())
+    url = "https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=microfinance&report_id=17&report_type=quarter"
+    pdf = "https://openinfo.uz/ru/reports/to_pdf26319/"
+    ticker = "CTFB3"
+    conn = storage.get_catalog_conn()
+    with conn:
+        conn.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)",
+                     (ticker, "Contact Finance", "1067"))
+        filings._upsert_report(conn, ticker, report_form="NSBU", period_type="quarter", year=2025, quarter=4,
+            title="Q4", published_at=detail["pub_date"], pdf_url=pdf, excel_url=url, excel_url_form1=url,
+            openinfo_report_id="17", object_id=None)
+    conn.close()
+    monkeypatch.setattr(oi, "fetch_detail", lambda candidate: detail)
+    assert quarters.backfill("1067", [ticker])["structured"] == ["2025Q4"]
+    assert snapshots.get_financials_series_quarterly(ticker)["2025Q4"]["total_equity"] == 3338688
+    issuer = {"id": "1067", "ticker": ticker, "isin": "", "name": "Contact Finance", "sector": "finance"}
+    monkeypatch.setattr(financials, "classify_organization", lambda *_: "microfinance")
+    snap = financials.financial_snapshot(issuer, "nsbu", "2025", "separate")
+    assert snap["current_values"]["total_assets"] == 13649572
+    assert snap["current_values"]["net_income"] == 502305
+    assert snap["source"]["url"] == pdf and snap["source"]["source_period"] == "2025Q4"
+    # A separately filed annual takes precedence, even if its balance is incomplete.
+    catalogue_financial_store.upsert_financials_cache(ticker, "NSBU", 2025, 0, {"net_income": 490000})
+    year = snapshots.get_financials_series(ticker)["2025"]
+    assert year["net_income"] == 490000 and year.get("total_assets") is None
+
+
+def test_delta_bond_aliases_select_the_latest_filing_and_its_current_parse(catalog):
+    from financial_ingestion import quarterly_comparative as quarters
+    import openinfo_reconcile as oi
+    current = quarters._parser_version(oi)
+    src = {"kind": "structured", "source_period": "2026Q1", "org_id": "956",
+           "source_url": "https://openinfo.uz/reports/microfinance/quarter/27",
+           "pub_date": "2026-06-04T18:13:51", "parser_version": current}
+    aliases = ["DMMT2B", "DMMT2B4"]
+    quarters._save(aliases, 2026, 1, {"net_income": 12326624}, {**src, "parser_version": "old"}, structured=True)
+    quarters._save(aliases[:1], 2026, 1, {"net_income": 12326624, "total_assets": 395569710}, src, structured=True)
+    for order in (aliases, aliases[::-1]):
+        assert quarters.read(order, structured=True)["2026Q1"]["values"]["total_assets"] == 395569710
+    revised = {**src, "parser_version": "old", "pub_date": "2026-06-09", "source_url": src["source_url"] + "1"}
+    quarters._save(aliases[1:], 2026, 1, {"net_income": 12326000}, revised, structured=True)
+    for order in (aliases, aliases[::-1]):
+        assert quarters.read(order, structured=True)["2026Q1"]["source"] == revised

@@ -1,6 +1,7 @@
 """Prepare current, annual, and prior-period financial snapshots for readers."""
 from __future__ import annotations
 from copy import deepcopy
+from urllib.parse import parse_qs, urlparse
 import catalogue.sources as catalogue_sources
 import dbx
 import re
@@ -1151,6 +1152,14 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
         placeholders = ",".join("?" * len(siblings))
 
+        december = []
+        if form == "NSBU":
+            december = conn.execute(
+                f"SELECT r.*, c.org_id FROM catalog_reports r JOIN catalog_companies c ON c.ticker=r.ticker "
+                f"WHERE r.ticker IN ({placeholders}) AND r.report_form='NSBU' AND r.quarter=4 "
+                f"AND NOT EXISTS (SELECT 1 FROM catalog_reports a WHERE a.ticker IN ({placeholders}) "
+                "AND a.report_form='NSBU' AND a.year=r.year AND a.quarter=0) ORDER BY r.published_at",
+                (*siblings, *siblings)).fetchall()
         fin = conn.execute(
 
             f"SELECT ticker, year, quarter, balance_period, field_periods, {', '.join(catalogue_fields._FIN_FIELDS + catalogue_fields._IFRS_BANK_FIELDS + catalogue_fields._FIN_INCOME_FIELDS)} FROM catalog_financials "
@@ -1197,7 +1206,7 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
     held_q4 = set()
 
-    if any(r["quarter"] == 4 for r in fin):
+    if december or any(r["quarter"] == 4 for r in fin):
 
         from data_quality import held_public_periods
 
@@ -1217,6 +1226,30 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
 
         out.setdefault(str(row["year"]), {}).update(_fin_row_fields(row))
 
+    if december:
+        from financial_ingestion import quarterly_comparative
+        supplements = quarterly_comparative.read(siblings, structured=True)
+        for doc in december:
+            year = doc["year"]
+            period = f"{year}Q4"
+            if year in annual_years or period in held_q4:
+                continue
+            supplement = supplements.get(period) or {}
+            meta = supplement.get("source") or {}
+            record = doc["object_id"] or doc["openinfo_report_id"]
+            params = parse_qs(urlparse(doc["excel_url"] or doc["excel_url_form1"] or "").query)
+            family = next(iter(params.get("org_type") or []), None)
+            if family == "llc":
+                family = "jsc"
+            if (not record or meta.get("org_id") != str(doc["org_id"]) or meta.get("source_period") != period
+                    or meta.get("pub_date") != doc["published_at"]
+                    or meta.get("source_url") != f"https://openinfo.uz/reports/{family}/quarter/{record}"):
+                continue
+            target = out.setdefault(str(year), {})
+            for field, value in supplement["values"].items():
+                if target.get(field) is None and value is not None:
+                    target[field] = value
+            target["source_quarter"] = period
     for row in sorted(rat, key=lambda r: r["ticker"] == t):
 
         out.setdefault(str(row["year"]), {}).update(

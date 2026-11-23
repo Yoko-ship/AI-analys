@@ -121,6 +121,38 @@ def _fetch_main_results(session: Any, company_name: str, org_id: Any) -> tuple[l
     return [], None
 
 
+def additional_annual_forms(session, org_id, approvals, indexed, errors):
+    """Resolve approved annuals omitted from an issuer's accounting-form index."""
+    known = {str(row.get("id")) for row in indexed}
+    extra = []
+    for approval in approvals:
+        properties = approval.get("properties") or {}
+        family = properties.get("org_type")
+        record_id = str(approval.get("object_id") or "")
+        parent = str(approval.get("id") or "")
+        if (approval.get("report_type") != "NSBU" or properties.get("report_type") != "annual"
+                or str(approval.get("organization")) != str(org_id) or approval.get("status") != "approved"
+                or family not in {"bank", "jsc", "insurance", "microfinance", "llc"}
+                or record_id in known or not record_id.isdigit() or not parent.isdigit()):
+            continue
+        route = "jsc" if family == "llc" else family
+        try:
+            detail = _json_get(session, f"/reports/{route}/annual/{record_id}/")
+            end = str(detail.get("reporting_year") or "")
+            if (str((detail.get("organization") or {}).get("id")) != str(org_id)
+                    or str(detail.get("id")) != record_id or str(detail.get("parent_id")) != parent
+                    or detail.get("status") != "approved" or not re.fullmatch(r"\d{4}-12-31", end)
+                    or not detail.get("balance_sheet_report") or not detail.get("financial_results_report")
+                    or not approval.get("pub_date") or detail.get("pub_date") != approval["pub_date"]):
+                raise ValueError("Annual statement does not match the approval or fiscal year-end")
+            extra.append({"id": record_id, "object_id": record_id, "reporting_year": int(end[:4]),
+                          "pub_date": approval["pub_date"], "combined_form": route, "pdf_id": parent,
+                          "properties": properties})
+        except Exception as exc:
+            errors.append(f"NSBU annual {route}/{record_id}: {exc}")
+    return extra
+
+
 def _nsbu_export_urls(report_id: Any, period_type: str, org_type: str | None,
                       pdf_id: Any = None) -> tuple[str | None, str | None]:
     """Build (pdf_url, excel_url) for an NSBU accounting-report from its ids.

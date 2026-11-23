@@ -75,3 +75,46 @@ class TestEffectiveAnnualYear:
         # Record 261's income statement is a copy of the 2016 filing under a
         # 2022 label — no relabel makes it true, it must not be ingested.
         assert ("11", "261") in catalogue_sources._ANNUAL_RECORD_EXCLUSIONS
+
+
+def test_annual_approval_recovers_imkon_filing_when_quarter_index_works(tmp_path, monkeypatch):
+    """The microfinance annual index rejects a bank-form annual approved in July."""
+    from urllib.parse import urlparse, parse_qs
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
+    monkeypatch.setattr(catalogue_sources, "_make_session", lambda: object())
+    pub = "2026-07-14T14:57:41"
+    approved = {"id": 30718, "organization": 841, "object_id": 449, "pub_date": pub,
+                "status": "approved", "report_type": "NSBU",
+                "properties": {"org_type": "bank", "report_type": "annual", "report_title": "Годовой отчет Банка"}}
+    detail = {"id": 449, "parent_id": 30718, "organization": {"id": 841}, "org_type": "microfinance",
+              "reporting_year": "2025-12-31", "pub_date": pub, "status": "approved",
+              "balance_sheet_report": [{"title": "14. Итого активов", "value": "45385484.00"}],
+              "financial_results_report": [{"title": "Чистая прибыль (убыток)", "value": "-9808952.00"}]}
+    monkeypatch.setattr(catalogue_sources, "_fetch_main_results", lambda *args: ([approved], "microfinance"))
+    monkeypatch.setattr(catalogue_sources, "_unified_pdf_id_map", lambda *args: {})
+    def fetch(session, path, params=None):
+        if path == "/reports/bank/annual/449/":
+            return detail
+        if (params or {}).get("report_type") == "annual":
+            raise ValueError("Micro-finance organizations only have quarterly reports.")
+        if (params or {}).get("report_type") == "quarter":
+            return [{"id": 62, "reporting_year": 2026, "quarter_no": "7"}]
+        return []
+    monkeypatch.setattr(catalogue_sources, "_json_get", fetch)
+    def annual():
+        catalogue_sync.sync_company("IFMT4", "IMKON FINANS", force=True, org_id="841")
+        c = catalogue_storage.get_catalog_conn()
+        try:
+            return [dict(r) for r in c.execute("SELECT * FROM catalog_reports WHERE ticker='IFMT4' AND quarter=0")]
+        finally:
+            c.close()
+    detail["organization"]["id"] = 1058
+    assert annual() == []
+    detail["organization"]["id"] = 841
+    rows = annual()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["year"] == 2025 and row["published_at"] == pub
+    assert row["openinfo_report_id"] == "449" and row["pdf_url"].endswith("/to_pdf30718/")
+    assert row["excel_url_form1"] == row["excel_url"]
+    assert parse_qs(urlparse(row["excel_url"]).query)["org_type"] == ["bank"]

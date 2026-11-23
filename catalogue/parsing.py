@@ -25,6 +25,8 @@ _LABEL_PATTERNS: dict[str, list[str]] = {
 
                      "по активу баланса", "balans aktivi"],
 
+    "bank_equity_total": ["итого собственного капитала"],
+
     "equity": ["собственный капитал", "итого капитал", "капитал и резерв",
 
                "total equity", "equity", "o'z kapitali", "kapital"],
@@ -707,6 +709,10 @@ def compute_financial_ratios(income_data: dict | None, balance_data: dict | None
     if equity is None and total_assets is not None and total_liabilities is not None:
 
         equity = total_assets - total_liabilities
+        # Banks round each published line independently in thousands of UZS.
+        filed_equity = _extract_metric(balance_rows or all_rows, "bank_equity_total")
+        if filed_equity is not None and abs(equity - filed_equity) <= 1:
+            equity = filed_equity
 
     cash = _extract_cash(balance_rows or all_rows)
 

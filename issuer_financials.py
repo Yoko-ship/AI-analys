@@ -370,7 +370,12 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     period_basis = 'cumulative_ytd' if is_quarterly and selected else 'annual'
     reports = scoped_reports if scoped_reports is not None else report_rows(issuer, standard)
     source_doc = next((row for row in reports if row.get('period') == selected), None)
+    source_quarter = values.get("source_quarter")
+    if not source_doc and source_quarter == f"{selected}Q4":
+        source_doc = next((row for row in reports if row.get("period") == source_quarter), None)
     source = {'document_id': (source_doc or {}).get('report_id') or f"catalog:{ticker}:{form}:{selected or 'none'}", 'url': (source_doc or {}).get('pdf_url') or (source_doc or {}).get('excel_url'), 'publication_date': (source_doc or {}).get('published_at') or (source_doc or {}).get('synced_at'), 'provider': 'openinfo/catalog'}
+    if source_doc and source_quarter and source_doc.get("period") == source_quarter:
+        source["source_period"] = source_quarter
     lending = {}
     if standard == "nsbu" and scope == "separate" and is_quarterly and organization_type == "microfinance" and source_doc:
         from financial_ingestion.microfinance import selected_lending

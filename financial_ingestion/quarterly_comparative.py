@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import math
 import hashlib
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -51,6 +52,7 @@ def _quarter_detail(oi, org_id, org_type, object_id):
     raise ValueError("Structured filing form does not match discovery")
 
 
+@lru_cache(maxsize=1)
 def _parser_version(oi):
     files = (__file__, oi.__file__, microfinance.__file__)
     return hashlib.sha256(b"".join(Path(file).read_bytes() for file in files)).hexdigest()
@@ -84,7 +86,15 @@ def read(tickers, *, structured=False):
                 values = json.loads(row["values_json"])
                 lending = values.pop("lending", None)
                 period = f"{row['year']}Q{row['quarter']}"
-                result[period] = {"values": values, "source": json.loads(row["source_json"])}
+                source = json.loads(row["source_json"])
+                if period in result:
+                    import openinfo_reconcile as oi
+                    held = result[period]["source"]
+                    version = _parser_version(oi)
+                    rank = (source.get("pub_date") or "", source.get("parser_version") == version)
+                    if rank <= (held.get("pub_date") or "", held.get("parser_version") == version):
+                        continue
+                result[period] = {"values": values, "source": source}
                 if lending:
                     result[period]["lending"] = lending
         return result
@@ -173,10 +183,10 @@ def backfill(org_id, aliases, journal=None):
         placeholders = ",".join("?" for _ in aliases)
         reports = [dict(r) for r in c.execute(
             f"SELECT * FROM catalog_reports WHERE ticker IN ({placeholders}) "
-            "AND report_form='NSBU' AND quarter BETWEEN 1 AND 3 ORDER BY published_at DESC", aliases)]
+            "AND report_form='NSBU' AND quarter BETWEEN 1 AND 4 ORDER BY published_at DESC", aliases)]
         originals = {}
         for row in c.execute(f"SELECT * FROM catalog_financials WHERE ticker IN ({placeholders}) "
-                             "AND form='NSBU' AND quarter BETWEEN 1 AND 3", aliases):
+                             "AND form='NSBU' AND quarter BETWEEN 1 AND 4", aliases):
             values, _ = fields.usable_filing(dict(row))
             originals.setdefault((row["year"], row["quarter"]), {}).update(
                 {k: v for k, v in values.items() if k in INCOME + BALANCE and v is not None})

@@ -160,3 +160,16 @@ def test_rollback_does_not_undo_later_changes_or_react_to_source_outages(source,
     finally:
         conn.close()
     assert balance_repair.rollback_unverified(backup_dir=source/'backup', apply=True)['restored'] == 0
+
+
+def test_imkon_bank_form_preserves_the_separately_rounded_equity_total():
+    from catalogue import parsing
+
+    rows = [{"label": label, "numeric_values": [value]} for label, value in (
+        ("14. Итого активов", 45385484), ("25. Итого обязательств", 40718398),
+        ("30. Итого собственного капитала", 4667087),
+        ("31. Итого обязательств и собственного капитала", 45385485))]
+    def balance(lines):
+        return parsing.compute_filing_values(None, {"sheets": [{"table_rows": lines}]})["source_values"]
+    assert balance(rows)["total_equity"] == 4667087
+    assert balance([rows[0], rows[1], rows[3]])["total_equity"] == 4667086
