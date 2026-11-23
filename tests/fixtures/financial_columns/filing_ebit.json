@@ -250,5 +250,794 @@
         "unit": "UZS_thousand"
       }
     ]
+  },
+  "UZIR": {
+    "issuer_id": "374",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2026-10-27T14:20:12",
+    "period_end": "2026-09-30",
+    "quality": "valid",
+    "source_version": "b932bd93a2e41fe89612bb18c2473044d74bb98a225b97812c3c6835252f3cf0",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            365426685,
+            0
+          ],
+          "value": "365426685"
+        },
+        "kind": "flow",
+        "metric_id": "operating_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            59664671,
+            0
+          ],
+          "value": "59664671"
+        },
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_code": "100",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            49534889,
+            0
+          ],
+          "value": "49534889"
+        },
+        "kind": "flow",
+        "metric_id": "finance_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            45936547,
+            0
+          ],
+          "value": "45936547"
+        },
+        "raw_label": "Доходы от финансовой деятельности, всего (стр.120+130+140+150+160), в том числе:",
+        "source_code": "110",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            408549599
+          ],
+          "value": "-408549599"
+        },
+        "kind": "flow",
+        "metric_id": "finance_cost",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            100709634
+          ],
+          "value": "-100709634"
+        },
+        "raw_label": "Расходы по финансовой деятельности (стр.180+190+200+210), в том числе:",
+        "source_code": "170",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            23754420
+          ],
+          "value": "-23754420"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            15190279
+          ],
+          "value": "-15190279"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            6411975,
+            0
+          ],
+          "value": "6411975"
+        },
+        "kind": "flow",
+        "metric_id": "ordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            5891584,
+            0
+          ],
+          "value": "5891584"
+        },
+        "raw_label": "Прибыль (убыток) от общехозяйственной деятельности (стр.100+110-170)",
+        "source_code": "220",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "extraordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Чрезвычайные прибыли и убытки",
+        "source_code": "230",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            6411975,
+            0
+          ],
+          "value": "6411975"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            5891584,
+            0
+          ],
+          "value": "5891584"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            4984401
+          ],
+          "value": "-4984401"
+        },
+        "kind": "flow",
+        "metric_id": "income_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            4057976
+          ],
+          "value": "-4057976"
+        },
+        "raw_label": "Налог на прибыль",
+        "source_code": "250",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "other_profit_payments",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+        "source_code": "260",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            1427574,
+            0
+          ],
+          "value": "1427574"
+        },
+        "kind": "flow",
+        "metric_id": "net_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            1833608,
+            0
+          ],
+          "value": "1833608"
+        },
+        "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+        "source_code": "270",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19045&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  },
+  "UZNGP": {
+    "issuer_id": "735",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2026-09-25T18:23:21",
+    "period_end": "2025-12-31",
+    "quality": "valid",
+    "source_version": "9148e96039b2fb3e2981b57563cbec5c6032082973f85574b90e9f65f6007e03",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "operating_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_code": "100",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "finance_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Доходы от финансовой деятельности, всего (стр.120+130+140+150+160), в том числе:",
+        "source_code": "110",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "finance_cost",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Расходы по финансовой деятельности (стр.180+190+200+210), в том числе:",
+        "source_code": "170",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "ordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прибыль (убыток) от общехозяйственной деятельности (стр.100+110-170)",
+        "source_code": "220",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "extraordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Чрезвычайные прибыли и убытки",
+        "source_code": "230",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "income_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Налог на прибыль",
+        "source_code": "250",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "other_profit_payments",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+        "source_code": "260",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "net_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+        "source_code": "270",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6182&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  },
+  "UZNGP_2020": {
+    "issuer_id": "735",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2022-03-15T18:11:57",
+    "period_end": "2020-12-31",
+    "quality": "valid",
+    "source_version": "f56503b3a25b90385fff391b6ec38c9d7b5af743b8d5e2dfa7634ef9feb2030a",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            3374551670,
+            0
+          ],
+          "value": "3374551670"
+        },
+        "kind": "flow",
+        "metric_id": "operating_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            2271080134,
+            0
+          ],
+          "value": "2271080134"
+        },
+        "raw_label": "Прибыль (убыток) от основной деятельности (стр.030-040+090)",
+        "source_code": "100",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            3135169779,
+            0
+          ],
+          "value": "3135169779"
+        },
+        "kind": "flow",
+        "metric_id": "finance_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            5061127128,
+            0
+          ],
+          "value": "5061127128"
+        },
+        "raw_label": "Доходы от финансовой деятельности, всего (стр.120+130+140+150+160), в том числе:",
+        "source_code": "110",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            2843712813
+          ],
+          "value": "-2843712813"
+        },
+        "kind": "flow",
+        "metric_id": "finance_cost",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            6850838872
+          ],
+          "value": "-6850838872"
+        },
+        "raw_label": "Расходы по финансовой деятельности (стр.180+190+200+210), в том числе:",
+        "source_code": "170",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            233738875
+          ],
+          "value": "-233738875"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            530362873
+          ],
+          "value": "-530362873"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            3666008636,
+            0
+          ],
+          "value": "3666008636"
+        },
+        "kind": "flow",
+        "metric_id": "ordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            481368390,
+            0
+          ],
+          "value": "481368390"
+        },
+        "raw_label": "Прибыль (убыток) от общехозяйственной деятельности (стр.100+110-170)",
+        "source_code": "220",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "extraordinary_profit",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Чрезвычайные прибыли и убытки",
+        "source_code": "230",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            3666008636,
+            0
+          ],
+          "value": "3666008636"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            481368390,
+            0
+          ],
+          "value": "481368390"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            241026435
+          ],
+          "value": "-241026435"
+        },
+        "kind": "flow",
+        "metric_id": "income_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            21257115
+          ],
+          "value": "-21257115"
+        },
+        "raw_label": "Налог на прибыль",
+        "source_code": "250",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "other_profit_payments",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Прочие налоги и другие обязательные платежи от прибыли",
+        "source_code": "260",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            3424982201,
+            0
+          ],
+          "value": "3424982201"
+        },
+        "kind": "flow",
+        "metric_id": "net_income",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            460111275,
+            0
+          ],
+          "value": "460111275"
+        },
+        "raw_label": "Чистая прибыль (убыток) отчетного периода (стр.240-250-260)",
+        "source_code": "270",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=3748&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
   }
 }

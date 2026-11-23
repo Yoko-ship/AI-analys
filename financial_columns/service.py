@@ -77,13 +77,30 @@ def filing_roce(company, end, scope):
     return period, metric
 
 
+def _reconciled_form2(rows):
+    """Independently tie the primary income statement to its pretax and after-tax results."""
+    fields = ('operating_income', 'finance_income', 'finance_cost', 'ordinary_profit', 'extraordinary_profit',
+              'profit_before_tax', 'income_tax', 'other_profit_payments', 'net_income')
+    amounts = {}
+    for field in fields:
+        cell = matrix.choose([r for r in rows if r.get('metric_id') == field and r['unit'] == 'UZS_thousand'])
+        if cell.get('value') is None or cell['quality'] not in {'valid', 'warn'}:
+            return False
+        amounts[field] = Decimal(cell['value'])
+    return (any(amounts.values())
+            and amounts['operating_income'] + amounts['finance_income'] + amounts['finance_cost'] == amounts['ordinary_profit']
+            and amounts['ordinary_profit'] + amounts['extraordinary_profit'] == amounts['profit_before_tax']
+            and amounts['profit_before_tax'] + amounts['income_tax'] + amounts['other_profit_payments'] == amounts['net_income'])
+
+
 def filing_ebit(company, report):
-    """Read matched Form 2 lines when the analysis card blocks only the equity reconciliation."""
+    """Read matched Form 2 lines when only balance-sheet checks block the analysis card."""
     from catalogue.filings import get_report_urls
     from issuer_financials import period_end, period_key
 
     blocks = {q.get('code') for q in report.get('data_quality', []) if q.get('severity') == 'blocking'}
-    if report.get('status') != 'quality_blocked' or blocks != {'CAPITAL_COMPONENTS_MISMATCH'}:
+    if (report.get('status') != 'quality_blocked' or not blocks
+            or blocks - {'CAPITAL_COMPONENTS_MISMATCH', 'BALANCE_IDENTITY_FAILED'}):
         return None
     period = report.get('period')
     end = period_end(period)
@@ -104,6 +121,8 @@ def filing_ebit(company, report):
     _check_filing_rows(rows, ticker, 'NSBU')
     primary = [r for r in rows if r['source_form'] == 'F2' and r.get('source_url') == url
                and r['role'] == 'PRIMARY' and r['kind'] == 'flow']
+    if 'BALANCE_IDENTITY_FAILED' in blocks and not _reconciled_form2(primary):
+        return None
     template = organization_kind(ticker, name=company.get('name'))
     cell = matrix.choose([r for r in derived.enrich(primary, template=template) if r.get('metric_id') == 'ebit'])
     if cell['value'] is None:

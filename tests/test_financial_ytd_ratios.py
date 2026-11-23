@@ -338,8 +338,9 @@ def test_current_hmkb_ratios_reach_api_and_exports(hmkb_rows,monkeypatch,tmp_pat
 
 
 @pytest.mark.parametrize(('ticker', 'expected'), [('KSCM', 3243591), ('TGMQ', -12508126),
-                                                ('UZGFP', 11401436), ('BECM', -21569086)])
-def test_catalog_ebit_uses_verified_income_lines_when_only_equity_is_blocked(monkeypatch, ticker, expected):
+                                                ('UZGFP', 11401436), ('BECM', -21569086),
+                                                ('UZIR', 30166395)])
+def test_catalog_ebit_uses_verified_income_lines_when_only_balance_is_blocked(monkeypatch, ticker, expected):
     from catalogue import filings
     from financial_columns import service as columns
     from server.terminal import service
@@ -352,6 +353,8 @@ def test_catalog_ebit_uses_verified_income_lines_when_only_equity_is_blocked(mon
     report = {'period': period, 'financial_as_of': doc['period_end'], 'standard': 'nsbu', 'scope': 'separate',
               'status': 'quality_blocked', 'sources': [{'publication_date': doc['published_at']}], 'ratios': [],
               'data_quality': [{'severity': 'blocking', 'code': 'CAPITAL_COMPONENTS_MISMATCH'}]}
+    if ticker == 'UZIR':
+        report['data_quality'].append({'severity': 'blocking', 'code': 'BALANCE_IDENTITY_FAILED'})
     urls = {'excel_url': doc['rows'][0]['source_url'], 'published_at': doc['published_at']}
     monkeypatch.setattr(service, 'universe', lambda **kw: [company])
     monkeypatch.setattr(columns, 'organization_kind', lambda *a, **kw: 'industry')
@@ -374,6 +377,11 @@ def test_catalog_ebit_uses_verified_income_lines_when_only_equity_is_blocked(mon
     report['data_quality'].append({'severity': 'blocking', 'code': 'SOURCE_MAPPING_FAILED'})
     assert metric().get('value') is None
     report['data_quality'].pop()
+    if ticker == 'UZIR':
+        income = next(r for r in doc['rows'] if r['source_code'] == '110')['current']
+        income['value'] = '49534890'
+        assert metric().get('value') is None
+        income['value'] = '49534889'
     urls['excel_url'] += '&revision=different'
     assert metric().get('value') is None
 
@@ -516,3 +524,53 @@ def test_tgpg_latest_screener_roce_preserves_loss_and_dated_capital_basis(monkey
     assert 'last_verified' not in load('2026-09-30')
     holds.add('2026Q2')
     assert 'last_verified' not in load()
+
+
+def test_uzngp_latest_ebit_keeps_zero_placeholder_empty_and_dates_the_verified_filing(monkeypatch):
+    from catalogue import filings
+    import data_quality
+    from financial_columns import service as columns
+    from server.terminal import service
+    import issuer_financials
+    import sector_report_service
+
+    docs = json.loads(Path('tests/fixtures/financial_columns/filing_ebit.json').read_text())
+    issuer = {'ticker': 'UZNGP', 'id': '735', 'organization_type': 'non_financial'}
+    company = {'ticker': 'UZNGP', 'org_id': '735'}
+    def doc_for(end):
+        return docs['UZNGP_2020' if end == '2020-12-31' else 'UZNGP']
+    def report(who, standard, period, scope, *args, **kwargs):
+        end = period + '-12-31'
+        old = period == '2020'
+        return {'issuer': issuer, 'status': 'stale' if old else 'quality_blocked', 'standard': standard,
+                'scope': scope, 'period': period, 'financial_as_of': end, 'ratios': [],
+                'verified_facts': [{'metric_code': 'net_income', 'period': period, 'unit_normalized': 'thousand UZS',
+                                    'verification_status': 'verified', 'value': 3424982201}] if old else [],
+                'data_quality': [] if old else [{'severity': 'blocking', 'code': 'BALANCE_IDENTITY_FAILED'}],
+                'sources': [{'publication_date': doc_for(end)['published_at']}]}
+    monkeypatch.setattr(columns, 'filing_roce', lambda *args: ('2025', {'value': None}))
+    monkeypatch.setattr(columns, 'organization_kind', lambda *a, **kw: 'industry')
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(service, 'market_context', lambda: {})
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda t: issuer)
+    monkeypatch.setattr(issuer_financials, 'report_rows', lambda *a: [])
+    monkeypatch.setattr(sector_report_service, 'sector_report', report)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda r: r)
+    monkeypatch.setattr(columns.source_store, 'read', lambda org, **kw: [doc_for(kw['period_end'])])
+    monkeypatch.setattr(columns.source_store, 'prior_dates', lambda *a, **kw: ['2020-12-31'])
+    monkeypatch.setattr(filings, 'get_report_urls', lambda *a: {'excel_url': docs['UZNGP']['rows'][0]['source_url'],
+                                                               'published_at': docs['UZNGP']['published_at']})
+    held = set()
+    monkeypatch.setattr(data_quality, 'held_public_periods', lambda *a: held)
+    def metric(period=None):
+        return service.filing_metrics('separate', period, 'UZNGP', 0, 1)['rows'][0]['metrics'].get('ebit', {})
+    latest = metric()
+    assert latest.get('value') is None
+    previous = latest.get('last_verified') or {}
+    assert previous.get('value') == 3899747511
+    assert (previous['period_start'], previous['period_end']) == ('2020-01-01', '2020-12-31')
+    assert 'report_id=3748' in previous['source_url']
+    assert not metric('2025').get('last_verified')
+    assert metric('2025').get('value') is None
+    held.add('2020')
+    assert not metric().get('last_verified')

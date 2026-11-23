@@ -452,7 +452,7 @@ def filing_metrics(scope, period, search, offset, limit):
     """Page visible issuers before reading their filings."""
     from catalogue.read_batch import scope as read_scope
     from catalogue.sources import cached_report_excel_data
-    from financial_analysis.report_investor_metrics import SHARE_METRICS
+    from financial_analysis.report_investor_metrics import SHARE_METRICS, historical_ebit
     from financial_columns.service import filing_ebit, filing_roce
     from issuer_financials import period_end, resolve_issuer
     from sector_report_service import public_report, sector_report
@@ -489,6 +489,8 @@ def filing_metrics(scope, period, search, offset, limit):
                             item['metrics']['eps_basic'] = eps
                     if item['metrics'].get('ebit', {}).get('value') is None:
                         ebit = filing_ebit(company, report)
+                        if ebit is None and not period:
+                            ebit = historical_ebit(report, company)
                         if ebit is not None:
                             item['metrics']['ebit'] = ebit
                     if ticker in market:

@@ -422,6 +422,8 @@ def _include_history(report, metrics):
         return
     cutoff = (report.get('instrument') or {}).get('valuation_as_of') or date.today().isoformat()
     filings = report_rows(issuer, standard) if scope == 'separate' else []
+    from data_quality import held_public_periods
+    held = held_public_periods(ticker, 'NSBU' if standard == 'nsbu' else 'MSFO')
     for stamp in sorted(candidates, reverse=True):
         if not candidates[stamp].intersection(missing):
             continue
@@ -432,7 +434,7 @@ def _include_history(report, metrics):
         if standard == 'nsbu':
             periods.append(f'{day.year}Q{day.month // 3}')
         for period in periods:
-            if period_end(period) != stamp:
+            if period in held or (day.month == 12 and str(day.year) in held) or period_end(period) != stamp:
                 continue
             try:
                 historical = _metrics_at(issuer, standard, scope, period, stamp, cutoff, filings)
@@ -445,6 +447,22 @@ def _include_history(report, metrics):
                     current['last_verified'] = row
             if not missing:
                 return
+
+
+def historical_ebit(report, company):
+    """Return a dated earlier EBIT when the latest enterprise filing is held."""
+    issuer = report.get('issuer') or {}
+    if (report.get('status') != 'quality_blocked' or report.get('standard') != 'nsbu' or not enterprise(report)
+            or issuer.get('ticker') != company['ticker'] or str(issuer.get('id')) != str(company.get('org_id'))):
+        return None
+    metric = {'metric_code': 'ebit', 'value': None, 'calculation_status': 'missing_or_invalid_components',
+              'reason_code': 'EBIT_INPUTS_MISSING', 'unit': 'UZS_thousand'}
+    _include_history(report, [metric])
+    prior = metric.get('last_verified')
+    if prior:
+        result = {k: prior[k] for k in ('value', 'raw_result', 'unit', 'period_start', 'period_end', 'publication_date')}
+        result['source_url'] = next((c['source_url'] for c in prior['components'] if c.get('source_url')), None)
+        return {**metric, 'last_verified': result}
 
 
 def _with_history(report, rows, basis):
