@@ -363,18 +363,27 @@ def test_terminal_matches_dividend_to_quoted_preferred_isin(monkeypatch, ticker,
     assert dividend['share_type'] == 'preferred'
 
 
-def test_agba_zero_ordinary_yield_requires_explicit_applicable_decision():
+@pytest.mark.parametrize(('ticker', 'isin', 'price', 'decision', 'published', 'fid', 'preferred', 'resolution'), [
+    ('AGBA', 'UZ7001560000', 589.99, '2026-06-30', '2026-07-08', 4095, 292, 14376),
+    ('BRBN', 'UZ7018790004', 74.99, '2026-06-29', '2026-07-06', 4091, 29.81, 14359),
+    ('TNBN', 'UZ7035530003', 1581, '2026-06-26', '2026-06-29', 4041, 340, 14205),
+    ('MCBA', 'UZ7015230004', 1067.98, '2026-06-29', '2026-07-08', 4103, 213.6, 14401),
+    ('SQBN', 'UZ7037560008', 59.8, '2026-06-30', '2026-07-02', 4054, 3.8, 14257),
+    ('UZHM', 'UZ7016400002', 10000, '2026-09-03', '2026-09-10', None, None, 14694),
+])
+def test_zero_ordinary_yield_requires_applicable_decision(ticker, isin, price, decision, published, fid, preferred, resolution):
     from server.terminal import service
-    context = {'isin': 'UZ7001560000', 'price': 589.99, 'share_type': 'ordinary'}
-    calendar = stored('AGBA', 4095, '2026-06-30', '2026-07-08', 0.0, 292)
+    from datetime import timedelta
+    context = {'isin': isin, 'price': price, 'share_type': 'ordinary'}
+    calendar = stored(ticker, fid, decision, published, 0.0, preferred) if fid else {}
     def read(ctx=context, records=(calendar,), day=date(2026,11,23)):
         return service._security_dividend(records, ctx, today=day)
     assert read()['dy'] == 0
-    assert read()['decision']['link'] == 'https://openinfo.uz/ru/facts/6/14376'
+    assert read()['decision']['link'] == f'https://openinfo.uz/ru/facts/6/{resolution}'
     assert read()['decision']['period_end'] == '2025-12-31'
-    assert read(day=date(2026,7,7))['dy'] is None
+    assert read(day=date.fromisoformat(published) - timedelta(days=1))['dy'] is None
     assert read(day=date(2028,1,1))['dy'] is None
     assert read({**context, 'isin':'UZ7000000000'})['dy'] is None
     assert read({**context, 'price':None})['dy'] is None
-    assert read({**context, 'share_type':'preferred'})['dy'] == pytest.approx(292/589.99*100)
-    assert read(records=[dict(calendar, decision_date='2026-09-01', ordinary_amount=12)])['dy'] == pytest.approx(12/589.99*100)
+    assert read({**context, 'share_type':'preferred'})['dy'] == (pytest.approx(preferred/price*100) if preferred else None)
+    assert read(records=[dict(calendar, decision_date='2026-10-01', ordinary_amount=12)])['dy'] == pytest.approx(12/price*100)

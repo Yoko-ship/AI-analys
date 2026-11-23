@@ -88,5 +88,86 @@
       "agenda_item": "2",
       "resolution": "2024-yil 24-dekabrdan 2025-yil 31-dekabrgacha bo‘lgan davr uchun dividendlar e’lon qilinmasin va to‘lanmasin"
     }
+  ],
+  "UZ7015230004": [
+    {
+      "ticker": "MCBA",
+      "org_id": "20",
+      "decision_date": "2026-06-29",
+      "pub_date": "2026-07-08T15:31:32",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14401",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98151/",
+      "agenda_item": "6",
+      "resolution": "152 762 501 054,43 soʻm yoki 95,0 foiz miqdorda taqsimlanmay taqsimlanmagan foyda hisobvarag‘ida qoldirilsin.",
+      "dividend_notice": "https://openinfo.uz/facts/32/4103",
+      "allocation_basis": "5% reserve, 95% retained earnings. Preferred dividends paid from reserves."
+    }
+  ],
+  "UZ7016400002": [
+    {
+      "ticker": "UZHM",
+      "org_id": "391",
+      "decision_date": "2026-09-03",
+      "pub_date": "2026-09-10T08:10:28",
+      "period_start": "2024-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14694",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99242/",
+      "agenda_item": "6",
+      "resolution": "Не направлять чистую прибыль АО «Завод Узбекхиммаш» полученную по итогам 2024 и 2025годов, на выплату дивидендов и сохранить ее в составе нераспределенной прибыли Общества."
+    }
+  ],
+  "UZ7018790004": [
+    {
+      "ticker": "BRBN",
+      "org_id": "23",
+      "decision_date": "2026-06-29",
+      "pub_date": "2026-07-06T18:58:29",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14359",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98054/",
+      "agenda_item": "6",
+      "resolution": "egasining nomi yozilgan bankning imtiyozli aksiyalari egalariga dividendlar",
+      "dividend_notice": "https://openinfo.uz/facts/32/4091",
+      "allocation_basis": "5% reserve, 10% innovation fund, 85% applied to prior losses. Preferred dividends paid from reserves."
+    }
+  ],
+  "UZ7035530003": [
+    {
+      "ticker": "TNBN",
+      "org_id": "22",
+      "decision_date": "2026-06-26",
+      "pub_date": "2026-06-29T16:49:29",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14205",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97616/",
+      "agenda_item": "8",
+      "resolution": "19 507 422 160,66 soʻmi taqsimlanmagan foydada qoldirilsin.",
+      "dividend_notice": "https://openinfo.uz/facts/32/4041",
+      "allocation_basis": "FY2025 profit allocated in full to reserves, innovation fund, preferred dividends and retained earnings."
+    }
+  ],
+  "UZ7037560008": [
+    {
+      "ticker": "SQBN",
+      "org_id": "30",
+      "decision_date": "2026-06-30",
+      "pub_date": "2026-07-02T16:24:01",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14257",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97748/",
+      "agenda_item": "3",
+      "resolution": "Oddiy aksiyalar bo’yicha yillik 0% hisobidan 0 (nol) so’m miqdorida."
+    }
   ]
 }
