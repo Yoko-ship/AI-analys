@@ -14,6 +14,11 @@ import catalogue.storage as catalogue_storage
 import re
 
 
+# The old export URL used an accounting-record ID in the unified-report ID space.
+# PDFs published directly by an issuer do not use this export path.
+_NSBU_PDF_EXPORT = f"{catalogue_sources.OPENINFO_WEB_BASE}/ru/reports/to_pdf%"
+
+
 def sync_company(
 
     ticker: str,
@@ -272,13 +277,8 @@ def sync_company(
 
 
 
-    # The to_pdf id space (see _nsbu_export_urls). Stored NSBU pdf links are
-
-    # cleared first: every one written before this map existed points at some
-
-    # other issuer's document, and _upsert_report COALESCEs a NULL pdf_url with
-
-    # the stored one — the wrong links would survive every re-sync otherwise.
+    # Clear old exports before resolving their unified IDs. An empty lookup
+    # would otherwise retain a link that may belong to another issuer.
 
     pdf_ids = catalogue_sources._unified_pdf_id_map(session, org_id)
 
@@ -286,7 +286,8 @@ def sync_company(
 
         conn.execute("UPDATE catalog_reports SET pdf_url = NULL "
 
-                     "WHERE ticker = ? AND report_form = 'NSBU'", (ticker,))
+                     "WHERE ticker = ? AND report_form = 'NSBU' AND pdf_url LIKE ?",
+                     (ticker, _NSBU_PDF_EXPORT))
 
 
 
@@ -1180,7 +1181,7 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
 
                     UPDATE catalog_reports SET pdf_url = NULL
 
-                    WHERE report_form = 'NSBU' AND pdf_url IS NOT NULL
+                    WHERE report_form = 'NSBU' AND pdf_url LIKE ?
 
                       AND ticker NOT IN (
 
@@ -1190,7 +1191,7 @@ def sync_all(tickers: list[str] | None = None, *, force: bool = False) -> dict[s
 
                       )
 
-                    """)
+                    """, (_NSBU_PDF_EXPORT,))
 
                 if cur.rowcount:
 

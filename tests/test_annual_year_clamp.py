@@ -118,3 +118,24 @@ def test_annual_approval_recovers_imkon_filing_when_quarter_index_works(tmp_path
     assert row["openinfo_report_id"] == "449" and row["pdf_url"].endswith("/to_pdf30718/")
     assert row["excel_url_form1"] == row["excel_url"]
     assert parse_qs(urlparse(row["excel_url"]).query)["org_type"] == ["bank"]
+
+
+def test_resync_preserves_issuer_annual_pdf_and_clears_stale_export(tmp_path, monkeypatch):
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "catalog.db"))
+    monkeypatch.setattr(catalogue_sources, "_make_session", lambda: object())
+    monkeypatch.setattr(catalogue_sources, "_fetch_main_results", lambda *args: ([], "jsc"))
+    monkeypatch.setattr(catalogue_sources, "_unified_pdf_id_map", lambda *args: {})
+    monkeypatch.setattr(catalogue_sources, "_json_get", lambda *args: [])
+    issuer_pdf = "https://agmk.uz/storage/uploads/docs/bux-balans-2025-c-b_6ac8d9a597db87.43919499.pdf"
+    with catalogue_storage.get_catalog_conn() as conn:
+        conn.executemany(
+            "INSERT INTO catalog_reports (ticker, report_form, period_type, year, pdf_url) "
+            "VALUES ('AGMKP','NSBU','annual',?,?)",
+            [(2025, issuer_pdf), (2023, "https://openinfo.uz/ru/reports/to_pdf5218/")],
+        )
+
+    result = catalogue_sync.sync_company("AGMKP", "Алмалыкский ГМК", force=True, org_id="372")
+    assert not result["errors"]
+    with catalogue_storage.get_catalog_conn() as conn:
+        rows = conn.execute("SELECT year, pdf_url FROM catalog_reports WHERE ticker='AGMKP'")
+        assert {r["year"]: r["pdf_url"] for r in rows} == {2023: None, 2025: issuer_pdf}
