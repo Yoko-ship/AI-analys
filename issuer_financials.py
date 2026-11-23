@@ -371,6 +371,15 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     reports = scoped_reports if scoped_reports is not None else report_rows(issuer, standard)
     source_doc = next((row for row in reports if row.get('period') == selected), None)
     source = {'document_id': (source_doc or {}).get('report_id') or f"catalog:{ticker}:{form}:{selected or 'none'}", 'url': (source_doc or {}).get('pdf_url') or (source_doc or {}).get('excel_url'), 'publication_date': (source_doc or {}).get('published_at') or (source_doc or {}).get('synced_at'), 'provider': 'openinfo/catalog'}
+    lending = {}
+    if standard == "nsbu" and scope == "separate" and is_quarterly and organization_type == "microfinance" and source_doc:
+        from financial_ingestion.microfinance import selected_lending
+        lending = selected_lending(issuer, selected, source_doc, values)
+        if lending:
+            values.update(lending["values"])
+            source["structured_url"] = lending["url"]
+            if lending["derived"]:
+                source["structured_formulas"] = lending["derived"]
     insurance_balance: dict[str, Any] = {}
     insurance_mapping_error: str | None = None
     if standard == 'nsbu' and scope == 'separate' and organization_type == 'insurance' and selected:
@@ -402,6 +411,11 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
         direct_codes.extend(['gross_insurance_reserves', 'reinsurer_share_in_reserves', 'net_insurance_reserves', 'other_liabilities'])
     for code in direct_codes:
         add(code, values.get(code), 'thousand UZS', reported_values.get(code))
+    for code, value in lending.get("values", {}).items():
+        formula = lending["derived"].get(code)
+        add(code, value, "thousand UZS", None if formula else value)
+        if formula:
+            observations[code].update(quality="derived", formula=formula)
     if organization_type == 'non_financial' and scoped_series is None:
         ratios = get_all_ratios().get(ticker) or {}
         for source_code, code in (('roe', 'roe_pct'), ('roa', 'roa_pct'), ('debt_to_equity', 'debt_to_equity'), ('current_ratio', 'current_ratio'), ('quick_ratio', 'quick_ratio')):

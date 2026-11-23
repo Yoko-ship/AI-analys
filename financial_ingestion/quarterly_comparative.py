@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 import catalogue.fields as fields
 import catalogue.storage as storage
 import dbx
+from financial_ingestion import microfinance
 
 INCOME = ("revenue", "gross_profit", "net_income", "operating_income")
 BALANCE = ("total_assets", "total_equity", "total_liabilities")
@@ -50,6 +51,11 @@ def _quarter_detail(oi, org_id, org_type, object_id):
     raise ValueError("Structured filing form does not match discovery")
 
 
+def _parser_version(oi):
+    files = (__file__, oi.__file__, microfinance.__file__)
+    return hashlib.sha256(b"".join(Path(file).read_bytes() for file in files)).hexdigest()
+
+
 def _schema(c):
     c.execute("""CREATE TABLE IF NOT EXISTS catalog_comparative_quarters (
         ticker TEXT NOT NULL, year INTEGER NOT NULL, quarter INTEGER NOT NULL,
@@ -75,8 +81,12 @@ def read(tickers, *, structured=False):
         table = "catalog_structured_quarters" if structured else "catalog_comparative_quarters"
         for ticker in tickers:
             for row in c.execute(f"SELECT * FROM {table} WHERE ticker=?", (ticker,)):
-                result[f"{row['year']}Q{row['quarter']}"] = {
-                    "values": json.loads(row["values_json"]), "source": json.loads(row["source_json"])}
+                values = json.loads(row["values_json"])
+                lending = values.pop("lending", None)
+                period = f"{row['year']}Q{row['quarter']}"
+                result[period] = {"values": values, "source": json.loads(row["source_json"])}
+                if lending:
+                    result[period]["lending"] = lending
         return result
     finally:
         c.close()
@@ -103,13 +113,16 @@ def _valid_values(values):
     return values if not problem or problem["code"] == "no_balance" else {}
 
 
-def _structured_values(metrics):
+def _structured_values(metrics, detail):
     values = {k: v for k, v in metrics.items() if k in fields.FIN_MONEY_FIELDS and v is not None}
     balance = metrics.get("balance") or {}
     for k, b in (("total_assets", "assets_end"), ("total_equity", "equity_end")):
         if balance.get(b) is not None:
             values[k] = balance[b]
-    return _valid_values(values)
+    values = _valid_values(values)
+    if values and (lending := microfinance.lending_facts(detail)):
+        values["lending"] = lending
+    return values
 
 
 def discover_record(ticker, org_id, record, *, publish=False):
@@ -126,7 +139,7 @@ def discover_record(ticker, org_id, record, *, publish=False):
         pub_date=record["pub_date"], quarter_no=detail.get("quarter_no"))
     if not year or not quarter or periods._is_future_period(year, quarter):
         raise ValueError("Structured filing has no completed reporting period")
-    values = _structured_values(oi.extract_metrics(detail))
+    values = _structured_values(oi.extract_metrics(detail), detail)
     if not values:
         raise ValueError("Structured filing has no usable financial figures")
     c = _connect()
@@ -146,7 +159,7 @@ def discover_record(ticker, org_id, record, *, publish=False):
     if publish:
         source = {"kind": "structured", "source_period": f"{year}Q{quarter}", "org_id": str(org_id),
                   "source_url": f"https://openinfo.uz/reports/{org_type}/quarter/{object_id}", "pub_date": record["pub_date"],
-                  "parser_version": hashlib.sha256(Path(__file__).read_bytes() + Path(oi.__file__).read_bytes()).hexdigest()}
+                  "parser_version": _parser_version(oi)}
         _save([ticker], year, quarter, values, source, structured=True)
     return {"ticker": ticker, "year": year, "quarter": quarter, **values}
 
@@ -154,7 +167,7 @@ def discover_record(ticker, org_id, record, *, publish=False):
 def backfill(org_id, aliases, journal=None):
     import openinfo_reconcile as oi
 
-    parser_version = hashlib.sha256(Path(__file__).read_bytes() + Path(oi.__file__).read_bytes()).hexdigest()
+    parser_version = _parser_version(oi)
     c = _connect()
     try:
         placeholders = ",".join("?" for _ in aliases)
@@ -185,7 +198,7 @@ def backfill(org_id, aliases, journal=None):
         params = parse_qs(urlparse(report.get("excel_url") or report.get("excel_url_form1") or "").query)
         org_type = _form_type((params.get("org_type") or [None])[0])
         required = ("revenue", "net_income") + (BALANCE if org_type == "microfinance" else ())
-        need_current = any(current.get(k) is None for k in required)
+        need_current = org_type == "microfinance" or any(current.get(k) is None for k in required)
         object_id = report.get("object_id") or report.get("openinfo_report_id")
         if org_type not in oi.ORG_TYPES or not str(object_id or "").isdigit():
             continue
@@ -207,7 +220,7 @@ def backfill(org_id, aliases, journal=None):
                 raise ValueError("Comparison source period or form does not match the catalog")
             metrics = oi.extract_metrics(detail)
             if need_current:
-                values = _structured_values(metrics)
+                values = _structured_values(metrics, detail)
                 if values:
                     source = {"kind": "structured", "source_period": current_period,
                               "source_url": source_url, "pub_date": report["published_at"], "org_id": str(org_id), "parser_version": parser_version}

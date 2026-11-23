@@ -225,6 +225,12 @@ def test_broken_microfinance_excel_does_not_hide_published_structured_income(cat
     assert current['total_equity'] == 77313236
     assert current['total_liabilities'] == 286518709
     assert current['supplemental_sources']['total_assets']['source_url'].endswith('/microfinance/quarter/56')
+    from financial_ingestion import quarterly_comparative as quarters
+    supplement = quarters.read(["ACMT1B2"], structured=True)["2026Q2"]
+    # Line 600 is printed as zero. Lines 330+470-550 and 900+780+800
+    # independently give the subtotal to within one thousand UZS.
+    assert supplement["lending"]["values"]["net_revenue_before_operating_expenses"] == 23416204
+    assert "net_revenue_before_operating_expenses" in supplement["lending"]["derived"]
     # A bank-form single-column amount is never a prior-year comparison.
     assert '2025Q2' not in snapshots.get_financials_series_quarterly('ACMT1B2')
     monkeypatch.setattr(oi, 'fetch_detail', lambda cand: pytest.fail('Unchanged sources must resume without downloading'))
@@ -321,3 +327,72 @@ def test_delta_microfinance_commercial_filing_recovers_its_prior_income(catalog,
         assert history["2024Q3"]["values"]["revenue"] == 61381272.64
         assert "total_assets" not in history["2024Q3"]["values"]
         assert quarters.read(["DMMT2B"], structured=True)["2025Q3"]["values"]["net_income"] == 34053787.98
+
+
+@pytest.mark.parametrize("mismatch", [None, "revision", "issuer", "loan_label", "inconsistent_loss"])
+def test_ctfb3_quarterly_sector_report_uses_reconciled_structured_lines(catalog, monkeypatch, mismatch):
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.storage as storage
+    import issuer_financials as financials
+    import openinfo_reconcile as oi
+    import sector_report_service as service
+    from financial_ingestion import quarterly_comparative as quarters
+
+    detail = json.loads(Path("tests/fixtures/ctfb3-2026q3-lending.json").read_text())
+    issuer = {"id": "1067", "ticker": "CTFB3", "name": "CONTACT FINANCE",
+              "sector": "other", "isin": "UZ6062577AB4"}
+    if mismatch == "loan_label":
+        next(r for r in detail["quarter_balance_sheet_report"] if r["tnum"] == "051")["title"] = "Other reserve"
+    if mismatch == "inconsistent_loss":
+        next(r for r in detail["quarter_financial_results_report"] if r["tnum"] == "320")["value"] = "12.34"
+    excel = "https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=microfinance&report_id=57&report_type=quarter"
+    doc = {"period": "2026Q3", "published_at": detail["pub_date"], "excel_url": excel,
+           "pdf_url": "https://openinfo.uz/ru/reports/to_pdf31417/"}
+    conn = storage.get_catalog_conn()
+    with conn:
+        conn.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)",
+                     ("CTFB3", "CONTACT FINANCE", "1067"))
+        filings._upsert_report(conn, "CTFB3", report_form="NSBU", period_type="quarter", year=2026, quarter=3,
+            title="Q3", published_at=doc["published_at"], pdf_url=doc["pdf_url"], excel_url=excel,
+            excel_url_form1=excel, openinfo_report_id="57", object_id=None)
+    conn.close()
+    monkeypatch.setattr(oi, "fetch_detail", lambda candidate: detail)
+    assert quarters.backfill("1067", ["CTFB3"])["structured"] == ["2026Q3"]
+    if mismatch == "revision":
+        doc["excel_url"] = excel.replace("id=57", "id=93")
+    if mismatch == "issuer":
+        issuer["id"] = "1058"
+    monkeypatch.setattr(financials, "classify_organization", lambda *_: "microfinance")
+    monkeypatch.setattr(financials, "report_rows", lambda *_: [doc])
+    monkeypatch.setattr(financials, "quote_and_trade", lambda *_: ({}, {}))
+    monkeypatch.setattr(financials, "fetch_report_excel_data", lambda *a, **kw: {"ok": False})
+    if mismatch is None:
+        snapshot = financials.financial_snapshot(issuer, "nsbu", "2026Q3", "separate")
+        observations = {row["metric"]: row for row in snapshot["observations"]}
+        assert observations["borrowings"]["normalized"] == 10300000
+        assert observations["borrowings"]["quality"] == "derived"
+        assert observations["debt_securities_issued"]["raw"] == 13000000
+        assert observations["other_noninterest_income"]["raw"] == 112432
+        assert observations["loan_reserves"]["normalized"] == 644450
+        for code, field in (("020", "due_from_banks"), ("080", "fixed_assets")):
+            filed = next(r["value2"] for r in detail["quarter_balance_sheet_report"] if r["tnum"] == code)
+            assert observations[field]["raw"] == float(filed)
+    report = service.sector_report(issuer, "nsbu", "2026Q3", "separate", "en", persist=False)
+    ratios = {r["metric_code"]: r.get("value") for r in report["ratios"]}
+    if mismatch in ("revision", "issuer"):
+        assert ratios.get("loan_reserve_coverage") is None
+        assert ratios.get("cost_to_income") is None
+    else:
+        assert ratios.get("cost_to_income") == pytest.approx(100 * 1688404 / 2796812)
+        if mismatch == "loan_label":
+            assert ratios.get("loan_reserve_coverage") is None
+        else:
+            assert ratios.get("loan_reserve_coverage") == pytest.approx(100 * 644450 / 24014211)
+        if mismatch == "inconsistent_loss":
+            assert ratios.get("provisions_to_net_interest_income") is None
+        else:
+            assert ratios.get("provisions_to_net_interest_income") == pytest.approx(100 * 781305 / 3565340)
+        if mismatch is None:
+            assert not report.get("source_refresh_failed")

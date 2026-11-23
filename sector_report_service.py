@@ -241,7 +241,11 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
             if org in BANK_FORMS:
                 _drop_unbalanced_opening(snapshot)
         except Exception as exc:
-            snapshot['source_refresh_failed'] = True
+            # A matched, reconciled structured filing is an independent
+            # source even when Openinfo cannot render its Excel export.
+            if not (source.get("structured_url") and not (workbook or {}).get("ok")
+                    and _verified_catalog_fallback(snapshot)):
+                snapshot["source_refresh_failed"] = True
             logger.warning("Workbook enrichment failed for %s %s", issuer.get("ticker"), selected,
                            exc_info=True)
             # Internal exceptions never become public prose. Keep a verified,
