@@ -180,9 +180,11 @@ def snapshots(ticker, *, scope=None):
     try:
         if "ingest_heads" not in dbx.tables(c):
             return []
+        org_id = catalogue_filings._issuer_org(c, ticker.upper())
+        if not org_id:
+            return []
         rows = c.execute("SELECT p.* FROM ingest_heads h JOIN ingest_snapshots p ON p.id=h.snapshot_id "
-                         "WHERE h.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?) AND h.standard='MSFO'",
-                         (ticker.upper(),)).fetchall()
+                         "WHERE h.org_id=? AND h.standard='MSFO'", (org_id,)).fetchall()
         selected_scope = scope or (max(rows, key=lambda r: (r["period_end"], r["scope"] == "consolidated"))["scope"] if rows else "separate")
         return [{**dict(r), "payload": json.loads(r["payload_json"])} for r in rows if r["scope"] == selected_scope]
     finally:

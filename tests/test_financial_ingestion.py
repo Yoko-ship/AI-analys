@@ -739,3 +739,36 @@ def test_public_status_joins_use_indexed_issuer_candidate_lookups(setup):
             plan=c.execute(f'EXPLAIN QUERY PLAN SELECT id FROM {table} WHERE {column}=?',('example',)).fetchall()
             assert all('SCAN ' not in str(row['detail']) for row in plan),(table,plan)
     finally:c.close()
+
+
+def test_uzbekneftegaz_ordinary_share_reads_issuer_ifrs_and_its_archived_pdf(setup, monkeypatch):
+    from catalogue import read_batch
+    from issuer_financials import financial_snapshot
+
+    entry, pdf_bytes = setup
+    entry.update(ticker='UZNGP', org_id='735', issuer_name='Узбекнефтегаз', year=2025,
+                 document_year=2025, period_start='2025-01-01', period_end='2025-12-31',
+                 role='PRIMARY', scope='separate', currency='UZS', unit_scale=10**9,
+                 pdf_url='https://openinfo.uz/media/int_report/dc843bd5-c97d-414b-8b1d-e6394737870c.pdf',
+                 unit_evidence='В миллиардах узбекских сумов', figures={
+                     'net_income': {'page': 1, 'raw_label': 'Чистая прибыль/(убыток) за год',
+                                    'column_year': 2025, 'raw_value': '2525'}})
+    securities = {'UZNG': {'isin': 'UZ7036270005'}, 'UZNGP': {'isin': 'UZ7036271003'}}
+    monkeypatch.setattr(read_batch, 'securities', lambda: securities)
+    with store.transaction() as c:
+        c.execute("INSERT INTO catalog_companies (ticker,company_name,org_id) VALUES ('UZNGP','Узбекнефтегаз','735')")
+        documents.register(c, org_id='735', ticker='UZNGP', url=entry['pdf_url'],
+                           category='MSFO', metadata={'year': 2025}, processor=extract.processor_version())
+    work = worker.run(max_jobs=2, fetch=lambda _: pdf_bytes, org_ids=['735'])
+    assert all(r['ok'] for r in work['outcomes'])
+    publication.publish('UZNGP', actor='test')
+    assert publication.scopes('UZNGP') == ['separate']
+    assert publication.scopes('UZNG') == ['separate']
+    issuer = {'id': '735', 'name': 'Узбекнефтегаз', 'ticker': 'UZNG', 'tickers': list(securities),
+              'sector': 'mining', 'isin': securities['UZNG']['isin']}
+    assert financial_snapshot(issuer, 'ifrs', '2025', 'separate')['current_values']['net_income'] == 2_525_000_000
+    assert documents.issuer_artifact('UZNG', entry['sha256']) == pdf_bytes
+    # Conflicting registered organizations under one issuer-code prefix cannot authorize a read.
+    securities['OCBK'] = {'isin': 'UZ7036279999'}
+    assert publication.snapshots('UZNG') == []
+    assert documents.issuer_artifact('UZNG', entry['sha256']) is None

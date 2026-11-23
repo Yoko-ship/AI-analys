@@ -257,10 +257,13 @@ def issuer_artifact(ticker, sha):
     try:
         if "ingest_snapshots" not in dbx.tables(c):
             return None
+        org_id = catalogue_filings._issuer_org(c, ticker.upper())
+        if not org_id:
+            return None
         row = c.execute("SELECT 1 FROM ingest_snapshots p JOIN ingest_candidates x ON x.id=p.candidate_id "
                         "JOIN ingest_versions v ON v.id=x.version_id WHERE v.sha=? "
-                        "AND p.org_id=(SELECT org_id FROM catalog_companies WHERE ticker=?) LIMIT 1",
-                        (sha, ticker.upper())).fetchone()
+                        "AND p.org_id=? LIMIT 1",
+                        (sha, org_id)).fetchone()
     finally:
         c.close()
     return read_artifact(sha) if row else None
