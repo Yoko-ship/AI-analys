@@ -169,5 +169,69 @@
       "agenda_item": "3",
       "resolution": "Oddiy aksiyalar bo’yicha yillik 0% hisobidan 0 (nol) so’m miqdorida."
     }
+  ],
+  "UZ7035230000": [
+    {
+      "ticker": "METQ",
+      "org_id": "733",
+      "decision_date": "2026-08-26",
+      "pub_date": "2026-09-08T13:10:17",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14685",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99212/",
+      "agenda_item": "7",
+      "resolution": "II. Соф фойданинг қолган 21 221 276 973,86 сўмини тақсимламасдан қолдирилсин.",
+      "allocation_basis": "Reserve and retained earnings."
+    }
+  ],
+  "UZ7037610001": [
+    {
+      "ticker": "GRBK",
+      "org_id": "11",
+      "decision_date": "2026-06-29",
+      "pub_date": "2026-07-13T11:59:24",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14460",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98318/",
+      "agenda_item": "5",
+      "resolution": "– тақсимланмаган фойда таркибида қолдириш – 4 894 355 487,86 сўм.",
+      "allocation_basis": "Reserve and retained earnings."
+    }
+  ],
+  "UZ7057480012": [
+    {
+      "ticker": "TMYS",
+      "org_id": "888",
+      "decision_date": "2026-05-26",
+      "pub_date": "2026-06-01T15:31:53",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14038",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97027/",
+      "agenda_item": "7",
+      "resolution": "• Жамият устав капиталини келажакда кўпайтириш мақсадида, 11 133 575 921,69 сўмни тақсимланмаган фойда ҳисобида қолдириш, бу соф фойда суммасининг 93 фоизини ташкил этади;",
+      "allocation_basis": "Reserve, employee support and retained earnings."
+    }
+  ],
+  "UZ7023070004": [
+    {
+      "ticker": "ORGS",
+      "org_id": "611",
+      "decision_date": "2026-06-30",
+      "pub_date": "2026-07-22T20:44:00",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14517",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98534/",
+      "agenda_item": "6",
+      "resolution": "•\tоставшуюся сумму в размере 536 666,4 тыс. сум оставить нераспределенной до соответствующего решения общего собрания акционеров.",
+      "allocation_basis": "Reserve and retained earnings pending a future shareholder decision. Amounts in thousand UZS."
+    }
   ]
 }
