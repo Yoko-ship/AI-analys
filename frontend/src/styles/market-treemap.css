@@ -195,6 +195,8 @@
 @media (max-width: 980px) { .heatmap-zoom { margin-left: auto; } }
 .heatmap-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .heatmap-tree {
+  --heatmap-industry-highlight: #c19bff;
+  --heatmap-industry-ink: #21133b;
   position: relative;
   width: 100%;
   height: clamp(610px, 72vh, 790px);
@@ -203,6 +205,11 @@
   border-radius: 14px;
   background: #090e14;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 18px 38px rgba(0, 0, 0, 0.12);
+}
+
+.heatmap-viewport:has(> .heatmap-tree:not(.heatmap-matrix)),
+.heatmap-tree:not(.heatmap-matrix) {
+  border-radius: 0;
 }
 
 .heatmap-empty-state {
@@ -260,6 +267,20 @@
   font-size: 8px;
 }
 
+.heatmap-tree:not(.heatmap-matrix) .heatmap-tree-label {
+  pointer-events: auto;
+}
+
+.heatmap-tree .heatmap-tree-label.is-highlighted {
+  border-color: var(--heatmap-industry-highlight);
+  background: var(--heatmap-industry-highlight);
+  color: var(--heatmap-industry-ink);
+}
+
+.heatmap-tree-label.is-highlighted :is(strong, small) {
+  color: inherit;
+}
+
 .heatmap-tree-tile {
   --tile-fill: #46505d;
   position: absolute;
@@ -273,7 +294,7 @@
   padding: 5px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 7px;
+  border-radius: 0;
   background: var(--tile-fill);
   color: #fff;
   line-height: 1.05;
@@ -337,7 +358,6 @@
   gap: 0;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
   box-shadow: none;
 }
 
@@ -440,6 +460,8 @@
 }
 
 body[data-theme="light"] .heatmap-tree {
+  --heatmap-industry-highlight: #702bd1;
+  --heatmap-industry-ink: #fff;
   border-color: rgba(15, 28, 48, 0.1);
   background: #dfe5ec;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.72), 0 18px 38px rgba(15, 28, 48, 0.08);

@@ -628,6 +628,8 @@ for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the 
   await chooseMapPeriod(page, 'ytd');
   const zoom = page.getByRole('group', {name: 'Масштаб карты', exact: true});
   await expect(zoom).toBeVisible();
+  await expect.soft(page.locator('.heatmap-tree-tile:not(.is-micro)').first()).toHaveCSS('border-radius', '0px');
+  await expect.soft(page.locator('.heatmap-tree-tile.is-micro').first()).toHaveCSS('border-radius', '0px');
   await expect(page.locator('.heatmap-viewport')).toHaveCSS('overscroll-behavior-y', 'auto');
   await expect(zoom.getByRole('button', {name: 'Уменьшить карту'})).toBeDisabled();
   const clippedChanges = () => page.locator('.heatmap-tree-tile').evaluateAll(tiles => tiles.flatMap(tile => {

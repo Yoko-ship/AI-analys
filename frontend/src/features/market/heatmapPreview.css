@@ -51,6 +51,7 @@
 .heatmap-preview button:hover, .heatmap-preview a:hover { color: var(--text); background: var(--bg-2); }
 .heatmap-preview button:focus-visible, .heatmap-preview a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .heatmap-group-highlight { position: absolute; z-index: 5; pointer-events: none; border: 2px solid var(--accent); box-sizing: border-box; }
+.heatmap-tree:not(.heatmap-matrix) .heatmap-group-highlight { z-index: 8; border-color: var(--heatmap-industry-highlight); }
 @media (max-width: 400px) {
   .heatmap-preview-columns, .heatmap-preview-peers button { grid-template-columns: minmax(48px, 1fr) 48px minmax(54px, 1.2fr) minmax(48px, 1fr); padding-inline: 8px; }
   .heatmap-preview-peers svg { width: 48px; }

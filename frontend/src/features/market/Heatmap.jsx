@@ -176,6 +176,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const [minTurnover, setMinTurnover] = useState(0);
   const [minCapitalization, setMinCapitalization] = useState(0);
   const matrixMode = presentation === 'matrix';
+  const [pointerTarget, setPointerTarget] = useState(null);
+  const [focusedTile, setFocusedTile] = useState(null);
   const [changeFilter, setChangeFilter] = useState("all");
   const metricSelection = useHeatmapMetrics(lang, type);
   const selectedMetrics = metricSelection.selected;
@@ -336,7 +338,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     });
     return {...sectorRect, showHeader, headerHeight, groups, stocks: groups.flatMap(group => group.stocks)};
   });
-  const TREEMAP_GAP = 4;
+  const TREEMAP_GAP = 1;
 
   // Drawn from the period's own scale, never from a fixed ±5 %: a legend that
   // says «≥ +5%» over a picture where the saturation point is 50 % is not a key,
@@ -376,6 +378,13 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const focusName = focusRow ? nameOf(focusRow) : null;
   const hoverSector = hoverRow && sectorLayout.find(sector => sector.sector === sectorKeyOf(hoverRow.ticker));
   const hoverGroup = hoverSector?.groups.find(group => group.id === (industryOf(hoverRow.ticker)?.group || ''));
+  const mapTarget = [pointerTarget, focusedTile].find(target => target && treeElement?.contains(target));
+  const highlightedSector = !matrix && mapTarget
+    ? sectorLayout.find(sector => sector.sector === mapTarget.dataset.sector)
+    : null;
+  const highlightedGroup = highlightedSector?.groups.find(group => group.labelHeight && group.id === mapTarget.dataset.group);
+  const outlinedGroup = matrix && isAdmin ? hoverGroup : highlightedGroup;
+  const outline = outlinedGroup || highlightedSector;
   const openCompany = ticker => {
     closePreview();
     if (onOpenCompany) onOpenCompany(ticker);
@@ -468,6 +477,16 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
       {searchEmpty ? <p className="market-empty-cell heatmap-empty-state" role="status">{noMatches}</p> :
       <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
+        onPointerOver={matrix ? undefined : event => {
+          if (event.pointerType === 'touch') return;
+          const target = event.target.closest('[data-sector]');
+          if (target) setPointerTarget(target);
+        }}
+        onPointerLeave={matrix ? undefined : () => setPointerTarget(null)}
+        onFocus={matrix ? undefined : event => {
+          if (event.target.matches('.heatmap-tree-tile:focus-visible')) setFocusedTile(event.target);
+        }}
+        onBlur={matrix ? undefined : () => setFocusedTile(null)}
         style={{width: `${zoom * 100}%`, minWidth: matrix?.minWidth, height: matrix ? matrix.height : `calc(var(--heatmap-base-height) * ${zoom})`, '--matrix-zoom': zoom}}>
         {matrix && <>
           <div className="heatmap-matrix-corner" style={{width: matrix.labelWidth, height: matrix.header}}>{capLabel}</div>
@@ -477,8 +496,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             key={`${sector.sector}:${group.id}:${column.id}`} className="heatmap-matrix-cell" aria-hidden="true"
             style={{left: column.x, top: group.y, width: column.w, height: group.h, '--tier-shade': index % 2 ? '.05' : '.025'}}/>)))}
         </>}
-        {isAdmin && hoverGroup && <div className="heatmap-group-highlight" data-group={hoverGroup.id} aria-hidden="true"
-          style={{left: hoverGroup.x, top: hoverGroup.y, width: hoverGroup.w, height: hoverGroup.h}} />}
+        {outline && <div className="heatmap-group-highlight" data-group={outlinedGroup?.id} aria-hidden="true"
+          style={{left: outline.x, top: outline.y, width: outline.w, height: outline.h}} />}
         {sectorLayout.map((sector) => {
           const sectorRows = sector.stocks.map((stock) => stock.row);
           const sectorAverage = avgOf(sectorRows);
@@ -487,8 +506,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             <React.Fragment key={sector.sector}>
               {sector.showHeader && (
                 <div
-                  className={matrix ? 'heatmap-tree-label heatmap-matrix-sector-header' : 'heatmap-tree-label'}
-                  data-sector={matrix ? sector.sector : undefined}
+                  className={`heatmap-tree-label${matrix ? ' heatmap-matrix-sector-header' : outline === sector ? ' is-highlighted' : ''}`}
+                  data-sector={sector.sector}
                   style={{ left: sector.x, top: sector.y, width: sector.w, height: sector.headerHeight }}
                 >
                   <span title={marketIndustryLabel(lang, sector.sector)}>{marketIndustryLabel(lang, sector.sector)}</span>
@@ -499,7 +518,8 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
                 </div>
               )}
               {sector.groups.filter(group => group.labelHeight).map(group => <div key={group.id}
-                className="heatmap-tree-label heatmap-tree-subgroup" data-sector={sector.sector} data-group={group.id}
+                className={`heatmap-tree-label heatmap-tree-subgroup${highlightedGroup === group ? ' is-highlighted' : ''}`}
+                data-sector={sector.sector} data-group={group.id}
                 style={{left: matrix ? 0 : group.x, top: group.y, width: matrix ? matrix.labelWidth : group.w, height: group.labelHeight}}
                 title={marketIndustryLabel(lang, group.id ? `group:${group.id}` : sector.sector)}>
                 <span>{marketIndustryLabel(lang, group.id ? `group:${group.id}` : sector.sector)}</span>

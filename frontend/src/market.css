@@ -1191,7 +1191,7 @@ html[data-theme="dark"] .market-layout .market-movers-tk .chip-logo {
 }
 .market-layout.is-heatmap .heatmap-wrap { padding: 10px 12px 12px; }
 
-.market-layout .heatmap-tree {
+.market-layout .heatmap-matrix {
   border-radius: 13px;
 }
 

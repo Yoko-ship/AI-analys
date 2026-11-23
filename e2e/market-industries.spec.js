@@ -34,6 +34,64 @@ async function openMarket(page, url = '/market', user = null) {
 }
 const tiles = page => page.locator('.heatmap-tree-tile');
 
+for (const width of [1440, 390]) test(`treemap highlights the nearest industry heading at ${width}px`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height: 900});
+  await openMarket(page, '/heatmap');
+  await chooseMapArea(page, 'equal');
+  const map = page.locator('.heatmap-tree');
+  await expect(map).toHaveCSS('border-radius', '0px');
+  const highlight = map.locator('.heatmap-group-highlight');
+  const activeHeading = map.locator('.heatmap-tree-label.is-highlighted');
+  const bank = tiles(page).and(page.locator('[data-ticker="IPTB"]'));
+  const preferredBank = tiles(page).and(page.locator('[data-ticker="IPTBP"]'));
+  const banks = map.locator('.heatmap-tree-label[data-group="banks"]');
+  const dori = tiles(page).and(page.locator('[data-ticker="DORI"]'));
+
+  const expectHighlight = async heading => {
+    await expect(highlight).toHaveCount(1);
+    await expect(heading).toHaveClass(/\bis-highlighted\b/);
+    await expect(activeHeading).toHaveCount(1);
+    await expect(highlight).toHaveCSS('pointer-events', 'none');
+    await expect(highlight).toHaveCSS('border-top-width', '2px');
+    const outline = await highlight.boundingBox(), label = await heading.boundingBox();
+    expect(outline.x).toBeCloseTo(label.x, 0);
+    expect(outline.y).toBeCloseTo(label.y, 0);
+    expect(outline.width).toBeCloseTo(label.width, 0);
+    await expect(heading).toHaveCSS('background-color', await highlight.evaluate(el => getComputedStyle(el).borderTopColor));
+  };
+
+  await expect(banks).toHaveText('Банки');
+  if (width === 390) {
+    await expect(map.locator('.heatmap-tree-label[data-group="electrical-installation"]')).toHaveCount(0);
+    await tiles(page).and(page.locator('[data-ticker="ORGS"]')).hover();
+    await expectHighlight(map.locator('.heatmap-tree-label[data-sector="construction"]'));
+  }
+  await bank.hover();
+  await expectHighlight(banks);
+  await preferredBank.hover();
+  await expectHighlight(banks);
+  await page.mouse.move(0, 0);
+  await expect(highlight).toHaveCount(0);
+  await banks.hover();
+  await expectHighlight(banks);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
+    await expectHighlight(banks);
+    await page.screenshot({path: testInfo.outputPath(`industry-highlight-${theme}.png`)});
+  }
+  await dori.hover();
+  await expectHighlight(map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]'));
+  await page.mouse.move(0, 0);
+  await expect(highlight).toHaveCount(0);
+  await expect(activeHeading).toHaveCount(0);
+  await page.keyboard.press('Tab');
+  await bank.focus();
+  await expectHighlight(banks);
+  await bank.blur();
+  await expect(highlight).toHaveCount(0);
+  await expect(activeHeading).toHaveCount(0);
+});
+
 for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   const errors = await openMarket(page, '/heatmap', {id:1,is_admin:true});
@@ -178,7 +236,7 @@ for (const width of [1440, 390]) test(`market classifications filter table, map 
 });
 
 for (const [role, user] of [['guest',null], ['member',{id:2}], ['pro',{id:3,pro_access:true}], ['moderator',{id:4,admin_role:'moderator'}]]) {
-  test(`new heatmap features are admin-only: ${role}`, async ({page}) => {
+  test(`heatmap previews and performance filters are admin-only: ${role}`, async ({page}) => {
     const previewRequests=[];
     page.on('request',request=>{if(/\/api\/(price-history|news\/ticker)\//.test(request.url()))previewRequests.push(request.url());});
     await openMarket(page, '/heatmap', user);
@@ -189,7 +247,8 @@ for (const [role, user] of [['guest',null], ['member',{id:2}], ['pro',{id:3,pro_
     await tile.focus();
     await expect(tile).not.toHaveAttribute('aria-haspopup','dialog');
     await expect(tile).toHaveAttribute('title', /.+/);
-    await expect(page.locator('.heatmap-preview, .heatmap-group-highlight')).toHaveCount(0);
+    await expect(page.locator('.heatmap-group-highlight')).toHaveCount(1);
+    await expect(page.locator('.heatmap-preview')).toHaveCount(0);
     expect(previewRequests).toEqual([]);
     await page.getByRole('group',{name:'Период изменения',exact:true}).getByRole('button',{name:'1М',exact:true}).click();
     await expect(page.locator('.heatmap-performance-trigger')).toHaveCount(0);
