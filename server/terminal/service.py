@@ -373,6 +373,48 @@ def _issuer_price_to_book(report, market):
             'first_quote_date':earliest, 'market_cap_uzs':cap, 'equity_thousand_uzs':equity}
 
 
+
+def _issuer_book_at_quote(issuer, report, market):
+    current = _issuer_price_to_book(report, market)
+    if current is not None:
+        return current
+    from issuer_financials import period_end
+    from financial_columns.source_store import CONSOLIDATED_TITLE
+    from catalogue.sources import cached_report_excel_data
+    from sector_report_service import sector_report, public_report
+
+    quote = market.get('first_quote_date')
+    published = str((report.get('sources') or [{}])[0].get('publication_date') or '')[:10]
+    if (not quote or not quote < published or market.get('excluded_classes')
+            or not market.get('market_cap') or not report.get('financial_as_of')):
+        return None
+    candidates = {}
+    for filing in filings.get_company_reports(issuer['ticker']):
+        if (filing.get('report_form') != 'NSBU' or filing.get('scope') not in (None, 'separate')
+                or CONSOLIDATED_TITLE.search(filing.get('title') or '') or not filing.get('excel_url')):
+            continue
+        year, quarter = filing.get('year'), filing.get('quarter')
+        period = f'{year}Q{quarter}' if quarter else str(year)
+        end = period_end(period)
+        date = str(filing.get('published_at') or '')[:10]
+        if end and end < report['financial_as_of'] and end <= date <= quote:
+            candidates.setdefault((end, period), set()).add(date)
+    if not candidates:
+        return None
+    end, period = max(candidates)
+    prior = public_report(sector_report(issuer, 'nsbu', period, 'separate', 'ru', persist=False,
+                                        source_reader=cached_report_excel_data))
+    if (prior.get('financial_as_of') != end or prior.get('period') != period or prior.get('scope') != 'separate'
+            or prior.get('standard') != 'nsbu' or str(prior.get('issuer', {}).get('id')) != str(issuer['id'])):
+        return None
+    publication = str((prior.get('sources') or [{}])[0].get('publication_date') or '')[:10]
+    if publication not in candidates[(end, period)]:
+        return None
+    historical = _issuer_price_to_book(prior, market)
+    if historical is not None:
+        return {'value': None, 'unit': 'ratio', 'last_verified': {**historical, 'period_end': end,
+                                                                  'publication_date': publication}}
+
 def filing_metrics(scope, period, search, offset, limit):
     """Page visible issuers before reading their filings."""
     from catalogue.read_batch import scope as read_scope
@@ -413,7 +455,7 @@ def filing_metrics(scope, period, search, offset, limit):
                         if ebit is not None:
                             item['metrics']['ebit'] = ebit
                     if ticker in market:
-                        issuer_pb = _issuer_price_to_book(report, market[ticker])
+                        issuer_pb = _issuer_book_at_quote(issuer, report, market[ticker])
                         if issuer_pb is not None:
                             item['metrics']['issuer_price_to_book'] = issuer_pb
                     for r in report['ratios']:

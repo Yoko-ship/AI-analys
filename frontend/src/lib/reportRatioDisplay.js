@@ -7,7 +7,8 @@ export function displayReportRatio(item, lang) {
     ? pick(lang, 'Последнее подтверждённое значение за период', 'Oxirgi tasdiqlangan davr', 'Last verified for')
     : pick(lang, 'Последнее подтверждённое значение на', 'Oxirgi tasdiqlangan qiymat sanasi', 'Last verified as of');
   const period = last.period_start ? last.period_start + ' – ' + last.period_end : last.period_end;
-  const quoteLabel = last.market_as_of ? pick(lang, 'Котировка', 'Kotirovka', 'Quote') + ' ' + last.market_as_of : '';
+  const dates = [...new Set([last.first_quote_date, last.market_as_of].filter(Boolean))];
+  const quoteLabel = dates.length ? pick(lang, 'Котировка', 'Kotirovka', 'Quote') + ' ' + dates.join(' – ') : '';
   return {...item, ...last, reason_code:null, market_as_of:last.market_as_of, asOfLabel:label + ' ' + period, quoteLabel,
     datedExport:String(last.raw_result ?? last.value) + ' (' + [period, quoteLabel].filter(Boolean).join(', ') + ')'};
 }

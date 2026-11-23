@@ -404,3 +404,47 @@ def test_catalog_shows_uznf_first_audited_eps_with_its_actual_period(monkeypatch
     assert (filing['period_start'], filing['period_end'], filing['page']) == ('2024-12-24', '2025-12-31', 61)
     report['verified_facts'][0]['value'] /= 1000
     assert not eps().get('other_filing')
+
+
+def test_eqqu_filing_screener_uses_equity_published_before_the_last_trade(monkeypatch):
+    from server.terminal import service
+    from financial_columns import service as columns
+    import sector_report_service
+    import issuer_financials
+
+    company = {'ticker': 'EQQU', 'org_id': '553'}
+    issuer = {'ticker': 'EQQU', 'id': '553'}
+    quote = {'first_quote_date': '2026-10-06', 'last_quote_date': '2026-10-06',
+             'excluded_classes': [], 'market_cap': 50986761000}
+    def card(period, end, publication, equity):
+        return {'issuer': issuer, 'scope': 'separate', 'standard': 'nsbu', 'period': period,
+                'financial_as_of': end, 'status': 'available', 'ratios': [],
+                'sources': [{'publication_date': publication}],
+                'verified_facts': [{'metric_code':'total_equity', 'unit_normalized':'thousand UZS',
+                                    'period':period, 'verification_status':'verified', 'value':equity}]}
+    # Openinfo JSC filings 19107 and 18664. The October 6 close predates the Q3 publication.
+    reports = {'2026Q3': card('2026Q3','2026-09-30','2026-10-28',135688717),
+               '2026Q2': card('2026Q2','2026-06-30','2026-07-28',130483065)}
+    index = [{'report_form':'NSBU','year':2026,'quarter':q,'published_at':r['sources'][0]['publication_date'],
+              'excel_url':'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_id='+str(i)}
+             for q, r, i in [(3,reports['2026Q3'],19107),(2,reports['2026Q2'],18664)]]
+    monkeypatch.setattr(service.filings, 'get_company_reports', lambda t: index)
+    monkeypatch.setattr(service, 'market_context', lambda: {'EQQU': quote})
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(columns, 'filing_roce', lambda *a: ('2026Q3', {'value': None}))
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda t: issuer)
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda who, standard, period, *a, **kw: reports[period])
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda report: report)
+
+    def cell():
+        return service.filing_metrics('separate', None, 'EQQU', 0, 1)['rows'][0]['metrics'].get('issuer_price_to_book', {})
+    actual = cell()
+    assert actual.get('value') is None
+    history = actual.get('last_verified') or {}
+    assert history.get('value') == pytest.approx(50986761000 / 130483065000)
+    assert history['period_end'] == '2026-06-30' and history['market_as_of'] == '2026-10-06'
+    quote['excluded_classes'] = ['EQQU-P']
+    assert not cell().get('last_verified')
+    quote['excluded_classes'] = []
+    reports['2026Q2']['sources'][0]['publication_date'] = '2026-10-07'
+    assert not cell().get('last_verified')
