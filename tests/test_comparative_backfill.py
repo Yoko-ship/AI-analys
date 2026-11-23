@@ -58,6 +58,33 @@ def test_only_a_year_with_a_usable_filing_after_it_is_missing(catalog):
     assert comparative.missing_years(["BECM"], last_fy=2025) == [2021, 2023]
 
 
+def test_uzmt_2015_filing_recovers_2014_comparative_at_the_start_of_history(catalog, monkeypatch):
+    # Openinfo annual 796, separate UZS thousands, lines 010 and 270.
+    catalogue_financial_store.upsert_financials_cache(
+        "UZMT", "NSBU", 2015, 0, {"revenue": 5387146297.0, "net_income": 119355276.0,
+                                  "total_assets": 6570453640.0, "total_equity": 1769178191.0})
+    import openinfo_reconcile
+    from catalogue import filings
+    monkeypatch.setattr(comparative, "_annual_detail", lambda org, year: (None, None))
+    export = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id='
+    monkeypatch.setattr(filings, 'get_company_reports', lambda ticker: [
+        dict(year=2015, report_form='NSBU', period_type='annual', excel_url=export + str(ident))
+        for ident in (795, 796)
+    ])
+    def detail(candidate):
+        ident = candidate["object_id"]
+        return dict(id=ident, status="approved", reporting_year="2015-12-31", pub_date="2016-07-29",
+                    organization={"id": 102 if ident == 796 else 3})
+    monkeypatch.setattr(openinfo_reconcile, 'fetch_detail', detail)
+    monkeypatch.setattr(openinfo_reconcile, "extract_metrics", lambda detail: {
+        "org_type": "jsc", "prior": {"revenue": 5644279652.0, "net_income": 46164968.0},
+        "balance": {"assets_start": 5754520773.0, "equity_start": 1651371519.0},
+    })
+    assert comparative.backfill_issuer("102", ["UZMT"]) == [2014]
+    recovered = comparative.comparative_years("UZMT")["2014"]
+    assert recovered["net_income"] == 46164968.0 and recovered["source"]["object_id"] == 796
+
+
 def test_the_backfill_stores_the_year_with_its_source(catalog, monkeypatch):
     _filed("BECM", 2022, 700_000_000.0)
     _filed("BECM", 2024, 800_000_000.0)

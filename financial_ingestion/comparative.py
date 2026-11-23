@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+from urllib.parse import parse_qs, urlsplit
 
 import dbx
 
@@ -33,7 +34,6 @@ import catalogue.storage as catalogue_storage
 log = logging.getLogger(__name__)
 
 FORM = "NSBU"
-FIRST_YEAR = 2015
 _INCOME = ("revenue", "gross_profit", "net_income", "operating_income")
 
 
@@ -93,8 +93,7 @@ def missing_years(aliases: list[str], last_fy: int | None = None) -> list[int]:
     """Annual years with no usable filing whose following year has one."""
     last_fy = last_fy or catalogue_periods._latest_complete_fiscal_year()
     have = _usable_years(aliases)
-    return [year for year in range(FIRST_YEAR, last_fy)
-            if year not in have and year + 1 in have]
+    return sorted(filed - 1 for filed in have if filed <= last_fy and filed - 1 not in have)
 
 
 def _annual_detail(org_id: str, year: int):
@@ -109,6 +108,30 @@ def _annual_detail(org_id: str, year: int):
                                            pub_date=cand.get("pub_date"))
         if fiscal == year:
             return cand, detail
+    return None, None
+
+
+def _catalogued_annual(org_id, ticker, year):
+    """Older annuals may only be discoverable through an archived workbook link."""
+    from catalogue.filings import get_company_reports
+    import openinfo_reconcile as oi
+
+    for report in get_company_reports(ticker):
+        if (report.get("report_form"), report.get("period_type"), report.get("year")) != (FORM, "annual", year):
+            continue
+        url = report.get("excel_url") or report.get("excel_url_form1") or ""
+        params = parse_qs(urlsplit(url).query)
+        org_type = params.get("org_type", [""])[0]
+        ident = params.get("report_id", [""])[0]
+        if params.get("report_type") != ["annual"] or org_type not in oi.ORG_TYPES or not ident.isdigit():
+            continue
+        candidate = {"org_type": org_type, "period_type": "annual", "object_id": int(ident)}
+        detail = oi.fetch_detail(candidate)
+        end = f"{year}-12-31"
+        if (str((detail.get("organization") or {}).get("id")) == str(org_id)
+                and str(detail.get("id")) == ident and detail.get("status") == "approved"
+                and detail.get("reporting_year") == end and (detail.get("pub_date") or "")[:10] >= end):
+            return {**candidate, "pub_date": detail["pub_date"]}, detail
     return None, None
 
 
@@ -212,6 +235,8 @@ def backfill_issuer(org_id: str, aliases: list[str], journal=None) -> list[int]:
     for year in sorted(missing | {y for y in have if y + 1 in have}):
         try:
             cand, detail = _annual_detail(str(org_id), year + 1)
+            if not detail:
+                cand, detail = _catalogued_annual(org_id, aliases[0], year + 1)
             if not detail:
                 continue
             import openinfo_reconcile as oi
