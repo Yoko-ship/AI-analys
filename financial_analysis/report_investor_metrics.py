@@ -152,6 +152,12 @@ def calculate(report, rows, share_basis=None):
                     and capital['value'] == decimal(basis['closing_share_capital_thousand'])
                     and treasury['value'] == 0)
         capital_evidence = capital['components'] + treasury['components']
+    if basis_ok and basis.get('class_capital_thousand'):
+        basis_ok = report['standard'].upper() == basis.get('source_standard')
+        for code, filed_amount in basis['class_capital_thousand'].items():
+            capital = pick(code)
+            basis_ok = basis_ok and capital['value'] == decimal(filed_amount)
+            capital_evidence.extend(capital['components'])
     ordinary_only = basis_ok and basis.get('ordinary_only') is True
     ordinary_at_close = basis_ok and basis.get('ordinary_only_at_end') is True
 
@@ -182,6 +188,20 @@ def calculate(report, rows, share_basis=None):
         elif report['scope'] != 'separate':
             return part
         claim = pick('preferred_profit_allocation' if flow else 'preferred_equity_claim', flow=flow)
+        reviewed = None
+        compatible_basis = basis_ok and report['standard'].upper() == basis.get('source_standard')
+        if compatible_basis and not flow and (terms := basis.get('preferred_liquidation')):
+            reviewed = decimal(terms['outstanding_shares']) * decimal(terms['uzs_per_share']) / 1000
+        if compatible_basis and flow and basis['period_start'] == start and (allocation := basis.get('preferred_profit_allocation')):
+            if parent['value'] == decimal(allocation['net_profit_thousand']):
+                reviewed = decimal(allocation['preferred_thousand'])
+        if reviewed is not None:
+            key = 'preferred_profit_allocation' if flow else 'preferred_equity_claim'
+            right = {**basis, 'metric_id': key, 'value': str(reviewed), 'unit': 'UZS_thousand'}
+            if claim['components'] and claim['value'] != reviewed:
+                right['attribution_conflict'] = True
+                reviewed = None
+            claim = {'value': reviewed, 'components': [*claim['components'], right, *capital_evidence]}
         if claim['components']:
             amount = claim['value']
             consistent = amount is not None and amount >= 0 and (not ordinary_context or amount == 0)

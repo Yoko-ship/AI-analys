@@ -788,5 +788,74 @@
         "treasury": "0"
       }
     ]
+  },
+  {
+    "issuer_id": "28",
+    "ticker": "IPKY",
+    "isin": "UZ7039920002",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "unit": "shares",
+    "ordinary_shares": "54215734738",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99570/",
+    "preferred_liquidation": {
+      "outstanding_shares": "2160000",
+      "uzs_per_share": "10"
+    },
+    "class_capital_thousand": {
+      "ordinary_share_capital": "542157347",
+      "preferred_share_capital": "21600"
+    },
+    "source_lines": {
+      "ordinary_shares": "Resolution 99570 item 3 approves cancellation of the 6,024,210,526 ordinary shares already repurchased. Its amended clause 33 gives 54,215,734,738 ordinary and 2,160,000 preferred shares. The issue amendment registered November 5 confirms the new count. The November 10 register reconciles exactly to the 185,967,378,951.34 UZS distributed at 3.43 UZS per share in resolution 100323.",
+      "preferred_liquidation": "Clause 45 fixes the prior liquidation claim at 10 UZS per preferred share. The September amendment changes clause 33 only and leaves 2,160,000 preferred shares outstanding. The November register includes both classes.",
+      "class_capital_thousand": "The September statutory balance, lines 26a and 26b, reports 542,157,347 and 21,600 thousand UZS respectively, reconciling to the nominal class capital in the amendment at the stated filing precision.",
+      "charter": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBakZBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--bce78cc44f9640aad11c52c80a54df57cce5f362/%D0%A3%D1%81%D1%82%D0%B0%D0%B2%20%D1%81%20%D0%B8%D0%B7%D0%BC%D0%B5%D0%BD%D0%B5%D0%BD%D0%B8%D1%8F%D0%BC%D0%B8.pdf",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1321/",
+      "registered_classes": "https://openinfo.uz/media/documents/0d309cfd-930f-4753-95ed-46e7821ad633.pdf",
+      "dividend_register": "https://new-api.openinfo.uz/api/v2/disclosure/facts/100323/",
+      "buyback": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97866/",
+      "issue_registration": "https://new-api.openinfo.uz/api/v2/disclosure/facts/100196/"
+    }
+  },
+  {
+    "issuer_id": "669",
+    "ticker": "UZAS",
+    "isin": "UZ7045570007",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "unit": "shares",
+    "period_start": "2024-01-01",
+    "period_end": "2024-12-31",
+    "source_url": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/243/",
+    "ordinary_shares": "33198274",
+    "share_intervals": [
+      {
+        "from": "2024-01-01",
+        "issued": "33198274",
+        "treasury": "0"
+      }
+    ],
+    "closing_share_capital_thousand": "108955938.7",
+    "preferred_liquidation": {
+      "outstanding_shares": "20000",
+      "uzs_per_share": "3280"
+    },
+    "preferred_profit_allocation": {
+      "net_profit_thousand": "21848903.1",
+      "preferred_thousand": "16400"
+    },
+    "source_lines": {
+      "ordinary_shares": "The 2024 charter, section 5.3, identifies 33,198,274 ordinary shares and 20,000 preferred shares, both at 3,280 UZS. These placed shares account for all paid capital. The statutory balance reports zero treasury shares at both dates.",
+      "share_intervals": "The signed statement of changes in equity on page 8 reports unchanged share capital throughout 2023 and 2024, with no issues, buybacks or treasury movements. Statutory lines 500 and 530 corroborate capital and zero treasury shares at both ends of FY2024. The FY2024 shareholder distribution reconciles both classes to the stated precision.",
+      "preferred_liquidation": "Section 6.18 of the governing 2024 charter grants a fixed liquidation claim of 100% of nominal value per preferred share. The June 2025 resolution confirms 20,000 shares at 820 UZS each.",
+      "preferred_profit_allocation": "The FY2024 resolution, item 7, allocates 16,400 thousand UZS to preferred shares. Their fixed annual dividend is 25% of 3,280 UZS per share under section 6.18. Statutory net profit is 21,848,903.1 thousand UZS. The ordinary dividend is a distribution from earnings attributable to ordinary shareholders.",
+      "charter": "https://agros.uz/media/investor/%D0%A3%D1%81%D1%82%D0%B0%D0%B2_2024_%D1%80%D1%83%D1%81.pdf",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/insurance/annual/243/",
+      "equity_movements": "https://openinfo.uz/media/int_report/42de6762-ea0b-4ae1-a265-7d145e8b73aa.pdf#page=8",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/91557/"
+    }
   }
 ]

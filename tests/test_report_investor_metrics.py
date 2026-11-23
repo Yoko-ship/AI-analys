@@ -201,6 +201,82 @@ def test_annual_eps_uses_the_verified_weighted_ordinary_share_count(report, monk
     assert 'eps_closing_estimate' not in annual
 
 
+@pytest.mark.parametrize('ordinary_capital,preferred_capital,expected', [
+    (542157347, 21600, True), (602399453, 21600, False), (542157347, 20000, False),
+])
+def test_ipky_q3_values_ordinary_shares_after_cancellation(report, monkeypatch, ordinary_capital, preferred_capital, expected):
+    end = '2026-09-30'
+    report.update(period='2026Q3', financial_as_of=end, scope='separate', standard='nsbu')
+    report['issuer'].update(id='28', ticker='IPKY', organization_type='bank')
+    report['verified_facts'] = [
+        dict(metric_code=key, value=value, period='2026Q3', unit_normalized='thousand UZS',
+             verification_status='verified')
+        for key, value in [('total_assets', 40078085831), ('total_equity', 4758374715), ('net_income', 821796398)]
+    ]
+    report['instrument'] = dict(instrument_type='ordinary_share', isin='UZ7039920002', last_price=344,
+                                market_as_of='2026-11-20', freshness={'status':'fresh'})
+    rows = source_rows(report, share_capital=542178947, ordinary_share_capital=ordinary_capital,
+                       preferred_share_capital=preferred_capital)
+    inject(monkeypatch, [{**row, 'period_start':end, 'period_end':end} for row in rows])
+    result = metrics(report)
+    book = (4758374715 * 1000 - 2160000 * 10) / 54215734738
+    assert result['book_value_per_share']['value'] == (pytest.approx(book) if expected else None)
+    assert result['price_to_book']['value'] == (pytest.approx(344 / book) if expected else None)
+    assert result['eps_basic']['value'] is None
+    assert result.get('eps_closing_estimate', {}).get('value') is None
+    if expected:
+        parts = result['book_value_per_share']['components']
+        assert {'preferred_equity_claim', 'ordinary_share_capital', 'preferred_share_capital'} <= {
+            c.get('metric_id') for c in parts}
+
+
+@pytest.mark.parametrize('profit,treasury,conflicting_claim,has_book,has_eps', [
+    (21848903.1, 0, None, True, True),
+    (21848903.1, 1, None, False, False),
+    (21848903.1, 0, 82000, False, True),
+    (21848900, 0, None, True, False),
+])
+def test_uzas_fy2024_attributes_equity_and_earnings_by_class(
+        report, monkeypatch, profit, treasury, conflicting_claim, has_book, has_eps):
+    end = '2024-12-31'
+    report.update(period='2024', financial_as_of=end, scope='separate', standard='nsbu')
+    report['issuer'].update(id='669', ticker='UZAS', organization_type='insurance')
+    report['verified_facts'] = [
+        dict(metric_code=key, value=value, period='2024', unit_normalized='thousand UZS', verification_status='verified')
+        for key, value in [('total_assets', 540773599.3), ('total_equity', 136024256.5), ('net_income', profit)]
+    ]
+    values = {'share_capital': 108955938.7, 'treasury_shares': treasury}
+    if conflicting_claim is not None:
+        values['preferred_equity_claim'] = conflicting_claim
+    inject(monkeypatch, [{**r, 'period_start':end, 'period_end':end} for r in source_rows(report, **values)])
+    out = metrics(report)
+    book = (136024256.5 * 1000 - 20000 * 3280) / 33198274
+    eps = (21848903.1 * 1000 - 20000 * 820) / 33198274
+    assert out['book_value_per_share']['value'] == (pytest.approx(book) if has_book else None)
+    assert out['eps_basic']['value'] == (pytest.approx(eps) if has_eps else None)
+
+
+@pytest.mark.parametrize('change,valid', [
+    ({}, True), ({'ordinary_only_at_end': True}, False),
+    ({'preferred_liquidation': {'outstanding_shares':'2160000', 'uzs_per_share':'9'}}, False),
+])
+def test_ipky_stored_share_count_preserves_or_conflicts_with_reviewed_terms(tmp_path, monkeypatch, change, valid):
+    from financial_columns import share_disclosures
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'ipky-class.db'))
+    key = ('28', 'IPKY', '2026-09-30', 'separate')
+    reviewed = share_disclosures.read(*key)
+    stored = {k:v for k,v in reviewed.items()
+              if k not in {'verification_status', 'source_version', 'preferred_liquidation'}}
+    stored.update(change)
+    stored['source_lines']['ordinary_only_at_end'] = 'The attachment identifies only ordinary shares.'
+    share_disclosures.record(stored, actor='reviewer', reason='Check class count')
+    actual = share_disclosures.read(*key)
+    if valid:
+        assert actual.get('preferred_liquidation') == reviewed['preferred_liquidation']
+    else:
+        assert actual is None
+
+
 @pytest.mark.parametrize('status', ['available','no_source'])
 def test_last_verified_book_value_uses_both_inputs_from_same_older_filing(biok_report, monkeypatch, status):
     import issuer_financials

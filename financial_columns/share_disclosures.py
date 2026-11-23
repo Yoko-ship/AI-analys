@@ -1,6 +1,6 @@
 """Reviewed, dated share disclosures, independent of accounting-standard money.
 
-Only share counts and equal ordinary-share rights belong here. A closing count
+This records share counts and class rights with their primary sources. A closing count
 does not establish a weighted average. ``ordinary_only`` certifies that all
 participating equity was ordinary throughout the stated period, not merely that
 one ordinary instrument was found on today's exchange board.
@@ -22,7 +22,7 @@ from catalogue.storage import get_catalog_conn
 FIELDS = {'issuer_id', 'ticker', 'period_start', 'period_end', 'scope', 'source_url',
           'source_standard', 'ordinary_shares', 'weighted_average_shares',
           'ordinary_only', 'ordinary_only_at_end', 'source_lines', 'unit', 'isin', 'share_intervals', 'capital_changes',
-          'closing_share_capital_thousand'}
+          'closing_share_capital_thousand', 'preferred_liquidation', 'class_capital_thousand', 'preferred_profit_allocation'}
 REVIEWED = Path(__file__).resolve().parents[1] / 'config' / 'reviewed_share_disclosures.json'
 KEY_COLUMNS = 'issuer_id,ticker,period_end,scope'
 
@@ -60,6 +60,21 @@ def _share_history(data, start, end):
             raise ValueError('Share history conflicts with disclosed count')
         data[key] = str(count)
         data['source_lines'][key] = evidence
+
+
+def _class_amounts(data, field, required):
+    """Read the named amounts together and require the evidence for their meaning."""
+    amounts = data[field]
+    evidence = data['source_lines'].get(field)
+    if not isinstance(amounts, dict) or set(amounts) != set(required) or not isinstance(evidence, str) or not evidence.strip():
+        raise ValueError(f'{field} requires documented class amounts')
+    try:
+        values = tuple(Decimal(str(amounts[k])) for k in required)
+    except InvalidOperation as exc:
+        raise ValueError(f'Invalid {field}') from exc
+    if not all(v.is_finite() for v in values):
+        raise ValueError(f'Invalid {field}')
+    return values
 
 
 def _validate(value):
@@ -112,6 +127,22 @@ def _validate(value):
             raise ValueError('Ordinary-share rights must be explicit')
         if data.get(field) and not (isinstance(lines.get(field), str) and lines[field].strip()):
             raise ValueError('Ordinary-only equity requires source evidence')
+    if 'preferred_liquidation' in data or 'preferred_profit_allocation' in data:
+        if (not data.get('ordinary_shares') or data.get('ordinary_only') or data.get('ordinary_only_at_end')
+                or not (data.get('class_capital_thousand') or data.get('closing_share_capital_thousand'))):
+            raise ValueError('Preferred rights require a mixed class count corroborated by filed capital')
+    if 'preferred_liquidation' in data:
+        count, price = _class_amounts(data, 'preferred_liquidation', ('outstanding_shares', 'uzs_per_share'))
+        if count <= 0 or count != count.to_integral_value() or price <= 0:
+            raise ValueError('Invalid preferred liquidation terms')
+    if 'class_capital_thousand' in data:
+        amounts = _class_amounts(data, 'class_capital_thousand', ('ordinary_share_capital', 'preferred_share_capital'))
+        if min(amounts) <= 0:
+            raise ValueError('Invalid reported class capital')
+    if 'preferred_profit_allocation' in data:
+        _, allocation = _class_amounts(data, 'preferred_profit_allocation', ('net_profit_thousand', 'preferred_thousand'))
+        if allocation < 0:
+            raise ValueError('Invalid preferred profit allocation')
     return data
 
 
@@ -174,6 +205,8 @@ def _reviewed(path):
 
 def _conflicts(stored, reviewed):
     def closing_rights(data):
+        if 'preferred_liquidation' in data:
+            return False
         if 'ordinary_only_at_end' in data:
             return data['ordinary_only_at_end']
         if data.get('ordinary_only') is True:
@@ -182,6 +215,12 @@ def _conflicts(stored, reviewed):
     closing = (closing_rights(stored), closing_rights(reviewed))
     if None not in closing and closing[0] != closing[1]:
         return True
+    common_terms = {'preferred_liquidation', 'class_capital_thousand'} & stored.keys() & reviewed.keys()
+    if stored['period_start'] == reviewed['period_start'] and 'preferred_profit_allocation' in stored and 'preferred_profit_allocation' in reviewed:
+        common_terms.add('preferred_profit_allocation')
+    for field in common_terms:
+        if any(Decimal(str(v)) != Decimal(str(reviewed[field][key])) for key, v in stored[field].items()):
+            return True
     if all('ordinary_shares' in data for data in (stored, reviewed)):
         if Decimal(stored['ordinary_shares']) != Decimal(reviewed['ordinary_shares']):
             return True
@@ -198,7 +237,7 @@ def _conflicts(stored, reviewed):
 
 def _has_eps_basis(data):
     # Quarterly and annual income in this pipeline is year-to-date.
-    return (data.get('ordinary_only') is True and 'weighted_average_shares' in data
+    return ((data.get('ordinary_only') is True or 'preferred_profit_allocation' in data) and 'weighted_average_shares' in data
             and data['period_start'] == f"{data['period_end'][:4]}-01-01")
 
 
@@ -255,7 +294,8 @@ def read(issuer_id, ticker, end, scope, *, include_reviewed=True):
                         return None
                     # Keep a complete EPS basis and its source intact when an
                     # attachment can only corroborate point-in-time shares.
-                    if _has_eps_basis(reviewed[0]) and not _has_eps_basis(data):
+                    richer_rights = 'preferred_liquidation' in reviewed[0] and 'preferred_liquidation' not in data
+                    if not _has_eps_basis(data) and (_has_eps_basis(reviewed[0]) or richer_rights):
                         data, version = deepcopy(reviewed)
         elif reviewed:
             data, version = deepcopy(reviewed)
