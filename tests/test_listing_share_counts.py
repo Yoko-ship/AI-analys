@@ -224,6 +224,7 @@ def test_an_old_trade_still_builds_the_class_cap(monkeypatch) -> None:
 
 # openinfo's ustav_capitalization on the day each entry was read from uzse.uz.
 REGISTRY_CHARTERS = {
+    ("INFB", "INFBP"): 2_240_000_000_000.0,
     ("ALKB", "ALKBP"): 3_678_140_046_965.0, ("UZMK", "UZMKP"): UZMK_CHARTER,
     ("AGMK", "AGMKP"): 2_808_759_251_282.0,
     ("AGBA", "AGBAP"): 12_765_191_063_584.0, ("ALSM", "ALSMP"): 60_272_931_060.0,

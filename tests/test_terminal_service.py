@@ -321,3 +321,23 @@ def test_uzal_market_context_checks_preferred_activity_without_losing_latest_quo
         assert result['UZAL']['excluded_classes'] == (['UZALP'] if preferred_state == 'inactive' else [])
     assert result['UZML']['market_cap'] == 45000000000
     assert result['UZAL']['price'] == 4600
+
+
+def test_infb_issuer_cap_requires_every_registered_equity_isin(monkeypatch):
+    import catalogue.market_store as market
+
+    today = date.today().isoformat()
+    securities = {'INFB': {'isin': 'UZ7055560005', 'share_type': 'ordinary', 'name': 'Invest Finance Bank'}}
+    listings = {'INFB': {'shares_outstanding': 1940000000, 'last_price': 1000, 'last_trade_date': today}}
+    monkeypatch.setattr(service, 'get_securities_map', lambda: securities)
+    monkeypatch.setattr(market, 'get_all_listings', lambda: listings)
+    monkeypatch.setattr(market, 'get_all_quotes', lambda: {})
+    result = service.market_context()['INFB']
+    assert result['market_cap'] is None
+    assert result['market_cap_reason'] == 'INCOMPLETE_MARKET_CAP'
+    assert result['missing_classes'] == ['INFBP']
+    assert result['price'] == 1000
+    # A renamed preferred ticker with the same ISIN still completes the issuer.
+    securities['PREF'] = {'isin': 'UZ7055561003', 'name': 'Invest Finance Bank', 'share_type': 'preferred'}
+    listings['PREF'] = {'shares_outstanding': 300000000, 'last_price': 1200, 'last_trade_date': today}
+    assert service.market_context()['INFB']['market_cap'] == 2300000000000

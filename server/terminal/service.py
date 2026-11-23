@@ -89,7 +89,16 @@ def market_context():
         row['market_input']=checked
         classes.append(row)
     result = {}
+    registered = {}
+    for ticker, entry in market._share_registry().items():
+        isin = str(entry.get('isin') or '').upper()
+        if isin.startswith('UZ7') and len(isin) == 12:
+            registered.setdefault(isin[:8], {})[isin] = ticker
     for group in fundamentals.group_by_issuer(classes).values():
+        observed = {str(c.get('isin') or '').upper() for c in group}
+        expected = {isin: ticker for stem in {isin[:8] for isin in observed}
+                    for isin, ticker in registered.get(stem, {}).items()}
+        missing = sorted(expected[isin] for isin in expected.keys() - observed)
         cap = fundamentals.market_cap_issuer(group)
         consistent = fundamentals.share_count_consistency(group)['consistent']
         included = [c for c in group if c['market_input']['included_in_issuer_cap']]
@@ -99,9 +108,9 @@ def market_context():
         dated = bool(quote_dates) and all(quote_dates)
         for c in group:
             age = c['market_input']['price_age_days']
-            value = cap.get('value') if consistent else None
+            value = cap.get('value') if consistent and not missing else None
             result[c['ticker']] = {'market_cap': value, 'market_cap_reason': None if value is not None else reason,
-                'excluded_classes': cap.get('excluded_classes', []),
+                'excluded_classes': cap.get('excluded_classes', []), 'missing_classes': missing,
                 'first_quote_date': min(quote_dates) if dated else None,
                 'last_quote_date': max(quote_dates) if dated else None,
                 'price': c.get('last_price') if age is not None and 0 <= age <= c['market_input']['max_price_age_days'] else None,
@@ -415,6 +424,23 @@ def _issuer_book_at_quote(issuer, report, market):
         return {'value': None, 'unit': 'ratio', 'last_verified': {**historical, 'period_end': end,
                                                                   'publication_date': publication}}
 
+
+def _independent_ordinary_eps(company, report):
+    from data_quality import held_public_periods
+    from financial_ingestion.investor_eps import official_eps
+
+    instrument = report.get('instrument') or {}
+    end = report.get('financial_as_of')
+    cutoff = instrument.get('valuation_as_of')
+    if (instrument.get('instrument_type') != 'ordinary_share' or not end or not cutoff
+            or not company.get('org_id') or str(report['issuer']['id']) != str(company['org_id'])):
+        return None
+    filing = official_eps(company['org_id'], end, cutoff, report['scope'])
+    if filing and all(filing['period'] not in held_public_periods(alias, 'MSFO')
+                      for alias in company.get('tickers') or [company['ticker']]):
+        return {'value': None, 'other_filing': filing}
+
+
 def filing_metrics(scope, period, search, offset, limit):
     """Page visible issuers before reading their filings."""
     from catalogue.read_batch import scope as read_scope
@@ -450,6 +476,10 @@ def filing_metrics(scope, period, search, offset, limit):
                     item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
                         ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of','other_filing')}
                         for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
+                    if report.get('status') in {'quality_blocked', 'no_source'} and 'eps_basic' not in item['metrics']:
+                        eps = _independent_ordinary_eps(company, report)
+                        if eps:
+                            item['metrics']['eps_basic'] = eps
                     if item['metrics'].get('ebit', {}).get('value') is None:
                         ebit = filing_ebit(company, report)
                         if ebit is not None:

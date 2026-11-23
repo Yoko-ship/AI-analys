@@ -389,13 +389,31 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
     assert downloads == [url]
 
 
-@pytest.mark.parametrize(('org', 'ticker', 'filing_id', 'sha', 'filename', 'expected', 'page'), [
+@pytest.mark.parametrize(('org', 'ticker', 'filing_id', 'sha', 'filename', 'expected', 'page', 'year', 'scope'), [
     ('666', 'UZTL', 3247, 'b9f77bd6bdfa283dbdf2bba863cc34c45cb07e6c46f9d53eb6e543ac9ae64efb',
-     '7e7924bc-31df-4729-aa34-9499f7bdb516.pdf', 2215, 57),
+     '7e7924bc-31df-4729-aa34-9499f7bdb516.pdf', 2215, 57, '2025', 'consolidated'),
     ('17', 'IPTB', 3335, '10a865f60a680744891049210eb4a54b68f26457accfc06cd9717c29d5578acd',
-     '75f067b6-58c4-4f79-a7c1-94a7cfe4da5b.pdf', .53, 53)])
+     '75f067b6-58c4-4f79-a7c1-94a7cfe4da5b.pdf', .53, 53, '2025', 'consolidated'),
+    ('19', 'AGBA', 3267, 'ab8e0077157f1ae51fd20fb6692e30e99578f2c5e37c1180dc2222a6596f41ad',
+     '203c8cbb-bd8c-40a1-b0fc-69d78024f00f.pdf', 9, 9, '2025', 'consolidated'),
+    ('28', 'IPKY', 3199, '97b5fe2f334e9316ec8392e431d542aafec34a7a5c161133e17afaee4244052f',
+     'fe4cd9ed-d46a-46d4-b61f-e39ea6d7fa3a.pdf', 14.71, 10, '2025', 'consolidated'),
+    ('16', 'ORFI', 3231, 'c49834e33ab311a22b69968d337a55b2d0e8158524841f16a96148d87a3ceb98',
+     'decd2e97-107c-44a9-9ac7-5bdc5d68d2b5.pdf', 480, 9, '2025', 'consolidated'),
+    ('22', 'TNBN', 3238, '7a868240e53231377dc2966905ad19faafe1cf3c63d0f2f585393c9739dcc878',
+     '93a90ff4-a26f-4a61-b729-9dc699539692.pdf', 19, 10, '2025', 'consolidated'),
+    ('446', 'KSCM', 2352, 'ca0dcdf18ce7942f941c6da79e3c4ebbdb14bb79676b98c3b705afdbf4725548',
+     'Отчет_по_МСФО_по_итогам_2021_года.pdf', 73437, 2, '2021', 'separate'),
+    ('702', 'UTGA', 2983, 'd244dd16d0acf6416825aa7403a73eba8e69e0a319d020c949cddbfc5fd8443a',
+     '23476a8d-7661-407c-b062-4e4cbe68c775.pdf', 12759, 33, '2024', 'consolidated'),
+    ('383', 'UZMK', 2796, '638f24391a957739db754682c8139b4f69c5e91f7ef8881ae876de33e80f2e66',
+     'UMK_IFRS_FS_2023_eng.pdf', 1471, 8, '2023', 'consolidated'),
+    ('30', 'SQBN', 3077, '2d85eea4d1c28a09500eb40327b03fb0f60bca311f1aee4471c998ca889591ce',
+     'e873c921-48bf-4fa3-8865-1f24d35f0d37.pdf', 4.58, 76, '2024', 'consolidated'),
+    ('717', 'URTS', 1874, '492350d2f0f467e7da7c4e6818d531b96ca01f09b72c8dd19909482f262f830d',
+     '31_03_2020_Отчет_и_аудиторское_заключение_по_МСФО_2019_с_раскрытиями_compressed.pdf', 3260.07, 26, '2019', 'separate')])
 def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(
-        monkeypatch, tmp_path, org, ticker, filing_id, sha, filename, expected, page):
+        monkeypatch, tmp_path, org, ticker, filing_id, sha, filename, expected, page, year, scope):
     from financial_ingestion import documents, investor_eps, store
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'review.db'))
     monkeypatch.setenv('FINANCIAL_ARTIFACT_DIR', str(tmp_path))
@@ -415,7 +433,7 @@ def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(
     documents.fetch_job(store.claim(stages=('FETCH',), source_id=source), 'test', fetch=lambda _: b'%PDF-reviewed')
     filing = read() or {}
     assert filing.get('value') == expected
-    assert (filing['scope'], filing['period'], filing['source_url'], filing['page']) == ('consolidated', '2025', url, page)
+    assert (filing['scope'], filing['period'], filing['source_url'], filing['page']) == (scope, year, url, page)
     with store.transaction() as conn:
         documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test',
                            metadata={**meta, 'status': 'withdrawn'})

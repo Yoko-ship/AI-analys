@@ -30,5 +30,149 @@
       "shares_per_unit": 1,
       "reported_eps_uzs": "2215"
     }
+  ],
+  "19": [
+    {
+      "report_id": 3267,
+      "source_url": "https://openinfo.uz/media/msfo/203c8cbb-bd8c-40a1-b0fc-69d78024f00f.pdf",
+      "sha256": "ab8e0077157f1ae51fd20fb6692e30e99578f2c5e37c1180dc2222a6596f41ad",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 9,
+      "note": "26",
+      "reported_eps_uzs": "9",
+      "source_form": "income_statement",
+      "row_label": "Earnings per ordinary share for profit attributable to the owners of the Bank, basic and diluted in UZS",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "28": [
+    {
+      "report_id": 3199,
+      "source_url": "https://openinfo.uz/media/msfo/fe4cd9ed-d46a-46d4-b61f-e39ea6d7fa3a.pdf",
+      "sha256": "97b5fe2f334e9316ec8392e431d542aafec34a7a5c161133e17afaee4244052f",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 10,
+      "note": "28",
+      "reported_eps_uzs": "14.71",
+      "source_form": "income_statement",
+      "row_label": "Базовая и разводненная прибыль на обыкновенную акцию (в узбекских сумах за акцию)",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "16": [
+    {
+      "report_id": 3231,
+      "source_url": "https://openinfo.uz/media/msfo/decd2e97-107c-44a9-9ac7-5bdc5d68d2b5.pdf",
+      "sha256": "c49834e33ab311a22b69968d337a55b2d0e8158524841f16a96148d87a3ceb98",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 9,
+      "note": "21",
+      "reported_eps_uzs": "480",
+      "source_form": "income_statement",
+      "row_label": "Basis and diluted earnings per ordinary share (expressed in UZS per share)",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "22": [
+    {
+      "report_id": 3238,
+      "source_url": "https://openinfo.uz/media/msfo/93a90ff4-a26f-4a61-b729-9dc699539692.pdf",
+      "sha256": "7a868240e53231377dc2966905ad19faafe1cf3c63d0f2f585393c9739dcc878",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 10,
+      "note": "25",
+      "reported_eps_uzs": "19",
+      "source_form": "income_statement",
+      "row_label": "Total basic and diluted earnings per ordinary share (expressed in UZS per share)",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "446": [
+    {
+      "report_id": 2352,
+      "source_url": "https://openinfo.uz/media/msfo/Отчет_по_МСФО_по_итогам_2021_года.pdf",
+      "sha256": "ca0dcdf18ce7942f941c6da79e3c4ebbdb14bb79676b98c3b705afdbf4725548",
+      "scope": "separate",
+      "period_end": "2021-12-31",
+      "page": 2,
+      "note": "24",
+      "reported_eps_uzs": "73437",
+      "source_form": "income_statement",
+      "row_label": "Базовая и разводненная прибыль на обыкновенную акцию, относимой на собственников Компании (в узбекских сумах на акцию)",
+      "column_year": 2021,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "702": [
+    {
+      "report_id": 2983,
+      "source_url": "https://openinfo.uz/media/msfo/23476a8d-7661-407c-b062-4e4cbe68c775.pdf",
+      "sha256": "d244dd16d0acf6416825aa7403a73eba8e69e0a319d020c949cddbfc5fd8443a",
+      "scope": "consolidated",
+      "period_end": "2024-12-31",
+      "page": 33,
+      "note": "16",
+      "reported_eps_uzs": "12759",
+      "ordinary_profit": "7944",
+      "uzs_per_currency_unit": 1000000000,
+      "weighted_ordinary_shares": "622631949",
+      "shares_per_unit": 1
+    }
+  ],
+  "383": [
+    {
+      "report_id": 2796,
+      "source_url": "https://openinfo.uz/media/msfo/UMK_IFRS_FS_2023_eng.pdf",
+      "sha256": "638f24391a957739db754682c8139b4f69c5e91f7ef8881ae876de33e80f2e66",
+      "scope": "consolidated",
+      "period_end": "2023-12-31",
+      "page": 8,
+      "note": "18",
+      "reported_eps_uzs": "1471",
+      "ordinary_profit": "798",
+      "uzs_per_currency_unit": 1000000000,
+      "weighted_ordinary_shares": "542402543",
+      "shares_per_unit": 1
+    }
+  ],
+  "30": [
+    {
+      "report_id": 3077,
+      "source_url": "https://openinfo.uz/media/msfo/e873c921-48bf-4fa3-8865-1f24d35f0d37.pdf",
+      "sha256": "2d85eea4d1c28a09500eb40327b03fb0f60bca311f1aee4471c998ca889591ce",
+      "scope": "consolidated",
+      "period_end": "2024-12-31",
+      "page": 76,
+      "note": "31",
+      "reported_eps_uzs": "4.58",
+      "ordinary_profit": "1115025",
+      "uzs_per_currency_unit": 1000000,
+      "weighted_ordinary_shares": "243259",
+      "shares_per_unit": 1000000
+    }
+  ],
+  "717": [
+    {
+      "report_id": 1874,
+      "source_url": "https://openinfo.uz/media/msfo/31_03_2020_Отчет_и_аудиторское_заключение_по_МСФО_2019_с_раскрытиями_compressed.pdf",
+      "sha256": "492350d2f0f467e7da7c4e6818d531b96ca01f09b72c8dd19909482f262f830d",
+      "scope": "separate",
+      "period_end": "2019-12-31",
+      "page": 26,
+      "note": "16",
+      "reported_eps_uzs": "3260.07",
+      "ordinary_profit": "81456533",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "24986140",
+      "shares_per_unit": 1
+    }
   ]
 }

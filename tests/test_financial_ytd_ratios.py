@@ -448,3 +448,42 @@ def test_eqqu_filing_screener_uses_equity_published_before_the_last_trade(monkey
     quote['excluded_classes'] = []
     reports['2026Q2']['sources'][0]['publication_date'] = '2026-10-07'
     assert not cell().get('last_verified')
+
+
+def test_tnbn_held_nsbu_quarter_can_show_approved_annual_ifrs_ordinary_eps(monkeypatch):
+    from server.terminal import service
+    from financial_columns import service as columns
+    from financial_ingestion import investor_eps
+    import data_quality
+    import issuer_financials
+    import sector_report_service
+
+    company = {'ticker': 'TNBN', 'org_id': '22'}
+    issuer = {'ticker': 'TNBN', 'id': '22'}
+    report = {'period': '2026Q3', 'financial_as_of': '2026-09-30', 'standard': 'nsbu', 'scope': 'separate',
+              'issuer': issuer, 'status': 'quality_blocked', 'ratios': [],
+              'instrument': {'instrument_type': 'ordinary_share', 'valuation_as_of': '2026-11-23'}}
+    filing = {'value': 19, 'standard': 'ifrs', 'period': '2025', 'scope': 'consolidated', 'unit': 'UZS_per_share',
+              'source_url': 'https://openinfo.uz/media/msfo/93a90ff4-a26f-4a61-b729-9dc699539692.pdf', 'page': 10}
+    held = set()
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(columns, 'filing_roce', lambda *a: ('2026Q3', {'value': None}))
+    monkeypatch.setattr(columns, 'filing_ebit', lambda *a: None)
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda t: issuer)
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda *a, **kw: report)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda r: r)
+    def read(org, end, cutoff, scope):
+        assert (str(org), end, cutoff, scope) == ('22', '2026-09-30', '2026-11-23', 'separate')
+        return filing
+    monkeypatch.setattr(investor_eps, 'official_eps', read)
+    monkeypatch.setattr(data_quality, 'held_public_periods', lambda t, form: held if form == 'MSFO' else {'2026Q3'})
+    def row():
+        return service.filing_metrics('separate', '2026Q3', 'TNBN', 0, 1)['rows'][0]
+    result = row()
+    assert result['status'] == 'quality_blocked'
+    assert result['metrics'].get('eps_basic') == {'value': None, 'other_filing': filing}
+    held.add('2025')
+    assert not row()['metrics'].get('eps_basic')
+    held.clear()
+    report['instrument']['instrument_type'] = 'preferred_share'
+    assert not row()['metrics'].get('eps_basic')
