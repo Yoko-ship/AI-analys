@@ -284,3 +284,40 @@ def test_commercial_llc_filings_share_the_jsc_endpoint_without_losing_comparison
     assert quarters['2022Q1']['net_income']==3371321
     assert quarters['2021Q1']['net_income']==2105964
     assert 'total_assets' not in quarters['2021Q1']
+
+
+@pytest.mark.parametrize("mismatch", [None, "issuer", "balance_form", "income_form"])
+def test_delta_microfinance_commercial_filing_recovers_its_prior_income(catalog, monkeypatch, mismatch):
+    import json
+    from pathlib import Path
+    import catalogue.filings as filings
+    import catalogue.storage as storage
+    import openinfo_reconcile as oi
+    from financial_ingestion import quarterly_comparative as quarters
+
+    detail = json.loads(Path("tests/fixtures/dmmt2b-2025q3-commercial.json").read_text())
+    if mismatch == "issuer":
+        detail["organization"]["id"] = 1058
+    elif mismatch == "balance_form":
+        detail["quarter_balance_sheet_report"] = []
+    elif mismatch == "income_form":
+        for row in detail["quarter_financial_results_report"]:
+            row.pop("value4")
+    conn = storage.get_catalog_conn()
+    with conn:
+        filings._upsert_report(conn, "DMMT2B", report_form="NSBU", period_type="quarter", year=2025, quarter=3,
+            title="Q3", published_at=detail["pub_date"], pdf_url=None,
+            excel_url="https://new-api.openinfo.uz/api/v2/reports/export-excel/?org_type=jsc&report_id=17627",
+            excel_url_form1=None, openinfo_report_id="17627", object_id=None)
+    conn.close()
+    monkeypatch.setattr(oi, "fetch_detail", lambda candidate: detail)
+    result = quarters.backfill("956", ["DMMT2B"])
+    history = quarters.read(["DMMT2B"])
+    if mismatch:
+        assert result["errors"] and not history
+    else:
+        assert not result["errors"]
+        assert history["2024Q3"]["values"]["net_income"] == 23755685.36
+        assert history["2024Q3"]["values"]["revenue"] == 61381272.64
+        assert "total_assets" not in history["2024Q3"]["values"]
+        assert quarters.read(["DMMT2B"], structured=True)["2025Q3"]["values"]["net_income"] == 34053787.98

@@ -123,3 +123,21 @@ def test_unverified_snapshot_remains_blocked_when_workbook_mapping_fails(monkeyp
     assert report["status"] == "mapping_failed"
     assert not report["sections"]
     assert any(item["code"] == "SOURCE_MAPPING_FAILED" for item in report["data_quality"])
+
+
+def test_agat_credit_structured_q3_can_support_the_report_without_excel(monkeypatch):
+    issuer = {"id": "1058", "ticker": "ACMT1B2", "name": "AGAT CREDIT",
+              "isin": "UZ6058977AB6", "sector": "other"}
+    source = "https://openinfo.uz/ru/reports/to_pdf31772/"
+    values = {"revenue": 88917943, "net_income": 5544203, "total_assets": 482682178,
+              "total_liabilities": 403411621, "total_equity": 79270557}
+    monkeypatch.setattr(issuer_sources, "get_all_financials", lambda form: {"ACMT1B2": {"org_type": "microfinance"}})
+    monkeypatch.setattr(issuer_sources, "get_financials_series_quarterly", lambda *args: {"2026Q3": values})
+    monkeypatch.setattr(issuer_sources, "get_financials_series", lambda *args: {})
+    monkeypatch.setattr(issuer_sources, "report_rows", lambda *args: [{"period": "2026Q3", "pdf_url": source}])
+    snapshot = issuer_sources.financial_snapshot(issuer, "nsbu", "2026Q3", "separate")
+    assert snapshot["sector_template_code"] == "microfinance"
+    assert snapshot["quality"]["balance_check"]["status"] == "passed"
+    assert service._verified_catalog_fallback(snapshot)
+    snapshot["current_values"]["total_equity"] = None
+    assert not service._verified_catalog_fallback(snapshot)

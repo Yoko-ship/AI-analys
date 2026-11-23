@@ -51,6 +51,12 @@ SECTOR_TEMPLATES: dict[str, dict[str, Any]] = {
         "paragraph_structure": ["verdict", "income", "balance", "risks"],
         "version": "bank-nsbu-1.0",
     },
+    "microfinance": {
+        "required_metrics": ["revenue", "net_income", "total_assets", "total_liabilities", "total_equity"],
+        "optional_metrics": ["loan_portfolio", "cash"],
+        "paragraph_structure": ["verdict", "income", "balance", "risks"],
+        "version": "microfinance-nsbu-1.0",
+    },
     "insurance": {
         "required_metrics": [
             "revenue", "net_income", "total_assets", "total_equity",

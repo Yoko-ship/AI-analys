@@ -25,6 +25,31 @@ def _form_type(value):
     return "jsc" if str(value).lower() == "llc" else value
 
 
+def _quarter_detail(oi, org_id, org_type, object_id):
+    detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
+    issuer_id = (detail.get("organization") or {}).get("id")
+    if str(detail.get("id")) != str(object_id) or (issuer_id is not None and str(issuer_id) != str(org_id)):
+        raise ValueError("Structured filing identity does not match discovery")
+    declared = _form_type(detail.get("org_type"))
+    if declared == org_type:
+        return detail
+
+    # A microfinance issuer can file the commercial form. Confirm its identity
+    # and both statement layouts before interpreting the comparative columns.
+    if declared == "microfinance" and org_type == "jsc" and issuer_id is not None:
+        balance = {str(row.get("tnum")): str(row.get("title") or "").casefold()
+                   for row in detail.get("quarter_balance_sheet_report") or []}
+        income = {str(row.get("tnum")): row for row in detail.get("quarter_financial_results_report") or []}
+        layout = {"400": "по активу баланса", "480": "по разделу i", "770": "по ii разделу", "780": "по пассиву баланса"}
+        columns = {"value1", "value2", "value3", "value4"}
+        if (all(label in balance.get(code, "") for code, label in layout.items())
+                and all(columns.issubset(income.get(code, {}))
+                        and label in str(income[code].get("title") or "").casefold()
+                        for code, label in (("010", "выручка"), ("270", "чистая прибыль")))):
+            return {**detail, "org_type": org_type}
+    raise ValueError("Structured filing form does not match discovery")
+
+
 def _schema(c):
     c.execute("""CREATE TABLE IF NOT EXISTS catalog_comparative_quarters (
         ticker TEXT NOT NULL, year INTEGER NOT NULL, quarter INTEGER NOT NULL,
@@ -96,9 +121,7 @@ def discover_record(ticker, org_id, record, *, publish=False):
     org_type, object_id = _form_type(record.get("org_type")), str(record["accounting_id"])
     if org_type not in oi.ORG_TYPES or not object_id.isdigit():
         raise ValueError("Unsupported structured filing")
-    detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
-    if str(detail.get("id")) != object_id or _form_type(detail.get("org_type")) != org_type:
-        raise ValueError("Structured filing identity does not match discovery")
+    detail = _quarter_detail(oi, org_id, org_type, object_id)
     year, quarter = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
         pub_date=record["pub_date"], quarter_no=detail.get("quarter_no"))
     if not year or not quarter or periods._is_future_period(year, quarter):
@@ -177,11 +200,10 @@ def backfill(org_id, aliases, journal=None):
         if not need_comparison and not need_current:
             continue
         try:
-            detail = oi.fetch_detail({"org_type": org_type, "period_type": "quarter", "object_id": int(object_id)})
+            detail = _quarter_detail(oi, org_id, org_type, object_id)
             source_period = oi.period_year_quarter(detail.get("reporting_year"), "quarter",
                 pub_date=detail.get("pub_date"), quarter_no=detail.get("quarter_no"))
-            if (source_period != (report["year"], quarter) or _form_type(detail.get("org_type")) != org_type
-                    or str(detail.get("id")) != str(object_id)):
+            if source_period != (report["year"], quarter):
                 raise ValueError("Comparison source period or form does not match the catalog")
             metrics = oi.extract_metrics(detail)
             if need_current:
