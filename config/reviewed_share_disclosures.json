@@ -382,5 +382,106 @@
       "ordinary_only_at_end": "The charter allocates the entire 3,148,983,500 UZS capital to the placed ordinary shares.",
       "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/17791"
     }
+  },
+  {
+    "issuer_id": "538",
+    "ticker": "ODMP",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/uz/facts/6/14003",
+    "unit": "shares",
+    "ordinary_shares": "6319040",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "3159520",
+    "source_lines": {
+      "ordinary_shares": "Resolution 96861, item 1.2. The fund issued 5,055,232 ordinary shares at 500 UZS, four for each existing share, by capitalizing retained earnings. September Form 1 lines 410 and 440 confirm 3,159,520,000 UZS of paid-in capital and zero treasury shares. This reconciles to 6,319,040 outstanding shares.",
+      "ordinary_only": "The April meeting allocated 315,952,000 UZS to all shareholders at 250 UZS per share, establishing 1,263,808 existing shares. The issue allocates four ordinary shares per existing share in proportion to number and class. All opening and closing capital is accounted for by these ordinary shares. The March and June filings retain the original 631,904,000 UZS capital. The September filing records the completed issue.",
+      "shareholder_meeting": "https://new-api.openinfo.uz/api/v2/disclosure/facts/96770/",
+      "ordinary_dividend": "https://new-api.openinfo.uz/api/v2/disclosure/facts/96771/",
+      "registration": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97737/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18395/",
+      "first_half": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18800/",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19244/",
+      "weighted_average_shares": "The 2026 shareholder resolutions and issue register disclose a single share-count change. Item 1.2 grants four bonus shares per existing share entirely out of retained earnings, with no consideration from shareholders. Form 1 shows zero treasury shares throughout the quarterly balances. The opening 1,263,808 ordinary shares restate by a factor of five to 6,319,040 before the issue, equal to outstanding shares after it. The weighted denominator is consequently 6,319,040 regardless of the placement day.",
+      "adjustment_method": "https://www.ifrs.org/content/dam/ifrs/publications/pdf-standards/english/2023/issued/part-a/ias-33-earnings-per-share.pdf#page=9",
+      "corporate_actions": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=538"
+    },
+    "weighted_average_shares": "6319040"
+  },
+  {
+    "issuer_id": "528",
+    "ticker": "UTYK",
+    "isin": "UZ7051720009",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/ru/reports/jsc/annual/6026",
+    "unit": "shares",
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "3366271",
+        "treasury": "0"
+      }
+    ],
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "3366271",
+    "source_lines": {
+      "share_intervals": "The signed FY2025 audited financial statements, note 11 (PDF page 17), show 3,366,271 fully paid ordinary shares at 1,000 UZS at both year ends. The equity roll-forward on PDF page 8 records no share-capital or treasury transactions, and the financing cash flows on page 9 comprise dividends only. The issuer’s separate statutory annual and interim balance sheets corroborate paid-in capital of 3,366,271 thousand UZS and zero treasury shares.",
+      "ordinary_only": "Note 11 accounts for all parent share capital as ordinary. The share count belongs to the legal issuer. Earnings for this calculation come from line 270 of that issuer’s separate FY2025 statutory filing.",
+      "audited_share_note": "https://openinfo.uz/media/msfo/cec77c76-f2ad-4f77-bc42-676280aa691a.pdf#page=17",
+      "equity_movements": "https://openinfo.uz/media/msfo/cec77c76-f2ad-4f77-bc42-676280aa691a.pdf#page=8",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/17906/"
+    }
+  },
+  {
+    "issuer_id": "815",
+    "ticker": "TGBK",
+    "isin": "UZ7056730011",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/msfo/7f329dda-1f52-4eea-9c8d-0a18223c8d23.pdf#page=38",
+    "unit": "shares",
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "229800000",
+        "treasury": "0"
+      }
+    ],
+    "ordinary_only": true,
+    "source_lines": {
+      "share_intervals": "Audited note 19, PDF page 38, reconciles ordinary shares outstanding at each of the 2023, 2024 and 2025 year ends. The 2025 roll-forward shows 229,800,000 at both dates and no shares issued. All shares are fully paid. The statutory balance sheet item 26 reports 1,149,000,000 thousand UZS of ordinary share capital with zero preferred share capital.",
+      "ordinary_only": "The entire registered and paid share capital is ordinary. Statutory income statement item 11 reports separate net profit of 54,856,400 thousand UZS.",
+      "statutory_annual": "https://new-api.openinfo.uz/api/v2/reports/bank/annual/418/"
+    }
+  },
+  {
+    "issuer_id": "888",
+    "ticker": "TMYS",
+    "isin": "UZ7057480012",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/audit_conclusion/12869021-c12b-4976-941a-3878509c758a.pdf#page=15",
+    "unit": "shares",
+    "ordinary_shares": "85300000",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "85300000",
+    "source_lines": {
+      "ordinary_shares": "Signed FY2025 Form 5, PDF page 15, rows 130, 132, 150 and 152. The issuer ended the year with 85,300,000 ordinary shares issued and outstanding after issuing 10,300,000 at 1,000 UZS par. September 2026 insurance Form 1 confirms 85,300,000 thousand UZS paid capital on line 500 and zero treasury shares on line 530.",
+      "ordinary_only": "All opening capital belongs to ordinary shareholders. The 2026 first quarter, half year and third quarter balance sheets reconcile the same issued capital and zero treasury shares. The registered issue history lists no additional share class or issuance through September.",
+      "registration": "https://new-api.openinfo.uz/api/v2/disclosure/facts/92372/",
+      "registered_issues": "https://new-api.openinfo.uz/api/v2/disclosure/facts/?organization_id=888&fact_number=25",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/insurance/quarter/756/",
+      "first_half": "https://new-api.openinfo.uz/api/v2/reports/insurance/quarter/769/",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/insurance/quarter/803/"
+    }
   }
 ]

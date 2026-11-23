@@ -124,6 +124,7 @@ def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch
     ('UTYK', '528', 'UZ7051720009', 368765363, 3366271, 259556509, 3366271, 430000.0, '2026-09-30', '2026-11-19', 72466876.00),
     ('UZML', '576', 'UZ7055630006', 1528542.65, 2044500, 1201672.4, 1500000, 36000.0, '2026-09-30', '2026-11-12', -375875.10),
     ('UZPN', '150', 'UZ7005950009', 40248388, 718029, 33317900, 8447400, 20260.82, '2026-09-30', '2026-11-20', 2004655.00),
+    ('TMYS', '888', 'UZ7057480012', 336941260.26, 85300000, 137842877.24, 85300000, 1500, '2026-09-30', '2026-11-20', 22900976.18),
     ('MXUS', '522', 'UZ7012480008', 14213281, 3148983, 12111110, 6297967, None, '2025-09-30', None, None),
 ])
 def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, org, isin, assets, capital, equity, shares, close, end, quote_date, profit):
@@ -151,6 +152,42 @@ def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, or
         assert estimate['calculation_status'] == 'approximate'
     else:
         assert estimate.get('value') is None
+
+
+def test_odmp_q3_eps_restates_the_four_for_one_bonus_issue(report, monkeypatch):
+    report.update(period='2026Q3', financial_as_of='2026-09-30', scope='separate', standard='nsbu')
+    report['issuer'].update(id='538', ticker='ODMP')
+    report['verified_facts'] = [
+        dict(metric_code=key, value=value, period='2026Q3', unit_normalized='thousand UZS',
+             verification_status='verified')
+        for key, value in [('total_assets', 15659261.18), ('total_equity', 13088674.11), ('net_income', -288401.40)]
+    ]
+    rows = source_rows(report, share_capital=3159520, treasury_shares=0)
+    inject(monkeypatch, [{**r, 'period_start':'2026-09-30', 'period_end':'2026-09-30'} for r in rows])
+    result = metrics(report)
+    restated = 1263808 * (1 + 4)
+    assert result['eps_basic']['value'] == pytest.approx(-288401400 / restated)
+    assert result['book_value_per_share']['value'] == pytest.approx(13088674110 / restated)
+    assert 'eps_closing_estimate' not in result
+
+
+@pytest.mark.parametrize('ticker,org,assets,equity,profit,shares,capital', [
+    ('UTYK', '528', 320913944, 222803659, 118876555, 3366271, {'share_capital':3366271, 'treasury_shares':0}),
+    ('TGBK', '815', 7100122903, 1358068453, 54856400, 229800000, {}),
+])
+def test_annual_eps_uses_the_unchanged_ordinary_share_count(report, monkeypatch, ticker, org, assets, equity, profit, shares, capital):
+    report.update(period='2025', financial_as_of='2025-12-31', scope='separate', standard='nsbu')
+    report['issuer'].update(id=org, ticker=ticker)
+    report['verified_facts'] = [
+        dict(metric_code=key, value=value, period='2025', unit_normalized='thousand UZS',
+             verification_status='verified')
+        for key, value in [('total_assets', assets), ('total_equity', equity), ('net_income', profit)]
+    ]
+    rows = source_rows(report, **capital)
+    inject(monkeypatch, [{**r, 'period_start':'2025-12-31', 'period_end':'2025-12-31'} for r in rows])
+    annual = metrics(report)
+    assert annual['eps_basic']['value'] == pytest.approx(profit * 1000 / shares)
+    assert 'eps_closing_estimate' not in annual
 
 
 @pytest.mark.parametrize('status', ['available','no_source'])
