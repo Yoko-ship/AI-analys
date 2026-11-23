@@ -125,6 +125,12 @@ def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch
     ('UZML', '576', 'UZ7055630006', 1528542.65, 2044500, 1201672.4, 1500000, 36000.0, '2026-09-30', '2026-11-12', -375875.10),
     ('UZPN', '150', 'UZ7005950009', 40248388, 718029, 33317900, 8447400, 20260.82, '2026-09-30', '2026-11-20', 2004655.00),
     ('TMYS', '888', 'UZ7057480012', 336941260.26, 85300000, 137842877.24, 85300000, 1500, '2026-09-30', '2026-11-20', 22900976.18),
+    ('BTRL', '540', 'UZ7052610001', 15287949, 4453008, 12482897, 4453008, 10000, '2026-09-30', '2026-11-20', 840680),
+    ('CBSK', '633', 'UZ7038380000', 225240792, 87879167, 185183885.97, 87879167190, 4.08, '2026-09-30', '2026-11-20', 33451374),
+    ('EQQU', '553', 'UZ7007130006', 514944889, 814485, 135688717, 162897, 313000, '2026-09-30', '2026-10-06', 23388158.38),
+    ('TGPG', '650', 'UZ7036730008', 4544259.92, 1362078.73, -644511.21, 541582, 75000, '2026-09-30', '2026-11-20', -7065101.05),
+    ('UVGT', '731', 'UZ7051840005', 58029303, 2968227, 6458051, 2968227, 85999, '2026-09-30', '2026-11-20', 903729),
+    ('OHDN', '379', 'UZ7023190000', 321754324, 1925938, 72770980, 6419794, 7010, '2026-09-30', '2026-11-20', 2229913),
     ('MXUS', '522', 'UZ7012480008', 14213281, 3148983, 12111110, 6297967, None, '2025-09-30', None, None),
 ])
 def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, org, isin, assets, capital, equity, shares, close, end, quote_date, profit):
@@ -144,7 +150,7 @@ def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, or
     out = metrics(report)
     book = equity * 1000 / shares
     assert out['book_value_per_share']['value'] == pytest.approx(book)
-    assert out['price_to_book']['value'] == (pytest.approx(close / book) if close is not None else None)
+    assert out['price_to_book']['value'] == (pytest.approx(close / book) if close is not None and book > 0 else None)
     assert out['eps_basic']['value'] is None
     estimate = out.get('eps_closing_estimate', {})
     if end == '2026-09-30':
@@ -173,9 +179,14 @@ def test_odmp_q3_eps_restates_the_four_for_one_bonus_issue(report, monkeypatch):
 
 @pytest.mark.parametrize('ticker,org,assets,equity,profit,shares,capital', [
     ('UTYK', '528', 320913944, 222803659, 118876555, 3366271, {'share_capital':3366271, 'treasury_shares':0}),
+    ('BTRL', '540', 20968863, 12305816, 1311727, 4453008, {'share_capital': 4453008, 'treasury_shares': 0}),
+    ('CBSK', '633', 202075369, 184642814, 41719485, 87879167190, {'share_capital': 87879167, 'treasury_shares': 0}),
+    ('TGPG', '650', 8312319.05, 6670433.53, 611457.53, 541582, {'share_capital': 1362078.73, 'treasury_shares': 0}),
+    ('UVGT', '731', 43923520, 6013212, 1604155.03, 2968227, {'share_capital': 2968227, 'treasury_shares': 0}),
+    ('OHDN', '379', 207936734, 65041662, 4306516, 6419794, {'share_capital':1925938, 'treasury_shares':0}),
     ('TGBK', '815', 7100122903, 1358068453, 54856400, 229800000, {}),
 ])
-def test_annual_eps_uses_the_unchanged_ordinary_share_count(report, monkeypatch, ticker, org, assets, equity, profit, shares, capital):
+def test_annual_eps_uses_the_verified_weighted_ordinary_share_count(report, monkeypatch, ticker, org, assets, equity, profit, shares, capital):
     report.update(period='2025', financial_as_of='2025-12-31', scope='separate', standard='nsbu')
     report['issuer'].update(id=org, ticker=ticker)
     report['verified_facts'] = [
@@ -359,6 +370,9 @@ def test_cbsk_q3_withholds_ratios_without_dated_share_counts(tmp_path, monkeypat
     from financial_columns import share_disclosures
 
     monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'share-disclosures.db'))
+    empty = tmp_path / 'no-reviewed-shares.json'
+    empty.write_text('[]')
+    monkeypatch.setattr(share_disclosures, 'REVIEWED', empty)
     fixtures = Path(__file__).parent / 'fixtures'
     case = json.loads((fixtures / 'cbsk_2026q3_investor_inputs.json').read_text())
     report = case['report']

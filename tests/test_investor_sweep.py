@@ -426,6 +426,8 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
      '7e7924bc-31df-4729-aa34-9499f7bdb516.pdf', 2215, 57, '2025', 'consolidated'),
     ('17', 'IPTB', 3335, '10a865f60a680744891049210eb4a54b68f26457accfc06cd9717c29d5578acd',
      '75f067b6-58c4-4f79-a7c1-94a7cfe4da5b.pdf', .53, 53, '2025', 'consolidated'),
+    ('553', 'EQQU', 1133, '8948e986b9e3a412a8535d28ed9a552beded2dd9475c1a8df3cc135135f2baa2',
+     'MSFO_2017.PDF', 15880, 4, '2017', 'consolidated'),
     ('19', 'AGBA', 3267, 'ab8e0077157f1ae51fd20fb6692e30e99578f2c5e37c1180dc2222a6596f41ad',
      '203c8cbb-bd8c-40a1-b0fc-69d78024f00f.pdf', 9, 9, '2025', 'consolidated'),
     ('28', 'IPKY', 3199, '97b5fe2f334e9316ec8392e431d542aafec34a7a5c161133e17afaee4244052f',

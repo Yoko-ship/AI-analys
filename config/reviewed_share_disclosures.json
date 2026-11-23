@@ -483,5 +483,310 @@
       "first_half": "https://new-api.openinfo.uz/api/v2/reports/insurance/quarter/769/",
       "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/insurance/quarter/803/"
     }
+  },
+  {
+    "issuer_id": "540",
+    "ticker": "BTRL",
+    "isin": "UZ7052610001",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98290/",
+    "unit": "shares",
+    "ordinary_shares": "4453008",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "4453008",
+    "source_lines": {
+      "ordinary_shares": "Resolution item 5 awards 659,045,184 UZS at 148 UZS for every placed share. The ordinary dividend notice confirms the class. The exact quotient is 4,453,008 and the charter note places all capital in ordinary shares at 1,000 UZS.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18964/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98290/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98298/",
+      "class_record": "https://openinfo.uz/media/audit_conclusion/Заключение_АО_ООО_Осиё_АУДИТ_фин_отчет_за_период_2022г_.pdf#page=9",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/540/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18155/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18610/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6121/"
+    }
+  },
+  {
+    "issuer_id": "540",
+    "ticker": "BTRL",
+    "isin": "UZ7052610001",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/msfo/320a04d5-e9e8-4ba6-a1c5-54d0c1f8185a.pdf#page=9",
+    "unit": "shares",
+    "ordinary_shares": "4453008",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "4453008",
+    "source_lines": {
+      "ordinary_shares": "Resolution item 5 awards 659,045,184 UZS at 148 UZS for every placed share. The ordinary dividend notice confirms the class. The exact quotient is 4,453,008 and the charter note places all capital in ordinary shares at 1,000 UZS.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6121/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98290/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98298/",
+      "class_record": "https://openinfo.uz/media/audit_conclusion/Заключение_АО_ООО_Осиё_АУДИТ_фин_отчет_за_период_2022г_.pdf#page=9",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/540/",
+      "share_intervals": "The signed FY2025 equity roll-forward reconciles opening and closing share capital and records no issue, buyback or treasury movement. The statutory opening and closing balances on lines 410 and 440 agree with the unchanged count, and the class evidence identifies all shares as ordinary.",
+      "equity_movements": "https://openinfo.uz/media/msfo/320a04d5-e9e8-4ba6-a1c5-54d0c1f8185a.pdf#page=9"
+    },
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "4453008",
+        "treasury": "0"
+      }
+    ]
+  },
+  {
+    "issuer_id": "633",
+    "ticker": "CBSK",
+    "isin": "UZ7038380000",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/89890/",
+    "unit": "shares",
+    "ordinary_shares": "87879167190",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "87879167",
+    "source_lines": {
+      "ordinary_shares": "Resolution item 13 allocates one new ordinary share per existing share in proportion to number and class. The issue registered 43,939,583,595 ordinary shares at 1 UZS. The completed capitalization doubled that number to 87,879,167,190, matching paid capital in the statutory filing to its stated precision.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18989/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/89890/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/90487/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/90487/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/633/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18172/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18580/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/5891/"
+    }
+  },
+  {
+    "issuer_id": "633",
+    "ticker": "CBSK",
+    "isin": "UZ7038380000",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/89890/",
+    "unit": "shares",
+    "ordinary_shares": "87879167190",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "87879167",
+    "source_lines": {
+      "ordinary_shares": "Resolution item 13 allocates one new ordinary share per existing share in proportion to number and class. The issue registered 43,939,583,595 ordinary shares at 1 UZS. The completed capitalization doubled that number to 87,879,167,190, matching paid capital in the statutory filing to its stated precision.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/5891/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/89890/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/90487/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/90487/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/633/",
+      "weighted_average_shares": "The FY2025 increase capitalized retained earnings with one bonus share per existing share and no consideration from shareholders. The retrospectively adjusted opening 43,939,583,595 shares equal 87,879,167,190 throughout the period for EPS purposes. The statutory annual opening and closing capital and zero treasury shares corroborate the completed transaction."
+    },
+    "weighted_average_shares": "87879167190"
+  },
+  {
+    "issuer_id": "553",
+    "ticker": "EQQU",
+    "isin": "UZ7007130006",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99577/",
+    "unit": "shares",
+    "ordinary_shares": "162897",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "814485",
+    "source_lines": {
+      "ordinary_shares": "On September 21 the shareholders allocated 12,000,621,990 UZS at 73,670 UZS per share. The class-specific notice identifies ordinary shares. The exact quotient is 162,897. The statutory 814,485 thousand UZS paid capital is entirely accounted for at 5,000 UZS per share, including after the proposed 2024 capital increase.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19107/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99577/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/99579/",
+      "class_record": "https://openinfo.uz/media/msfo/MSFO_2017.PDF#page=6",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/553/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18303/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18664/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6096/"
+    }
+  },
+  {
+    "issuer_id": "650",
+    "ticker": "TGPG",
+    "isin": "UZ7036730008",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97776/",
+    "unit": "shares",
+    "ordinary_shares": "541582",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "1362078.73",
+    "source_lines": {
+      "ordinary_shares": "The shareholders allocated 249,073,561.80 UZS at 459.90 UZS per placed share. The class-specific notice identifies ordinary shares. The exact quotient is 541,582. At 2,515 UZS each these shares account for the whole statutory capital, 1,362,078.73 thousand UZS.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19030/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97776/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97782/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97782/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/650/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18185/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18714/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6004/"
+    }
+  },
+  {
+    "issuer_id": "650",
+    "ticker": "TGPG",
+    "isin": "UZ7036730008",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/msfo/a233be77-8fc5-46ce-91fa-101a68e387f7.pdf#page=6",
+    "unit": "shares",
+    "ordinary_shares": "541582",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "1362078.73",
+    "source_lines": {
+      "ordinary_shares": "The shareholders allocated 249,073,561.80 UZS at 459.90 UZS per placed share. The class-specific notice identifies ordinary shares. The exact quotient is 541,582. At 2,515 UZS each these shares account for the whole statutory capital, 1,362,078.73 thousand UZS.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6004/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97776/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97782/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97782/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/650/",
+      "share_intervals": "The signed FY2025 equity roll-forward reconciles opening and closing share capital and records no issue, buyback or treasury movement. The statutory opening and closing balances on lines 410 and 440 agree with the unchanged count, and the class evidence identifies all shares as ordinary.",
+      "equity_movements": "https://openinfo.uz/media/msfo/a233be77-8fc5-46ce-91fa-101a68e387f7.pdf#page=6"
+    },
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "541582",
+        "treasury": "0"
+      }
+    ]
+  },
+  {
+    "issuer_id": "731",
+    "ticker": "UVGT",
+    "isin": "UZ7051840005",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97789/",
+    "unit": "shares",
+    "ordinary_shares": "2968227",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "2968227",
+    "source_lines": {
+      "ordinary_shares": "Item 11 explicitly gives 2,968,227 shares entitled to the distribution. The ordinary-share notice fixes the displayed 281.03 UZS rate. The stated count accounts for all statutory capital at 1,000 UZS per share. The preceding three annual shareholder resolutions give the same number.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19239/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97789/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97823/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/91521/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/731/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18390/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18816/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6016/"
+    }
+  },
+  {
+    "issuer_id": "731",
+    "ticker": "UVGT",
+    "isin": "UZ7051840005",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/msfo/24fc214c-5f5c-4671-a703-eab2aeba7a2d.pdf#page=5",
+    "unit": "shares",
+    "ordinary_shares": "2968227",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "2968227",
+    "source_lines": {
+      "ordinary_shares": "Item 11 explicitly gives 2,968,227 shares entitled to the distribution. The ordinary-share notice fixes the displayed 281.03 UZS rate. The stated count accounts for all statutory capital at 1,000 UZS per share. The preceding three annual shareholder resolutions give the same number.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6016/",
+      "shareholder_resolution": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97789/",
+      "class_disclosure": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97823/",
+      "class_record": "https://new-api.openinfo.uz/api/v2/disclosure/facts/91521/",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/731/",
+      "share_intervals": "The signed FY2025 equity roll-forward reconciles opening and closing share capital and records no issue, buyback or treasury movement. The statutory opening and closing balances on lines 410 and 440 agree with the unchanged count, and the class evidence identifies all shares as ordinary.",
+      "equity_movements": "https://openinfo.uz/media/msfo/24fc214c-5f5c-4671-a703-eab2aeba7a2d.pdf#page=5"
+    },
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "2968227",
+        "treasury": "0"
+      }
+    ]
+  },
+  {
+    "issuer_id": "379",
+    "ticker": "OHDN",
+    "isin": "UZ7023190000",
+    "period_start": "2026-01-01",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/int_report/fcb8e004-88cd-47bb-aed1-c1420df70cc1.pdf#page=21",
+    "unit": "shares",
+    "ordinary_shares": "6419794",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "1925938",
+    "source_lines": {
+      "ordinary_shares": "The signed statement of changes in equity, page 21, reports 6,419,794 ordinary shares issued and outstanding on lines 130/132 and 150/152, at 300 UZS per share. All issued and outstanding shares are accounted for by the ordinary class.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/19079/",
+      "class_record": "https://openinfo.uz/media/int_report/fcb8e004-88cd-47bb-aed1-c1420df70cc1.pdf#page=21",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/379/",
+      "first_quarter": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18393/",
+      "interim_balance": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18780/",
+      "prior_annual": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/5999/"
+    }
+  },
+  {
+    "issuer_id": "379",
+    "ticker": "OHDN",
+    "isin": "UZ7023190000",
+    "period_start": "2025-01-01",
+    "period_end": "2025-12-31",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/int_report/fcb8e004-88cd-47bb-aed1-c1420df70cc1.pdf#page=21",
+    "unit": "shares",
+    "ordinary_shares": "6419794",
+    "ordinary_only": true,
+    "closing_share_capital_thousand": "1925938",
+    "source_lines": {
+      "ordinary_shares": "The signed statement of changes in equity, page 21, reports 6,419,794 ordinary shares issued and outstanding on lines 130/132 and 150/152, at 300 UZS per share. All issued and outstanding shares are accounted for by the ordinary class.",
+      "ordinary_only": "The single ordinary class accounts for all capital. Statutory balance lines 410 and 440 corroborate paid-in capital and zero treasury shares.",
+      "balance_sheet": "https://new-api.openinfo.uz/api/v2/reports/jsc/annual/5999/",
+      "class_record": "https://openinfo.uz/media/int_report/fcb8e004-88cd-47bb-aed1-c1420df70cc1.pdf#page=21",
+      "issuer_register": "https://new-api.openinfo.uz/api/v2/home/organizations/379/",
+      "share_intervals": "The signed FY2025 equity roll-forward reconciles opening and closing share capital and records no issue, buyback or treasury movement. The statutory opening and closing balances on lines 410 and 440 agree with the unchanged count, and the class evidence identifies all shares as ordinary.",
+      "equity_movements": "https://openinfo.uz/media/int_report/fcb8e004-88cd-47bb-aed1-c1420df70cc1.pdf#page=21"
+    },
+    "share_intervals": [
+      {
+        "from": "2025-01-01",
+        "issued": "6419794",
+        "treasury": "0"
+      }
+    ]
   }
 ]

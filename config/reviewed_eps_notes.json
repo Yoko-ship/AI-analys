@@ -524,5 +524,37 @@
         "publication_date": "2024-07-12"
       }
     }
+  ],
+  "553": [
+    {
+      "report_id": 1133,
+      "source_url": "https://openinfo.uz/media/msfo/MSFO_2017.PDF",
+      "sha256": "8948e986b9e3a412a8535d28ed9a552beded2dd9475c1a8df3cc135135f2baa2",
+      "scope": "consolidated",
+      "period_end": "2017-12-31",
+      "page": 4,
+      "note": "Consolidated statement of profit and loss, basic and diluted EPS attributable to parent ordinary shareholders. Statement in thousand UZS, weighted shares in individual shares.",
+      "ordinary_profit": "2586890",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "162897",
+      "shares_per_unit": 1,
+      "reported_eps": "15.88",
+      "unit": "thousand_UZS_per_ordinary_share"
+    },
+    {
+      "report_id": 1133,
+      "source_url": "https://openinfo.uz/media/msfo/MSFO_2017.PDF",
+      "sha256": "8948e986b9e3a412a8535d28ed9a552beded2dd9475c1a8df3cc135135f2baa2",
+      "scope": "consolidated",
+      "period_end": "2016-12-31",
+      "page": 4,
+      "note": "Consolidated statement of profit and loss, basic and diluted EPS attributable to parent ordinary shareholders. Statement in thousand UZS, weighted shares in individual shares.",
+      "ordinary_profit": "3018867",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "162897",
+      "shares_per_unit": 1,
+      "reported_eps": "18.53",
+      "unit": "thousand_UZS_per_ordinary_share"
+    }
   ]
 }

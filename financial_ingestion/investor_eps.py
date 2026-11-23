@@ -314,23 +314,28 @@ def _reviewed_notes():
     return json.loads(path.read_text(encoding='utf-8'))
 
 
-def _reviewed_eps_unit(note, eps):
-    """Return the unit only after validating the statement row or its components."""
+def _reviewed_eps_value(note):
+    """Validate EPS at the precision and scale printed in the original filing."""
+    eps = Decimal(note['reported_eps'])
     components = {'ordinary_profit', 'uzs_per_currency_unit', 'weighted_ordinary_shares', 'shares_per_unit'}
     if components.intersection(note):
-        if not components.issubset(note) or note.get('unit', 'UZS_per_ordinary_share') != 'UZS_per_ordinary_share':
+        scale = {'UZS_per_ordinary_share': 1, 'thousand_UZS_per_ordinary_share': 1000}.get(
+            note.get('unit', 'UZS_per_ordinary_share'))
+        if not components.issubset(note) or scale is None:
             return None
         profit = Decimal(note['ordinary_profit']) * note['uzs_per_currency_unit']
         shares = Decimal(note['weighted_ordinary_shares']) * note['shares_per_unit']
         precision = Decimal(1).scaleb(eps.as_tuple().exponent)
-        if shares > 0 and (profit / shares).quantize(precision, rounding=ROUND_HALF_UP) == eps:
-            return 'UZS_per_share'
+        if shares > 0 and (profit / (shares * scale)).quantize(precision, rounding=ROUND_HALF_UP) == eps:
+            return eps * scale, 'UZS_per_share'
         return None
     # Scanned income statements can print basic EPS directly, with its own unit.
     if (note.get('source_form') == 'income_statement' and note.get('row_label') and note['page'] > 0
             and note['period_end'] == f"{note.get('column_year')}-12-31"):
-        return {'UZS_per_ordinary_share': 'UZS_per_share',
+        unit = {'UZS_per_ordinary_share': 'UZS_per_share',
                 'USD_per_ordinary_share': 'USD_per_share'}.get(note.get('unit'))
+        if unit:
+            return eps, unit
 
 
 def _reviewed_source_published(conn, org, note):
@@ -364,9 +369,9 @@ def _reviewed_eps(conn, org, end, cutoff):
         published = _reviewed_source_published(conn, org, note)
         if not published or not stamp <= published <= cutoff:
             continue
-        eps = Decimal(note['reported_eps'])
-        unit = _reviewed_eps_unit(note, eps)
-        if unit:
+        normalized = _reviewed_eps_value(note)
+        if normalized:
+            eps, unit = normalized
             yield {'standard': 'ifrs', 'scope': note['scope'], 'period': stamp[:4], 'value': float(eps),
                    'unit': unit, 'source_url': url, 'page': note['page']}
 
