@@ -107,6 +107,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
               unit_scale INTEGER NOT NULL DEFAULT 1,
               page       INTEGER,
               raw_label  TEXT,
+              excel_url TEXT,
               PRIMARY KEY (report_id, field)
             );
             CREATE TABLE IF NOT EXISTS bond_reference (
@@ -213,6 +214,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             "source_published_at": "TEXT",
             "extraction_version": "TEXT",
         },
+        "report_figures": {"excel_url": "TEXT"},
         "bond_reference": {"day_count": "TEXT", "schedule_source": "TEXT", "status": "TEXT",
                            "cashflows_verified": "INTEGER", "options_verified": "INTEGER",
                            "future_rates_verified": "INTEGER", "outstanding_principal_per_bond": "REAL",
@@ -380,6 +382,15 @@ def set_state_bulk(report_ids: Sequence[int], state: str,
     return len(ids)
 
 
+_UPSERT_FIGURE = (
+    "INSERT INTO report_figures (report_id,field,value,unit_scale,page,raw_label,excel_url) "
+    "VALUES (?,?,?,?,?,?,?) ON CONFLICT(report_id,field) DO UPDATE SET "
+    "value=excluded.value,unit_scale=excluded.unit_scale,page=excluded.page,raw_label=excluded.raw_label,"
+    "excel_url=COALESCE(excluded.excel_url,CASE WHEN excluded.value=report_figures.value "
+    "AND excluded.unit_scale=report_figures.unit_scale THEN report_figures.excel_url END)"
+)
+
+
 def record_figures_bulk(items: Iterable[tuple[int, Iterable[dict[str, Any]]]]) -> int:
     """`record_figures` for many reports over one connection.
 
@@ -397,17 +408,14 @@ def record_figures_bulk(items: Iterable[tuple[int, Iterable[dict[str, Any]]]]) -
             by_target[(int(report_id), field)] = (
                 int(report_id), field, figure.get("value"),
                 int(figure.get("unit_scale") or 1),
-                figure.get("page"), figure.get("raw_label"))
+                figure.get("page"), figure.get("raw_label"), figure.get("excel_url"))
     params = list(by_target.values())
     if not params:
         return 0
     conn = _conn()
     try:
         conn.executemany(
-            "INSERT INTO report_figures (report_id, field, value, unit_scale, page, raw_label) "
-            "VALUES (?,?,?,?,?,?) ON CONFLICT(report_id, field) DO UPDATE SET "
-            "value=excluded.value, unit_scale=excluded.unit_scale, page=excluded.page, "
-            "raw_label=excluded.raw_label",
+            _UPSERT_FIGURE,
             params)
         conn.commit()
     finally:
@@ -430,12 +438,9 @@ def record_figures(report_id: int, figures: Iterable[dict[str, Any]]) -> int:
             if not field:
                 continue
             conn.execute(
-                "INSERT INTO report_figures (report_id, field, value, unit_scale, page, raw_label) "
-                "VALUES (?,?,?,?,?,?) ON CONFLICT(report_id, field) DO UPDATE SET "
-                "value=excluded.value, unit_scale=excluded.unit_scale, page=excluded.page, "
-                "raw_label=excluded.raw_label",
+                _UPSERT_FIGURE,
                 (report_id, field, figure.get("value"), int(figure.get("unit_scale") or 1),
-                 figure.get("page"), figure.get("raw_label")))
+                 figure.get("page"), figure.get("raw_label"), figure.get("excel_url")))
             written += 1
         conn.commit()
     finally:
@@ -451,7 +456,7 @@ def report(report_id: int) -> dict[str, Any] | None:
         if not row:
             return None
         figures = [dict(f) for f in conn.execute(
-            "SELECT field, value, unit_scale, page, raw_label FROM report_figures "
+            "SELECT field, value, unit_scale, page, raw_label, excel_url FROM report_figures "
             "WHERE report_id=?", (report_id,))]
         out = dict(row)
         out["figures"] = figures

@@ -174,3 +174,24 @@ def test_fully_crossed_income_and_expense_cells_remain_not_applicable():
     assert row['previous']['value'] == '0'
     assert row['current']['value'] is None
     assert row['current']['quality'] == 'not_applicable'
+
+
+@pytest.mark.parametrize('reader', ['headline', 'statement', 'sector'])
+def test_becm_h1_2026_preserves_income_and_loss_columns(reader):
+    # Openinfo attachment 3141, filed 31 July 2026, Form 2 rows 030, 100 and 270.
+    from catalogue.parsing import compute_financial_ratios
+    from collectors.openinfo.workbooks import _parse_excel_workbook
+
+    book = _parse_excel_workbook(Path('tests/fixtures/openinfo/becm_2026h1_income.xlsx').read_bytes())
+    expected = {'gross_profit': 19_172_256.7, 'operating_income': -18_792_285.3,
+                'net_income': -14_732_265.8, 'operating_expenses': -39_643_960.2}
+    if reader == 'headline':
+        values = compute_financial_ratios(book, None)['source_values']
+    elif reader == 'sector':
+        from financial_analysis.sector_inputs import prepare_inputs
+        values, _, _, _ = prepare_inputs({'organization_type': 'non_financial'}, {'income': book})
+        expected['period_expenses'] = -expected.pop('operating_expenses')
+    else:
+        rows = nsbu.rows(book, template='general', default_form='F2')
+        values = {r['metric_id']: r['current']['value'] for r in rows}
+    assert {k: float(values[k]) if values[k] is not None else None for k in expected} == expected

@@ -351,7 +351,7 @@ def get_financial_value_passport(ticker: str, period: str, field: str,
 
         "pdf_url": report_data.get("pdf_url"),
 
-        "excel_url": report_data.get("excel_url"),
+        "excel_url": (figure or {}).get("excel_url") or report_data.get("excel_url"),
 
         "file_hash": report_data.get("file_hash"),
 

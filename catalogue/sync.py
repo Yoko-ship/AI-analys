@@ -832,6 +832,7 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
 
 
 
+    attachments = []
     added = 0
 
     page = 1
@@ -870,6 +871,8 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
 
                 pdf_url = f"{OPENINFO_WEB_BASE}/media/{pdf_file}" if pdf_file else None
 
+                if pdf_file.lower().endswith('.xlsx'):
+                    attachments.append((ticker, rec))
                 title_raw = rec.get("title") or ""
 
                 yr = None
@@ -920,7 +923,8 @@ def _sync_auditions(conn: sqlite3.Connection, session: Any) -> int:
 
 
 
-    return added
+    from catalogue import attachment_forms
+    return added + attachment_forms.discover(conn, session, attachments)
 
 
 _DETERMINISTIC_RESOLVERS = {"override", "ticker", "isin", "base_ticker_index"}

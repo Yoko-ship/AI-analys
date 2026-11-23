@@ -383,6 +383,19 @@ def _extract_metric(rows: list[dict], key: str, strict_period: bool = False) -> 
 
                 continue
 
+            # Commercial Form 2 prints prior and current income/loss pairs.
+            # Compacted numeric lists discard their empty opposite columns.
+            code = {"gross_profit": 30, "operating_income": 100, "net_income": 270}.get(key)
+            original = row.get("source_cells") or []
+            if code and original:
+                from financial_columns.nsbu import flow_pair, profit_or_loss_line
+                from financial_analysis.sector_numbers import number
+                pos = next((i for i, v in enumerate(original) if number(v) == code), None)
+                if (profit_or_loss_line(label) and pos is not None and len(original) >= pos + 5
+                        and all(v in ("", None) for v in original[pos + 5:])):
+                    signed = flow_pair(original[pos + 3:pos + 5], profit_or_loss=True)["value"]
+                    return float(signed) if signed is not None else None
+
             if key == "operating_expenses_jsc":
 
                 v = _commercial_period_expenses(row)

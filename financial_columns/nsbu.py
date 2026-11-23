@@ -37,13 +37,23 @@ def cell(raw):
         return {**result, 'quality': 'blocked', 'reason': 'AMOUNT_UNRESOLVED'}
 
 
-def _flow_pair(raw):
+def profit_or_loss_line(label):
+    return bool(re.search(r'прибыл|profit|foyda|фойда', label, re.I)
+                and re.search(r'убыт|loss|zarar|зарар', label, re.I))
+
+
+def flow_pair(raw, *, profit_or_loss=False):
     """Income minus expense columns; explicit crossed cells are inapplicable."""
     a, b = [cell(v) for v in raw]
     if a['quality'] == b['quality'] == 'not_applicable':
         return {'raw_value': raw, 'value': None, 'quality': 'not_applicable'}
+    # A statutory result is entered on either the profit or the loss side.
+    # Preserve a wholly unreported pair and refuse unreadable amounts.
+    single_side = profit_or_loss and any(c['quality'] == 'valid' for c in (a, b))
     values = [Decimal(c['value']) if c['value'] is not None else
-              Decimal(0) if c['quality'] == 'not_applicable' else None for c in (a, b)]
+              Decimal(0) if c['quality'] == 'not_applicable' or (
+                  single_side and (c['raw_value'] is None or str(c['raw_value']).strip() == '')) else None
+              for c in (a, b)]
     if None in values:
         return {'raw_value': raw, 'value': None, 'quality': 'blocked' if any(
             c['quality'] == 'blocked' for c in (a, b)) else 'missing'}
@@ -98,7 +108,7 @@ def rows(workbook, *, template, default_form=None):
             else:
                 # The code cell is immediately after the literal row label.
                 # Unknown codes are kept; they are not forced into a known key.
-                if not tail or not re.fullmatch(r'\d{1,4}(?:\.0)?', str(tail[0])):
+                if not tail or not re.fullmatch(r'\d{1,4}(?:\.0)?', str(tail[0]).strip()):
                     continue
                 code = f'{int(Decimal(str(tail[0]))):03d}'
                 if int(code) <= 0:
@@ -111,7 +121,9 @@ def rows(workbook, *, template, default_form=None):
                 if len(tail) < width:
                     tail += [None] * (width - len(tail))
             if len(tail) == 4 and active == 'F2':
-                previous, current = _flow_pair(tail[:2]), _flow_pair(tail[2:])
+                result_line = profit_or_loss_line(label)
+                previous = flow_pair(tail[:2], profit_or_loss=result_line)
+                current = flow_pair(tail[2:], profit_or_loss=result_line)
             elif template == 'bank' and (len(tail) == 1 or (active == 'F2' and single_flow_column)):
                 previous, current = cell(None), cell(tail[0])
             elif len(tail) == 2:

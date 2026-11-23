@@ -236,7 +236,11 @@ def refresh_financials_from_pdf(tickers: list[str] | None = None, limit: int = 8
 
 
 _PROVENANCE_FIELDS = ("revenue", "gross_profit", "cash", "total_liabilities",
-                      "net_income", "operating_income", "total_assets", "equity")
+                      "net_income", "operating_income", "operating_expenses", "total_assets", "total_equity",
+                      "equity", "current_assets", "current_liabilities", "inventories")
+
+_BALANCE_FIGURES = {"cash", "total_liabilities", "total_assets", "equity", "total_equity",
+                    "current_assets", "current_liabilities", "inventories"}
 
 
 def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
@@ -338,6 +342,8 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
 
             return report_id
 
+        primary_url = (urls or {}).get("excel_url")
+        balance_url = (urls or {}).get("excel_url_form1") or primary_url
         provenance.record_figures(report_id, [
 
             # The parser hands over values without the row they were read from,
@@ -346,7 +352,8 @@ def _register_parse(ticker: str, form: str, year: int, quarter: int | None,
 
             # gives today is which filing, form and period — not which line.
 
-            {"field": k, "value": values[k], "unit_scale": catalogue_fields.NSBU_THOUSANDS_UZS}
+            {"field": k, "value": values[k], "unit_scale": catalogue_fields.NSBU_THOUSANDS_UZS,
+             "excel_url": balance_url if k in _BALANCE_FIGURES else primary_url}
 
             for k in usable
 

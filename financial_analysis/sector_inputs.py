@@ -75,11 +75,10 @@ def source_line_pairs(workbook, form, known_codes=None):
             if len(raw) == 3:
                 previous, current = financial_analysis_sector_numbers.decimal(raw[1]), financial_analysis_sector_numbers.decimal(raw[2])
             elif form == "form2":
-                # Crossed-out cells are structurally inapplicable; a blank
-                # amount cell remains missing. Only explicit X is a zero side.
-                pair = lambda a, b: financial_analysis_sector_numbers.difference(0 if str(a).strip().lower() in {"x", "х"} else a,
-                                                0 if str(b).strip().lower() in {"x", "х"} else b)
-                previous, current = pair(raw[1], raw[2]), pair(raw[3], raw[4])
+                from financial_columns.nsbu import flow_pair, profit_or_loss_line
+                result_line = profit_or_loss_line(str(row.get("label") or ""))
+                previous = financial_analysis_sector_numbers.decimal(flow_pair(raw[1:3], profit_or_loss=result_line)["value"])
+                current = financial_analysis_sector_numbers.decimal(flow_pair(raw[3:5], profit_or_loss=result_line)["value"])
                 if code in EXPENSE_LINES:
                     previous = abs(previous) if previous is not None else None
                     current = abs(current) if current is not None else None
