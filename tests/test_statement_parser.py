@@ -446,3 +446,33 @@ def test_uzauto_2025_usd_statement_reads_corporate_lines_and_preserves_year_colu
     expected={'total_assets':'2640277','total_liabilities':'1346767','total_equity':'1293510',
               'cash':'89498','net_income':'339638','revenue':'4080954','gross_profit':'459713','operating_income':'292472'}
     for field,value in expected.items():assert primary['figures'][field]['raw_value']==value
+
+
+def test_uzbekneftegaz_2025_separate_ifrs_in_billions():
+    # Openinfo annual 6182, signed IFRS attachment, PDF pp. 5–6.
+    header = 'За год, заканчивающийся 31 декабря\n2025    2024\nВ миллиардах узбекских сумов'
+    pages = {
+        1: 'Отдельная финансовая отчетность по МСФО\nАО «Узбекнефтегаз»',
+        5: 'ОТДЕЛЬНЫЙ ОТЧЕТ О ФИНАНСОВОМ ПОЛОЖЕНИИ\n' + header + '''
+Денежные средства и их эквиваленты    7    2 904    830
+Итого активы    92 735    82 078
+Общий капитал    34 313    33 087
+Итого обязательства    58 422    48 991''',
+        6: 'ОТДЕЛЬНЫЙ ОТЧЕТ О ПРИБЫЛЯХ И УБЫТКАХ\n' + header + '''
+Прибыль от операционной деятельности    1 290    2 508
+Чистая прибыль/(убыток) за год    2 525    2 630''',
+    }
+    current, prior = parse(pages)
+    for candidate, amounts in [(current, (92735, 34313, 58422, 2525, 1290)),
+                               (prior, (82078, 33087, 48991, 2630, 2508))]:
+        assert candidate['classification']['unit_scale'] == '1000000000'
+        checked = validation.validate(candidate, page_count=6)
+        assert checked['valid'], checked['errors']
+        for field, amount in zip(('total_assets', 'total_equity', 'total_liabilities', 'net_income', 'operating_income'), amounts):
+            assert checked['normalized_uzs'][field] == str(amount * 10**9)
+
+
+def test_billions_need_a_currency_and_a_single_unambiguous_scale():
+    assert statements.units('In billions of Uzbek soums') == '1000000000'
+    assert statements.units('In billions of shares') is None
+    assert statements.units('USD millions and UZS billions') is None

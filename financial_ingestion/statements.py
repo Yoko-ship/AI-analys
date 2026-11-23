@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v8'
+VERSION = 'statement-columns-v9'
 
 
 def compact(value):
@@ -23,11 +23,11 @@ LABELS = {
     'gross_profit': r'(?:grossprofit|валоваяприбыль)',
     'total_assets': r'(?:totalassets|итогоактив(?:ы|ов)|всегоактив(?:ы|ов))',
     'total_liabilities': r'(?:totalliabilities|итогообязательств(?:а)?|всегообязательств(?:а)?)',
-    'total_equity': r'(?:totalequity|totalcapital|итого(?:собственный)?капитал|итогособственныхсредств|всего(?:собственный)?капитал)',
+    'total_equity': r'(?:totalequity|totalcapital|общийкапитал|итого(?:собственный)?капитал|итогособственныхсредств|всего(?:собственный)?капитал)',
     'cash': r'(?:cashandcashequivalents|денежныесредстваиихэквиваленты)',
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
-    'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы)',
+    'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы|операционнаяприбыль|прибыльотоперационнойдеятельности)',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
     'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:год|период)|чистаяприбыль)',
     '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
@@ -201,12 +201,14 @@ def section_kind(text):
 
 def units(text):
     key = compact(text)
-    scale = None
-    if re.search(r'(?:million|миллион)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс|usd|usdollars|долларовсша)',key):
-        scale = '1000000'
-    elif re.search(r'(?:thousand|тысяч|тыс\.)',key) and re.search(r'(?:soum|sums|sum|uzs|сум|узс|usd|usdollars|долларовсша)',key):
-        scale = '1000'
-    return scale
+    if not re.search(r'soum|sums|sum|uzs|сум|узс|usd|долларовсша', key):
+        return None
+    scales = [scale for pattern, scale in (
+        (r'billion|миллиард', '1000000000'),
+        (r'million|миллион', '1000000'),
+        (r'thousand|тысяч|тыс\.', '1000'),
+    ) if re.search(pattern, key)]
+    return scales[0] if len(scales) == 1 else None
 
 
 def currency(text):

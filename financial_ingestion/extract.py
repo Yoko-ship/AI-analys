@@ -272,8 +272,7 @@ def draft(pages, evidence):
     joined = "\n".join(pages.values())
     years = sorted(set(re.findall(r"\b20[0-3]\d\b", "\n".join(list(pages.values())[:2]))), reverse=True)
     year = int(years[0]) if len(years) == 1 else None
-    scale = "1000000" if re.search(r"millions of.*(?:soum|sum)|миллион.*сум", joined, re.I) else (
-        "1000" if re.search(r"thousands of.*(?:soum|sum)|тысяч.*(?:сум|УЗС)", joined, re.I) else None)
+    scale = statements.units(joined) if statements.currency(joined) == "UZS" else None
     scope = "consolidated" if re.search(r"consolidated|консолидирован", joined, re.I) else None
     standard = "MSFO" if re.search(r"IFRS|МСФО|International Financial Reporting", joined, re.I) else None
     figures = {}

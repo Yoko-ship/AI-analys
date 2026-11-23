@@ -3,6 +3,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 import re
 
+MONEY_SCALES = {"1", "1000", "1000000", "1000000000"}
+
 FIELDS = {"cash", "total_assets", "total_liabilities", "total_equity",
           "interest_income", "interest_expense", "operating_income",
           "operating_expenses", "net_income", "revenue", "gross_profit"}
@@ -29,7 +31,7 @@ def validate(payload, *, page_count):
         errors.append("STANDARD_UNRESOLVED")
     if meta.get("scope") not in {"separate", "consolidated"}:
         errors.append("SCOPE_UNRESOLVED")
-    if meta.get("currency") not in {"UZS", "USD"} or str(meta.get("unit_scale")) not in {"1", "1000", "1000000"}:
+    if meta.get("currency") not in {"UZS", "USD"} or str(meta.get("unit_scale")) not in MONEY_SCALES:
         errors.append("UNIT_UNRESOLVED")
     if meta.get("role") not in {"PRIMARY", "COMPARATIVE", "RESTATEMENT"}:
         errors.append("ROLE_UNRESOLVED")
@@ -77,7 +79,7 @@ def validate(payload, *, page_count):
             try:
                 amount(row.get('raw_value'))
                 if (row.get('currency') not in {'UZS', 'USD', 'shares'}
-                        or str(row.get('unit_scale')) not in {'1', '1000', '1000000'}
+                        or str(row.get('unit_scale')) not in MONEY_SCALES
                         or row.get('scope') == 'unknown'):
                     raise ValueError('Unresolved source row context')
                 row_end = date.fromisoformat(row['period_end'])
