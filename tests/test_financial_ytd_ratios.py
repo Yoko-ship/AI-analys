@@ -335,3 +335,44 @@ def test_current_hmkb_ratios_reach_api_and_exports(hmkb_rows,monkeypatch,tmp_pat
     assert exported_roe['value']==roe['value']
     assert exported_roe['period_start']=='2026-01-01'
     assert '× 12 / 9' in exported_roe['formula']
+
+
+@pytest.mark.parametrize(('ticker', 'expected'), [('KSCM', 3243591), ('TGMQ', -12508126),
+                                                ('UZGFP', 11401436), ('BECM', -21569086)])
+def test_catalog_ebit_uses_verified_income_lines_when_only_equity_is_blocked(monkeypatch, ticker, expected):
+    from catalogue import filings
+    from financial_columns import service as columns
+    from server.terminal import service
+    import sector_report_service
+    import issuer_financials
+
+    doc = json.loads(Path('tests/fixtures/financial_columns/filing_ebit.json').read_text())[ticker]
+    period = doc['period_end'][:4] + 'Q3'
+    company = {'ticker': ticker, 'org_id': doc['issuer_id']}
+    report = {'period': period, 'financial_as_of': doc['period_end'], 'standard': 'nsbu', 'scope': 'separate',
+              'status': 'quality_blocked', 'sources': [{'publication_date': doc['published_at']}], 'ratios': [],
+              'data_quality': [{'severity': 'blocking', 'code': 'CAPITAL_COMPONENTS_MISMATCH'}]}
+    urls = {'excel_url': doc['rows'][0]['source_url'], 'published_at': doc['published_at']}
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(columns, 'organization_kind', lambda *a, **kw: 'industry')
+    monkeypatch.setattr(columns.source_store, 'read', lambda *a, **kw: [doc])
+    monkeypatch.setattr(filings, 'get_report_urls', lambda *a: urls)
+    held = set()
+    monkeypatch.setattr('data_quality.held_public_periods', lambda *a: held)
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda ticker: company)
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda *a, **kw: report)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda r: r)
+
+    def metric():
+        return service.filing_metrics('separate', period, ticker, 0, 1)['rows'][0]['metrics'].get('ebit', {})
+
+    assert metric().get('value') == expected
+    assert metric()['unit'] == 'UZS_thousand'
+    held.add(period)
+    assert metric().get('value') is None
+    held.clear()
+    report['data_quality'].append({'severity': 'blocking', 'code': 'SOURCE_MAPPING_FAILED'})
+    assert metric().get('value') is None
+    report['data_quality'].pop()
+    urls['excel_url'] += '&revision=different'
+    assert metric().get('value') is None

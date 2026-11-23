@@ -61,6 +61,41 @@ def filing_roce(company, end, scope):
             'balance_basis': cell['balance_basis'], 'formula': cell['formula']}
 
 
+def filing_ebit(company, report):
+    """Read matched Form 2 lines when the analysis card blocks only the equity reconciliation."""
+    from catalogue.filings import get_report_urls
+    from issuer_financials import period_end, period_key
+
+    blocks = {q.get('code') for q in report.get('data_quality', []) if q.get('severity') == 'blocking'}
+    if report.get('status') != 'quality_blocked' or blocks != {'CAPITAL_COMPONENTS_MISMATCH'}:
+        return None
+    period = report.get('period')
+    end = period_end(period)
+    if not end or end != report.get('financial_as_of') or end >= date.today().isoformat():
+        return None
+    year, quarter = period_key(period)
+    ticker = company['ticker']
+    indexed = get_report_urls(ticker, 'NSBU', year, quarter if 'Q' in period else 0) or {}
+    url = indexed.get('excel_url')
+    published = indexed.get('published_at')
+    if not url or not published or not any(s.get('publication_date') == published for s in report.get('sources', [])):
+        return None
+    scope = report['scope']
+    docs = source_store.read(company['org_id'], standard='NSBU', scope=scope, period_end=end)
+    rows = observations.nsbu([d for d in docs if d.get('published_at') == published and d.get('scope') == scope
+                              and d.get('period_end') == end and d.get('currency') == 'UZS' and d.get('unit_scale')
+                              and str(d.get('issuer_id')) == str(company['org_id'])])
+    _check_filing_rows(rows, ticker, 'NSBU')
+    primary = [r for r in rows if r['source_form'] == 'F2' and r.get('source_url') == url
+               and r['role'] == 'PRIMARY' and r['kind'] == 'flow']
+    template = organization_kind(ticker, name=company.get('name'))
+    cell = matrix.choose([r for r in derived.enrich(primary, template=template) if r.get('metric_id') == 'ebit'])
+    if cell['value'] is None:
+        return None
+    return {'value': float(cell['value']), 'raw_result': cell['value'], 'unit': cell['unit'],
+            'calculation_status': 'verified', 'formula': cell['formula'], 'source_url': url}
+
+
 def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', statement='all',
          include_sources=True, include_ratios=True):
     ticker, form = ticker.upper().strip(), form.upper()

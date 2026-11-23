@@ -378,7 +378,7 @@ def filing_metrics(scope, period, search, offset, limit):
     from catalogue.read_batch import scope as read_scope
     from catalogue.sources import cached_report_excel_data
     from financial_analysis.report_investor_metrics import SHARE_METRICS
-    from financial_columns.service import filing_roce
+    from financial_columns.service import filing_ebit, filing_roce
     from issuer_financials import period_end, resolve_issuer
     from sector_report_service import public_report, sector_report
     with read_scope():
@@ -408,6 +408,10 @@ def filing_metrics(scope, period, search, offset, limit):
                     item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
                         ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of','other_filing')}
                         for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
+                    if item['metrics'].get('ebit', {}).get('value') is None:
+                        ebit = filing_ebit(company, report)
+                        if ebit is not None:
+                            item['metrics']['ebit'] = ebit
                     if ticker in market:
                         issuer_pb = _issuer_price_to_book(report, market[ticker])
                         if issuer_pb is not None:

@@ -1,0 +1,254 @@
+{
+  "KSCM": {
+    "issuer_id": "446",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2026-10-27T11:57:55",
+    "period_end": "2026-09-30",
+    "quality": "valid",
+    "source_version": "a271901b99f316b084c8317e5fe0d1c29957b1c28f1fe52ea39e97de1773e603",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            2792732
+          ],
+          "value": "-2792732"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            10091317
+          ],
+          "value": "-10091317"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            450859,
+            0
+          ],
+          "value": "450859"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            629387,
+            0
+          ],
+          "value": "629387"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19053&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  },
+  "TGMQ": {
+    "issuer_id": "737",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2026-10-30T16:24:09",
+    "period_end": "2026-09-30",
+    "quality": "valid",
+    "source_version": "d97b326fa76f8252ad92bd0fff070e707b92869daef0906ffc650dfda1d4a4f3",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            0
+          ],
+          "value": "0"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19198&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            12508126
+          ],
+          "value": "-12508126"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            15671343
+          ],
+          "value": "-15671343"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19198&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  },
+  "UZGFP": {
+    "issuer_id": "399",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2026-10-30T17:59:06",
+    "period_end": "2026-09-30",
+    "quality": "valid",
+    "source_version": "dadb9d1fe9e7486843a9d28648aff9a77dd8781433258968f343b252cc55f66a",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            11284916
+          ],
+          "value": "-11284916"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            5895576
+          ],
+          "value": "-5895576"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19215&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            116520,
+            0
+          ],
+          "value": "116520"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            24285427,
+            0
+          ],
+          "value": "24285427"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=19215&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  },
+  "BECM": {
+    "issuer_id": "382",
+    "scope": "separate",
+    "currency": "UZS",
+    "unit_scale": "1000",
+    "published_at": "2025-10-28T08:11:58",
+    "period_end": "2025-09-30",
+    "quality": "valid",
+    "source_version": "f50892839be0526715759197388fa5a3045a047e486685c7d33cb1a57742159c",
+    "template": "industry",
+    "rows": [
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            3175870
+          ],
+          "value": "-3175870"
+        },
+        "kind": "flow",
+        "metric_id": "interest_expense",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            4148496
+          ],
+          "value": "-4148496"
+        },
+        "raw_label": "Расходы в виде процентов",
+        "source_code": "180",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=17737&lang=ru",
+        "unit": "UZS_thousand"
+      },
+      {
+        "current": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            24744956
+          ],
+          "value": "-24744956"
+        },
+        "kind": "flow",
+        "metric_id": "profit_before_tax",
+        "previous": {
+          "quality": "valid",
+          "raw_value": [
+            0,
+            40875950
+          ],
+          "value": "-40875950"
+        },
+        "raw_label": "Прибыль (убыток) до уплаты налога на прибыль (стр.220+/-230)",
+        "source_code": "240",
+        "source_form": "F2",
+        "source_url": "https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=jsc&report_id=17737&lang=ru",
+        "unit": "UZS_thousand"
+      }
+    ]
+  }
+}
