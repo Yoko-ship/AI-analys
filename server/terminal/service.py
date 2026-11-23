@@ -114,8 +114,15 @@ def market_context():
                 'first_quote_date': min(quote_dates) if dated else None,
                 'last_quote_date': max(quote_dates) if dated else None,
                 'price': c.get('last_price') if age is not None and 0 <= age <= c['market_input']['max_price_age_days'] else None,
-                'market_date': c.get('last_trade_date')}
+                'market_date': c.get('last_trade_date'), 'isin': c.get('isin'),
+                'share_type': 'preferred' if c.get('is_preferred') or c.get('share_type') == 'preferred' else 'ordinary'}
     return result
+
+
+def _security_dividend(payments, context, *, today=None):
+    share_type = context.get('share_type') or 'ordinary'
+    resolutions = dividends.reviewed_decisions().get(context.get('isin'), ()) if share_type == 'ordinary' else ()
+    return analytics.dividend(payments, context.get('price'), today=today, share_type=share_type, resolutions=resolutions)
 
 
 def explain_missing(row, *, historical=False, historical_dividend=False):
@@ -229,7 +236,7 @@ async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=Non
                          dedupe_key=f"{ticker}:{form}:{scope}:{row['period']}:{context.get('market_date')}:{row['pb']}")
         bank = central["banks"].get(ticker, {}) if company["kind"] == "bank" else {}
         payments = await loop.run_in_executor(None, dividends.read_snapshot, ticker)
-        dividend = analytics.dividend(payments, context.get("price")) if year is None else {"dy": None}
+        dividend = _security_dividend(payments, context) if year is None else {"dy": None}
         return explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
                 "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct"), "years": data.get("periods", []),
                 "profit_history": analytics.values(data, "net_profit")}, historical=year is not None and str(year) != latest,
@@ -272,7 +279,7 @@ def _current_bank_peers(base, companies, form, scope):
                 continue
             bank_ratios.enrich_interim(company, row, published, held, period_end)
             bank = central["banks"].get(ticker, {})
-            dividend = analytics.dividend(dividends.read_snapshot(ticker), context.get("price"))
+            dividend = _security_dividend(dividends.read_snapshot(ticker), context)
             rows.append(explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
                                          "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct")}))
             if selected:
@@ -340,7 +347,7 @@ async def issuer(ticker, form="NSBU", scope="separate"):
     snap = {**analytics.snapshot(annual, kind=kind, market_cap=context.get("market_cap")), **context}
     snap["credit_metrics_applicable"] = organization.uses_credit_metrics(kind, (index or {}).get("company_name"))
     snap = await asyncio.to_thread(bank_ratios.enrich, ticker, snap, form, scope)
-    payment = analytics.dividend(payments, context.get("price"))
+    payment = _security_dividend(payments, context)
     snap["dy"] = payment["dy"]
     explain_missing(snap)
     bank_history=await loop.run_in_executor(None,cbu.monthly_bank_history,ticker) if kind=='bank' and central['banks'].get(ticker) else []

@@ -139,3 +139,12 @@ def test_valuation_assumptions_use_existing_versioned_rule_workflow():
     rules.validate('valuation',config)
     assert rules.test_rule({'category':'valuation','config':config})['passed']
     with pytest.raises(Exception):rules.validate('valuation',{**config,'key_rate':float('nan')})
+
+
+def test_uzgfp_preferred_quote_cannot_use_ordinary_gordon_dividend():
+    from server.terminal.valuation import calculate, REFERENCE
+    base = {'ticker': 'UZGFP', 'price': 805.05, 'share_type': 'preferred',
+            'dividend': {'decision': {'ordinary_amount': 14.99, 'preferred_amount': 71.5}}}
+    result = calculate(base, [], REFERENCE)
+    assert result['models']['gordon']['reason'] == 'ORDINARY_SHARES_ONLY'
+    assert result['models']['gordon']['per_share']['value'] is None

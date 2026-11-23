@@ -3,6 +3,7 @@ import { words } from './TerminalTables.jsx';
 import './terminalValuation.css';
 
 const REASONS = {
+  ORDINARY_SHARES_ONLY:['Модель предназначена для обычных акций','Model oddiy aksiyalar uchun','This model applies to ordinary shares'],
   INSUFFICIENT_PEERS:['Менее трёх сопоставимых эмитентов','Taqqoslanadigan emitentlar uchtadan kam','Fewer than three comparable issuers'],
   NON_POSITIVE_DENOMINATOR:['Прибыль или капитал отсутствуют либо неположительны','Foyda yoki kapital yo‘q yoki musbat emas','Profit or equity is missing or non-positive'],
   ROE_BELOW_PEERS:['ROE ниже половины медианы аналогов','ROE analoglar medianasining yarmidan past','ROE is below half the peer median'],

@@ -86,7 +86,10 @@ def calculate(base, candidates, parameters):
             pb=band((roe-g)/(r-g),(roe-g)/(r+delta-g),(roe-g)/(r-delta-g),'P/B')
     models['justified_pb']=pb
     dividend=number(((base.get('dividend') or {}).get('decision') or {}).get('ordinary_amount'))
-    if r<=g:gd=missing('RETURN_NOT_ABOVE_GROWTH','UZS ordinary share')
+    if base.get('share_type') == 'preferred':
+        dividend = None
+        gd = missing('ORDINARY_SHARES_ONLY', 'UZS ordinary share')
+    elif r<=g:gd=missing('RETURN_NOT_ABOVE_GROWTH','UZS ordinary share')
     elif dividend is None or dividend<=0:gd=missing('RECENT_DIVIDEND_UNAVAILABLE','UZS ordinary share')
     else:
         delta=min(1,(r-g)/2);d1=dividend*(1+g/100)

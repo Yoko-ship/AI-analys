@@ -182,8 +182,8 @@ def quarters(data, field="net_profit"):
     return {"rows": rows, "reason": None}
 
 
-def dividend(items, price, *, today=None):
-    """Latest positive decision, not an invented sum of overlapping payouts."""
+def dividend(items, price, *, today=None, share_type="ordinary", resolutions=()):
+    """Per-share amount from the latest applicable dividend decision for the priced class."""
     from datetime import date
     today = today or date.today()
     eligible = []
@@ -192,9 +192,15 @@ def dividend(items, price, *, today=None):
             day = date.fromisoformat(str(item.get('decision_date'))[:10])
         except ValueError:
             continue
-        amount = number(item.get('ordinary_amount'))
+        amount = number(item.get(f'{share_type}_amount'))
         if amount is not None and amount > 0 and 0 <= (today-day).days <= 366:
             eligible.append((day, amount, item))
-    latest = max(eligible, key=lambda r:r[0], default=None)
+    for decision in resolutions:
+        published = date.fromisoformat(decision['pub_date'][:10])
+        day = date.fromisoformat(decision['decision_date'])
+        if (share_type == 'ordinary' and decision.get('ordinary_amount') == 0
+                and day <= published <= today and 0 <= (today-day).days <= 366):
+            eligible.append((day, 0.0, decision))
+    latest = max(eligible, key=lambda r: (r[0], r[1] > 0), default=None)
     return {'dy':ratio(latest[1], price, 100) if latest else None,
-            'basis':'latest_decision', 'decision':latest[2] if latest else None}
+            'basis':'latest_decision', 'share_type':share_type, 'decision':latest[2] if latest else None}

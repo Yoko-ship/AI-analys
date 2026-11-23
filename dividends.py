@@ -28,7 +28,10 @@ asked openinfo to resolve the *ticker* as a company name on every request —
 """
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 import calendar
+import json
 import logging
 import os
 import re
@@ -657,6 +660,13 @@ def replace_snapshot(records: list[dict[str, Any]]) -> int:
     finally:
         conn.close()
     return len(records)
+
+
+@lru_cache(maxsize=1)
+def reviewed_decisions():
+    """Shareholder resolutions explicitly declaring no dividend for the specified issue."""
+    source = Path(__file__).resolve().parent / 'config' / 'reviewed_dividend_decisions.json'
+    return json.loads(source.read_text(encoding='utf-8'))
 
 
 def read_snapshot(ticker: str) -> list[dict[str, Any]]:

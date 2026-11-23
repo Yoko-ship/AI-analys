@@ -1,0 +1,92 @@
+{
+  "UZ7001560000": [
+    {
+      "ticker": "AGBA",
+      "org_id": "19",
+      "decision_date": "2026-06-30",
+      "pub_date": "2026-07-08T14:32:46",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14376",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/98099/",
+      "agenda_item": "6.1",
+      "resolution": "Bankning oddiy aksiyalariga 2025-yil yakuni bo‘yicha dividend to‘lanmasin"
+    }
+  ],
+  "UZ7045320007": [
+    {
+      "ticker": "ALSM",
+      "org_id": "683",
+      "decision_date": "2026-06-19",
+      "pub_date": "2026-06-23T09:42:50",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14156",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97440/",
+      "agenda_item": "7",
+      "resolution": "оддий акциялар бўйича дивиденд тўламаслик"
+    }
+  ],
+  "UZ7026980001": [
+    {
+      "ticker": "TKDM",
+      "org_id": "726",
+      "decision_date": "2026-06-16",
+      "pub_date": "2026-06-22T12:02:05",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14149",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97420/",
+      "agenda_item": "11",
+      "resolution": "9 795 927 дона оддий акцияларга дивиденд тўланмасин"
+    }
+  ],
+  "UZ7012450001": [
+    {
+      "ticker": "JASM",
+      "org_id": "246",
+      "decision_date": "2026-05-29",
+      "pub_date": "2026-06-23T09:10:54",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14158",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97445/",
+      "agenda_item": "6",
+      "resolution": "-\tолинган соф фойданинг 100 фоизи зарарни қоплашга йўналтирилаётганлиги сабабли акциядорларга дивиденд ҳисобланмасин"
+    }
+  ],
+  "UZ7011500004": [
+    {
+      "ticker": "UZAL",
+      "org_id": "638",
+      "decision_date": "2026-06-25",
+      "pub_date": "2026-07-02T12:01:48",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/14286",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97829/",
+      "agenda_item": "7",
+      "resolution": "2025 йил якунлари бўйича дивиденд тўланмасин"
+    }
+  ],
+  "UZ7058980010": [
+    {
+      "ticker": "UZNF",
+      "org_id": "1059",
+      "decision_date": "2026-04-08",
+      "pub_date": "2026-04-10T18:14:34",
+      "period_start": "2024-12-24",
+      "period_end": "2025-12-31",
+      "ordinary_amount": 0,
+      "link": "https://openinfo.uz/ru/facts/6/13851",
+      "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/96265/",
+      "agenda_item": "2",
+      "resolution": "2024-yil 24-dekabrdan 2025-yil 31-dekabrgacha bo‘lgan davr uchun dividendlar e’lon qilinmasin va to‘lanmasin"
+    }
+  ]
+}

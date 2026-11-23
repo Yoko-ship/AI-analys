@@ -996,3 +996,20 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   await expect(fund).toContainText('2024-12-24');
   expect(csv).toMatch(/2024-12-24.*0,1021/);
 });
+
+test('published zero and preferred yields link to the applicable shareholder decision', async ({page}) => {
+  const decisions = [
+    {ticker:'AGBA', company_name:'Agrobank', dy:0, link:'https://openinfo.uz/ru/facts/6/14376'},
+    {ticker:'UZGFP', company_name:'O‘zbekgeofizika', dy:8.88, link:'https://openinfo.uz/facts/32/4245'},
+  ];
+  await fixture(page, decisions);
+  const rows = decisions.map(d => ({...d, name:d.company_name, kind:'industry', period:'2025',
+    dividend:{decision:{link:d.link}}}));
+  await page.route('**/api/terminal/screener?**', route => route.fulfill({json:{ok:true,rows,years:[2025]}}));
+  await run(page,'EQS');
+  for (const decision of decisions) {
+    const row = page.locator('.terminal-screener').getByRole('row').filter({hasText:decision.ticker});
+    await expect(row.locator('a')).toHaveAttribute('href', decision.link);
+    await expect(row.locator('a')).toContainText(decision.ticker === 'AGBA' ? '0' : '8,88');
+  }
+});

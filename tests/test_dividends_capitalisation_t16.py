@@ -340,3 +340,41 @@ class TestPinnedIsinClass:
                                      stored["ORFIP"])]
         out = {r["ticker"]: r["shares_outstanding"] for r in ms._charter_counts(rows, stored)}
         assert out == {"ORFI": 2867124015.0, "ORFIP": 400000.0}
+
+
+@pytest.mark.parametrize(('ticker', 'isin', 'price', 'fid', 'ordinary', 'preferred', 'day'), [
+    ('UZGFP', 'UZ700788K011', 805.05, 4245, 14.99, 71.5, '2026-10-06'),
+    ('UZINP', 'UZ7056921008', 5400, 4170, 98.5, 240, '2026-08-11'),
+    ('UZNGP', 'UZ7036271003', 5150, 4212, 28.1, 125, '2026-09-17'),
+])
+def test_terminal_matches_dividend_to_quoted_preferred_isin(monkeypatch, ticker, isin, price, fid, ordinary, preferred, day):
+    from server.terminal import service
+    import catalogue.market_store as market
+    securities = {ticker: {'isin': isin, 'is_preferred': True, 'name': ticker, 'type': 'stock',
+                           'last_price': price, 'last_trade_date': date.today().isoformat()}}
+    monkeypatch.setattr(service, 'get_securities_map', lambda: securities)
+    monkeypatch.setattr(market, 'get_all_listings', lambda: {})
+    monkeypatch.setattr(market, 'get_all_quotes', lambda: {})
+    context = service.market_context()[ticker]
+    dividend = service._security_dividend([stored(ticker, fid, day, day, ordinary, preferred)], context,
+                                         today=date(2026, 11, 23))
+    assert dividend['dy'] == pytest.approx(preferred / price * 100)
+    assert dividend['decision']['filing_id'] == str(fid)
+    assert dividend['share_type'] == 'preferred'
+
+
+def test_agba_zero_ordinary_yield_requires_explicit_applicable_decision():
+    from server.terminal import service
+    context = {'isin': 'UZ7001560000', 'price': 589.99, 'share_type': 'ordinary'}
+    calendar = stored('AGBA', 4095, '2026-06-30', '2026-07-08', 0.0, 292)
+    def read(ctx=context, records=(calendar,), day=date(2026,11,23)):
+        return service._security_dividend(records, ctx, today=day)
+    assert read()['dy'] == 0
+    assert read()['decision']['link'] == 'https://openinfo.uz/ru/facts/6/14376'
+    assert read()['decision']['period_end'] == '2025-12-31'
+    assert read(day=date(2026,7,7))['dy'] is None
+    assert read(day=date(2028,1,1))['dy'] is None
+    assert read({**context, 'isin':'UZ7000000000'})['dy'] is None
+    assert read({**context, 'price':None})['dy'] is None
+    assert read({**context, 'share_type':'preferred'})['dy'] == pytest.approx(292/589.99*100)
+    assert read(records=[dict(calendar, decision_date='2026-09-01', ordinary_amount=12)])['dy'] == pytest.approx(12/589.99*100)

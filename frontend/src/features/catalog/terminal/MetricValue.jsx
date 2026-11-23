@@ -22,13 +22,19 @@ const reasons={
   SOURCE_UNAVAILABLE:['Не удалось получить необходимые данные отчёта.','Hisobotning kerakli ma’lumotlarini olish imkoni bo‘lmadi.','The required report data could not be loaded.'],
   SOURCE_PENDING:['Детали отчёта загружаются. Обновите экран позже.','Hisobot tafsilotlari yuklanmoqda. Keyinroq sahifani yangilang.','Report details are being loaded. Refresh this screen later.'],
   PRICE_UNAVAILABLE:['Нет актуальной подтверждённой цены акции.','Aksiyaning tasdiqlangan joriy narxi yo‘q.','A verified current share price is unavailable.'],
-  NO_RECENT_DIVIDEND:['Нет положительного дивидендного решения за последние 366 дней.','Oxirgi 366 kunda musbat dividend qarori yo‘q.','No positive dividend decision is available within the last 366 days.'],
+  NO_RECENT_DIVIDEND:['Нет подтверждённого решения о дивидендах по этому классу акций за последние 366 дней.','Oxirgi 366 kunda ushbu aksiya turi uchun tasdiqlangan dividend qarori yo‘q.','No verified dividend decision for this share class within the last 366 days.'],
   MISSING_VALUATION:['Недостаточно данных для оценки стоимости акции.','Aksiya qiymatini baholash uchun ma’lumot yetarli emas.','There is not enough data to estimate the share value.'],
 };
 
 export function MetricValue({row,metric,label,lang,text}) {
   if(!metricApplies(row,metric))return null;
-  if(row[metric]!=null)return text;
+  if (row[metric] != null) {
+    const decision = metric === 'dy' && row.dividend?.decision;
+    if (decision && /^https:\/\/openinfo\.uz\/(?:ru\/)?facts\/(?:6|32)\/\d+\/?$/.test(decision.link)) {
+      return <a href={decision.link} target="_blank" rel="noreferrer" title={decision.decision_date}>{text}</a>;
+    }
+    return text;
+  }
   const reason=row.metric_reasons?.[metric];
   if(!reason)return text;
   let description=words(lang,...(reasons[reason.code]||reasons.MISSING_FINANCIALS));
