@@ -195,5 +195,119 @@
       "ordinary_only_at_end": "Charter §§4.1–4.3 identify the entire paid-up capital of 12,020,645,000 UZS as ordinary shares.",
       "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19236"
     }
+  },
+  {
+    "issuer_id": "220",
+    "ticker": "NGQS",
+    "isin": "UZ7042650000",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/Нефт_ва_газ_қудуқларини_синаш_АЖ_Устави.pdf",
+    "unit": "shares",
+    "ordinary_shares": "2763900",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "1381950",
+    "source_lines": {
+      "ordinary_shares": "Page 5, Openinfo fact 87571 dated 2024-12-19: 2,763,900 ordinary shares at 500 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 1,381,950,000 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19267"
+    }
+  },
+  {
+    "issuer_id": "611",
+    "ticker": "ORGS",
+    "isin": "UZ7023070004",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/ORGRES_АЖ_Устави_янги_таҳрир_27_06_2023.pdf",
+    "unit": "shares",
+    "ordinary_shares": "666680",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "666680",
+    "source_lines": {
+      "ordinary_shares": "§3.2, page 3, Openinfo fact 72733 dated 2023-07-11: 666,680 ordinary shares at 1,000 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 666,680,000 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19145"
+    }
+  },
+  {
+    "issuer_id": "528",
+    "ticker": "UTYK",
+    "isin": "UZ7051720009",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/Устав_янги_ЖДК_2014_йил.pdf",
+    "unit": "shares",
+    "ordinary_shares": "3366271",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "3366271",
+    "source_lines": {
+      "ordinary_shares": "Page 6, Openinfo fact 77638 dated 2024-02-12: 3,366,271 ordinary shares at 1,000 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 3,366,271,000 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19193"
+    }
+  },
+  {
+    "issuer_id": "576",
+    "ticker": "UZML",
+    "isin": "UZ7055630006",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/51658141-d6fd-4157-8cdb-75fd62e474e0.pdf",
+    "unit": "shares",
+    "ordinary_shares": "1500000",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "2044500",
+    "source_lines": {
+      "ordinary_shares": "Share capital clause in both columns of the charter comparison attached to the shareholder decision, Openinfo fact 92191 dated 2025-07-11: 1,500,000 ordinary shares at 1,363 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 2,044,500,000 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19129"
+    }
+  },
+  {
+    "issuer_id": "150",
+    "ticker": "UZPN",
+    "isin": "UZ7005950009",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/5a344c4f-58da-451f-b6ca-9d51cf2be11c.pdf",
+    "unit": "shares",
+    "ordinary_shares": "8447400",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "718029",
+    "source_lines": {
+      "ordinary_shares": "§4.2, page 3, Openinfo fact 94604 dated 2025-12-22: 8,447,400 ordinary shares at 85 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 718,029,000 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19293"
+    }
+  },
+  {
+    "issuer_id": "522",
+    "ticker": "MXUS",
+    "isin": "UZ7012480008",
+    "period_start": "2025-09-30",
+    "period_end": "2025-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://openinfo.uz/media/documents/Устав_2024_PIMNnWL.pdf",
+    "unit": "shares",
+    "ordinary_shares": "6297967",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "3148983",
+    "source_lines": {
+      "ordinary_shares": "§4.2, page 5, Openinfo fact 82648 dated 2024-07-09: 6,297,967 ordinary shares at 500 UZS each. Form 1 lines 410 and 440 reconcile the registered capital and zero treasury shares at the reporting date.",
+      "ordinary_only_at_end": "The charter allocates the entire 3,148,983,500 UZS capital to the placed ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/17791"
+    }
   }
 ]

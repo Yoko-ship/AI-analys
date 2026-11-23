@@ -107,29 +107,36 @@ def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch
     assert out['eps_basic']['value'] is None
 
 
-@pytest.mark.parametrize('ticker,org,isin,assets,capital,equity,shares,close', [
-    ('JASM','246','UZ7012450001',89023233,1633137,28727827,1633137,29900),
-    ('URTS','717','UZ7043200003',11634794983,236119023,655186849,374792100,12800),
-    ('UQEQ','310','UZ7042540003',272964704,12020645,125703243,2404129,75000),
-    ('METQ','733','UZ7035230000',328182245,7348680,73082687,2041300,46000),
+@pytest.mark.parametrize('ticker,org,isin,assets,capital,equity,shares,close,end,quote_date', [
+    ('JASM','246','UZ7012450001',89023233,1633137,28727827,1633137,29900,'2026-09-30','2026-11-20'),
+    ('URTS','717','UZ7043200003',11634794983,236119023,655186849,374792100,12800,'2026-09-30','2026-11-20'),
+    ('UQEQ','310','UZ7042540003',272964704,12020645,125703243,2404129,75000,'2026-09-30','2026-11-20'),
+    ('METQ','733','UZ7035230000',328182245,7348680,73082687,2041300,46000,'2026-09-30','2026-11-20'),
+    ('NGQS', '220', 'UZ7042650000', 68735128, 1381950, 26628768, 2763900, 40000.0, '2026-09-30', '2026-11-20'),
+    ('ORGS', '611', 'UZ7023070004', 6091071, 666680, 4445874, 666680, 15344.0, '2026-09-30', '2026-11-20'),
+    ('UTYK', '528', 'UZ7051720009', 368765363, 3366271, 259556509, 3366271, 430000.0, '2026-09-30', '2026-11-19'),
+    ('UZML', '576', 'UZ7055630006', 1528542.65, 2044500, 1201672.4, 1500000, 36000.0, '2026-09-30', '2026-11-12'),
+    ('UZPN', '150', 'UZ7005950009', 40248388, 718029, 33317900, 8447400, 20260.82, '2026-09-30', '2026-11-20'),
+    ('MXUS', '522', 'UZ7012480008', 14213281, 3148983, 12111110, 6297967, None, '2025-09-30', None),
 ])
-def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, org, isin, assets, capital, equity, shares, close):
-    report.update(period='2026Q3', financial_as_of='2026-09-30')
+def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, org, isin, assets, capital, equity, shares, close, end, quote_date):
+    period = end[:4] + 'Q3'
+    report.update(period=period, financial_as_of=end)
     report['issuer'].update(id=org, ticker=ticker)
     report['verified_facts'] = [
-        dict(metric_code=key, value=value, period='2026Q3', unit_normalized='thousand UZS',
+        dict(metric_code=key, value=value, period=period, unit_normalized='thousand UZS',
              verification_status='verified')
         for key, value in [('total_assets', assets), ('total_equity', equity)]
     ]
     rows = source_rows(report, share_capital=capital, treasury_shares=0)
-    inject(monkeypatch, [{**r, 'period_start':'2026-09-30', 'period_end':'2026-09-30'} for r in rows])
+    inject(monkeypatch, [{**r, 'period_start':end, 'period_end':end} for r in rows])
     report['instrument'] = {'instrument_type':'ordinary_share', 'isin':isin,
-                            'ticker':ticker, 'last_price':close, 'market_as_of':'2026-11-20',
+                            'ticker':ticker, 'last_price':close, 'market_as_of':quote_date,
                             'valuation_as_of':'2026-11-20', 'freshness':{'status':'fresh'}}
     out = metrics(report)
     book = equity * 1000 / shares
     assert out['book_value_per_share']['value'] == pytest.approx(book)
-    assert out['price_to_book']['value'] == pytest.approx(close / book)
+    assert out['price_to_book']['value'] == (pytest.approx(close / book) if close is not None else None)
     assert out['eps_basic']['value'] is None
 
 

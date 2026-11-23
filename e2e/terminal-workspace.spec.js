@@ -92,7 +92,7 @@ print(json.dumps({**report, 'ratios': calculate(report, rows) + statutory}))
 });
 
 test('JASM issuer ratios show dated market P/B and P/E beside filing ratios',async({page})=>{
-  await fixture(page,[{ticker:'JASM',company_name:'Jizzax akkumulyator zavodi',sector:'industry'}]);
+  await fixture(page,[{ticker:'JASM',company_name:'Janubsanoatmontaj',sector:'industry'}]);
   await page.route('**/api/terminal/issuer/JASM/analytics?*',r=>r.fulfill({json:{ok:true,
     snapshot:{kind:'industry',period:'2025',market_date:'2026-11-20',pb:1.7087346198895565,pe:19.349964454976302},
     quarters:{rows:[]},growth:[]}}));
