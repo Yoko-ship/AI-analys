@@ -484,5 +484,45 @@
         "https://new-api.openinfo.uz/api/v2/disclosure/facts/94646/"
       ]
     }
+  ],
+  "11": [
+    {
+      "source_url": "https://openinfo.uz/media/audit_conclusion/Tashqi_audit_hisoboti_2023.pdf",
+      "sha256": "dba49cfcb8ee09b44e24b556e7ce5a1746ea88033853e3416346ef4acd73c0e8",
+      "scope": "separate",
+      "period_end": "2023-12-31",
+      "page": 52,
+      "note": "26",
+      "reported_eps": "-27.74",
+      "ordinary_profit": "-63711709",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "2297000",
+      "shares_per_unit": 1000,
+      "annual_attachment": {
+        "api_path": "/reports/bank/annual/338/",
+        "category": "Audition",
+        "approved_parent_sha256": "b871a78e4edd78bd16976d104c739f3e13bd5b4a93cb00e0e92e8ed9a7e8cd4d",
+        "publication_date": "2024-07-12"
+      }
+    },
+    {
+      "source_url": "https://openinfo.uz/media/audit_conclusion/Tashqi_audit_hisoboti_2023.pdf",
+      "sha256": "dba49cfcb8ee09b44e24b556e7ce5a1746ea88033853e3416346ef4acd73c0e8",
+      "scope": "separate",
+      "period_end": "2022-12-31",
+      "page": 52,
+      "note": "26",
+      "reported_eps": "5.75",
+      "ordinary_profit": "7757093",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "1349055",
+      "shares_per_unit": 1000,
+      "annual_attachment": {
+        "api_path": "/reports/bank/annual/338/",
+        "category": "Audition",
+        "approved_parent_sha256": "b871a78e4edd78bd16976d104c739f3e13bd5b4a93cb00e0e92e8ed9a7e8cd4d",
+        "publication_date": "2024-07-12"
+      }
+    }
   ]
 }

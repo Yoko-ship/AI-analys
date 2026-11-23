@@ -32,6 +32,16 @@ def test_missing_ratios_explain_uthk_loss_and_uzmt_absent_start_year():
     assert uzmt['metric_reasons']['cg5']=={'code':'MISSING_ENDPOINT','start':'2014','end':'2019'}
 
 
+def test_utga_roe_explains_negative_average_equity_after_closing_equity_turns_positive():
+    result = analytics.snapshot(series({
+        'net_profit': {'2023': 7790443680000},
+        'total_equity': {'2022': -7856300856000, '2023': 72703702000},
+    }))
+    assert result['roe'] is None
+    assert result['return_basis']['roe']['denominator_value'] == -3891798577000
+    assert result['metric_reasons']['roe']['code'] == 'NON_POSITIVE_EQUITY'
+
+
 def test_ratios_use_the_selected_annual_and_never_bank_debt_equity():
     data = series({"net_profit": {"2025": 20}, "total_assets": {"2025": 200},
                    "total_equity": {"2025": 100}, "total_liabilities": {"2025": 100}})

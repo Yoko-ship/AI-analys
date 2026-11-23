@@ -110,6 +110,8 @@ def snapshot(data, *, kind="industry", year=None, market_cap=None):
             code = 'MISSING_TTM_EARNINGS'
         elif metric == 'pe' and earnings is not None and earnings <= 0:
             code = 'NON_POSITIVE_PROFIT'
+        elif metric == 'roe' and returns['roe']['calculation_status'] == 'invalid_denominator':
+            code = 'NON_POSITIVE_EQUITY'
         elif metric in {'roe', 'pb', 'de'} and equity is not None and equity <= 0:
             code = 'NON_POSITIVE_EQUITY'
         elif metric in {'nim', 'cost_of_risk'}:

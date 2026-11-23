@@ -472,3 +472,26 @@ def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(
         documents.register(conn, org_id=org, ticker=ticker, url=url, category='MSFO', processor='test',
                            metadata={**meta, 'status': 'withdrawn'})
     assert read() is None
+
+def test_grbk_eps_uses_the_signed_ordinary_share_note_with_its_own_year(monkeypatch):
+    from financial_ingestion import disclosures, investor_eps
+
+    url = 'https://openinfo.uz/media/audit_conclusion/Tashqi_audit_hisoboti_2023.pdf'
+    def matches_source(conn, **identity):
+        return identity == dict(
+            org_id='11', api_path='/reports/bank/annual/338/', category='Audition', url=url,
+            pdf_sha='dba49cfcb8ee09b44e24b556e7ce5a1746ea88033853e3416346ef4acd73c0e8',
+            parent_sha='b871a78e4edd78bd16976d104c739f3e13bd5b4a93cb00e0e92e8ed9a7e8cd4d',
+        )
+
+    monkeypatch.setattr(disclosures, 'reviewed_attachment', matches_source)
+    def read(end, cutoff):
+        return {fact['period']: fact for fact in investor_eps._reviewed_eps(None, '11', end, cutoff)}
+
+    assert read('2023-12-31', '2024-07-11') == {}
+    facts = read('2023-12-31', '2024-07-12')
+    assert set(facts) == {'2022', '2023'}
+    for year, value in [('2023', -27.74), ('2022', 5.75)]:
+        assert facts[year] == dict(period=year, standard='ifrs', scope='separate', value=value,
+                                   unit='UZS_per_share', source_url=url, page=52)
+    assert set(read('2022-12-31', '2024-07-12')) == {'2022'}
