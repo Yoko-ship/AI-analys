@@ -412,6 +412,26 @@ def _by_title(rows, needles, exclude=None, last=False):
     return hits[-1] if last else hits[0]
 
 
+def _microfinance_balance(rows):
+    """The MFO form uses side-by-side detail and total columns for one date."""
+    amounts = {}
+    for code, label in (('120', 'итого актив'), ('280', 'итого обязательств'),
+                        ('360', 'итого капитал'), ('370', 'итого обязательства и капитал')):
+        matches = [row for row in rows if str(row.get('tnum')) == code]
+        if len(matches) != 1 or label not in _norm(matches[0].get('title')):
+            return None
+        row = matches[0]
+        amount = _num(row.get('value2', row.get('value')))
+        if amount is None:
+            return None
+        amounts[code] = amount
+    assets, liabilities, equity, control = (amounts[k] for k in ('120', '280', '360', '370'))
+    # The amounts are published in thousands of UZS and can round separately.
+    if assets <= 0 or liabilities < 0 or abs(assets - control) > 1 or abs(liabilities + equity - assets) > 1:
+        return None
+    return {'assets_start':None, 'assets_end':assets, 'equity_start':None, 'equity_end':equity}
+
+
 def _insurance_block(bal, key):
     """Reserve section, using the same gross-minus-share rule as the workbook parser."""
     from financial_analysis.insurance_reserves import reserve_totals
@@ -491,6 +511,9 @@ def extract_metrics(detail):
         if any(v is not None for v in (eq_start, eq_end, as_start, as_end)):
             out["balance"] = {"equity_start": eq_start, "equity_end": eq_end,
                               "assets_start": as_start, "assets_end": as_end}
+        if org == 'microfinance' and _by_tnum(bal, '370'):
+            out['balance'] = _microfinance_balance(bal)
+
     else:  # jsc / insurance
         rev_row = _by_tnum(pl, "010") or _by_title(pl, ["выручка"])
         net_row = _by_title(pl, ["чистая прибыль", "отчетного периода"])

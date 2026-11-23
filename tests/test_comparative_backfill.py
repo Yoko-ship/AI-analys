@@ -185,7 +185,8 @@ def test_history_recovers_uztl_missing_half_year_from_filed_comparison(catalog, 
     assert snapshots.get_financials_series_quarterly('UZTL')['2021Q2']['net_income'] == 0
 
 
-def test_broken_microfinance_excel_does_not_hide_published_structured_income(catalog, monkeypatch):
+@pytest.mark.parametrize('existing_income', [False, True])
+def test_broken_microfinance_excel_does_not_hide_published_structured_income(catalog, monkeypatch, existing_income):
     import json
     from pathlib import Path
     import catalogue.filings as filings
@@ -205,6 +206,11 @@ def test_broken_microfinance_excel_does_not_hide_published_structured_income(cat
             excel_url='https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=microfinance&report_id=56&lang=ru',
             excel_url_form1=None, openinfo_report_id='56', object_id=None)
     c.close()
+    # An earlier import already persisted the income rows from the working JSON.
+    # A fixed parser still has to recover the missing balance for this period.
+    if existing_income:
+        catalogue_financial_store.upsert_financials_cache('ACMT1B2', 'NSBU', 2026, 2,
+                                                        {'revenue':48779406, 'net_income':3523955})
     monkeypatch.setattr(nsbu_history, '_periods', lambda aliases: {})
     monkeypatch.setattr(catalog_history, 'harvest_historical_quarters', lambda *a, **kw: {'added': 0, 'errors': []})
     monkeypatch.setattr(comparative, 'backfill_issuer', lambda *a, **kw: [])
@@ -213,7 +219,12 @@ def test_broken_microfinance_excel_does_not_hide_published_structured_income(cat
     current = snapshots.get_financials_series_quarterly('ACMT1B2').get('2026Q2', {})
     assert current.get('net_income') == 3523955
     assert current['revenue'] == 48779406
-    assert current['supplemental_sources']['net_income']['source_url'].endswith('/microfinance/quarter/56')
+    if not existing_income:
+        assert current['supplemental_sources']['net_income']['source_url'].endswith('/microfinance/quarter/56')
+    assert current['total_assets'] == 363831945
+    assert current['total_equity'] == 77313236
+    assert current['total_liabilities'] == 286518709
+    assert current['supplemental_sources']['total_assets']['source_url'].endswith('/microfinance/quarter/56')
     # A bank-form single-column amount is never a prior-year comparison.
     assert '2025Q2' not in snapshots.get_financials_series_quarterly('ACMT1B2')
     monkeypatch.setattr(oi, 'fetch_detail', lambda cand: pytest.fail('Unchanged sources must resume without downloading'))

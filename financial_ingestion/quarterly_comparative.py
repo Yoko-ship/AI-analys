@@ -16,6 +16,7 @@ import catalogue.storage as storage
 import dbx
 
 INCOME = ("revenue", "gross_profit", "net_income", "operating_income")
+BALANCE = ("total_assets", "total_equity", "total_liabilities")
 
 
 def _form_type(value):
@@ -142,7 +143,7 @@ def backfill(org_id, aliases, journal=None):
                              "AND form='NSBU' AND quarter BETWEEN 1 AND 3", aliases):
             values, _ = fields.usable_filing(dict(row))
             originals.setdefault((row["year"], row["quarter"]), {}).update(
-                {k: v for k, v in values.items() if k in INCOME and v is not None})
+                {k: v for k, v in values.items() if k in INCOME + BALANCE and v is not None})
     finally:
         c.close()
     existing = read(aliases)
@@ -158,9 +159,10 @@ def backfill(org_id, aliases, journal=None):
         need_comparison = not all(have.get(k) is not None for k in INCOME)
         current_period = f"{year + 1}Q{quarter}"
         current = originals.get((year + 1, quarter), {})
-        need_current = any(current.get(k) is None for k in ("revenue", "net_income"))
         params = parse_qs(urlparse(report.get("excel_url") or report.get("excel_url_form1") or "").query)
         org_type = _form_type((params.get("org_type") or [None])[0])
+        required = ("revenue", "net_income") + (BALANCE if org_type == "microfinance" else ())
+        need_current = any(current.get(k) is None for k in required)
         object_id = report.get("object_id") or report.get("openinfo_report_id")
         if org_type not in oi.ORG_TYPES or not str(object_id or "").isdigit():
             continue

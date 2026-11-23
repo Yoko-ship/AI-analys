@@ -277,3 +277,26 @@ class TestThePriorInterimCompanion:
         served = catalogue_snapshots.get_all_financials()["Z"]
         assert served["quarter"] == 0
         assert served["prior"] is None
+
+
+@pytest.mark.parametrize('ticker,assets,liabilities,equity', [
+    ('ACMT1B2', 482682178, 403411621, 79270557),
+    ('CTFB3', 27272611, 23500776, 3771834),
+    ('DMMT2B', 460108091, 344143208, 115964884),
+    ('IFMT4', 66552251, 56667049, 9885202),
+])
+def test_microfinance_q3_section_totals_belong_to_one_reporting_date(ticker, assets, liabilities, equity):
+    from openinfo_reconcile import extract_metrics
+    detail = {'org_type':'microfinance', 'organization_ticket_name':ticker, 'quarter_balance_sheet_report':[
+        {'tnum':code, 'title':title, 'value1':'0.00', 'value2':str(n)}
+        for code, title, n in [('120','18. Итого активы (10+20+30+40+52+62+72+80+90+102+110)',assets),
+                               ('280','26. Итого обязательства (210+220+230+240+250+260+270)',liabilities),
+                               ('360','32. Итого капитал (310 (311 + 312) + 320 + 330 + 340 + 350)',equity),
+                               ('370','33. Итого обязательства и капитал (280 + 360)',assets)]]}
+    metrics = extract_metrics(detail)
+    assert metrics['balance'] == {'assets_start':None, 'assets_end':assets, 'equity_start':None, 'equity_end':equity}
+    assert metrics['total_liabilities'] == liabilities
+    # The two amount columns on this form contain subsidiary amounts and totals,
+    # not a comparative period. A conflicting control total must not supply assets.
+    detail['quarter_balance_sheet_report'][-1]['value2'] = str(assets + 77)
+    assert not extract_metrics(detail).get('balance')
