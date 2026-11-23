@@ -118,6 +118,13 @@ def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool =
         if existing_only and url not in cache:
             return
         previous = cache.get(url) or {}
+        if existing_only:
+            # A history sweep sees the workbook bytes, but has no catalog revision of its own.
+            old = previous.get('payload') or {}
+            if (old.get('financial_revision') and old.get('content_sha256')
+                    and old['content_sha256'] == cached_payload.get('content_sha256')
+                    and old.get('parser_version') == cached_payload.get('parser_version')):
+                cached_payload['financial_revision'] = old['financial_revision']
         cache[url] = {**previous, "cached_at": time.time(), "payload": cached_payload,
                       "refresh_failed": False}
         # Keep the cache small; parsed snapshots are enough for analysis.

@@ -63,11 +63,18 @@ def test_unchanged_financial_revision_uses_cache(source):
     assert calls == []
 
 
-def test_collector_refresh_updates_existing_report_cache(source):
-    cache._set_excel_cache(source['url'], source['cached'])
+@pytest.mark.parametrize('same_bytes', [True, False])
+def test_collector_refresh_preserves_filing_revision_only_for_identical_bytes(source, same_bytes):
+    cache._set_excel_cache(source['url'], {
+        **(source['current'] if same_bytes else source['cached']),
+        'content_sha256':hashlib.sha256(b'new-workbook' if same_bytes else b'old-workbook').hexdigest(),
+        'financial_revision':'selected-filing-revision',
+    })
     session, calls = session_for()
     history._parse_workbook_uncached(session, source['url'])
-    assert loan(cache._get_excel_cache(source['url'])) == 36_754_304_013
+    stored = cache._get_excel_cache(source['url'])
+    assert loan(stored) == 36_754_304_013
+    assert stored.get('financial_revision') == ('selected-filing-revision' if same_bytes else None)
     assert calls == [source['url']]
 
 

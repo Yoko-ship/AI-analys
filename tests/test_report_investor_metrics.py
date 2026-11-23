@@ -107,23 +107,29 @@ def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch
     assert out['eps_basic']['value'] is None
 
 
-def test_jasm_september_ordinary_book_value_and_price(report, monkeypatch):
+@pytest.mark.parametrize('ticker,org,isin,assets,capital,equity,shares,close', [
+    ('JASM','246','UZ7012450001',89023233,1633137,28727827,1633137,29900),
+    ('URTS','717','UZ7043200003',11634794983,236119023,655186849,374792100,12800),
+    ('UQEQ','310','UZ7042540003',272964704,12020645,125703243,2404129,75000),
+    ('METQ','733','UZ7035230000',328182245,7348680,73082687,2041300,46000),
+])
+def test_september_ordinary_book_value_and_price(report, monkeypatch, ticker, org, isin, assets, capital, equity, shares, close):
     report.update(period='2026Q3', financial_as_of='2026-09-30')
-    report['issuer'].update(id='246', ticker='JASM')
+    report['issuer'].update(id=org, ticker=ticker)
     report['verified_facts'] = [
         dict(metric_code=key, value=value, period='2026Q3', unit_normalized='thousand UZS',
              verification_status='verified')
-        for key, value in [('total_assets', 89023233), ('total_equity', 28727827)]
+        for key, value in [('total_assets', assets), ('total_equity', equity)]
     ]
-    rows = source_rows(report, share_capital=1633137, treasury_shares=0)
+    rows = source_rows(report, share_capital=capital, treasury_shares=0)
     inject(monkeypatch, [{**r, 'period_start':'2026-09-30', 'period_end':'2026-09-30'} for r in rows])
-    report['instrument'] = {'instrument_type':'ordinary_share', 'isin':'UZ7012450001',
-                            'ticker':'JASM', 'last_price':29900, 'market_as_of':'2026-11-20',
+    report['instrument'] = {'instrument_type':'ordinary_share', 'isin':isin,
+                            'ticker':ticker, 'last_price':close, 'market_as_of':'2026-11-20',
                             'valuation_as_of':'2026-11-20', 'freshness':{'status':'fresh'}}
     out = metrics(report)
-    book = 28727827000 / 1633137
+    book = equity * 1000 / shares
     assert out['book_value_per_share']['value'] == pytest.approx(book)
-    assert out['price_to_book']['value'] == pytest.approx(29900 / book)
+    assert out['price_to_book']['value'] == pytest.approx(close / book)
     assert out['eps_basic']['value'] is None
 
 

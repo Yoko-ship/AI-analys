@@ -138,5 +138,62 @@
       "ordinary_only_at_end": "Charter §3.4 gives total capital of 1,633,137,000 UZS, fully accounted for by the ordinary issue in §4.1.",
       "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19060"
     }
+  },
+  {
+    "issuer_id": "717",
+    "ticker": "URTS",
+    "isin": "UZ7043200003",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBbHhBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--8d75c13ba16909ea8afe938d91b678ed72ca7c22/%D1%83%D1%81%D1%82%D0%B0%D0%B2-%D1%8F%D0%BD%D0%B2%D0%B0%D1%80%D1%8C-2026-compressed.pdf",
+    "unit": "shares",
+    "ordinary_shares": "374792100",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "236119023",
+    "source_lines": {
+      "ordinary_shares": "Charter §3.4, page 4, filed with the exchange on 02.09.2026: 374,792,100 placed ordinary shares of 630 UZS each. September Form 1 lines 410 and 440 confirm the registered capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §3.4, page 4 allocates the entire 236,119,023,000 UZS statutory capital to the ordinary issue.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/18974"
+    }
+  },
+  {
+    "issuer_id": "733",
+    "ticker": "METQ",
+    "isin": "UZ7035230000",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBbThmIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--4e3df7766a5a5cfa6c559933b381a73bb939f65f/%D0%A3%D1%81%D1%82%D0%B0%D0%B2_Maxsuselektrtarmoqqurilish_2023_%D0%BD%D0%BE%D0%B2%D0%B0%D1%8F_%D1%80%D0%B5%D0%B4%D0%B0%D0%BA%D1%86%D0%B8%D1%8F.pdf",
+    "unit": "shares",
+    "ordinary_shares": "2041300",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "7348680",
+    "source_lines": {
+      "ordinary_shares": "Charter §4.1, page 5, filed with the exchange on 04.03.2025: 2,041,300 placed ordinary shares of 3,600 UZS each. September Form 1 lines 410 and 440 confirm the registered capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §4.1, page 5 allocates the entire 7,348,680,000 UZS statutory capital to the ordinary issue.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19136"
+    }
+  },
+  {
+    "issuer_id": "310",
+    "ticker": "UQEQ",
+    "isin": "UZ7042540003",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBa3MzIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--0fb55d71ba5ebc758d4cac9cb0b6e488d4c59301/%D0%A3%D1%81%D1%82%D0%B0%D0%B2%20%D0%B8%D1%8E%D0%BB%202025%D0%B3.%20%D0%90%D0%9E%20%D0%A3%D0%B7%D0%BA%D0%B8%D1%88%D0%BB%D0%BE%D0%BA%D1%8D%D0%BB%D0%B5%D0%BA%D1%82%D1%80%D0%BA%D1%83%D1%80%D0%B8%D0%BB%D0%B8%D1%88.pdf",
+    "unit": "shares",
+    "ordinary_shares": "2404129",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "12020645",
+    "source_lines": {
+      "ordinary_shares": "Charter §4.2, page 5, filed on 21.07.2025: 2,404,129 ordinary shares of 5,000 UZS each. September Form 1 lines 410 and 440 confirm the same paid-up capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §§4.1–4.3 identify the entire paid-up capital of 12,020,645,000 UZS as ordinary shares.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19236"
+    }
   }
 ]

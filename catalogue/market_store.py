@@ -841,6 +841,13 @@ def _charter_counts(group: list[dict], stored: dict[str, tuple]) -> list[dict]:
     # The card's own equity list, not just the rows that reached this batch: a
     # delisted preferred class still holds its share of the charter.
     classes_on_card = max(int(r.get("org_equity_classes") or 0) for r in group)
+    if (complete and len(group) == classes_on_card and len(group) >= len(issuer_entries)
+            and all(r.get("shares_source") == "uzse" for r in group)):
+        # A fresh set of exchange counts corroborated by a filed capital total
+        # takes precedence over an older exchange snapshot. The filing uses thousand UZS.
+        issued = sum(count * par for count, par in zip(counts, pars))
+        if any(abs(issued - capital) <= 1000 for capital in filed):
+            return [with_count(row, count, "uzse") for row, count in zip(group, counts)]
     registered = sum(float(e["shares"]) * float(e["par"]) for e in issuer_entries.values())
     if None not in entries and len(issuer_entries) >= classes_on_card and (
             fits(registered) or registered >= max(charters) * (1 - _CHARTER_TOLERANCE)):

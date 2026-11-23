@@ -230,8 +230,10 @@ REGISTRY_CHARTERS = {
     ("BRBN", "BRBNP"): 5_689_083_510_324.0, ("GRBK", "GRBKP"): 500_000_000_000.0,
     ("HMKB", "HMKBP"): 646_648_980_000.0, ("IPKY", "IPKYP"): 602_421_052_640.0,
     ("IPTB", "IPTBP"): 4_225_522_638_941.0, ("KASU", "KASUP"): 80_000_000_000.0,
-    ("KFSK", "KFSKP"): 240_000_000_000.0, ("MCBA", "MCBAP"): 7_145_336_799_816.0,
-    ("QATT", "QATTP"): 11_461_144_000.0, ("TNBN", "TNBNP"): 2_334_142_421_800.0,
+    ("KFSK", "KFSKP"): 270_000_000_000.0, ("MCBA", "MCBAP"): 7_145_336_799_816.0,
+    ("PLST", "PLSTP"): 2_308_855_050.42,
+    ("QATT", "QATTP"): 11_461_144_000.0, ("TNBN", "TNBNP"): 2_236_659_423_800.0,
+    ("SQBN", "SQBNP"): 4_628_941_927_804.0,
     ("TRSB", "TRSBP"): 2_000_500_000_000.0, ("UPOS", "UPOSP"): 52_563_506_760.0,
     ("UZAL", "UZALP"): 1_016_808_998_010.0, ("UZIR", "UZIRP"): 185_773_565_000.0,
     ("UZNG", "UZNGP"): 23_571_293_243_500.0, ("UZTL", "UZTLP"): 978_514_666_998.0,
@@ -428,6 +430,16 @@ def test_counts_that_fit_the_filed_charter_stand_when_the_card_disagrees(monkeyp
     assert [r["shares_outstanding"] for r in out] == [243_258_522_516.0, 370_000_000.0]
 
 
+def test_sqbn_november_listing_uses_both_registered_classes_and_filed_capital():
+    filed = [4_628_941_928_000.0]
+    group = [_bank("SQBN", "UZ7037560008", 243_551_784_442.0, 19.0, None, filed, price=59.8),
+             _bank("SQBNP", "UZ703756K015", 370_000_000.0, 19.0, None, filed, price=89.0)]
+    ordinary, preferred = store._charter_counts(group, {})
+    assert ordinary["shares_outstanding"] == 243_258_522_516
+    assert preferred["shares_outstanding"] == 370_000_000
+    assert ordinary["market_cap"] + preferred["market_cap"] == pytest.approx(14_579_789_646_456.8)
+
+
 def test_a_filed_charter_alone_still_judges(monkeypatch) -> None:
     _registry(monkeypatch, {})
     group = [_bank("A", "UZ7000000001", 1_000.0, 10.0, None, [20_000.0]),
@@ -462,6 +474,19 @@ def test_an_unreadable_balance_leaves_the_card_to_judge(monkeypatch) -> None:
         raise RuntimeError("openinfo down")
     monkeypatch.setattr(lc, "_json_get", fail)
     assert lc._filed_charters(None, "11") == []
+
+
+def test_tnbn_current_exchange_classes_reconcile_with_filed_capital_and_supersede_old_register(monkeypatch):
+    _registry(monkeypatch, {"TNBN":(1_368_057_454,1700,"UZ7035530003"),
+                            "TNBNP":(4_967_500,1700,"UZ703553K016")})
+    filed = [2_236_659_424_000.0]
+    group = [_bank("TNBN","UZ7035530003",1_310_714_514,1700,None,filed),
+             _bank("TNBNP","UZ703553K016",4_967_500,1700,None,filed)]
+    for row in group:
+        row["shares_source"] = "uzse"
+    result = store._charter_counts(group, {})
+    assert [(r["shares_outstanding"],r["shares_source"]) for r in result] == [
+        (1_310_714_514,"uzse"),(4_967_500,"uzse")]
 
 
 def test_a_register_ahead_of_the_last_balance_stands(monkeypatch) -> None:
