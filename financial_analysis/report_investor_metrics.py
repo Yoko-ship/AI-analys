@@ -73,6 +73,24 @@ def _load(report):
     return rows
 
 
+def _equity_side_matches(group, facts, end):
+    """A faulty asset subtotal can coexist with a reconciled, independently filed equity side."""
+    assets = [r for r in group if r.get('metric_id') == 'total_assets' and r.get('source_form') == 'F1']
+    if len(assets) != 1 or assets[0].get('reason') != 'SOURCE_ASSET_SUBTOTAL_MISMATCH':
+        return False
+    if {i['code'] for i in assets[0].get('reconciliation_issues', [])} != {'SOURCE_ASSET_SUBTOTAL_MISMATCH'}:
+        return False
+    total = decimal(assets[0].get('value'))
+    reported = decimal(facts.get('total_assets', {}).get('value'))
+    if total is None or reported is None or abs(total - reported) > 1:
+        return False
+    passive = _pick(group, 'total_equity_liabilities', 'UZS_thousand', end)['value']
+    equity = _pick(group, 'total_equity', 'UZS_thousand', end)['value']
+    liabilities = _pick(group, 'total_liabilities', 'UZS_thousand', end)['value']
+    return (passive is not None and equity is not None and liabilities is not None
+            and abs(total - passive) <= 1 and abs(passive - equity - liabilities) <= 1)
+
+
 def _compatible(report, rows, facts, *, income=False):
     """Match a source revision using the statements needed by the indicator."""
     standard = 'NSBU' if report['standard'].lower() == 'nsbu' else 'MSFO'
@@ -87,6 +105,8 @@ def _compatible(report, rows, facts, *, income=False):
     for group in groups.values():
         # One thousand UZS is the source form's existing rounding tolerance.
         keys = ['total_assets', 'total_equity']
+        if not income and standard == 'NSBU' and _equity_side_matches(group, facts, end):
+            keys = ['total_liabilities', 'total_equity']
         if income:
             income_keys = [key for key in ('net_income', 'revenue')
                            if key in facts and any(r.get('metric_id') == key for r in group)]

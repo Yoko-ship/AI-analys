@@ -1004,3 +1004,25 @@ def test_ebit_rechecks_label_and_source_code_on_previously_imported_cells(report
     for row,code,label in zip(rows[-2:],('240','180'),('Доход от инвестиций','Расходы в виде процентов')):
         row.update(source_form='F2',source_code=code,raw_label=label,period_start='2026-01-01')
     assert next(r for r in calculate(report,rows) if r['metric_code']=='ebit')['value'] is None
+
+
+@pytest.mark.parametrize('liabilities,expected', [(1645196, 2.3009059456), (1645000, None)])
+def test_orgs_equity_valuation_survives_only_an_unrelated_asset_subtotal(report, monkeypatch, liabilities, expected):
+    # Openinfo quarterly JSC 19145, Form 1 lines 130, 390, 400, 410, 440, 480, 770 and 780.
+    end = '2026-09-30'
+    report.update(period='2026Q3', financial_as_of=end)
+    report['issuer'].update(id='611', ticker='ORGS')
+    report['verified_facts'] = [dict(metric_code=k, value=v, period='2026Q3', unit_normalized='thousand UZS',
+                                     verification_status='verified') for k, v in
+                                [('total_assets', 6091071), ('total_equity', 4445874), ('total_liabilities', 1645196)]]
+    rows = source_rows(report, share_capital=666680, treasury_shares=0, noncurrent_assets=3053240,
+                       current_assets=2880124, total_liabilities=liabilities, total_equity_liabilities=6091071)
+    for row in rows:
+        row.update(source_form='F1', period_start=end, period_end=end)
+    inject(monkeypatch, rows)
+    report['instrument'] = {'instrument_type':'ordinary_share', 'isin':'UZ7023070004', 'ticker':'ORGS',
+                            'last_price':15344, 'market_as_of':'2026-11-20', 'valuation_as_of':'2026-11-20',
+                            'freshness':{'status':'fresh'}}
+    result = metrics(report)
+    assert result['price_to_book']['value'] == (pytest.approx(expected) if expected else None)
+    assert result['book_value_per_share']['value'] == (pytest.approx(6668.6776264) if expected else None)
