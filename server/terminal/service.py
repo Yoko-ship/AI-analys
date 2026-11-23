@@ -95,11 +95,15 @@ def market_context():
         included = [c for c in group if c['market_input']['included_in_issuer_cap']]
         reason = ('DATA_CONFLICT' if not consistent else 'STALE_PRICE' if any(
             c['market_input']['calculation_status'] == public_contract.STALE_PRICE for c in included) else 'INCOMPLETE_MARKET_CAP')
+        quote_dates = [c['market_input']['price_as_of'] for c in included]
+        dated = bool(quote_dates) and all(quote_dates)
         for c in group:
             age = c['market_input']['price_age_days']
             value = cap.get('value') if consistent else None
             result[c['ticker']] = {'market_cap': value, 'market_cap_reason': None if value is not None else reason,
                 'excluded_classes': cap.get('excluded_classes', []),
+                'first_quote_date': min(quote_dates) if dated else None,
+                'last_quote_date': max(quote_dates) if dated else None,
                 'price': c.get('last_price') if age is not None and 0 <= age <= c['market_input']['max_price_age_days'] else None,
                 'market_date': c.get('last_trade_date')}
     return result
@@ -347,6 +351,28 @@ async def reconciliation(ticker, scope="separate"):
                                         financial_series(ticker, "annual", "MSFO", scope))
     return {"ok": True, "ticker": ticker, **analytics.reconcile(left, right)}
 
+def _issuer_price_to_book(report, market):
+    """Latest separate equity is attributable to all of the issuer's share classes."""
+    if report.get('status') not in {'available', 'stale'} or market.get('excluded_classes'):
+        return None
+    published = str((report.get('sources') or [{}])[0].get('publication_date') or '')[:10]
+    earliest = market.get('first_quote_date')
+    end = report.get('financial_as_of')
+    if not end or not published or not earliest or not end <= published <= earliest:
+        return None
+    values = {analytics.number(f.get('value')) for f in report.get('verified_facts', [])
+              if f.get('verification_status') == 'verified' and f.get('period') == report.get('period')
+              and f.get('metric_code') == 'total_equity' and f.get('unit_normalized') == 'thousand UZS'}
+    cap = analytics.number(market.get('market_cap'))
+    if len(values) != 1 or not cap or cap <= 0:
+        return None
+    equity = values.pop()
+    if equity is None or equity <= 0:
+        return None
+    return {'value':cap / (equity * 1000), 'unit':'ratio', 'market_as_of':market['last_quote_date'],
+            'first_quote_date':earliest, 'market_cap_uzs':cap, 'equity_thousand_uzs':equity}
+
+
 def filing_metrics(scope, period, search, offset, limit):
     """Page visible issuers before reading their filings."""
     from catalogue.read_batch import scope as read_scope
@@ -359,6 +385,12 @@ def filing_metrics(scope, period, search, offset, limit):
         query = search.strip().casefold()
         companies = sorted((c for c in universe(all_filings=True) if query in (' '.join(c.get('tickers') or [c['ticker']]) + ' ' + (c.get('name') or '')).casefold()),
                            key=lambda c:c['ticker'])
+        market = {}
+        if not period and scope == 'separate' and companies[offset:offset + limit]:
+            try:
+                market = market_context()
+            except Exception:
+                logger.warning('Filing screener market data unavailable', exc_info=True)
         rows = []
         for company in companies[offset:offset + limit]:
             ticker = company['ticker']
@@ -376,6 +408,10 @@ def filing_metrics(scope, period, search, offset, limit):
                     item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
                         ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of','other_filing')}
                         for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
+                    if ticker in market:
+                        issuer_pb = _issuer_price_to_book(report, market[ticker])
+                        if issuer_pb is not None:
+                            item['metrics']['issuer_price_to_book'] = issuer_pb
                     for r in report['ratios']:
                         if r.get('last_verified') and r['metric_code'] in item['metrics']:
                             item['metrics'][r['metric_code']]['last_verified'] = {

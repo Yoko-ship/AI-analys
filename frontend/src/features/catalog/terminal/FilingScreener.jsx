@@ -18,6 +18,7 @@ export function FilingScreener({lang, onClose}) {
   const columns = [
     ['eps_basic','EPS · UZS'], ['eps_closing_estimate',words(lang,'EPS прибл. · UZS','Taxminiy EPS · UZS','Estimated EPS · UZS')],
     ['book_value_per_share','BVPS · UZS'], ['price_to_book','P/BV · ×'],
+    ...(scope === 'separate' ? [['issuer_price_to_book',words(lang,'P/B эмитента · ×','Emitent P/B · ×','Issuer P/B · ×')]] : []),
     ['ebit',words(lang,'EBIT · тыс. UZS','EBIT · ming UZS','EBIT · thousand UZS')],
     ['roce','ROCE · %'],
   ];
@@ -38,10 +39,13 @@ export function FilingScreener({lang, onClose}) {
         <th><a href={localizedPath('/catalog?' + new URLSearchParams({t:row.ticker,f:'RAT',filingScope:scope}),lang)}>{row.ticker}</a></th><td>{row.period||'—'}</td>
         {columns.map(([k])=>{const r=displayReportRatio(row.metrics?.[k],lang);const reason=r?.reason_code
           ? k === 'roce' ? financialColumnQualityReason(r.reason_code,(...labels)=>words(lang,...labels)) : reportRatioReason(r,lang) : '';
-          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : r.datedExport || r.raw_result || String(r.value)}>
+          const quoteDates = [r?.first_quote_date, r?.market_as_of].filter(Boolean);
+          const quoteLabel = r?.quoteLabel || (quoteDates.length ? words(lang,'Котировка','Kotirovka','Quote') + ' ' + [...new Set(quoteDates)].join(' – ') : '');
+          const exportValue = r?.datedExport ?? (r?.value != null ? [r.raw_result ?? r.value, quoteLabel].filter(v=>v !== '').join(' ') : undefined);
+          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : exportValue}>
             {r?.other_filing && r.value == null ? <OtherFilingEps filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
             {r?.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
-            {r?.quoteLabel && <div className="muted">{r.quoteLabel}</div>}
+            {quoteLabel && <div className="muted">{quoteLabel}</div>}
           </td>;})}
       </tr>)}</tbody></table></div>
       <div className="terminal-controls"><button className="ghost-btn" disabled={!offset} onClick={()=>setOffset(offset-limit)}>←</button>

@@ -956,7 +956,7 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   await fixture(page);
   await page.route('**/api/terminal/filing-metrics?**', route => route.fulfill({json:{rows:[{
     ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, roce:{value:9.194}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
-  }, {ticker:'HMKB', period:'2026Q3', metrics:{eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
+  }, {ticker:'HMKB', period:'2026Q3', metrics:{issuer_price_to_book:{value:1.820788,market_as_of:'2026-11-20'},eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
     other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',
       source_url:'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf',page:48}}}
   }]}}));
@@ -976,6 +976,9 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   const csv = Buffer.concat(chunks).toString('utf8');
   expect(csv).toContain('ROCE');
   expect(csv).toContain('9.194');
+  await expect(table.getByRole('columnheader',{name:'P/B эмитента · ×'})).toBeVisible();
+  await expect(table.getByRole('row').filter({hasText:'HMKB'})).toContainText('1,82');
+  expect(csv).toMatch(/1.820788.*2026-11-20/);
   const published=table.getByRole('row').filter({hasText:'HMKB'}).getByRole('link',{name:/МСФО.*2025.*14,22/});
   await expect(published).toHaveAttribute('href',/ba173c49.*#page=48$/);
   expect(csv).toMatch(/МСФО.*2025.*14[,.]22/);

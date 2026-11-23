@@ -123,16 +123,30 @@ def test_filing_screener_preserves_published_eps_from_a_different_reporting_basi
     filing = {'standard': 'ifrs', 'scope': 'consolidated', 'period': '2025', 'value': 14.22,
               'unit': 'UZS_per_share', 'page': 48,
               'source_url': 'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf'}
+    market = {'market_cap':14903392769460, 'excluded_classes':[], 'first_quote_date':'2026-11-20',
+              'last_quote_date':'2026-11-20'}
+    monkeypatch.setattr(service, 'market_context', lambda: {'HMKB':market})
     monkeypatch.setattr(service, 'universe', lambda **kw: [{'ticker': 'HMKB', 'org_id': '8'}])
     monkeypatch.setattr(columns, 'filing_roce', lambda *args: ('2026Q3', {'value': None}))
     monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda ticker: {'id': '8', 'ticker': ticker})
     monkeypatch.setattr(sector_report_service, 'sector_report', lambda *args, **kw: {})
     monkeypatch.setattr(sector_report_service, 'public_report', lambda report: {
         'standard': 'nsbu', 'scope': 'separate', 'period': '2026Q3', 'status': 'available',
+        'financial_as_of':'2026-09-30', 'sources':[{'publication_date':'2026-10-19'}],
+        'verified_facts':[{'metric_code':'total_equity', 'verification_status':'verified', 'period':'2026Q3',
+                           'unit_normalized':'thousand UZS','value':8185132247}],
         'ratios': [{'metric_code': 'eps_basic', 'value': None, 'other_filing': filing}]})
     row = service.filing_metrics('separate', None, 'HMKB', 0, 1)['rows'][0]
     assert row['metrics']['eps_basic']['value'] is None
     assert row['metrics']['eps_basic']['other_filing'] == filing
+    assert row['metrics']['issuer_price_to_book']['value'] == pytest.approx(14903392769460 / 8185132247000)
+    assert row['metrics']['issuer_price_to_book']['market_as_of'] == '2026-11-20'
+    for period, override in [('2026Q3', {}), (None, {'excluded_classes':['HMKBP']}),
+                             (None, {'first_quote_date':'2026-09-29'})]:
+        market.update(override)
+        incomplete = service.filing_metrics('separate', period, 'HMKB', 0, 1)['rows'][0]
+        assert incomplete['metrics'].get('issuer_price_to_book', {}).get('value') is None
+        market.update(excluded_classes=[], first_quote_date='2026-11-20')
 
 
 def test_agmkp_latest_filed_annual_stays_visible_beyond_newer_comparative_balances():
