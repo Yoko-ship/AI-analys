@@ -244,5 +244,153 @@
       "shares_per_unit": 1,
       "unit_reconciliation": "Note 24 reports profit attributable to ordinary shareholders in thousand UZS, weighted ordinary shares in units, and basic and diluted EPS. These independently reproduce the UZS per share amount."
     }
+  ],
+  "25": [
+    {
+      "report_id": 3253,
+      "source_url": "https://openinfo.uz/media/msfo/e8d1ecd9-4c66-4a09-9b93-14c4eee1b984.pdf",
+      "sha256": "8eb36b0233e41e4374b0ba4695a4fe6d7445892eecbea5a481a22add820afe69",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 9,
+      "reported_eps_uzs": "152",
+      "source_form": "income_statement",
+      "row_label": "Базовая и разводненная прибыль на акцию (в сумах на одну акцию)",
+      "column_year": 2025,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "23": [
+    {
+      "report_id": 3054,
+      "source_url": "https://openinfo.uz/media/msfo/511b0950-b70c-4e94-b63b-13ca4bcdda0e.pdf",
+      "sha256": "b9cd62318741c392beff34e8bdbe1296fe525fe4f901775250e25355776229be",
+      "scope": "consolidated",
+      "period_end": "2024-12-31",
+      "page": 10,
+      "reported_eps_uzs": "-22",
+      "source_form": "income_statement",
+      "row_label": "Basic and diluted loss per ordinary share (expressed in UZS per share)",
+      "column_year": 2024,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "667": [
+    {
+      "report_id": 2036,
+      "source_url": "https://openinfo.uz/media/msfo/Заключение_аудитора_и_отчеты_по_МСФО_за_2020_год.pdf",
+      "sha256": "8255931d1003d3fd149c29954eea8221fe8c9872d58ec3ef2cbed6bca63ca95c",
+      "scope": "separate",
+      "period_end": "2020-12-31",
+      "page": 4,
+      "reported_eps_uzs": "-100",
+      "source_form": "income_statement",
+      "row_label": "Базовый и разводненный убыток на обыкновенную акцию (в УЗС на акцию)",
+      "column_year": 2020,
+      "unit": "UZS_per_ordinary_share"
+    }
+  ],
+  "20": [
+    {
+      "report_id": 1774,
+      "source_url": "https://openinfo.uz/media/msfo/AuditReport2019.pdf",
+      "sha256": "6bafe683a4dd9a8493fbe5f12b32afdfe3e8ca7234e08c13a17f62e880779fe3",
+      "scope": "separate",
+      "period_end": "2019-12-31",
+      "page": 63,
+      "reported_eps_uzs": "18.18",
+      "ordinary_profit": "16376439",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "900777581",
+      "shares_per_unit": 1
+    }
+  ],
+  "9": [
+    {
+      "report_id": 3169,
+      "source_url": "https://openinfo.uz/media/msfo/358564ec-ac5d-4322-bd2d-26c346f539f2.pdf",
+      "sha256": "87151d9fda000c939d1b601612203006622d7dfa4bec0205c3210331f1be08d3",
+      "scope": "separate",
+      "period_end": "2025-12-31",
+      "page": 52,
+      "reported_eps_uzs": "2320.84",
+      "ordinary_profit": "232084279",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "100000000",
+      "shares_per_unit": 1
+    },
+    {
+      "report_id": 2911,
+      "source_url": "https://openinfo.uz/media/msfo/8064713f-ee9b-4c95-8e89-2448d7dce1a5.pdf",
+      "sha256": "1873b7c5dbbdaf3e3cb28954e54ecaf12b5b228ee73bbfd09d4987e9f95076a5",
+      "scope": "separate",
+      "period_end": "2024-12-31",
+      "page": 52,
+      "reported_eps_uzs": "1874.72",
+      "ordinary_profit": "138144276",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "73687806",
+      "shares_per_unit": 1
+    }
+  ],
+  "24": [
+    {
+      "report_id": 3144,
+      "source_url": "https://openinfo.uz/media/msfo/e65e3138-844f-4693-a602-df39cf64be6d.pdf",
+      "sha256": "7c7baf1fbf5974b5ebb082bee49fc9b010d7dfeb936513bb1bef22f24d54eae6",
+      "scope": "consolidated",
+      "period_end": "2025-12-31",
+      "page": 11,
+      "reported_eps_uzs": "852.46",
+      "ordinary_profit": "852657471",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "1000227000",
+      "shares_per_unit": 1,
+      "unit_reconciliation": "The audited consolidated statement gives profit of 852,680,471 thousand UZS. The 23,000,000 UZS preferred dividend leaves 852,657,471 thousand UZS attributable to ordinary shareholders. The charter nominal of 1,000 UZS and unchanged ordinary capital of 1,000,227,000 thousand UZS reconcile to 1,000,227,000 ordinary shares throughout FY2025. These inputs reproduce the reported basic EPS in UZS per share.",
+      "corroborating_sources": [
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/97036/",
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/98592/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/359/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1077/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1132/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/quarter/1178/",
+        "https://new-api.openinfo.uz/api/v2/reports/bank/annual/421/"
+      ]
+    }
+  ],
+  "636": [
+    {
+      "report_id": 1477,
+      "source_url": "https://openinfo.uz/media/msfo/Заключение_аудитора_по_МСФО_за_2018_г..pdf",
+      "sha256": "e99df2769f8f55a26a28798ff3ed1b1c8dc1a1942a1ef622ad5a1ce44542f195",
+      "scope": "separate",
+      "period_end": "2018-12-31",
+      "page": 6,
+      "reported_eps_uzs": "7.6E+2",
+      "ordinary_profit": "15267562.25",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "20072000",
+      "shares_per_unit": 1,
+      "unit_reconciliation": "The separate income statement on page 5 uses thousand UZS. Page 6 gives ordinary profit, weighted ordinary shares in units, and their quotient to two decimals in thousand UZS. The reported 0.76 thousand UZS per ordinary share is 760 UZS."
+    }
+  ],
+  "576": [
+    {
+      "report_id": 791,
+      "source_url": "https://openinfo.uz/media/msfo/МСФО_-_отчет_за_2016..pdf",
+      "sha256": "2ef26a27d1f4a6edfc26614a6275bdf75171dc6d7b3ebfbb84bc66d3176493a2",
+      "scope": "separate",
+      "period_end": "2016-12-31",
+      "page": 9,
+      "reported_eps_uzs": "7.1E+2",
+      "ordinary_profit": "1061599.8",
+      "uzs_per_currency_unit": 1000,
+      "weighted_ordinary_shares": "1500000",
+      "shares_per_unit": 1,
+      "unit_reconciliation": "Page 8 line 231 gives profit attributable to owners. Page 14 Form 5 shows 1,500,000 shares issued and outstanding, all ordinary, with no net issuance or treasury purchases. The January 2016 registration converted existing shares to the new nominal. The reported 0.71 thousand UZS per share is 710 UZS at its disclosed precision.",
+      "corroborating_sources": [
+        "https://new-api.openinfo.uz/api/v2/disclosure/facts/351/"
+      ]
+    }
   ]
 }
