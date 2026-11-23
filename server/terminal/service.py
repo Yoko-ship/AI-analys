@@ -146,6 +146,13 @@ BANK_FIELDS = {
 }
 
 
+def _cbu_ticker(banks, ticker, aliases):
+    if ticker in banks:
+        return ticker
+    matches = set(aliases or ()) & banks.keys()
+    return matches.pop() if len(matches) == 1 else None
+
+
 def bank_metrics(bank):
     return {'cbu_' + field: analytics.number((bank.get(kind) or {}).get(field))
             for kind, fields in BANK_FIELDS.items() for field in fields}
@@ -234,7 +241,7 @@ async def _screener(form="NSBU", scope="separate", year=None, *, peer_ticker=Non
             journal.emit("pb_high", ticker=ticker, standard=form, period=row["period"],
                          message="Проверить число акций: P/B > 10", details={"pb": row["pb"]},
                          dedupe_key=f"{ticker}:{form}:{scope}:{row['period']}:{context.get('market_date')}:{row['pb']}")
-        bank = central["banks"].get(ticker, {}) if company["kind"] == "bank" else {}
+        bank = central["banks"].get(_cbu_ticker(central["banks"], ticker, company.get("tickers")), {}) if company["kind"] == "bank" else {}
         payments = await loop.run_in_executor(None, dividends.read_snapshot, ticker)
         dividend = _security_dividend(payments, context) if year is None else {"dy": None}
         return explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
@@ -278,7 +285,7 @@ def _current_bank_peers(base, companies, form, scope):
             if row is None:
                 continue
             bank_ratios.enrich_interim(company, row, published, held, period_end)
-            bank = central["banks"].get(ticker, {})
+            bank = central["banks"].get(_cbu_ticker(central["banks"], ticker, company.get("tickers")), {})
             dividend = _security_dividend(dividends.read_snapshot(ticker), context)
             rows.append(explain_missing({**company, **row, **context, "dy": dividend["dy"], "dividend": dividend,
                                          "cbu": bank, **bank_metrics(bank), "npl": (bank.get("npl") or {}).get("npl_pct")}))
@@ -350,7 +357,8 @@ async def issuer(ticker, form="NSBU", scope="separate"):
     payment = _security_dividend(payments, context)
     snap["dy"] = payment["dy"]
     explain_missing(snap)
-    bank_history=await loop.run_in_executor(None,cbu.monthly_bank_history,ticker) if kind=='bank' and central['banks'].get(ticker) else []
+    cbu_ticker = _cbu_ticker(central['banks'], ticker, (index or {}).get('tickers')) if kind == 'bank' else None
+    bank_history = await loop.run_in_executor(None, cbu.monthly_bank_history, cbu_ticker) if cbu_ticker else []
     growth = []
     if snap["period"]:
         for field in ("net_profit", "total_equity", "total_assets"):
@@ -358,7 +366,7 @@ async def issuer(ticker, form="NSBU", scope="separate"):
                 growth.append({"field": field, **analytics.growth(analytics.values(annual, field), snap["period"], years, inflation=central.get("inflation"), fx=fx)})
     return {"ok": True, "ticker": ticker, "snapshot": snap, "growth": growth,
             "quarters": analytics.quarters(quarterly), "template": template, "deposit": central.get("deposit"), "dividend":payment,
-            "cbu": central["banks"].get(ticker, {}), "cbu_history":bank_history, "sector": central.get("sector", {}), "sector_series":central.get("sector_series", {}),
+            "cbu": central["banks"].get(cbu_ticker, {}), "cbu_history":bank_history, "sector": central.get("sector", {}), "sector_series":central.get("sector_series", {}),
             "macro_sources": {"inflation": cbu.INFLATION_URL, "fx": "https://cbu.uz/ru/arkhiv-kursov-valyut/"}}
 
 
@@ -503,11 +511,11 @@ def filing_metrics(scope, period, search, offset, limit):
                                 k:r['last_verified'][k] for k in ('value','raw_result','period_start','period_end','market_as_of')
                                 if k in r['last_verified']}
                 elif (report.get('standard') == 'ifrs' and report.get('scope') == scope
-                      and report.get('period') == (item['period'] or period)
                       and report.get('issuer', {}).get('organization_type') == 'investment_fund_ifrs_annual'
                       and str(report['issuer'].get('id')) == str(company.get('org_id'))):
-                    from fund_analysis import reported_eps
-                    audited = reported_eps(report)
+                    from fund_analysis import interim_filing_metrics, reported_eps
+                    item['metrics'].update(interim_filing_metrics(report['issuer'], scope, market.get(ticker, {}), period))
+                    audited = reported_eps(report) if report.get('period') == (period or item['period']) else None
                     if audited:
                         item['metrics']['eps_basic'] = {'value': None, 'other_filing': audited}
             except Exception:

@@ -140,16 +140,19 @@ def test_screener_passes_selected_year_to_all_cbu_comparisons(monkeypatch):
     assert result['sector_series']['profitability']['date']=='2024-12-01'
 
 
-def test_screener_joins_official_bank_data_without_changing_report_period(monkeypatch):
-    monkeypatch.setattr(service,'universe',lambda:[{'ticker':'AGBA','kind':'bank','name':'Agrobank'}])
+@pytest.mark.parametrize(('ticker','mapped','npl','stamp'), [
+    ('AGBA','AGBA',3.4,'2026-09-01'), ('TGBK','TNGB',4.934537978434132,'2026-10-01'),
+])
+def test_screener_joins_official_bank_data_without_changing_report_period(monkeypatch, ticker, mapped, npl, stamp):
+    monkeypatch.setattr(service,'universe',lambda:[{'ticker':ticker,'kind':'bank','tickers':[ticker,mapped]}])
     monkeypatch.setattr(service,'market_context',lambda:{'AGBA':{'market_cap':200,'price':10}})
-    monkeypatch.setattr(cbu,'context',lambda:{'banks':{'AGBA':{'npl':{'npl_pct':3.4,'date':'2026-09-01','source_url':'https://cbu.uz/npl'}}},'deposit':{'value':17.2,'period':'2026-08','source_url':'https://cbu.uz/rates'},'sector':{},'fsi':[]})
+    monkeypatch.setattr(cbu,'context',lambda:{'banks':{mapped:{'npl':{'npl_pct':npl,'date':stamp,'source_url':'https://cbu.uz/npl'}}},'deposit':{'value':17.2,'period':'2026-08','source_url':'https://cbu.uz/rates'},'sector':{},'fsi':[]})
     async def financials(*args):return {'periods':['2025'],'series':{},'standard':'NSBU'}
     monkeypatch.setattr(service,'financial_series',financials)
     result=asyncio.run(service.screener())
-    assert result['rows'][0]['npl']==3.4
+    assert result['rows'][0]['npl']==npl
     assert result['rows'][0]['period']=='2025'
-    assert result['rows'][0]['cbu']['npl']['date']=='2026-09-01'
+    assert result['rows'][0]['cbu']['npl']['date']==stamp
     assert result['deposit_rate']==17.2 and result['deposit']['period']=='2026-08'
 
 

@@ -960,7 +960,10 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
     value:0.1412974055, period_end:'2026-06-30', first_quote_date:'2026-10-06', market_as_of:'2026-11-20'}}}
   }, {ticker:'UZNF', period:'2025', metrics:{eps_basic:{value:null,other_filing:{
     standard:'ifrs',scope:'separate',period:'2025',period_start:'2024-12-24',period_end:'2025-12-31',
-    value:0.1021,unit:'UZS_per_share',source_url:'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf',page:61}}}
+    value:0.1021,unit:'UZS_per_share',source_url:'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf',page:61}},
+    price_to_book:{value:null,other_filing:{standard:'ifrs',scope:'separate',period:'2026Q3',period_end:'2026-09-30',
+      value:1.0701459,unit:'ratio',audited:false,market_as_of:'2026-11-20',
+      source_url:'https://openinfo.uz/media/msfo/5af7c625-ee50-43c4-bb6a-d008089057fb.pdf',page:3}}}
   }, {ticker:'HMKB', period:'2026Q3', metrics:{issuer_price_to_book:{value:1.820788,market_as_of:'2026-11-20'},eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
     other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',
       source_url:'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf',page:48}}}
@@ -991,10 +994,14 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   await expect(priorBook).toContainText('2026-06-30');
   await expect(priorBook).toContainText('2026-10-06 – 2026-11-20');
   expect(csv).toMatch(/0.1412974055.*2026-06-30.*2026-10-06.*2026-11-20/);
-  const fund = table.getByRole('row').filter({hasText:'UZNF'}).getByRole('link',{name:/МСФО/});
+  const fundRow = table.getByRole('row').filter({hasText:'UZNF'});
+  const fund = fundRow.getByRole('link',{name:/МСФО.*0,1021/});
   await expect(fund).toContainText('0,1021');
   await expect(fund).toContainText('2024-12-24');
   expect(csv).toMatch(/2024-12-24.*0,1021/);
+  const interim = fundRow.getByRole('link', {name:/без аудита.*2026-09-30.*1,0701459.*2026-11-20/});
+  await expect(interim).toHaveAttribute('href', /5af7c625.*#page=3$/);
+  expect(csv).toMatch(/без аудита.*2026-09-30.*1,0701459.*2026-11-20/);
 });
 
 test('published zero and preferred yields link to the applicable shareholder decision', async ({page}) => {

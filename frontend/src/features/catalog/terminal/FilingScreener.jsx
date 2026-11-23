@@ -1,5 +1,5 @@
 import React from 'react';
-import OtherFilingEps from '../../../shared/OtherFilingEps.jsx';
+import OtherFilingValue from '../../../shared/OtherFilingValue.jsx';
 import {localizedPath} from '../../../lib/languagePath.js';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {displayReportRatio,reportRatioReason} from '../../../lib/reportRatioDisplay.js';
@@ -43,7 +43,7 @@ export function FilingScreener({lang, onClose}) {
           const quoteLabel = r?.quoteLabel || (quoteDates.length ? words(lang,'Котировка','Kotirovka','Quote') + ' ' + [...new Set(quoteDates)].join(' – ') : '');
           const exportValue = r?.datedExport ?? (r?.value != null ? [r.raw_result ?? r.value, quoteLabel].filter(v=>v !== '').join(' ') : undefined);
           return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : exportValue}>
-            {r?.other_filing && r.value == null ? <OtherFilingEps filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
+            {r?.other_filing && r.value == null ? <OtherFilingValue filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
             {r?.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
             {quoteLabel && <div className="muted">{quoteLabel}</div>}
           </td>;})}

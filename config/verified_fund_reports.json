@@ -61,5 +61,43 @@
       "source_line_id": "PDF:note17:portfolio_exchange",
       "changes_reported_nav": false
     }]
-  }]
+  }],
+  "interim_reports": [
+    {
+      "ticker": "UZNF",
+      "issuer_id": "1059",
+      "isin": "UZ7058980010",
+      "period": "2026Q3",
+      "scope": "separate",
+      "period_start": "2026-01-01",
+      "period_end": "2026-09-30",
+      "audited": false,
+      "source_url": "https://openinfo.uz/media/msfo/5af7c625-ee50-43c4-bb6a-d008089057fb.pdf",
+      "report_id": 3340,
+      "sha256": "7d03f68068be4d186782c13cf505e16fee5e0b1f00c751eef6c340a247cbb0ca",
+      "publication_date": "2026-10-30",
+      "unit": "million UZS",
+      "balance_page": 3,
+      "income_page": 2,
+      "changes_in_equity_page": 4,
+      "assets": 32253154,
+      "liabilities": 703743,
+      "equity": 31549411,
+      "issued_capital": 25271313,
+      "treasury": 0,
+      "profit": 1936551,
+      "opening_retained": 1403150,
+      "closing_retained": 3339701,
+      "ordinary_shares": 5054262531127,
+      "nominal_uzs": 5,
+      "registered_capital_uzs": 25271312655635,
+      "issue_date": "2026-04-21",
+      "issue_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/96440/",
+      "conversion_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/96267/",
+      "charter_url": "https://www.uzse.uz/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBZ284IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--dc53f40d925adc5bc7c44f6d8dd2f767cdd5d53b/Charter%20Following%20Conversion%20and%20Share%20Redemptions_Uz_THE%20FINAL.pdf",
+      "charter_sections": "28–30",
+      "opening_share_class_source": "https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf#page=62",
+      "ordinary_only_throughout": true
+    }
+  ]
 }

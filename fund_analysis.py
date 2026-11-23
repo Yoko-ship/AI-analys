@@ -49,6 +49,69 @@ def reported_eps(report):
             'source_url': record['source_url'], 'page': basis['page'], 'unit': 'UZS_per_share'}
 
 
+def interim_filing_metrics(issuer, scope, quote, period=None):
+    """Supplement the annual fund columns with independently dated, reviewed interim disclosures."""
+    from contextlib import closing
+    from catalogue.storage import get_catalog_conn
+    from data_quality import held_public_periods
+    import dbx
+
+    today = date.today().isoformat()
+    records = json.loads((Path(__file__).parent / 'config' / 'verified_fund_reports.json').read_text())['interim_reports']
+    candidates = [r for r in records if r['ticker'] == issuer['ticker'] and r['issuer_id'] == str(issuer['id'])
+                  and r['scope'] == scope and (not period or period == r['period'])
+                  and r['period_end'] <= r['publication_date'] <= today]
+    if not candidates:
+        return {}
+    held = held_public_periods(issuer['ticker'], 'MSFO')
+    with closing(get_catalog_conn()) as conn:
+        if not {'ingest_sources', 'ingest_versions'} <= set(dbx.tables(conn)):
+            return {}
+        for record in sorted(candidates, key=lambda r: r['period_end'], reverse=True):
+            if record['period'] in held:
+                continue
+            row = conn.execute(
+                'SELECT s.metadata_json FROM ingest_sources s JOIN ingest_versions v ON v.id=s.latest_version '
+                'AND v.source_id=s.id WHERE s.org_id=? AND s.category=? AND s.url=? AND v.sha=?',
+                (record['issuer_id'], 'MSFO', record['source_url'], record['sha256'])).fetchone()
+            meta = json.loads(row['metadata_json']) if row else {}
+            if (meta.get('status') == 'approved' and meta.get('report_form') == 'MSFO'
+                    and meta.get('period_type') == 'quarterly' and meta.get('pdf_url') == record['source_url']
+                    and str(meta.get('organization_id')) == record['issuer_id'] and meta.get('id') == record['report_id']
+                    and str(meta.get('published_at'))[:10] == record['publication_date']):
+                return _interim_per_share(record, quote, today)
+    return {}
+
+
+def _interim_per_share(record, quote, today):
+    shares = Decimal(record['ordinary_shares'])
+    scale = Decimal(1000000)
+    capital = shares * record['nominal_uzs']
+    if (shares <= 0 or record['treasury'] != 0 or record['unit'] != 'million UZS'
+            or record['issue_date'] > record['period_end'] or capital != record['registered_capital_uzs']
+            or (capital / scale).quantize(Decimal(1), rounding=ROUND_HALF_UP) != record['issued_capital']
+            or record['equity'] != record['assets'] - record['liabilities'] or not record['ordinary_only_throughout']):
+        return {}
+    basis = {k: record[k] for k in ('scope', 'period', 'period_end', 'publication_date', 'source_url', 'audited',
+                                     'isin', 'ordinary_shares', 'issue_url', 'charter_url')}
+    def metric(value, unit, page, **extra):
+        return {'value': None, 'other_filing': {**basis, 'standard': 'ifrs', 'value': float(value),
+                'unit': unit, 'page': page, **extra}}
+    book = record['equity'] * scale / shares
+    metrics = {'book_value_per_share': metric(book, 'UZS_per_share', record['balance_page'])}
+    if record['closing_retained'] - record['opening_retained'] == record['profit']:
+        metrics['eps_closing_estimate'] = metric(record['profit'] * scale / shares, 'UZS_per_share',
+                                                 record['income_page'], period_start=record['period_start'])
+    price, cap = decimal(quote.get('price')), decimal(quote.get('market_cap'))
+    day = quote.get('market_date') or ''
+    if (book > 0 and price and price > 0 and cap and abs(cap - shares * price) <= Decimal('0.01')
+            and not quote.get('excluded_classes') and not quote.get('missing_classes') and quote.get('isin') == record['isin']
+            and quote.get('share_type') == 'ordinary' and record['publication_date'] <= day <= today):
+        multiple = metric(price / book, 'ratio', record['balance_page'], market_as_of=day)
+        metrics.update(price_to_book=multiple, issuer_price_to_book=multiple)
+    return metrics
+
+
 def enrich(report, snapshot, market=None):
     if report["status"] != "available":
         return report

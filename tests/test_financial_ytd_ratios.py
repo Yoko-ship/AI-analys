@@ -574,3 +574,65 @@ def test_uzngp_latest_ebit_keeps_zero_placeholder_empty_and_dates_the_verified_f
     assert metric('2025').get('value') is None
     held.add('2020')
     assert not metric().get('last_verified')
+
+
+def test_uznf_interim_book_and_closing_eps_use_registered_converted_shares(tmp_path, monkeypatch):
+    from financial_ingestion import documents, store
+    from financial_columns import service as columns
+    from server.terminal import service
+    import issuer_financials
+    import sector_report_service
+
+    monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'fund.db'))
+    url = 'https://openinfo.uz/media/msfo/5af7c625-ee50-43c4-bb6a-d008089057fb.pdf'
+    filed = '2026-10-30T11:50:44.703337'
+    sha = '7d03f68068be4d186782c13cf505e16fee5e0b1f00c751eef6c340a247cbb0ca'
+    meta = {'period_type': 'quarterly', 'organization_id': 1059, 'id': 3340, 'pdf_url': url,
+            'published_at': filed, 'status': 'approved', 'report_form': 'MSFO'}
+    with store.transaction() as conn:
+        src = documents.register(conn, org_id='1059', ticker='UZNF', category='MSFO', url=url, metadata=meta, processor='test')
+        conn.execute('INSERT INTO ingest_artifacts VALUES (?,?,?,?,?)',(sha,'fund.pdf',1,'application/pdf',filed))
+        conn.execute('INSERT INTO ingest_versions VALUES (?,?,?,?,?)',('v',src,sha,store.encoded(meta),filed))
+        conn.execute('UPDATE ingest_sources SET latest_version=? WHERE id=?',('v',src))
+    issuer = {'id': '1059', 'ticker': 'UZNF', 'organization_type': 'investment_fund_ifrs_annual'}
+    company = {'ticker': 'UZNF', 'org_id': '1059'}
+    annual = {'issuer': issuer, 'scope': 'separate', 'standard': 'ifrs', 'period': '2025', 'sources': []}
+    quote = {'isin': 'UZ7058980010', 'share_type': 'ordinary', 'price': 6.68, 'market_date': '2026-11-20',
+             'market_cap': 33762473707928.36, 'excluded_classes': [], 'missing_classes': []}
+    monkeypatch.setattr(columns, 'filing_roce', lambda *a: ('2025', {'value': None}))
+    monkeypatch.setattr(service, 'universe', lambda **kw: [company])
+    monkeypatch.setattr(service, 'market_context', lambda: {'UZNF':quote})
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda t: issuer)
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda *a, **kw: annual)
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda r:r)
+    held = set()
+    monkeypatch.setattr('data_quality.held_public_periods', lambda *args: held)
+    def read(period=None):
+        return service.filing_metrics('separate', period, 'UZNF', 0, 1)['rows'][0]['metrics']
+    m = read()
+    def other(key):
+        return m.get(key, {}).get('other_filing', {})
+    book = other('book_value_per_share')
+    assert book.get('value') == pytest.approx(31549411 * 10**6 / 5054262531127)
+    assert book['source_url'] == url and book['period_end'] == '2026-09-30' and book['page'] == 3
+    assert book['audited'] is False and book['unit'] == 'UZS_per_share'
+    estimate = other('eps_closing_estimate')
+    assert estimate.get('value') == pytest.approx(1936551 * 10**6 / 5054262531127)
+    assert estimate['page'] == 2 and estimate['period_start'] == '2026-01-01'
+    assert 'eps_basic' not in m
+    for key in ('issuer_price_to_book', 'price_to_book'):
+        assert other(key)['value'] == pytest.approx(6.68 / book['value'])
+        assert other(key)['market_as_of'] == quote['market_date']
+    assert read('2026Q3')['book_value_per_share']['other_filing']['period_end'] == '2026-09-30'
+    assert 'book_value_per_share' not in read('2025')
+    quote['market_date'] = '2026-10-29'
+    assert 'price_to_book' not in read() and 'book_value_per_share' in read()
+    quote['market_date'] = '2026-11-20'
+    quote['market_cap'] /= 5
+    assert 'price_to_book' not in read()
+    held.add('2026Q3')
+    assert 'book_value_per_share' not in read()
+    held.clear()
+    with store.transaction() as conn:
+        conn.execute('UPDATE ingest_sources SET metadata_json=? WHERE id=?',(store.encoded({**meta,'status':'withdrawn'}),src))
+    assert 'book_value_per_share' not in read()
