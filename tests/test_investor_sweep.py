@@ -16,6 +16,46 @@ Basic and diluted earnings per ordinary share (expressed in
 UZS per share)       14.22       12.13"""
 
 
+@pytest.mark.parametrize('change', [None, ('(1,476)', '(1,475)'), ('2,787,191', '278,719'),
+                                    ('millions of Uzbek Soums', 'thousands of Uzbek Soums')])
+def test_aloqabank_eps_after_preference_allocation(change):
+    from financial_ingestion import investor_eps
+    text = """JOINT STOCK COMMERCIAL “ALOQABANK” AND ITS SUBSIDIARIES
+NOTES TO THE CONSOLIDATED FINANCIAL STATEMENTS - 31 DECEMBER 2025
+(In millions of Uzbek Soums, unless otherwise indicated)
+28. EARNINGS PER SHARE
+Basic earnings per share are calculated by dividing the profit or loss attributable to owners of the Bank by the weighted
+average number of ordinary shares in issue during the year, excluding treasury shares. The Bank has no dilutive potential
+ordinary shares; therefore, the diluted earnings per share equal the basic earnings per share. Earnings per share are
+calculated as follows:
+2025 2024
+Profit /(loss) for the year attributable to the ordinary shareholders of the Bank (194,251) 252,306
+Less undistributed profit or loss for the year attributable to preference
+shareholders based on terms of the shares (1,476) (7,380)
+Profit/(loss) for the year attributable to the ordinary shareholders of the
+Bank
+
+(195,727) 244,926
+Weighted average number of ordinary shares in issue (millions) 2,787,191 2,054,004
+Total basic and diluted earnings per share attributable to the owners of
+the bank (expressed in UZS per share)
+
+(0.07) 0.12"""
+    rows = investor_eps.reconciled_eps(text.replace(*change) if change else text, page=58)
+    if change:
+        assert rows == []
+        return
+    assert [r['raw_value'] for r in rows] == ['-0.07','0.12']
+    url = 'https://openinfo.uz/media/msfo/b11dc39a-8ced-4bf9-9c1a-f29f451ebc43.pdf'
+    meta = dict(organization_id=10, organization_name='AT "Aloqabank"', status='approved',
+                report_form='MSFO', period_type='annual', pdf_url=url, published_at='2026-06-11')
+    def official(name):
+        return investor_eps.official_filing({**meta, 'organization_name':name}, url=url, org='10',
+                                           row=rows[0], end='2026-09-30', cutoff='2026-11-20')
+    assert official(meta['organization_name'])['value'] == -0.07
+    assert official('AT "Aloqabank Leasing"') is None
+
+
 @pytest.mark.parametrize('change', [None, ('14.22','142.2'), ('  2025       2024','  2024       2025'),
     ('UZS per share','USD per share'), ('(millions)','(thousands)'), ('ordinary shareholders','preferred shareholders')])
 def test_hmkb_audited_eps_requires_matching_currency_class_dates_and_arithmetic(change):

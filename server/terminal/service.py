@@ -374,7 +374,7 @@ def filing_metrics(scope, period, search, offset, limit):
                         and (not item['period'] or report.get('period') == item['period'])):
                     item.update(period=report.get('period'), status=report.get('status') if item['status'] != 'available' else item['status'])
                     item['metrics'].update({r['metric_code']: {k:r.get(k) for k in
-                        ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of')}
+                        ('value','raw_result','unit','calculation_status','reason_code','missing_inputs','market_as_of','other_filing')}
                         for r in report['ratios'] if r['metric_code'] in SHARE_METRICS | {'ebit'}})
                     for r in report['ratios']:
                         if r.get('last_verified') and r['metric_code'] in item['metrics']:

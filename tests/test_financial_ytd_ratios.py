@@ -114,6 +114,27 @@ def test_filing_screener_can_show_roce_from_the_filing_without_an_analysis_card(
     assert group['metrics']['roce']['value'] is None
 
 
+def test_filing_screener_preserves_published_eps_from_a_different_reporting_basis(monkeypatch):
+    from server.terminal import service
+    import issuer_financials
+    import sector_report_service
+    from financial_columns import service as columns
+
+    filing = {'standard': 'ifrs', 'scope': 'consolidated', 'period': '2025', 'value': 14.22,
+              'unit': 'UZS_per_share', 'page': 48,
+              'source_url': 'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf'}
+    monkeypatch.setattr(service, 'universe', lambda **kw: [{'ticker': 'HMKB', 'org_id': '8'}])
+    monkeypatch.setattr(columns, 'filing_roce', lambda *args: ('2026Q3', {'value': None}))
+    monkeypatch.setattr(issuer_financials, 'resolve_issuer', lambda ticker: {'id': '8', 'ticker': ticker})
+    monkeypatch.setattr(sector_report_service, 'sector_report', lambda *args, **kw: {})
+    monkeypatch.setattr(sector_report_service, 'public_report', lambda report: {
+        'standard': 'nsbu', 'scope': 'separate', 'period': '2026Q3', 'status': 'available',
+        'ratios': [{'metric_code': 'eps_basic', 'value': None, 'other_filing': filing}]})
+    row = service.filing_metrics('separate', None, 'HMKB', 0, 1)['rows'][0]
+    assert row['metrics']['eps_basic']['value'] is None
+    assert row['metrics']['eps_basic']['other_filing'] == filing
+
+
 def test_agmkp_latest_filed_annual_stays_visible_beyond_newer_comparative_balances():
     from financial_columns.matrix import build
     def row(end, kind, role='PRIMARY'):

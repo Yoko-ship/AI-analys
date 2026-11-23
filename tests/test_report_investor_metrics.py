@@ -107,6 +107,26 @@ def test_abkz_charter_and_filing_verify_september_book_value(report, monkeypatch
     assert out['eps_basic']['value'] is None
 
 
+def test_jasm_september_ordinary_book_value_and_price(report, monkeypatch):
+    report.update(period='2026Q3', financial_as_of='2026-09-30')
+    report['issuer'].update(id='246', ticker='JASM')
+    report['verified_facts'] = [
+        dict(metric_code=key, value=value, period='2026Q3', unit_normalized='thousand UZS',
+             verification_status='verified')
+        for key, value in [('total_assets', 89023233), ('total_equity', 28727827)]
+    ]
+    rows = source_rows(report, share_capital=1633137, treasury_shares=0)
+    inject(monkeypatch, [{**r, 'period_start':'2026-09-30', 'period_end':'2026-09-30'} for r in rows])
+    report['instrument'] = {'instrument_type':'ordinary_share', 'isin':'UZ7012450001',
+                            'ticker':'JASM', 'last_price':29900, 'market_as_of':'2026-11-20',
+                            'valuation_as_of':'2026-11-20', 'freshness':{'status':'fresh'}}
+    out = metrics(report)
+    book = 28727827000 / 1633137
+    assert out['book_value_per_share']['value'] == pytest.approx(book)
+    assert out['price_to_book']['value'] == pytest.approx(29900 / book)
+    assert out['eps_basic']['value'] is None
+
+
 @pytest.mark.parametrize('status', ['available','no_source'])
 def test_last_verified_book_value_uses_both_inputs_from_same_older_filing(biok_report, monkeypatch, status):
     import issuer_financials

@@ -16,7 +16,7 @@ from . import documents, layout
 from .statements import cells
 
 
-VERSION = 'annual-eps-note-2'
+VERSION = 'annual-eps-note-3'
 STATEMENT_VERSION = 'annual-reported-eps-1'
 NOTE_TITLE = re.compile(r"^\s*(?:\d+[.)]?\s+)?(?:basic )?earnings per (?:ordinary )?share\s*$", re.I | re.M)
 PERIOD = re.compile(r'notes to (?:the )?(consolidated|separate|individual) financial statements\s*[-–—,]?\s*(?:as (?:at|of) )?31 December (20\d\d)', re.I)
@@ -28,6 +28,44 @@ LABELS = {
 }
 
 
+def _allocated_table(lines, header_lines):
+    """Some notes print the units in the page heading and deduct preferred earnings in the table."""
+    scales = [m[1] for line in header_lines if (m := re.fullmatch(
+        r'\s*\(In (millions|thousands) of (?:Uzbekistan|Uzbek) Soums, unless otherwise indicated\)\s*', line, re.I))]
+    dates = [(i, m) for i, line in enumerate(lines) if (m := re.fullmatch(r'(20\d\d)\s+(20\d\d)', line))]
+    if len(scales) != 1 or len(dates) != 1:
+        return None
+    start, years = dates[0]
+    # Rejoin wrapped labels until the row ends with a printed numeric cell.
+    data, pending = [], []
+    for line in lines[start+1:]:
+        pending.append(line)
+        if re.search(r'\d\)?$', line):
+            data.append(' '.join(pending))
+            pending = []
+            if len(data) == 5:
+                break
+    ordinary = r'Profit\s*/\s*\(loss\) for the year attributable to the ordinary shareholders of the (?:Bank|Group|Company)'
+    labels = [ordinary, r'Less undistributed profit or loss for the year attributable to preference shareholders based on terms of the shares',
+              ordinary, LABELS['weighted'], r'Total basic and diluted earnings per share attributable to the owners of the (?:Bank|Group|Company) \(expressed in UZS per share\)']
+    amounts = []
+    if len(data) != len(labels):
+        return None
+    for line, label in zip(data, labels):
+        match = re.fullmatch(label + r'\s+([()\d.,\s−-]+)', line, re.I)
+        if not match or (label == LABELS['weighted'] and match[1].lower() != scales[0].lower()):
+            return None
+        values = cells(match.groups()[-1], 2)
+        if not values or None in values:
+            return None
+        amounts.append(values)
+    for before, preference, after in zip(*amounts[:3]):
+        if Decimal(before) + Decimal(preference) != Decimal(after):
+            return None
+    fields = {key:(line, values) for key, line, values in zip(('profit','weighted','eps'), data[2:], amounts[2:])}
+    return start, *years.groups(), fields
+
+
 def reconciled_eps(text, *, page):
     """Require a dated annual table and independently reproduce each printed EPS."""
     period = PERIOD.search(' '.join(text.splitlines()[:5]))
@@ -36,27 +74,33 @@ def reconciled_eps(text, *, page):
         return []
     lines = [line.strip() for line in text[titles[0].end():].splitlines() if line.strip()]
     headers = [(i, m) for i, line in enumerate(lines) if (m := TABLE.fullmatch(line))]
-    if len(headers) != 1:
+    if not headers:
+        allocated = _allocated_table(lines, text.splitlines()[:5])
+        if not allocated:
+            return []
+        start, latest, prior, fields = allocated
+    elif len(headers) == 1:
+        start, header = headers[0]
+        scale, latest, prior = header.groups()
+        fields = {}
+        # Cells can wrap to the next physical line. Match whole labels in this table only.
+        for index in range(start+1, min(start+12, len(lines))):
+            for key, pattern in LABELS.items():
+                for line in (lines[index], ' '.join(lines[index:index+2])):
+                    match = re.fullmatch(pattern + r'\s+([()\d.,\s−-]+)', line, re.I)
+                    if not match:
+                        continue
+                    if key in fields or (key == 'weighted' and match[1].lower() != scale.lower()):
+                        return []
+                    values = cells(match.groups()[-1], 2)
+                    if not values or any(v is None for v in values):
+                        return []
+                    fields[key] = (line, values)
+                    break
+    else:
         return []
-    start, header = headers[0]
-    scale, latest, prior = header.groups()
     if latest != period[2] or int(prior) != int(latest)-1:
         return []
-    fields = {}
-    # Cells can wrap to the next physical line. Match whole labels in this table only.
-    for index in range(start+1, min(start+12, len(lines))):
-        for key, pattern in LABELS.items():
-            for line in (lines[index], ' '.join(lines[index:index+2])):
-                match = re.fullmatch(pattern + r'\s+([()\d.,\s−-]+)', line, re.I)
-                if not match:
-                    continue
-                if key in fields or (key == 'weighted' and match[1].lower() != scale.lower()):
-                    return []
-                values = cells(match.groups()[-1], 2)
-                if not values or any(v is None for v in values):
-                    return []
-                fields[key] = (line, values)
-                break
     if fields.keys() != LABELS.keys():
         return []
     rows = []
@@ -237,6 +281,11 @@ def official_filing(meta, *, url, org, row, end, cutoff):
         return None
     printed = _name(row.get('issuer_heading'))
     registered = _name(meta.get('organization_name'))
+    if row.get('scope') == 'consolidated' and row.get('source_form') == 'Notes':
+        # An English bank group heading can include its legal form and the consolidation perimeter.
+        bank = re.fullmatch(r'joint stock commercial (.+) and its subsidiaries', printed)
+        if bank and registered.startswith('at '):
+            printed, registered = bank[1], registered.removeprefix('at ')
     if row.get('source_form') == 'Income statement':
         # The Russian and Uzbek legal forms must retain the same activity and
         # the full distinctive name. Never match a substring of an issuer.

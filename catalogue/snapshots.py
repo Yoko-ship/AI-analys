@@ -1047,6 +1047,36 @@ def _fin_row_fields(row: Any) -> dict[str, Any]:
     return fields
 
 
+def _corroborate_annual_assets(conn, annual):
+    """Recover an omitted asset total from a matching next-year opening balance."""
+    from data_quality import held_public_periods
+
+    if annual['quarter'] or annual['total_assets'] not in (None, 0):
+        return annual
+    equity, liabilities = annual['total_equity'], annual['total_liabilities']
+    if equity is None or liabilities is None or liabilities < 0 or equity + liabilities <= 0:
+        return annual
+    ticker, following = annual['ticker'], annual['year'] + 1
+    held = held_public_periods(ticker, 'NSBU')
+    balances = conn.execute(
+        "SELECT quarter,balance_period FROM catalog_financials WHERE ticker=? AND form='NSBU' "
+        "AND year=? AND quarter BETWEEN 1 AND 3 AND balance_period IS NOT NULL",
+        (ticker, following))
+    openings = set()
+    for row in balances:
+        if f"{following}Q{row['quarter']}" in held:
+            continue
+        balance = catalogue_codecs._decode_balance_period(row['balance_period']) or {}
+        assets, capital = balance.get('assets_start'), balance.get('equity_start')
+        if assets is not None and assets > 0 and capital is not None:
+            openings.add((assets, capital))
+    if len(openings) == 1:
+        assets, capital = openings.pop()
+        if capital == equity and abs(assets - equity - liabilities) <= 1:
+            return {**dict(annual), 'total_assets': assets}
+    return annual
+
+
 def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str, Any]]:
 
     """Every ANNUAL period this platform has parsed for one issuer, by year.
@@ -1118,6 +1148,9 @@ def get_financials_series(ticker: str, form: str = "NSBU") -> dict[str, dict[str
             "AND r.quarter=4))) ORDER BY year",
 
             (*siblings, form)).fetchall()
+
+        if form == 'NSBU':
+            fin = [_corroborate_annual_assets(conn, row) for row in fin]
 
         rat = conn.execute(
 

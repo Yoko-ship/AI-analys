@@ -14,7 +14,8 @@ export function RatioOverview({snapshot,metrics,growth,form,scope,lang}) {
     <section className="terminal-ratio-card terminal-annual-card">
       <header className="terminal-ratio-card-head">
         <h3>{title}</h3>
-        <p className="terminal-ratio-meta"><strong>{snapshot.period||'—'}</strong><span>{form}</span><span>{scopeLabel}</span></p>
+        <p className="terminal-ratio-meta"><strong>{snapshot.period||'—'}</strong><span>{form}</span><span>{scopeLabel}</span>
+          {snapshot.market_date && <span>{words(lang,'Котировка','Kotirovka','Quote')} · {snapshot.market_date}</span>}</p>
       </header>
       <div className="terminal-table-wrap"><table className="terminal-table terminal-annual-ratios">
         <caption className="sr-only">{title} · {snapshot.period||'—'} · {form} · {scopeLabel}</caption>

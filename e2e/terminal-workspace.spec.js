@@ -91,6 +91,19 @@ print(json.dumps({**report, 'ratios': calculate(report, rows) + statutory}))
   await table.screenshot({path:testInfo.outputPath(`${ticker.toLowerCase()}-ratios-${width}.png`)});
 });
 
+test('JASM issuer ratios show dated market P/B and P/E beside filing ratios',async({page})=>{
+  await fixture(page,[{ticker:'JASM',company_name:'Jizzax akkumulyator zavodi',sector:'industry'}]);
+  await page.route('**/api/terminal/issuer/JASM/analytics?*',r=>r.fulfill({json:{ok:true,
+    snapshot:{kind:'industry',period:'2025',market_date:'2026-11-20',pb:1.7087346198895565,pe:19.349964454976302},
+    quarters:{rows:[]},growth:[]}}));
+  await run(page,'JASM RAT');
+  const annual=page.locator('.terminal-annual-ratios');
+  for(const [metric,value] of [['P/B','1,71'],['P/E','19,35']]){
+    await expect(annual.getByRole('row').filter({has:page.getByRole('button',{name:metric,exact:false})}).getByRole('cell')).toHaveText(value);
+  }
+  await expect(page.locator('.terminal-annual-card')).toContainText('2026-11-20');
+});
+
 for(const [theme,width] of [['light',1440],['dark',390]]) test(`bank annual ratios and missing-value explanations work on EQS and RV (${theme}, ${width}px)`,async({page},testInfo)=>{
   await page.setViewportSize({width,height:1000});
   await page.addInitScript(theme=>localStorage.setItem('uz_stock_analyzer_theme',theme),theme);
@@ -943,6 +956,9 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   await fixture(page);
   await page.route('**/api/terminal/filing-metrics?**', route => route.fulfill({json:{rows:[{
     ticker:'ABKZ', period:'2026Q3', metrics:{ebit:{value:8714009}, roce:{value:9.194}, eps_basic:{value:null,reason_code:'EPS_INPUTS_MISSING'}}
+  }, {ticker:'HMKB', period:'2026Q3', metrics:{eps_basic:{value:null, reason_code:'EPS_INPUTS_MISSING',
+    other_filing:{standard:'ifrs',scope:'consolidated',period:'2025',value:14.22,unit:'UZS_per_share',
+      source_url:'https://openinfo.uz/media/msfo/ba173c49-969f-48b2-8657-64d386332c52.pdf',page:48}}}
   }]}}));
   await run(page,'EQS');
   await page.getByRole('button',{name:'EPS · P/BV · EBIT · ROCE',exact:true}).click();
@@ -960,4 +976,7 @@ test('filing screener exposes verified EBIT and separate estimate columns for CS
   const csv = Buffer.concat(chunks).toString('utf8');
   expect(csv).toContain('ROCE');
   expect(csv).toContain('9.194');
+  const published=table.getByRole('row').filter({hasText:'HMKB'}).getByRole('link',{name:/МСФО.*2025.*14,22/});
+  await expect(published).toHaveAttribute('href',/ba173c49.*#page=48$/);
+  expect(csv).toMatch(/МСФО.*2025.*14[,.]22/);
 });

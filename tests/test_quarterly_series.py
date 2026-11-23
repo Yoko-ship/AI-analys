@@ -10,6 +10,8 @@ the predecessor filing is missing.
 """
 from __future__ import annotations
 
+import pytest
+
 import catalogue.snapshots as catalogue_snapshots
 
 import server.company.financials as subject_server_company_financials
@@ -169,6 +171,27 @@ class TestBalancePeriodFallback:
         fields = catalogue_snapshots._fin_row_fields(row)
         assert fields["total_assets"] == 1000.0
         assert fields["total_equity"] == 400.0
+
+    @pytest.mark.parametrize('opening_assets,opening_equity,expected', [
+        (8168369, 4568663, 8168369),
+        (8168369, 4500000, 0),
+        (8168000, 4568663, 0),
+    ])
+    def test_orgs_2025_assets_require_an_independent_opening_balance(
+            self, tmp_path, monkeypatch, opening_assets, opening_equity, expected):
+        from catalogue import financial_store
+
+        # Openinfo annual filing 6166 omits line 400 but discloses lines 480
+        # and 770. The opening column in Q3 filing 19145 confirms both.
+        monkeypatch.setenv('CATALOG_DB_PATH', str(tmp_path / 'orgs.db'))
+        financial_store.upsert_financials_cache('ORGS', 'NSBU', 2025, 0, {
+            'total_assets': 0, 'total_equity': 4568663, 'total_liabilities': 3599706})
+        financial_store.upsert_financials_cache('ORGS', 'NSBU', 2026, 3, {
+            'total_assets': 6091071, 'balance': {
+                'assets_start': opening_assets, 'equity_start': opening_equity}})
+        year = catalogue_snapshots.get_financials_series('ORGS')['2025']
+        assert year['total_assets'] == expected
+        assert year['total_equity'] == 4568663
 
     def test_the_columns_win_over_the_balance_block(self):
         import reports_catalog as rc

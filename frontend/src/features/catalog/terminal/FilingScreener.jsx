@@ -1,4 +1,5 @@
 import React from 'react';
+import OtherFilingEps from '../../../shared/OtherFilingEps.jsx';
 import {localizedPath} from '../../../lib/languagePath.js';
 import {words} from '../../../shared/TerminalTables.jsx';
 import {displayReportRatio,reportRatioReason} from '../../../lib/reportRatioDisplay.js';
@@ -37,8 +38,8 @@ export function FilingScreener({lang, onClose}) {
         <th><a href={localizedPath('/catalog?' + new URLSearchParams({t:row.ticker,f:'RAT',filingScope:scope}),lang)}>{row.ticker}</a></th><td>{row.period||'—'}</td>
         {columns.map(([k])=>{const r=displayReportRatio(row.metrics?.[k],lang);const reason=r?.reason_code
           ? k === 'roce' ? financialColumnQualityReason(r.reason_code,(...labels)=>words(lang,...labels)) : reportRatioReason(r,lang) : '';
-          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? reason || '—' : r.datedExport || r.raw_result || String(r.value)}>
-            {r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
+          return <td key={k} title={reason || r?.market_as_of} data-export-value={r?.value == null ? r?.other_filing ? undefined : reason || '—' : r.datedExport || r.raw_result || String(r.value)}>
+            {r?.other_filing && r.value == null ? <OtherFilingEps filing={r.other_filing} lang={lang}/> : r?.value == null ? '—' : format.format(r.value)}{r?.quality === 'warn' && <span aria-label={reason}> ⚠</span>}
             {r?.asOfLabel && <div className="muted">{r.asOfLabel}</div>}
             {r?.quoteLabel && <div className="muted">{r.quoteLabel}</div>}
           </td>;})}

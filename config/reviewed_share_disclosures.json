@@ -119,5 +119,24 @@
       "charter": "https://openinfo.uz/media/documents/%D0%AF%D0%BD%D0%B3%D0%B8_%D1%82%D0%B0%D1%85%D1%80%D0%B8%D1%80%D0%B4%D0%B0%D0%B3%D0%B8_%D0%A3%D1%81%D1%82%D0%B0%D0%B2_2022.pdf",
       "parent_filing": "https://openinfo.uz/ru/reports/jsc/annual/4953"
     }
+  },
+  {
+    "issuer_id": "246",
+    "ticker": "JASM",
+    "isin": "UZ7012450001",
+    "period_start": "2026-09-30",
+    "period_end": "2026-09-30",
+    "scope": "separate",
+    "source_standard": "NSBU",
+    "source_url": "https://new-api.openinfo.uz/api/v2/disclosure/facts/97445/",
+    "unit": "shares",
+    "ordinary_shares": "1633137",
+    "ordinary_only_at_end": true,
+    "closing_share_capital_thousand": "1633137",
+    "source_lines": {
+      "ordinary_shares": "Charter §§4.1 and 4.3 identify 1,633,137 placed ordinary shares at 1,000 UZS each. September Form 1 lines 410 and 440 confirm the same capital and zero treasury shares.",
+      "ordinary_only_at_end": "Charter §3.4 gives total capital of 1,633,137,000 UZS, fully accounted for by the ordinary issue in §4.1.",
+      "balance_sheet": "https://openinfo.uz/uz/reports/jsc/quarter/19060"
+    }
   }
 ]

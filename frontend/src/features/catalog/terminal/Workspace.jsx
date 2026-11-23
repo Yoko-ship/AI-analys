@@ -157,7 +157,7 @@ export const AnalyticsScreen = React.memo(function AnalyticsScreen({ticker,form,
     </>:<>
       <SectorMetrics key={ticker+form+scope} ticker={ticker} form={form} scope={scope} lang={lang}/>
       <RatioOverview snapshot={snap} form={form} scope={scope} lang={lang}
-        metrics={metricsForRows([snap]).filter(([key])=>!["pe","pb","dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
+        metrics={metricsForRows([snap]).filter(([key])=>!["dy","npl"].includes(key)&&(key!=='de'||['industry','non_financial'].includes(snap.kind)))}
         growth={(data?.growth||[]).map(row=>({...row,label:label(row.field,lang)}))}/>
     </>}
     {!summary&&<>
