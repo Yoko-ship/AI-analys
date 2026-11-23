@@ -254,7 +254,7 @@ def cached_report_excel_data(ticker: str, form: str, year: int, quarter: int) ->
     revision = _financial_revision(ticker, form, year, quarter, urls)
     documents = {}
     for url in {urls.get('excel_url'), urls.get('excel_url_form1')} - {None, ''}:
-        parsed = cache._get_excel_cache(url)
+        parsed = cache._get_excel_cache(url) or cache.retained_filing_workbook(url)
         if (parsed and parsed.get('ok') and parsed.get('parser_version') == settings.EXCEL_PARSER_VERSION
                 and parsed.get('financial_revision') == revision
                 and not catalogue_periods.header_period_conflict(parsed, year, quarter, urls.get('published_at'))):

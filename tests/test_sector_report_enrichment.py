@@ -141,3 +141,45 @@ def test_agat_credit_structured_q3_can_support_the_report_without_excel(monkeypa
     assert service._verified_catalog_fallback(snapshot)
     snapshot["current_values"]["total_equity"] = None
     assert not service._verified_catalog_fallback(snapshot)
+
+
+@pytest.mark.parametrize('evicted', [False, True], ids=['expired', 'evicted'])
+def test_kasu_annual_reserves_survive_download_cache_turnover(monkeypatch, tmp_path, evicted):
+    from collectors.openinfo import cache, settings
+    from catalogue.parsing import extract_insurance_balance
+
+    # Openinfo annual insurance filing 312, F1 lines 580 and 670, thousands of UZS.
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=insurance&report_id=312&lang=ru'
+    monkeypatch.setattr(settings, 'EXCEL_CACHE_PATH', tmp_path / 'cache.json')
+    monkeypatch.setattr(settings, 'EXCEL_CACHE_TTL_SECONDS', 30 * 86400)
+    monkeypatch.setattr(catalogue_filings, 'get_report_urls', lambda *args: {'excel_url': url})
+    monkeypatch.setattr(catalogue_sources, '_financial_revision', lambda *args: 'filing-312')
+    balance_rows = [
+        {'label': 'Страховые резервы, всего (стр. 590 + 600 + 610 + 620 + 630 + 640 + 650 + 660)',
+         'numeric_values': [296006195.06, 296360594.09]},
+        {'label': 'Доля перестраховщиков в страховых резервах, всего (стр. 680 + 690 + 700 + 710)',
+         'numeric_values': [109165810.64, 186159662.71]},
+    ]
+    parsed = {'ok': True, 'sheets': [{'table_rows': balance_rows}], 'financial_revision': 'filing-312',
+              'parser_version': settings.EXCEL_PARSER_VERSION, 'content_sha256': 'a' * 64,
+              'reporting_date': '2025-12-31'}
+    cache._set_excel_cache(url, parsed)
+    def read():
+        return catalogue_sources.cached_report_excel_data('KASU', 'NSBU', 2025, 0)
+    assert extract_insurance_balance(read()['balance'])['net_insurance_reserves'] == pytest.approx(110200931.38)
+    entries = cache._load_excel_cache()
+    entries[url]['cached_at'] = 1
+    if evicted:
+        entries.update({f'other-{i}': {'cached_at': 2} for i in range(499)})
+    cache._save_excel_cache(entries)
+    if evicted:
+        cache._set_excel_cache('next', {})
+        assert url not in cache._shared_excel_cache()
+    assert cache._get_excel_cache(url) is None
+    assert extract_insurance_balance(read()['balance'])['net_insurance_reserves'] == pytest.approx(110200931.38)
+    monkeypatch.setattr(catalogue_sources, '_financial_revision', lambda *args: 'corrected-filing')
+    assert not read()['ok']
+    # A newer download at the same URL supersedes any retained evidence.
+    monkeypatch.setattr(catalogue_sources, '_financial_revision', lambda *args: 'filing-312')
+    cache._set_excel_cache(url, {**parsed, 'financial_revision': None, 'content_sha256': 'b' * 64}, existing_only=True)
+    assert not read()['ok']

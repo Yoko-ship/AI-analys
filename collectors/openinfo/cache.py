@@ -1,6 +1,8 @@
 """Openinfo cache operations with explicit dependencies."""
 from __future__ import annotations
 import copy
+import gzip
+import hashlib
 from typing import Any
 
 from pathlib import Path
@@ -108,6 +110,54 @@ def _get_excel_cache(url: str) -> dict[str, Any] | None:
     return None
 
 
+def _retained_path(url: str) -> Path:
+    cache_path = _excel_cache_file()
+    name = hashlib.sha256(url.encode()).hexdigest()
+    return cache_path.with_name(cache_path.name + '.filings') / (name + '.json.gz')
+
+
+def _read_retained(url: str) -> dict[str, Any] | None:
+    try:
+        with gzip.open(_retained_path(url), 'rt', encoding='utf-8') as archive:
+            return json.load(archive)
+    except FileNotFoundError:
+        return None
+    except (ValueError, OSError, EOFError):
+        collectors_openinfo_settings.logger.warning('Unreadable retained filing workbook', exc_info=True)
+        return None
+
+
+def _retain_filing(url: str, entry: dict[str, Any]) -> None:
+    payload = entry.get('payload') or {}
+    if not (payload.get('ok') and payload.get('financial_revision') and payload.get('content_sha256')
+            and payload.get('parser_version') and payload.get('sheets') and not payload.get('warnings')):
+        return
+    path = _retained_path(url)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix('.tmp')
+    try:
+        with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=1) as archive:
+            json.dump({**payload, 'from_cache': True, 'refresh_failed': bool(entry.get('refresh_failed'))},
+                      archive, ensure_ascii=False)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def retained_filing_workbook(url: str) -> dict[str, Any] | None:
+    """Offline evidence for a catalog revision. Downloaders still honor the cache TTL."""
+    if collectors_openinfo_settings.EXCEL_CACHE_TTL_SECONDS <= 0:
+        return None
+    with _EXCEL_CACHE_LOCK:
+        current = _shared_excel_cache().get(url)
+        if current is None:
+            return _read_retained(url)
+        payload = current.get('payload') or {}
+        if payload.get('financial_revision') and payload.get('content_sha256'):
+            return {**copy.deepcopy(payload), 'from_cache': True, 'refresh_failed': bool(current.get('refresh_failed'))}
+        return None
+
+
 def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool = False) -> None:
     if not url or collectors_openinfo_settings.EXCEL_CACHE_TTL_SECONDS <= 0:
         return
@@ -116,6 +166,11 @@ def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool =
     with _cache_writer():
         cache = _load_excel_cache()
         if existing_only and url not in cache:
+            # A historical sweep can discover a same-URL replacement after eviction.
+            retained = _read_retained(url)
+            if retained and (retained.get('content_sha256') != payload.get('content_sha256')
+                             or retained.get('parser_version') != payload.get('parser_version')):
+                _retained_path(url).unlink(missing_ok=True)
             return
         previous = cache.get(url) or {}
         if existing_only:
@@ -127,9 +182,15 @@ def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool =
                 cached_payload['financial_revision'] = old['financial_revision']
         cache[url] = {**previous, "cached_at": time.time(), "payload": cached_payload,
                       "refresh_failed": False}
-        # Keep the cache small; parsed snapshots are enough for analysis.
+        # A newer observation supersedes any retained version of this URL.
+        _retained_path(url).unlink(missing_ok=True)
+        # Keep the frequently rewritten file bounded. Catalog-bound filings
+        # remain available to offline readers after unrelated downloads evict them.
         if len(cache) > 500:
-            cache = dict(sorted(cache.items(), key=lambda pair: pair[1].get("cached_at", 0))[-500:])
+            ordered = sorted(cache.items(), key=lambda pair: pair[1].get("cached_at", 0))
+            for evicted_url, entry in ordered[:-500]:
+                _retain_filing(evicted_url, entry)
+            cache = dict(ordered[-500:])
         _save_excel_cache(cache)
 
 
