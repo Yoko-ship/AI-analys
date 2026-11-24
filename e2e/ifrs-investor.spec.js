@@ -261,3 +261,15 @@ test('ANBK3B shows the foreign exchange result from the signed trading and trans
   await value.click();
   await expect(page.getByRole('dialog')).toContainText('46,919,123');
 });
+
+test('UZINP shows consolidated other comprehensive income with both source totals', async ({page}) => {
+  await openSignedFiling(page, 'UZINP', 'insurance', 'uzinvest_2025_comprehensive_income.json');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab', {name:'PL Profit or loss', exact:true}).click();
+  const cell = panel.locator('tr[data-field="oci"]').getByRole('button', {name:/2025/});
+  await expect(cell).toHaveText(/[-−]3\.59/);
+  await cell.click();
+  const passport = page.getByRole('dialog');
+  await expect(passport).toContainText('79,104,448');
+  await expect(passport).toContainText('82,691,849');
+});

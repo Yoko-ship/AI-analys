@@ -57,6 +57,25 @@ def _bank_fx_terms(income):
     return [(dealing.pop(), 1), (translation.pop(), 1)]
 
 
+def _comprehensive_income_inputs(rows):
+    # A subtotal for continuing operations or an amount attributable to owners
+    # is not comparable to total comprehensive income for the reporting entity.
+    from .ifrs import metric
+    parts = [r for r in rows if r.get('source_form') == 'PL'
+             and r.get('metric_id') in {'net_income', 'comprehensive_income'}]
+    if {r['metric_id'] for r in parts} != {'net_income', 'comprehensive_income'}:
+        return []
+    first = parts[0]
+    if (first.get('kind') != 'flow' or first.get('unit') != 'UZS_thousand'
+            or not all(first.get(k) for k in ('source_version', 'source_url', 'unit_scale', 'currency'))):
+        return []
+    for row in parts:
+        if (row.get('raw_value') is None or metric(row.get('raw_label') or '', 'PL') != row['metric_id']
+                or any(row.get(k) != first.get(k) for k in ('unit', 'currency', 'unit_scale', 'fx', 'source_url'))):
+            return []
+    return parts
+
+
 def enrich(observations, *, template=None):
     result = list(observations)
     groups = defaultdict(list)
@@ -78,6 +97,14 @@ def enrich(observations, *, template=None):
                            'value': str(sum(Decimal(p['value']) * coefficient for p, (_, coefficient) in zip(parts, terms))),
                            'components': parts, 'formula': formula, 'origin': 'UZStock_calculated',
                            'unit': unit, 'quality': 'warn' if any(p['quality'] == 'warn' for p in parts) else 'valid'})
+
+        if standard == 'MSFO' and 'PL' in forms:
+            filed_oci = any(r.get('metric_id') in {'oci', 'other_comprehensive_income'} for r in rows)
+            if not filed_oci:
+                inputs = _comprehensive_income_inputs(rows)
+                if inputs:
+                    add('oci', 'Other comprehensive income', [('comprehensive_income', 1), ('net_income', -1)],
+                        'total comprehensive income − profit or loss for the same period', inputs=inputs)
 
         if standard == 'MSFO' and template == 'bank' and 'PL' in forms:
             income = [r for r in rows if r.get('source_form') == 'PL']

@@ -3125,6 +3125,11 @@
                 "PL",
                 null,
                 "oci"
+              ],
+              [
+                "DERIVED",
+                null,
+                "oci"
               ]
             ],
             "field_id": "general_ifrs_oci"

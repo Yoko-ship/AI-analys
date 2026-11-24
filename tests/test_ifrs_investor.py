@@ -365,3 +365,50 @@ def test_bank_fx_pair_with_additional_exchange_profit_or_loss_is_ambiguous():
     rows = json.loads(Path('tests/fixtures/financial_columns/anorbank_2025_fx.json').read_text())
     rows.append(dict(rows[0], metric_id='fx_loss', raw_label='Foreign exchange loss', value='-515'))
     assert not any(r['metric_id'] == 'fx_gain_loss' for r in derived.enrich(rows, template='bank'))
+
+
+def test_uzinvest_other_comprehensive_income_reconciles_to_revaluation_tax_and_translation():
+    from financial_columns import derived, investor, matrix, presentation
+    rows = json.loads(Path('tests/fixtures/financial_columns/uzinvest_2025_comprehensive_income.json').read_text())
+    result = derived.enrich(rows, template='insurance')
+    table = dict(matrix.build(result, mode='annual'), standard='MSFO', template='insurance', ratios=[])
+    cell = investor.field_cells(table, 'oci', 'pl')['2025']
+    assert cell['value'] == str(52788919 - 7918338 - 48457982)
+    assert [(r['metric_id'], r['value'], r['page']) for r in cell['components']] == [
+        ('comprehensive_income', '79104448', 8), ('net_income', '82691849', 8)]
+    general = presentation.project(dict(table, template='industry'))
+    assert next(r for r in general['rows'] if r['display_field'] == 'general_ifrs_oci')['cells']['2025'] == cell
+
+
+@pytest.mark.parametrize(('metric', 'change'), [
+    ('net_income', {'raw_label': 'Profit attributable to owners of the parent'}),
+    ('net_income', {'raw_label': 'Прибыль за год от продолжающейся деятельности'}),
+    ('comprehensive_income', {'raw_label': 'Total net profit (loss) for the reporting'}),
+    ('comprehensive_income', {'raw_label': 'Other comprehensive income before tax'}),
+    ('comprehensive_income', {'source_version': 'different filing'}),
+    ('comprehensive_income', {'fx': {'rate': 12000}}),
+    ('net_income', {'source_form': 'Equity'}),
+    ('net_income', {'raw_value': None}),
+])
+def test_other_comprehensive_income_requires_comparable_filed_totals(metric, change):
+    from financial_columns import derived
+    rows = json.loads(Path('tests/fixtures/financial_columns/uzinvest_2025_comprehensive_income.json').read_text())
+    for row in rows:
+        if row['metric_id'] == metric:
+            row.update(change)
+    assert not any(r['metric_id'] == 'oci' for r in derived.enrich(rows))
+
+
+def test_tenge_bank_2025_conflicting_printed_oci_subtotal_keeps_its_review_status():
+    from financial_columns import derived
+    source = 'https://openinfo.uz/media/msfo/2e06ddb3-1b9b-4e6b-af48-29224f4cb3b8.pdf'
+    rows = [dict(standard='MSFO', source_form='PL', source_url=source, page=8, issuer_id='815',
+                 scope='separate', source_version='reviewed-Tenge-2025', period_start='2025-01-01',
+                 period_end='2025-12-31', kind='flow', currency='UZS', unit='UZS_thousand', unit_scale='1000000',
+                 metric_id=k, raw_value=raw, value=str(int(raw) * 1000) if raw else None, raw_label=label,
+                 quality='valid' if raw else 'blocked', reason=None if raw else 'CONFLICTING_SOURCE_VALUES')
+            for k, raw, label in [('net_income', '3975', 'Net profit for the year'),
+                                  ('comprehensive_income', '3781', 'Total comprehensive income for the year'),
+                                  ('oci', None, 'Other comprehensive loss for the year')]]
+    (oci,) = [r for r in derived.enrich(rows) if r['metric_id'] == 'oci']
+    assert oci['value'] is None and oci['reason'] == 'CONFLICTING_SOURCE_VALUES'

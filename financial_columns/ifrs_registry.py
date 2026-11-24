@@ -80,13 +80,13 @@ share_of_profit_associates|Share of profit of associates|Доля в прибы�
 profit_before_tax|Profit before tax|Прибыль до налогообложения
 income_tax|Income tax expense|Расходы по налогу на прибыль
 profit_continuing|Profit from continuing operations|Прибыль от продолжающейся деятельности
-net_income|Чистая прибыль (убыток)|Profit for the year|Прибыль за год|Прибыль/(убыток) за отчетный год|Прибыль за отчетный год|Убыток за отчетный год|Чистый убыток за год
+net_income|Net profit|Net profit for the year|Net profit / (loss) for the year|Profit (loss)|Profit / (loss) for the year|Чистая прибыль|Чистая прибыль за год|Чистая прибыль за период|Чистая прибыль / (убыток) за год|Чистая прибыль/убытки за год|Чистая прибыль (убыток) отчетного периода|Итого прибыль (убыток)|Прибыль / (убыток) за год|Убыток за год|Чистая прибыль (убыток)|Profit for the year|Прибыль за год|Прибыль/(убыток) за отчетный год|Прибыль за отчетный год|Убыток за отчетный год|Чистый убыток за год
 preferred_profit_allocation|Profit allocated to preferred shareholders for the period|Права привилегированных акционеров на прибыль за период
 profit_owners|Profit attributable to owners of the parent|Прибыль, приходящаяся на собственников материнской компании
 profit_ordinary|Profit attributable to ordinary equity holders of the parent|Прибыль, приходящаяся на владельцев обыкновенных акций материнской компании
 profit_nci|Profit attributable to non-controlling interests|Прибыль, приходящаяся на неконтролирующие доли участия
 oci|Other comprehensive income|Прочий совокупный доход|Прочий совокупный доход за год за вычетом налога
-comprehensive_income|Total comprehensive income|Общий совокупный доход|Итого совокупный доход/(убыток)
+comprehensive_income|Total comprehensive income for the year|Total comprehensive income for the period|Total comprehensive income for the year, net of tax|Total comprehensive loss for the year|Total comprehensive income/(loss) for the year|Total comprehensive (loss)/profit for the year|Всего совокупный доход|Итого совокупная прибыль за год|Итого совокупный доход|Итого совокупный доход за год|Итого совокупный доход за период|Итого совокупный доход за отчетный период|Итого совокупный доход за год, после налогообложения|Итого совокупный доход/(убыток) за год|Итого совокупный доход/(убыток) за отчетный период|Итого совокупный доход/(убыток) за год, за вычетом налога на прибыль|Итого совокупный убыток за год|Total comprehensive income|Общий совокупный доход|Итого совокупный доход/(убыток)
 eps_basic|Basic earnings per share|Базовая прибыль на акцию
 eps_diluted|Diluted earnings per share|Разводненная прибыль на акцию
 interest_income|Interest income|Процентные доходы
