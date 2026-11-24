@@ -329,6 +329,7 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
     reported_values = dict((series or {}).get(selected) or {}) if selected else {}
     values = dict(reported_values)
     reviewed_correction_fields: set[str] = set()
+    correction_sources = {}
     if selected and scoped_series is None:
         try:
             import data_quality
@@ -336,6 +337,8 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
             if 'Q' not in selected:
                 correction_quarter = 0
             reviewed_correction_fields = set(data_quality.approved_corrections_for(ticker, form, correction_year, correction_quarter))
+            if reviewed_correction_fields:
+                correction_sources = data_quality.approved_correction_sources(ticker, form, correction_year, correction_quarter)
         except Exception:
             reviewed_correction_fields = set()
     previous_period = period_before(selected) if selected else None
@@ -416,6 +419,12 @@ def financial_snapshot(issuer: dict[str, Any], standard: str, period: str | None
         direct_codes.extend(['gross_insurance_reserves', 'reinsurer_share_in_reserves', 'net_insurance_reserves', 'other_liabilities'])
     for code in direct_codes:
         add(code, values.get(code), 'thousand UZS', reported_values.get(code))
+        correction = correction_sources.get(code)
+        if correction and observations[code]["normalized"] == correction["value_thousands_uzs"]:
+            observations[code]["source"] = {
+                "provider": "reviewed_correction", "document_id": f"correction:{correction['id']}",
+                "url": correction["source_url"], "reference": correction["source_reference"],
+            }
     for code, value in lending.get("values", {}).items():
         formula = lending["derived"].get(code)
         add(code, value, "thousand UZS", None if formula else value)

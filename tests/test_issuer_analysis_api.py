@@ -170,6 +170,22 @@ def test_failed_publication_retries_and_recovers_without_duplicate_reports(clien
         assert {row["language"] for row in connection.execute("SELECT * FROM sector_publications")} == {"ru", "uz"}
 
 
+def test_reviewed_observation_links_the_source_that_supplied_its_value(client, monkeypatch, tmp_path):
+    import data_quality
+
+    monkeypatch.setenv("CATALOG_DB_PATH", str(tmp_path / "quality.sqlite3"))
+    url = "https://cbu.uz/ru/statistics/bankstats/4784590/"
+    data_quality.apply_correction({
+        "ticker": "FACT", "form": "NSBU", "year": 2026, "quarter": 2, "field": "revenue",
+        "value_thousands_uzs": 1000, "source_url": url, "source_reference": "Reviewed statement, row 14",
+        "reason": "The separate filing contained a placeholder.",
+    }, "test-reviewer")
+    body = client.get("/api/v1/issuers/FACT/financial-analysis?standard=nsbu&period=2026Q2").json()
+    assert _observation(body, "revenue")["source"]["url"] == url
+    assert _observation(body, "revenue")["source"]["reference"] == "Reviewed statement, row 14"
+    assert _observation(body, "net_income")["source"]["url"] == body["source"]["url"]
+
+
 def test_financial_layers_are_separate_and_missing_is_not_zero(client):
     response = client.get("/api/v1/issuers/FACT/financial-analysis?standard=nsbu&period=2026Q2")
     assert response.status_code == 200

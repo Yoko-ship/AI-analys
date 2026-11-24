@@ -1086,6 +1086,19 @@ def approved_corrections_series(ticker: str, form: str) -> dict:
         conn.close()
 
 
+def approved_correction_sources(ticker: str, form: str, year: int, quarter: int) -> dict:
+    """Public document references for the approved values in one filing."""
+    conn = _conn()
+    try:
+        rows = conn.execute("""SELECT id, field, value_thousands_uzs, source_url, source_reference
+                             FROM data_corrections WHERE ticker=? AND dataset='financials'
+                             AND form=? AND year=? AND quarter=? AND status='approved'""",
+                            (ticker.upper(), form, year, quarter))
+        return {row["field"]: dict(row) for row in rows}
+    finally:
+        conn.close()
+
+
 def approved_corrections_for(ticker: str, form: str, year: int, quarter: int) -> dict[str, float]:
     from catalogue.read_batch import get
     ticker = str(ticker).upper()
