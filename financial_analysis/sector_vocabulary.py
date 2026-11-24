@@ -162,9 +162,9 @@ def money(thousands, lang):
 def money_pair(first, second, lang):
     """Two amounts on one scale: «с 0,2 до 20,1 млрд сум».
 
-    The larger amount sets the scale and the precision, so the two figures
-    are read against each other; the smaller one keeps at least one
-    significant figure.  Returns (first_text, second_text, unit_text).
+    The larger amount normally sets the shared scale and precision. When the
+    smaller amount needs more than three decimal places on that scale, each
+    amount carries its own unit and the shared unit is empty.
     """
     first_amount, second_amount = Decimal(str(first)) * THOUSAND, Decimal(str(second)) * THOUSAND
     larger = max(abs(first_amount), abs(second_amount))
@@ -172,6 +172,9 @@ def money_pair(first, second, lang):
         zero = money(0, lang)
         return zero, zero, ""
     factor, units = _scale(larger)
+    smaller = min(abs(first_amount), abs(second_amount))
+    if 0 < smaller < factor / 1000:
+        return money(first, lang), money(second, lang), ""
     big = larger / factor
     decimals = _decimals_for(big)
     texts = []
@@ -194,6 +197,11 @@ def percent(value, lang):
 def share_percent(value, lang):
     value = Decimal(str(value))
     return _plain(value, 1 if abs(value) < 10 else 0, lang) + "%"
+
+
+def net_margin_clause(value, lang):
+    margin = share_percent(value, lang)
+    return pick(lang, f", при чистой марже {margin}", f", sof marja — {margin}", f", with a net margin of {margin}")
 
 
 def times(ratio, lang):

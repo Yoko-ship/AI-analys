@@ -51,6 +51,17 @@ def test_two_amounts_share_one_scale():
     assert vocab.money_pair(190894, 20096536, "ru") == ("0,2", "20,1", "млрд сум")
 
 
+@pytest.mark.parametrize("lang,small,large", [
+    ("en", "UZS 0.032mn", "UZS 1.47bn"),
+    ("ru", "0,032 млн сум", "1,47 млрд сум"),
+    ("uz", "0,032 mln so‘m", "1,47 mlrd so‘m"),
+])
+def test_orgres_finance_income_uses_readable_units_for_both_amounts(lang, small, large):
+    # FY2025 Openinfo annual filing 6166, Form 2 line 110 (thousand UZS).
+    assert vocab.money_pair(32, 1470287, lang) == (small, large, "")
+    assert vocab.money_pair(1470287, 32, lang) == (large, small, "")
+
+
 @pytest.mark.parametrize("value,expected", [(4.94, "4,9%"), (9.96, "10%"), (10.4, "10%"), (16.2, "16%"), (5, "5%")])
 def test_percent_has_one_decimal_below_ten_and_none_above(value, expected):
     assert vocab.percent(value, "ru") == expected
@@ -200,6 +211,37 @@ def test_check_percent_from_zero_or_sign_change():
     assert _run([bad])["no_pct_from_zero_or_sign_change"] == "failed"
     assert _run([Sentence("Деньги выросли на 10 427%.")])["no_pct_from_zero_or_sign_change"] == "failed"
     assert _run([Sentence("Доля выросла с 12% до 18%.")])["no_pct_from_zero_or_sign_change"] == "passed"
+
+
+@pytest.mark.parametrize("lang", ["ru", "uz", "en"])
+def test_ygsy_net_margin_over_100_is_a_level_in_the_headline(lang):
+    # Yuggazstroy Q1 2016, Openinfo JSC quarterly filing 493, forms 1 and 2.
+    issuer = {"id": "482", "ticker": "YGSY", "name": "Yuggazstroy", "organization_type": "non_financial"}
+    snapshot = {
+        "organization_type": "non_financial", "period": "2016Q1", "standard": "nsbu", "scope": "separate",
+        "period_basis": "cumulative_ytd", "previous_comparable_period": "2015Q1",
+        "current_values": {"revenue": 218408, "net_income": 327439, "total_assets": 60600508,
+                           "total_liabilities": 50305612, "total_equity": 10294896, "cash": 2577},
+        "previous_values": {"revenue": 10713845, "net_income": 510766},
+        "opening_values": {"total_assets": 65276614, "total_liabilities": 55343623, "total_equity": 9932991},
+        "source": {"url": "https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/493/"},
+        "quality": {"data_quality": []},
+    }
+    report = report_module.make_report(snapshot, issuer, lang, today=date(2016, 4, 28))
+    assert report["text_checks"]["status"] == "passed", report["text_checks"]["checks"]
+    assert "150%" in report["headline"]
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Прибыль упала на 150%, при чистой марже 150%.", "failed"),
+    ("Прибыль упала на 36%, при чистой марже 151%.", "failed"),
+    ("Прибыль упала на 36%, при чистой марже 150%.", "passed"),
+])
+def test_only_the_filing_backed_margin_is_exempt_from_the_change_check(text, expected):
+    result = text_checks.run([("headline", Sentence(text, kind="headline"))], lang="ru",
+                             verdict_status="mixed", complete=False, net_margin=Decimal("149.92"))
+    check = next(c for c in result["checks"] if c["code"] == "no_pct_from_zero_or_sign_change")
+    assert check["status"] == expected
 
 
 def test_check_banned_phrases_and_unearned_evaluation():

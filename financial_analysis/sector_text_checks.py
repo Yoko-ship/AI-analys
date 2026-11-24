@@ -40,7 +40,7 @@ def _check(code, failures):
     return {"code": code, "status": "failed" if failures else "passed", "failures": failures[:5]}
 
 
-def run(sentences, *, lang, verdict_status, complete, comparison_sources=None):
+def run(sentences, *, lang, verdict_status, complete, comparison_sources=None, net_margin=None):
     """``sentences`` is a list of (section_id, Sentence)."""
     lang = lang if lang in vocab.LANGS else "ru"
     body = [(section, s) for section, s in sentences if section != "footnote"]
@@ -56,7 +56,15 @@ def run(sentences, *, lang, verdict_status, complete, comparison_sources=None):
     # no_pct_from_zero_or_sign_change: a percent only on a measurable trend.
     failures = [s.text for _, s in body if s.percent_shown and s.kind not in {"trend", "pace"}]
     failures += [s.text for _, s in body if s.kind == "trend" and s.tier == vocab.TIER_MULTIPLE and s.percent_shown]
-    failures += [match for match in _PERCENT.findall(whole) if Decimal(match.replace(",", ".")) > 100]
+    # The headline may end with a measured net margin. A margin can exceed
+    # 100% when profit includes income outside sales. Check every change in
+    # the same sentence, exempting only the suffix reproduced from the filing.
+    margin_suffix = vocab.net_margin_clause(net_margin, lang) + "." if net_margin is not None else ""
+    for section, sentence in sentences:
+        text = sentence.text
+        if section == "headline" and sentence.kind == "headline" and margin_suffix:
+            text = text.removesuffix(margin_suffix)
+        failures += [match for match in _PERCENT.findall(text) if Decimal(match.replace(",", ".")) > 100]
     checks.append(_check("no_pct_from_zero_or_sign_change", failures))
 
     # no_banned_phrases: the removed phrases, service names and unearned evaluation.

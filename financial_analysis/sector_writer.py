@@ -261,6 +261,8 @@ class Writer(FactView):
 
     def pair(self, first, second):
         a, b, unit = vocab.money_pair(first, second, self.lang)
+        if not unit:
+            return a, b
         if self.lang == "en":
             return f"UZS {a}{unit}", f"UZS {b}{unit}"
         return a, f"{b} {unit}".strip()
@@ -479,9 +481,7 @@ class Writer(FactView):
             text = first.text.rstrip(".") + joint + second_text
         margin = self.share_of("net_income", self.top) if self.top == "revenue" and (self.value("net_income") or 0) > 0 else None
         if margin is not None:
-            extra = self.tr(f", при чистой марже {vocab.share_percent(margin, lang)}",
-                            f", sof marja — {vocab.share_percent(margin, lang)}",
-                            f", with a net margin of {vocab.share_percent(margin, lang)}")
+            extra = vocab.net_margin_clause(margin, lang)
             if len((text + extra).split()) <= 30:
                 text += extra
         return text + ".", tuple(code for code, _ in clauses)

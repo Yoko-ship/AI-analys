@@ -26,7 +26,8 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
         sources["opening_used"] = present(filing.opening, ("total_assets",))
         text_checks = financial_analysis_sector_text_checks.run(
             narrative.sentences, lang=lang, verdict_status=assessment.verdict_status,
-            complete=narrative.complete_content, comparison_sources=sources)
+            complete=narrative.complete_content, comparison_sources=sources,
+            net_margin=financial_analysis_sector_numbers.ratio(filing.values.get("net_income"), filing.values.get("revenue"), percent=True))
         if text_checks["status"] != "passed":
             # A text that fails a publication check is not published; the
             # reader gets the snapshot on the date and the reason instead.
