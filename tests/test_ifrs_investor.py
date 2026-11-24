@@ -137,7 +137,7 @@ def test_investor_api_preserves_scope_and_adds_ttm_only_for_flow_periods(monkeyp
                              source_version='reviewed',source_url='https://example.com/report.pdf'))
     monkeypatch.setattr(service.publication,'scopes',lambda ticker:['consolidated'])
     monkeypatch.setattr(service.publication,'snapshots',lambda ticker,scope:[])
-    monkeypatch.setattr(service.observations,'ifrs',lambda snapshots:rows)
+    monkeypatch.setattr(service.observations,'ifrs',lambda snapshots, **options:rows)
     result=service.load('TEST',form='MSFO',scope='consolidated',freq='interim',view='investor')
     assert result['presentation']=='investor' and result['scope']=='consolidated'
     ttm=next(c for c in result['columns'] if c['basis']=='ttm')

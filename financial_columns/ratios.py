@@ -6,6 +6,7 @@ from decimal import Decimal
 from financial_analysis.profitability import gross_margin_costs_missing
 
 from .matrix import choose
+from .observations import canonical_ifrs_metric
 from .periods import calculate as period_value, CONTEXT
 from .derived import enrich
 from . import capital_returns
@@ -50,6 +51,7 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
         observations = enrich(observations)
     by_metric = defaultdict(list)
     for row in observations:
+        row = canonical_ifrs_metric(row)
         by_metric[row.get('metric_id')].append(row)
     year = int(end[:4])
     start = (f'{year-1}-12-31' if basis in {'annual', 'ytd'} else

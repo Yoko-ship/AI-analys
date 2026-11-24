@@ -396,6 +396,11 @@
             "label": "Прочие активы"
           },
           {
+            "id": "inventory",
+            "label": "Запасы",
+            "filed_only": true
+          },
+          {
             "id": "assets",
             "label": "ВСЕГО АКТИВЫ",
             "grand": true

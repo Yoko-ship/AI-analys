@@ -41,6 +41,7 @@ def statement_cells(data):
         field["field_id"]: field["kind"]
         for group in groups
         for field in group["fields"]
+        if not field.get("filed_only")
     }
     ratios = {f"ratio:{code}": "ratio" for code in statement_ratios(template, form, data.get("template"))}
     rows = {r["id"]: r for r in data["ratios"]}

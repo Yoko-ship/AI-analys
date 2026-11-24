@@ -145,6 +145,7 @@ def project(payload, observations=()):
         raise ValueError('Investor view requires IFRS')
     sector = template_for(payload['template'], payload.get('issuer_name'))
     schema = FIELDS.get(sector, FIELDS['general'])
+    reported = {(r['source_form'], r['metric_id']) for r in payload['rows']}
     statements = {}
     for statement, groups in schema.items():
         statements[statement] = []
@@ -152,6 +153,8 @@ def project(payload, observations=()):
             rows = []
             for spec in group['rows']:
                 field = spec['id']
+                if spec.get('filed_only') and (FORM[statement], METRICS[field]) not in reported:
+                    continue
                 rows.append({**spec, 'id':statement+':'+field, 'field':field, 'statement':statement,
                              'metric_id':METRICS[field], 'source_form':FORM[statement],
                              'kind':'stock' if statement=='bs' else 'flow', 'unit':'UZS_thousand',

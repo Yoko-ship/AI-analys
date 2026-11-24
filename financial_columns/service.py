@@ -222,7 +222,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         available_scopes = publication.scopes(ticker)
         scope = scope or (available_scopes[0] if available_scopes else 'separate')
         snapshots = publication.snapshots(ticker, scope=scope) if scope != 'unknown' else []
-        source_rows = observations.ifrs(snapshots)
+        source_rows = observations.ifrs(snapshots, canonical_metrics=view != 'full')
         if view == 'investor':
             from .investor_sources import audited_fund
             imported_ends = {r['period_end'] for r in source_rows}

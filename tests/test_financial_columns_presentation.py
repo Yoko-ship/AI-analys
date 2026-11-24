@@ -122,7 +122,7 @@ def test_real_annual_filings_follow_the_reference_lists(ticker,source_template,d
 
 def test_all_twelve_reference_lists_are_explicit():
     from financial_columns.presentation import FIELDS
-    counts={'bank':(42,38),'insurance':(25,30),'leasing':(19,19),'general':(35,36),'telecom':(37,20),'fund':(5,18)}
+    counts={'bank':(42,38),'insurance':(25,31),'leasing':(19,19),'general':(35,36),'telecom':(37,20),'fund':(5,18)}
     assert set(FIELDS)==set(counts)
     for sector,expected in counts.items():
         assert tuple(sum(len(g['fields']) for g in FIELDS[sector][standard]) for standard in ['nsbu','ifrs'])==expected

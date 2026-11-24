@@ -1704,6 +1704,20 @@
             "field_id": "insurance_ifrs_dac"
           },
           {
+            "label": "Запасы",
+            "ref": "BS · Inventories",
+            "kind": "stock",
+            "selectors": [
+              [
+                "BS",
+                null,
+                "inventory"
+              ]
+            ],
+            "field_id": "inventories",
+            "filed_only": true
+          },
+          {
             "label": "Всего активов",
             "ref": "BS · Total assets",
             "kind": "stock",

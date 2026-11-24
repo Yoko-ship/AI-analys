@@ -263,3 +263,32 @@ def test_overview_export_matches_the_compact_html_list(source):
     assert {r['label'] for r in rows} == {r['label'] for r in data['rows']}
     assert not any(r['source_code'] == '7з' and r['source_form'] == 'BANK_PL' for r in rows)
     assert any(r['source_code'] == '7а' and r['source_form'] == 'BANK_BS' and r['value'] for r in rows)
+
+
+@pytest.mark.parametrize('issuer_kind', ['industry', 'insurance'])
+def test_filed_inventory_reaches_both_balance_views_and_retains_original_source_row(source, monkeypatch, issuer_kind):
+    from financial_columns import ifrs, service
+    snapshot = json.loads(Path('tests/fixtures/financial_columns/uzngp_inventory_2025.json').read_text())
+    monkeypatch.setattr(service.publication, 'snapshots', lambda *args, **kwargs: [snapshot])
+    monkeypatch.setattr(service.publication, 'scopes', lambda ticker: ['separate'])
+    monkeypatch.setattr(service, 'organization_kind', lambda *args, **kwargs: issuer_kind)
+    def load(view):
+        return service.load('UZNGP', form='MSFO', scope='separate', view=view)
+    full = next(r for r in load('full')['rows'] if r['id'] == 'BS:inventories')
+    assert full['cells']['2025']['value'] == '452000000'
+    shown = next(r for r in load('template')['rows'] if r['display_field'] == 'inventories')
+    investor = next(r for g in load('investor')['statements']['bs'] for r in g['rows'] if r['field'] == 'inventory')
+    for row in [shown, investor]:
+        cell = row['cells']['2025']
+        assert cell['value'] == full['cells']['2025']['value']
+        assert cell['raw_value'] == '452' and cell['page'] == 5 and cell['source_url'] == snapshot['payload']['source']['pdf_url']
+    if issuer_kind == 'insurance':
+        from collectors.financials.coverage_columns import statement_cells
+        snapshot['payload']['source_rows'] = []
+        empty = load('template')
+        assert not any(r.get('display_field') == 'inventories' for r in empty['overview_rows'])
+        assert not any('inventor' in key for key in statement_cells(empty))
+        assert not any(r['field'] == 'inventory' for g in load('investor')['statements']['bs'] for r in g['rows'])
+    for caption in ('Товарно-материальные запасы', 'Оборотные запасы'):
+        assert ifrs.metric(caption, 'BS') == 'inventory'
+    assert ifrs.metric('Изменение в товарно-материальных запасах', 'CF') != 'inventory'

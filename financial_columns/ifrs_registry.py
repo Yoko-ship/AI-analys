@@ -11,7 +11,7 @@ investments_associates|Investments in associates|Инвестиции в асс�
 financial_assets_fvtpl|Financial assets at fair value through profit or loss|Финансовые активы по справедливой стоимости через прибыль или убыток
 financial_assets_fvoci|Financial assets at fair value through other comprehensive income|Финансовые активы по справедливой стоимости через прочий совокупный доход
 financial_assets_amortized_cost|Financial assets at amortised cost|Финансовые активы по амортизированной стоимости
-inventory|Inventories|Запасы
+inventory|Inventories|Запасы|Товарно-материальные запасы|Оборотные запасы
 trade_receivables|Trade receivables|Торговая дебиторская задолженность
 contract_assets|Contract assets|Активы по договорам
 cash|Cash and cash equivalents|Денежные средства и их эквиваленты

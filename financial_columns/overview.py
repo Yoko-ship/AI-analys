@@ -12,6 +12,8 @@ def compact_rows(groups, rows, columns):
     for group in groups:
         for field in group['fields'][:8]:
             matches = [r for r in rows if r['display_field'] == field['field_id']]
+            if field.get('filed_only') and not matches:
+                continue
             if len(matches) == 1:
                 result.append(matches[0])
                 continue

@@ -1,0 +1,41 @@
+{
+  "id": "reviewed-uzngp-inventory-2025",
+  "org_id": "735",
+  "period_end": "2025-12-31",
+  "scope": "separate",
+  "payload": {
+    "classification": {
+      "issuer_name": "Узбекнефтегаз",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "scope": "separate",
+      "standard": "MSFO",
+      "unit_scale": "1000000000",
+      "currency": "UZS"
+    },
+    "source": {
+      "pdf_url": "https://openinfo.uz/media/int_report/dc843bd5-c97d-414b-8b1d-e6394737870c.pdf"
+    },
+    "source_rows": [
+      {
+        "metric_id": "inventories",
+        "source_form": "BS",
+        "source_code": null,
+        "raw_label": "Товарно-материальные запасы",
+        "raw_line": "Товарно-материальные запасы    452    1121",
+        "raw_value": "452",
+        "period_start": "2025-12-31",
+        "period_end": "2025-12-31",
+        "statement_period_end": "2025-12-31",
+        "page": 5,
+        "column": 0,
+        "scope": "separate",
+        "currency": "UZS",
+        "unit_scale": "1000000000",
+        "kind": "stock",
+        "quality": "valid",
+        "unit": "UZS_thousand"
+      }
+    ]
+  }
+}

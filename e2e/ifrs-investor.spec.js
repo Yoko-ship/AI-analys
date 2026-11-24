@@ -118,29 +118,32 @@ test('IFRS deep link, retry, notes and print remain connected',async({page})=>{
   await expect(ui.locator('.investor-tabs')).toBeHidden();
 });
 
-test('BTRL reviewed income tax opens the FY2025 source in the investor statement', async ({page}) => {
+for (const example of [
+  {ticker:'BTRL', file:'btrl_ifrs_2025', tab:'PL Profit or loss', field:'tax', value:'-0.33'},
+  {ticker:'UZNGP', file:'uzngp_inventory_2025', tab:'BS Balance', field:'inventory', value:'452'},
+]) test(example.ticker+' reviewed '+example.field+' opens the FY2025 source in the investor statement', async ({page}) => {
   const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
   const filing = JSON.parse(execFileSync(python, ['-c', `
-import json
+import json, sys
 from pathlib import Path
 from financial_columns import investor, matrix, observations
-snapshot = json.loads(Path('tests/fixtures/financial_columns/btrl_ifrs_2025.json').read_text())
+snapshot = json.loads(Path('tests/fixtures/financial_columns', sys.argv[1]+'.json').read_text())
 rows = observations.ifrs([snapshot])
 table = matrix.build(rows, mode='annual')
-payload = dict(**table, ok=True, ticker='BTRL', issuer_id='540', issuer_name='Boshtransloyiha',
+payload = dict(**table, ok=True, ticker=sys.argv[2], issuer_id=snapshot['org_id'], issuer_name=sys.argv[2],
                standard='MSFO', template='industry', scope='separate', available_scopes=['separate'],
                unit='UZS_thousand', freq='annual', issues=[], ratios=[], published_ratios=[], source_forms=[],
                coverage={'issues':[]}, shareholders=[])
 print(json.dumps(investor.project(payload, rows)))
-`], {encoding:'utf8'}));
+`,example.file,example.ticker], {encoding:'utf8'}));
   await setup(page);
-  await page.route('**/api/company/BTRL/financials/columns?**', route => route.fulfill({json:filing}));
-  await page.goto('/company/BTRL?tab=financials&standard=MSFO');
+  await page.route('**/api/company/'+example.ticker+'/financials/columns?**', route => route.fulfill({json:filing}));
+  await page.goto('/company/'+example.ticker+'?tab=financials&standard=MSFO');
   const panel = page.getByTestId('ifrs-investor');
-  await panel.getByRole('tab',{name:/PL Profit or loss/i}).click();
-  const tax = panel.locator('tr[data-field="tax"]').getByRole('button');
-  await expect(tax).toContainText('-0.33');
-  await tax.click();
+  await panel.getByRole('tab',{name:example.tab,exact:true}).click();
+  const value = panel.locator('tr[data-field="'+example.field+'"]').getByRole('button');
+  await expect(value).toHaveText(example.value);
+  await value.click();
   await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'}))
-    .toHaveAttribute('href', 'https://openinfo.uz/media/msfo/320a04d5-e9e8-4ba6-a1c5-54d0c1f8185a.pdf');
+    .toHaveAttribute('href', JSON.parse(readFileSync('tests/fixtures/financial_columns/'+example.file+'.json','utf8')).payload.source.pdf_url);
 });

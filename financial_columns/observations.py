@@ -50,7 +50,14 @@ def _reconciled_income_rows(payload):
                'period_start': meta['period_start'], 'period_end': end, 'quality': 'valid'}
 
 
-def ifrs(snapshots):
+def canonical_ifrs_metric(row):
+    # Some reviewed balance sheets use the legacy plural identifier.
+    if row.get('metric_id') == 'inventories' and row.get('source_form') == 'BS' and row.get('standard') == 'MSFO':
+        return {**row, 'metric_id': 'inventory', 'source_metric_id': 'inventories'}
+    return row
+
+
+def ifrs(snapshots, *, canonical_metrics=True):
     from financial_ingestion.investor_eps import published_rows
     result = []
     for snapshot in snapshots:
@@ -96,7 +103,7 @@ def ifrs(snapshots):
                            'unit': 'UZS_thousand', 'value': str(Decimal(value) / 1000), 'quality': 'valid',
                            'period_start': meta['period_end'] if kind == 'stock' else meta['period_start'],
                            'normalization': 'approved normalized UZS / 1000'})
-    return result
+    return [canonical_ifrs_metric(row) for row in result] if canonical_metrics else result
 
 
 def check(observations):
