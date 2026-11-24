@@ -93,6 +93,22 @@ def test_separate_scope_survives_notes_and_inapplicable_nci_templates(pages, tit
     assert {v['classification']['scope'] for v in parsed} == {'separate'}
 
 
+def test_uzal_2025_net_result_for_the_reporting_year_is_distinct_from_comprehensive_income():
+    # Uzagrolizing's 2025 annual IFRS attachment, Openinfo 30524, PDF pages 6–7.
+    pages = {6: "МСФО\nОтчет о финансовом положении\nв миллионах узбекских сумов\n"
+                "31 декабря 2025    31 декабря 2024\nИтого активы    7 390 603    4 377 223",
+             7: "Отчет о прибыли или убытке и прочем совокупном доходе\n"
+                "в миллионах узбекских сумов\nза год, закончившийся 31 декабря 2025 года\n"
+                "2025 год    2024 год\nПроцентные расходы    (495 442)    (292 230)\n"
+                "Прибыль/ (убыток) за отчетный год    6 649    (114 024)\n"
+                "Итого совокупный доход/(убыток) за год    6 649    (114 024)"}
+    current, comparative = parse(pages)
+    for candidate, result in ((current, '6649'), (comparative, '-114024')):
+        assert candidate['figures']['net_income']['raw_value'] == result
+        rows = [r for r in candidate['source_rows'] if r['metric_id'] == 'net_income']
+        assert [(r['page'], r['raw_value']) for r in rows] == [(7, result)]
+
+
 def test_reversed_columns_retain_their_actual_years(pages):
     pages = {n: text.replace('2024', 'XXXX').replace('2023', '2024').replace('XXXX', '2023') for n, text in pages.items()}
     first, second = parse(pages)
