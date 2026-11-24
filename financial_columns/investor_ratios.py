@@ -5,13 +5,14 @@ from .periods import calculate as period_value, CONTEXT
 
 COMMON = ['roe','roa','equity_to_assets']
 SECTOR = {
-    'bank':['loans_to_deposits','ecl_coverage','nim','cir','cost_of_risk'],
+    'bank':['loans_to_deposits','ecl_coverage','stage3_to_gross_loans','nim','cir','cost_of_risk'],
     'insurance':['insurance_service_margin','reinsurance_to_revenue','insurance_liabilities_assets'],
     'fund':['nav','nav_per_share','nav_growth'],
     'leasing':['gross_margin','operating_margin','ebitda_margin','net_debt_to_ebitda','current_ratio'],
     'general':['gross_margin','operating_margin','ebitda_margin','net_debt_to_ebitda','current_ratio'],
 }
 LABELS = {
+    'stage3_to_gross_loans':'Stage 3 / gross loans',
     'equity_to_assets':'Капитал / активы','loans_to_deposits':'Кредиты / депозиты клиентов',
     'insurance_service_margin':'Маржа страховых услуг','reinsurance_to_revenue':'Перестрахование / страховая выручка',
     'insurance_liabilities_assets':'Страховые обязательства / активы','nav':'NAV','nav_per_share':'NAV / акция',

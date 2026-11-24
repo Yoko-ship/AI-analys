@@ -214,3 +214,27 @@ with tempfile.TemporaryDirectory() as scratch:
   await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'})).toHaveAttribute(
     'href', 'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf');
 });
+
+test('SQBN investor ratios use the staged loan portfolio from the signed note', async ({page}) => {
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const filing = JSON.parse(execFileSync(python, ['-c', `
+import json, os, tempfile
+from pathlib import Path
+from unittest.mock import patch
+from financial_columns import service
+rows = json.loads(Path('tests/fixtures/financial_columns/sqbn_2025_loan_note.json').read_text())
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    with patch.object(service, 'organization_kind', return_value='bank'), patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['consolidated']), patch.object(service.observations, 'ifrs', return_value=rows):
+        print(json.dumps(service.load('SQBN', form='MSFO', view='investor', scope='consolidated', freq='annual')))
+`], {encoding:'utf8'}));
+  await setup(page);
+  await page.route('**/api/company/SQBN/financials/columns?**', route => route.fulfill({json:filing}));
+  await page.goto('/company/SQBN?tab=financials&standard=MSFO');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab',{name:'RAT Ratios',exact:true}).click();
+  for (const [label, value] of [['Stage 3 / gross loans', '7.48%'], ['ECL coverage', '5.99%']]) {
+    const card = panel.locator('.investor-ratios article').filter({hasText:label});
+    await expect(card.locator('.investor-number')).toHaveText(value);
+  }
+});

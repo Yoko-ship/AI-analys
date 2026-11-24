@@ -9,7 +9,7 @@ from .matrix import choose
 from .observations import canonical_ifrs_metric
 from .periods import calculate as period_value, CONTEXT
 from .derived import enrich
-from . import capital_returns
+from . import capital_returns, loan_quality
 
 
 def _gross_profit_for_margin(metrics):
@@ -184,8 +184,31 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('funding_cost', 'Funding cost', flow('interest_cost_positive'), [point('interest_bearing_debt', start), point('interest_bearing_debt', end)],
           factor=Decimal(100), formula='interest expense / average(interest-bearing debt) × 100',
           applicable=template == 'leasing', unit='percent', flow_ratio=True, annualize=True)
-    ratio('ecl_coverage', 'ECL coverage', point('loan_ecl_allowance', end), [point('loans_gross', end)], factor=Decimal(100),
-          formula='loan ECL allowance / gross loans of the same perimeter × 100', applicable=template in {'bank', 'leasing'}, unit='percent')
+    gross = point('loans_gross', end)
+    allowance = point('loan_ecl_allowance', end)
+    coverage_gross, coverage_factor = gross, Decimal(100)
+    coverage_formula = 'loan ECL allowance / gross loans of the same perimeter × 100'
+    net = None
+    if template == 'bank' and any(r.get('standard') == 'MSFO' for r in observations):
+        gross_totals = [gross, point('loans_and_finance_leases_gross', end)]
+        stages = [point(field, end) for field in ('stage1_loans', 'stage2_loans', 'stage3_loans')]
+        staged_total = point('staged_loans_gross', end)
+        staged_totals = gross_totals if staged_total.get('quality') == 'missing' else [staged_total]
+        staged_gross = loan_quality.reconciled_gross(staged_totals, [(stage, 1) for stage in stages])
+        stage_ratio = ratio('stage3_to_gross_loans', 'Stage 3 / gross loans', stages[2], [staged_gross],
+                            formula='Stage 3 loans / gross loans in the staged portfolio × 100',
+                            factor=Decimal(100), unit='percent')
+        stage_ratio['components'].extend(stages[:2])
+        deduction = point('loan_loss_allowance_deduction', end)
+        if allowance.get('quality') == 'missing' and deduction.get('value') is not None:
+            net = point('loans_net', end)
+            coverage_gross = loan_quality.reconciled_gross([*gross_totals, staged_total], [(net, 1), (deduction, -1)])
+            allowance, coverage_factor = deduction, Decimal(-100)
+            coverage_formula = '−signed loan loss allowance deduction / gross loans × 100'
+    coverage = ratio('ecl_coverage', 'ECL coverage', allowance, [coverage_gross], factor=coverage_factor,
+                     formula=coverage_formula, applicable=template in {'bank', 'leasing'}, unit='percent')
+    if net is not None:
+        coverage['components'].append(net)
     if ticker.upper() == 'UZNF':
         ratio('nav_per_share', 'NAV / share', point('total_equity', end), [point('ordinary_shares', end)],
               factor=Decimal(1000), formula='net assets in thousands UZS × 1000 / verified ordinary shares outstanding', unit='UZS_per_share')

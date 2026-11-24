@@ -282,3 +282,65 @@ def test_grbk_opening_balances_use_the_statement_year_and_keep_the_source_date(m
     assert annual['rows'][0]['cells']['2024']['value'] == prior
     quarterly = matrix.build(rows + [quarter_open], mode='quarter')
     assert quarterly['rows'][0]['cells']['2024-12-31']['period_end'] == '2024-09-30'
+
+
+@pytest.fixture
+def sqbn_loan_note():
+    path = Path('tests/fixtures/financial_columns/sqbn_2025_loan_note.json')
+    return json.loads(path.read_text())
+
+
+def sqbn_risk_ratios(rows, basis='annual'):
+    return {r['metric_id']: r for r in ratios.calculate(rows, ticker='SQBN', template='bank',
+                                                        end='2025-12-31', basis=basis)}
+
+
+def test_sqbn_loan_quality_ratios_reconcile_to_signed_stage_and_net_balances(sqbn_loan_note):
+    result = sqbn_risk_ratios(sqbn_loan_note)
+    for key, amount in [('stage3_to_gross_loans', 5310186), ('ecl_coverage', 4250886)]:
+        cell = result[key]
+        assert Decimal(cell['value']) == Decimal(amount) / 71008798 * 100
+        assert (cell['quality'], cell['unit'], cell['period_start']) == ('valid', 'percent', '2025-12-31')
+        assert all(c['source_version'] == sqbn_loan_note[0]['source_version'] for c in cell['components'])
+        assert sqbn_risk_ratios(sqbn_loan_note, 'ttm')[key]['value'] is None
+    deduction = next(c for c in result['ecl_coverage']['components'] if c['metric_id'] == 'loan_loss_allowance_deduction')
+    assert deduction['value'] == '-4250886000'
+
+
+@pytest.mark.parametrize(('metric', 'change', 'ratio_key'), [
+    ('stage2_loans', {'value': '25320439000'}, 'stage3_to_gross_loans'),
+    ('stage2_loans', {'quality': 'blocked'}, 'stage3_to_gross_loans'),
+    ('stage1_loans', {'scope': 'separate'}, 'stage3_to_gross_loans'),
+    ('stage3_loans', {'source_version': 'other-report'}, 'stage3_to_gross_loans'),
+    ('stage2_loans', {'currency': 'USD'}, 'stage3_to_gross_loans'),
+    ('stage1_loans', {'period_end': '2024-12-31'}, 'stage3_to_gross_loans'),
+    ('loans_net', {'value': '66757913000'}, 'ecl_coverage'),
+    ('loan_loss_allowance_deduction', {'value': '4250886000'}, 'ecl_coverage'),
+    ('loans_net', {'unit': 'UZS_million'}, 'ecl_coverage'),
+])
+def test_unreconciled_or_mixed_loan_portfolios_have_no_ratio(sqbn_loan_note, metric, change, ratio_key):
+    rows = [{**r, **change} if r['metric_id'] == metric else r for r in sqbn_loan_note]
+    assert sqbn_risk_ratios(rows)[ratio_key]['value'] is None
+
+
+def test_anor_stage_ratio_uses_the_total_in_the_staging_table(sqbn_loan_note):
+    # Anor's FY2024 risk table and amortised-cost note differ by one thousand UZS.
+    source = dict(sqbn_loan_note[0], issuer_id='837', source_version='anor-2025', page=43,
+                  source_url='https://openinfo.uz/media/int_report/34cddf83-0a60-436b-be9b-6452431c88bf.pdf',
+                  period_start='2024-12-31', period_end='2024-12-31', source_form='Notes')
+    values = {'stage1_loans': 6581204690, 'stage2_loans': 257972270, 'stage3_loans': 202964330,
+              'staged_loans_gross': 7042141290, 'loans_gross': 7042141291}
+    rows = [dict(source, metric_id=key, value=str(value)) for key, value in values.items()]
+    result = ratios.calculate(rows, ticker='ANBK3B', template='bank', end='2024-12-31', basis='annual')
+    stage = next(r for r in result if r['metric_id'] == 'stage3_to_gross_loans')
+    assert Decimal(stage['value']) == Decimal(202964330) / 7042141290 * 100
+    assert stage['components'][1]['metric_id'] == 'staged_loans_gross'
+
+
+def test_a_reported_staging_total_governs_its_table_and_can_reconcile_the_deduction(sqbn_loan_note):
+    gross = next(r for r in sqbn_loan_note if r['metric_id'] == 'loans_and_finance_leases_gross')
+    staged = dict(gross, metric_id='staged_loans_gross')
+    partial = [r for r in sqbn_loan_note if r is not gross]
+    assert sqbn_risk_ratios([*partial, staged])['ecl_coverage']['value'] is not None
+    bad_total = dict(staged, value=str(Decimal(staged['value']) + 1000))
+    assert sqbn_risk_ratios([*sqbn_loan_note, bad_total])['stage3_to_gross_loans']['value'] is None
