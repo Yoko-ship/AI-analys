@@ -178,6 +178,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const matrixMode = presentation === 'matrix';
   const [pointerTarget, setPointerTarget] = useState(null);
   const [focusedTile, setFocusedTile] = useState(null);
+  const [lastMapInput, setLastMapInput] = useState('pointer');
   const [changeFilter, setChangeFilter] = useState("all");
   const metricSelection = useHeatmapMetrics(lang, type);
   const selectedMetrics = metricSelection.selected;
@@ -380,13 +381,19 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const focusName = focusRow ? nameOf(focusRow) : null;
   const hoverSector = hoverRow && sectorLayout.find(sector => sector.sector === sectorKeyOf(hoverRow.ticker));
   const hoverGroup = hoverSector?.groups.find(group => group.id === (industryOf(hoverRow.ticker)?.group || ''));
-  const mapTarget = [pointerTarget, focusedTile].find(target => target && treeElement?.contains(target));
+  const mapTargets = lastMapInput === 'keyboard' ? [focusedTile, pointerTarget] : [pointerTarget, focusedTile];
+  const mapTarget = mapTargets.find(target => target && treeElement?.contains(target));
   const highlightedSector = !matrix && mapTarget
     ? sectorLayout.find(sector => sector.sector === mapTarget.dataset.sector)
     : null;
   const highlightedGroup = highlightedSector?.groups.find(group => group.labelHeight && group.id === mapTarget.dataset.group);
   const outlinedGroup = matrix && isAdmin ? hoverGroup : highlightedGroup;
   const outline = outlinedGroup || highlightedSector;
+  const handleMapPointer = event => {
+    if (event.pointerType === 'touch') return;
+    setLastMapInput('pointer');
+    setPointerTarget(event.target.closest('[data-sector]'));
+  };
   const openCompany = ticker => {
     closePreview();
     if (onOpenCompany) onOpenCompany(ticker);
@@ -479,13 +486,13 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
       {searchEmpty ? <p className="market-empty-cell heatmap-empty-state" role="status">{noMatches}</p> :
       <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
-        onPointerOver={matrix ? undefined : event => {
-          if (event.pointerType === 'touch') return;
-          setPointerTarget(event.target.closest('[data-sector]'));
-        }}
+        onPointerOver={matrix ? undefined : handleMapPointer}
+        onPointerMove={!matrix && lastMapInput === 'keyboard' ? handleMapPointer : undefined}
         onPointerLeave={matrix ? undefined : () => setPointerTarget(null)}
         onFocus={matrix ? undefined : event => {
-          if (event.target.matches('.heatmap-tree-tile:focus-visible')) setFocusedTile(event.target);
+          if (!event.target.matches('.heatmap-tree-tile:focus-visible')) return;
+          setLastMapInput('keyboard');
+          setFocusedTile(event.target);
         }}
         onBlur={matrix ? undefined : () => setFocusedTile(null)}
         style={{width: `${zoom * 100}%`, minWidth: matrix?.minWidth, height: matrix ? matrix.height : `calc(var(--heatmap-base-height) * ${zoom})`, '--matrix-zoom': zoom}}>

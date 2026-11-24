@@ -6,8 +6,10 @@ export async function openMapFilters(page) {
 }
 
 export async function chooseMapArea(page, value) {
+  const option = page.locator(`.heatmap-size-options button[data-area="${value}"]`);
+  await option.waitFor({state: 'attached'});
   await openMapFilters(page);
-  await page.locator(`.heatmap-size-options button[data-area="${value}"]`).click();
+  await option.click();
 }
 
 export async function chooseMapTicker(page, ticker) {

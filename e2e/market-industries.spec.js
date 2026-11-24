@@ -46,6 +46,7 @@ for (const width of [1440, 390]) test(`treemap outlines the company and nearest 
   const preferredBank = tiles(page).and(page.locator('[data-ticker="IPTBP"]'));
   const banks = map.locator('.heatmap-tree-label[data-group="banks"]');
   const dori = tiles(page).and(page.locator('[data-ticker="DORI"]'));
+  const pharma = map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]');
 
   const expectHighlight = async (heading, tile) => {
     await expect(highlight).toHaveCount(1);
@@ -101,7 +102,7 @@ for (const width of [1440, 390]) test(`treemap outlines the company and nearest 
     await expect(activeHeading).toHaveCount(0);
   }
   await dori.hover();
-  await expectHighlight(map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]'), dori);
+  await expectHighlight(pharma, dori);
   await expect(preferredBank).toHaveCSS('outline-style', 'none');
   await expect(highlight).not.toHaveAttribute('style', bankOutline);
   await page.mouse.move(0, 0);
@@ -115,6 +116,19 @@ for (const width of [1440, 390]) test(`treemap outlines the company and nearest 
   await expect(highlight).toHaveCount(0);
   await expect(activeHeading).toHaveCount(0);
   await expect(bank).toHaveCSS('outline-style', 'none');
+
+  if (width === 1440) {
+    // Switching input methods should update the same highlight even when
+    // the pointer stays on a heading while the keyboard moves focus.
+    await banks.hover({position: {x: 12, y: 10}});
+    await page.keyboard.press('Tab');
+    await dori.focus();
+    await expect(dori).toBeFocused();
+    await expectHighlight(pharma, dori);
+    await banks.hover({position: {x: 14, y: 10}});
+    await expectHighlight(banks);
+    await expect(dori).not.toHaveClass(/\bis-highlighted\b/);
+  }
 });
 
 for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {
