@@ -64,6 +64,24 @@ def test_metric_period_zero_conflict_and_sector_applicability():
     assert metrics["book_value_per_share"]["status"] == "gap"
 
 
+@pytest.mark.parametrize(
+    "ticker,security,share_status,issuer_status",
+    [
+        ("UZNGP", {"type": "stock", "is_preferred": True}, "inapplicable", "gap"),
+        ("UZGFP", {"type": "stock", "is_preferred": True}, "inapplicable", "gap"),
+        ("BNGP", {"type": "stock", "is_preferred": False}, "gap", "gap"),
+        ("AAB1B3U", {"type": "bond"}, "inapplicable", "inapplicable"),
+    ],
+)
+def test_filing_coverage_uses_the_registered_security_class(ticker, security, share_status, issuer_status):
+    from collectors.financials.coverage import filing_cells
+
+    row = {"ticker": ticker, "period": "2026Q3", "status": "quality_blocked", "metrics": {}}
+    cells = filing_cells(row, security=security)
+    assert cells["eps_basic"]["status"] == cells["book_value_per_share"]["status"] == share_status
+    assert cells["issuer_price_to_book"]["status"] == issuer_status
+
+
 def test_partial_pagination_fails_instead_of_reporting_removed_issuers():
     from collectors.financials import coverage
 

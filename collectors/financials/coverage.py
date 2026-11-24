@@ -85,7 +85,10 @@ def cell(item, period, *, reason=None):
     return result
 
 
-def filing_cells(row, *, ordinary=None, kind=None):
+def filing_cells(row, *, security=None, kind=None):
+    security = security or {}
+    bond = str(security.get("type", "")).lower() == "bond"
+    ordinary_excluded = bond or security.get("is_preferred")
     metrics = row["metrics"]
     result = {}
     for key in sorted(FILING | metrics.keys()):
@@ -94,7 +97,7 @@ def filing_cells(row, *, ordinary=None, kind=None):
             if row.get("status") != "available"
             else "METRIC_UNAVAILABLE"
         )
-        if key in SHARE_METRICS | {"issuer_price_to_book"} and ordinary is False:
+        if (key in SHARE_METRICS and ordinary_excluded) or (key == "issuer_price_to_book" and bond):
             reason = "ORDINARY_SHARES_ONLY"
         if key == "ebit" and kind in {"bank", "insurance", "fund"}:
             reason = "NOT_APPLICABLE"
@@ -430,10 +433,7 @@ def run():
         types = {
             c["ticker"]: {
                 "kind": c["kind"],
-                "ordinary": False
-                if str((securities.get(c["ticker"]) or {}).get("type", "")).lower()
-                == "bond"
-                else None,
+                "security": securities.get(c["ticker"]),
             }
             for c in companies
         }
