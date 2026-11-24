@@ -130,3 +130,18 @@ def test_all_twelve_reference_lists_are_explicit():
             fields=[f for g in FIELDS[sector][standard] for f in g['fields']]
             assert len({f['field_id'] for f in fields})==len(fields)
             assert all(f['selectors'] for f in fields)
+
+
+def test_btrl_template_keeps_combined_and_trade_only_receivables_as_distinct_observations():
+    from financial_columns import matrix, observations
+    snapshot = json.loads(Path('tests/fixtures/financial_columns/btrl_ifrs_2025.json').read_text())
+    approved = observations.ifrs([snapshot])
+    receipt = next(r for r in approved if r['metric_id'] == 'trade_other_receivables')
+    for sources in ([receipt], [receipt, {**receipt, 'metric_id': 'trade_receivables',
+                                          'raw_label': 'Trade receivables', 'value': '100'}]):
+        table = matrix.build(sources, mode='annual')
+        projected = project({**table, 'template': 'industry', 'standard': 'MSFO'})
+        shown = [r for r in projected['rows'] if r['display_field'] == 'receivables']
+        assert {r['metric_id']: r['cells']['2025']['value'] for r in shown} == {
+            r['metric_id']: r['value'] for r in sources}
+        assert next(r for r in shown if r['metric_id'] == 'trade_other_receivables')['cells']['2025']['page'] == 7

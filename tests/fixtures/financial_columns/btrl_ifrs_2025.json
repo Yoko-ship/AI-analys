@@ -1,0 +1,115 @@
+{
+  "id": "491834ade0335224cc584efa24034986df585f47085aac7c7477bf7579cc5e23",
+  "org_id": "540",
+  "scope": "separate",
+  "period_end": "2025-12-31",
+  "payload": {
+    "classification": {
+      "standard": "MSFO",
+      "scope": "separate",
+      "currency": "UZS",
+      "unit_scale": "1000",
+      "period_start": "2025-01-01",
+      "period_end": "2025-12-31",
+      "role": "PRIMARY",
+      "audit_status": "audited"
+    },
+    "source": {
+      "pdf_url": "https://openinfo.uz/media/msfo/320a04d5-e9e8-4ba6-a1c5-54d0c1f8185a.pdf"
+    },
+    "page_count": 10,
+    "income_reconciliation": {
+      "net_income": {
+        "column_year": 2025,
+        "page": 8,
+        "raw_label": "Чистая прибыль",
+        "raw_value": "997268"
+      },
+      "pretax": {
+        "column_year": 2025,
+        "page": 8,
+        "raw_label": "Прибыль до налогообложения",
+        "raw_value": "1325263"
+      },
+      "tax": {
+        "calculation": "sum",
+        "column_year": 2025,
+        "components": [
+          {
+            "column_year": 2025,
+            "page": 8,
+            "raw_label": "Расходы по налогу на прибыль",
+            "raw_value": "-383488"
+          },
+          {
+            "column_year": 2025,
+            "page": 8,
+            "raw_label": "Отложенный налог",
+            "raw_value": "55493"
+          }
+        ],
+        "page": 8,
+        "raw_label": "Расходы по налогу на прибыль и отложенный налог",
+        "raw_value": "-327995"
+      }
+    },
+    "figures": {
+      "net_income": {
+        "column_year": 2025,
+        "page": 8,
+        "raw_label": "Чистая прибыль",
+        "raw_value": "997268"
+      }
+    },
+    "normalized_uzs": {
+      "net_income": "997268000"
+    },
+    "source_rows": [
+      {
+        "source_form": "BS",
+        "metric_id": "trade_other_receivables",
+        "raw_label": "Торговая и прочая дебиторская задолженность",
+        "raw_value": "16578301",
+        "page": 7,
+        "kind": "stock",
+        "scope": "separate",
+        "unit": "UZS_thousand",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "period_start": null,
+        "period_end": "2025-12-31",
+        "quality": "valid"
+      },
+      {
+        "source_form": "PL",
+        "metric_id": "current_income_tax",
+        "raw_label": "Расходы по налогу на прибыль",
+        "raw_value": "-383488",
+        "page": 8,
+        "kind": "flow",
+        "scope": "separate",
+        "unit": "UZS_thousand",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "period_start": "2025-01-01",
+        "period_end": "2025-12-31",
+        "quality": "valid"
+      },
+      {
+        "source_form": "PL",
+        "metric_id": "deferred_income_tax",
+        "raw_label": "Отложенный налог",
+        "raw_value": "55493",
+        "page": 8,
+        "kind": "flow",
+        "scope": "separate",
+        "unit": "UZS_thousand",
+        "currency": "UZS",
+        "unit_scale": "1000",
+        "period_start": "2025-01-01",
+        "period_end": "2025-12-31",
+        "quality": "valid"
+      }
+    ]
+  }
+}

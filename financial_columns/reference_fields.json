@@ -3168,14 +3168,19 @@
             "field_id": "inventories"
           },
           {
-            "label": "Торговая и прочая дебиторская задолженность",
-            "ref": "BS · Trade receivables",
+            "label": "Дебиторская задолженность",
+            "ref": "BS · Receivables",
             "kind": "stock",
             "selectors": [
               [
                 "BS",
                 null,
                 "trade_receivables"
+              ],
+              [
+                "BS",
+                null,
+                "trade_other_receivables"
               ]
             ],
             "field_id": "receivables"

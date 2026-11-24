@@ -224,3 +224,25 @@ def test_infb_2025_combined_basic_and_diluted_eps_has_its_own_currency_and_scale
                (9, 'per_share', 'UZS', '1', 'valid') for r in rows)
     assert not eps_rows(text.replace('в сумах на одну', 'в тысячах сумов на одну'))
     assert not eps_rows(text.replace('Базовая и разводненная', 'Плановая'))
+
+
+def test_reviewed_income_reconciliation_supplies_missing_income_statement_fields():
+    from decimal import Decimal
+    from pathlib import Path
+    import json
+    from financial_columns import observations
+    snapshot = json.loads(Path('tests/fixtures/financial_columns/btrl_ifrs_2025.json').read_text())
+    rows = {r['metric_id']: r for r in observations.ifrs([snapshot])}
+    pretax = rows['profit_before_tax']
+    assert pretax['value'] == '1325263'
+    tax = rows['income_tax']
+    assert (tax['value'], tax['page'], tax['period_end']) == ('-327995', 8, '2025-12-31')
+    assert tax['source_version'] == snapshot['id'] and tax['source_form'] == 'PL'
+    assert sum(Decimal(c['raw_value']) for c in tax['components']) == Decimal(tax['raw_value'])
+    assert Decimal(pretax['value']) + Decimal(tax['value']) == Decimal(rows['net_income']['value'])
+
+    # An existing source row, including a blocked row, takes precedence.
+    snapshot['payload']['source_rows'].append({
+        **tax, 'quality': 'blocked', 'reason': 'CONFLICTING_SOURCE_VALUES', 'raw_value': None})
+    taxes = [r for r in observations.ifrs([snapshot]) if r['metric_id'] == 'income_tax']
+    assert len(taxes) == 1 and taxes[0]['value'] is None

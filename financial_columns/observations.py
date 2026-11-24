@@ -32,6 +32,24 @@ def nsbu(documents):
     return result
 
 
+def _reconciled_income_rows(payload):
+    """Expose the approved statement evidence used to reconcile net income."""
+    meta = payload['classification']
+    end = meta['period_end']
+    reported = {r.get('metric_id') for r in payload.get('source_rows') or []
+                if r.get('source_form') == 'PL' and r.get('period_end') == end
+                and r.get('period_start') == meta['period_start']}
+    reconciliation = payload.get('income_reconciliation') or {}
+    for name, metric in (('pretax', 'profit_before_tax'), ('tax', 'income_tax')):
+        item = reconciliation.get(name)
+        if metric in reported or not item or item.get('column_year') != int(end[:4]):
+            continue
+        yield {**item, 'metric_id': metric, 'source_form': 'PL', 'source_code': None,
+               'origin': 'income_reconciliation', 'kind': 'flow', 'unit': 'UZS_thousand',
+               'currency': meta['currency'], 'unit_scale': meta['unit_scale'],
+               'period_start': meta['period_start'], 'period_end': end, 'quality': 'valid'}
+
+
 def ifrs(snapshots):
     from financial_ingestion.investor_eps import published_rows
     result = []
@@ -46,7 +64,7 @@ def ifrs(snapshots):
                 'audit_status': meta.get('audit_status', 'unknown'), 'accounting_model': meta.get('accounting_model'),
                 'currency': meta.get('currency'), 'unit_scale': meta.get('unit_scale'), 'fx': meta.get('fx')}
         mapped = set()
-        for row in [*(payload.get('source_rows') or []), *published_rows(snapshot)]:
+        for row in [*(payload.get('source_rows') or []), *published_rows(snapshot), *_reconciled_income_rows(payload)]:
             quality, reason = row['quality'], row.get('reason')
             value = None
             if row.get('raw_value') is not None and row.get('unit_scale'):
