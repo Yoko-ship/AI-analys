@@ -495,37 +495,46 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
     from server.company.routes import api_securities_info
     from server.market.routes import api_market_financials, api_market_multiples
 
-    async def load() -> dict[str, Any] | None:
+    async def identity() -> dict[str, Any]:
         try:
-            info = await api_securities_info(ticker, lang)
+            return await api_securities_info(ticker, lang)
         except HTTPException as exc:
-            # A store hiccup raises out of here, is not cached, and serves the
-            # retryable shell: only the handler's own 404 makes the page missing.
             if exc.status_code == 404:
                 return {"missing": True}
             raise
-        fin, mult = await asyncio.gather(
-            api_market_financials(ticker), api_market_multiples(_internal_request(), "board", ticker),
-            return_exceptions=True)
-        fin_row = ((_json_body(fin) if not isinstance(fin, BaseException) else {})
-                   .get("financials") or {}).get(ticker)
-        mult_items = (_json_body(mult) if not isinstance(mult, BaseException) else {}).get("items") or []
-        return {"info": info, "fin": fin_row,
-                "mult": next((r for r in mult_items if str(r.get("ticker")).upper() == ticker), None)}
 
-    data = await _cached(f"company:{lang}:{ticker}", load)
-    if not data:
+    info = await _cached(f"company:{lang}:{ticker}", identity)
+    if not info:
         return None
-    if data.get("missing"):
+    if info.get("missing"):
         raise _Missing(ticker)
-    sec = (data["info"] or {}).get("security") or {}
-    wiki = (data["info"] or {}).get("wiki") or {}
+    sec = info.get("security") or {}
+    wiki = info.get("wiki") or {}
     if str(sec.get("type") or "") == "bond":
         try:
             return await _bond_page(ticker, lang)
         except _Missing:
             # The issuer is known even if its security is absent from the bond board.
             return None
+    async def financials():
+        response = await api_market_financials(ticker)
+        return (_json_body(response).get("financials") or {}).get(ticker)
+
+    async def multiples():
+        response = await api_market_multiples(_internal_request(), "board", ticker)
+        items = _json_body(response).get("items") or []
+        return next((row for row in items if str(row.get("ticker")).upper() == ticker), None)
+
+    # A cold optional read can finish in the background while the issuer page
+    # displays its identity and whichever figures are already available.
+    financial_row, multiple_row = await asyncio.gather(
+        _cached(f"company-financials:{ticker}", financials),
+        _cached(f"company-multiples:{ticker}", multiples),
+        return_exceptions=True,
+    )
+    fin = financial_row if isinstance(financial_row, dict) else {}
+    mult = multiple_row if isinstance(multiple_row, dict) else None
+
     tx = _TX[lang]
     name = _clean_name(sec.get("company_name") or sec.get("security_name") or ticker)
     preferred = sec.get("share_type") == "preferred" or sec.get("is_preferred") is True
@@ -535,7 +544,6 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
     sector = _SECTORS[lang].get(str(sec.get("sector") or ""), None)
     price, trade_date = _num(sec.get("last_price")), _fmt_date(sec.get("last_trade_date"))
     cap = _num(sec.get("market_cap"))
-    mult, fin = data["mult"], data["fin"] or {}
     pe, pb, roe = _metric(mult, "pe"), _metric(mult, "pb"), _metric(mult, "roe")
 
     currency = tx["money_units"].split("|")[-1]

@@ -131,6 +131,44 @@ def test_company_snapshot_is_cached(tmp_path, monkeypatch):
     assert calls == ["UZTL"]
 
 
+def test_cold_company_page_keeps_reported_financials_while_multiples_load(monkeypatch):
+    monkeypatch.setattr(seo, "_cache", seo._PageDataCache(limit=16, miss_limit=4))
+    monkeypatch.setattr(seo, "_pending", {})
+    monkeypatch.setattr(seo, "_DATA_TIMEOUT", 0.02)
+    completed = asyncio.Event()
+    release = asyncio.Event()
+    calls = []
+
+    async def info(ticker, lang):
+        return {"security": {"ticker": ticker, "company_name": "Andijon biokimyo zavodi"}}
+
+    async def financials(ticker):
+        return {"financials": {ticker: {"year": 2025, "period_months": 12, "net_income": 123_000_000}}}
+
+    async def multiples(request, view, ticker):
+        calls.append(ticker)
+        await release.wait()
+        completed.set()
+        return {"items": [{"ticker": ticker, "pe": {"value": 12.75, "status": "ok"}}]}
+
+    monkeypatch.setattr(company_routes, "api_securities_info", info)
+    monkeypatch.setattr(market_routes, "api_market_financials", financials)
+    monkeypatch.setattr(market_routes, "api_market_multiples", multiples)
+
+    async def scenario():
+        page = await seo.page_meta("/company/ABKZ", {"tab": "financials"})
+        assert page.status == 200
+        assert "Andijon biokimyo zavodi" in page.title and "123" in page.body
+        assert "12,75" not in page.body
+        release.set()
+        await completed.wait()
+        updated = await seo.page_meta("/company/ABKZ")
+        assert "12,75" in updated.body
+        assert calls == ["ABKZ"]
+
+    asyncio.run(scenario())
+
+
 def _is_not_found(page):
     return (page.status_code == 404 and '<meta name="robots" content="noindex, nofollow" />' in page.text
             and "<title>Страница не найдена | UZStock</title>" in page.text
