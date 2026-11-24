@@ -162,7 +162,8 @@ def test_kasu_annual_reserves_survive_download_cache_turnover(monkeypatch, tmp_p
     ]
     parsed = {'ok': True, 'sheets': [{'table_rows': balance_rows}], 'financial_revision': 'filing-312',
               'parser_version': settings.EXCEL_PARSER_VERSION, 'content_sha256': 'a' * 64,
-              'reporting_date': '2025-12-31'}
+              'reporting_date': '2025-12-31', 'source_coverage': {'complete': True, 'issues': []},
+              'sheet_count': 1, 'sheets_read': 1, 'warnings': []}
     cache._set_excel_cache(url, parsed)
     def read():
         return catalogue_sources.cached_report_excel_data('KASU', 'NSBU', 2025, 0)
@@ -181,5 +182,15 @@ def test_kasu_annual_reserves_survive_download_cache_turnover(monkeypatch, tmp_p
     assert not read()['ok']
     # A newer download at the same URL supersedes any retained evidence.
     monkeypatch.setattr(catalogue_sources, '_financial_revision', lambda *args: 'filing-312')
-    cache._set_excel_cache(url, {**parsed, 'financial_revision': None, 'content_sha256': 'b' * 64}, existing_only=True)
+    # Openinfo regenerates docProps/core.xml's modified time on every export.
+    # Re-reading the complete, unchanged source must preserve both its fiscal
+    # binding and the identity of the latest download.
+    refreshed = {**parsed, 'financial_revision': None, 'content_sha256': 'b' * 64}
+    cache._set_excel_cache(url, refreshed, existing_only=True)
+    assert read()['balance']['content_sha256'] == 'b' * 64
+    assert extract_insurance_balance(read()['balance'])['net_insurance_reserves'] == pytest.approx(110200931.38, abs=.005, rel=0)
+    corrected = deepcopy(refreshed)
+    corrected['content_sha256'] = 'c' * 64
+    corrected['sheets'][0]['table_rows'][0]['numeric_values'][-1] += 1
+    cache._set_excel_cache(url, corrected, existing_only=True)
     assert not read()['ok']

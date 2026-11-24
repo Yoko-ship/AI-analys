@@ -158,6 +158,25 @@ def retained_filing_workbook(url: str) -> dict[str, Any] | None:
         return None
 
 
+def _same_filing_source(previous: dict[str, Any], incoming: dict[str, Any]) -> bool:
+    if not (previous.get('financial_revision') and previous.get('content_sha256')
+            and incoming.get('content_sha256') and previous.get('parser_version')
+            and previous['parser_version'] == incoming.get('parser_version')):
+        return False
+    if previous['content_sha256'] == incoming['content_sha256']:
+        return True
+    # Openinfo rewrites the Excel modification timestamp on export. All parsed
+    # cells, including source rows outside the mapped metrics, must agree.
+    for version in (previous, incoming):
+        sheets = version.get('sheets') or []
+        if not (version.get('ok') and not version.get('warnings') and sheets
+                and version.get('source_coverage', {}).get('complete')
+                and version.get('sheet_count') == version.get('sheets_read') == len(sheets)):
+            return False
+    return (previous.get('reporting_date') == incoming.get('reporting_date')
+            and previous['sheets'] == incoming['sheets'])
+
+
 def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool = False) -> None:
     if not url or collectors_openinfo_settings.EXCEL_CACHE_TTL_SECONDS <= 0:
         return
@@ -165,21 +184,17 @@ def _set_excel_cache(url: str, payload: dict[str, Any], *, existing_only: bool =
     cached_payload["from_cache"] = False
     with _cache_writer():
         cache = _load_excel_cache()
-        if existing_only and url not in cache:
-            # A historical sweep can discover a same-URL replacement after eviction.
-            retained = _read_retained(url)
-            if retained and (retained.get('content_sha256') != payload.get('content_sha256')
-                             or retained.get('parser_version') != payload.get('parser_version')):
+        previous = cache.get(url) or {}
+        if not cached_payload.get('financial_revision'):
+            old = previous.get('payload') if previous else _read_retained(url)
+            if old and _same_filing_source(old, cached_payload):
+                cached_payload['financial_revision'] = old['financial_revision']
+        if existing_only and not previous:
+            if cached_payload.get('financial_revision'):
+                _retain_filing(url, {'payload': cached_payload})
+            else:
                 _retained_path(url).unlink(missing_ok=True)
             return
-        previous = cache.get(url) or {}
-        if existing_only:
-            # A history sweep sees the workbook bytes, but has no catalog revision of its own.
-            old = previous.get('payload') or {}
-            if (old.get('financial_revision') and old.get('content_sha256')
-                    and old['content_sha256'] == cached_payload.get('content_sha256')
-                    and old.get('parser_version') == cached_payload.get('parser_version')):
-                cached_payload['financial_revision'] = old['financial_revision']
         cache[url] = {**previous, "cached_at": time.time(), "payload": cached_payload,
                       "refresh_failed": False}
         # A newer observation supersedes any retained version of this URL.
