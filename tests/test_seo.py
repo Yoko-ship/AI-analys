@@ -169,6 +169,42 @@ def test_cold_company_page_keeps_reported_financials_while_multiples_load(monkey
     asyncio.run(scenario())
 
 
+def test_company_financial_page_uses_identified_security_when_profile_times_out(tmp_path, monkeypatch):
+    import securities_catalog
+
+    client = _client(tmp_path, monkeypatch)
+    _fake_company(monkeypatch)
+
+    async def timed_out(*args, **kwargs):
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(company_routes, "api_securities_info", timed_out)
+    monkeypatch.setattr(securities_catalog, "get_securities_map", lambda: {
+        "JASM": {"ticker": "JASM", "type": "stock", "name": "Jizzax plastmassa"},
+    })
+    page = client.get("/company/JASM?tab=financials")
+    assert page.status_code == 200 and "Jizzax plastmassa" in page.text
+    assert client.get("/company/UNKNOWN123").status_code == 503
+
+
+def test_bond_issuer_financial_page_survives_slow_bond_board(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+
+    async def info(ticker, lang):
+        return {"security": {"ticker": ticker, "type": "bond", "company_name": "AGAT CREDIT",
+                             "isin": "UZ6058977AB6"}}
+
+    async def timed_out(*args):
+        raise asyncio.TimeoutError
+
+    monkeypatch.setattr(company_routes, "api_securities_info", info)
+    monkeypatch.setattr(bonds_routes, "api_bonds", timed_out)
+    page = client.get("/company/ACMT1B2?tab=financials")
+    assert page.status_code == 200 and "AGAT CREDIT" in page.text
+    assert "UZ6058977AB6" in page.text
+    assert '<link rel="canonical" href="https://uzstock.uz/bond/ACMT1B2" />' in page.text
+
+
 def _is_not_found(page):
     return (page.status_code == 404 and '<meta name="robots" content="noindex, nofollow" />' in page.text
             and "<title>Страница не найдена | UZStock</title>" in page.text

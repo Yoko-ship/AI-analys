@@ -503,7 +503,18 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
                 return {"missing": True}
             raise
 
-    info = await _cached(f"company:{lang}:{ticker}", identity)
+    try:
+        info = await _cached(f"company:{lang}:{ticker}", identity)
+    except TimeoutError:
+        # The enriched profile also loads an external issuer description. The
+        # persisted securities registry can independently confirm the listing.
+        from securities_catalog import get_securities_map
+
+        registry = await _cached("company-securities", lambda: asyncio.to_thread(get_securities_map))
+        security = registry.get(ticker)
+        if not security:
+            raise
+        info = {"security": security}
     if not info:
         return None
     if info.get("missing"):
@@ -513,6 +524,11 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
     if str(sec.get("type") or "") == "bond":
         try:
             return await _bond_page(ticker, lang)
+        except TimeoutError:
+            return _bond_meta(ticker, lang, {
+                "issuer": sec.get("company_name") or sec.get("security_name") or sec.get("name"),
+                "isin": sec.get("isin"),
+            })
         except _Missing:
             # The issuer is known even if its security is absent from the bond board.
             return None
@@ -536,7 +552,7 @@ async def _company_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta |
     mult = multiple_row if isinstance(multiple_row, dict) else None
 
     tx = _TX[lang]
-    name = _clean_name(sec.get("company_name") or sec.get("security_name") or ticker)
+    name = _clean_name(sec.get("company_name") or sec.get("security_name") or sec.get("name") or ticker)
     preferred = sec.get("share_type") == "preferred" or sec.get("is_preferred") is True
     if preferred and tx["preferred_marker"] not in name.lower():
         name = f"{name} {tx['preferred_suffix']}"
@@ -641,6 +657,10 @@ async def _bond_page(ticker: str, lang: str = DEFAULT_LANGUAGE) -> PageMeta | No
         if board:
             raise _Missing(ticker)
         return None
+    return _bond_meta(ticker, lang, row)
+
+
+def _bond_meta(ticker: str, lang: str, row: dict[str, Any]) -> PageMeta:
     tx = _TX[lang]
     currency = tx["money_units"].split("|")[-1]
     ref = row.get("reference") or {}
