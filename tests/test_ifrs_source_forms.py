@@ -246,3 +246,26 @@ def test_reviewed_income_reconciliation_supplies_missing_income_statement_fields
         **tax, 'quality': 'blocked', 'reason': 'CONFLICTING_SOURCE_VALUES', 'raw_value': None})
     taxes = [r for r in observations.ifrs([snapshot]) if r['metric_id'] == 'income_tax']
     assert len(taxes) == 1 and taxes[0]['value'] is None
+
+
+def test_uzas_opening_equity_validates_only_at_the_start_of_its_equity_statement():
+    # Signed FY2025 consolidated statement of changes in equity, PDF page 7.
+    row = dict(metric_id='equity_open', source_form='Equity', kind='stock',
+               raw_label='На 31 декабря 2024 года', raw_value='309334138',
+               raw_line='На 31 декабря 2024 года    108 955 939    200 378 199    309 334 138',
+               page=7, period_start='2024-12-31', period_end='2024-12-31',
+               statement_period_end='2025-12-31', quality='valid', scope='consolidated',
+               currency='UZS', unit_scale='1000')
+    proposal = {
+        'classification': dict(standard='MSFO', issuer_name='UZAS', scope='consolidated',
+                               role='PRIMARY', document_year=2025, currency='UZS', unit_scale='1000',
+                               period_start='2025-01-01', period_end='2025-12-31',
+                               issuer_evidence='Signed consolidated report', unit_evidence='Thousands of UZS',
+                               period_evidence='Financial year ended 31 December 2025'),
+        'figures': {'total_equity': dict(raw_label='ИТОГО КАПИТАЛ', raw_value='310324130', page=6, column_year=2025)},
+        'source_rows': [row],
+    }
+    assert validation.validate(proposal, page_count=7)['valid']
+    for invalid in ({'period_end': '2024-12-30'}, {'kind': 'flow'}, {'source_form': 'PL'}):
+        proposal['source_rows'] = [{**row, **invalid}]
+        assert 'SOURCE_ROW_VALUE_INVALID' in validation.validate(proposal, page_count=7)['errors']

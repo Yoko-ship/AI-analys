@@ -83,8 +83,10 @@ def validate(payload, *, page_count):
                         or row.get('scope') == 'unknown'):
                     raise ValueError('Unresolved source row context')
                 row_end = date.fromisoformat(row['period_end'])
+                opening_metric = row.get('metric_id') == 'cash_begin' or (
+                    row.get('source_form') == 'Equity' and row.get('metric_id') == 'equity_open')
                 if row_end.isoformat() != meta.get('period_end') and not (
-                        row.get('metric_id') == 'cash_begin' and row.get('kind') == 'stock'
+                        opening_metric and row.get('kind') == 'stock'
                         and row_end.toordinal() + 1 == date.fromisoformat(meta['period_start']).toordinal()):
                     raise ValueError('Invalid opening balance date')
             except ValueError:
