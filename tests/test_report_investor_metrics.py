@@ -1212,3 +1212,38 @@ def test_orgs_2025_share_basis_with_independently_reviewed_assets(report, confli
     ratios = {r['metric_code']: r['value'] for r in calculate(report, rows, basis)}
     assert ratios['eps_basic'] == (None if conflict else pytest.approx(564912000 / 666680))
     assert ratios['book_value_per_share'] == (None if conflict else pytest.approx(4568663000 / 666680))
+
+
+@pytest.mark.parametrize('case', ['selected', 'archived', 'other_source', 'unreviewed', 'future', 'unknown_date', 'wrong_profit', 'mixed_primary'])
+def test_infb_2024_eps_in_selected_audited_comparative(report, case):
+    from financial_analysis import report_investor_metrics as subject
+
+    url = 'https://openinfo.uz/media/int_report/331268b4-7c2d-409e-a015-c28788410c80.pdf'
+    report.update(standard='ifrs', scope='consolidated', period='2024', financial_as_of='2024-12-31')
+    report['issuer'].update(id='25', ticker='INFB', organization_type='bank')
+    report['instrument'] = {'instrument_type':'ordinary_share', 'valuation_as_of':'2026-11-24'}
+    report['verified_facts'] = [dict(metric_code='net_income', value=167712000,
+        period='2024', period_end='2024-12-31', unit_normalized='thousand UZS', verification_status='verified',
+        source_url=url if case != 'other_source' else 'https://openinfo.uz/media/msfo/different.pdf')]
+    from financial_columns import observations
+    meta = dict(scope='consolidated', period_start='2024-01-01', period_end='2024-12-31',
+                audit_status='unknown' if case == 'unreviewed' else 'audited', role='COMPARATIVE')
+    source = dict(pdf_url=url,
+                  source_published_at=None if case in {'archived', 'unknown_date'} else
+                                      '2027-01-01' if case == 'future' else '2026-07-08',
+                  received_at=None if case == 'unknown_date' else '2026-09-23')
+    base = dict(source_form='PL', source_code=None, raw_label='Filed value', page=9, quality='valid', currency='UZS')
+    snapshot = dict(org_id='25', id='approved-snapshot', payload=dict(classification=meta, source=source,
+        source_rows=[dict(base, metric_id='net_income', kind='flow', unit='UZS_thousand', unit_scale='1000000',
+                          raw_value='140000' if case == 'wrong_profit' else '167712'),
+                     dict(base, metric_id='eps_basic', kind='per_share', unit='UZS_per_share', unit_scale='1', raw_value='239')]))
+    rows = observations.ifrs([snapshot])
+    if case == 'mixed_primary':
+        rows.extend([{**r, 'role':'PRIMARY'} for r in rows])
+    eps = next(r for r in subject.calculate(report, rows) if r['metric_code'] == 'eps_basic')
+    if case in {'selected', 'archived', 'mixed_primary'}:
+        assert eps['value'] == 239
+        assert eps['components'][0]['role'] == ('PRIMARY' if case == 'mixed_primary' else 'COMPARATIVE')
+        assert eps['components'][0]['source_url'] == url
+    else:
+        assert eps['value'] is None

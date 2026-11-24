@@ -18,7 +18,7 @@ from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-10'
+VERSION = 'report-investor-metrics-11'
 HISTORICAL_METRICS = {'book_value_per_share', 'price_to_book', 'eps_basic', 'ebit'}
 SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
@@ -149,14 +149,20 @@ def _compatible(report, rows, facts, *, income=False):
     """Match a source revision using the statements needed by the indicator."""
     standard = 'NSBU' if report['standard'].lower() == 'nsbu' else 'MSFO'
     end = report['financial_as_of']
+    cutoff = (report.get('instrument') or {}).get('valuation_as_of') or date.today().isoformat()
     groups = defaultdict(list)
     for row in rows:
         if (str(row.get('issuer_id')) == str(report['issuer']['id']) and row.get('standard') == standard
                 and row.get('scope') == report['scope'] and row.get('period_end') == end
-                and row.get('role') != 'COMPARATIVE' and row.get('source_url') and row.get('source_version')):
+                and row.get('source_url') and row.get('source_version')):
+            if row.get('role') == 'COMPARATIVE' and standard != 'MSFO':
+                continue
             groups[row['source_version']].append(row)
     accepted = []
     for group in groups.values():
+        direct = [r for r in group if r.get('role') != 'COMPARATIVE']
+        comparative = not direct
+        group = direct or group
         if not income and standard == 'NSBU' and _reviewed_assets_match_funding(group, facts):
             accepted.append(group)
             continue
@@ -169,6 +175,16 @@ def _compatible(report, rows, facts, *, income=False):
                            if key in facts and any(r.get('metric_id') == key for r in group)]
             if income_keys:
                 keys = income_keys
+        if comparative:
+            # A selected IFRS filing can itself report this period as a comparative.
+            # Require the same audited document as each verified statement anchor.
+            urls = {facts.get(key, {}).get('source_url') for key in keys}
+            if (income and 'net_income' not in keys and 'revenue' not in keys
+                    or len(urls) != 1 or None in urls
+                    or any(r['source_url'] not in urls
+                           or r.get('audit_status') != 'audited'
+                           or not end <= str(r.get('published_at') or r.get('received_at') or '')[:10] <= cutoff for r in group)):
+                continue
         anchors = [_pick(group, key, 'UZS_thousand', end,
                          end[:4] + '-01-01' if key in {'net_income', 'revenue'} else None) for key in keys]
         expected = [decimal(facts.get(key, {}).get('value')) for key in keys]

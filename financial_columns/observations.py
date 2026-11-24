@@ -41,7 +41,8 @@ def ifrs(snapshots):
         base = {'issuer_id': str(snapshot['org_id']), 'standard': 'MSFO', 'scope': meta['scope'],
                 'period_end': meta['period_end'], 'period_start': meta['period_start'],
                 'source_version': snapshot['id'], 'source_url': source.get('pdf_url'),
-                'published_at': source.get('source_published_at'), 'role': meta.get('role'),
+                'published_at': source.get('source_published_at'), 'received_at': source.get('received_at'),
+                'role': meta.get('role'),
                 'audit_status': meta.get('audit_status', 'unknown'), 'accounting_model': meta.get('accounting_model'),
                 'currency': meta.get('currency'), 'unit_scale': meta.get('unit_scale'), 'fx': meta.get('fx')}
         mapped = set()
