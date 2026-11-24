@@ -373,6 +373,11 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
+.heatmap-tree-tile.is-highlighted {
+  outline: 2px solid var(--heatmap-industry-highlight);
+  outline-offset: -2px;
+}
+
 .htt-logo {
   --logo-surface: #fff;
   display: flex;

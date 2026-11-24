@@ -34,7 +34,7 @@ async function openMarket(page, url = '/market', user = null) {
 }
 const tiles = page => page.locator('.heatmap-tree-tile');
 
-for (const width of [1440, 390]) test(`treemap highlights the nearest industry heading at ${width}px`, async ({page}, testInfo) => {
+for (const width of [1440, 390]) test(`treemap outlines the company and nearest industry at ${width}px`, async ({page}, testInfo) => {
   await page.setViewportSize({width, height: 900});
   await openMarket(page, '/heatmap');
   await chooseMapArea(page, 'equal');
@@ -47,7 +47,7 @@ for (const width of [1440, 390]) test(`treemap highlights the nearest industry h
   const banks = map.locator('.heatmap-tree-label[data-group="banks"]');
   const dori = tiles(page).and(page.locator('[data-ticker="DORI"]'));
 
-  const expectHighlight = async heading => {
+  const expectHighlight = async (heading, tile) => {
     await expect(highlight).toHaveCount(1);
     await expect(heading).toHaveClass(/\bis-highlighted\b/);
     await expect(activeHeading).toHaveCount(1);
@@ -57,28 +57,40 @@ for (const width of [1440, 390]) test(`treemap highlights the nearest industry h
     expect(outline.x).toBeCloseTo(label.x, 0);
     expect(outline.y).toBeCloseTo(label.y, 0);
     expect(outline.width).toBeCloseTo(label.width, 0);
-    await expect(heading).toHaveCSS('background-color', await highlight.evaluate(el => getComputedStyle(el).borderTopColor));
+    const purple = await highlight.evaluate(el => getComputedStyle(el).borderTopColor);
+    await expect(heading).toHaveCSS('background-color', purple);
+    if (tile) {
+      await expect(tile).toHaveCSS('outline-style', 'solid');
+      await expect(tile).toHaveCSS('outline-width', '2px');
+      await expect(tile).toHaveCSS('outline-color', purple);
+      await expect(tile).toHaveCSS('outline-offset', '-2px');
+    }
   };
 
   await expect(banks).toHaveText('Банки');
   if (width === 390) {
     await expect(map.locator('.heatmap-tree-label[data-group="electrical-installation"]')).toHaveCount(0);
-    await tiles(page).and(page.locator('[data-ticker="ORGS"]')).hover();
-    await expectHighlight(map.locator('.heatmap-tree-label[data-sector="construction"]'));
+    const orgs = tiles(page).and(page.locator('[data-ticker="ORGS"]'));
+    await orgs.hover();
+    await expectHighlight(map.locator('.heatmap-tree-label[data-sector="construction"]'), orgs);
   }
   await bank.hover();
-  await expectHighlight(banks);
+  await expectHighlight(banks, bank);
+  const bankOutline = await highlight.getAttribute('style');
   await preferredBank.hover();
-  await expectHighlight(banks);
-  await page.mouse.move(0, 0);
-  await expect(highlight).toHaveCount(0);
-  await banks.hover();
-  await expectHighlight(banks);
+  await expectHighlight(banks, preferredBank);
+  await expect(bank).toHaveCSS('outline-style', 'none');
+  await expect(highlight).toHaveAttribute('style', bankOutline);
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => { document.body.dataset.theme = theme; document.documentElement.dataset.theme = theme; }, theme);
-    await expectHighlight(banks);
+    await expectHighlight(banks, preferredBank);
     await page.screenshot({path: testInfo.outputPath(`industry-highlight-${theme}.png`)});
   }
+  await page.mouse.move(0, 0);
+  await expect(highlight).toHaveCount(0);
+  await expect(preferredBank).toHaveCSS('outline-style', 'none');
+  await banks.hover();
+  await expectHighlight(banks);
   if (width === 1440) {
     const {x} = await map.boundingBox();
     const heading = await banks.boundingBox();
@@ -89,16 +101,20 @@ for (const width of [1440, 390]) test(`treemap highlights the nearest industry h
     await expect(activeHeading).toHaveCount(0);
   }
   await dori.hover();
-  await expectHighlight(map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]'));
+  await expectHighlight(map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]'), dori);
+  await expect(preferredBank).toHaveCSS('outline-style', 'none');
+  await expect(highlight).not.toHaveAttribute('style', bankOutline);
   await page.mouse.move(0, 0);
   await expect(highlight).toHaveCount(0);
   await expect(activeHeading).toHaveCount(0);
+  await expect(dori).toHaveCSS('outline-style', 'none');
   await page.keyboard.press('Tab');
   await bank.focus();
-  await expectHighlight(banks);
+  await expectHighlight(banks, bank);
   await bank.blur();
   await expect(highlight).toHaveCount(0);
   await expect(activeHeading).toHaveCount(0);
+  await expect(bank).toHaveCSS('outline-style', 'none');
 });
 
 for (const width of [1440, 390]) test(`heatmap hover shows an industry quote card at ${width}px`, async ({page}, testInfo) => {

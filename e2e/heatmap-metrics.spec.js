@@ -354,7 +354,10 @@ for (const width of [1280, 390]) test(`searchable heatmap performance periods at
 });
 test('market map draws its tiles when market data arrives after mounting', async ({page}) => {
   await openMap(page, 'stock', '/heatmap', false);
-  await expect(page.locator('.heatmap-tree-tile[data-ticker="AGBA"]')).toBeVisible();
+  const tile = page.locator('.heatmap-tree-tile[data-ticker="AGBA"]');
+  await tile.hover();
+  await page.mouse.wheel(0, -180);
+  await expect(page.locator('.heatmap-zoom output')).not.toHaveText('100%');
 });
 for (const width of [1920, 1280, 1024, 390, 320]) {
   test(`heatmap opens with compact controls and the map before details at ${width}px`, async ({ page }, testInfo) => {
@@ -630,7 +633,8 @@ for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the 
   await expect(zoom).toBeVisible();
   await expect.soft(page.locator('.heatmap-tree-tile:not(.is-micro)').first()).toHaveCSS('border-radius', '0px');
   await expect.soft(page.locator('.heatmap-tree-tile.is-micro').first()).toHaveCSS('border-radius', '0px');
-  await expect(page.locator('.heatmap-viewport')).toHaveCSS('overscroll-behavior-y', 'auto');
+  const viewport = page.locator('.heatmap-viewport');
+  await expect(viewport).toHaveCSS('overscroll-behavior-y', 'auto');
   await expect(zoom.getByRole('button', {name: 'Уменьшить карту'})).toBeDisabled();
   const clippedChanges = () => page.locator('.heatmap-tree-tile').evaluateAll(tiles => tiles.flatMap(tile => {
     const label = tile.querySelector('.htt-pct');
@@ -643,10 +647,56 @@ for (const width of [1280, 390]) test(`zoom reveals small-tile changes from the 
   await expect.poll(clippedChanges).toEqual([]);
   const initial = await page.locator('.heatmap-tree-tile').evaluateAll(tiles => tiles
     .filter(tile => !tile.querySelector('.htt-pct'))
-    .map(tile => ({ticker: tile.dataset.ticker, area: tile.clientWidth * tile.clientHeight}))
+    .map(tile => ({ticker: tile.dataset.ticker, hiddenTicker: !tile.querySelector('.htt-ticker'),
+      area: tile.clientWidth * tile.clientHeight}))
     .sort((a, b) => b.area - a.area));
   expect(initial.length).toBeGreaterThan(0);
   const ticker = initial[0].ticker;
+  if (width === 1280) {
+    await viewport.scrollIntoViewIfNeeded();
+    const smallTicker = initial.find(tile => tile.hiddenTicker).ticker;
+    const smallTile = page.locator(`.heatmap-tree-tile[data-ticker="${smallTicker}"]`);
+    const name = smallTile.locator('.htt-ticker'), change = smallTile.locator('.htt-pct');
+    await expect(name).toHaveCount(0);
+    await smallTile.hover();
+    const tileBox = await smallTile.boundingBox();
+    const mapBox = await viewport.boundingBox();
+    const point = {x: tileBox.x + tileBox.width / 2 - mapBox.x, y: tileBox.y + tileBox.height / 2 - mapBox.y};
+    const pageTop = await page.evaluate(() => scrollY);
+    const mapScroll = () => viewport.evaluate(el => [el.scrollLeft, el.scrollTop]);
+    await page.mouse.wheel(0, -180);
+    await expect(zoom.getByRole('status')).not.toHaveText('100%');
+    const scale = await viewport.locator('.heatmap-tree').evaluate(el => parseFloat(el.style.width) / 100);
+    expect(scale).toBeGreaterThan(1);
+    expect(scale).toBeLessThan(8);
+    const [left, top] = await mapScroll();
+    expect(Math.abs(left - point.x * (scale - 1))).toBeLessThanOrEqual(1);
+    expect(Math.abs(top - point.y * (scale - 1))).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => scrollY)).toBe(pageTop);
+
+    await page.mouse.wheel(0, -2400);
+    await expect(zoom.getByRole('status')).toHaveText('800%');
+    await smallTile.scrollIntoViewIfNeeded();
+    await expect(name).toBeInViewport();
+    await expect(name).toContainText(smallTicker);
+    await expect(name).toHaveCSS('writing-mode', 'horizontal-tb');
+    expect(await name.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    await expect(change).toBeInViewport();
+    await expect(change).toContainText('%');
+    await expect(change).toHaveCSS('writing-mode', 'horizontal-tb');
+    await expect.poll(clippedChanges).toEqual([]);
+
+    const enlargedBox = await viewport.boundingBox();
+    await page.mouse.move(enlargedBox.x + point.x, enlargedBox.y + point.y);
+    const [panLeft, panTop, maxLeft] = await viewport.evaluate(el => [el.scrollLeft, el.scrollTop, el.scrollWidth - el.clientWidth]);
+    const pan = panLeft < maxLeft / 2 ? 80 : -80;
+    await page.mouse.wheel(pan, 0);
+    await expect.poll(mapScroll).toEqual([panLeft + pan, panTop]);
+    await expect(zoom.getByRole('status')).toHaveText('800%');
+    await page.mouse.wheel(0, 2400);
+    await expect(zoom.getByRole('status')).toHaveText('100%');
+    await expect.poll(mapScroll).toEqual([0, 0]);
+  }
   for (let i = 0; i < 3; i++) await zoom.getByRole('button', {name: 'Увеличить карту'}).click();
   await expect(zoom.getByRole('status')).toHaveText('800%');
   await expect(page.locator('.heatmap-viewport')).toHaveCSS('overscroll-behavior-y', 'contain');

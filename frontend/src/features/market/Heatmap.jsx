@@ -183,7 +183,6 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
   const selectedMetrics = metricSelection.selected;
   const [treeElement,setTreeElement] = useState(null);
   const [treeSize, setTreeSize] = useState({ w: 0, h: 0 });
-  const {zoom, changeZoom, viewportRef, onClickCapture, onPointerDownCapture} = useHeatmapZoom(closePreview);
   const fullscreen = useHeatmapFullscreen();
 
   useEffect(() => { closePreview(); }, [isAdmin, period, type, areaMode, minTurnover, minCapitalization, changeFilter, presentation, closePreview]);
@@ -246,6 +245,9 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
     ? row.ticker === selectedTicker
     : normalizeHeatmapSearch(`${row.ticker} ${nameOf(row)}`).includes(needle)) : tradedRows;
   const searchEmpty = Boolean(needle && !visibleRows.length);
+  const {zoom, changeZoom, setViewport, onClickCapture, onPointerDownCapture} = useHeatmapZoom(
+    closePreview, !matrixMode && visibleRows.length > 0,
+  );
   const updateSearch = (nextQuery, ticker = '') => {
     setSearch({type, query: nextQuery, ticker});
     closePreview();
@@ -473,7 +475,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
             </button>
           </div>
         </div>
-      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}${searchEmpty ? ' is-search-empty' : ''}`} ref={viewportRef} tabIndex={0} role="region" aria-label={mapCopy.board}
+      <div className={`heatmap-viewport${zoom > 1 ? ' is-zoomed' : ''}${searchEmpty ? ' is-search-empty' : ''}`} ref={setViewport} tabIndex={0} role="region" aria-label={mapCopy.board}
         onClickCapture={onClickCapture} onPointerDownCapture={onPointerDownCapture}>
       {searchEmpty ? <p className="market-empty-cell heatmap-empty-state" role="status">{noMatches}</p> :
       <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
@@ -555,10 +557,11 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
                 ].slice(0, metricSlots);
                 const microTile = !showTicker && !showPercent;
                 const active = hover?.ticker === row.ticker;
+                const highlighted = highlightedSector === sector && mapTarget.dataset.ticker === row.ticker;
                 return (
                   <button
                     key={row.ticker}
-                    className={`heatmap-tree-tile${labels.flow === 'row' ? ' has-inline-labels' : ''}${microTile ? " is-micro" : ""}${active ? " is-active" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
+                    className={`heatmap-tree-tile${labels.flow === 'row' ? ' has-inline-labels' : ''}${microTile ? " is-micro" : ""}${active ? " is-active" : ""}${highlighted ? " is-highlighted" : ""}${preferred ? " is-preferred" : ""}${lowConfidence(row) ? " is-low-confidence" : ""}${status !== "ok" ? " is-unavailable" : ""}`}
                     type="button"
                     style={{
                       left: stock.x + tileGap / 2,
