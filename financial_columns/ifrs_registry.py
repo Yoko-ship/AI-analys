@@ -28,15 +28,15 @@ equity_owners|Equity attributable to owners of the parent|Капитал, при
 common_equity|Equity attributable to ordinary shareholders|Капитал, приходящийся на владельцев обыкновенных акций
 nci|Non-controlling interests|Неконтролирующая доля участия
 total_equity|Total equity|Итого капитал|Итого собственный капитал|Итого собственного капитала|Итого собственного капитал
-borrowings_short|Short-term borrowings|Краткосрочные заимствования
-borrowings_long|Long-term borrowings|Долгосрочные заимствования
+borrowings_short|Short-term borrowings|Краткосрочные заимствования|Краткосрочные заемные средства|Кредиты и займы (краткосрочные обязательства)
+borrowings_long|Long-term borrowings|Долгосрочные заимствования|Долгосрочные заемные средства|Долгосрочные кредиты и займы|Долгосрочные займы|Кредиты и займы (долгосрочные обязательства)
 lease_liabilities|Lease liabilities|Обязательства по аренде
 trade_payables|Trade payables|Торговая кредиторская задолженность
 contract_liabilities|Contract liabilities|Обязательства по договорам
 provisions|Provisions|Резервы
 current_liabilities|Current liabilities|Краткосрочные обязательства
 noncurrent_liabilities|Non-current liabilities|Долгосрочные обязательства
-deferred_tax_liability|Deferred tax liabilities|Отложенные налоговые обязательства
+deferred_tax_liability|Deferred tax liabilities|Отложенные налоговые обязательства|Отложенное налоговое обязательство
 total_liabilities|Total liabilities|Итого обязательства
 total_equity_liabilities|Total liabilities and equity|Итого обязательства и капитал|Итого собственного капитала и обязательств
 loans_gross|Gross loans to customers|Кредиты клиентам брутто
@@ -47,7 +47,7 @@ bank_funding|Due to banks|Due to other banks|Средства банков|Ср�
 borrowings|Other borrowed funds|Прочие заемные средства
 debt_equity_investments|Investment securities|Инвестиционные ценные бумаги
 current_tax_assets|Current income tax prepayments|Предоплата текущих обязательств по налогу на прибыль|Income tax prepaid|Current income tax prepayment|Текущие активы по налогу на прибыль
-deferred_tax_assets|Deferred tax assets|Отложенные налоговые активы|Deferred tax asset|Отложенный налоговый актив|Отложенные активы по налогу на прибыль
+deferred_tax_assets|Deferred tax assets|Отложенные налоговые активы|Deferred tax asset|Отложенный налоговый актив|Отложенные активы по налогу на прибыль|Отложенные налоговые активы ОНА
 assets_held_for_sale|Assets held for sale|Активы для продажи|Non-current assets held for sale|Активы, предназначенные для продажи|Внеоборотные активы, предназначенные для продажи
 debt_securities_issued|Debt securities in issue|Выпущенные долговые ценные бумаги
 subordinated_debt|Subordinated debt|Субординированный долг
@@ -64,7 +64,7 @@ preferred_share_liability|Preference shares classified as liabilities|Приви
     'PL': '''revenue|Revenue|Выручка
 cost_of_sales|Cost of sales|Себестоимость продаж
 gross_profit|Gross profit|Валовая прибыль
-selling_expense|Selling expenses|Расходы по реализации
+selling_expense|Selling expenses|Расходы по реализации|Коммерческие расходы
 admin_expense|Administrative expenses|Административные расходы
 other_operating_income|Other operating income|Прочие операционные доходы
 other_operating_expense|Other operating expenses|Прочие операционные расходы
@@ -83,12 +83,12 @@ preferred_profit_allocation|Profit allocated to preferred shareholders for the p
 profit_owners|Profit attributable to owners of the parent|Прибыль, приходящаяся на собственников материнской компании
 profit_ordinary|Profit attributable to ordinary equity holders of the parent|Прибыль, приходящаяся на владельцев обыкновенных акций материнской компании
 profit_nci|Profit attributable to non-controlling interests|Прибыль, приходящаяся на неконтролирующие доли участия
-oci|Other comprehensive income|Прочий совокупный доход
-comprehensive_income|Total comprehensive income|Общий совокупный доход
+oci|Other comprehensive income|Прочий совокупный доход|Прочий совокупный доход за год за вычетом налога
+comprehensive_income|Total comprehensive income|Общий совокупный доход|Итого совокупный доход/(убыток)
 eps_basic|Basic earnings per share|Базовая прибыль на акцию
 eps_diluted|Diluted earnings per share|Разводненная прибыль на акцию
 interest_income|Interest income|Процентные доходы
-interest_eir|Interest income calculated using the effective interest method|Процентные доходы, рассчитанные по методу эффективной процентной ставки
+interest_eir|Interest income calculated using the effective interest method|Процентные доходы, рассчитанные по методу эффективной процентной ставки|Процентные доходы, рассчитанные с использованием метода эффективной ставки процента
 other_interest_income|Other interest income|Прочие процентные доходы
 interest_expense|Interest expense|Процентные расходы
 net_interest_before_ecl|Net interest income before credit loss expense|Чистые процентные доходы до кредитных убытков
@@ -105,7 +105,7 @@ reinsurance_result|Net result from reinsurance contracts held|Чистый ре�
 gross_written_premiums|Gross written premiums|Валовые подписанные премии
 net_earned_premiums|Net earned premiums|Чистые заработанные премии
 net_incurred_claims|Net claims incurred|Чистые понесенные убытки
-acquisition_expense|Acquisition costs|Аквизиционные расходы
+acquisition_expense|Acquisition costs|Аквизиционные расходы|Аквизационные расходы
 insurance_expense_nonoverlap|Acquisition and administrative expenses excluding claims|Аквизиционные и административные расходы без страховых убытков
 dividend_income|Dividend income|Дивидендный доход
 realized_investment_gain|Realised gain on investments|Реализованная прибыль от инвестиций
@@ -152,7 +152,11 @@ risk_adjustment|Risk adjustment|Рисковая поправка''',
 # Combined investor rows have their own exact source identities. A narrower
 # disclosure (for example trade receivables alone) cannot fill a combined total.
 INVESTOR_DEFINITIONS = {
-    'BS': '''intangibles_goodwill|Intangible assets and goodwill|Нематериальные активы и гудвил
+    'BS': '''dividends_receivable|Dividends receivable|Dividends Recievable
+other_payables|Other payables|Прочая кредиторская задолженность
+nav|Net asset value|Стоимость чистых активов
+trade_other_payables|Trade and other payables|Торговая и прочая кредиторская задолженность
+intangibles_goodwill|Intangible assets and goodwill|Нематериальные активы и гудвил
 long_term_financial_other_assets|Long-term financial and other assets|Долгосрочные финансовые и прочие активы
 trade_other_receivables|Trade and other receivables|Торговая и прочая дебиторская задолженность
 other_current_assets|Other current assets|Прочие оборотные активы
@@ -162,15 +166,17 @@ interest_bearing_debt|Interest-bearing debt|Процентный долг
 other_liabilities|Other liabilities|Прочие обязательства
 insurance_financial_investments|Financial investments of the insurer|Финансовые инвестиции страховщика
 investment_portfolio|Investment portfolio|Инвестиционный портфель''',
-    'PL': '''research_expense|Research and development expenses|Расходы на исследования и разработки
-staff_costs|Staff costs|Расходы на персонал
+    'PL': '''operating_expenses|Operating expenses|Операционные расходы
+research_expense|Research and development expenses|Расходы на исследования и разработки
+staff_costs|Staff costs|Расходы на персонал|Personnel expenses
 operating_income_before_ecl|Operating income before expenses|Операционный доход до расходов
 operating_profit_before_ecl|Operating profit before credit losses|Операционная прибыль до кредитных убытков
 insurance_finance_expense|Insurance finance expenses|Финансовые расходы по страхованию
 investment_income|Investment income|Инвестиционные доходы
 fair_value_gain_loss|Net fair value gain or loss|Чистая прибыль или убыток от переоценки по справедливой стоимости
 fund_expenses|Fund expenses|Расходы фонда''',
-    'CF': '''other_investing_cash_flows|Other investing cash flows|Прочие инвестиционные потоки''',
+    'CF': '''capex|Acquisition of property, equipment and intangible assets|Purchase of property, equipment and intangible assets|Приобретение основных средств и нематериальных активов|Приобретение основных средств, нематериальных активов|Денежные затраты на приобретение основных средств, НМА
+other_investing_cash_flows|Other investing cash flows|Прочие инвестиционные потоки''',
     'Equity': '''equity_open|Equity at beginning of period|Капитал на начало периода
 other_equity_changes|Other changes in equity|Прочие движения капитала''',
     'Notes': '''unrestricted_cash|Unrestricted cash and cash equivalents|Неограниченные денежные средства и их эквиваленты''',

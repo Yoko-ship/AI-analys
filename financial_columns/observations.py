@@ -116,6 +116,33 @@ _LEGACY_BALANCE_METRICS = {
 }
 
 
+# Some reviewed imports used a different metric name for the same signed line.
+# Require both the old identifier and an exact caption in the statement registry.
+_REVIEWED_IFRS_NAMES = {
+    'long_term_borrowings': {'borrowings_long'},
+    'short_term_borrowings': {'borrowings_short'},
+    'deferred_tax_asset': {'deferred_tax_assets'},
+    'deferred_tax_liabilities': {'deferred_tax_liability'},
+    'receivables': {'trade_receivables', 'trade_other_receivables'},
+    'payables': {'trade_payables', 'trade_other_payables'},
+    'reinsurers_share_reserves': {'reinsurer_share_reserves'},
+    'admin_expenses': {'admin_expense'},
+    'selling_expenses': {'selling_expense'},
+    'other_operating_expenses': {'other_operating_expense'},
+    'finance_costs': {'finance_cost'},
+    'other_comprehensive_income': {'oci'},
+    'total_comprehensive_income': {'comprehensive_income'},
+    'acquisition_costs': {'acquisition_expense'},
+    'acquisition_expenses': {'acquisition_expense'},
+    'interest_income_effective_rate': {'interest_eir'},
+    'personnel_expenses': {'staff_costs'},
+    'ppe_intangibles_purchases': {'capex'},
+    'purchase_ppe_intangibles': {'capex'},
+    'capex_ppe_intangibles': {'capex'},
+    'purchase_ppe_and_intangibles': {'capex'},
+}
+
+
 def canonical_ifrs_metric(row):
     """Keep the reviewed source while resolving exact labels for display and ratios."""
     if row.get('standard') != 'MSFO':
@@ -124,11 +151,13 @@ def canonical_ifrs_metric(row):
     form = row.get('source_form')
     if form == 'BS' and metric_id in _LEGACY_BALANCE_METRICS:
         return {**row, 'metric_id': _LEGACY_BALANCE_METRICS[metric_id], 'source_metric_id': metric_id}
-    if not metric_id:
+    if not metric_id or metric_id in _REVIEWED_IFRS_NAMES:
         from .ifrs import metric
         resolved = metric(row.get('raw_label') or '', form)
-        if resolved:
+        if resolved and not metric_id:
             return {**row, 'metric_id': resolved}
+        if metric_id and resolved in _REVIEWED_IFRS_NAMES[metric_id]:
+            return {**row, 'metric_id': resolved, 'source_metric_id': metric_id}
     return row
 
 

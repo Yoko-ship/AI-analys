@@ -1,4 +1,6 @@
 """Full IFRS forms augment (and never bypass) the reviewed publication path."""
+import pytest
+
 from financial_ingestion import statements, validation
 from financial_columns import ifrs
 
@@ -392,3 +394,24 @@ def test_bank_balance_captions_distinguish_placements_from_funding_in_both_langu
         for label in labels:
             assert ifrs.metric(label, 'BS') == metric
             assert ifrs.metric(label, 'CF') is None
+
+
+@pytest.mark.parametrize('issuer,form,filed,caption,amount,page,canonical', [
+    ('GRBK', 'CF', 'ppe_intangibles_purchases', 'Приобретение основных средств и нематериальных активов', '-105123714', 10, 'capex'),
+    ('ANBK3B', 'PL', 'personnel_expenses', 'Personnel expenses', '-300790357', 9, 'staff_costs'),
+    ('TMYS', 'PL', 'acquisition_expenses', 'Аквизиционные расходы', '-74834790', 7, 'acquisition_expense'),
+    ('ORGS', 'BS', 'long_term_borrowings', 'Долгосрочные заемные средства', '278589', 7, 'borrowings_long'),
+    ('UZNF', 'BS', None, 'Dividends Recievable', '36675065.344129995000', 1, 'dividends_receivable'),
+    ('UZGFP', 'CF', 'purchase_ppe_intangibles', 'Денежные выплаты для приобретения основных средств, нематериальных активов и других долгосрочных активов', '-18374216', 11, 'purchase_ppe_intangibles'),
+    ('KFSK', 'CF', 'purchase_disposal_ppe_intangibles', 'Приобретение и продажа основных средств и нематериальных активов', '-636013', 10, 'purchase_disposal_ppe_intangibles'),
+    ('UZPN', 'BS', 'short_term_borrowings', 'Банковские кредиты и займы', '1419272', 5, 'short_term_borrowings'),
+])
+def test_reviewed_statement_captions_keep_their_original_measure(issuer, form, filed, caption, amount, page, canonical):
+    from financial_columns.observations import canonical_ifrs_metric
+    row = dict(issuer_id=issuer, standard='MSFO', source_form=form, metric_id=filed,
+               raw_label=caption, value=amount, page=page)
+    result = canonical_ifrs_metric(row)
+    assert (result['metric_id'], result['value'], result['page']) == (canonical, amount, page)
+    if filed and filed != canonical:
+        assert result['source_metric_id'] == filed
+    assert row['metric_id'] == filed
