@@ -152,7 +152,14 @@ def main() -> int:
 
                          "can be summarised the way a session is (default 365)")
 
+    ap.add_argument("--metric-coverage-only", action="store_true", help="verify public metric coverage against the source registry")
+
     args = ap.parse_args()
+
+    if args.metric_coverage_only:
+        from collectors.financials.coverage import run
+        run()
+        return 0
 
 
 
@@ -656,6 +663,14 @@ def main() -> int:
             rc_status = rc_status or 1
 
 
+
+    if not (args.no_push or args.push_only or args.trades_only or args.facts_only or args.listings_only or args.no_financials):
+        from collectors.financials.coverage import run
+        try:
+            run()
+        except Exception:
+            collectors_financials_settings.log.exception("metric coverage verification failed")
+            rc_status = rc_status or 1
 
     if not args.no_push:
 

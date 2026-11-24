@@ -362,6 +362,14 @@ python collector_financials.py --gov-auctions-only # only ГЦБ auctions + key 
 python collector_financials.py --bank-fx-only # only commercial-bank exchange rates (~5 s)
 ```
 
+After the daily filing and dividend refresh, the collector checks the public annual screener,
+filing screener and company statement tables against the production catalogue. Run
+`python collector_financials.py --metric-coverage-only` in the production collector
+environment to repeat the check. The current comparison, source versions and discrepancy
+history are stored in `$APP_DATA_DIR/metric-coverage.sqlite3`, in `metric_coverage` and
+`metric_coverage_events`. The collector logs changed discrepancies after the complete
+comparison commits. A failed fetch leaves the previous comparison available.
+
 The full run also reconciles the daily-close store (`catalog_quote_history`, the
 one price history the board, the company card and the chart read) with the
 exchange's own daily conclusions for the last `HISTORY_RECONCILE_MONTHS` (default
