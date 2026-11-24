@@ -214,7 +214,11 @@ def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tm
                    statement_period_end='2026-06-30', source_version='interim-opening')
     monkeypatch.setattr(service.publication, 'snapshots', lambda *args, **kwargs: [])
     monkeypatch.setattr(service.publication, 'scopes', lambda ticker: ['separate'])
-    monkeypatch.setattr(service.observations, 'ifrs', lambda *args, **kwargs: [opening, imported])
+    audited_profit = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'net_income')
+    interim_profit = dict(audited_profit, period_start='2026-01-01', period_end='2026-09-30',
+                          value='1936551000', raw_label='Profit for the period', source_code=None,
+                          source_version='interim-profit', reported_annual=False)
+    monkeypatch.setattr(service.observations, 'ifrs', lambda *args, **kwargs: [opening, imported, interim_profit])
     result = service.load('UZNF', form='MSFO', view='investor', scope='separate', include_ratios=False)
     annual = next(c for c in result['columns'] if c['basis'] == 'annual')
     assert annual['label'] == '24.12.2024–31.12.2025'
@@ -224,3 +228,7 @@ def test_partial_import_preserves_unrelated_audited_fund_metrics(monkeypatch, tm
     assert relevant['net_income']['page'] == 8
     assert relevant['cash']['source_version'] == 'reviewed-import'
     assert sum(r['metric_id'] == 'cash' for r in result['rows']) == 1
+    profit = next(r for group in result['statements']['pl'] for r in group['rows'] if r['field'] == 'profit')
+    assert profit['cells']['2025']['value'] == '1403150000'
+    assert profit['cells']['2025']['page'] == 8
+    assert profit['cells']['2026-09-30']['value'] == '1936551000'

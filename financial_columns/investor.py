@@ -131,6 +131,9 @@ def field_cells(payload, field, statement, observations=()):
     cells = {}
     for column in payload['columns']:
         parts = [r['cells'][column['key']] for r in candidates]
+        # The matrix inserts an empty cell for a source row filed in another period.
+        # Keep actual validation failures available for conflict checks.
+        parts = [p for p in parts if p.get('reason') != 'SOURCE_VALUE_MISSING' or p.get('quality') != 'missing']
         if len(parts) == 1:
             cells[column['key']] = parts[0]
         elif parts and len({(p.get('value'), p.get('quality'), p.get('unit'), p.get('scope')) for p in parts}) > 1:

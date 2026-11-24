@@ -195,7 +195,10 @@ with tempfile.TemporaryDirectory() as scratch:
     cash = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'cash')
     opening = dict(cash, metric_id='cash_begin', source_code=None, source_form='CF', statement_period_end='2026-09-30',
                    raw_label='Cash and cash equivalents at the beginning of the period')
-    with patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['separate']), patch.object(service.observations, 'ifrs', return_value=[opening]):
+    annual_profit = next(r for r in audited_fund('UZNF', '1059', 'separate') if r['metric_id'] == 'net_income')
+    interim_profit = dict(annual_profit, period_start='2026-01-01', period_end='2026-09-30', value='1936551000',
+                          raw_label='Profit for the period', source_code=None, source_version='interim-profit', reported_annual=False)
+    with patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['separate']), patch.object(service.observations, 'ifrs', return_value=[opening, interim_profit]):
         print(json.dumps(service.load('UZNF', form='MSFO', view='investor', scope='separate', include_ratios=False)))
 `], {encoding:'utf8'}));
   await setup(page);
@@ -204,7 +207,8 @@ with tempfile.TemporaryDirectory() as scratch:
   const panel = page.getByTestId('ifrs-investor');
   await panel.getByRole('tab',{name:'PL Profit or loss',exact:true}).click();
   await expect(panel.locator('thead')).toContainText('24.12.2024–31.12.2025');
-  const profit = panel.locator('tr[data-field="profit"]').getByRole('button');
+  const profit = panel.locator('tr[data-field="profit"]').getByRole('button', {name:/24\.12\.2024–31\.12\.2025/});
+  await expect(profit).toHaveText(/1[\s,]?403\.15/);
   await profit.click();
   await expect(page.getByRole('dialog').getByRole('link',{name:'Open source'})).toHaveAttribute(
     'href', 'https://openinfo.uz/media/int_report/c0227ba5-b817-4d90-a3b1-2b1f9a9da524.pdf');
