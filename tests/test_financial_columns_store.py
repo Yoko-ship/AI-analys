@@ -87,3 +87,22 @@ def test_replaying_iptb_q4_preserves_the_later_annual_balance_and_archives_both(
     assert amounts['total_assets'] == '23587804019'
     corrected = ingest('quarter', '2020-10-15')
     assert source_store.read('17', standard='NSBU', scope='separate', period_end='2019-12-31')[0]['source_version'] == corrected
+
+
+def test_inconsistent_gross_loan_components_cannot_produce_a_zero_ratio(isolated_store):
+    from financial_columns import bank_history
+    filing = json.loads(Path('tests/fixtures/openinfo/iptb_2019_year_end_deposits.json').read_text())['annual']
+    book = {'source_url': filing['source_url'], 'sheets': [{'sheet': filing['sheet'], 'source_rows': filing['rows']}],
+            'source_coverage': {'complete': True}}
+    def current():
+        record({'ok': True, 'income': book, 'balance': book}, issuer_id='17', year=2019, quarter=0)
+        return bank_history.cells('IPTB', '17', 'bank', ['2019'])['2019']
+
+    selected = current()
+    assert selected['customer_funds']['value'] == '7787309795'
+    assert 'loans_gross' not in selected and 'loans_to_deposits' not in selected
+    # A fully leased portfolio can legitimately disclose zero gross loans.
+    next(row for row in filing['rows'] if row['row'] == 50)['cells'][1] = 19792761803
+    selected = current()
+    assert selected['loans_gross']['value'] == '0'
+    assert selected['loans_to_deposits']['value'] == '0'
