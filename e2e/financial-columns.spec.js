@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import {filedBalance} from '../tests/fixtures/financial_columns/nsbu-balance.js';
@@ -96,18 +95,16 @@ for (const lang of ['ru','uz','en']) test(`published ratios use readable names a
 
 test('ABKZ annual gross margin uses the filed profit and revenue in the Ratios tab', async ({page}) => {
   const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
-  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
-  const result = JSON.parse(execFileSync(python, ['-c', `
-import json, sys
-from financial_columns.ratios import calculate
-report = json.load(sys.stdin)
-rows = [{**row, **row['cells']['2025'], 'raw_label':row['label'], 'period_start':'2025-01-01',
-         'period_end':'2025-12-31', 'standard':'NSBU', 'scope':'separate', 'issuer_id':'78'}
-        for row in report['rows']]
-print(json.dumps(calculate(rows, ticker='ABKZ', template='industry', end='2025-12-31', basis='annual')))
-`], {input: JSON.stringify(reports), encoding:'utf8'}));
-  reports.ratios = result.map(cell => ({id:'ratio:'+cell.metric_id, metric_id:cell.metric_id,
-    source_form:'RAT', kind:'ratio', label:cell.label, unit:cell.unit, cells:{'2025':cell}}));
+  const components = ['gross_profit', 'revenue'].map(metric => {
+    const row = reports.rows.find(r => r.metric_id === metric);
+    return {...row.cells['2025'], source_code:row.source_code, raw_label:row.label,
+      period_start:'2025-01-01', period_end:'2025-12-31'};
+  });
+  reports.ratios = [{id:'ratio:gross_margin', metric_id:'gross_margin', kind:'ratio',
+    source_form:'RAT', label:'Gross margin', unit:'percent', cells:{'2025':{
+      value:'19.90758959033495965188690326', quality:'valid', basis:'annual', annualized:false,
+      period_start:'2025-01-01', period_end:'2025-12-31', formula:'gross_profit / revenue × 100', components,
+    }}}];
   await setup(page, {ticker:'ABKZ', reports});
   const terminal = page.getByTestId('financial-columns');
   await terminal.getByRole('tab', {name:'Ratios', exact:true}).click();
