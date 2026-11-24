@@ -34,9 +34,7 @@ const FIN_SECTIONS = [
     rows: ["net_revenue", "gross_profit", "operating_expenses", "operating_income", "net_profit"],
     // Percentages get their own block, as on the reference: mixing a margin
     // into a column of sums invites reading 5.62 as five sums.
-    // Only the margin this platform computes itself — see the note on
-    // FACT_PERCENT_FIELDS for the ones the feed publishes and we do not trust.
-    margins: ["net_margin"],
+    margins: ["gross_margin", "net_margin"],
     chart: ["net_revenue", "operating_expenses", "operating_income"],
   },
   {
@@ -67,7 +65,7 @@ const FIN_SECTIONS_QUARTER = [
     key: "income",
     label: ["Прибыли и убытки", "Foyda va zarar", "Income Statement"],
     rows: ["net_revenue", "gross_profit", "operating_expenses", "operating_income", "net_profit"],
-    margins: ["net_margin"],
+    margins: ["gross_margin", "net_margin"],
     chart: ["net_revenue", "operating_expenses", "operating_income"],
   },
   {

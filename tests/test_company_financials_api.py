@@ -331,3 +331,34 @@ def test_a_filed_operating_expense_line_wins_over_the_proxy(monkeypatch):
     assert s["operating_expenses"]["values"]["2024"] == 929_275_668_000.0
     assert s["operating_expenses"].get("filed") is True
     assert s["operating_expenses"].get("derived") is False
+
+
+def test_abkz_public_gross_margin_uses_matching_filed_periods(monkeypatch):
+    from financial_columns import source_store
+    from server.company.financials import _sector_presentation
+
+    monkeypatch.setattr(catalogue_filings, 'get_company_index', lambda ticker: {'org_id': 78})
+    original = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6007&lang=ru'
+    def document(end, revenue, gross):
+        rows = []
+        for code, metric, value in [('010', 'revenue', revenue), ('030', 'gross_profit', gross)]:
+            rows.append(dict(source_form='F2', source_code=code, metric_id=metric, source_url=original,
+                             kind='flow', raw_label=metric, unit='UZS_thousand',
+                             current={'value': str(value), 'quality': 'valid'},
+                             previous={'value': None, 'quality': 'missing'}))
+        return dict(issuer_id='78', scope='separate', period_end=end, quality='valid', currency='UZS',
+                    unit_scale='1000', template='industry', source_version=end, rows=rows)
+    # The two cumulative statements give the standalone fourth quarter by subtraction.
+    docs = [document('2025-12-31', 142434170, 28355210), document('2025-09-30', 100000000, 20000000)]
+    monkeypatch.setattr(source_store, 'read', lambda *args, **kwargs: docs)
+    def history(period, revenue, gross):
+        return _sector_presentation({'standard':'NSBU', 'periods':[period],
+                                    'freq':'quarterly' if 'Q' in period else 'annual',
+                                    'series':{'net_revenue':{'values':{period:revenue}},
+                                              'gross_profit':{'values':{period:gross}}}}, 'ABKZ')['series']
+    margin = history('2025', 142434170000, 28355210000)['gross_margin']
+    assert margin['unit'] == '%' and margin['money'] is False
+    assert margin['values']['2025'] == pytest.approx(19.90759)
+    quarter = history('2025Q4', 42434170000, 8355210000)['gross_margin']
+    assert quarter['values']['2025Q4'] == pytest.approx(8355210 / 42434170 * 100)
+    assert 'gross_margin' not in history('2025', 142434170000, 30000000000)

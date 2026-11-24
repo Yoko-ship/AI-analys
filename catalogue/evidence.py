@@ -43,6 +43,10 @@ _FINANCIAL_PASSPORT_FIELDS = {
 
 
 _FINANCIAL_PASSPORT_DERIVED = {
+    "gross_margin": {
+        "formula": "gross_profit / net_revenue * 100",
+        "inputs": ("gross_profit", "net_revenue"),
+    },
 
     "net_margin": {
 

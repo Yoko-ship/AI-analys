@@ -24,6 +24,7 @@ const FIN_FIELD_LABELS = {
   total_liabilities: ["Обязательства", "Majburiyatlar", "Total Liabilities"],
   total_equity: ["Капитал", "Kapital", "Total Equity"],
   gross_profit_margin: ["Валовая маржа", "Yalpi marja", "Gross Margin"],
+  gross_margin: ["Валовая маржа", "Yalpi marja", "Gross Margin"],
   ebit_margin: ["EBIT-маржа", "EBIT marja", "EBIT Margin"],
   net_margin: ["Чистая маржа", "Sof marja", "Net Margin"],
   roe: ["ROE", "ROE", "ROE"],

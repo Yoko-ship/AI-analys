@@ -284,6 +284,12 @@ def _sector_presentation(data, ticker):
     kind = organization_kind(ticker, name=index.get('company_name'), sector=index.get('sector'))
     data['organization_type'] = kind
     series = data.get('series') or {}
+    if data.get('standard') == 'NSBU':
+        from financial_columns.service import history_gross_margins
+        values = history_gross_margins(ticker, index.get('org_id'), kind, series, data.get('periods') or [])
+        series.pop('gross_margin', None)
+        if values:
+            series['gross_margin'] = {'unit': '%', 'money': False, 'derived': True, 'values': values}
     if kind in {'bank', 'insurance', 'fund'}:
         for field in ('net_margin', 'net_profit_margin'):
             series.pop(field, None)

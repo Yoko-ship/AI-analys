@@ -40,6 +40,41 @@ def _check_filing_rows(source_rows, ticker, form, selected_period=None):
     return observations.check(source_rows)
 
 
+def history_gross_margins(ticker, issuer_id, template, series, periods):
+    """Use the same signed Form 2 inputs as the statement for each history column."""
+    from issuer_financials import period_end
+
+    revenue = series.get('net_revenue', {}).get('values', {})
+    gross = series.get('gross_profit', {}).get('values', {})
+    available = [p for p in periods if revenue.get(p) is not None and gross.get(p) is not None]
+    if not available or not issuer_id or template in capital_returns.FINANCIAL:
+        return {}
+    source = observations.nsbu(source_store.read(issuer_id, standard='NSBU', scope='separate'))
+    _check_filing_rows(source, ticker, 'NSBU')
+    inputs = [r for r in source if r['source_form'] == 'F2' and
+              r['metric_id'] in {'gross_profit', 'revenue', 'cost_of_sales', 'operating_expenses'}]
+    if not inputs:
+        return {}
+    values = {}
+    for period in available:
+        end = period_end(period)
+        if not end:
+            continue
+        basis = 'quarter' if 'Q' in period else 'annual'
+        calculated = ratios.calculate(inputs, ticker=ticker, template=template, end=end, basis=basis, enriched=True)
+        margin = next(r for r in calculated if r['metric_id'] == 'gross_margin')
+        if margin['value'] is None:
+            continue
+        # A restatement or a conflicting historical feed can put a different
+        # amount in the public table. Only label a ratio of its visible inputs.
+        parts = margin['components'][:2]
+        displayed = (gross[period], revenue[period])
+        if all(abs(Decimal(part['value']) * 1000 - Decimal(str(amount))) <= Decimal('0.01')
+               for part, amount in zip(parts, displayed)):
+            values[period] = float(margin['value'])
+    return values
+
+
 def _filing_roce_cell(docs, ticker, template, end, period=None):
     rows = observations.nsbu(docs)
     _check_filing_rows(rows, ticker, 'NSBU', period)

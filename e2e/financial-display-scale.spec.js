@@ -73,3 +73,30 @@ test('AGBA 2025 balance keeps the same scale when switching from UZS to USD and 
   await page.getByRole('option', {name: 'Uzbek som'}).click();
   await expect(amount).toHaveText('103,596.61');
 });
+
+test('ABKZ public income table displays verified gross margin with its calculation', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('uz_stock_analyzer_language', 'en');
+    sessionStorage.setItem('uz_sponsor_seen', '1');
+  });
+  await page.route('**/api/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/company/ABKZ/financials') return route.fulfill({json:{
+      ok:true, periods:['2025'], series:{
+        net_revenue:{money:true, unit:'UZS', values:{2025:142434170000}},
+        gross_profit:{money:true, unit:'UZS', values:{2025:28355210000}},
+        gross_profit_margin:{money:false, unit:null, values:{2025:0.26}},
+        gross_margin:{money:false, unit:'%', derived:true, values:{2025:19.90758959}},
+      },
+    }});
+    if (url.pathname.endsWith('/financials/passport') && url.searchParams.get('field') === 'gross_margin') {
+      return route.fulfill({json:{ok:true, status:'DERIVED', formula:'gross_profit / net_revenue * 100'}});
+    }
+    return route.fulfill({json:{ok:true, items:[], companies:[], securities:{}}});
+  });
+  await page.goto('/company/ABKZ?tab=financials');
+  await page.getByRole('button',{name:'Table',exact:true}).click();
+  const row = page.locator('.fin-table tr').filter({hasText:'Gross Margin'});
+  await row.getByRole('button',{name:'19.91%'}).click();
+  await expect(page.getByRole('dialog')).toContainText('gross_profit / net_revenue * 100');
+});
