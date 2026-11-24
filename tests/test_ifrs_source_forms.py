@@ -361,3 +361,34 @@ def test_retained_bank_rows_resolve_for_template_without_overwriting_the_reviewe
         assert canonical_ifrs_metric(cash_flow) == cash_flow
     domestic = {**original, 'standard': 'NSBU'}
     assert canonical_ifrs_metric(domestic) == domestic
+
+
+def test_anorbank_2025_reviewed_balances_match_the_metrics_for_new_filings():
+    from financial_columns.observations import canonical_ifrs_metric
+
+    # Openinfo filing 30744, consolidated statement, physical page 8, thousands of UZS.
+    for stored, caption, value, canonical in [
+        ('due_from_banks', 'Amounts due from credit institutions', '18203718', 'bank_balances'),
+        ('investment_securities', 'Investment securities', '917336840', 'debt_equity_investments'),
+        ('prepaid_income_tax', 'Income tax prepaid', '20734213', 'current_tax_assets'),
+        ('other_borrowed_funds', 'Other borrowed funds', '194431893', 'borrowings'),
+    ]:
+        original = dict(standard='MSFO', source_form='BS', metric_id=stored, raw_label=caption,
+                        value=value, page=8, issuer_id='837', period_end='2025-12-31')
+        assert canonical_ifrs_metric(original) == {**original, 'metric_id': canonical, 'source_metric_id': stored}
+        assert ifrs.metric(caption, 'BS') == canonical
+        assert ifrs.metric(caption, 'CF') is None
+
+
+def test_bank_balance_captions_distinguish_placements_from_funding_in_both_languages():
+    # Asia Alliance Bank 29551, Ipak Yuli 25178, SQB 30174 and Orient Finans 3231.
+    for metric, labels in {
+        'bank_balances': ['Средства в кредитных организациях', 'Средства в банках'],
+        'bank_funding': ['Средства кредитных организаций', 'Amounts due to credit institutions'],
+        'current_tax_assets': ['Текущие активы по налогу на прибыль', 'Current income tax prepayment'],
+        'deferred_tax_assets': ['Отложенный налоговый актив', 'Отложенные активы по налогу на прибыль', 'Deferred tax asset'],
+        'assets_held_for_sale': ['Активы, предназначенные для продажи', 'Внеоборотные активы, предназначенные для продажи', 'Non-current assets held for sale'],
+    }.items():
+        for label in labels:
+            assert ifrs.metric(label, 'BS') == metric
+            assert ifrs.metric(label, 'CF') is None

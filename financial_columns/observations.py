@@ -106,9 +106,13 @@ def _reconciled_income_rows(payload):
 
 
 _LEGACY_BALANCE_METRICS = {
+    'due_from_banks': 'bank_balances',
     'inventories': 'inventory',
+    'investment_securities': 'debt_equity_investments',
     'issued_debt': 'debt_securities_issued',
+    'other_borrowed_funds': 'borrowings',
     'other_borrowings': 'borrowings',
+    'prepaid_income_tax': 'current_tax_assets',
 }
 
 
