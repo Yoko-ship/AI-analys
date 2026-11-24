@@ -11,12 +11,14 @@ from datetime import date, timedelta
 import corporate_actions
 from copy import deepcopy
 import logging
+import re
+from urllib.parse import urlsplit
 
 from financial_columns.nsbu import ebit as nsbu_ebit, ebit_line
 from .sector_numbers import decimal, number, ratio, total
 
 ADDITIONAL = {'P2', 'P7', 'P8'}
-VERSION = 'report-investor-metrics-9'
+VERSION = 'report-investor-metrics-10'
 HISTORICAL_METRICS = {'book_value_per_share', 'price_to_book', 'eps_basic', 'ebit'}
 SHARE_METRICS = {'price_to_book', 'book_value_per_share', 'eps_basic', 'eps_closing_estimate'}
 NAMES = {
@@ -91,6 +93,58 @@ def _equity_side_matches(group, facts, end):
             and abs(total - passive) <= 1 and abs(passive - equity - liabilities) <= 1)
 
 
+def _openinfo_filing(url):
+    from financial_columns.share_disclosures import filing_key
+    key = filing_key(url)
+    if key:
+        return key
+    parts = urlsplit(url or '')
+    if parts.scheme == 'https' and parts.netloc == 'new-api.openinfo.uz':
+        match = re.fullmatch(r'/api/v2/reports/([a-z_]+)/(annual|quarter)/([0-9]+)/?', parts.path)
+        if match:
+            return match.groups()
+    return None
+
+
+def _reviewed_assets_match_funding(group, facts):
+    """An independent asset correction can corroborate the original financing lines."""
+    asset_fact = facts.get('total_assets', {})
+    source = asset_fact.get('source') or {}
+    total = decimal(asset_fact.get('value'))
+    reviewed_filing = _openinfo_filing(source.get('url'))
+    if (source.get('provider') != 'reviewed_correction' or not reviewed_filing
+            or not str(source.get('document_id', '')).startswith('correction:') or total is None):
+        return False
+    balance_check = 'SOURCE_BALANCE_MISMATCH'
+    funding_check = 'SOURCE_PASSIVE_TOTAL_MISMATCH'
+    expected = {'total_assets': {balance_check, funding_check}, 'total_equity_liabilities': {funding_check},
+                'total_equity': {balance_check}, 'total_liabilities': {balance_check}}
+    funding = {}
+    urls = set()
+    for key, codes in expected.items():
+        rows = [r for r in group if r.get('metric_id') == key]
+        if len(rows) != 1:
+            return False
+        row = rows[0]
+        issues = row.get('reconciliation_issues') or []
+        if (row.get('unit') != 'UZS_thousand' or row.get('source_form') != 'F1' or row.get('quality') != 'blocked'
+                or row.get('reason') not in codes or {i['code'] for i in issues} != codes
+                or any(i['metric_id'] != 'total_assets' or decimal(i['reconciled_total']) != total for i in issues)):
+            return False
+        urls.add(row['source_url'])
+        if key in ('total_equity', 'total_liabilities'):
+            fact = facts.get(key, {})
+            if fact.get('source_url') != row['source_url'] or decimal(fact.get('value')) != decimal(row.get('value')):
+                return False
+            funding[key] = decimal(row['value'])
+        if key == 'total_equity_liabilities' and decimal(row['value']) != total:
+            return False
+    if len(urls) != 1 or None in funding.values() or sum(funding.values()) != total:
+        return False
+    original = _openinfo_filing(urls.pop())
+    return original is not None and original[0] == reviewed_filing[0] and original != reviewed_filing
+
+
 def _compatible(report, rows, facts, *, income=False):
     """Match a source revision using the statements needed by the indicator."""
     standard = 'NSBU' if report['standard'].lower() == 'nsbu' else 'MSFO'
@@ -103,6 +157,9 @@ def _compatible(report, rows, facts, *, income=False):
             groups[row['source_version']].append(row)
     accepted = []
     for group in groups.values():
+        if not income and standard == 'NSBU' and _reviewed_assets_match_funding(group, facts):
+            accepted.append(group)
+            continue
         # One thousand UZS is the source form's existing rounding tolerance.
         keys = ['total_assets', 'total_equity']
         if not income and standard == 'NSBU' and _equity_side_matches(group, facts, end):

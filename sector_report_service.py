@@ -287,7 +287,7 @@ def sector_report(issuer, standard, period, scope, lang, *, persist=True, rule_o
         snapshot["quality"]["data_quality"].append({"code": "REGRESSION_GATE_FAILED", "severity": "blocking",
                                                    "message": "Calculation release did not pass its regression gate."})
     # Same issuer, filing and rules share the fundamentals across share classes.
-    cache_key = financial_analysis_sector_numbers.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, workbook, lang, financials.now().date(), financial_analysis_sector_templates.VERSION])
+    cache_key = financial_analysis_sector_numbers.digest([issuer["id"], {k: v for k, v in snapshot.items() if k not in {"generated_at", "observations", "source_snapshot_hash", "ticker", "issuer"}}, financial_analysis_sector_inputs.reviewed_observations(snapshot), workbook, lang, financials.now().date(), financial_analysis_sector_templates.VERSION])
     with _CACHE_LOCK:
         report = deepcopy(_REPORT_CACHE.get(cache_key))
     if report is None:

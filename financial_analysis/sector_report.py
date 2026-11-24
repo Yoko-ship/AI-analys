@@ -77,6 +77,9 @@ def make_report(snapshot, issuer, lang="ru", today=None, workbook=None, period_l
                                "next_action": financial_analysis_sector_language.tr(lang, "Мы проверим данные снова после обновления источника.", "Manba yangilangach ma’lumotlarni yana tekshiramiz.", "We will check the data again after the source is updated.") if filing.status == "stale" or not filing.publishable else None},
               "source_snapshot_hash": financial_analysis_sector_numbers.digest([issuer["id"], filing.standard, filing.period, filing.values, filing.previous, filing.opening, filing.lines, filing.source]),
               "generated_at": snapshot.get("generated_at")}
+    corrections = [f["source"] for f in refs if f["source"].get("provider") == "reviewed_correction"]
+    if corrections:
+        report["source_snapshot_hash"] = financial_analysis_sector_numbers.digest([report["source_snapshot_hash"], corrections])
     if report.get("scope") == "consolidated":
         report["source_snapshot_hash"] = financial_analysis_sector_numbers.digest([report["scope"], report["source_snapshot_hash"]])
     report["control_rule_versions"] = snapshot.get("control_rule_versions", [])

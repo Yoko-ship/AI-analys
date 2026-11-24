@@ -40,6 +40,7 @@ def collect_evidence(filing: ValidatedFiling):
             return financial_analysis_sector_language.tr(filing.lang, "Чистая выручка от страховых услуг", "Sug‘urta xizmatlaridan sof tushum", "Net insurance-service revenue")
         return financial_analysis_sector_language.label(key, filing.lang)
 
+    reviewed = financial_analysis_sector_inputs.reviewed_observations(filing.snapshot)
     for key in sorted(allowed):
         value = financial_analysis_sector_numbers.number(filing.values.get(key))
         if value is None:
@@ -49,22 +50,28 @@ def collect_evidence(filing: ValidatedFiling):
         raw = line_row.get("raw_current", str(filing.values[key]))
         fact_url = line_row.get("source_url") or filing.source_url
         fact_doc_id = "filing:" + financial_analysis_sector_numbers.digest([filing.issuer["id"], filing.standard, filing.period, fact_url])[:24] if fact_url else filing.source.get("document_id")
+        source = {**filing.source, "url": fact_url, "document_id": fact_doc_id}
+        observation = reviewed.get(key)
+        if observation and financial_analysis_sector_numbers.decimal(observation["normalized"]) == financial_analysis_sector_numbers.decimal(filing.values[key]):
+            source = observation["source"]
+            fact_url, fact_doc_id = source["url"], source["document_id"]
+            line, raw, line_row = fact_doc_id, str(observation["normalized"]), {}
         base = filing.opening if financial_analysis_sector_templates.balance_line(key, filing.template) else filing.previous
         fact = {"id": financial_analysis_sector_numbers.digest([filing.issuer["id"], filing.standard, filing.period, key, raw, fact_doc_id])[:24],
                 "issuer_id": filing.issuer["id"], "metric": key, "metric_code": key, "label": metric_label(key),
                 "raw": raw, "value_raw": raw, "value": value, "value_normalized": str(financial_analysis_sector_numbers.decimal(raw)),
-                "unit": "thousand UZS", "unit_raw": line_row.get("unit") or filing.source.get("unit") or "thousand UZS",
-                "unit_normalized": "thousand UZS", "currency": line_row.get("currency") or filing.source.get("currency") or filing.snapshot.get("currency") or "UZS",
-                "multiplier": financial_analysis_sector_numbers.number(line_row.get("multiplier") or filing.source.get("multiplier") or filing.snapshot.get("multiplier") or 1),
+                "unit": "thousand UZS", "unit_raw": line_row.get("unit") or source.get("unit") or "thousand UZS",
+                "unit_normalized": "thousand UZS", "currency": line_row.get("currency") or source.get("currency") or filing.snapshot.get("currency") or "UZS",
+                "multiplier": financial_analysis_sector_numbers.number(line_row.get("multiplier") or source.get("multiplier") or filing.snapshot.get("multiplier") or 1),
                 "period": filing.period, "period_start": filing.snapshot.get("period_start") or f"{filing.year}-01-01", "period_end": filing.end.isoformat(),
                 "period_kind": filing.snapshot.get("period_basis"), "accounting_standard": filing.standard.upper(),
-                "consolidation_scope": filing.snapshot.get("scope"), "source": {**filing.source, "url": fact_url, "document_id": fact_doc_id}, "source_url": fact_url,
+                "consolidation_scope": filing.snapshot.get("scope"), "source": source, "source_url": fact_url,
                 "source_document_id": fact_doc_id, "source_line_id": line,
-                "source_document_hash": filing.source.get("document_hash") or filing.source.get("sha256") or filing.source.get("hash"),
-                "source_published_at": filing.source.get("published_at") or filing.source.get("publication_date"),
-                "source_received_at": filing.source.get("received_at") or filing.source.get("retrieved_at"),
+                "source_document_hash": source.get("document_hash") or source.get("sha256") or source.get("hash"),
+                "source_published_at": source.get("published_at") or source.get("publication_date"),
+                "source_received_at": source.get("received_at") or source.get("retrieved_at"),
                 "source_location": {k: v for k, v in {
-                    "page": line_row.get("page") or filing.source.get("page"), "sheet": line_row.get("sheet"),
+                    "page": line_row.get("page") or source.get("page"), "sheet": line_row.get("sheet"),
                     "row": line_row.get("row"), "cell": line_row.get("cell") or line_row.get("cell_ref")
                 }.items() if v is not None},
                 "source_original_line": line_row.get("label") or line_row.get("original_line"),

@@ -444,6 +444,10 @@ def test_explicit_market_backfill_retries_only_missing_originals(monkeypatch, tm
      'UMK_IFRS_FS_2023_eng.pdf', 1471, 8, '2023', 'consolidated'),
     ('30', 'SQBN', 3077, '2d85eea4d1c28a09500eb40327b03fb0f60bca311f1aee4471c998ca889591ce',
      'e873c921-48bf-4fa3-8865-1f24d35f0d37.pdf', 4.58, 76, '2024', 'consolidated'),
+    ('80', 'UTHK', 1125, '7ef815928eef97e871fd30ee90b869f59246133e649edbb1cae31d8d05fcab54',
+     'МСФО-2017_juGSVoD.pdf', 2115, 7, '2015', 'consolidated'),
+    ('80', 'UTHK', 672, 'cc526fb95a8b5af03eb8e369a372b9533b97aea9b0c54a6ed87b32752850a24f',
+     'MSFO_PG7LkTf.pdf', 3828, 6, '2014', 'consolidated'),
     ('717', 'URTS', 1874, '492350d2f0f467e7da7c4e6818d531b96ca01f09b72c8dd19909482f262f830d',
      '31_03_2020_Отчет_и_аудиторское_заключение_по_МСФО_2019_с_раскрытиями_compressed.pdf', 3260.07, 26, '2019', 'separate')])
 def test_reviewed_ordinary_eps_requires_same_approved_openinfo_pdf(

@@ -1166,3 +1166,49 @@ def test_orgs_equity_valuation_survives_only_an_unrelated_asset_subtotal(report,
     result = metrics(report)
     assert result['price_to_book']['value'] == (pytest.approx(expected) if expected else None)
     assert result['book_value_per_share']['value'] == (pytest.approx(6668.6776264) if expected else None)
+
+
+@pytest.mark.parametrize('conflict', [None, 'unreviewed', 'same_document', 'same_filing_alias', 'wrong_revision',
+                                      'wrong_total', 'conflicting_funding', 'ambiguous_revision'])
+def test_orgs_2025_share_basis_with_independently_reviewed_assets(report, conflict):
+    from financial_analysis.report_investor_metrics import calculate
+    from financial_columns.observations import check
+
+    annual = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=jsc&report_id=6166&lang=ru'
+    comparative = 'https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18254/'
+    end = '2025-12-31'
+    report.update(period='2025', financial_as_of=end, standard='nsbu', scope='separate')
+    report['issuer'].update(id='611', ticker='ORGS')
+    amounts = dict(total_assets=8168369, total_equity=4568663, total_liabilities=3599706, net_income=564912)
+    corrected = dict(provider='reviewed_correction', document_id='correction:annual-assets', url=comparative)
+    if conflict == 'unreviewed':
+        corrected['provider'] = 'openinfo/catalog'
+    if conflict == 'same_document':
+        corrected['url'] = annual
+    if conflict == 'same_filing_alias':
+        corrected['url'] = 'https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6166/'
+    if conflict == 'wrong_total':
+        amounts['total_assets'] += 100
+    report['verified_facts'] = [
+        dict(metric_code=k, value=v, source=corrected if k=='total_assets' else {'url': annual},
+             source_url=corrected['url'] if k=='total_assets' else annual, period='2025',
+             verification_status='verified', unit_normalized='thousand UZS')
+        for k,v in amounts.items()]
+    raw = {**amounts, 'total_assets':0, 'total_equity_liabilities':8168369, 'share_capital':666680,
+           'treasury_shares':0}
+    if conflict == 'conflicting_funding':
+        raw['total_equity_liabilities'] += 100
+    rows = [dict(metric_id=k,value=str(v),unit='UZS_thousand',quality='valid',issuer_id='611',
+                 scope='separate',standard='NSBU',source_version='annual-workbook',role='PRIMARY',
+                 period_end=end,period_start='2025-01-01' if k=='net_income' else end,
+                 source_url=comparative if conflict=='wrong_revision' else annual,
+                 source_form='F2' if k=='net_income' else 'F1') for k,v in raw.items()]
+    if conflict == 'ambiguous_revision':
+        rows += [dict(r, source_version='another-workbook') for r in rows]
+    check(rows)
+    basis = dict(issuer_id='611', ticker='ORGS', scope='separate', verification_status='verified',
+                 source_standard='NSBU', period_start='2025-01-01', period_end=end, ordinary_only=True,
+                 closing_share_capital_thousand='666680', ordinary_shares='666680', weighted_average_shares='666680')
+    ratios = {r['metric_code']: r['value'] for r in calculate(report, rows, basis)}
+    assert ratios['eps_basic'] == (None if conflict else pytest.approx(564912000 / 666680))
+    assert ratios['book_value_per_share'] == (None if conflict else pytest.approx(4568663000 / 666680))

@@ -74,3 +74,31 @@ def test_annual_snapshot_uses_the_stored_annual_correction_key(monkeypatch):
     company = {'id': 'UZAS', 'ticker': 'UZAS', 'name': 'Uzagrosugurta', 'sector': 'insurance', 'isin': 'test'}
     snapshot = issuer.financial_snapshot(company, 'nsbu', '2025', 'separate')
     assert snapshot['reviewed_correction_fields'] == ['net_income']
+
+
+def test_orgs_reviewed_assets_cite_the_opening_column_used_to_recover_the_annual_total():
+    from financial_analysis.sector_report import make_report
+
+    original = 'https://new-api.openinfo.uz/api/v2/reports/jsc/annual/6166/'
+    opening = 'https://new-api.openinfo.uz/api/v2/reports/jsc/quarter/18254/'
+    company = dict(id='611', ticker='ORGS', name='ORGGRES')
+    correction = dict(provider='reviewed_correction', document_id='correction:annual-assets',
+                      url=opening, reference='Q1 2026 Form 1 line 400, opening column')
+    snapshot = dict(standard='nsbu', scope='separate', period='2025', period_basis='annual',
+                    organization_type='non_financial', source={'url':original, 'publication_date':'2026-07-22'},
+                    current_values={'total_assets':8168369, 'total_equity':4568663,
+                                    'total_liabilities':3599706, 'net_income':564912, 'revenue':3684495},
+                    reviewed_correction_fields=['total_assets'],
+                    observations=[dict(metric='total_assets', normalized=8168369, unit='thousand UZS',
+                                       period='2025', standard='nsbu', scope='separate', source=correction)],
+                    source_lines={'form1:c400':{'raw_current':'0', 'source_url':original, 'row':84}})
+    report = make_report(snapshot, company, lang='en', today=date(2026, 11, 24))
+    fact = next(f for f in report['verified_facts'] if f['metric_code']=='total_assets')
+    assert fact['source'] == correction
+    assert fact['source_url'] == opening and fact['source_document_id'] == correction['document_id']
+    assert fact['source_location'] == {} and fact['source_published_at'] is None
+    assert fact['value'] == fact['raw'] == float(fact['value_normalized']) == 8168369
+    revision = dict(correction,document_id='correction:reconfirmed',reference='Q2 2026 opening column')
+    snapshot['observations'][0]['source'] = revision
+    revised = make_report(snapshot, company, lang='en', today=date(2026, 11, 24))
+    assert revised['source_snapshot_hash'] != report['source_snapshot_hash']

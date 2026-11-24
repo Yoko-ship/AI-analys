@@ -556,5 +556,33 @@
       "reported_eps": "18.53",
       "unit": "thousand_UZS_per_ordinary_share"
     }
+  ],
+  "80": [
+    {
+      "report_id": 1125,
+      "source_url": "https://openinfo.uz/media/msfo/МСФО-2017_juGSVoD.pdf",
+      "sha256": "7ef815928eef97e871fd30ee90b869f59246133e649edbb1cae31d8d05fcab54",
+      "scope": "consolidated",
+      "period_end": "2015-12-31",
+      "page": 7,
+      "source_form": "income_statement",
+      "column_year": 2015,
+      "row_label": "Прибыль на акцию. Базовая и разводненная, в УЗС",
+      "reported_eps": "2115",
+      "unit": "UZS_per_ordinary_share"
+    },
+    {
+      "report_id": 672,
+      "source_url": "https://openinfo.uz/media/msfo/MSFO_PG7LkTf.pdf",
+      "sha256": "cc526fb95a8b5af03eb8e369a372b9533b97aea9b0c54a6ed87b32752850a24f",
+      "scope": "consolidated",
+      "period_end": "2014-12-31",
+      "page": 6,
+      "source_form": "income_statement",
+      "column_year": 2014,
+      "row_label": "Прибыль (убыток) на акцию. Базовая и разводненная, в УЗС",
+      "reported_eps": "3828",
+      "unit": "UZS_per_ordinary_share"
+    }
   ]
 }

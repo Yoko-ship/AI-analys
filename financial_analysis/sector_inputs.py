@@ -211,6 +211,17 @@ def reconcile_subtotals(lines, balance_table=None):
     return financial_analysis_balance_subtotals.apply(lines, financial_analysis_balance_subtotals.reconcile(rows))
 
 
+def reviewed_observations(snapshot):
+    """Keep the dated evidence for each confirmed catalogue correction."""
+    fields = set(snapshot.get("reviewed_correction_fields") or ())
+    return {row["metric"]: row for row in snapshot.get("observations") or ()
+            if row.get("metric") in fields and row.get("unit") == "thousand UZS"
+            and row.get("normalized") is not None
+            and all(row.get(key) == snapshot.get(key) for key in ("period", "standard", "scope"))
+            and (source := row.get("source") or {}).get("provider") == "reviewed_correction"
+            and source.get("url") and source.get("document_id")}
+
+
 def prepare_inputs(snapshot, workbook=None):
     """Add exact form lines without changing the independent comparison API."""
     values = dict(snapshot.get("current_values") or {})
