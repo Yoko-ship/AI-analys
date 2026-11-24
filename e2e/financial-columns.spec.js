@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import {filedBalance} from '../tests/fixtures/financial_columns/nsbu-balance.js';
@@ -91,6 +92,29 @@ for (const lang of ['ru','uz','en']) test(`published ratios use readable names a
   await expect(roe.getByRole('rowheader')).toBeInViewport();
   await section.screenshot({path:testInfo.outputPath('published-ratios-mobile-history.png')});
   expect(errors).toEqual([]);
+});
+
+test('ABKZ annual gross margin uses the filed profit and revenue in the Ratios tab', async ({page}) => {
+  const reports = JSON.parse(readFileSync('e2e/fixtures/abkz-income-statement.json', 'utf8'));
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const result = JSON.parse(execFileSync(python, ['-c', `
+import json, sys
+from financial_columns.ratios import calculate
+report = json.load(sys.stdin)
+rows = [{**row, **row['cells']['2025'], 'raw_label':row['label'], 'period_start':'2025-01-01',
+         'period_end':'2025-12-31', 'standard':'NSBU', 'scope':'separate', 'issuer_id':'78'}
+        for row in report['rows']]
+print(json.dumps(calculate(rows, ticker='ABKZ', template='industry', end='2025-12-31', basis='annual')))
+`], {input: JSON.stringify(reports), encoding:'utf8'}));
+  reports.ratios = result.map(cell => ({id:'ratio:'+cell.metric_id, metric_id:cell.metric_id,
+    source_form:'RAT', kind:'ratio', label:cell.label, unit:cell.unit, cells:{'2025':cell}}));
+  await setup(page, {ticker:'ABKZ', reports});
+  const terminal = page.getByTestId('financial-columns');
+  await terminal.getByRole('tab', {name:'Ratios', exact:true}).click();
+  const value = terminal.locator('tr[data-metric="gross_margin"] td').nth(1).getByRole('button');
+  await expect(value).toHaveText('19.91');
+  await value.click();
+  await expect(page.getByRole('dialog')).toContainText('gross_profit / revenue');
 });
 
 test('HMKB current ratios show annualization and matching source periods',async({page},testInfo)=>{

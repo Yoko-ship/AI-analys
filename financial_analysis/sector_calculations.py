@@ -52,9 +52,8 @@ def enterprise_ratios(lines, organization_type, standard, period, methods=None):
         if code == "P5" and value == 100:
             cost = lines.get("form2:c020") or {}
             expenses = lines.get("form2:c040") or {}
-            cost_value = financial_analysis_sector_numbers.decimal(cost.get("raw_current", cost.get("current")))
-            period_cost = financial_analysis_sector_numbers.decimal(expenses.get("raw_current", expenses.get("current")))
-            if cost_value is None or (cost_value == 0 and period_cost):
+            if profitability.gross_margin_costs_missing(cost.get("raw_current", cost.get("current")),
+                                                       expenses.get("raw_current", expenses.get("current"))):
                 # A form that carries all costs below gross profit does not
                 # establish a comparable sales margin.
                 value = None

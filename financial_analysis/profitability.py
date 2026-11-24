@@ -11,6 +11,12 @@ from financial_analysis.sector_numbers import decimal, number, ratio
 VERSION = "period-returns-1.0"
 
 
+def gross_margin_costs_missing(cost_of_sales, period_expenses):
+    """When gross profit equals revenue, distinguish zero cost from costs presented below it."""
+    cost = decimal(cost_of_sales)
+    return cost is None or (cost == 0 and decimal(period_expenses) != 0)
+
+
 def return_on(net_income, closing, opening=None, *, months=12):
     profit, end, start = map(decimal, (net_income, closing, opening))
     months = decimal(months)

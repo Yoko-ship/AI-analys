@@ -21,6 +21,7 @@ const REASONS = {
   CONFLICTING_SOURCE_VERSIONS: ['Версии источника расходятся. Расчёт остановлен.', 'Manba versiyalari farq qiladi.', 'Source versions disagree, so the calculation is blocked.'],
   UNDER_REVIEW: ['Этот период находится на проверке.', 'Bu davr tekshirilmoqda.', 'This period is under review.'],
   AVERAGE_EARNING_ASSETS_MISSING: ['Нет сопоставимой средней базы доходных активов.', 'Daromadli aktivlarning o‘rtacha bazasi yo‘q.', 'A comparable average interest-earning asset base is missing.'],
+  GROSS_MARGIN_NO_COST_OF_SALES: ['Себестоимость продаж не выделена в отчёте.', 'Sotish tannarxi hisobotda alohida ko‘rsatilmagan.', 'Cost of sales is not shown separately in the filing.'],
   INPUTS_MISSING: ['Для формулы не хватает подтверждённых входных данных.', 'Formula uchun tasdiqlangan ma’lumotlar yetarli emas.', 'Verified inputs are missing for this formula.'],
   INCOMPATIBLE_OR_BLOCKED_INPUTS: ['Расчёт заблокирован: входные данные не прошли проверку или относятся к разному периметру.', 'Hisoblash bloklangan: kirish ma’lumotlari tekshiruvdan o‘tmagan yoki qamrovi farq qiladi.', 'Calculation blocked: inputs failed validation or have incompatible reporting scopes.'],
   STOCK_REQUIRES_REPORTING_DATE: ['Балансовый показатель относится к дате, а не TTM.', 'Balans ko‘rsatkichi TTM emas, sanaga tegishli.', 'A balance-sheet measure belongs to a reporting date, not TTM.'],

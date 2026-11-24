@@ -1,3 +1,6 @@
+from decimal import Decimal
+import pytest
+
 from financial_columns import matrix, ratios
 import json
 from pathlib import Path
@@ -94,6 +97,35 @@ def test_standalone_and_ytd_columns_with_the_same_end_date_stay_distinct():
     ytd = next(r for r in matrix.build(rows, mode='interim')['rows'] if r['metric_id'] == 'net_income')
     assert q['cells']['2025-06-30']['value'] == '30'
     assert ytd['cells']['2025-06-30']['value'] == '50'
+
+
+@pytest.mark.parametrize(('ticker', 'end', 'basis', 'values', 'expected', 'reason'), [
+    ('ABKZ', '2025-12-31', 'annual', (142434170, -114078960, 28355210, -18645393), '19.91', None),
+    ('ABKZ', '2025-12-31', 'ttm', (142434170, -114078960, 28355210, -18645393), '19.91', None),
+    ('CBSK', '2026-09-30', 'ytd', (74357988, 0, 74357988, -33420351), None, 'GROSS_MARGIN_NO_COST_OF_SALES'),
+])
+def test_nsbu_gross_margin_uses_filed_profit_and_revenue(ticker, end, basis, values, expected, reason):
+    metrics = ('revenue', 'cost_of_sales', 'gross_profit', 'operating_expenses')
+    rows = [observation(m, v, end, 'flow', source_code=f'{i * 10:03d}')
+            for i, (m, v) in enumerate(zip(metrics, values), start=1)]
+    calculated = ratios.calculate(rows, ticker=ticker, template='industry', end=end, basis=basis)
+    margin = next(r for r in calculated if r['metric_id'] == 'gross_margin')
+    assert margin['reason'] == reason
+    assert margin['annualized'] is False and margin['unit'] == 'percent'
+    assert [r['source_code'] for r in margin['components'][:2]] == ['030', '010']
+    if expected is None:
+        assert margin['value'] is None
+    else:
+        assert Decimal(margin['value']).quantize(Decimal('.01')) == Decimal(expected)
+
+
+def test_financial_issuer_with_an_enterprise_form_gets_the_sector_exclusion():
+    # DMMT2B submitted Form 2 for 2025 under the financial organization classification.
+    rows = [observation('revenue', '139881115.28', '2025-12-31', 'flow'),
+            observation('gross_profit', '0', '2025-12-31', 'flow')]
+    result = ratios.calculate(rows, ticker='DMMT2B', template='financial', end='2025-12-31', basis='annual')
+    margin = next(r for r in result if r['metric_id'] == 'gross_margin')
+    assert margin['value'] is None and margin['quality'] == 'not_applicable'
 
 
 def test_roe_roa_use_matching_average_bases_and_nim_never_uses_total_assets():

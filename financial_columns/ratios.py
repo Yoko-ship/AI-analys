@@ -3,6 +3,8 @@ from datetime import date, timedelta
 from collections import defaultdict
 from decimal import Decimal
 
+from financial_analysis.profitability import gross_margin_costs_missing
+
 from .matrix import choose
 from .periods import calculate as period_value, CONTEXT
 from .derived import enrich
@@ -71,6 +73,7 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
                        'period_start': (date.fromisoformat(start) + timedelta(days=1)).isoformat() if flow_ratio else end,
                        'basis': basis, 'annualized': annualize and annualization != 1, 'unit': unit,
                        'origin': 'UZStock_calculated'})
+        return result[-1]
 
     # Parent earnings pair only with parent equity; otherwise use total group
     # earnings and total group equity. Never mix one numerator with the other base.
@@ -81,6 +84,21 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('roa', 'ROA', flow('net_income'), [point('total_assets', start), point('total_assets', end)],
           factor=Decimal(100), formula='net_income / average(total_assets) × 100', unit='percent', flow_ratio=True, annualize=True)
     corporate = template not in {'bank', 'insurance', 'fund', 'financial', 'microfinance', 'leasing'}
+    if any(r.get('source_form') == 'F2' and r.get('standard') == 'NSBU' for r in observations):
+        margin = ratio('gross_margin', 'Gross margin', flow('gross_profit'), [flow('revenue')],
+                       factor=Decimal(100), formula='gross_profit / revenue × 100', unit='percent', flow_ratio=True,
+                       applicable=template not in capital_returns.FINANCIAL)
+        if margin['value'] is not None and Decimal(margin['value']) == 100:
+            cost, expenses = flow('cost_of_sales'), flow('operating_expenses')
+            if gross_margin_costs_missing(cost.get('value'), expenses.get('value')):
+                margin.update(value=None, quality='missing', reason='GROSS_MARGIN_NO_COST_OF_SALES')
+            relevant = [cost, expenses] if cost.get('value') is not None and Decimal(cost['value']) == 0 else [cost]
+            margin['components'].extend(relevant)
+            contexts = {tuple(r.get(k) for k in CONTEXT) for r in margin['components'] if r.get('issuer_id')}
+            if len(contexts) > 1 or any(r.get('quality') == 'blocked' for r in relevant):
+                margin.update(value=None, quality='blocked', reason='INCOMPATIBLE_OR_BLOCKED_INPUTS')
+            elif margin['quality'] == 'valid' and any(r.get('quality') == 'warn' for r in relevant):
+                margin.update(quality='warn', reason=next((r.get('reason') for r in relevant if r.get('reason')), None))
     ratio('current_ratio', 'Current ratio', point('current_assets', end), [point('current_liabilities', end)],
           formula='current_assets / current_liabilities', applicable=corporate)
     quick = point('current_assets', end)
