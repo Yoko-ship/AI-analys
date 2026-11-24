@@ -73,7 +73,9 @@ impairment|Impairment losses|Убытки от обесценения
 operating_income|Operating profit|Операционная прибыль
 finance_income|Finance income|Финансовые доходы
 finance_cost|Finance costs|Финансовые расходы
-fx_gain_loss|Net foreign exchange gain|Чистая прибыль от курсовых разниц
+fx_dealing|Net gains on foreign exchange operations - dealing|Net gain on foreign exchange dealing operations|Net gain from trading in foreign currencies
+fx_translation|Net gains/(losses) on foreign exchange operations - translation differences|Net gain from foreign exchange translation|Net loss from foreign exchange translation|Чистый убыток от переоценки иностранной валюты|Чистые расходы от переоценки иностранной валюты
+fx_gain_loss|Net foreign exchange gain|Чистая прибыль от курсовых разниц|Чистая прибыль по операциям с иностранной валютой|Чистые прибыли по операциям с иностранной валютой
 share_of_profit_associates|Share of profit of associates|Доля в прибыли ассоциированных компаний
 profit_before_tax|Profit before tax|Прибыль до налогообложения
 income_tax|Income tax expense|Расходы по налогу на прибыль

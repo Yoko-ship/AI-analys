@@ -36,6 +36,27 @@ def _cash_flow_ebitda_inputs(rows):
     return inputs
 
 
+def _bank_fx_terms(income):
+    """Accept a two-part foreign exchange result from one bank income statement."""
+    if not income[0].get('source_version') or income[0].get('kind') != 'flow':
+        return []
+    fx = {r['metric_id'] for r in income
+          if (r.get('metric_id') or '').startswith(('fx_', 'net_fx_', 'foreign_exchange_'))}
+    dealing = fx & {'fx_dealing', 'fx_dealing_income'}
+    translation = fx & {'fx_translation', 'fx_revaluation'}
+    # A filed total or a third FX line makes a two-component calculation unnecessary or incomplete.
+    if len(fx) != 2 or len(dealing) != 1 or len(translation) != 1:
+        return []
+    units = {(r.get('unit'), r.get('currency'), r.get('unit_scale'))
+             for r in income if r.get('metric_id') in fx}
+    if len(units) != 1:
+        return []
+    unit, currency, scale = units.pop()
+    if unit != 'UZS_thousand' or not currency or not scale:
+        return []
+    return [(dealing.pop(), 1), (translation.pop(), 1)]
+
+
 def enrich(observations, *, template=None):
     result = list(observations)
     groups = defaultdict(list)
@@ -57,6 +78,14 @@ def enrich(observations, *, template=None):
                            'value': str(sum(Decimal(p['value']) * coefficient for p, (_, coefficient) in zip(parts, terms))),
                            'components': parts, 'formula': formula, 'origin': 'UZStock_calculated',
                            'unit': unit, 'quality': 'warn' if any(p['quality'] == 'warn' for p in parts) else 'valid'})
+
+        if standard == 'MSFO' and template == 'bank' and 'PL' in forms:
+            income = [r for r in rows if r.get('source_form') == 'PL']
+            terms = _bank_fx_terms(income)
+            if terms:
+                add('fx_gain_loss', 'Net foreign exchange result', terms,
+                    'net foreign exchange dealing + foreign currency translation result',
+                    inputs=income)
 
         if standard == 'MSFO' and 'CF' in forms and rows[0].get('kind') == 'flow':
             inputs = _cash_flow_ebitda_inputs(rows)

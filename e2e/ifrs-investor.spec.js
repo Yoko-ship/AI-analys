@@ -216,21 +216,7 @@ with tempfile.TemporaryDirectory() as scratch:
 });
 
 test('SQBN investor ratios use the staged loan portfolio from the signed note', async ({page}) => {
-  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
-  const filing = JSON.parse(execFileSync(python, ['-c', `
-import json, os, tempfile
-from pathlib import Path
-from unittest.mock import patch
-from financial_columns import service
-rows = json.loads(Path('tests/fixtures/financial_columns/sqbn_2025_loan_note.json').read_text())
-with tempfile.TemporaryDirectory() as scratch:
-    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
-    with patch.object(service, 'organization_kind', return_value='bank'), patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['consolidated']), patch.object(service.observations, 'ifrs', return_value=rows):
-        print(json.dumps(service.load('SQBN', form='MSFO', view='investor', scope='consolidated', freq='annual')))
-`], {encoding:'utf8'}));
-  await setup(page);
-  await page.route('**/api/company/SQBN/financials/columns?**', route => route.fulfill({json:filing}));
-  await page.goto('/company/SQBN?tab=financials&standard=MSFO');
+  await openSignedFiling(page, 'SQBN', 'bank', 'sqbn_2025_loan_note.json');
   const panel = page.getByTestId('ifrs-investor');
   await panel.getByRole('tab',{name:'RAT Ratios',exact:true}).click();
   for (const [label, value] of [['Stage 3 / gross loans', '7.48%'], ['ECL coverage', '5.99%']]) {
@@ -240,23 +226,38 @@ with tempfile.TemporaryDirectory() as scratch:
 });
 
 test('URTS shows the EBITDA margin calculated from its income and cash flow statements', async ({page}) => {
-  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
-  const filing = JSON.parse(execFileSync(python, ['-c', `
-import json, os, tempfile
-from pathlib import Path
-from unittest.mock import patch
-from financial_columns import service
-rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
-with tempfile.TemporaryDirectory() as scratch:
-    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
-    with patch.object(service, 'organization_kind', return_value='industry'), patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['consolidated']), patch.object(service.observations, 'ifrs', return_value=rows):
-        print(json.dumps(service.load('URTS', form='MSFO', view='investor', scope='consolidated', freq='annual')))
-`], {encoding:'utf8'}));
-  await setup(page);
-  await page.route('**/api/company/URTS/financials/columns?**', route => route.fulfill({json:filing}));
-  await page.goto('/company/URTS?tab=financials&standard=MSFO');
+  await openSignedFiling(page, 'URTS', 'industry', 'urts_2025_ebitda.json');
   const panel = page.getByTestId('ifrs-investor');
   await panel.getByRole('tab', {name:'RAT Ratios', exact:true}).click();
   const margin = panel.locator('.investor-ratios article').filter({hasText:'EBITDA margin'});
   await expect(margin.locator('.investor-number')).toHaveText('47.77%');
+});
+
+async function openSignedFiling(page, ticker, kind, filename) {
+  const python = process.platform === 'win32' ? '.venv/Scripts/python.exe' : '.venv/bin/python';
+  const filing = JSON.parse(execFileSync(python, ['-c', `
+import json, os, sys, tempfile
+from pathlib import Path
+from unittest.mock import patch
+from financial_columns import service
+ticker, kind, filename = sys.argv[1:]
+rows = json.loads((Path('tests/fixtures/financial_columns') / filename).read_text())
+with tempfile.TemporaryDirectory() as scratch:
+    os.environ['CATALOG_DB_PATH'] = scratch + '/catalog.db'
+    with patch.object(service, 'organization_kind', return_value=kind), patch.object(service.publication, 'snapshots', return_value=[]), patch.object(service.publication, 'scopes', return_value=['consolidated']), patch.object(service.observations, 'ifrs', return_value=rows):
+        print(json.dumps(service.load(ticker, form='MSFO', view='investor', scope='consolidated', freq='annual')))
+`, ticker, kind, filename], {encoding:'utf8'}));
+  await setup(page);
+  await page.route(`**/api/company/${ticker}/financials/columns?**`, route => route.fulfill({json:filing}));
+  await page.goto(`/company/${ticker}?tab=financials&standard=MSFO`);
+}
+
+test('ANBK3B shows the foreign exchange result from the signed trading and translation lines', async ({page}) => {
+  await openSignedFiling(page, 'ANBK3B', 'bank', 'anorbank_2025_fx.json');
+  const panel = page.getByTestId('ifrs-investor');
+  await panel.getByRole('tab', {name:'PL Profit or loss', exact:true}).click();
+  const value = panel.locator('tr[data-field="fxResult"]').getByRole('button', {name:/2025/});
+  await expect(value).toHaveText('37.76');
+  await value.click();
+  await expect(page.getByRole('dialog')).toContainText('46,919,123');
 });

@@ -316,3 +316,52 @@ def test_ebitda_does_not_override_a_different_profit_perimeter_or_disagreeing_ch
     rows = json.loads(Path('tests/fixtures/financial_columns/urts_2025_ebitda.json').read_text())
     rows.append({**rows[0], 'metric_id': metric, 'value': amount})
     assert not any(r['metric_id'] == 'ebitda' for r in enrich(rows, template='industry'))
+
+
+def test_anorbank_foreign_exchange_result_adds_signed_dealing_and_translation():
+    from financial_columns import derived, investor, matrix, presentation
+    rows = json.loads(Path('tests/fixtures/financial_columns/anorbank_2025_fx.json').read_text())
+    enriched = derived.enrich(rows, template='bank')
+    table = dict(matrix.build(enriched, mode='annual'), template='bank', standard='MSFO', ratios=[])
+    row = next(r for r in presentation.project(table)['rows'] if r['display_field'] == 'fx_result')
+    cell = row['cells']['2025']
+    assert cell['value'] == '37764265'
+    assert [(p['value'], p['page']) for p in cell['components']] == [('46919123', 9), ('-9154858', 9)]
+    pl = investor.project(table)['statements']['pl']
+    assert next(r for g in pl for r in g['rows'] if r['field'] == 'fxResult')['cells']['2025'] == cell
+
+
+@pytest.mark.parametrize('change', [
+    {'source_version': 'different'}, {'source_form': 'CF'}, {'currency': 'USD'},
+    {'unit_scale': '1000000'}, {'scope': 'separate'}, {'quality': 'blocked'},
+    {'metric_id': 'cash_fx_result'}, {'unit': 'UZS_per_share'},
+])
+def test_bank_fx_result_needs_comparable_profit_statement_components(change):
+    from financial_columns import derived
+    rows = json.loads(Path('tests/fixtures/financial_columns/anorbank_2025_fx.json').read_text())
+    for row in rows:
+        if row['metric_id'] == 'fx_translation':
+            row.update(change)
+    assert not any(r['metric_id'] == 'fx_gain_loss' for r in derived.enrich(rows, template='bank'))
+
+
+def test_asaka_bank_filed_fx_total_takes_precedence_over_its_components():
+    from financial_columns import derived, observations
+    data = json.loads(Path('tests/fixtures/financial_columns/anorbank_2025_fx.json').read_text())
+    rows = [dict(data[0], metric_id=k, value=v, raw_value=str(int(v) // 1000), raw_label=caption,
+                 issuer_id='12', unit_scale='1000000', page=11,
+                 source_url='https://openinfo.uz/media/msfo/cb473ba1-f60b-4995-accd-e93e6a83c7a1.pdf',
+                 source_version='f170f626120348995312d318c6f1a136ccbc2d65701d55040dba930da07eb826')
+            for k, v, caption in [('net_fx_gains', '300932000', 'Чистая прибыль по операциям с иностранной валютой'),
+                                  ('fx_dealing', '253663000', 'Торговые операции'),
+                                  ('fx_translation', '47269000', 'Переоценка валютных статей')]]
+    actual = derived.enrich([observations.canonical_ifrs_metric(r) for r in rows], template='bank')
+    (total,) = [r for r in actual if r['metric_id'] == 'fx_gain_loss']
+    assert (total['value'], total['source_form'], total['source_metric_id']) == ('300932000', 'PL', 'net_fx_gains')
+
+
+def test_bank_fx_pair_with_additional_exchange_profit_or_loss_is_ambiguous():
+    from financial_columns import derived
+    rows = json.loads(Path('tests/fixtures/financial_columns/anorbank_2025_fx.json').read_text())
+    rows.append(dict(rows[0], metric_id='fx_loss', raw_label='Foreign exchange loss', value='-515'))
+    assert not any(r['metric_id'] == 'fx_gain_loss' for r in derived.enrich(rows, template='bank'))

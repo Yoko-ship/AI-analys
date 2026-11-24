@@ -119,6 +119,7 @@ _LEGACY_BALANCE_METRICS = {
 # Some reviewed imports used a different metric name for the same signed line.
 # Require both the old identifier and an exact caption in the statement registry.
 _REVIEWED_IFRS_NAMES = {
+    'net_fx_gains': {'fx_gain_loss'},
     'long_term_borrowings': {'borrowings_long'},
     'short_term_borrowings': {'borrowings_short'},
     'deferred_tax_asset': {'deferred_tax_assets'},

@@ -25,7 +25,7 @@ METRICS = {
     'oci':'oci', 'totalIncome':'comprehensive_income',
     'interestRevenue':'interest_income', 'interestExpense':'interest_expense',
     'netInterest':'net_interest_before_ecl', 'feeIncome':'fee_income',
-    'feeExpense':'fee_expense', 'netFee':'net_fee_income',
+    'feeExpense':'fee_expense', 'netFee':'net_fee_income', 'fxResult':'fx_gain_loss',
     'otherBankIncome':'other_operating_income', 'bankOperatingIncome':'operating_income_before_ecl',
     'personnel':'staff_costs', 'otherOperating':'other_operating_expense',
     'operatingProfitPreECL':'operating_profit_before_ecl', 'ecl':'credit_loss_expense',

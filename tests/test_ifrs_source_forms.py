@@ -71,6 +71,10 @@ def test_bilingual_aliases_identify_the_same_metric_without_summing():
     assert ifrs.metric('Cash and cash equivalents', 'BS') == 'cash'
     assert ifrs.metric('Stage 3 loans', 'Notes') == 'stage3_loans'
     assert ifrs.metric('Stage 3 loans', 'Notes') != 'npl'
+    assert ifrs.metric('Net gains on foreign exchange operations - dealing', 'PL') == 'fx_dealing'
+    assert ifrs.metric('Net gains/(losses) on foreign exchange operations - translation differences', 'PL') == 'fx_translation'
+    assert ifrs.metric('Торговые операции', 'PL') != 'fx_dealing'
+
 
 
 def test_weighted_average_shares_keep_the_income_period_instead_of_a_closing_date():

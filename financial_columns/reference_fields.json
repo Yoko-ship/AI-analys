@@ -683,11 +683,16 @@
           },
           {
             "label": "Результат операций с иностранной валютой",
-            "ref": "PL · Trading in FX",
+            "ref": "PL · Net foreign exchange result",
             "kind": "flow",
             "selectors": [
               [
                 "PL",
+                null,
+                "fx_gain_loss"
+              ],
+              [
+                "DERIVED",
                 null,
                 "fx_gain_loss"
               ]
