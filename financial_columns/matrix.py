@@ -7,6 +7,11 @@ from . import periods
 def choose(items):
     if not items:
         return {'value': None, 'quality': 'missing', 'reason': 'SOURCE_VALUE_MISSING'}
+    # An empty or undated statutory bank column supplies no usable observation.
+    # A separate filing can still establish the balance at that date.
+    if len(items) > 1:
+        usable = [r for r in items if r.get('reason') not in {'EMPTY_BANK_BALANCE_COLUMN', 'BANK_BALANCE_DATE_UNRESOLVED'}]
+        items = usable or items
     # A directly filed period takes precedence over a later comparison column.
     primary = [r for r in items if r.get('role') != 'COMPARATIVE']
     items = primary or items

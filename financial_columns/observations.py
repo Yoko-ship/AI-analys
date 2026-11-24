@@ -8,17 +8,37 @@ from decimal import Decimal
 RECONCILIATION_RELATIVE_LIMIT = Decimal('0.001')
 
 
+def _bank_balance_column_issues(rows):
+    balance = [r for r in rows if r.get('source_form') == 'BANK_BS']
+    issues = {}
+    for side in ('current', 'previous'):
+        amounts = [Decimal(r[side]['value']) for r in balance if r[side].get('value') is not None]
+        if amounts and not any(amounts) and any(
+                r.get('metric_id') == 'total_assets' and r[side].get('value') is not None for r in balance):
+            issues[side] = 'EMPTY_BANK_BALANCE_COLUMN'
+    # In some historical forms only the left column contains a balance, and
+    # the right column is entirely zero. The layout cannot establish which
+    # date the populated column represents.
+    if 'current' in issues and 'previous' not in issues:
+        issues['previous'] = 'BANK_BALANCE_DATE_UNRESOLVED'
+    return issues
+
+
 def nsbu(documents):
     result = []
     for doc in documents:
         end, year = doc['period_end'], int(doc['period_end'][:4])
         scale = Decimal(doc.get('unit_scale') or 1000)
+        bank_issues = _bank_balance_column_issues(doc['rows'])
         for row in doc['rows']:
             for side in ('current', 'previous'):
                 source = row[side]
                 when = end if side == 'current' else f'{year-1}-12-31' if row['kind'] == 'stock' else f'{year-1}{end[4:]}'
                 value = str(Decimal(source['value']) * scale / 1000) if source.get('value') is not None and doc['quality'] != 'blocked' else None
                 quality = 'blocked' if doc['quality'] == 'blocked' else source['quality']
+                reason = 'UNIT_UNRESOLVED' if doc['quality'] == 'blocked' else source.get('reason')
+                if row['source_form'] == 'BANK_BS' and side in bank_issues and value is not None:
+                    value, quality, reason = None, 'blocked', bank_issues[side]
                 result.append({**{k:v for k,v in row.items() if k not in {'current', 'previous'}}, **source, 'value': value, 'quality': quality,
                                'standard': 'NSBU', 'scope': doc['scope'], 'issuer_id': doc['issuer_id'],
                                'period_end': when, 'period_start': when if row['kind'] == 'stock' else when[:4] + '-01-01',
@@ -28,7 +48,7 @@ def nsbu(documents):
                                'accounting_model': 'legacy' if doc.get('template') == 'insurance' else None,
                                'currency': doc.get('currency'), 'unit_scale': doc.get('unit_scale'),
                                'normalization': 'raw × unit_scale / 1000',
-                               'reason': 'UNIT_UNRESOLVED' if doc['quality'] == 'blocked' else source.get('reason')})
+                               'reason': reason})
     return result
 
 

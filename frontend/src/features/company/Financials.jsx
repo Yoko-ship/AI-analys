@@ -40,23 +40,22 @@ const FIN_SECTIONS = [
   {
     key: "balance",
     label: ["Баланс", "Balans", "Balance Sheet"],
-    rows: ["total_assets", "total_liabilities", "total_equity"],
+    rows: ["total_assets", "loans_gross", "total_liabilities", "customer_funds", "demand_deposits", "savings_deposits", "term_deposits", "total_equity"],
+    margins: ["loans_to_deposits"],
     chart: ["total_assets", "total_liabilities", "total_equity"],
   },
   {
     key: "ratios",
     label: ["Коэффициенты", "Koeffitsiyentlar", "Key Ratios"],
     margins: ["roe", "roa", "current_ratio", "quick_ratio", "debt_ratio",
-              "debt_to_equity", "total_asset_turnover", "return_to_capital_employed"],
+              "debt_to_equity", "total_asset_turnover", "return_to_capital_employed", "loans_to_deposits"],
     chart: ["roe", "roa"],
   },
 ];
 
 // The quarterly view carries only what the quarterly FILINGS carry: the income
 // statement plus the balance snapshots the parse keeps. Its Баланс sub-tab
-// shows the SAME three lines as the annual one — Активы, Обязательства,
-// Капитал (customer, 2026-08-16: the two views must read alike; cash came off
-// the display, though the endpoint still serves it).
+// uses the same balance fields as the annual view, including bank deposits when filed.
 // No Коэффициенты sub-tab — quarterly ROE/ROA off a cumulative income against a
 // point-in-time balance is a figure that needs annualising to mean anything,
 // and a wrong ratio beside a right one discredits both.
@@ -71,7 +70,8 @@ const FIN_SECTIONS_QUARTER = [
   {
     key: "balance",
     label: ["Баланс", "Balans", "Balance Sheet"],
-    rows: ["total_assets", "total_liabilities", "total_equity"],
+    rows: ["total_assets", "loans_gross", "total_liabilities", "customer_funds", "demand_deposits", "savings_deposits", "term_deposits", "total_equity"],
+    margins: ["loans_to_deposits"],
     chart: ["total_assets", "total_liabilities", "total_equity"],
   },
 ];
@@ -544,7 +544,8 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
                 <div><dt>{t("Исходная сумма", "Asl summa", "Raw value")}</dt><dd>{source.raw_value ?? "—"}</dd></div>
                 <div><dt>{t("Нормализованное значение", "Normallashtirilgan qiymat", "Normalized value")}</dt><dd>{source.normalized_value ?? "—"}{source.normalization_formula ? ` (${source.normalization_formula})` : ""}</dd></div>
                 <div><dt>{t("Знак", "Belgi", "Sign")}</dt><dd>{source.sign || "—"}</dd></div>
-                <div><dt>{t("Страница", "Sahifa", "Page")}</dt><dd>{source.page || "—"}</dd></div>
+                {source.sheet && source.row ? <div><dt>{t("Лист и строка", "Varaq va satr", "Sheet and row")}</dt><dd>{source.sheet} · {source.row}</dd></div>
+                  : <div><dt>{t("Страница", "Sahifa", "Page")}</dt><dd>{source.page || "—"}</dd></div>}
                 <div><dt>{t("Единица / масштаб", "Birlik / masshtab", "Unit / scale")}</dt><dd>{source.currency || "UZS"} {source.unit_scale ? `×${source.unit_scale}` : "—"}</dd></div>
                 {source.fx && <div><dt>{t("Пересчёт в UZS на конец периода", "Davr oxirida UZS ga aylantirish", "Period-end translation to UZS")}</dt><dd>{source.fx.rate} UZS / {source.fx.currency || source.currency} · {source.fx.as_of} · {t("действует с", "amal qiladi", "effective")} {source.fx.effective_date} · <a href={source.fx.source_url} target="_blank" rel="noreferrer">CBU</a></dd></div>}
                 <div><dt>{t("Дата публикации источника", "Manba e’lon qilingan sana", "Source publication date")}</dt><dd>{source.source_published_at || "—"}</dd></div>
@@ -1019,7 +1020,7 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
               {(active.margins || []).length > 0 && (active.rows || []).length > 0 && (
                 <tr className="fin-section-row">
                   <th scope="row" colSpan={cols.length + 1}>
-                    {t("Маржинальность", "Marjinallik", "Margin Analysis")}
+                    {active.key === "balance" ? t("Коэффициенты баланса", "Balans koeffitsiyentlari", "Balance ratios") : t("Маржинальность", "Marjinallik", "Margin Analysis")}
                   </th>
                 </tr>
               )}

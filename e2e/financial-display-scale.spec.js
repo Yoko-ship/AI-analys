@@ -100,3 +100,33 @@ test('ABKZ public income table displays verified gross margin with its calculati
   await row.getByRole('button',{name:'19.91%'}).click();
   await expect(page.getByRole('dialog')).toContainText('gross_profit / net_revenue * 100');
 });
+
+test('public bank balance displays deposits in billions and opens the original filing', async ({page}) => {
+  const original = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=bank&report_id=438&lang=ru';
+  await page.addInitScript(() => {
+    localStorage.setItem('uz_stock_analyzer_language','en');
+    sessionStorage.setItem('uz_sponsor_seen','1');
+  });
+  await page.route('**/api/**', route => {
+    const {pathname} = new URL(route.request().url());
+    if (pathname === '/api/company/HMKB/financials') return route.fulfill({json:{
+      ok:true, organization_type:'bank', periods:['2025'], series:{
+        total_assets:{money:true,unit:'UZS',values:{2025:35834699447000}},
+        customer_funds:{money:true,unit:'UZS',derived:true,values:{2025:15115801873000}},
+        loans_to_deposits:{money:false,unit:'ratio',derived:true,values:{2025:1.5}},
+      },
+    }});
+    if (pathname.endsWith('/financials/passport')) return route.fulfill({json:{
+      ok:true,status:'DERIVED',formula:'BANK_BS:15 + BANK_BS:16 + BANK_BS:17',source:{excel_url:original},
+    }});
+    return route.fulfill({json:{ok:true,items:[],companies:[],securities:{}}});
+  });
+  await page.goto('/company/HMKB?tab=financials');
+  await page.getByRole('button',{name:'Balance Sheet',exact:true}).click();
+  await page.getByRole('button',{name:'Table',exact:true}).first().click();
+  const table=page.locator('.company-financials table.fin-table').first();
+  const cell=table.locator('tbody tr').filter({has:page.getByRole('button',{name:'Customer deposits',exact:true})}).getByRole('button',{name:'15,115.8',exact:true});
+  await cell.click();
+  await expect(page.getByRole('dialog')).toContainText('BANK_BS:15 + BANK_BS:16 + BANK_BS:17');
+  await expect(page.getByRole('dialog').getByRole('link')).toHaveAttribute('href',original);
+});

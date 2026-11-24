@@ -340,3 +340,55 @@ def test_deposit_total_requires_three_compatible_balance_lines(source):
         result = ratios.calculate([cells['7а'], deposit], ticker='IPTB', template='bank', end=end, basis='as_of')
         cell = next(r for r in result if r['metric_id'] == 'loans_to_deposits')
         assert cell['value'] is None and cell['reason'] == reason
+
+
+def test_public_iptb_balance_history_and_passports_match_the_filed_deposits(source):
+    import asyncio
+    from server.company.financials import _sector_presentation, financial_passport
+    period = '2026Q3'
+    data = {'standard': 'NSBU', 'freq': 'quarterly', 'periods': [period], 'series': {}}
+    series = _sector_presentation(data, 'IPTB')['series']
+    assert series['customer_funds']['values'][period] == 29321578637000
+    assert series['savings_deposits']['values'][period] == 0
+    assert series['loans_to_deposits']['values'][period] == pytest.approx(37439271287 / 29321578637)
+    assert series['customer_funds']['unit'] == 'UZS' and series['loans_to_deposits']['money'] is False
+    for field, status in [('demand_deposits', 'SOURCED'), ('customer_funds', 'DERIVED'), ('loans_to_deposits', 'DERIVED')]:
+        passport = asyncio.run(financial_passport('IPTB', period, field))
+        assert passport['status'] == status and passport['source']['excel_url'] == source['source_url']
+        if field == 'demand_deposits':
+            assert passport['source']['raw_value'] == 9468914184
+            assert passport['source']['period_quarter'] == 3 and passport['source']['period_year'] == 2026
+    held = {**data, 'series': {}, 'data_gaps': [{'period':period,'code':'VALUE_QUARANTINE'}]}
+    assert 'customer_funds' not in _sector_presentation(held, 'IPTB')['series']
+
+
+def test_empty_bank_balance_column_cannot_establish_zero_deposits():
+    from financial_columns import observations, derived
+    # Asia Alliance Bank's 2020 Q1 workbook 476 carries amounts in the first
+    # balance column and a zero for every balance line in the second.
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=bank&report_id=476&lang=ru'
+    rows = []
+    for code, field, raw in [('14','total_assets','2395659440'),('15','demand_deposits','574005074'),
+                             ('16','savings_deposits','0'),('17','term_deposits','986968131')]:
+        rows.append(dict(metric_id=field, source_form='BANK_BS', source_code=code, kind='stock',
+                         raw_label=field, unit='UZS_thousand', source_url=url,
+                         current={'value':'0','quality':'valid','raw_value':0},
+                         previous={'value':raw,'quality':'valid','raw_value':raw}))
+    doc = dict(issuer_id='31', scope='separate', period_end='2020-03-31', quality='valid', currency='UZS',
+               unit_scale='1000', template='bank', source_version='476', rows=rows)
+    parsed = observations.nsbu([doc])
+    current = [r for r in parsed if r['role'] == 'PRIMARY']
+    assert all(r['value'] is None and r['raw_value'] == 0 and r['reason'] == 'EMPTY_BANK_BALANCE_COLUMN' for r in current)
+    assert not any(r['metric_id'] == 'customer_funds' for r in derived.enrich(current))
+    raw_zero = next(r for r in parsed if r['role'] == 'COMPARATIVE' and r['metric_id'] == 'savings_deposits')
+    assert raw_zero['raw_value'] == '0' and raw_zero['reason'] == 'BANK_BALANCE_DATE_UNRESOLVED'
+    from financial_columns.matrix import choose
+    closing = next(r for r in current if r['metric_id'] == 'term_deposits')
+    corroborated = {**closing, 'value': '900', 'quality': 'valid', 'reason': None,
+                    'source_version': 'independent-annual', 'role': 'COMPARATIVE'}
+    assert choose([closing, corroborated])['value'] == '900'
+    assert choose([closing])['value'] is None
+    # A genuine zero in a populated balance remains available.
+    rows[0]['current']['value'] = '2395659440'
+    verified = observations.nsbu([doc])
+    assert next(r for r in verified if r['role'] == 'PRIMARY' and r['metric_id'] == 'savings_deposits')['value'] == '0'
