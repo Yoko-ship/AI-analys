@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v12'
+VERSION = 'statement-columns-v13'
 
 
 def compact(value):
@@ -370,9 +370,10 @@ def report_flow_contexts(pages):
 
 def proposals(pages, evidence):
     """Extract all supported columns and keep incompatible scopes separate."""
-    from financial_columns.ifrs import extract as extract_source_forms, statement_scope
+    from financial_columns.ifrs import extract as extract_source_forms, statement_covers, statement_scope
     from financial_columns.ownership import extract as extract_shareholders
-    source = extract_source_forms(pages, page_count=evidence.get('page_count', len(pages)))
+    covers = statement_covers(pages)
+    source = extract_source_forms(pages, page_count=evidence.get('page_count', len(pages)), covers=covers)
     shareholders = extract_shareholders(pages)
     joined='\n'.join(pages.values())
     standard='MSFO' if is_ifrs(joined) else None
@@ -437,7 +438,7 @@ def proposals(pages, evidence):
             unit_header = header
         scope = statement_scope(header, text, 'BS' if kind == 'balance' else 'PL', cols)
         if scope == 'unknown':
-            scope = 'separate'
+            scope = covers[number][2] if number in covers else 'separate'
         document_year=max(year for year,end in cols)
         restated=bool(re.search(r'restated|пересчитан|пересмотрен|скорректирован',header,re.I))
         for column_index,(year,end) in enumerate(cols):
@@ -449,6 +450,8 @@ def proposals(pages, evidence):
                     'period_evidence':[], 'unit_evidence':[], 'issuer_evidence':None},
                     'figures':{},'parts':defaultdict(list),'conflicts':set(),'statement_pages':[]}
             g=groups[key]
+            if number in covers:
+                g.setdefault('period_context_pages', set()).add(covers[number][0])
             if kind == 'income':
                 g['classification']['period_start'] = flow_start(text, year, end,
                     column_index=column_index, column_count=len(cols))

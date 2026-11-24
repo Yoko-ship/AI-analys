@@ -602,3 +602,23 @@ def test_orgres_company_statement_uses_printed_comparative_then_primary_columns(
         source = next(row for row in proposal['source_rows'] if row['metric_id'] == 'net_income')
         assert (source['source_form'], source['column'], source['page']) == ('PL', column, 8)
         assert float(source['raw_value']) == profit
+
+
+def test_abkz_dated_consolidated_cover_identifies_its_untitled_scope():
+    # Openinfo IFRS filing 1030, signed cover and balance sheet, pages 4 and 5.
+    cover = ('АО «Андижон Биокимё Заводи»\nКонсолидированная Финансовая\n'
+             'отчетность за год, закончившийся\n31 декабря 2017 года')
+    balance = ('Отчет о финансовом положении\nтыс. сум\n31 декабря 2017    31 декабря 2016\n'
+               'Итого активы    43 430 987    37 453 990')
+    for expected, pages in [
+        ('consolidated', {1: 'Аудиторское заключение по МСФО', 4: cover, 5: balance}),
+        ('separate', {1: cover.replace('2017', '2018'), 5: balance}),
+        ('separate', {4: cover, 5: balance.replace('Отчет', 'Отдельный отчет')}),
+        ('separate', {5: balance, 6: cover}),
+    ]:
+        years = parse(pages)
+        assert {v['classification']['scope'] for v in years} == {expected}
+        assert years[0]['figures']['total_assets']['raw_value'] == '43430987'
+        if expected == 'consolidated':
+            assert all(r['scope'] == expected for v in years for r in v['source_rows'])
+            assert '4' in years[0]['page_evidence']

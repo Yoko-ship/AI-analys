@@ -93,8 +93,54 @@ def statement_scope(header, text, form, columns):
     return 'unknown'
 
 
-def extract(pages, *, page_count):
+COVER_TITLE = re.compile(
+    r"^\s*(?:(consolidated|separate|unconsolidated)\s+financial\s+statements\s+for\s+the\s+year\s+ended"
+    r"|(консолидированная|отдельная|неконсолидированная)\s+финансовая\s+отч[её]тность\s+за\s+год,?\s+"
+    r"(?:закончившийся|завершившийся))\s+31\s+(?:December|декабря)\s+(20\d{2})\b",
+    re.I | re.M,
+)
+
+
+def statement_covers(pages):
+    """Carry a signed report's dated cover only through its contiguous statement pages."""
+    from financial_ingestion import statements
+
+    result = {}
+    cover = None
+    previous = None
+    for number, text in sorted(pages.items()):
+        if previous != number - 1:
+            cover = None
+        previous = number
+        titles = COVER_TITLE.findall(text)
+        if titles:
+            cover = None
+            if len(titles) == 1:
+                en, ru, year = titles[0]
+                scope = 'consolidated' if (en or ru).lower() in {'консолидированная', 'consolidated'} else 'separate'
+                cover = (number, int(year), scope)
+            continue
+        if not cover:
+            continue
+        lines = text.splitlines()
+        first = next((i for i, line in enumerate(lines) if split_row(line)), len(lines))
+        header = '\n'.join(lines[:first])
+        form = form_kind(header)
+        if form not in {'BS', 'PL', 'CF', 'Equity'}:
+            cover = None
+            continue
+        cols = statements.columns(header)
+        declared = statement_scope(header, text, form, cols)
+        if declared not in {'unknown', cover[2]} or not cols or max(y for y, _ in cols) != cover[1]:
+            cover = None
+            continue
+        result[number] = cover
+    return result
+
+
+def extract(pages, *, page_count, covers=None):
     from financial_ingestion import statements as parser
+    covers = statement_covers(pages) if covers is None else covers
     forms, rows, issues = [], [], []
     previous_form = None
     for number, text in sorted(pages.items()):
@@ -110,6 +156,8 @@ def extract(pages, *, page_count):
         previous_form = form
         cols = parser.columns(header)
         scope = statement_scope(header, text, form, cols)
+        if scope == 'unknown' and number in covers:
+            scope = covers[number][2]
         forms.append({'form': form, 'page': number, 'text': text, 'scope': scope})
         # Dates must appear in the table header. Narrative note dates are not
         # sufficient to attach every number on that page to a reporting period.
