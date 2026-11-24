@@ -304,6 +304,13 @@ def evidence(companies):
                 if t:
                     versions[t].append(["catalog_report", record])
 
+        if "catalog_structured_quarters" in tables:
+            for row in conn.execute("SELECT ticker,year,quarter,source_json FROM catalog_structured_quarters"):
+                version = json.loads(row["source_json"]).get("statement_version")
+                ticker = aliases.get(row["ticker"])
+                if version and ticker:
+                    versions[ticker].append(["microfinance_quarter", row["year"], row["quarter"], version])
+
         for table, query in queries.items():
             if table in tables:
                 for row in conn.execute(query):

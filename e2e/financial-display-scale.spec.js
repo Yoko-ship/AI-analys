@@ -130,3 +130,28 @@ test('public bank balance displays deposits in billions and opens the original f
   await expect(page.getByRole('dialog')).toContainText('BANK_BS:15 + BANK_BS:16 + BANK_BS:17');
   await expect(page.getByRole('dialog').getByRole('link')).toHaveAttribute('href',original);
 });
+
+test('a public microfinance balance line opens its structured Openinfo filing', async ({page}) => {
+  const source = 'https://openinfo.uz/reports/microfinance/quarter/56';
+  const label = '5. Кредиты (микрокредит, микрозайм, потребительский), брутто';
+  await page.addInitScript(() => {
+    localStorage.setItem('uz_stock_analyzer_language','en');
+    sessionStorage.setItem('uz_sponsor_seen','1');
+  });
+  await page.route('**/api/**', route => {
+    const {pathname} = new URL(route.request().url());
+    if (pathname.endsWith('/financials')) return route.fulfill({json:{ok:true, organization_type:'financial',periods:['2026Q2'],series:{
+      total_assets:{unit:'UZS',money:true,values:{'2026Q2':363831945000}},
+      mfi_bs_050:{unit:'UZS',money:true,statement_section:'balance',filed_label:label,values:{'2026Q2':265400717000}},
+    }}});
+    if (pathname.endsWith('/financials/passport')) return route.fulfill({json:{ok:true,status:'SOURCED',filed_label:label,
+      filing_links:[{url:source,period:'2026Q2',code:'050'}]}});
+    return route.fulfill({json:{ok:true,items:[],companies:[],securities:{}}});
+  });
+  await page.goto('/company/ACMT1B2?tab=financials');
+  await page.getByRole('button',{name:'Balance Sheet',exact:true}).click();
+  await page.getByRole('button',{name:'Table',exact:true}).first().click();
+  const row = page.locator('.company-financials .fin-table tr').filter({hasText:label});
+  await row.getByRole('button',{name:'265.4',exact:true}).click({timeout:6000});
+  await expect(page.getByRole('dialog').getByRole('link')).toHaveAttribute('href',source);
+});

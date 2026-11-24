@@ -102,11 +102,18 @@ def read(tickers, *, structured=False):
         c.close()
 
 
-def _save(aliases, year, quarter, values, source, *, structured=False):
+def _save(aliases, year, quarter, values, source, *, structured=False, statement=None):
     table = "catalog_structured_quarters" if structured else "catalog_comparative_quarters"
     c = _connect()
     try:
         with c:
+            if statement:
+                from financial_ingestion.store import digest, encoded
+                version = digest(statement)
+                c.execute('CREATE TABLE IF NOT EXISTS catalog_microfinance_forms (version TEXT PRIMARY KEY, payload_json TEXT NOT NULL)')
+                c.execute('INSERT INTO catalog_microfinance_forms VALUES (?,?) ON CONFLICT(version) DO NOTHING',
+                          (version, encoded(statement)))
+                source = {**source, 'statement_version': version}
             for ticker in aliases:
                 c.execute(f"INSERT INTO {table} VALUES(?,?,?,?,?) "
                           "ON CONFLICT(ticker,year,quarter) DO UPDATE SET "
@@ -170,7 +177,7 @@ def discover_record(ticker, org_id, record, *, publish=False):
         source = {"kind": "structured", "source_period": f"{year}Q{quarter}", "org_id": str(org_id),
                   "source_url": f"https://openinfo.uz/reports/{org_type}/quarter/{object_id}", "pub_date": record["pub_date"],
                   "parser_version": _parser_version(oi)}
-        _save([ticker], year, quarter, values, source, structured=True)
+        _save([ticker], year, quarter, values, source, structured=True, statement=microfinance.filed_statement(detail, org_id, year, quarter))
     return {"ticker": ticker, "year": year, "quarter": quarter, **values}
 
 
@@ -234,7 +241,7 @@ def backfill(org_id, aliases, journal=None):
                 if values:
                     source = {"kind": "structured", "source_period": current_period,
                               "source_url": source_url, "pub_date": report["published_at"], "org_id": str(org_id), "parser_version": parser_version}
-                    _save(aliases, year + 1, quarter, values, source, structured=True)
+                    _save(aliases, year + 1, quarter, values, source, structured=True, statement=microfinance.filed_statement(detail, org_id, year + 1, quarter))
                     recovered.append(current_period)
                     if journal:
                         journal("year_backfill", ticker=aliases[0], standard="NSBU", period=current_period,

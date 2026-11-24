@@ -16,7 +16,7 @@ const validFinancialColumns = data => data?.ok === true;
 // A new build must not reuse a previously cached export of the old table.
 const exportVersion = import.meta.url.split('/').pop();
 
-const FORM_ORDER = ['F2', 'BANK_PL', 'INSURANCE_PL', 'PL', 'ASSETS', 'EQUITY', 'CF', 'DEBT', 'F1', 'BANK_BS', 'INSURANCE_BS', 'BS', 'Equity', 'Notes', 'DERIVED', 'RAT'];
+const FORM_ORDER = ['F2', 'BANK_PL', 'MFI_PL', 'INSURANCE_PL', 'PL', 'ASSETS', 'EQUITY', 'CF', 'DEBT', 'F1', 'BANK_BS', 'MFI_BS', 'INSURANCE_BS', 'BS', 'Equity', 'Notes', 'DERIVED', 'RAT'];
 const QUALITY = {
   valid: ['Проверено', 'Tekshirilgan', 'Verified'], warn: ['Проверить', 'Tekshirish kerak', 'Review'],
   blocked: ['Расчёт заблокирован', 'Hisoblash bloklangan', 'Calculation blocked'],
@@ -30,6 +30,8 @@ const GROUPS = {
   DEBT: ['Обязательства и долговая нагрузка', 'Majburiyatlar va qarz', 'Liabilities and debt'],
   DERIVED: ['Расчётные показатели', 'Hisoblangan ko‘rsatkichlar', 'Calculated indicators'],
   F2: ['Финансовые результаты · НСБУ', 'Moliyaviy natijalar · NSBU', 'Income · NSBU'],
+  MFI_PL: ['Финансовые результаты микрофинансовой организации', 'Mikromoliya tashkilotining moliyaviy natijalari', 'Microfinance income statement'],
+  MFI_BS: ['Баланс микрофинансовой организации', 'Mikromoliya tashkilotining balansi', 'Microfinance balance sheet'],
   BANK_PL: ['Финансовые результаты · банковская форма', 'Bank daromadlari', 'Income · bank form'],
   INSURANCE_PL: ['Финансовые результаты · страхование', 'Sug‘urta daromadlari', 'Income · insurance'],
   PL: ['Прибыль и совокупный доход · МСФО', 'Foyda va umumiy daromad · IFRS', 'Profit and comprehensive income · IFRS'],

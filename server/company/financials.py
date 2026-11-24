@@ -262,9 +262,11 @@ async def financial_passport(ticker: str, period: str, field: str, form: str='NS
     if scope not in {None, 'consolidated', 'separate'} or (scope is not None and form != 'MSFO'):
         raise ValueError('scope must be consolidated or separate and requires MSFO')
     loop = asyncio.get_running_loop()
-    from financial_columns import bank_history
+    from financial_columns import bank_history, microfinance
     if form == 'NSBU' and field in bank_history.FIELDS:
         result = await asyncio.to_thread(bank_history.passport, ticker.strip().upper(), period, field)
+    elif form == 'NSBU' and field.startswith(('mfi_bs_', 'mfi_pl_')):
+        result = await asyncio.to_thread(microfinance.passport, ticker.strip().upper(), period, field)
     elif scope is not None:
         from financial_ingestion.publication import passport
         result = await loop.run_in_executor(None, partial(passport, ticker, period, field, scope=scope))
@@ -292,6 +294,9 @@ def _sector_presentation(data, ticker):
         withheld = {g.get('period') for g in data.get('data_gaps', []) if g.get('code') == 'VALUE_QUARANTINE'}
         periods = [p for p in data.get('periods') or [] if p not in withheld]
         series.update(bank_history.series(bank_history.cells(ticker, index.get('org_id'), kind, periods)))
+        if data.get('freq') == 'quarterly' and kind in {'microfinance', 'financial', 'leasing'}:
+            from financial_columns import microfinance
+            series.update(microfinance.series(microfinance.quarter_cells(ticker, index.get('org_id'), periods)))
         from financial_columns.service import history_gross_margins
         values = history_gross_margins(ticker, index.get('org_id'), kind, series, data.get('periods') or [])
         series.pop('gross_margin', None)

@@ -12,7 +12,7 @@ import { TermInfo } from "../../shared/TermInfo.jsx";
 import { dividendSummary } from "./keyStats.jsx";
 import { formatChangePercent } from "../../shared/format.jsx";
 
-const seriesLabel = (field, series, lang) => series?.[field]?.[`label_${lang}`] || finLabel(field, lang);
+const seriesLabel = (field, series, lang) => series?.[field]?.[`label_${lang}`] || series?.[field]?.filed_label || finLabel(field, lang);
 
 // The Финансы tab, on the reference page's shape: sub-tabs across the statement,
 // a multi-series chart of the section's headline lines, then a table with one
@@ -509,7 +509,7 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
-  const label = finLabel(field, lang);
+  const label = passport?.filed_label || finLabel(field, lang);
   const stateLabel = passport?.status === "SOURCED"
     ? t("Источник подтверждён", "Manba tasdiqlangan", "Source linked")
     : passport?.status === "DERIVED"
@@ -565,6 +565,11 @@ function FinancialPassportDialog({ passport, loading, field, period, lang, onClo
               <p className="financial-passport-reason">{passport?.reason || t("Для этого значения нет проверяемой связи с исходным документом.", "Bu qiymat uchun asl hujjat bilan tekshiriladigan bog‘lanish yo‘q.", "This value has no verifiable link to a source document.")}</p>
             )}
             {passport?.reason && passport?.status === "SOURCED" && <p className="financial-passport-reason">{passport.reason}</p>}
+            {passport?.filing_links?.map(({ url, period, code }) => (
+              <a key={url} className="company-insight-action" href={safeHref(url)} target="_blank" rel="noreferrer">
+                {t("Открыть отчёт", "Hisobotni ochish", "Open filing")} · {period} · {code} ↗
+              </a>
+            ))}
             {source?.excel_url && <a className="company-insight-action" href={safeHref(source.excel_url)} target="_blank" rel="noreferrer">{t("Открыть Excel-отчёт ↗", "Excel hisobotni ochish ↗", "Open Excel report ↗")}</a>}
             {!source?.excel_url && (source?.archived_url || source?.pdf_url) && <a className="company-insight-action" href={safeHref(source.archived_url || source.pdf_url)} target="_blank" rel="noreferrer">{t("Открыть PDF-отчёт ↗", "PDF hisobotni ochish ↗", "Open PDF report ↗")}</a>}
           </div>
@@ -678,7 +683,10 @@ function CompanyFinancialsTab({ currency = "UZS", ticker, ratios, series, period
     } : sec) : (quarterly ? FIN_SECTIONS_QUARTER : FIN_SECTIONS);
   const available = sections
     .map(sec=>organizationType==='fund'&&sec.key==='income'?{...sec,rows:['net_profit'],margins:[],chart:['net_profit']}:sec)
-    .map((sec) => ({ ...sec, rows: (sec.rows || []).filter(has), margins: (sec.margins || []).filter(has) }))
+    .map((sec) => {
+      const filed = Object.keys(series || {}).filter((field) => series[field]?.statement_section === sec.key);
+      return { ...sec, rows: [...(sec.rows || []), ...filed].filter(has), margins: (sec.margins || []).filter(has) };
+    })
     .filter((sec) => sec.rows.length + sec.margins.length > 0);
 
   // 66 of ~110 issuers file quarterlies; for the rest this view is honestly

@@ -113,3 +113,31 @@ def selected_lending(issuer, period, document, values):
     if not lending or any(values.get(k) is not None and values[k] != v for k, v in lending["values"].items()):
         return {}
     return {**lending, "url": url}
+
+
+def filed_statement(detail, org_id, year, quarter):
+    from calendar import monthrange
+    from datetime import date
+    month = quarter * 3
+    end = date(year, month, monthrange(year, month)[1])
+    if (detail.get('org_type') != 'microfinance' or detail.get('status') != 'approved'
+            or str((detail.get('organization') or {}).get('id')) != str(org_id)
+            or detail.get('reporting_year') != end.isoformat() or end > date.today()):
+        return None
+    report_id = detail['id']
+    forms = {}
+    for form, key in [('MFI_BS', 'quarter_balance_sheet_report'), ('MFI_PL', 'quarter_financial_results_report')]:
+        lines = {}
+        for row in detail.get(key) or []:
+            code = str(row.get('tnum') or '')
+            if code == '000' or not code.isdigit():
+                continue
+            if code in lines or str(row.get('main_report')) != str(report_id):
+                return None
+            fields = ('id', 'title', 'value1', 'value2') if form == 'MFI_BS' else ('id', 'title', 'value')
+            lines[code] = {field: row.get(field) for field in fields}
+        forms[form] = lines
+    if ('итого актив' not in str(forms['MFI_BS'].get('120', {}).get('title')).casefold()
+            or 'чистая прибыль' not in str(forms['MFI_PL'].get('1200', {}).get('title')).casefold()):
+        return None
+    return {'issuer_id':str(org_id), 'report_id':str(report_id), 'period_end':end.isoformat(), 'forms':forms}

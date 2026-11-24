@@ -451,3 +451,63 @@ def test_delta_bond_aliases_select_the_latest_filing_and_its_current_parse(catal
     quarters._save(aliases[1:], 2026, 1, {"net_income": 12326000}, revised, structured=True)
     for order in (aliases, aliases[::-1]):
         assert quarters.read(order, structured=True)["2026Q1"]["source"] == revised
+
+
+def test_microfinance_quarter_retains_native_statement_lines_for_the_company_table(catalog, monkeypatch):
+    import openinfo_reconcile as oi
+    from financial_columns import service
+    from financial_ingestion import quarterly_comparative as recovery
+    from catalogue.storage import get_catalog_conn
+    from pathlib import Path
+    import json
+
+    detail = json.loads(Path('tests/fixtures/acmt-2026q2-structured.json').read_text())
+    detail.update(status='approved', organization={'id': 1058})
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=microfinance&report_id=56&lang=ru'
+    c = get_catalog_conn()
+    with c:
+        c.execute("INSERT INTO catalog_companies(ticker,company_name,org_id) VALUES(?,?,?)", ('ACMT1B2', 'AGAT Credit', '1058'))
+    c.close()
+    monkeypatch.setattr(oi, 'fetch_detail', lambda candidate: detail)
+    recovery.discover_record('ACMT1B2', '1058', {'org_type':'microfinance','accounting_id':56,'pub_date':detail['pub_date'],'excel_url':url}, publish=True)
+    table = service.load('ACMT1B2', form='NSBU', scope='separate', freq='interim', view='template')
+    rows = {r['id']:r for r in table['rows']}
+    assert 'MFI_BS:120' in rows
+    cell = rows['MFI_BS:120']['cells']['2026-06-30']
+    assert cell['value'] == '363831945' and cell['source_url'].endswith('/microfinance/quarter/56')
+    assert rows['MFI_BS:050']['cells']['2026-06-30']['value'] == '265400717'
+    before_expenses = rows['MFI_PL:600']['cells']['2026-06-30']
+    assert before_expenses['value'] == '23416204' and before_expenses['formula'] and before_expenses['raw_value'] == '0.00'
+    assert rows['MFI_BS:310']['cells']['2026-06-30']['value'] == '73715686'
+    for code in ('311', '312'):
+        split = rows['MFI_BS:' + code]['cells']['2026-06-30']
+        assert split['value'] is None and split['reason'] == 'UNDISCLOSED_CAPITAL_BREAKDOWN'
+    assert 'MFI_PL:1200' in rows and rows['MFI_PL:1200']['cells']['2026-06-30']['value'] == '3523955'
+    assert not service.load('ACMT1B2',form='NSBU',scope='consolidated',freq='interim')['rows']
+    import asyncio
+    from server.company.financials import _sector_presentation, financial_passport
+    series = _sector_presentation({'standard':'NSBU', 'freq':'quarterly','periods':['2026Q2'],'series':{}},'ACMT1B2')['series']
+    assert series['mfi_bs_050']['values']['2026Q2'] == 265400717000
+    # A half-year amount alone cannot establish a standalone second quarter.
+    assert 'mfi_pl_1200' not in series
+    passport = asyncio.run(financial_passport('ACMT1B2', '2026Q2', 'mfi_bs_050'))
+    assert passport['status'] == 'SOURCED'
+    assert [r['url'] for r in passport['filing_links']] == ['https://openinfo.uz/reports/microfinance/quarter/56']
+    detail['reporting_year'] = '2026-07-20'
+    from financial_ingestion.microfinance import filed_statement
+    assert filed_statement(detail,'1058',2026,2) is None
+
+
+def test_contact_finance_preserves_conflicting_filed_income_without_publishing_zero():
+    import json
+    from pathlib import Path
+    from financial_ingestion.microfinance import filed_statement
+    from financial_columns.microfinance import filed_rows
+    detail = json.loads(Path('tests/fixtures/ctfb3-2025q4-structured.json').read_text())
+    detail.update(status='approved', organization={'id': 1067})
+    document = filed_statement(detail, '1067', 2025, 4)
+    source = {'pub_date': detail['pub_date'], 'source_period': '2025Q4',
+              'source_url': 'https://openinfo.uz/reports/microfinance/quarter/17'}
+    rows = {r['source_code']: r for r in filed_rows(document, 'test', source) if r['source_form'] == 'MFI_PL'}
+    assert rows['1100']['value'] is None and rows['1100']['raw_value'] == '0.00'
+    assert rows['1200']['raw_value'] == '502305.00' and rows['1200']['quality'] == 'warn'

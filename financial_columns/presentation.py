@@ -112,6 +112,13 @@ def project(payload):
                 template = 'bank'
             selected.extend(bank_rows)
             overview.extend(bank_overview)
+    for row in payload['rows']:
+        if row['source_form'] in {'MFI_BS','MFI_PL'}:
+            group = 'Баланс микрофинансовой организации' if row['kind'] == 'stock' else 'Финансовые результаты микрофинансовой организации'
+            entry = {**row, 'display_group':group, 'display_field':row['id'], 'display_ref':row['source_code']}
+            selected.append(entry)
+            if row.get('metric_id') in {'total_assets','total_equity','total_liabilities','loans_gross','loans_net','net_income','interest_income','profit_before_tax'}:
+                overview.append(entry)
     allowed_ratios = statement_ratios(template, standard, kind)
     calculated = allowed_ratios | {'roce'} if standard == 'NSBU' else allowed_ratios
     return {**payload, 'presentation': 'template', 'display_template': template,

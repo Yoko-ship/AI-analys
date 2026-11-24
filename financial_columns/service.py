@@ -215,8 +215,19 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
         source_rows = observations.nsbu(docs)
         forms = [{'period_end': d['period_end'], 'source_version': d['source_version'],
                   'previous_version': d.get('previous_version'), 'documents': d['source_forms']} for d in docs] if include_sources else []
-        coverage = {'complete': bool(docs) and all(d['source_coverage']['complete'] for d in docs),
-                    'notes': 'not_applicable', 'issues': sorted({issue for d in docs for issue in d['source_coverage']['issues']})}
+        filed = []
+        if scope == 'separate' and template in {'financial', 'microfinance', 'leasing'}:
+            from . import microfinance
+            filed = microfinance.filed_documents(ticker, issuer_id)
+            for document, version, source in filed:
+                source_rows.extend(microfinance.filed_rows(document, version, source))
+                if include_sources:
+                    forms.append(microfinance.original_form(document, version, source))
+        issues = {issue for d in docs for issue in d['source_coverage']['issues']}
+        if any(not microfinance.has_all_lines(document) for document, _, _ in filed):
+            issues.add('INCOMPLETE_STRUCTURED_FORM')
+        coverage = {'complete': bool(docs or filed) and not issues and all(d['source_coverage']['complete'] for d in docs),
+                    'notes': 'not_applicable', 'issues': sorted(issues)}
         available_scopes = ['separate']
     else:
         available_scopes = publication.scopes(ticker)
