@@ -7,11 +7,10 @@ import json
 from pathlib import Path
 from collections import defaultdict
 from decimal import Decimal
-from datetime import date, timedelta
 
 from .presentation import template_for
 from .matrix import choose
-from .periods import CONTEXT
+from .periods import CONTEXT, opening_in_column
 
 FIELDS = json.loads(Path(__file__).with_name('investor_fields.json').read_text(encoding='utf-8'))
 METRICS = {
@@ -109,11 +108,8 @@ def field_cells(payload, field, statement, observations=()):
     if field in {'cashStart','equityOpen'}:
         cells={}
         for column in payload['columns']:
-            end=date.fromisoformat(column['end'])
-            start=date(end.year,((end.month-1)//3)*3+1,1) if column['basis']=='quarter' else date(end.year,1,1)
             candidates=[r for r in observations if r.get('metric_id')==metric and r.get('kind')=='stock'
-                        and r.get('statement_period_end')==column['end'] and r['period_end']<column['end']
-                        and (column['basis']=='annual' or r['period_end']==(start-timedelta(days=1)).isoformat())]
+                        and opening_in_column(r, column)]
             cells[column['key']] = ({'value':None,'quality':'not_applicable','reason':'STOCK_IS_AS_OF_DATE'}
                                     if column['basis']=='ttm' else choose(candidates))
         return cells

@@ -25,7 +25,7 @@ def choose(items):
 def build(observations, *, mode, recent=False, annual_history=False, interim_ttm=False, recent_ttm=False, filed_end=None):
     if mode not in {'annual', 'quarter', 'interim'}:
         raise ValueError('Unknown frequency')
-    ends = sorted({r['period_end'] for r in observations} | ({filed_end} if filed_end else set()))
+    ends = sorted({periods.statement_end(r) for r in observations} | ({filed_end} if filed_end else set()))
     if mode == 'annual':
         columns = [{'key': end[:4], 'label': end[:4], 'end': end, 'basis': 'annual'} for end in ends if end.endswith('-12-31')]
         if recent:
@@ -35,14 +35,7 @@ def build(observations, *, mode, recent=False, annual_history=False, interim_ttm
                 if filed_end:
                     filed.add(filed_end)
                 columns = [column for column in columns if column['end'] in filed]
-            if annual_history:
-                # Opening cash and equity belong in the following statement.
-                # An opening balance alone cannot establish a prior annual column.
-                reported = {r['period_end'] for r in observations
-                            if r.get('metric_id') not in {'cash_begin', 'equity_open'}
-                            or r.get('statement_period_end', r['period_end']) == r['period_end']}
-                columns = [column for column in columns if column['end'] in reported]
-            else:
+            if not annual_history:
                 columns = columns[-2:]
         if ends and not ends[-1].endswith('-12-31'):
             latest = ends[-1]
@@ -67,12 +60,13 @@ def build(observations, *, mode, recent=False, annual_history=False, interim_ttm
     for column in columns:
         if column['basis'] != 'annual':
             continue
-        dated = [r for r in observations if r['period_end'] == column['end']]
+        dated = [r for r in observations if periods.statement_end(r) == column['end']]
         stocks = [r for r in dated if r['kind'] == 'stock']
         annual_flows = [r for r in dated if r['kind'] == 'flow' and (r.get('period_start') == column['end'][:4] + '-01-01' or r.get('reported_annual'))]
         starts = {r.get('period_start') for r in annual_flows}
         if len(starts) == 1 and next(iter(starts)) != column['end'][:4] + '-01-01':
             start = next(iter(starts))
+            column['start'] = start
             column['label'] = '.'.join(reversed(start.split('-'))) + '–' + '.'.join(reversed(column['end'].split('-')))
         if stocks and not annual_flows:
             column['notice'] = 'ANNUAL_INCOME_NOT_IMPORTED'
@@ -97,7 +91,8 @@ def build(observations, *, mode, recent=False, annual_history=False, interim_ttm
             elif not stock and basis in {'quarter', 'ttm'}:
                 value = periods.calculate(resolved, end, basis)
             else:
-                candidates = [r for r in items if r['period_end'] == end and
+                candidates = [r for r in items if periods.statement_end(r) == end and
+                              (r['period_end'] == end or periods.opening_in_column(r, column)) and
                               (stock or r.get('period_start') == end[:4] + '-01-01' or (basis == 'annual' and r.get('reported_annual')))]
                 value = choose(candidates)
                 if not candidates and not stock and column.get('notice'):

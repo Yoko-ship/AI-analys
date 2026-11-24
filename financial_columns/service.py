@@ -6,7 +6,7 @@ import re
 from catalogue.storage import get_catalog_conn
 from catalogue.organization import organization_kind
 from financial_ingestion import publication
-from . import capital_returns, derived, matrix, observations, ratios, source_store
+from . import capital_returns, derived, matrix, observations, periods, ratios, source_store
 
 
 def _latest_separate_end(ticker):
@@ -264,7 +264,7 @@ def load(ticker, *, form='NSBU', scope=None, freq='annual', view='full', stateme
                     'issues': sorted({issue for v in covers for issue in v['issues']})}
     # No future reporting periods, even if a catalogue placeholder was imported.
     today = date.today().isoformat()
-    source_rows = [r for r in source_rows if r['period_end'] < today]
+    source_rows = [r for r in source_rows if periods.statement_end(r) < today]
     issues = _check_filing_rows(source_rows, ticker, form)
     source_rows = derived.enrich(source_rows, template=template)
     if view == 'investor':

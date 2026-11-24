@@ -6,6 +6,25 @@ from decimal import Decimal
 CONTEXT = ('issuer_id', 'standard', 'scope', 'accounting_model')
 
 
+def statement_end(row):
+    if row.get('kind') == 'stock' and row.get('metric_id') in {'cash_begin', 'equity_open'}:
+        return row.get('statement_period_end') or row['period_end']
+    return row['period_end']
+
+
+def opening_in_column(row, column):
+    end = column['end']
+    if row.get('statement_period_end') != end or row['period_end'] >= end:
+        return False
+    if column['basis'] == 'ttm':
+        return False
+    boundary = date.fromisoformat(end)
+    month = ((boundary.month - 1) // 3) * 3 + 1 if column['basis'] == 'quarter' else 1
+    start = date.fromisoformat(column['start']) if column.get('start') else date(boundary.year, month, 1)
+    opening = start - timedelta(days=1)
+    return row['period_end'] == opening.isoformat()
+
+
 def calculate(observations, end, mode):
     if mode not in {'quarter', 'ttm'}:
         raise ValueError('Unknown period calculation')

@@ -254,3 +254,31 @@ def test_btrl_gross_margin_reconciles_its_inputs_independently_of_operating_inco
         assert margin['components'][0]['reconciliation_issues'] == [issue]
     else:
         assert margin['value'] is None and margin['quality'] == 'blocked'
+
+
+@pytest.mark.parametrize(('metric', 'form', 'prior', 'following'), [
+    ('cash_begin', 'CF', '263360459', '530920046'),
+    ('equity_open', 'Equity', '277920154', '495249840'),
+])
+def test_grbk_opening_balances_use_the_statement_year_and_keep_the_source_date(metric, form, prior, following):
+    # Openinfo bank annual 25104, pages 3–4. Openings are dated at the prior close.
+    rows = [
+        observation(metric, value, date, standard='MSFO', scope='consolidated', issuer_id='11',
+                    source_form=form, statement_period_end=end, role=role)
+        for value, date, end, role in [
+            (prior, '2023-12-31', '2024-12-31', 'COMPARATIVE'),
+            (following, '2024-12-31', '2025-12-31', 'PRIMARY'),
+        ]
+    ]
+    annual = matrix.build(rows, mode='annual')
+    assert [col['key'] for col in annual['columns']] == ['2024', '2025']
+    cells = annual['rows'][0]['cells']
+    assert [(cells[y]['value'], cells[y]['period_end']) for y in ('2024', '2025')] == [
+        (prior, '2023-12-31'), (following, '2024-12-31')]
+    quarters = matrix.build(rows, mode='quarter')
+    assert all(c.get('value') is None for c in quarters['rows'][0]['cells'].values())
+    quarter_open = {**rows[0], 'value': '123', 'period_end': '2024-09-30', 'statement_period_end': '2024-12-31'}
+    annual = matrix.build(rows + [quarter_open], mode='annual')
+    assert annual['rows'][0]['cells']['2024']['value'] == prior
+    quarterly = matrix.build(rows + [quarter_open], mode='quarter')
+    assert quarterly['rows'][0]['cells']['2024-12-31']['period_end'] == '2024-09-30'
