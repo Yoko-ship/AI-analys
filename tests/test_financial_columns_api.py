@@ -392,3 +392,20 @@ def test_empty_bank_balance_column_cannot_establish_zero_deposits():
     rows[0]['current']['value'] = '2395659440'
     verified = observations.nsbu([doc])
     assert next(r for r in verified if r['role'] == 'PRIMARY' and r['metric_id'] == 'savings_deposits')['value'] == '0'
+
+
+def test_sqbn_annual_nonpositive_loan_details_conflict_with_a_positive_subtotal():
+    from financial_columns import observations
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=annual&org_type=bank&report_id=419&lang=ru'
+    rows = [
+        dict(metric_id=field, source_form='BANK_BS', source_code=code, kind='stock', source_url=url,
+             current={'value':amount,'raw_value':amount,'quality':'valid'}, previous={'value':None,'quality':'missing'})
+        for code, field, amount in [('7','loans_and_leases','64935569833'),
+                                    ('7а','loans_gross','0'), ('7б','leases_gross','-0.03')]
+    ]
+    doc = dict(issuer_id='30', scope='separate', period_end='2025-12-31', quality='valid', currency='UZS',
+               unit_scale='1000', template='bank', source_version='419', rows=rows)
+    current = {r['metric_id']:r for r in observations.nsbu([doc]) if r['role']=='PRIMARY'}
+    assert current['loans_and_leases']['value']=='64935569833'
+    assert current['loans_gross']['value'] is None and current['leases_gross']['value'] is None
+    assert current['leases_gross']['raw_value']=='-0.03'

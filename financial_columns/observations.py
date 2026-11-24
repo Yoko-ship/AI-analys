@@ -24,8 +24,8 @@ def _bank_balance_column_issues(rows):
     return issues
 
 
-def _empty_bank_loan_details(rows):
-    """Identify zero detail lines that contradict the same column's positive loan and lease subtotal."""
+def _unreconciled_bank_loan_details(rows):
+    """Identify nonpositive detail lines that contradict the same column's positive loan and lease subtotal."""
     groups = {}
     fields = {'loans_and_leases', 'loans_gross', 'leases_gross'}
     for row in rows:
@@ -37,9 +37,14 @@ def _empty_bank_loan_details(rows):
             if source.get('quality') == 'valid' and source.get('value') is not None:
                 key = (row.get('source_url'), row.get('sheet'), side)
                 groups.setdefault(key, {}).setdefault(field, set()).add(Decimal(source['value']))
-    return {key for key, amounts in groups.items()
-            if amounts.get('loans_gross') == {0} and amounts.get('leases_gross') == {0}
-            and len(amounts.get('loans_and_leases', ())) == 1 and min(amounts['loans_and_leases']) > 0}
+    conflicts = set()
+    for key, amounts in groups.items():
+        if any(len(amounts.get(field, ())) != 1 for field in fields):
+            continue
+        if (min(amounts['loans_and_leases']) > 0 and max(amounts['loans_gross']) <= 0
+                and max(amounts['leases_gross']) <= 0):
+            conflicts.add(key)
+    return conflicts
 
 
 def nsbu(documents):
@@ -48,7 +53,7 @@ def nsbu(documents):
         end, year = doc['period_end'], int(doc['period_end'][:4])
         scale = Decimal(doc.get('unit_scale') or 1000)
         bank_issues = _bank_balance_column_issues(doc['rows'])
-        empty_loan_details = _empty_bank_loan_details(doc['rows'])
+        unreconciled_loan_details = _unreconciled_bank_loan_details(doc['rows'])
         for row in doc['rows']:
             for side in ('current', 'previous'):
                 source = row[side]
@@ -59,7 +64,7 @@ def nsbu(documents):
                 if row['source_form'] == 'BANK_BS' and side in bank_issues and value is not None:
                     value, quality, reason = None, 'blocked', bank_issues[side]
                 elif (row['source_form'] == 'BANK_BS' and row.get('metric_id') in {'loans_gross', 'leases_gross'}
-                      and (row.get('source_url'), row.get('sheet'), side) in empty_loan_details):
+                      and (row.get('source_url'), row.get('sheet'), side) in unreconciled_loan_details):
                     value, quality, reason = None, 'blocked', 'UNRECONCILED_LOAN_BREAKDOWN'
                 result.append({**{k:v for k,v in row.items() if k not in {'current', 'previous'}}, **source, 'value': value, 'quality': quality,
                                'standard': 'NSBU', 'scope': doc['scope'], 'issuer_id': doc['issuer_id'],
