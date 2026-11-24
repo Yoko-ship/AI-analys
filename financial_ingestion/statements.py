@@ -7,7 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 import re
 
-VERSION = 'statement-columns-v10'
+VERSION = 'statement-columns-v11'
 
 
 def compact(value):
@@ -23,15 +23,15 @@ LABELS = {
     'gross_profit': r'(?:grossprofit|валоваяприбыль)',
     'total_assets': r'(?:totalassets|итогоактив(?:ы|ов)|всегоактив(?:ы|ов))',
     'total_liabilities': r'(?:totalliabilities|итогообязательств(?:а)?|всегообязательств(?:а)?)',
-    'total_equity': r'(?:totalequity|totalcapital|общийкапитал|итого(?:собственный)?капитал|итогособственныхсредств|всего(?:собственный)?капитал)',
+    'total_equity': r'(?:totalequity|totalcapital|общийкапитал|итого(?:собственн(?:ый|ого))?капитала?|итогособственныхсредств|всего(?:собственный)?капитал)',
     'cash': r'(?:cashandcashequivalents|денежныесредстваиихэквиваленты)',
     'interest_income': r'(?:totalinterestincome|interestincome|итогопроцентныедоходы|процентныедоходы)',
     'interest_expense': r'(?:totalinterestexpenses?|interestexpenses?|итогопроцентныерасходы|процентныерасходы)',
     'operating_income': r'(?:operatingprofit|totaloperatingincome|operatingincome|operating\(loss\)/income|итогооперационныедоходы|операционныедоходы|операционнаяприбыль|прибыльотоперационнойдеятельности)',
     'operating_expenses': r'(?:operatingexpenses|administrativeandotheroperatingexpenses|administrativeexpenses|staffandotheroperatingexpenses|админ(?:и)?стративныеипрочиеоперационныерасходы|расходынаперсоналипрочиеоперационныерасходы|операционныерасходы|непроцентныерасходы)',
-    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)|чистаяприбыль)',
+    'net_income': r'(?:(?:net)?(?:profit|loss|\(loss\)/profit|profit/\(loss\))forthe(?:year|period)|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/?\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)|чистаяприбыль)',
     '_pretax': r'(?:profitbefore(?:income)?tax|(?:прибыль|убыток|прибыл[ьы]{1,3}/?\(убыток\))(?:д[ое]налогообл[ао]жения|дорасходовпоналогунаприбыль))',
-    '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
+    '_discontinued': r'(?:(?:profit|loss|profit/\(loss\))forthe(?:year|period)fromdiscontinuedoperations(?:netoftax)?|(?:чистая|чистый)?(?:прибыль|приыбль|убыток|прибыль/\(убыток\)|\(убыток\)/прибыль)за(?:отчетный)?(?:год|период)отпрекращеннойдеятельности(?:,?завычетомналога)?)',
     '_tax': r'(?:incometax(?:expense|benefit)?|incometax\(expense\)/benefit|\(расход\)/экономияпоналогунаприбыль|расхо[дл]ыпоналогунаприбыль|налогнаприбыль|оценканалогана(?:прибыль|доход\(прибыль\)))',
     '_staff': r'(?:personnelexpenses|staffcosts|расходынаперсонал)',
     '_net_interest': r'(?:netinterestincome|чистыепроцентныедоходы|чистыйпроцентныйдоход)',
@@ -194,12 +194,15 @@ def section_kind(text):
         return None
     if re.search(r'(?:statementoffinancialposition|отчетофинансовомположении)',key):
         return 'balance'
-    if re.search(r'(?:statementof(?:profitorloss|income|comprehensiveincome)|отчето(?:прибыляхиубытках|прибылиилиубытке|прибыляхилиубытках|совокупномдоходе))',key):
+    if re.search(r'(?:statementof(?:profit(?:or|and)loss|income|comprehensiveincome)|отчето(?:прибыляхиубытках|прибылиилиубытке|прибыляхилиубытках|совокупномдоходе))',key):
         return 'income'
     return None
 
 
 def units(text):
+    # Match standalone abbreviations before compacting the heading.
+    text = re.sub(r'\bмлн\b', 'миллион', text, flags=re.I)
+    text = re.sub(r'\bмлрд\b', 'миллиард', text, flags=re.I)
     key = compact(text)
     if not re.search(r'soum|sums|sum|uzs|сум|узс|usd|долларовсша', key):
         return None

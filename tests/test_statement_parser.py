@@ -523,5 +523,56 @@ def test_uzbekneftegaz_2025_separate_ifrs_in_billions():
 
 def test_billions_need_a_currency_and_a_single_unambiguous_scale():
     assert statements.units('In billions of Uzbek soums') == '1000000000'
+    assert statements.units('в млрд. УЗС') == '1000000000'
+    assert statements.units('в млн акций') is None
+    assert statements.units('в млн УЗС и в тыс. УЗС') is None
     assert statements.units('In billions of shares') is None
     assert statements.units('USD millions and UZS billions') is None
+
+
+def test_infb_2025_abbreviated_millions_on_the_signed_balance_sheet():
+    # Invest Finance Bank, Openinfo annual 30701, consolidated IFRS, PDF p. 8.
+    versions = parse({8: """Консолидированный отчет о финансовом положении по МСФО
+31 декабря 2025    31 декабря 2024
+(в млн УЗС)
+Итого активы    14 777 803    11 971 292
+Итого обязательства    13 119 400    10 754 389
+Итого собственный капитал    1 658 403    1 216 903"""})
+    for version, expected in zip(versions, ('14777803', '11971292'), strict=True):
+        assert version['classification']['unit_scale'] == '1000000'
+        row = next(r for r in version['source_rows'] if r['metric_id'] == 'total_assets')
+        assert (row['raw_value'], row['currency'], row['unit_scale']) == (expected, 'UZS', '1000000')
+
+
+def test_uzbekinvest_2025_profit_and_loss_statement_includes_both_periods():
+    # Uzbekinvest, Openinfo IFRS 3322, PDF p. 8.
+    versions = parse({8: """Uzbekinvest, IFRS consolidated financial statements (in thousands of UZS)
+CONSOLIDATED STATEMENT OF PROFIT AND LOSS AND OTHER COMPREHENSIVE INCOME
+For the year ended 31 December 2025    31 December 2024
+Insurance revenue    1,384,736,494    1,312,339,027
+Profit before Income Tax    102,524,847    94,570,451
+Income tax expense    (19,832,998)    (12,981,131)
+PROFIT FOR THE YEAR    82,691,849    81,589,320
+Total comprehensive income for the year    79,104,448    110,376,152"""})
+    for version, expected in zip(versions, ('82691849', '81589320'), strict=True):
+        assert version['figures']['net_income']['raw_value'] == expected
+        row = next(r for r in version['source_rows'] if r['metric_id'] == 'net_income')
+        assert (row['source_form'], row['raw_value'], row['page']) == ('PL', expected, 8)
+
+
+def test_uzbekistan_post_2025_net_loss_and_equity_subtotal_are_distinct():
+    # Uzbekistan Post, Openinfo annual 30543, signed PDF pp. 4 and 6.
+    header = 'МСФО, в тысячах узбекских сум\nЗа год, закончившийся 31 декабря 2025 года    31 декабря 2024 года\n'
+    versions = parse({
+        4: 'Консолидированный отчет о прибылях и убытках\n' + header
+           + 'Выручка    795.408.047    602.018.780\nЧистый убыток за год    (578.549)    (24.928.892)',
+        6: 'Консолидированный отчет о финансовом положении\n' + header
+           + 'Итого собственного капитал    143.280.925    66.634.943\n'
+           + 'Итого собственного капитала и обязательств    568.216.111    402.361.940',
+    })
+    for version, profit, equity in zip(versions, ('-578549', '-24928892'), ('143280925', '66634943'), strict=True):
+        assert version['figures']['net_income']['raw_value'] == profit
+        assert version['figures']['total_equity']['raw_value'] == equity
+        equity_rows = [r['raw_value'] for r in version['source_rows'] if r['metric_id'] == 'total_equity']
+        assert equity_rows == [equity]
+    assert statements.cells('(578.549)  —  (24.928.892)', 2) is None

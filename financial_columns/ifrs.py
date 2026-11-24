@@ -41,7 +41,7 @@ def form_kind(text):
         ('CF', r'statementofcashflows|отчетодвиженииденежных'),
         ('Equity', r'statementofchangesinequity|отчетобизменениях'),
         ('BS', r'statementoffinancialposition|отчетофинансовомположении'),
-        ('PL', r'statementofprofitorloss|statementofincome|statementofcomprehensiveincome|отчето(?:прибыляхиубытках|прибылиилиубытке|совокупномдоходе)'),
+        ('PL', r'statementofprofit(?:or|and)loss|statementofincome|statementofcomprehensiveincome|отчето(?:прибыляхиубытках|прибылиилиубытке|совокупномдоходе)'),
     ):
         if re.search(pattern, header):
             return form
