@@ -449,7 +449,7 @@
             "field_id": "bank_nsbu_term_deposits"
           },
           {
-            "label": "Депозиты клиентов, если раскрыт итог",
+            "label": "Депозиты клиентов, всего",
             "ref": "БС 15–17, расчётный итог",
             "kind": "stock",
             "selectors": [

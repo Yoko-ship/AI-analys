@@ -155,6 +155,15 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     ratio('nim', 'NIM', flow('net_interest_before_ecl'), [point('earning_assets', start), point('earning_assets', end)],
           factor=Decimal(100), formula='net_interest_before_ecl / average(earning_assets) × 100',
           applicable=template == 'bank', unit='percent', flow_ratio=True, annualize=True, reason='AVERAGE_EARNING_ASSETS_MISSING')
+    if template == 'bank' and any(r.get('source_form') == 'BANK_BS' for r in observations):
+        loans = point('loans_gross', end)
+        deposits = point('customer_funds', end)
+        if (loans.get('value') is not None and deposits.get('value') is not None
+                and (loans.get('source_version') != deposits.get('source_version')
+                     or loans.get('unit') != deposits.get('unit'))):
+            deposits = {**deposits, 'quality': 'blocked', 'reason': 'INCOMPATIBLE_OR_BLOCKED_INPUTS'}
+        ratio('loans_to_deposits', 'Loans / customer deposits', loans, [deposits],
+              formula='gross loans / customer deposits')
     ratio('cir', 'CIR', flow('operating_costs_positive'), [flow('operating_income_before_ecl')], factor=Decimal(100),
           formula='operating costs / operating income before credit losses × 100', applicable=template == 'bank', unit='percent', flow_ratio=True)
     ratio('cost_of_risk', 'Cost of risk', flow('loan_credit_loss_cost'), [point('loans_gross', start), point('loans_gross', end)],

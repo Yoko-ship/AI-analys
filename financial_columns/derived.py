@@ -15,10 +15,11 @@ def enrich(observations, *, template=None):
         standard = rows[0].get('standard')
         forms = {r.get('source_form') for r in rows}
 
-        def add(metric, label, terms, formula, unit='UZS_thousand'):
+        def add(metric, label, terms, formula, unit='UZS_thousand', *, inputs=None):
             if any(r.get('metric_id') == metric for r in rows):
                 return
-            parts = [choose([r for r in rows if r.get('metric_id') == field]) for field, _ in terms]
+            candidates = rows if inputs is None else inputs
+            parts = [choose([r for r in candidates if r.get('metric_id') == field]) for field, _ in terms]
             if any(p.get('value') is None or p.get('quality') not in {'valid', 'warn'} for p in parts):
                 return
             result.append({**parts[0], 'metric_id': metric, 'raw_label': label,
@@ -32,6 +33,13 @@ def enrich(observations, *, template=None):
                       'other_borrowings_short', 'current_portion_long_term_debt']
             add('interest_bearing_debt', 'Interest-bearing debt', [(k, 1) for k in fields],
                 'F1:570 + F1:580 + F1:730 + F1:740 + F1:750')
+        if standard == 'NSBU' and 'BANK_BS' in forms:
+            codes = {'demand_deposits': '15', 'savings_deposits': '16', 'term_deposits': '17'}
+            deposits = [r for r in rows if r.get('source_form') == 'BANK_BS' and r.get('kind') == 'stock'
+                        and r.get('metric_id') in codes and r.get('source_code') == codes[r['metric_id']]
+                        and r.get('unit') == 'UZS_thousand']
+            add('customer_funds', 'Customer deposits', [(field, 1) for field in codes],
+                'BANK_BS:15 + BANK_BS:16 + BANK_BS:17', inputs=deposits)
         if standard == 'NSBU' and 'BANK_PL' in forms:
             add('operating_income_before_ecl', 'Operating income before credit losses',
                 [('net_interest_before_ecl', 1), ('noninterest_income', 1), ('noninterest_expense', -1)],

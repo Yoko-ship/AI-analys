@@ -4519,7 +4519,7 @@
     {
       "id": "reference:customer_accounts",
       "metric_id": "customer_funds",
-      "label": "Депозиты клиентов, если раскрыт итог",
+      "label": "Депозиты клиентов, всего",
       "display_field": "customer_accounts",
       "display_group": "Баланс банка · обязательства и капитал",
       "display_ref": "БС 15–17, расчётный итог",

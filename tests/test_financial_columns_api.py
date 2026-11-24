@@ -56,11 +56,14 @@ def test_statement_tabs_and_exports_keep_only_the_requested_statement(source, st
         data=client.get(f'/api/company/IPTB/financials/columns?{query}').json()
         csv_result=client.get(f'/api/company/IPTB/financials/columns.csv?{query}')
         xlsx_result=client.get(f'/api/company/IPTB/financials/columns.xlsx?{query}')
-    assert data['rows'] and {r['source_form'] for r in data['rows']} == {form}
+    expected_forms = {form, 'DERIVED'} if statement == 'balance' else {form}
+    assert data['rows'] and {r['source_form'] for r in data['rows']} == expected_forms
+    if statement == 'balance':
+        assert {r['metric_id'] for r in data['rows'] if r['source_form'] == 'DERIVED'} == {'customer_funds'}
     records=list(csv.DictReader(io.StringIO(csv_result.content.decode('utf-8-sig'))))
-    assert {r['source_form'] for r in records} == {form}
+    assert {r['source_form'] for r in records} == expected_forms
     worksheet=list(load_workbook(io.BytesIO(xlsx_result.content)).active.values)
-    assert {r[worksheet[0].index('source_form')] for r in worksheet[1:]} == {form}
+    assert {r[worksheet[0].index('source_form')] for r in worksheet[1:]} == expected_forms
     assert any(r['value'] not in {'',None} for r in records)
 
 
@@ -292,3 +295,48 @@ def test_filed_inventory_reaches_both_balance_views_and_retains_original_source_
     for caption in ('Товарно-материальные запасы', 'Оборотные запасы'):
         assert ifrs.metric(caption, 'BS') == 'inventory'
     assert ifrs.metric('Изменение в товарно-материальных запасах', 'CF') != 'inventory'
+
+
+def test_iptb_deposits_and_loan_ratio_use_the_same_filed_balance(source):
+    from decimal import Decimal
+    from financial_columns import service
+
+    data = service.load('IPTB', freq='interim', view='template')
+    period = '2026-09-30'
+    deposits = next(r for r in data['overview_rows'] if r['display_field'] == 'customer_accounts')['cells'][period]
+    assert deposits['value'] == '29321578637'
+    assert deposits['origin'] == 'UZStock_calculated'
+    assert [(c['source_code'], c['value']) for c in deposits['components']] == [
+        ('15', '9468914184'), ('16', '0'), ('17', '19852664453')]
+    assert all(c['source_url'] == source['source_url'] and c['period_end'] == period for c in deposits['components'])
+    loan_ratio = next(r for r in data['ratios'] if r['metric_id'] == 'loans_to_deposits')
+    cell = loan_ratio['cells'][period]
+    assert Decimal(cell['value']) == Decimal('37439271287') / Decimal('29321578637')
+    assert cell['unit'] == 'ratio' and not cell['annualized']
+    assert [c['metric_id'] for c in cell['components']] == ['loans_gross', 'customer_funds']
+
+
+def test_deposit_total_requires_three_compatible_balance_lines(source):
+    from financial_columns import derived, ratios, service
+
+    data = service.load('IPTB', freq='interim', view='full')
+    end = '2026-09-30'
+    cells = {r['source_code']: r['cells'][end] for r in data['rows'] if r['source_form'] == 'BANK_BS'}
+    demand, savings, term = [cells[code] for code in ('15','16','17')]
+
+    def totals(rows):
+        return [r for r in derived.enrich(rows) if r['metric_id'] == 'customer_funds']
+
+    for unusable in ({'value': None, 'quality': 'missing'}, {'quality': 'blocked'},
+                     {'source_version': 'different'}, {'period_end': '2025-12-31'},
+                     {'source_form': 'F1'}, {'source_code': '18'}, {'unit': 'USD'}):
+        assert totals([demand, {**savings, **unusable}, term]) == []
+    zero = totals([{**item, 'value': '0'} for item in (demand, savings, term)])[0]
+    assert zero['value'] == '0'
+    filed = {**demand, 'metric_id': 'customer_funds', 'source_code': None}
+    assert totals([demand, savings, term, filed]) == [filed]
+    for deposit, reason in [(zero, 'NONPOSITIVE_DENOMINATOR'),
+                            ({**zero, 'value': '1000', 'source_version': 'other'}, 'INCOMPATIBLE_OR_BLOCKED_INPUTS')]:
+        result = ratios.calculate([cells['7а'], deposit], ticker='IPTB', template='bank', end=end, basis='as_of')
+        cell = next(r for r in result if r['metric_id'] == 'loans_to_deposits')
+        assert cell['value'] is None and cell['reason'] == reason
