@@ -228,3 +228,29 @@ def test_combined_ratio_requires_explicit_nonoverlapping_expenses_and_legacy_pol
         r['accounting_model'] = 'IFRS17'
     result = ratios.calculate(inputs, ticker='UZIN', template='insurance', end='2025-12-31', basis='annual')
     assert next(r for r in result if r['metric_id'] == 'combined_ratio')['quality'] == 'not_applicable'
+
+
+@pytest.mark.parametrize(('cost', 'version', 'expected'), [
+    (-35914487, 'filing:6121', '17.73'),
+    (-35914470, 'filing:6121', None),
+    (-35914487, 'different filing', None),
+])
+def test_btrl_gross_margin_reconciles_its_inputs_independently_of_operating_income(cost, version, expected):
+    end = '2025-12-31'
+    def line(metric, code, value, **extra):
+        return observation(metric, value, end, 'flow', source_code=code,
+                           **({'source_version': 'filing:6121'} | extra))
+    issue = {'code': 'SOURCE_OPERATING_PROFIT_MISMATCH', 'metric_id': 'operating_income',
+             'severity': 'blocked', 'difference': '6711695', 'source_version': 'filing:6121'}
+    gross = line('gross_profit', '030', 7741905, quality='blocked', reason=issue['code'],
+                 reconciliation_issues=[issue])
+    inputs = [line('revenue', '010', 43656392), line('cost_of_sales', '020', cost, source_version=version), gross]
+    results = ratios.calculate(inputs, ticker='BTRL', template='industry', end=end, basis='annual')
+    margin = next(r for r in results if r['metric_id'] == 'gross_margin')
+    assert gross['quality'] == 'blocked'
+    if expected:
+        assert Decimal(margin['value']).quantize(Decimal('.01')) == Decimal(expected)
+        assert margin['quality'] == 'warn' and margin['reason'] == issue['code']
+        assert margin['components'][0]['reconciliation_issues'] == [issue]
+    else:
+        assert margin['value'] is None and margin['quality'] == 'blocked'

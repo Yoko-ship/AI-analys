@@ -11,6 +11,38 @@ from .derived import enrich
 from . import capital_returns
 
 
+def _gross_profit_for_margin(metrics):
+    # An unreconciled operating total flags every contributor, including gross
+    # profit. Verify the earlier subtotal independently in the exact same filing.
+    reason = 'SOURCE_OPERATING_PROFIT_MISMATCH'
+    def identity(row):
+        return tuple(row.get(k) for k in (*CONTEXT, 'period_start', 'period_end', 'source_version', 'unit', 'currency'))
+    candidates = [r for r in metrics['gross_profit']
+                  if r.get('source_form') == 'F2' and r.get('source_code') == '030'
+                  and r.get('standard') == 'NSBU' and r.get('source_version') and r.get('value') is not None
+                  and r.get('quality') == 'blocked' and r.get('reason') == reason
+                  and r.get('reconciliation_issues') and all(i.get('code') == reason
+                      and i.get('metric_id') == 'operating_income' for i in r['reconciliation_issues'])]
+    if not candidates:
+        return metrics['gross_profit']
+    inputs = defaultdict(lambda: defaultdict(list))
+    for field, code in (('revenue', '010'), ('cost_of_sales', '020')):
+        for row in metrics[field]:
+            if row.get('source_form') == 'F2' and row.get('source_code') == code:
+                inputs[identity(row)][field].append(row)
+    verified = {}
+    for row in candidates:
+        parts = inputs[identity(row)]
+        if len(parts['revenue']) != 1 or len(parts['cost_of_sales']) != 1:
+            continue
+        revenue, cost = parts['revenue'][0], parts['cost_of_sales'][0]
+        if all(r.get('quality') in {'valid', 'warn'} and r.get('value') is not None for r in (revenue, cost)):
+            if abs(Decimal(revenue['value']) + Decimal(cost['value']) - Decimal(row['value'])) <= 1:
+                verified[id(row)] = {**row, 'quality': 'warn', 'source_quality': 'blocked',
+                                     'gross_profit_reconciliation': [revenue, cost]}
+    return [verified.get(id(r), r) for r in metrics['gross_profit']]
+
+
 def calculate(observations, *, ticker, template, end, basis, enriched=False):
     if basis not in {'annual', 'quarter', 'ttm', 'as_of', 'ytd'}:
         raise ValueError('Unknown ratio basis')
@@ -32,8 +64,9 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
     def point(field, at):
         return choose([r for r in by_metric[field] if r['period_end'] == at])
 
-    def flow(field):
-        data = by_metric[field]
+    def flow(field, data=None):
+        if data is None:
+            data = by_metric[field]
         if basis in {'ttm', 'quarter'}:
             return period_value(data, end, basis)
         return choose([r for r in data if r['period_end'] == end and r.get('period_start') == f'{year}-01-01'])
@@ -85,7 +118,7 @@ def calculate(observations, *, ticker, template, end, basis, enriched=False):
           factor=Decimal(100), formula='net_income / average(total_assets) × 100', unit='percent', flow_ratio=True, annualize=True)
     corporate = template not in {'bank', 'insurance', 'fund', 'financial', 'microfinance', 'leasing'}
     if any(r.get('source_form') == 'F2' and r.get('standard') == 'NSBU' for r in observations):
-        margin = ratio('gross_margin', 'Gross margin', flow('gross_profit'), [flow('revenue')],
+        margin = ratio('gross_margin', 'Gross margin', flow('gross_profit', _gross_profit_for_margin(by_metric)), [flow('revenue')],
                        factor=Decimal(100), formula='gross_profit / revenue × 100', unit='percent', flow_ratio=True,
                        applicable=template not in capital_returns.FINANCIAL)
         if margin['value'] is not None and Decimal(margin['value']) == 100:

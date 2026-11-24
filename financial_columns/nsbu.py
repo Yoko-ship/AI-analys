@@ -61,6 +61,10 @@ def flow_pair(raw, *, profit_or_loss=False):
 
 
 def rows(workbook, *, template, default_form=None):
+    from .share_disclosures import filing_key
+    filing = filing_key(workbook.get('source_url'))
+    if filing and filing[0] in {'bank', 'microfinance_bank', 'microbank'}:
+        template = 'bank'
     result = []
     for sheet in workbook.get('sheets') or []:
         name = sheet.get('sheet', sheet.get('name', ''))

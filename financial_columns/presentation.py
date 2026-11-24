@@ -68,15 +68,18 @@ def income_flow_details(rows, selected):
     ]
 
 
-def project(payload):
-    template = template_for(payload['template'], payload.get('issuer_name'))
-    standard = payload['standard']
-    groups = FIELDS[template]['nsbu' if standard == 'NSBU' else 'ifrs']
+def statement_ratios(template, standard, issuer_kind):
+    if standard == 'NSBU' and template == 'bank' and issuer_kind in {'financial', 'microfinance'}:
+        return {'roe', 'roa'}
+    return set(RATIOS[template][standard].split())
+
+
+def _select_fields(groups, rows):
     selected, used = [], set()
     for group in groups:
         for field in group['fields']:
             for form, code, metric in field['selectors']:
-                for row in payload['rows']:
+                for row in rows:
                     if (row['id'] not in used and row['source_form'] == form
                             and row.get('metric_id') == metric
                             and (code is None or row.get('source_code') == code)):
@@ -85,11 +88,35 @@ def project(payload):
                                          'display_ref': field['ref'],
                                          'display_field': field['field_id'], 'display_group': group['label']})
                         used.add(row['id'])
-    allowed_ratios = set(RATIOS[template][standard].split())
+    return selected
+
+
+def project(payload):
+    kind, standard = payload['template'], payload['standard']
+    template = template_for(kind, payload.get('issuer_name'))
+    family = 'nsbu' if standard == 'NSBU' else 'ifrs'
+    groups = FIELDS[template][family]
+    selected = _select_fields(groups, payload['rows'])
+    overview = compact_rows(groups, selected, payload['columns'])
+    if standard == 'NSBU' and template == 'general' and kind in {'financial', 'microfinance'}:
+        # A lender can change the statutory form it files. Keep each form's
+        # codes and periods, while its industry classification stays intact.
+        bank_groups = FIELDS['bank'][family]
+        bank_rows = _select_fields(bank_groups, payload['rows'])
+        if any(row['source_form'] in {'BANK_PL', 'BANK_BS'} for row in bank_rows):
+            bank_overview = compact_rows(bank_groups, bank_rows, payload['columns'])
+            if selected:
+                bank_overview = [{**r, 'id': 'bank:' + r['id']} if r['id'].startswith('reference:') else r
+                                 for r in bank_overview]
+            else:
+                template = 'bank'
+            selected.extend(bank_rows)
+            overview.extend(bank_overview)
+    allowed_ratios = statement_ratios(template, standard, kind)
     calculated = allowed_ratios | {'roce'} if standard == 'NSBU' else allowed_ratios
     return {**payload, 'presentation': 'template', 'display_template': template,
             **({'chart_rows': [r for r in payload['rows'] if r['kind'] in {'stock', 'flow'}
                               and r['source_form'] != 'DERIVED']} if standard == 'NSBU' else {}),
-            'overview_rows': compact_rows(groups, selected, payload['columns']),
+            'overview_rows': overview,
             'rows': selected, 'ratios': [r for r in payload.get('ratios', []) if r['metric_id'] in calculated],
             'published_ratios': [r for r in payload.get('published_ratios', []) if r['field'] in allowed_ratios]}

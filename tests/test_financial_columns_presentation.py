@@ -145,3 +145,24 @@ def test_btrl_template_keeps_combined_and_trade_only_receivables_as_distinct_obs
         assert {r['metric_id']: r['cells']['2025']['value'] for r in shown} == {
             r['metric_id']: r['value'] for r in sources}
         assert next(r for r in shown if r['metric_id'] == 'trade_other_receivables')['cells']['2025']['page'] == 7
+
+
+def test_microfinance_bank_filing_preserves_its_layout_and_issuer_classification():
+    from financial_columns import nsbu
+    from collectors.financials.coverage_columns import statement_cells
+
+    workbook = json.loads(Path('tests/fixtures/openinfo/acmt_2025_bank_form_excerpt.json').read_text())
+    original = nsbu.rows(workbook, template='financial')
+    keyed = {(r['source_form'], r['source_code']):r for r in original}
+    assert keyed['BANK_PL', '11']['current']['value'] == '2150830'
+    assert keyed['BANK_BS', '14']['current']['value'] == '223382429'
+    rows = [{**r, 'id':r['source_form']+':'+r['source_code'], 'label':r['raw_label'],
+             'cells':{'2025':r['current']}} for r in original]
+    result = project(payload(rows, template='financial'))
+    assert result['template'] == 'financial' and result['display_template'] == 'bank'
+    assert [(r['metric_id'],r['cells']['2025']['value']) for r in result['rows']
+            if r['metric_id'] in ('net_income','total_assets')] == [('net_income','2150830'),('total_assets','223382429')]
+    assert 'annual/ratio:nim' not in statement_cells(result)
+    mixed = project(payload([*rows, row('F2','030','gross_profit','75')], template='financial'))
+    assert {r['id'] for r in mixed['rows']} >= {'BANK_PL:11','BANK_BS:14','F2:030'}
+    assert len({r['id'] for r in mixed['overview_rows']}) == len(mixed['overview_rows'])

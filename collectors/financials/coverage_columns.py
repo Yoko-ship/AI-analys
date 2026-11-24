@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from financial_columns.presentation import FIELDS, RATIOS
+from financial_columns.presentation import FIELDS, statement_ratios
 
 from .coverage import cell
 
@@ -42,7 +42,7 @@ def statement_cells(data):
         for group in groups
         for field in group["fields"]
     }
-    ratios = {f"ratio:{code}": "ratio" for code in RATIOS[template][form].split()}
+    ratios = {f"ratio:{code}": "ratio" for code in statement_ratios(template, form, data.get("template"))}
     rows = {r["id"]: r for r in data["ratios"]}
     for r in data["rows"]:
         # A reference field may have multiple independently reported components.
