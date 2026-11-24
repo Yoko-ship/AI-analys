@@ -79,6 +79,15 @@ for (const width of [1440, 390]) test(`treemap highlights the nearest industry h
     await expectHighlight(banks);
     await page.screenshot({path: testInfo.outputPath(`industry-highlight-${theme}.png`)});
   }
+  if (width === 1440) {
+    const {x} = await map.boundingBox();
+    const heading = await banks.boundingBox();
+    const y = heading.y + heading.height / 2;
+    expect(await map.evaluate((el, {x, y}) => document.elementFromPoint(x, y) === el, {x, y})).toBe(true);
+    await page.mouse.move(x, y);
+    await expect(highlight).toHaveCount(0);
+    await expect(activeHeading).toHaveCount(0);
+  }
   await dori.hover();
   await expectHighlight(map.locator('.heatmap-tree-label[data-group="pharma-wholesale"]'));
   await page.mouse.move(0, 0);

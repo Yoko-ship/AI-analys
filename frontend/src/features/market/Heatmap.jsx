@@ -479,8 +479,7 @@ function MarketHeatmap({ filters, viewControl, presentation = 'map', isAdmin = f
       <div className={`heatmap-tree${matrixMode ? ' heatmap-matrix' : ''}`} ref={setTreeElement} role="group" aria-label={matrixMode ? `${capLabel} · ${mapCopy.sectors}` : mapCopy.board}
         onPointerOver={matrix ? undefined : event => {
           if (event.pointerType === 'touch') return;
-          const target = event.target.closest('[data-sector]');
-          if (target) setPointerTarget(target);
+          setPointerTarget(event.target.closest('[data-sector]'));
         }}
         onPointerLeave={matrix ? undefined : () => setPointerTarget(null)}
         onFocus={matrix ? undefined : event => {
