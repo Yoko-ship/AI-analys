@@ -15,6 +15,13 @@ ALIASES = {form: {key(label): metric_id for line in text.splitlines()
            for form, text in DEFINITIONS.items()}
 
 
+# These source captions explicitly give both earnings measures in whole UZS.
+COMBINED_UZS_EPS = {key(caption) for caption in (
+    'Базовая и разводненная прибыль на акцию (в сумах на одну акцию)',
+    'Basic and diluted earnings per share (UZS per share)',
+)}
+
+
 def metric(label, form):
     return ALIASES.get(form, {}).get(key(label))
 
@@ -134,11 +141,22 @@ def extract(pages, *, page_count):
             label, tail = split
             values = parser.cells(tail, len(cols))
             metric_id = metric(label, form)
+            combined_eps = False
+            if form == 'PL' and metric_id is None:
+                previous = lines[row_number - 2].strip() if row_number > 1 else ''
+                if key(previous + ' ' + label) in COMBINED_UZS_EPS:
+                    label = previous + ' ' + label
+                    line = previous + ' ' + line
+                combined_eps = key(label) in COMBINED_UZS_EPS
+                if combined_eps:
+                    metric_id = 'eps_basic'
             unit, scale = parser.currency(header), parser.units(header)
             per_share = bool(metric_id and metric_id.startswith('eps_'))
             shares = metric_id in {'weighted_average_shares', 'ordinary_shares', 'treasury_share_count'}
             if shares:
                 unit, scale = 'shares', '1'
+            elif combined_eps:
+                unit, scale = 'UZS', '1'
             elif per_share:
                 scale = '1' if re.search(r'per.?share|на.?акци', header, re.I) else None
             for column, (year, end) in enumerate(cols):
@@ -171,6 +189,8 @@ def extract(pages, *, page_count):
                              'scope': scope, 'currency': unit, 'unit_scale': scale,
                              'kind': kind, 'unit': 'shares' if shares else 'UZS_per_share' if per_share else 'UZS_thousand',
                              'quality': quality, 'reason': reason})
+                if combined_eps:
+                    rows.append({**rows[-1], 'metric_id': 'eps_diluted'})
     notes = any(f['form'] == 'Notes' for f in forms)
     if not notes:
         issues.append('NOTES_MISSING')

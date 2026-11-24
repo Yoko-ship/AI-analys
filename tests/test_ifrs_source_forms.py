@@ -202,3 +202,25 @@ Stage 3 loans  12  15'''
     earning = [r for r in rows if r['metric_id'] == 'earning_assets']
     assert [(r['period_end'],r['raw_value']) for r in earning] == [('2025-12-31','1000'),('2024-12-31','800')]
     assert not any(r['metric_id'] == 'stage3_loans' and r['quality'] == 'valid' for r in rows)
+
+
+def test_infb_2025_combined_basic_and_diluted_eps_has_its_own_currency_and_scale():
+    # Openinfo annual 30701, consolidated profit and loss, PDF p. 9.
+    text = """Консолидированный отчет о прибыли или убытке и прочем совокупном доходе
+За год, закончившийся 31 декабря 2025 года    31 декабря 2024 года
+(в млн УЗС)
+Прибыль за год    144 616    167 712
+Базовая и разводненная прибыль на акцию (в сумах на одну
+акцию)    152    239"""
+    def eps_rows(source):
+        return [r for r in ifrs.extract({9: source}, page_count=12)['rows']
+                if r['metric_id'] in {'eps_basic', 'eps_diluted'}]
+
+    rows = eps_rows(text)
+    assert {(r['metric_id'], r['period_end'], r['raw_value']) for r in rows} == {
+        (metric, period, value) for metric in ('eps_basic', 'eps_diluted')
+        for period, value in [('2025-12-31', '152'), ('2024-12-31', '239')]}
+    assert all((r['page'], r['kind'], r['currency'], r['unit_scale'], r['quality']) ==
+               (9, 'per_share', 'UZS', '1', 'valid') for r in rows)
+    assert not eps_rows(text.replace('в сумах на одну', 'в тысячах сумов на одну'))
+    assert not eps_rows(text.replace('Базовая и разводненная', 'Плановая'))
