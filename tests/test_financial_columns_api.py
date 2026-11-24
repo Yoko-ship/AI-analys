@@ -409,3 +409,22 @@ def test_sqbn_annual_nonpositive_loan_details_conflict_with_a_positive_subtotal(
     assert current['loans_and_leases']['value']=='64935569833'
     assert current['loans_gross']['value'] is None and current['leases_gross']['value'] is None
     assert current['leases_gross']['raw_value']=='-0.03'
+
+
+def test_grbk_opening_bank_details_with_empty_control_totals_do_not_establish_zero_deposits():
+    from financial_columns import derived, observations
+    url = 'https://new-api.openinfo.uz/api/v2/reports/export-excel/?report_type=quarter&org_type=bank&report_id=688&lang=ru'
+    lines = [('7а', 'loans_gross', '833855536'), ('12г', 'other_property_net', '11644436'),
+             ('14', 'total_assets', '0'), ('15', 'demand_deposits', '0'),
+             ('16', 'savings_deposits', '0'), ('17', 'term_deposits', '0'),
+             ('25', 'total_liabilities', '0'), ('31', 'total_equity_liabilities', '0')]
+    rows = [dict(metric_id=field, source_form='BANK_BS', source_code=code, kind='stock',
+                 raw_label=field, unit='UZS_thousand', source_url=url,
+                 previous={'value':value,'raw_value':value,'quality':'valid'},
+                 current={'value':None,'quality':'missing'}) for code,field,value in lines]
+    doc = dict(issuer_id='11', scope='separate', period_end='2022-03-31', quality='valid', currency='UZS',
+               unit_scale='1000', template='bank', source_version='688', rows=rows)
+    result = observations.nsbu([doc])
+    opening = [r for r in result if r['role']=='COMPARATIVE']
+    assert not any(r['metric_id']=='customer_funds' for r in derived.enrich(opening))
+    assert next(r['raw_value'] for r in opening if r['metric_id']=='loans_gross') == '833855536'

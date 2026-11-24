@@ -11,11 +11,19 @@ RECONCILIATION_RELATIVE_LIMIT = Decimal('0.001')
 def _bank_balance_column_issues(rows):
     balance = [r for r in rows if r.get('source_form') == 'BANK_BS']
     issues = {}
+    controls = {'total_assets', 'total_liabilities', 'total_equity_liabilities'}
     for side in ('current', 'previous'):
         amounts = [Decimal(r[side]['value']) for r in balance if r[side].get('value') is not None]
         if amounts and not any(amounts) and any(
                 r.get('metric_id') == 'total_assets' and r[side].get('value') is not None for r in balance):
             issues[side] = 'EMPTY_BANK_BALANCE_COLUMN'
+        elif amounts:
+            totals = {r['metric_id']: Decimal(r[side]['value']) for r in balance
+                      if r.get('metric_id') in controls and r[side].get('value') is not None}
+            if totals.keys() == controls and not any(totals.values()):
+                # Some legacy forms populate a few detail lines in the otherwise
+                # unused column, including positive loans against zero total assets.
+                issues[side] = 'BANK_BALANCE_TOTALS_UNRESOLVED'
     # In some historical forms only the left column contains a balance, and
     # the right column is entirely zero. The layout cannot establish which
     # date the populated column represents.
